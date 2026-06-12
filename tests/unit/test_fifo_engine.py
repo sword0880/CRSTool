@@ -41,6 +41,30 @@ class TestFIFOEngine:
     def setup_method(self):
         self.engine = FIFOEngine()
 
+    def test_one_sale_many_tiny_lots_preserves_rounded_totals(self):
+        buys = [_trade(i, date(2021, 1, i), "TINY", "BUY", 1, "0.005", "0.005")
+                for i in range(1, 11)]
+        sale = _trade(20, date(2021, 2, 1), "TINY", "SELL", 10, "0.005", "0.05")
+        matches = self.engine.calculate(buys + [sale], exchange_rate_func=lambda y, c: D("6.4515"))
+        assert len(matches) == 10
+        assert sum(m.sell_revenue for m in matches) == D("0.05")
+        assert sum(m.buy_cost for m in matches) == D("0.05")
+        assert sum(m.buy_commission_alloc for m in matches) == D("0.05")
+        assert sum(m.sell_commission_alloc for m in matches) == D("0.05")
+        assert sum(m.gain_original for m in matches) == D("-0.10")
+        assert sum(m.gain_cny for m in matches) == D("-0.65")
+        assert all(m.gain_original == m.sell_revenue - m.buy_cost - m.buy_commission_alloc - m.sell_commission_alloc for m in matches)
+
+    def test_one_purchase_sold_three_times_preserves_basis_and_fee(self):
+        trades = [_trade(1, date(2021, 1, 1), "TINY", "BUY", 3, "0.005", "0.01")]
+        trades += [_trade(i + 2, date(2021, 1, i + 2), "TINY", "SELL", 1, 1)
+                   for i in range(3)]
+        matches = self.engine.calculate(trades, exchange_rate_func=_rate)
+        assert [m.buy_cost for m in matches] == [D("0.01"), D("0.00"), D("0.01")]
+        assert sum(m.buy_cost for m in matches) == D("0.02")
+        assert sum(m.buy_commission_alloc for m in matches) == D("0.01")
+        assert sum(m.gain_original for m in matches) == D("2.97")
+
     def test_case_001_full_match(self):
         """CASE-001: Buy 100@100 comm 2, Sell 100@150 comm 2 -> gain 4996"""
         trades = [

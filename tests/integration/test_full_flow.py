@@ -8,7 +8,10 @@ from application.tax_service import TaxCalculationService
 from domain.models.exceptions import TaxAssistantError
 
 
-SAMPLES_DIR = Path(__file__).parent.parent.parent / "samples"
+SAMPLES_DIR = Path(__file__).parent.parent.parent / "samples" / "FUTU"
+pytestmark = pytest.mark.skipif(not (SAMPLES_DIR / "2021股息.xlsx").exists()
+                                or not (SAMPLES_DIR / "2021_717110.xlsx").exists(),
+                                reason="需本地富途样本")
 
 
 class TestFullFlow:

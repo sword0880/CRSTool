@@ -1,2 +1,4 @@
 samples/*.xlsx
 samples/*.pdf
+samples/*.xml
+/samples/

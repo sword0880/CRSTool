@@ -1,7 +1,7 @@
 """ExchangeRateRepository — loads and serves annual average exchange rates."""
 
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Dict
 
@@ -21,10 +21,24 @@ class ExchangeRateRepository:
             raise FileNotFoundError(f"汇率配置文件不存在: {self._config_path}")
         with open(self._config_path, "r", encoding="utf-8") as f:
             raw = json.load(f)
+        if not isinstance(raw, dict):
+            raise ValueError("汇率配置必须按年度列出币种汇率")
         for year_str, currencies in raw.items():
+            if not isinstance(currencies, dict):
+                raise ValueError(f"{year_str} 年汇率配置必须是币种映射")
             self._rates[year_str] = {}
             for currency, rate in currencies.items():
-                self._rates[year_str][currency.upper()] = Decimal(str(rate))
+                try:
+                    value = Decimal(str(rate))
+                except InvalidOperation as exc:
+                    raise ValueError(f"{year_str} 年 {currency} 汇率不是有效数字") from exc
+                if not value.is_finite() or value <= 0:
+                    raise ValueError(f"{year_str} 年 {currency} 汇率必须是有限正数")
+                self._rates[year_str][currency.upper()] = value
+
+    @property
+    def source(self) -> str:
+        return str(self._config_path.resolve())
 
     def get_rate(self, tax_year: int, currency: str) -> Decimal:
         """Get annual average rate for a given year and currency -> CNY."""

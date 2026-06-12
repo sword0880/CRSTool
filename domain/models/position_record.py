@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Optional
 
 
 @dataclass
@@ -18,3 +19,7 @@ class PositionRecord:
     quantity: Decimal
     price: Decimal
     market_value: Decimal
+    broker: str = "FUTU"
+    instrument_id: str = ""
+    # Only populate from a verified historical cost source, never market price.
+    cost_basis_price: Optional[Decimal] = None

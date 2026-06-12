@@ -5,6 +5,7 @@ PDF may contain Chinese or English headers depending on the version.
 """
 
 from decimal import Decimal, InvalidOperation
+import re
 from pathlib import Path
 from typing import List, Dict
 
@@ -49,7 +50,10 @@ def _to_decimal(value, field_name: str) -> Decimal:
                 cleaned = cleaned[len(prefix):].strip()
         # Remove thousand separators
         cleaned = cleaned.replace(",", "").replace(" ", "")
-        return Decimal(cleaned)
+        number = Decimal(cleaned)
+        if not number.is_finite():
+            raise ParseException(f"字段【{field_name}】必须是有限数字")
+        return number
     except InvalidOperation:
         raise ParseException(f"字段【{field_name}】的值 '{value}' 无法转换为数字")
 
@@ -116,7 +120,8 @@ class FutuDividendParser:
         if target_sheet is None:
             raise ParseException("未找到包含'股息'的 Sheet，请确认文件格式")
 
-        df = pd.read_excel(xls, sheet_name=target_sheet, engine="openpyxl")
+        df = pd.read_excel(xls, sheet_name=target_sheet, dtype=str).fillna("")
+        xls.close()
         if df.empty:
             raise ParseException("股息表数据为空")
 
@@ -208,26 +213,42 @@ class FutuDividendParser:
 
     def _build_records(self, df: pd.DataFrame) -> List[DividendIncomeRecord]:
         """Validate and build DividendIncomeRecord list from normalized DataFrame."""
+        missing = REQUIRED_FIELDS - set(df.columns)
+        if missing:
+            raise ParseException(f"股息表缺少字段: {', '.join(sorted(missing))}")
         records: List[DividendIncomeRecord] = []
         for _, row in df.iterrows():
             account_name = str(row.get("account_name", "")).strip()
             if not account_name or account_name in ("", "-", "—", "None"):
                 continue
 
-            # Detect currency: from dedicated column or from dividend value
+            # 币种可能只写在利息或其他收入字段中，不能仅凭股息字段判断。
             currency_raw = row.get("currency", "")
-            if currency_raw and str(currency_raw).strip() not in ("", "-", "None"):
-                currency = _extract_currency(currency_raw)
-            else:
-                # Try to extract from dividend value (e.g. "HKD 7791.14")
-                currency = _extract_currency(row.get("dividend", ""))
+            if str(currency_raw).strip() not in ("", "-", "—", "None") and not re.match(
+                    r"^\s*(USD|HKD|CNY)(?:\s|$)", str(currency_raw), re.IGNORECASE):
+                raise ParseException(f"暂不支持币种: {currency_raw}")
+            sources = [currency_raw, row.get("dividend", ""), row.get("interest", ""), row.get("other_income", "")]
+            found = set()
+            for value in sources:
+                match = re.match(r"^\s*([A-Za-z]{3})(?:\s|$)", str(value), re.IGNORECASE)
+                if match:
+                    code = match.group(1).upper()
+                    if code not in SUPPORTED_CURRENCIES:
+                        raise ParseException(f"暂不支持币种: {code}")
+                    found.add(code)
+            if len(found) != 1:
+                raise ParseException("收入记录缺少明确币种或各金额字段的币种不一致")
+            currency = found.pop()
 
             if currency not in SUPPORTED_CURRENCIES:
                 raise ParseException(f"暂不支持币种: {currency}")
 
             year_raw = row.get("year", 0)
             if year_raw and str(year_raw).strip() not in ("", "-", "None", "0"):
-                year = int(_to_decimal(year_raw, "年份"))
+                year_text = str(year_raw).strip()
+                if not re.fullmatch(r"\d{4}", year_text):
+                    raise ParseException(f"年份格式无效: {year_text}，须为四位整数")
+                year = int(year_text)
             else:
                 year = 0  # will be auto-detected by service
 

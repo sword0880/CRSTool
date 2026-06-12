@@ -1,5 +1,5 @@
 """
-富途海外证券个税助手（中国税务居民版）
+海外证券个税助手（中国税务居民版）
 
 主入口文件 - Streamlit 应用
 """
@@ -8,16 +8,18 @@ import streamlit as st
 
 from application.tax_service import TaxCalculationService
 from domain.models.exceptions import TaxAssistantError
+from application.result_state import input_fingerprint, ibkr_fingerprint, invalidate_result
+from domain.services.reporting import capital_rows, deposit_rows, dividend_rows, pnl_reconciliation_rows
 
 st.set_page_config(
-    page_title="富途海外证券个税助手",
+    page_title="海外证券个税助手",
     page_icon="💰",
     layout="centered",
 )
 
 # --- 免责声明 ---
-st.title("💰 富途海外证券个税助手")
-st.caption("中国税务居民版 · V1.0")
+st.title("💰 海外证券个税助手")
+st.caption("中国税务居民版 · 富途 / IBKR")
 st.warning("⚠️ 本工具仅用于税务辅助测算，不构成税务申报建议。实际申报请以税务机关要求为准。")
 
 st.divider()
@@ -25,53 +27,66 @@ st.divider()
 # --- 步骤 1 & 2：上传文件 ---
 st.subheader("📁 上传数据文件")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("**步骤 1：股息税表**（必填）")
-    dividend_file = st.file_uploader(
-        "上传股息税表（.xlsx 或 .pdf）",
-        type=["xlsx", "pdf"],
-        key="dividend",
-    )
-
-with col2:
-    st.markdown("**步骤 2：年度交易流水**（可选）")
-    trade_file = st.file_uploader(
-        "上传交易流水（如 2021_717110.xlsx）",
-        type=["xlsx"],
-        key="trade",
-    )
+broker = st.selectbox("券商", ["富途", "IBKR"])
+dividend_file = trade_file = opening_file = None
+report_files = []
+opening_zero = False
+source_scope_confirmed = False
+if broker == "富途":
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**步骤 1：股息税表**（必填）")
+        dividend_file = st.file_uploader("上传股息税表（.xlsx 或 .pdf）", type=["xlsx", "pdf"], key="dividend")
+    with col2:
+        st.markdown("**步骤 2：年度交易流水**（必填）")
+        trade_file = st.file_uploader("上传交易流水（如 2021_717110.xlsx）", type=["xlsx"], key="trade")
+else:
+    st.caption("导入 Activity Flex XML。可上传年度报告或连续月份报告，重复成交按记录 ID 去重。")
+    st.info("手机“税务文件”中的股息报告、1042-S 和外汇收入工作表，目前尚未支持导入。下方入口接收网页 Flex 查询导出的 XML。")
+    report_files = st.file_uploader("上传 IBKR 活动报告（可多选）", type=["xml"], accept_multiple_files=True, key="ibkr_reports")
+    opening_file = st.file_uploader("上一年末持仓批次 XML（可选，Open Positions 选 Lots）", type=["xml"], key="ibkr_opening")
+    opening_zero = st.checkbox("我确认所选年度所有导入账户的期初均无持仓", disabled=opening_file is not None)
+    source_scope_confirmed = st.checkbox("我确认导出的报告覆盖目标年度全部相关账户、证券成交和现金明细，且未设置记录过滤")
+    if opening_file is not None:
+        opening_zero = False
+    st.caption("没有期初成本资料且未确认期初无持仓时，仍可生成待复核底稿。CSV、普通 PDF 对账单和自动下载尚未支持。")
+    with st.expander("IBKR 导出要求"):
+        st.markdown("XML 来自网页 Client Portal → Performance & Reports → Flex Queries。手机税务文件或普通活动报表提供的 CSV／PDF 属于其他导出入口，目前不能直接上传；请勿改扩展名。")
+        st.markdown("在 Activity Flex Query 中选择 XML，包含 Trades（Executions）、Cash Transactions 和 Open Positions（Summary）。")
+        st.markdown("需要账户、Conid、成交／现金记录 ID、日期时间、币种、数量、价格、佣金及佣金币种、交易税、乘数、成交金额和净现金。不要设置证券或现金类型过滤。")
+        st.markdown("为核对已实现盈亏，请在 Trades 中增加 Realized PNL（fifoPnlRealized）字段。缺失时仍可测算，但会标明未核对。")
+        st.markdown("期初成本需另一份截至上一年 12 月 31 日的 Open Positions（Lots），包含原始买入时间、批次数量、成本金额及原始交易 ID。")
 
 st.divider()
-
-# --- 步骤 3：开始计算 ---
 st.subheader("🧮 计算")
+year_label = "税款年度（留空使用最新报告年度）" if broker == "IBKR" else "税款年度（留空时从收入文件识别）"
+year_text = st.text_input(year_label, value="", key="tax_year").strip()
+if broker == "IBKR":
+    fingerprint = ibkr_fingerprint(report_files, opening_file, year_text, opening_zero, source_scope_confirmed)
+else:
+    fingerprint = input_fingerprint(dividend_file, trade_file, year_text)
+invalidate_result(st.session_state, fingerprint)
 
-if st.button("开始计算", disabled=(dividend_file is None), use_container_width=True):
-    if dividend_file is None:
-        st.error("请先上传股息税表。")
-    else:
-        try:
-            with st.spinner("正在解析和计算..."):
-                service = TaxCalculationService()
-                result = service.calculate(
-                    dividend_file=dividend_file,
-                    trade_file=trade_file,
-                )
-
-            # Show warnings
-            for w in result.warnings:
-                st.warning(w)
-
-            # Store result in session state
-            st.session_state["result"] = result
-            st.success("✅ 计算完成！")
-
-        except TaxAssistantError as e:
-            st.error(f"❌ {e}")
-        except Exception as e:
-            st.error(f"❌ 发生未知错误: {e}")
+if st.button("开始计算", disabled=fingerprint is None, use_container_width=True):
+    st.session_state.pop("result", None)
+    st.session_state.pop("result_fingerprint", None)
+    try:
+        if year_text and (not year_text.isdigit() or not 2000 <= int(year_text) <= 2100):
+            raise TaxAssistantError("税款年度必须是 2000 至 2100 之间的整数")
+        with st.spinner("正在解析和计算..."):
+            service = TaxCalculationService()
+            year = int(year_text) if year_text else None
+            if broker == "IBKR":
+                result = service.calculate_ibkr(report_files, opening_file, year, opening_zero,
+                                                source_scope_confirmed=source_scope_confirmed)
+            else:
+                result = service.calculate(dividend_file, trade_file, year)
+        st.session_state["result"] = result
+        st.session_state["result_fingerprint"] = fingerprint
+    except TaxAssistantError as e:
+        st.error(f"❌ {e}")
+    except Exception as e:
+        st.error(f"❌ 发生未知错误: {e}")
 
 st.divider()
 
@@ -81,6 +96,26 @@ st.subheader("📊 测算结果")
 result = st.session_state.get("result")
 if result and result.export_bundle:
     summary = result.export_bundle.tax_summary
+    for warning in result.warnings:
+        st.warning(warning)
+    if result.is_complete:
+        st.success("当前导入范围内已按 V1 规则算出金额；税务规则与抵免归属仍需复核。")
+    else:
+        st.error("结果不完整：以下金额仅为已计算部分，不能作为完整年度补税结果。")
+        with st.expander(f"待复核记录（{len(result.issues)} 条）", expanded=True):
+            st.dataframe([{"原因": i.message, "账户": i.account, "证券": i.symbol,
+                           "日期": str(i.date or ""), "来源表": i.source_sheet, "原始行": i.source_row,
+                           "数量": str(i.quantity), "来源文件": i.source_file, "记录ID": i.record_id} for i in result.issues], hide_index=True)
+
+    if result.pnl_reconciliations:
+        rows = result.pnl_reconciliations
+        passed = sum(r.status == "一致" for r in rows)
+        eligible = sum(r.status != "未支持资产" for r in rows)
+        excluded = len(rows) - eligible
+        suffix = f"，另有 {excluded} 笔未支持资产" if excluded else ""
+        with st.expander(f"IBKR 已实现盈亏对账（{passed}/{eligible} 笔一致{suffix}）", expanded=passed != eligible or excluded > 0):
+            st.caption("只将股票／ETF 卖出计入一致率；其他资产单独列示。原币收益容差为 0.02，尚未核对全部现金及账户收益。")
+            st.dataframe(pnl_reconciliation_rows(rows), hide_index=True)
 
     col_a, col_b, col_c = st.columns(3)
     with col_a:
@@ -94,35 +129,22 @@ if result and result.export_bundle:
         st.metric("资本利得税额（¥）", f"{summary.capital_gain_tax:,.2f}")
 
     st.divider()
-    st.subheader("💰 预计补税")
+    st.subheader("💰 预计补税" if result.is_complete else "💰 已计算部分补税")
     st.metric(
-        "预计补税金额",
+        "预计补税金额" if result.is_complete else "部分金额（不能代表完整年度）",
         f"¥ {summary.total_supplement_tax:,.2f}",
         delta=None,
     )
 
-    # Capital gain summary by symbol
+    if result.export_bundle.deposits:
+        st.subheader("💵 入金汇总（按账户、币种）")
+        st.dataframe(deposit_rows(result.export_bundle.deposits), use_container_width=True, hide_index=True)
+    if result.export_bundle.dividends_received:
+        st.subheader("🏷️ 分红到账汇总（按账户、证券、币种）")
+        st.dataframe(dividend_rows(result.export_bundle.dividends_received), use_container_width=True, hide_index=True)
     if result.export_bundle.match_records:
-        from collections import defaultdict
-        symbol_gain = defaultdict(lambda: {"original": 0, "cny": 0, "currency": "", "count": 0})
-        for m in result.export_bundle.match_records:
-            symbol_gain[m.symbol]["original"] += float(m.gain_original)
-            symbol_gain[m.symbol]["cny"] += float(m.gain_cny)
-            symbol_gain[m.symbol]["currency"] = m.currency
-            symbol_gain[m.symbol]["count"] += 1
-
-        st.subheader("📈 资本利得汇总（按股票）")
-        summary_rows = []
-        for sym in sorted(symbol_gain.keys(), key=lambda s: symbol_gain[s]["cny"], reverse=True):
-            g = symbol_gain[sym]
-            summary_rows.append({
-                "股票代码": sym,
-                "交易笔数": g["count"],
-                "币种": g["currency"],
-                "收益（原币）": round(g["original"], 2),
-                "收益（人民币）": round(g["cny"], 2),
-            })
-        st.dataframe(summary_rows, use_container_width=True, hide_index=True)
+        st.subheader("📈 资本利得汇总")
+        st.dataframe(capital_rows(result.export_bundle.match_records), use_container_width=True, hide_index=True)
 
     # Dividend details
     if result.export_bundle.dividend_details:
@@ -151,14 +173,17 @@ st.subheader("📥 导出")
 
 report_bytes = getattr(result, 'report_bytes', None) if result else None
 if report_bytes:
+    tax_year = getattr(result.export_bundle, 'tax_year', '') if result and result.export_bundle else ''
+    prefix = "Tax_Report" if result.is_complete else "Partial_Review"
+    file_name = f"{prefix}_{tax_year}.xlsx"
     st.download_button(
-        label="📥 下载税务报告（Tax_Report.xlsx）",
+        label=f"📥 下载{'税务报告' if result.is_complete else '待复核底稿'}（{file_name}）",
         data=report_bytes,
-        file_name="Tax_Report.xlsx",
+        file_name=file_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
-    st.caption("包含 3 个 Sheet：税务汇总、资本利得汇总（按股票）、资本利得明细")
+    st.caption("包含计算说明、税务汇总，以及有数据的明细和待复核记录；原币金额按币种分别汇总。")
 else:
     st.info("计算完成后可在此导出 Excel 报告。")
 

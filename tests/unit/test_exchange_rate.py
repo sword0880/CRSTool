@@ -1,6 +1,7 @@
 """Unit tests for exchange rate — per TEST_SPEC CASE-201 to CASE-203."""
 
 from decimal import Decimal
+import json
 import pytest
 
 from infrastructure.config.exchange_rate_repo import ExchangeRateRepository
@@ -38,3 +39,11 @@ class TestExchangeRate:
     def test_missing_currency_raises(self):
         with pytest.raises(UnsupportedCurrencyException):
             self.repo.get_rate(2021, "SGD")
+
+
+@pytest.mark.parametrize("bad", ["NaN", "Infinity", "-1", "0", "abc"])
+def test_invalid_config_rate_is_rejected(tmp_path, bad):
+    config = tmp_path / "rates.json"
+    config.write_text(json.dumps({"2025": {"USD": bad}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="汇率"):
+        ExchangeRateRepository(config)

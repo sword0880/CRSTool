@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import Optional
 
 
 @dataclass
@@ -14,6 +15,9 @@ class Lot:
     commission_remaining: Decimal
     currency: str
     source_row: int
+    source_file: str = ""
+    record_id: str = ""
+    cost_remaining: Optional[Decimal] = None
 
 
 @dataclass
@@ -30,3 +34,14 @@ class MatchRecord:
     currency: str
     gain_original: Decimal
     gain_cny: Decimal
+    broker: str = "FUTU"
+    account_no: str = ""
+    account_name: str = ""
+    market: str = ""
+    instrument_id: str = ""
+    buy_source_row: int = 0
+    sell_source_row: int = 0
+    buy_source_file: str = ""
+    sell_source_file: str = ""
+    buy_record_id: str = ""
+    sell_record_id: str = ""

@@ -10,6 +10,7 @@ from domain.models.tax_summary import TaxSummary
 
 RATE_20 = Decimal("0.20")
 ZERO = Decimal("0")
+TAX_POLICY_VERSION = "V1-2026-09"
 
 
 class TaxEngine:
@@ -33,6 +34,8 @@ class TaxEngine:
         dividend_cny = ZERO
         interest_cny = ZERO
         for d in dividends:
+            if d.year != tax_year:
+                continue
             rate = exchange_rate_func(tax_year, d.currency)
             dividend_cny += (d.dividend * rate).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -60,7 +63,7 @@ class TaxEngine:
                     Decimal("0.01"), rounding=ROUND_HALF_UP
                 )
 
-        creditable = min(foreign_paid, div_int_tax)
+        creditable = max(min(foreign_paid, div_int_tax), ZERO)
         summary.foreign_tax_credit = creditable
 
         div_int_supplement = max(div_int_tax - creditable, ZERO)
@@ -69,6 +72,8 @@ class TaxEngine:
         # --- Capital Gains ---
         cap_gain_cny = ZERO
         for m in matches:
+            if m.sell_date.year != tax_year:
+                continue
             cap_gain_cny += m.gain_cny
         summary.capital_gain_cny = cap_gain_cny
 

@@ -1,6 +1,6 @@
-# 富途海外证券个税助手（中国税务居民版）
+# 海外证券个税助手（中国税务居民版）
 
-导入富途证券导出的 Excel 文件，自动计算年度境外所得个人所得税辅助测算结果。
+支持富途 Excel/PDF 和 IBKR Activity Flex XML，在本地计算年度境外所得个人所得税辅助测算结果。
 
 ## 环境要求
 
@@ -23,11 +23,53 @@ streamlit run app.py
 
 ## 使用方法
 
+先选择券商。以下为富途操作；IBKR 操作见下方专节。
+
 1. 上传**股息税表**（如 `2021股息.xlsx`）
 2. 上传**年度交易流水**（如 `2021_717110.xlsx`）
 3. 点击「开始计算」
 4. 查看测算结果
-5. 导出 `Tax_Summary.xlsx` 和 `Capital_Gain_Detail.xlsx`
+5. 导出单份报告：当前支持范围内无待复核项时为 `Tax_Report_<年度>.xlsx`，有数据缺口时为 `Partial_Review_<年度>.xlsx`
+
+页面中的税款年度可以留空，由收入表或文件名识别；无法识别或含多个年度时需手动指定。更换文件或年度会清除旧结果。
+
+报告包含计算说明、税务汇总、收入明细，以及有数据的交易、入金、分红和待复核记录。提示与不完整状态会一并写入 Excel。
+
+**期初持仓表中的价格不再自动作为历史买入成本。** 成本缺失、未支持的基金／转仓／公司行动等情况会生成待复核项。页面展示的是已计算部分，不能将部分金额视为完整年度结果。后续需要补充可靠历史成本及事件处理能力。
+
+## 优化实施与 IBKR 规划
+
+详见 [项目优化建议与 IBKR 接入规划](docs/项目优化建议与IBKR接入规划.md)。
+
+富途仍上传现有的股息税表和交易流水，无需寻找或制作“数据包”。程序内部由富途适配器产生 `BrokerImportResult`，再交给统一计算服务。IBKR Activity Flex XML 解析器已实现；已完成三份真实导出文件的部分成交与现金验收，完整年度验收及自动下载尚未完成。
+
+## IBKR 导入
+
+1. 券商选择 **IBKR**，上传年度或多个连续月份的 Activity Flex XML。
+2. 如有期初持仓，另外上传上一年 12 月 31 日的 Open Positions LOT 批次报告；确实无期初持仓时可勾选确认。
+3. 核对导出未按账户、证券或现金类型过滤，并确认报告范围；未确认时结果列为待复核。
+4. 选择年度并计算。资料不完整时下载待复核底稿，原始现金事件与来源文件指纹一并保留。
+
+如需逐笔核对本系统收益与券商收益，请在 Trades / Executions 中导出 Realized PNL（`fifoPnlRealized`）。页面和 Excel 会显示每笔差额，差异不会自动覆盖测算金额。
+
+完整导出字段、支持范围及限制见 [IBKR 导入说明](docs/IBKR_IMPORT_GUIDE.md)。可使用 [合成 XML 样例](tests/fixtures/ibkr_activity.xml) 演示；该文件不含真实账户数据；另有 [盈亏对账样例](tests/fixtures/ibkr_reconciliation.xml)。
+
+首版支持普通多头股票／ETF、股息、收到的利息、预扣税及退回；衍生品、转仓、公司行动等仍需复核。CSV、PDF 对账单与 Flex 自动下载尚未支持。
+
+## 测试
+
+```bash
+pip install -r requirements-dev.txt
+python -B -m pytest -q -p no:cacheprovider
+```
+
+现有样例测试依赖本地 `samples` 中的文件；新增边界测试使用程序生成的合成数据，可独立运行：
+
+```bash
+python -B -m pytest tests/unit/test_accuracy_boundaries.py -q -p no:cacheprovider
+```
+
+新增测试覆盖账户及币种隔离、年度筛选、成交顺序、缺失成本、扣税冲正、导出完整性和 Streamlit 页面状态。
 
 ## 数据安全
 
@@ -64,7 +106,7 @@ CRS/
 │
 ├── application/                    # 应用服务层
 │   ├── __init__.py
-│   └── tax_service.py              # 税务计算编排服务（待实现）
+│   └── tax_service.py              # 税务计算编排服务
 │
 ├── domain/                         # 领域模型与核心计算
 │   ├── __init__.py
@@ -78,19 +120,23 @@ CRS/
 │   │   └── tax_summary.py          # TaxSummary
 │   └── services/                   # 领域服务
 │       ├── __init__.py
-│       ├── fifo_engine.py          # FIFO 成本匹配引擎
+│       ├── engine.py               # FIFO 成本匹配引擎
 │       └── tax_engine.py           # 个税测算引擎
 │
 ├── infrastructure/                 # 基础设施层
 │   ├── __init__.py
-│   ├── parsers/                    # Excel 解析器
+│   ├── adapters/                   # 券商文件到标准化导入结果
+│   │   ├── futu_adapter.py         # 富途现有文件适配
+│   │   └── ibkr_adapter.py         # IBKR Activity Flex XML
+│   ├── parsers/                    # Excel/PDF 解析器
 │   │   ├── __init__.py
 │   │   ├── dividend_parser.py      # 股息税表解析
 │   │   └── trade_parser.py         # 交易流水解析
 │   ├── exporters/                  # Excel 导出器
 │   │   ├── __init__.py
-│   │   ├── summary_exporter.py     # Tax_Summary.xlsx
-│   │   └── gain_exporter.py        # Capital_Gain_Detail.xlsx
+│   │   ├── excel_exporter.py       # 当前主流程：单份报告与待复核底稿
+│   │   ├── summary_exporter.py     # 旧版独立汇总导出器
+│   │   └── gain_exporter.py        # 旧版独立明细导出器
 │   └── config/                     # 配置加载
 │       ├── __init__.py
 │       └── exchange_rate.json      # 年度汇率配置

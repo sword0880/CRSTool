@@ -6,6 +6,8 @@ from typing import List
 
 from domain.models.dividend_income import DividendIncomeRecord
 from domain.models.match_record import MatchRecord
+from domain.models.deposit_record import DepositRecord
+from domain.models.dividend_received import DividendReceivedRecord
 
 
 @dataclass
@@ -27,3 +29,5 @@ class ExportBundle:
     match_records: List[MatchRecord]
     tax_year: int
     dividend_details: List[DividendIncomeRecord]
+    deposits: List[DepositRecord] = field(default_factory=list)
+    dividends_received: List[DividendReceivedRecord] = field(default_factory=list)
