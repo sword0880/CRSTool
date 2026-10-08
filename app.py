@@ -4,11 +4,16 @@
 主入口文件 - Streamlit 应用
 """
 
+from datetime import date
+from io import BytesIO
+
 import streamlit as st
 
 from application.tax_service import TaxCalculationService
 from domain.models.exceptions import TaxAssistantError
 from application.result_state import input_fingerprint, ibkr_fingerprint, invalidate_result
+from infrastructure.adapters.ibkr_flex_client import FlexDownloadError, download_flex_report
+from infrastructure.config.ibkr_flex_repo import load_ibkr_flex_config
 from domain.services.reporting import capital_rows, deposit_rows, dividend_rows, pnl_reconciliation_rows
 
 st.set_page_config(
@@ -49,7 +54,7 @@ else:
     source_scope_confirmed = st.checkbox("我确认导出的报告覆盖目标年度全部相关账户、证券成交和现金明细，且未设置记录过滤")
     if opening_file is not None:
         opening_zero = False
-    st.caption("没有期初成本资料且未确认期初无持仓时，仍可生成待复核底稿。CSV、普通 PDF 对账单和自动下载尚未支持。")
+    st.caption("没有期初成本资料且未确认期初无持仓时，仍可生成待复核底稿。可上传或自动获取 Flex XML；CSV 和普通 PDF 对账单暂不支持。")
     with st.expander("IBKR 导出要求"):
         st.markdown("XML 来自网页 Client Portal → Performance & Reports → Flex Queries。手机税务文件或普通活动报表提供的 CSV／PDF 属于其他导出入口，目前不能直接上传；请勿改扩展名。")
         st.markdown("在 Activity Flex Query 中选择 XML，包含 Trades（Executions）、Cash Transactions 和 Open Positions（Summary）。")
@@ -62,6 +67,61 @@ st.subheader("🧮 计算")
 year_label = "税款年度（留空使用最新报告年度）" if broker == "IBKR" else "税款年度（留空时从收入文件识别）"
 year_text = st.text_input(year_label, value="", key="tax_year").strip()
 if broker == "IBKR":
+    with st.expander("从 IBKR 自动获取 Activity Flex XML"):
+        st.caption("使用 Client Portal 中的数字查询 ID 和新生成的 Flex Web Service 令牌。令牌仅用于本次请求。")
+        try:
+            flex_config = load_ibkr_flex_config()
+        except (ValueError, OSError) as exc:
+            st.warning(f"IBKR Flex 配置无效：{exc}")
+            flex_config = {"annual_query_id": "", "opening_lots_query_id": ""}
+        # 表单提交后保留本次会话的输入，方便按不同年度重复查询。
+        with st.form("ibkr_flex_download", clear_on_submit=False):
+            flex_query_id = st.text_input("年度 Activity Flex 查询 ID", value=flex_config["annual_query_id"])
+            flex_token = st.text_input("Flex Web Service 服务令牌", type="password",
+                                       key="ibkr_flex_token")
+            default_year = int(year_text) if year_text.isdigit() and 2000 <= int(year_text) <= 2100 else date.today().year - 1
+            flex_from = st.date_input("报告开始日期", value=date(default_year, 1, 1))
+            flex_to = st.date_input("报告结束日期", value=date(default_year, 12, 31))
+            opening_query_id = st.text_input("期初 LOT 查询 ID（可留空）", value=flex_config["opening_lots_query_id"])
+            submitted = st.form_submit_button("生成并获取 XML", use_container_width=True)
+        if submitted:
+            try:
+                with st.spinner("正在从 IBKR 生成并下载报告…"):
+                    report_xml = download_flex_report(flex_query_id, flex_token, flex_from, flex_to)
+                    opening_xml = None
+                    if opening_query_id.strip():
+                        # 期初 LOT 固定查询报告开始日期前一日，防止混入本期交易。
+                        from datetime import timedelta
+                        opening_day = flex_from - timedelta(days=1)
+                        import time
+                        time.sleep(1.1)
+                        opening_xml = download_flex_report(opening_query_id, flex_token, opening_day, opening_day)
+                # 两份报告全部成功后才替换会话中的文件，避免混合新旧批次。
+                st.session_state["ibkr_flex_report_xml"] = report_xml
+                st.session_state["ibkr_flex_report_name"] = f"IBKR_{flex_from:%Y%m%d}_{flex_to:%Y%m%d}.xml"
+                st.session_state["ibkr_flex_opening_xml"] = opening_xml
+                st.success("IBKR XML 已获取，可直接点击“开始计算”。")
+            except FlexDownloadError as exc:
+                st.error(str(exc))
+        if st.session_state.get("ibkr_flex_report_xml"):
+            st.download_button("保存年度 XML 备份", st.session_state["ibkr_flex_report_xml"],
+                               file_name=st.session_state["ibkr_flex_report_name"], mime="application/xml")
+            if st.session_state.get("ibkr_flex_opening_xml"):
+                st.download_button("保存期初 LOT XML 备份", st.session_state["ibkr_flex_opening_xml"],
+                                   file_name="IBKR_Opening_Lots.xml", mime="application/xml")
+            if st.button("清除已获取的 IBKR XML"):
+                for key in ("ibkr_flex_report_xml", "ibkr_flex_report_name", "ibkr_flex_opening_xml"):
+                    st.session_state.pop(key, None)
+                st.rerun()
+    # 手动上传优先；自动获取的 XML 使用与上传控件相同的文件接口。
+    if not report_files and st.session_state.get("ibkr_flex_report_xml"):
+        report = BytesIO(st.session_state["ibkr_flex_report_xml"])
+        report.name = st.session_state["ibkr_flex_report_name"]
+        report_files = [report]
+        if opening_file is None and st.session_state.get("ibkr_flex_opening_xml"):
+            opening_file = BytesIO(st.session_state["ibkr_flex_opening_xml"])
+            opening_file.name = "IBKR_Opening_Lots.xml"
+            opening_zero = False
     fingerprint = ibkr_fingerprint(report_files, opening_file, year_text, opening_zero, source_scope_confirmed)
 else:
     fingerprint = input_fingerprint(dividend_file, trade_file, year_text)
@@ -189,4 +249,4 @@ else:
 
 # --- 底部信息 ---
 st.divider()
-st.caption("所有数据仅在本地处理，不上传任何服务器，不联网。")
+st.caption("手动上传的文件在本地处理；使用 IBKR 自动获取时，应用会向 IBKR Flex Web Service 发送查询 ID、日期和服务令牌。")

@@ -45,7 +45,15 @@ IBKR 的税务文件、普通活动报表和 Flex 查询是不同入口。手机
 
 ## 2. 在 IBKR 导出什么
 
-官网入口：[IBKR Client Portal](https://portal.interactivebrokers.com/en/trading/client-portal.php?menu=B)。在网页端登录后，进入 **Performance & Reports → Flex Queries** 创建 Activity Flex Query。
+官网入口：[IBKR Client Portal](https://portal.interactivebrokers.com/en/trading/client-portal.php?menu=B)。在网页端登录后，进入 **业绩与报表 → 自主查询**（英文界面为 **Performance & Reports → Flex Queries**），创建“活动自主查询”（Activity Flex Query）。手机“下载税表”是另一个入口，不用于导出本项目所需的历史 Activity Flex XML。
+
+### 2.1 查询历史年度（例如 2025 年）
+
+手机“下载税表”或 Activity Flex 模板中的“过去 365 个日历日／最近 N 个日历日”是相对当前日期的期间，不能在 2026 年 10 月取得 2025 年全年。IBKR 当前 [Activity Flex 模板说明](https://www.ibkrguides.com/orgportal/performanceandstatements/activityflex.htm)列出的期间也是相对日期；不要把“过去 365 天”的文件当作 2025 年年度报告。
+
+需要 **Activity Flex XML** 时，先在网页 Client Portal 建立或复用包含下述字段的 XML 模板，然后在 [Flex Web Service 设置](https://www.ibkrguides.com/clientportal/performanceandstatements/flex-web-service.htm)启用服务。IBKR 官方 [SendRequest 文档](https://www.interactivebrokers.com/docs/web-api/flex-web-service/using-flex-web-service/generate-the-report)允许同时传入 `fd` 和 `td` 覆盖模板的相对日期：2025 全年使用 `fd=20250101`、`td=20251231`；2025 年的期初 LOT 快照使用另一份 Open Positions / Lots 模板，日期为 `fd=20241231`、`td=20241231`。发起请求时 `q` 填模板的数字 **Query ID**，不是模板名称；请求成功会返回 **ReferenceCode**。随后按 [GetStatement 文档](https://www.interactivebrokers.com/docs/web-api/api-reference/get-statement)下载 XML，此时 `q` 改填 ReferenceCode。访问令牌和原始 XML 含敏感账户信息，不要发到聊天或代码仓库。
+
+网页 **Performance & Reports → Statements** 另有“Annually”或“Custom Date Range”，可用来查看 2025 年普通活动报表；其 PDF／CSV／HTML 并不是本项目当前解析器所需的 Activity Flex XML。参见 IBKR 的[普通报表运行说明](https://www.ibkrguides.com/clientportal/performanceandstatements/runstatement.htm)。
 
 使用 **Activity Flex Query**，输出选择 **XML**。不要上传普通 PDF 对账单、Trade Confirmation 报告、Flex Web Service 请求回执或手工转换的 CSV。
 
