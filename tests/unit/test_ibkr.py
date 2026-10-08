@@ -17,6 +17,8 @@ from domain.models.exceptions import ParseException, TaxAssistantError, Inventor
 
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "ibkr_activity.xml"
+# 原有夹具未包含完整现金余额资料，数据完整性与全部对账完成分别断言。
+# 全部对账状态回归见 test_architecture_boundaries.py。
 
 
 def trade(id="T1", side="BUY", **overrides):
@@ -92,7 +94,7 @@ def opening_file(**overrides):
 
 def test_complete_activity_exact_amounts_and_audit_sheets():
     r = service().calculate_ibkr([example()], opening_zero=True)
-    assert r.is_complete
+    assert r.data_complete
     s = r.export_bundle.tax_summary
     assert s.capital_gain_cny == 496 and s.dividend_income_cny == 100 and s.interest_income_cny == 20
     assert s.foreign_tax_credit == 6 and s.total_supplement_tax == D("117.20")
@@ -108,12 +110,12 @@ def test_complete_activity_exact_amounts_and_audit_sheets():
 def test_checked_in_fixture_matches_builder_and_no_income_is_allowed():
     assert FIXTURE.read_bytes() == example().getvalue()
     r = service().calculate_ibkr([xml_file(trades=[], cash_rows=[], positions=[])], opening_zero=True)
-    assert r.is_complete and r.export_bundle.tax_summary.total_supplement_tax == 0
+    assert r.data_complete and r.export_bundle.tax_summary.total_supplement_tax == 0
 
 
 def test_ibkr_scope_requires_explicit_confirmation_and_is_recorded_in_report():
     unconfirmed = service().calculate_ibkr([example()], opening_zero=True, source_scope_confirmed=False)
-    assert not unconfirmed.is_complete
+    assert not unconfirmed.data_complete
     assert any(i.code == "SOURCE_SCOPE_UNCONFIRMED" for i in unconfirmed.issues)
     wb = load_workbook(BytesIO(unconfirmed.report_bytes), read_only=True)
     notes = dict(wb["计算说明"].values)
@@ -133,7 +135,7 @@ def test_missing_cash_section_is_not_zero_income():
 def test_reports_deduplicate_by_account_and_record_id():
     f = example()
     r = service().calculate_ibkr([f, f], opening_zero=True)
-    assert r.is_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
+    assert r.data_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
     assert any("重复" in w for w in r.warnings)
 
 
@@ -148,7 +150,7 @@ def test_summary_and_closed_lot_not_counted_as_executions():
     f = xml_file(trades=[trade(), trade("T2", "SELL", dateTime="20250103;110000", tradeDate="20250103"),
                         trade("T3", levelOfDetail="CLOSED_LOT"), trade("T4", levelOfDetail="ORDER")], cash_rows=[], positions=[])
     r = service().calculate_ibkr([f], opening_zero=True)
-    assert r.is_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
+    assert r.data_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
     f = xml_file(trades=[trade(levelOfDetail="ORDER")], cash_rows=[], positions=[])
     assert any(i.code == "MISSING_EXECUTIONS" for i in service().calculate_ibkr([f], opening_zero=True).issues)
 
@@ -158,14 +160,14 @@ def test_summary_and_closed_lot_not_counted_as_executions():
 def test_unsupported_trade_blocks_affected_instrument(changes):
     f = xml_file(trades=[trade(**changes), trade("T2", "SELL", dateTime="20250103;110000", tradeDate="20250103")], cash_rows=[], positions=[])
     r = service().calculate_ibkr([f], opening_zero=True)
-    assert not r.is_complete and not r.export_bundle.match_records
+    assert not r.data_complete and not r.export_bundle.match_records
 
 
 def test_opening_lots_use_original_dates_and_total_cost_not_market_value():
     sell = trade("T2", "SELL")
     f = xml_file(trades=[sell], cash_rows=[], positions=[])
     r = service().calculate_ibkr([f], opening_file=opening_file(markPrice="9999"))
-    assert r.is_complete
+    assert r.data_complete
     assert r.export_bundle.tax_summary.capital_gain_cny == 498
     assert [m.buy_cost for m in r.export_bundle.match_records] == [400, 600]
     assert [m.buy_date.year for m in r.export_bundle.match_records] == [2023, 2024]
@@ -174,7 +176,7 @@ def test_opening_lots_use_original_dates_and_total_cost_not_market_value():
 
 def test_no_opening_source_does_not_claim_complete():
     r = service().calculate_ibkr([example()])
-    assert not r.is_complete and any(i.code == "OPENING_UNCONFIRMED" for i in r.issues)
+    assert not r.data_complete and any(i.code == "OPENING_UNCONFIRMED" for i in r.issues)
 
 
 def test_opening_snapshot_requires_lots_correct_year_and_nonoverlap():
@@ -202,14 +204,14 @@ def test_contiguous_reports_cover_year_without_double_counting():
     f2 = xml_file(trades=[trade("T2", "SELL", dateTime="20250701;100000", tradeDate="20250701")], cash_rows=[],
                   positions=[], start="20250701", name="H2.xml")
     r = service().calculate_ibkr([f2, f1], opening_zero=True)
-    assert r.is_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
+    assert r.data_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
 
 
 def test_multi_account_same_ids_do_not_merge_inventory_or_income():
     a = example()
     b = BytesIO(a.getvalue().replace(b"UTEST001", b"UTEST002")); b.name = "account2.xml"
     r = service().calculate_ibkr([a, b], opening_zero=True)
-    assert r.is_complete and r.export_bundle.tax_summary.capital_gain_cny == 992
+    assert r.data_complete and r.export_bundle.tax_summary.capital_gain_cny == 992
     assert len(r.export_bundle.match_records) == 2
 
 
@@ -235,7 +237,7 @@ def test_dividend_accrual_not_counted_and_unknown_cash_retained():
 def test_negative_interest_expense_not_net_against_received_interest():
     f = xml_file(trades=[], cash_rows=[cash("I1", "Broker Interest Received", "20"), cash("I2", "Broker Interest Paid", "-50")], positions=[])
     r = service().calculate_ibkr([f], opening_zero=True)
-    assert r.export_bundle.tax_summary.interest_income_cny == 20 and not r.is_complete
+    assert r.export_bundle.tax_summary.interest_income_cny == 20 and not r.data_complete
 
 
 def test_date_only_cash_supported_and_reversal_reduces_income():
@@ -254,7 +256,7 @@ def test_cash_report_original_currency_is_reconciled_to_detail():
                  extra=[("CashReport", "CashReportCurrency", {**summary, "dividends": "99"})])
     result = service().calculate_ibkr([f], opening_zero=True)
     assert any(i.code == "CASH_REPORT_MISMATCH" for i in result.issues)
-    assert not result.is_complete
+    assert not result.data_complete
 
 
 def test_cash_report_missing_field_or_currency_is_not_silent():
@@ -324,26 +326,41 @@ def test_streamlit_ibkr_upload_calculate_and_broker_switch():
     from streamlit.testing.v1 import AppTest
     files = {"dividend": None, "trade": None, "ibkr_reports": [example()], "ibkr_opening": None}
     with patch("streamlit.file_uploader", side_effect=lambda *a, **kw: files[kw["key"]]):
-        at = AppTest.from_file("app.py", default_timeout=30).run()
+        at = AppTest.from_file("../../app.py", default_timeout=30).run()
         at.selectbox[0].select("IBKR").run()
         at.checkbox[0].check().run()
         at.checkbox[1].check().run()
-        at.button[0].click().run()
+        next(button for button in at.button if button.label == "开始计算").click().run()
         assert not at.exception and len(at.metric) == 7
         assert len(at.get("download_button")) == 1
         assert not at.error
         at.checkbox[0].uncheck().run()
         assert not at.metric and not at.get("download_button")
-        at.button[0].click().run()
+        next(button for button in at.button if button.label == "开始计算").click().run()
         assert any("不完整" in e.value for e in at.error)
         at.selectbox[0].select("富途").run()
         assert not at.exception and not at.metric and not at.get("download_button")
 
 
+def test_ibkr_ui_opening_zero_ignores_uploaded_summary():
+    from streamlit.testing.v1 import AppTest
+
+    files = {"dividend": None, "trade": None, "ibkr_reports": [example()],
+             "ibkr_opening": example()}
+    with patch("streamlit.file_uploader", side_effect=lambda *a, **kw: files[kw["key"]]):
+        at = AppTest.from_file("../../app.py", default_timeout=30).run()
+        at.selectbox[0].select("IBKR").run()
+        at.checkbox[0].check().run()
+        at.checkbox[1].check().run()
+        next(button for button in at.button if button.label == "开始计算").click().run()
+        assert not at.exception
+        assert not any("期初成本需 LOT" in error.value for error in at.error)
+
+
 def test_semantically_identical_decimal_values_deduplicate():
     f = xml_file(trades=[trade(tradePrice="100.000", quantity="10.0")], cash_rows=[], positions=[])
     r = service().calculate_ibkr([example(), f], opening_zero=True)
-    assert r.is_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
+    assert r.data_complete and r.export_bundle.tax_summary.capital_gain_cny == 496
 
 
 def test_cash_summary_missing_id_and_report_date_are_checked():
@@ -370,11 +387,11 @@ def test_snapshot_conflict_and_opening_lot_summary_mismatch():
 def test_unimplemented_fx_and_corporate_action_are_visible():
     f = xml_file(trades=[], cash_rows=[], positions=[], extra=[("FxTransactions", "FxTransaction", {"realizedPL": "123"})])
     r = service().calculate_ibkr([f], opening_zero=True)
-    assert not r.is_complete and any(i.code == "UNSUPPORTED_SECTION" for i in r.issues)
+    assert not r.data_complete and any(i.code == "UNSUPPORTED_SECTION" for i in r.issues)
     f = xml_file(trades=[trade(), trade("T2", "SELL", dateTime="20250103;110000", tradeDate="20250103")],
                  cash_rows=[], positions=[], extra=[("CorporateActions", "CorporateAction", {"accountId": "UTEST001", "conid": "111", "symbol": "RENAMED"})])
     r = service().calculate_ibkr([f], opening_zero=True)
-    assert not r.export_bundle.match_records and not r.is_complete
+    assert not r.export_bundle.match_records and not r.data_complete
 
 
 def test_ibkr_fx_rate_to_base_is_not_used_as_cny_rate():
@@ -389,7 +406,7 @@ def test_file_size_limit_and_namespace(monkeypatch):
         with pytest.raises(ParseException, match="25 MB"):
             IbkrReportAdapter().parse_files([example()])
     f = BytesIO(example().getvalue().replace(b'<FlexQueryResponse ', b'<FlexQueryResponse xmlns="urn:test" ')); f.name = "namespaced.xml"
-    assert service().calculate_ibkr([f], opening_zero=True).is_complete
+    assert service().calculate_ibkr([f], opening_zero=True).data_complete
 
 
 def test_unsupported_model_and_wrong_record_period():
@@ -403,15 +420,15 @@ def test_ibkr_ui_opening_file_and_error_clear_previous_result():
     from streamlit.testing.v1 import AppTest
     files = {"dividend": None, "trade": None, "ibkr_reports": [xml_file(trades=[trade("T2", "SELL")], cash_rows=[], positions=[])], "ibkr_opening": opening_file()}
     with patch("streamlit.file_uploader", side_effect=lambda *a, **kw: files[kw["key"]]):
-        at = AppTest.from_file("app.py", default_timeout=30).run()
+        at = AppTest.from_file("../../app.py", default_timeout=30).run()
         at.selectbox[0].select("IBKR").run()
-        assert at.checkbox[0].disabled
+        assert not at.checkbox[0].disabled
         at.checkbox[1].check().run()
-        at.button[0].click().run()
+        next(button for button in at.button if button.label == "开始计算").click().run()
         assert not at.exception and not at.error and at.metric
         files["ibkr_reports"] = [BytesIO(b"bad")]
         files["ibkr_reports"][0].name = "bad.xml"
         at.run()
         assert not at.metric
-        at.button[0].click().run()
+        next(button for button in at.button if button.label == "开始计算").click().run()
         assert at.error and not at.get("download_button")

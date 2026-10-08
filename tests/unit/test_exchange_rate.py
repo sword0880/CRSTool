@@ -47,3 +47,29 @@ def test_invalid_config_rate_is_rejected(tmp_path, bad):
     config.write_text(json.dumps({"2025": {"USD": bad}}), encoding="utf-8")
     with pytest.raises(ValueError, match="汇率"):
         ExchangeRateRepository(config)
+
+
+def test_provisional_rate_matches_observations():
+    """临时汇率必须与存档日报价的算术平均一致。"""
+    from pathlib import Path
+    from decimal import ROUND_HALF_UP
+    observations = json.loads((Path(__file__).parents[2] / "config" /
+                               "exchange_rate_observations_2026.json").read_text(encoding="utf-8"))
+    repo = ExchangeRateRepository()
+    assert len(observations) == len({r["date"] for r in observations}) == 182
+    assert min(r["date"] for r in observations) == "2026-01-05"
+    assert max(r["date"] for r in observations) == "2026-10-08"
+    for currency in ("USD", "HKD"):
+        mean = sum(D(r[currency]) for r in observations) / len(observations)
+        assert repo.get_rate(2026, currency) == mean.quantize(D("0.000001"), rounding=ROUND_HALF_UP)
+        assert repo.rate_details(2026, currency)["provisional"] is True
+    assert repo.rate_details(2026, "CNY") == {}
+
+
+def test_changed_rate_does_not_reuse_stale_source(tmp_path):
+    """人工改值后不能继续宣称来自旧统计结果。"""
+    config = tmp_path / "rates.json"
+    config.write_text(json.dumps({"2026": {"USD": "7"}}), encoding="utf-8")
+    config.with_name("rates_sources.json").write_text(
+        json.dumps({"2026": {"rates": {"USD": "6.852873"}}}), encoding="utf-8")
+    assert ExchangeRateRepository(config).rate_details(2026, "USD") == {}

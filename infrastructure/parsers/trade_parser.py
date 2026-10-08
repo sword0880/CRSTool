@@ -230,7 +230,7 @@ class FutuTradeParser:
             if raw_comm is not None and str(raw_comm).strip() not in ("", "-"):
                 commission = abs(_to_decimal(raw_comm, "总费用"))
 
-            trade_amount = Decimal("0")
+            trade_amount = None  # 缺失金额保留未知状态，由引擎显式按数量与价格重建
             raw_ta = row.get("成交金额")
             if raw_ta is not None and str(raw_ta).strip() not in ("", "-"):
                 trade_amount = _to_decimal(raw_ta, "成交金额")

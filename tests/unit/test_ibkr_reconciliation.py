@@ -25,7 +25,7 @@ def pnl_file(amount="496", **overrides):
 def test_exact_pnl_and_duplicate_reports_preserve_one_comparison():
     f = pnl_file()
     r = service().calculate_ibkr([f, f], opening_zero=True)
-    assert r.is_complete and len(r.pnl_reconciliations) == 1
+    assert r.data_complete and len(r.pnl_reconciliations) == 1
     row = r.pnl_reconciliations[0]
     assert (row.calculated, row.reported.amount, row.difference, row.status) == (496, 496, 0, "一致")
     assert r.export_bundle.tax_summary.capital_gain_cny == 496
@@ -43,7 +43,7 @@ def test_signed_tolerance_and_broker_amount_never_overrides_calculation(amount, 
     row = r.pnl_reconciliations[0]
     assert row.status == expected and row.difference == D(496) - D(amount)
     assert r.export_bundle.tax_summary.capital_gain_cny == 496
-    assert r.is_complete == (expected == "一致")
+    assert r.data_complete == (expected == "一致")
     if expected != "一致":
         issue = next(i for i in r.issues if i.code == "REALIZED_PNL_MISMATCH")
         assert issue.record_id == "T2" and issue.source_file == "activity.xml"
@@ -55,7 +55,7 @@ def test_missing_pnl_remains_blank_and_is_not_zero(value):
     r = service().calculate_ibkr([pnl_file(value)], opening_zero=True)
     row = r.pnl_reconciliations[0]
     assert row.status == "缺少券商收益" and row.reported.amount is None and row.difference is None
-    assert row.calculated == 496 and r.is_complete
+    assert row.calculated == 496 and r.data_complete
     assert any("1 笔卖出未提供" in w for w in r.warnings)
     wb = load_workbook(BytesIO(r.report_bytes), read_only=True)
     values = list(wb["已实现盈亏对账"].values)
@@ -93,7 +93,7 @@ def test_uncalculated_or_unsupported_sale_does_not_claim_zero_or_match(missing_c
     row = r.pnl_reconciliations[0]
     assert row.status == ("无法核对" if missing_cost else "未支持资产")
     assert row.calculated is None and row.difference is None
-    assert row.reported.amount == 0 and not r.is_complete
+    assert row.reported.amount == 0 and not r.data_complete
 
 
 def test_fx_sell_is_separate_from_stock_reconciliation_denominator():
@@ -116,7 +116,7 @@ def test_two_offsetting_differences_do_not_disappear_in_annual_net():
     r = service().calculate_ibkr([f], opening_zero=True)
     assert [row.difference for row in r.pnl_reconciliations] == [-4, 4]
     assert len([i for i in r.issues if i.code == "REALIZED_PNL_MISMATCH"]) == 2
-    assert not r.is_complete and r.export_bundle.tax_summary.capital_gain_cny == 992
+    assert not r.data_complete and r.export_bundle.tax_summary.capital_gain_cny == 992
 
 
 def test_same_id_in_other_account_or_currency_cannot_cross_match():
@@ -149,7 +149,7 @@ def test_sell_with_zero_realized_gain_is_a_valid_reference():
     f = xml_file(trades=[trade(), trade("T2", "SELL", tradePrice="100.4", proceeds="1004", netCash="1002",
                  dateTime="20250103;100000", tradeDate="20250103", fifoPnlRealized="0")], cash_rows=[], positions=[])
     r = service().calculate_ibkr([f], opening_zero=True)
-    assert r.is_complete and r.pnl_reconciliations[0].status == "一致"
+    assert r.data_complete and r.pnl_reconciliations[0].status == "一致"
     assert r.pnl_reconciliations[0].calculated == 0
 
 
@@ -157,11 +157,11 @@ def test_ui_reconciliation_and_changed_report_clear_old_comparison():
     from streamlit.testing.v1 import AppTest
     files = {"dividend": None, "trade": None, "ibkr_reports": [pnl_file("500")], "ibkr_opening": None}
     with patch("streamlit.file_uploader", side_effect=lambda *a, **kw: files[kw["key"]]):
-        at = AppTest.from_file("app.py", default_timeout=30).run()
+        at = AppTest.from_file("../../app.py", default_timeout=30).run()
         at.selectbox[0].select("IBKR").run()
         at.checkbox[0].check().run()
         at.checkbox[1].check().run()
-        at.button[0].click().run()
+        next(button for button in at.button if button.label == "开始计算").click().run()
         assert not at.exception and any("不完整" in e.value for e in at.error)
         assert any("已实现盈亏对账（0/1 笔一致）" in e.label for e in at.expander)
         frame = next(d.value for d in at.dataframe if "券商收益（原币）" in d.value.columns)
@@ -169,7 +169,7 @@ def test_ui_reconciliation_and_changed_report_clear_old_comparison():
         files["ibkr_reports"] = [pnl_file()]
         at.run()
         assert not at.metric and not any("已实现盈亏对账" in e.label for e in at.expander)
-        at.button[0].click().run()
+        next(button for button in at.button if button.label == "开始计算").click().run()
         assert not at.error and any("已实现盈亏对账（1/1 笔一致）" in e.label for e in at.expander)
 
 

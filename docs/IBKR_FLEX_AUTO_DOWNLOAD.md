@@ -24,6 +24,8 @@ py -3 -m venv .venv
 3. 若已有独立的期初 LOT 模板，填入其查询 ID；应用按年度报告开始日期前一日请求该模板。2025 年对应 `2024-12-31`。没有模板时留空，仍可生成待复核结果。
 4. 点击“生成并获取 XML”。获取成功后可以保存原始 XML 备份，再按原有流程确认导出范围并点击“开始计算”。
 
+若目标年度才开户、并确认该账户年初没有持仓，可勾选页面的“期初无持仓”。勾选后，已上传或自动获取的期初 XML 不参与本次计算；年度活动报告的 `OpenPositions` 通常是期末 `SUMMARY`，不能放入“上一年末持仓批次 XML”输入框。若年度内曾从其他券商转入证券，后续卖出仍须核对原始买入成本。
+
 应用会调用 IBKR 的 [SendRequest](https://www.interactivebrokers.com/docs/web-api/api-reference/send-request)，用返回的 ReferenceCode 调用 [GetStatement](https://www.interactivebrokers.com/docs/web-api/api-reference/get-statement)。报告尚在生成时会有限次数重试。错误码可参考 [IBKR 官方错误码表](https://www.ibkrguides.com/orgportal/performanceandstatements/flex3error.htm)。指定 `fd`、`td` 起止日期时，应用不套用 IBKR 对相对期间参数 `p` 的 365 天限制；2024 闰年全年可直接选择 `2024-01-01` 至 `2024-12-31`。已下载的 XML 只保存在当前应用会话内存中，可点“清除已获取的 IBKR XML”。密码框中的令牌在表单提交后会保留，方便重复查询；切换券商或关闭页面可能使它清空。令牌不写入配置、报告或日志。
 
 原有手动上传入口继续可用；同时提供手动文件时，以手动文件为准。应用自动获取需要本机能够访问 IBKR Flex Web Service。

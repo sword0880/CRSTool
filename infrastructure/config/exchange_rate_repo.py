@@ -15,6 +15,9 @@ class ExchangeRateRepository:
         self._config_path = Path(config_path)
         self._rates: Dict[str, Dict[str, Decimal]] = {}
         self._load()
+        # 来源单独存放，保持原有年度／币种数值配置的兼容性。
+        source_path = self._config_path.with_name(self._config_path.stem + "_sources.json")
+        self._sources = json.loads(source_path.read_text(encoding="utf-8")) if source_path.exists() else {}
 
     def _load(self):
         if not self._config_path.exists():
@@ -39,6 +42,14 @@ class ExchangeRateRepository:
     @property
     def source(self) -> str:
         return str(self._config_path.resolve())
+
+    def rate_details(self, tax_year: int, currency: str) -> dict:
+        """提供与当前数值匹配的来源信息，避免修改汇率后沿用旧来源。"""
+        currency = currency.upper()
+        info = self._sources.get(str(tax_year), {})
+        if currency == "CNY" or info.get("rates", {}).get(currency) != str(self.get_rate(tax_year, currency)):
+            return {}
+        return dict(info)
 
     def get_rate(self, tax_year: int, currency: str) -> Decimal:
         """Get annual average rate for a given year and currency -> CNY."""

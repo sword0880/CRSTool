@@ -27,7 +27,7 @@ def _trade(row, dt, symbol, side, qty, price, comm=0, currency="USD"):
         currency=currency,
         quantity=D(str(qty)),
         price=D(str(price)),
-        trade_amount=D("0"),
+        trade_amount=D(str(qty)) * D(str(price)),
         commission=D(str(comm)),
         net_amount=D("0"),
     )

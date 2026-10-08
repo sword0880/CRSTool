@@ -1,5 +1,6 @@
 """Export calculated amounts together with their coverage and review issues."""
 import io
+import json
 import pandas as pd
 from domain.services.reporting import capital_rows, deposit_rows, dividend_rows, pnl_reconciliation_rows
 
@@ -7,16 +8,20 @@ from domain.services.reporting import capital_rows, deposit_rows, dividend_rows,
 class ExcelExporter:
     def build_report(self, summary, matches, dividends, deposits=None, dividends_received=None,
                      warnings=None, issues=None, tax_year=None, source_reports=None, cash_events=None, pnl_reconciliations=None,
-                     exchange_rates=None, source_scope_confirmed=None, tax_policy_version="V1"):
+                     exchange_rates=None, source_scope_confirmed=None, tax_policy_version="V1",
+                     status_rows=None, calculation_snapshot=None, cash_reconciliations=None, final_complete=None):
         issues = issues or []
-        incomplete = bool(issues)
-        status = "不完整：仅供复核，不能作为完整年度结果" if incomplete else "当前导入范围内按 V1 规则测算完成（税务规则与抵免归属仍需复核）"
+        incomplete = bool(issues) if final_complete is None else not final_complete
+        status = ("不完整：仅供复核，不能作为完整年度结果" if issues else
+                  "待复核／临时测算：不能作为已核对的完整年度结果" if incomplete else
+                  "当前导入范围内测算与对账完成（税务规则与抵免归属仍需复核）")
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine="openpyxl") as writer:
             self._write(writer, "计算说明", [
                 {"项目": "年度", "说明": tax_year or "未指定"},
                 {"项目": "结果状态", "说明": status},
-                {"项目": "计算口径", "说明": "FIFO；年度平均汇率；沿用现有 V1 测算规则"},
+                *(status_rows or []),
+                {"项目": "计算口径", "说明": "FIFO；配置汇率（统计期间与来源见汇率底稿）；沿用现有 V1 测算规则"},
                 {"项目": "税务规则版本", "说明": tax_policy_version},
                 {"项目": "规则适用边界", "说明": "境外扣税按年度和币种合计抵免，尚未按所得项目及国家／地区核对；申报前需复核。"},
                 *([{"项目": "IBKR 来源范围确认", "说明": "用户已确认导出范围" if source_scope_confirmed else "未确认导出范围"}]
@@ -32,10 +37,16 @@ class ExcelExporter:
                 {"项目": "股息利息应纳税额", "金额（人民币）": float(summary.dividend_interest_tax)},
                 {"项目": "已计算资本利得税额", "金额（人民币）": float(summary.capital_gain_tax)},
                 {"项目": "境外税额抵免", "金额（人民币）": float(summary.foreign_tax_credit)},
-                {"项目": "已计算部分补税（非完整年度）" if incomplete else "预计补税", "金额（人民币）": float(summary.total_supplement_tax)},
+                {"项目": "已计算部分补税（非完整年度）" if issues else "测算补税（待对账／临时）" if incomplete else "预计补税", "金额（人民币）": float(summary.total_supplement_tax)},
             ])
             self._write(writer, "汇率底稿", exchange_rates or
                         [{"年度": tax_year, "币种": "", "汇率（兑人民币）": "", "来源": "本次无外币换算"}])
+            if calculation_snapshot:
+                # 嵌套配置保存为文本，便于按当次版本复核，不执行其中任何内容。
+                self._write(writer, "计算快照", [{"项目": k, "值": json.dumps(v, ensure_ascii=False, sort_keys=True)}
+                                             for k, v in calculation_snapshot.items()])
+            if cash_reconciliations:
+                self._write(writer, "现金余额对账", cash_reconciliations)
             if source_reports:
                 self._write(writer, "导入来源", [
                     {"文件": r.filename, "SHA256": r.sha256, "账户": r.account, "开始": str(r.start),

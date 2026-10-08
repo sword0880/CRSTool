@@ -248,7 +248,7 @@ def test_app_rerun_preserves_warnings_but_changed_input_removes_download():
     from streamlit.testing.v1 import AppTest
     files = uploads()
     with patch("streamlit.file_uploader", side_effect=lambda *a, **kw: files[kw["key"]]):
-        at = AppTest.from_file("app.py", default_timeout=30).run()
+        at = AppTest.from_file("../../app.py", default_timeout=30).run()
         at.button[0].click().run()
         assert not at.exception
         assert len(at.metric) == 7 and len(at.get("download_button")) == 1
@@ -268,7 +268,7 @@ def test_app_rerun_preserves_warnings_but_changed_input_removes_download():
 
 def test_app_without_uploads_does_not_show_preexisting_result():
     from streamlit.testing.v1 import AppTest
-    at = AppTest.from_file("app.py", default_timeout=30)
+    at = AppTest.from_file("../../app.py", default_timeout=30)
     at.session_state["result"] = "obsolete"
     at.run()
     assert not at.exception and not at.metric and not at.get("download_button")
@@ -302,7 +302,7 @@ def test_calculation_failure_clears_previously_successful_result():
     from streamlit.testing.v1 import AppTest
     files = uploads()
     with patch("streamlit.file_uploader", side_effect=lambda *a, **kw: files[kw["key"]]):
-        at = AppTest.from_file("app.py", default_timeout=30).run()
+        at = AppTest.from_file("../../app.py", default_timeout=30).run()
         at.button[0].click().run()
         assert at.metric
         with patch.object(TaxCalculationService, "calculate", side_effect=TaxAssistantError("test failure")):
@@ -324,7 +324,7 @@ def test_complete_synthetic_report_has_exact_amounts_and_income_details():
         trades=[t(1, 1, "BUY", currency="CNY"), t(2, 2, "SELL", price=150, currency="CNY")],
         withholding=[WithholdingRecord(date(2021, 1, 1), "CNY", D(10)),
                      WithholdingRecord(date(2021, 1, 2), "CNY", D(-4))]), 2021)
-    assert r.is_complete
+    assert r.data_complete and not r.reconciliation_complete
     assert r.export_bundle.tax_summary.capital_gain_cny == 500
     assert r.export_bundle.tax_summary.foreign_tax_credit == 6
     assert r.export_bundle.tax_summary.total_supplement_tax == 114
@@ -334,7 +334,7 @@ def test_complete_synthetic_report_has_exact_amounts_and_income_details():
     assert rates[0] == ("年度", "币种", "汇率（兑人民币）", "来源")
     assert (2021, "CNY", "1", "系统固定汇率 CNY=1") in rates
     summary = {row[0]: row[1] for row in wb["税务汇总"].iter_rows(min_row=2, values_only=True)}
-    assert summary["预计补税"] == 114
+    assert summary["测算补税（待对账／临时）"] == 114
     notes = dict(wb["计算说明"].values)
     assert notes["税务规则版本"] == "V1-2026-09"
     assert "尚未按所得项目及国家／地区核对" in notes["规则适用边界"]

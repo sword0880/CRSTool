@@ -43,6 +43,7 @@ class BrokerImportResult:
     opening_zero_confirmed: bool = False
     source_scope_confirmed: bool = False
     realized_pnl: list = field(default_factory=list)
+    cash_reconciliations: list = field(default_factory=list)  # 各报告原币现金闭环，不合并重叠期间
 
 
 @dataclass

@@ -19,6 +19,13 @@ def invalidate_result(state, fingerprint):
         state.pop("result_fingerprint", None)
 
 
+def bind_calculation_context(fingerprint, context):
+    """文件相同但代码或汇率配置变化时，旧结果也必须失效。"""
+    if fingerprint is None:
+        return None
+    return sha256((fingerprint + context["fingerprint"]).encode()).hexdigest()
+
+
 def ibkr_fingerprint(report_files, opening_file, year_text, opening_zero, source_scope_confirmed=False):
     if not report_files:
         return None

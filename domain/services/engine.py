@@ -125,11 +125,15 @@ class FIFOEngine:
                     or not trade.price.is_finite() or trade.price <= ZERO
                     or not trade.commission.is_finite() or trade.commission < ZERO):
                 raise InventoryException(f"行 {trade.source_row}: 数量、价格或费用无效")
+            # 券商成交总额优先作为分配基数；缺失时才使用数量乘价格。
+            if trade.trade_amount is not None and not trade.trade_amount.is_finite():
+                raise InventoryException(f"行 {trade.source_row}: 成交金额无效")
             if trade.side not in ("BUY", "SELL"):
                 raise InventoryException(f"行 {trade.source_row}: 不支持的交易方向 {trade.side}")
             if trade.side == "BUY":
                 inventories[key].append(Lot(trade.trade_date, trade.quantity, trade.price,
-                                            trade.commission, trade.currency, trade.source_row, trade.source_file, trade.record_id))
+                                            trade.commission, trade.currency, trade.source_row, trade.source_file, trade.record_id,
+                                            abs(trade.trade_amount) if trade.trade_amount is not None else None))
                 continue
             if key in blocked:
                 issue(trade, "UNCERTAIN_INVENTORY", f"{trade.symbol} 此笔卖出的历史库存未确认，需补齐成本后重新计算。")
@@ -194,7 +198,8 @@ class FIFOEngine:
                             lot.cost_remaining * matched_qty / lot.quantity_remaining)
                 lot.cost_remaining -= raw_cost
 
-            exact_revenue += matched_qty * trade.price
+            exact_revenue += ((abs(trade.trade_amount) * matched_qty / trade.quantity)
+                              if trade.trade_amount is not None else matched_qty * trade.price)
             basis_ledger[0] += raw_cost
             basis_ledger[2] += buy_comm_alloc
             exact_sell_fee += trade.commission * matched_qty / trade.quantity

@@ -177,6 +177,9 @@ class IbkrReportAdapter:
             self._trades(statement)
             self._cash(statement)
             self._reconcile_cash_report(statement)
+            from infrastructure.adapters.ibkr_cash_review import reconcile_statement
+            self.data.cash_reconciliations.extend(reconcile_statement(
+                statement, self.account, start, end, self.name))
             self._closing(statement)
             for section in ("CorporateActions", "Transfers", "TradeTransfers", "OptionEAE", "UnsettledTransfers", "StockGrantActivities"):
                 for row, event in enumerate(statement.findall(f"./{section}/*"), 1):
@@ -392,7 +395,7 @@ class IbkrReportAdapter:
             raise ParseException("期初持仓层级必须是 LOT 或 SUMMARY")
         lot_totals = defaultdict(lambda: [ZERO, ZERO])
         if lots and not actual_lots:
-            raise ParseException("期初成本需 LOT 批次明细，不能使用 SUMMARY 平均成本")
+            raise ParseException("期初成本需 LOT 批次明细，不能使用 SUMMARY 平均成本；请勿把年度活动报告放入期初文件。若确认期初无持仓，请在页面勾选“期初无持仓”。")
         for row, element in enumerate(actual_lots, 1):
             a = element.attrib
             self._account(a)

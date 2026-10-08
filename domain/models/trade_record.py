@@ -20,7 +20,7 @@ class TradeRecord:
     currency: str
     quantity: Decimal  # absolute value
     price: Decimal
-    trade_amount: Decimal
+    trade_amount: Optional[Decimal]  # 原始成交金额；缺失用 None，不能伪造零
     commission: Decimal
     net_amount: Decimal
     broker: str = "FUTU"

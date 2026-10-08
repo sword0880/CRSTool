@@ -1,10 +1,14 @@
 """Normalize broker files, enforce annual boundaries, calculate and export."""
 
 import re
+import json
+from hashlib import sha256
 from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from datetime import datetime, timezone
+from application.calculation_context import calculation_context, source_fingerprint
 from typing import List, Optional
 
 from domain.models.tax_summary import ExportBundle
@@ -25,10 +29,26 @@ class CalculationResult:
     issues: List[CalculationIssue] = field(default_factory=list)
 
     pnl_reconciliations: list = field(default_factory=list)
+    cash_reconciliations: list = field(default_factory=list)
+    reconciliation_complete: bool = False
+    provisional: bool = False
+    snapshot: dict = field(default_factory=dict)
+
+    @property
+    def data_complete(self):
+        """保留计算数据完整性，与独立对账状态分开。"""
+        return not self.issues
+
+    @property
+    def status_rows(self):
+        return [{"项目": "计算状态", "说明": "已完成支持范围内的计算" if self.export_bundle else "未完成"},
+                {"项目": "数据完整性", "说明": "未发现阻断项（以用户确认的导出范围为限）" if self.data_complete else "存在待复核项"},
+                {"项目": "对账状态", "说明": "持仓、卖出盈亏、原币现金已核对" if self.reconciliation_complete else "尚未完成全部对账"},
+                {"项目": "测算用途", "说明": "临时测算" if self.provisional else "历史年度辅助测算"}]
 
     @property
     def is_complete(self):
-        return not self.issues
+        return self.data_complete and self.reconciliation_complete and not self.provisional
 
 
 class TaxCalculationService:
@@ -45,7 +65,10 @@ class TaxCalculationService:
         match = re.search(r"(?<!\d)(20\d{2})(?!\d)", filename)
         # Existing files such as 2025_7171103.pdf provide the annual summary year.
         file_year = int(match.group(1)) if match else None
-        return self.calculate_imported(data, tax_year, file_year)
+        sources = [source_fingerprint(dividend_file, "income")]
+        if trade_file is not None:
+            sources.append(source_fingerprint(trade_file, "activity"))
+        return self.calculate_imported(data, tax_year, file_year, input_sources=sources)
 
     def calculate_ibkr(self, report_files, opening_file=None, tax_year=None, opening_zero=False,
                        source_scope_confirmed=False):
@@ -55,9 +78,12 @@ class TaxCalculationService:
         if tax_year is None and data.report_years:
             tax_year = max(data.report_years)
             data.warnings.append(f"按最新报告年度 {tax_year} 测算，可在页面修改。")
-        return self.calculate_imported(data, tax_year)
+        sources = [source_fingerprint(f, "activity") for f in report_files]
+        if opening_file is not None:
+            sources.append(source_fingerprint(opening_file, "opening"))
+        return self.calculate_imported(data, tax_year, input_sources=sources)
 
-    def calculate_imported(self, data, tax_year=None, income_file_year=None):
+    def calculate_imported(self, data, tax_year=None, income_file_year=None, input_sources=None):
         """Public normalized-data entry point for future broker adapters."""
         if not data.dividends and not data.income_data_provided:
             raise TaxAssistantError("缺少收入数据，不能将缺少股息表视为全年零收入")
@@ -83,6 +109,8 @@ class TaxCalculationService:
         if data.report_years and tax_year not in data.report_years:
             raise TaxAssistantError("交易报告年度与目标年度不一致，请上传对应年度流水")
         result = CalculationResult(warnings=list(data.warnings))
+        context = calculation_context()
+        result.provisional = tax_year >= date.today().year
         if data.broker == "IBKR":
             from application.ibkr_review import check_coverage
             result.issues.extend(check_coverage(data, tax_year))
@@ -145,6 +173,18 @@ class TaxCalculationService:
             result.pnl_reconciliations, pnl_issues, pnl_warnings = reconcile_realized_pnl(data, tax_year, self.fifo_engine, matches)
             result.issues.extend(pnl_issues)
             result.warnings.extend(pnl_warnings)
+            # 缺少对账资料不会阻止测算，但不能宣称所有对账已完成。
+            result.cash_reconciliations = [r for r in data.cash_reconciliations
+                if int(r["期间开始"][:4]) <= tax_year <= int(r["期间结束"][:4])]
+            for row in result.cash_reconciliations:
+                if row["状态"] == "存在差异":
+                    result.issues.append(CalculationIssue("CASH_BALANCE_MISMATCH",
+                        f"原币现金余额差异 {row['差额']} {row['币种']}，请核对成交和现金事件。",
+                        account=row["账户"], currency=row["币种"], source_file=row["来源文件"],
+                        source_sheet="CashReport"))
+            result.reconciliation_complete = (result.data_complete and bool(result.cash_reconciliations)
+                and all(r["状态"] == "一致" for r in result.cash_reconciliations)
+                and all(r.status == "一致" for r in result.pnl_reconciliations))
         withholding = {}
         for record in data.withholding:
             if record.date.year == tax_year:
@@ -155,17 +195,46 @@ class TaxCalculationService:
         deposits = [d for d in data.deposits if d.date.year == tax_year]
         received = [d for d in data.dividends_received if d.date.year == tax_year]
         result.export_bundle = ExportBundle(summary, matches, tax_year, dividends, deposits, received)
+        exchange_rows = []
+        # 临时汇率需在界面提示和底稿中保留口径，不能误认为全年平均值。
+        for (year, currency), rate in sorted(used_rates.items()):
+            details = (self.exchange_rate_repo.rate_details(year, currency)
+                       if hasattr(self.exchange_rate_repo, "rate_details") else {})
+            row = {"年度": year, "币种": currency, "汇率（兑人民币）": str(rate),
+                   "来源": "系统固定汇率 CNY=1" if currency == "CNY" else
+                   getattr(self.exchange_rate_repo, "source", "注入的汇率提供者")}
+            if details:
+                row.update({"数据来源": details["source"], "来源网址": details["url"],
+                            "统计开始": details["start_date"], "统计截止": details["end_date"],
+                            "报价日数量": details["observation_count"], "平均方法": details["method"],
+                            "用途": "临时测算" if details.get("provisional") else "年度测算"})
+                if details.get("provisional"):
+                    result.provisional = True
+                    result.warnings.append(f"{year} 年 {currency} 使用截至 {details['end_date']} 的平均汇率 {rate}，仅用于临时测算；年末需更新全年汇率。")
+            exchange_rows.append(row)
+        # 快照记录本次实际使用值及用户确认，不保存下载令牌。
+        result.reconciliation_complete &= result.data_complete
+        result.snapshot = {"computed_at": datetime.now(timezone.utc).isoformat(), "tax_year": tax_year,
+            "broker": data.broker, "policy_version": TAX_POLICY_VERSION, "context": context,
+            "sources": input_sources or [], "exchange_rates": exchange_rows,
+            "opening_zero_confirmed": data.opening_zero_confirmed,
+            "source_scope_confirmed": data.source_scope_confirmed,
+            "status": result.status_rows}
+        result.snapshot["calculation_id"] = sha256(json.dumps(
+            result.snapshot, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+        if not result.reconciliation_complete:
+            result.warnings.append("全部对账尚未完成：请检查现金闭环、券商卖出盈亏及数据覆盖状态；当前金额为辅助测算。")
         result.report_bytes = self.excel_exporter.build_report(
             summary, matches, dividends, deposits, received,
             warnings=result.warnings, issues=result.issues, tax_year=tax_year,
             source_reports=data.source_reports,
             pnl_reconciliations=result.pnl_reconciliations,
             cash_events=[e for e in data.cash_events if e.date.year == tax_year],
-            exchange_rates=[{"年度": year, "币种": currency, "汇率（兑人民币）": str(rate),
-                             "来源": "系统固定汇率 CNY=1" if currency == "CNY" else
-                             getattr(self.exchange_rate_repo, "source", "注入的汇率提供者")}
-                            for (year, currency), rate in sorted(used_rates.items())],
+            exchange_rates=exchange_rows,
             source_scope_confirmed=data.source_scope_confirmed if data.broker == "IBKR" else None,
             tax_policy_version=TAX_POLICY_VERSION,
+            status_rows=result.status_rows, calculation_snapshot=result.snapshot,
+            cash_reconciliations=result.cash_reconciliations,
+            final_complete=result.is_complete,
         )
         return result

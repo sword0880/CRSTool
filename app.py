@@ -11,7 +11,8 @@ import streamlit as st
 
 from application.tax_service import TaxCalculationService
 from domain.models.exceptions import TaxAssistantError
-from application.result_state import input_fingerprint, ibkr_fingerprint, invalidate_result
+from application.result_state import input_fingerprint, ibkr_fingerprint, invalidate_result, bind_calculation_context
+from application.calculation_context import calculation_context
 from infrastructure.adapters.ibkr_flex_client import FlexDownloadError, download_flex_report
 from infrastructure.config.ibkr_flex_repo import load_ibkr_flex_config
 from domain.services.reporting import capital_rows, deposit_rows, dividend_rows, pnl_reconciliation_rows
@@ -50,10 +51,13 @@ else:
     st.info("手机“税务文件”中的股息报告、1042-S 和外汇收入工作表，目前尚未支持导入。下方入口接收网页 Flex 查询导出的 XML。")
     report_files = st.file_uploader("上传 IBKR 活动报告（可多选）", type=["xml"], accept_multiple_files=True, key="ibkr_reports")
     opening_file = st.file_uploader("上一年末持仓批次 XML（可选，Open Positions 选 Lots）", type=["xml"], key="ibkr_opening")
-    opening_zero = st.checkbox("我确认所选年度所有导入账户的期初均无持仓", disabled=opening_file is not None)
+    opening_zero = st.checkbox("我确认所选年度所有导入账户的期初均无持仓",
+                               help="勾选后不使用期初 LOT 文件；如有从其他券商转入的证券，仍须核对原始买入成本。")
     source_scope_confirmed = st.checkbox("我确认导出的报告覆盖目标年度全部相关账户、证券成交和现金明细，且未设置记录过滤")
-    if opening_file is not None:
-        opening_zero = False
+    if opening_zero and opening_file is not None:
+        # 用户明确确认期初无持仓时，避免误传的 SUMMARY 文件阻断计算。
+        st.info("已确认期初无持仓：上传的期初 XML 不参与本次计算。")
+        opening_file = None
     st.caption("没有期初成本资料且未确认期初无持仓时，仍可生成待复核底稿。可上传或自动获取 Flex XML；CSV 和普通 PDF 对账单暂不支持。")
     with st.expander("IBKR 导出要求"):
         st.markdown("XML 来自网页 Client Portal → Performance & Reports → Flex Queries。手机税务文件或普通活动报表提供的 CSV／PDF 属于其他导出入口，目前不能直接上传；请勿改扩展名。")
@@ -83,13 +87,13 @@ if broker == "IBKR":
             flex_from = st.date_input("报告开始日期", value=date(default_year, 1, 1))
             flex_to = st.date_input("报告结束日期", value=date(default_year, 12, 31))
             opening_query_id = st.text_input("期初 LOT 查询 ID（可留空）", value=flex_config["opening_lots_query_id"])
-            submitted = st.form_submit_button("生成并获取 XML", use_container_width=True)
+            submitted = st.form_submit_button("生成并获取 XML", width="stretch")
         if submitted:
             try:
                 with st.spinner("正在从 IBKR 生成并下载报告…"):
                     report_xml = download_flex_report(flex_query_id, flex_token, flex_from, flex_to)
                     opening_xml = None
-                    if opening_query_id.strip():
+                    if opening_query_id.strip() and not opening_zero:
                         # 期初 LOT 固定查询报告开始日期前一日，防止混入本期交易。
                         from datetime import timedelta
                         opening_day = flex_from - timedelta(days=1)
@@ -118,16 +122,19 @@ if broker == "IBKR":
         report = BytesIO(st.session_state["ibkr_flex_report_xml"])
         report.name = st.session_state["ibkr_flex_report_name"]
         report_files = [report]
-        if opening_file is None and st.session_state.get("ibkr_flex_opening_xml"):
+        if opening_file is None and not opening_zero and st.session_state.get("ibkr_flex_opening_xml"):
             opening_file = BytesIO(st.session_state["ibkr_flex_opening_xml"])
             opening_file.name = "IBKR_Opening_Lots.xml"
-            opening_zero = False
+    if opening_zero and st.session_state.get("ibkr_flex_opening_xml"):
+        st.info("已确认期初无持仓：自动获取的期初 XML 不参与本次计算。")
     fingerprint = ibkr_fingerprint(report_files, opening_file, year_text, opening_zero, source_scope_confirmed)
 else:
     fingerprint = input_fingerprint(dividend_file, trade_file, year_text)
+# 汇率或业务代码更新后，与旧结果绑定的上下文变化，必须重新计算。
+fingerprint = bind_calculation_context(fingerprint, calculation_context())
 invalidate_result(st.session_state, fingerprint)
 
-if st.button("开始计算", disabled=fingerprint is None, use_container_width=True):
+if st.button("开始计算", disabled=fingerprint is None, width="stretch"):
     st.session_state.pop("result", None)
     st.session_state.pop("result_fingerprint", None)
     try:
@@ -159,13 +166,20 @@ if result and result.export_bundle:
     for warning in result.warnings:
         st.warning(warning)
     if result.is_complete:
-        st.success("当前导入范围内已按 V1 规则算出金额；税务规则与抵免归属仍需复核。")
+        st.success("当前导入范围内测算与对账完成；税务规则与抵免归属仍需复核。")
+    elif not result.issues:
+        st.warning("金额已计算，但仍为临时测算或尚未完成全部对账，不能作为已核对的完整年度结果。")
     else:
         st.error("结果不完整：以下金额仅为已计算部分，不能作为完整年度补税结果。")
         with st.expander(f"待复核记录（{len(result.issues)} 条）", expanded=True):
             st.dataframe([{"原因": i.message, "账户": i.account, "证券": i.symbol,
                            "日期": str(i.date or ""), "来源表": i.source_sheet, "原始行": i.source_row,
                            "数量": str(i.quantity), "来源文件": i.source_file, "记录ID": i.record_id} for i in result.issues], hide_index=True)
+    st.dataframe(result.status_rows, hide_index=True)
+    if result.cash_reconciliations:
+        with st.expander("IBKR 原币现金余额对账", expanded=not result.reconciliation_complete):
+            st.caption("按每份报告的成交日余额核对；月报与年报独立核对，基础币种折算和已结算余额不混用。")
+            st.dataframe(result.cash_reconciliations, hide_index=True)
 
     if result.pnl_reconciliations:
         rows = result.pnl_reconciliations
@@ -189,22 +203,22 @@ if result and result.export_bundle:
         st.metric("资本利得税额（¥）", f"{summary.capital_gain_tax:,.2f}")
 
     st.divider()
-    st.subheader("💰 预计补税" if result.is_complete else "💰 已计算部分补税")
+    st.subheader("💰 预计补税" if result.is_complete else "💰 已计算部分补税" if result.issues else "💰 测算补税（待对账／临时）")
     st.metric(
-        "预计补税金额" if result.is_complete else "部分金额（不能代表完整年度）",
+        "预计补税金额" if result.is_complete else "部分金额（不能代表完整年度）" if result.issues else "测算金额（待对账／临时）",
         f"¥ {summary.total_supplement_tax:,.2f}",
         delta=None,
     )
 
     if result.export_bundle.deposits:
         st.subheader("💵 入金汇总（按账户、币种）")
-        st.dataframe(deposit_rows(result.export_bundle.deposits), use_container_width=True, hide_index=True)
+        st.dataframe(deposit_rows(result.export_bundle.deposits), width="stretch", hide_index=True)
     if result.export_bundle.dividends_received:
         st.subheader("🏷️ 分红到账汇总（按账户、证券、币种）")
-        st.dataframe(dividend_rows(result.export_bundle.dividends_received), use_container_width=True, hide_index=True)
+        st.dataframe(dividend_rows(result.export_bundle.dividends_received), width="stretch", hide_index=True)
     if result.export_bundle.match_records:
         st.subheader("📈 资本利得汇总")
-        st.dataframe(capital_rows(result.export_bundle.match_records), use_container_width=True, hide_index=True)
+        st.dataframe(capital_rows(result.export_bundle.match_records), width="stretch", hide_index=True)
 
     # Dividend details
     if result.export_bundle.dividend_details:
@@ -241,7 +255,7 @@ if report_bytes:
         data=report_bytes,
         file_name=file_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
+        width="stretch",
     )
     st.caption("包含计算说明、税务汇总，以及有数据的明细和待复核记录；原币金额按币种分别汇总。")
 else:
