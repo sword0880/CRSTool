@@ -2,3 +2,43 @@ samples/*.xlsx
 samples/*.pdf
 samples/*.xml
 /samples/
+
+# Python 运行及测试缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.uv-cache/
+
+# 本地虚拟环境
+.venv/
+
+# 本地 AI 助手技能和工作配置
+/.agents/
+/.claude/
+
+# 本地账户复核资料（包含账户及成本，不进入版本库）
+/storage/
+
+
+# 回归测试生成的临时目录
+/.test_tmp*/
+
+
+# 编辑器及 Office 生成的临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+~$*
+
+# .NET 构建、开发缓存和本地依赖源
+**/bin/
+**/obj/
+**/.vs/
+**/.nuget-feed/
+**/TestResults/
+*.user
+*.suo
+**/publish/
+/artifacts/

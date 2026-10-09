@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>CRS.Desktop.Wpf</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="DataGridExtensions" />
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" />
+    <ProjectReference Include="../CRS.Application/CRS.Application.csproj" />
+    <ProjectReference Include="../CRS.Infrastructure/CRS.Infrastructure.csproj" />
+    <Using Include="CRS.Domain" />
+    <Using Include="CRS.Application" />
+    <Content Include="../../config/*.json" Link="config/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

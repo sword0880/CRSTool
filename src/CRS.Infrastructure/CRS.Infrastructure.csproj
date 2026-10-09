@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../CRS.Domain/CRS.Domain.csproj" />
+    <ProjectReference Include="../CRS.Application/CRS.Application.csproj" />
+    <Using Include="CRS.Domain" />
+    <Using Include="CRS.Application" />
+    <PackageReference Include="NPOI" />
+    <!-- PDF 文字及坐标解析独立于 NPOI，固定版本并保留真实模板验收。 -->
+    <PackageReference Include="PdfPig" />
+    <!-- NPOI 2.8.1 将绘图依赖标记为可选，这里显式引用以确保运行时能加载 SkiaSharp。 -->
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="NLog" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Dapper" />
+    <!-- 覆盖 NPOI 的旧间接依赖，使用已修复安全问题的版本。 -->
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Pdf\" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- 本项目用于个人辅助测算，接受 NPOI 的 OSMF 许可条款。 -->
+    <AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense>
+  </PropertyGroup>
+</Project>

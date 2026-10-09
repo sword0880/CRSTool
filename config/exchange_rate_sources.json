@@ -2,13 +2,11 @@
   "2026": {
     "source": "中国货币网／中国外汇交易中心人民币汇率中间价历史数据",
     "url": "https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2",
-    "start_date": "2026-01-01",
-    "first_observation": "2026-01-05",
-    "end_date": "2026-10-08",
-    "observation_count": 182,
+    "start_date": "2026-01-01", "end_date": "2026-10-08",
+    "first_observation": "2026-01-05", "observation_count": 182,
     "method": "报价日中间价算术平均；非报价日不补值；四舍五入保留六位小数",
     "provisional": true,
-    "rates": {"USD": "6.852873", "HKD": "0.875157"},
-    "sums": {"USD": "1247.2229", "HKD": "159.27864"}
+    "rates": { "USD": "6.852873", "HKD": "0.875157" },
+    "sums": { "USD": "1247.2229", "HKD": "159.27864" }
   }
 }

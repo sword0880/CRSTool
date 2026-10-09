@@ -1,7 +1,0 @@
-# 富途海外证券个税助手 - 依赖清单
-# Python >= 3.9
-
-streamlit>=1.28.0
-pandas>=1.5.0
-openpyxl>=3.1.0
-pdfplumber>=0.10.0

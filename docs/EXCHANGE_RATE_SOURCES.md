@@ -2,6 +2,8 @@
 
 ## 2026 年临时测算
 
+WPF 使用根 `config/` 配置源；构建后读取 WPF 运行目录的 `config/`。Python 与 WinForms 项目已移除。
+
 `config/exchange_rate.json` 的 2026 年汇率为年初至今的报价日平均值，供临时测算使用。它不是 2026 年全年平均汇率，年末需重新核算。
 
 - 来源：[中国货币网——人民币汇率中间价历史数据](https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2)，发布机构为中国外汇交易中心。

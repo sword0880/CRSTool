@@ -1,288 +1,38 @@
-> 2026-09-22 实施说明：本文保留初版设计。账户隔离、年度筛选、缺失成本处理、标准化导入入口及不完整报告行为已调整，详见 [优化规划第 10 节](项目优化建议与IBKR接入规划.md#10-实施记录2026-09-22)；不得继续依赖静默跳过缺失成本或以持仓市价作为历史成本的旧行为。
+# 应用接口说明
 
-\# API 设计说明（API\_SPEC）V1.0
+更新日期：2026-10-10。当前为本地 C# 调用接口，不是 HTTP API。[原始接口提案](archive/API_SPEC.md)保留作历史资料。
 
+## 前台入口
 
+[IDesktopUseCases](../src/CRS.Application/Abstractions/IDesktopUseCases.cs) 是 WPF 页面使用的接口。
 
-\## 1. 文档目的
+| 成员 | 行为与边界 |
+| --- | --- |
+| CalculateAsync(request, cancellation) | 后台导入、校验、计算；保存前检查取消；返回结果和配置指纹 |
+| HistoryAsync / LoadAsync | 读取索引／冻结结果，不自动重算 |
+| ReviewsAsync / SaveReviewAsync | 读取或保存人工依据；不修改原税额，不自动解除成本问题 |
+| ExportAsync(path, result, fingerprint) | 新计算校验当前配置指纹；冻结历史沿用原汇率 |
+| ExportCarryAsync(path, result) | 仅 CarryEligible 结果允许写结转 |
+| DownloadAsync | IBKR Flex 下载；支持取消 |
+| RatesAsync(year) | 枚举已配置年度汇率 |
+| Trades(result) | 优先会话交易；完整快照可恢复历史交易，引用型历史不虚构明细 |
+| Sections(result, reviews) | 返回报表展示分组，不在前台重新聚合金额 |
+| ConfigPath / ReadQueryId / LogFailure | 配置位置、查询 ID、脱敏异常类型 |
 
+DesktopCalculationRequest 包含文件、年度、券商、期初与范围确认、结转／期初路径及完整快照保存选项。DesktopCalculationOutcome 包含 Result 和 RatesFingerprint。前台持有取消令牌和忙碌状态，不取得仓储。
 
+## 后台端口
 
-定义系统内部 Service 接口。
+Application/Abstractions 中的 IBrokerImporter、IExchangeRateProvider、ICarryValidator、ICalculationEvidence、ICalculationRepository 和 IReportExporter 由 Infrastructure 实现。IDesktopOperations 仅用于后台装配，不供 ViewModel 调用。
 
+## 计算与重放
 
+CalculationService.Calculate 是同步后台服务，由 DesktopWorkflow 安排后台执行；Replay 和 VerifyOriginalFiles 是后台审计能力，尚未接入 WPF 历史操作。
 
-即使 V1 为本地 Streamlit 工具，也要求采用接口设计，避免 UI 与计算逻辑耦合。
+Replay 要求完整规范化快照、输入摘要一致及兼容的执行元数据。历史汇率缺失、重复、错年度或无效时拒绝重放；沿用历史配置指纹与临时状态。此能力仍不等于严格输出一致性验证。
 
+## 错误与未知值
 
+业务失败使用 CrsException；取消使用 OperationCanceledException。资料不足可产生带 Issues 的部分结果。未知收益、差额与预计补税使用可空 decimal；不得在展示层补成零。
 
-\---
-
-
-
-\# 2. TaxCalculationService
-
-
-
-职责：
-
-
-
-统一编排整个计算流程。
-
-
-
-接口：
-
-
-
-calculate(
-
-dividend\_file,
-
-trade\_file,
-
-tax\_year
-
-) -> ExportBundle
-
-
-
-流程：
-
-
-
-解析股息文件
-
-↓
-
-解析交易文件
-
-↓
-
-FIFO计算
-
-↓
-
-税务计算
-
-↓
-
-生成导出对象
-
-
-
-异常：
-
-
-
-TaxException
-
-
-
-\---
-
-
-
-\# 3. DividendParser
-
-
-
-parse(file\_path)
-
-
-
-返回：
-
-
-
-List\[DividendRecord]
-
-
-
-异常：
-
-
-
-ParseException
-
-
-
-\---
-
-
-
-\# 4. TradeParser
-
-
-
-parse(file\_path)
-
-
-
-返回：
-
-
-
-List\[TradeRecord]
-
-
-
-异常：
-
-
-
-ParseException
-
-
-
-\---
-
-
-
-\# 5. FIFOEngine
-
-
-
-calculate(trades)
-
-
-
-返回：
-
-
-
-List\[MatchRecord]
-
-
-
-异常：
-
-
-
-InventoryException
-
-
-
-\---
-
-
-
-\# 6. TaxEngine
-
-
-
-calculate(
-
-dividends,
-
-matches,
-
-tax\_year
-
-)
-
-
-
-返回：
-
-
-
-TaxSummary
-
-
-
-\---
-
-
-
-\# 7. ExchangeRateRepository
-
-
-
-get\_rate(
-
-tax\_year,
-
-currency
-
-)
-
-
-
-返回：
-
-
-
-Decimal
-
-
-
-异常：
-
-
-
-UnsupportedCurrencyException
-
-
-
-\---
-
-
-
-\# 8. ExportService
-
-
-
-build\_summary(summary)
-
-
-
-build\_gain\_detail(matches)
-
-
-
-返回：
-
-
-
-Excel 文件对象。
-
-
-
-\---
-
-
-
-\# 9. UI 调用流程
-
-
-
-Streamlit
-
-
-
-↓
-
-
-
-TaxCalculationService
-
-
-
-↓
-
-
-
-ExportBundle
-
-
-
-↓
-
-
-
-下载结果。
-
-
-
+C# 实际签名以源码为准。本文件不声明尚未实现的旧提案模型或新的远程 API。

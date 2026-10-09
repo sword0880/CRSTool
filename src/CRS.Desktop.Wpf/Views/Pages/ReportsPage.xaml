@@ -1,0 +1,8 @@
+<Page x:Class="CRS.DesktopClient.Views.Pages.ReportsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="24,26,32,24">
+  <TextBlock Text="报表导出" Style="{StaticResource PageTitle}"/><TextBlock Text="输出当前计算或历史任务的冻结底稿，保存到你选择的位置。" Style="{StaticResource Subtitle}"/>
+  <Border Style="{StaticResource Card}" Margin="0,0,0,16"><StackPanel><TextBlock Text="Excel 核算底稿" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="包含税务汇总、FIFO 明细、核对问题、实际汇率和人工复核依据。" TextWrapping="Wrap" Margin="0,12,0,18"/><ui:Button Content="导出 Excel 底稿" Command="{Binding ExportCommand}" Appearance="Primary"/></StackPanel></Border>
+  <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="年末 LOT 结转" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="后台确认年末成本可信后才能保存，用于下一年度导入。" TextWrapping="Wrap" Margin="0,12,0,18"/><ui:Button Content="导出 C# LOT 结转" Command="{Binding ExportCarryCommand}"/></StackPanel></Border>
+  <TextBlock Text="{Binding State.Status}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,18,0,0"/>
+ </StackPanel></ScrollViewer>
+</Page>
