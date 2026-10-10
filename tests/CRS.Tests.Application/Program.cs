@@ -20,6 +20,7 @@ if (typeof(DesktopWorkflow).Assembly.GetReferencedAssemblies().Any(a=>a.Name is 
 Console.WriteLine("Application 验证通过：取消、导出门槛、历史汇率、结转、复核及依赖（6 项）。");
 AnnualCalculationChecks.Run();
 ReplayChecks.Run();
+CarryReplayChecks.Run();
 
 sealed class StubOperations : IDesktopOperations
 {
@@ -28,6 +29,7 @@ sealed class StubOperations : IDesktopOperations
     public IExchangeRateProvider LoadRates()=>new Rates();
     public CalculationService CreateCalculator(IExchangeRateProvider rates,string broker="IBKR",int year=2025)=>throw new Exception("取消请求不应创建计算器。");
     public string ReadQueryId()=>""; public CarryDocument ReadCarry(string path)=>throw new NotSupportedException();
+    public ForeignCreditEvidence ReadForeignCredit(string path)=>throw new NotSupportedException();
     public void SaveCarry(string path,CalculationResult result)=>CarryCount++;
     public Task DownloadAsync(string queryId,string token,DateOnly from,DateOnly to,string path,CancellationToken cancellation)=>Task.CompletedTask;
     public void LogFailure(string exceptionType){}
@@ -46,6 +48,7 @@ sealed class MemoryStore : ICalculationRepository
     public int Saved { get; private set; } private readonly List<ReviewNote> notes=[];
     public void Save(CalculationResult result)=>Saved++;
     public List<HistoryItem> History()=>[];
+    public HistoryPageResult QueryHistory(int pageNumber,int pageSize)=>new([],0,1,pageSize);
     public CalculationResult Load(string id)=>throw new NotSupportedException();
     public void AddReview(string id,string category,string evidence)=>notes.Add(new(id,category,evidence,"synthetic"));
     public List<ReviewNote> Reviews(string id)=>notes.Where(n=>n.SnapshotId==id).ToList();

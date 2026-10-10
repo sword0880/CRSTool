@@ -16,6 +16,8 @@ public sealed class CalculationResult
     public required TaxSummary Summary { get; init; }
     /// <summary>原币年度事实；旧历史记录缺失时不得据其税额生成完整年度聚合。</summary>
     public TaxCalculationInputs? TaxInputs { get; init; }
+    /// <summary>结构化境外抵免复核及冻结凭证关系；旧历史缺失时不推定已核实。</summary>
+    public ForeignCreditAssessment? ForeignCreditAssessment { get; init; }
     public List<Match> Matches { get; init; } = [];
     public List<Issue> Issues { get; init; } = [];
     public List<string> Warnings { get; init; } = [];
@@ -43,10 +45,15 @@ public sealed class CalculationResult
     public decimal? EstimatedTopUpCny { get; init; }
     public InputRecoveryMode InputRecoveryMode { get; init; } = InputRecoveryMode.Unavailable;
     public string CanonicalInputDigest { get; init; } = "";
-    /// <summary>规范化输入快照；只保存已脱敏的领域记录，不保存 Flex 服务令牌。</summary>
+    /// <summary>规范化输入快照仍含账户和交易事实；不保存 Flex 服务令牌，不代表匿名化。</summary>
     public string CanonicalInputJson { get; init; } = "";
     public bool IsReplayable { get; init; }
     public string SnapshotId { get; set; } = "";
+    /// <summary>复算另存新运行并保留父运行，不覆盖原始冻结结果。</summary>
+    public string? ParentSnapshotId { get; set; }
+    /// <summary>年度汇总的来源任务，随结果持久化并在底稿中披露。</summary>
+    public List<AggregationSource> AggregationSources { get; init; } = [];
+    [JsonIgnore] public bool IsAnnualAggregate => AggregationSources.Count > 0;
     public string SnapshotJson { get; set; } = "";
     public bool Complete => CalculationStatus == CalculationStatus.Completed && Issues.Count == 0 && Reconciled && !Provisional;
 }

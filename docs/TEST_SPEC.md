@@ -6,13 +6,13 @@
 
 | 项目 | 当前检查数 | 内容 |
 | --- | ---: | --- |
-| CRS.Tests.Domain | 3 | FIFO 金额守恒、税额基线、依赖 |
-| CRS.Tests.Application | 16 | 用例门槛、年度资料、结转／账户隔离、重放上下文 |
-| CRS.Tests.Infrastructure | 7 | 历史 JSON、交易隐私、汇率、设置与日志 |
-| CRS.Tests.Wpf | 9 | 状态联动、输入失效、历史、富途文件交互 |
+| CRS.Tests.Domain | 6 | FIFO 金额守恒、稳定排序和歧义隔离、税额基线、依赖 |
+| CRS.Tests.Application | 21 | 用例门槛、年度资料、结转／账户隔离、冻结复算与全量输出比对、乱序快照一致 |
+| CRS.Tests.Infrastructure | 17 | 历史 JSON、分页与父运行、交易隐私、汇率、设置与日志、跨券商年度汇总持久化／导出／门槛 |
+| CRS.Tests.Wpf | 17 | 状态联动、输入失效、历史分页／取消／复算、跨页汇总勾选／确认／取消、富途文件交互 |
 | CRS.Tests.Verification | 68 | 既有金额、券商、SQLite、NPOI、Flex 模拟及富途综合回归 |
 
-这些是控制台检查／分组数量，共 103 项，不是测试覆盖率。运行命令和窗口入口见 [tests/README](../tests/README.md)。新增用例后同时更新此表。
+这些是控制台检查／分组数量，共 129 项，不是测试覆盖率。运行命令和窗口入口见 [tests/README](../tests/README.md)。新增用例后同时更新此表。
 
 架构脚本检查项目引用、前台业务边界、九个页面、中央包版本，以及 WinForms 项目和 AntdUI 依赖已删除。窗口检查使用隔离临时数据库，不读取真实历史。
 

@@ -17,7 +17,15 @@ public sealed class FifoEngine
         CancellationToken cancellation = default)
     {
         Issues.Clear(); Uncertain.Clear(); EndingLots.Clear(); EndingRounding.Clear(); EndingQuantities.Clear();
-        var trades = input.Where(t => (t.Asset is "STK" or "ETF") && t.Time.Year <= year).ToList();
+        var trades = FifoOrdering.Trades(input.Where(t => (t.Asset is "STK" or "ETF") && t.Time.Year <= year)).ToList();
+        var openingLots = FifoOrdering.Lots(opening).ToList();
+        // 同时刻跨文件或相同行序无法证明先后，不能靠文件选择顺序发布可信成本。
+        foreach (var group in trades.GroupBy(t => (t.Key, t.Time)))
+            if (group.Count() > 1 && (group.Select(t => t.File).Distinct(StringComparer.Ordinal).Count() > 1
+                || group.GroupBy(t => t.Row).Any(rows => rows.Count() > 1)))
+                Ambiguous(group.Key.Key, group.Key.Time, FifoOrdering.Trades(group).First().Symbol);
+        foreach (var group in openingLots.GroupBy(l => (l.Key, l.BuyTime)))
+            if (group.Count() > 1) Ambiguous(group.Key.Key, group.Key.BuyTime, group.First().Symbol);
         var stocks = new Dictionary<SecurityKey, Queue<CostLot>>();
         // 成本账只维护一个可扣减的含费总成本；Fee 仅作为审计披露，不重复参与收益公式。
         var ledgers = new Dictionary<SecurityKey, (decimal TotalCost, decimal TotalCostAllocated, decimal Fee, decimal FeeAllocated)>();
@@ -27,7 +35,7 @@ public sealed class FifoEngine
                 throw new CrsException("结转舍入余额重复或超出半分。");
             ledgers[r.Key] = (r.CostDelta, 0, r.FeeDelta, 0);
         }
-        foreach (var lot in opening.OrderBy(l => l.BuyTime))
+        foreach (var lot in openingLots)
         {
             cancellation.ThrowIfCancellationRequested();
             if (lot.Quantity <= 0 || lot.Cost < 0 || lot.Fee < 0) throw new CrsException("期初批次数量或成本无效。");
@@ -43,14 +51,14 @@ public sealed class FifoEngine
             Get(lot.Key).Enqueue(lot.Copy());
         }
         foreach (var group in trades.GroupBy(t => t.Key))
-            if (group.Select(t => t.HasOffset).Concat(opening.Where(l => l.Key == group.Key).Select(l => l.HasOffset)).Distinct().Count() > 1)
+            if (group.Select(t => t.HasOffset).Concat(openingLots.Where(l => l.Key == group.Key).Select(l => l.HasOffset)).Distinct().Count() > 1)
                 throw new CrsException("同账户证券混用带时区和无时区时间。");
         foreach (var e in events.Where(e => e.AffectsCost))
-            foreach (var key in trades.Select(t => t.Key).Concat(opening.Select(l => l.Key)).Distinct())
+            foreach (var key in trades.Select(t => t.Key).Concat(openingLots.Select(l => l.Key)).Distinct())
                 if ((e.Account == "" || e.Account == key.Account) && (e.Instrument == "" || e.Instrument == key.Instrument)
                     && (e.Currency == "" || e.Currency == key.Currency)) Uncertain.Add(key);
         var matches = new List<Match>();
-        foreach (var t in trades.OrderBy(t => t.Time).ThenBy(t => t.Row))
+        foreach (var t in trades)
         {
             cancellation.ThrowIfCancellationRequested();
             if (t.Quantity <= 0 || t.Price <= 0 || t.Fee < 0 || t.Gross < 0) throw new CrsException("成交数量、价格或费用无效。");
@@ -111,6 +119,14 @@ public sealed class FifoEngine
         EndingRounding.AddRange(ledgers.Where(p => !Uncertain.Contains(p.Key)).Select(p =>
             new RoundingState(p.Key, p.Value.TotalCost - p.Value.TotalCostAllocated, p.Value.Fee - p.Value.FeeAllocated)));
         return matches;
+
+        // 保留可定位的复核事项，并隔离受影响证券；其他证券仍可独立核算。
+        void Ambiguous(SecurityKey key, DateTimeOffset time, string symbol)
+        {
+            Uncertain.Add(key);
+            Issues.Add(new("AMBIGUOUS_FIFO_ORDER", "同一时刻的批次先后无法由来源行序证明，请核对原始成交顺序。",
+                key.Account, symbol, key.Currency, DateOnly.FromDateTime(time.Date), Instrument: key.Instrument, AffectsCost: true));
+        }
 
         // 获取当前证券库存队列；首次出现时创建独立库存。
         Queue<CostLot> Get(SecurityKey key)

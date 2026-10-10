@@ -10,6 +10,10 @@ var config = Path.Combine(workspace, "config"); Directory.CreateDirectory(config
 File.WriteAllText(Path.Combine(config, "exchange_rate.json"), """{"2025":{"USD":1,"HKD":1,"CNY":1},"2026":{"USD":1,"HKD":1,"CNY":1}}""");
 File.WriteAllText(Path.Combine(config, "exchange_rate_sources.json"), """{"2025":{"source":"合成验证数据","url":"https://example.com/verification","method":"固定测试汇率","start_date":"2025-01-01","end_date":"2025-12-31","provisional":false,"rates":{"USD":1,"HKD":1}}}""");
 var rates = new ExchangeRates(config);
+// 性能入口与普通回归分开，避免把合成大样本耗时混入测试正确性结论。
+if (args.Length == 2 && args[0] == "--benchmark") { ReleaseBenchmark.Run(args[1],workspace,rates); return; }
+// 真实样本只能来自用户提供的脱敏原件和独立人工基准，不能从合成 fixture 自动升级。
+if (args.Length == 3 && args[0] == "--accept-real") { RealSampleAcceptance.Run(args[1],args[2]); return; }
 if (args.Length >= 2 && args[0] == "--analyze")
 {
     var analyzed = CalculationServices.Create(args.Length >= 3 ? new ExchangeRates(args[2]) : rates).Calculate([args[1]], 2025, true, true);
@@ -28,9 +32,11 @@ void Assert(bool condition) { if (!condition) throw new Exception("断言不满�
 // 检查无效资料明确产生业务异常，而非被静默接受。
 void Reject(Action action) { try { action(); } catch (CrsException) { return; } throw new Exception("预期拒绝但被接受"); }
 var key = new SecurityKey("TEST", "111", "USD");
+// 合成报告每次创建成交都具有独立原始行号，明确表达原有测试已知的成交先后。
+var syntheticRow = 0;
 // 创建合成成交，保留指定总金额，以验证分配而非重新计算价格金额。
 Trade Trade(string id, string side, decimal qty, decimal gross, decimal fee = 0, int year = 2025, int day = 2) => new(key, "DEMO", new(year, 1, day, 10, 0, 0, TimeSpan.Zero), false,
-    side, qty, gross / qty, gross, fee, side == "BUY" ? -gross - fee : gross - fee, id, "synthetic.xml", day, "STK", null);
+    side, qty, gross / qty, gross, fee, side == "BUY" ? -gross - fee : gross - fee, id, "synthetic.xml", ++syntheticRow, "STK", null);
 // 使用固定测试汇率运行 FIFO，独立于用户汇率文件。
 List<Match> Run(Trade[] trades, FifoEngine? engine = null) => (engine ?? new()).Calculate(trades, [], [], [], 2025, (_, _) => 1);
 // 创建覆盖全年、可控制盈亏及余额的脱敏合成 XML。

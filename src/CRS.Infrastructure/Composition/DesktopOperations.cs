@@ -21,6 +21,8 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public string ReadQueryId() => FlexConfiguration.ReadQueryId(ConfigPath);
     /// <summary>读取并验证本地结转。</summary>
     public CarryDocument ReadCarry(string path) => CarryFiles.Read(path);
+    /// <summary>读取结构化抵免明细及实际凭证摘要。</summary>
+    public ForeignCreditEvidence ReadForeignCredit(string path) => ForeignCreditFiles.Read(path);
     /// <summary>沿用现有结转格式保存可信期末 LOT。</summary>
     public void SaveCarry(string path, CalculationResult result) => File.WriteAllBytes(path, CarryFiles.Encode(CarryFiles.Create(result)));
     /// <summary>创建独立 HTTP 会话请求官方报告，取消时不继续保存。</summary>

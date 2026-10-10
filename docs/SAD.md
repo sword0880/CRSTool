@@ -20,6 +20,6 @@ SQLite + Dapper，user_version=1；NPOI 处理 Excel，PdfPig 处理已支持文
 
 ## 重放与限制
 
-ReplayExecutionContext 校验历史口径，禁止缺失冻结汇率时回退当前配置，保留原临时状态和指纹。TimeProvider 支持跨年验证。严格执行版本、结转语义和完整输出一致性尚未闭环，见 [当前问题](KNOWN_ISSUES.md)。
+ReplayExecutionContext 校验历史口径，禁止缺失冻结汇率时回退当前配置，保留原临时状态和指纹。TimeProvider 支持跨年验证。v2 快照保留原始期初及完整结转，重放重新校验并合入一次；业务输出比对通过后另存父子运行。执行版本封存、旧格式转换等剩余工作见 [当前问题](KNOWN_ISSUES.md)。
 
 只在用户选择 Flex 下载时执行该联网用例；文件计算本地执行。界面测试使用隔离数据库。虚拟化和卖出索引不等于已完成真实性能基准。

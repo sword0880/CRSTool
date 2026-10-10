@@ -42,3 +42,7 @@ __pycache__/
 *.suo
 **/publish/
 /artifacts/
+
+# 本地验收工具和隔离临时资料不进入版本库。
+/.tools/
+/.ui-check/

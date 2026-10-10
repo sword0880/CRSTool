@@ -12,3 +12,4 @@ var summary = TaxEngine.Calculate([new("SYNTHETIC",2025,"USD",100m,20m)],matches
 if (summary.SupplementTax!=117.2m) throw new Exception("拆层后收入、抵免与资本收益合并金额改变。");
 if (typeof(FifoEngine).Assembly.GetReferencedAssemblies().Any(a=>a.Name?.StartsWith("CRS.")==true)) throw new Exception("Domain 反向依赖外层。");
 Console.WriteLine("Domain 验证通过：FIFO、税额及程序集独立性（3 项）。");
+FifoOrderingChecks.Run();

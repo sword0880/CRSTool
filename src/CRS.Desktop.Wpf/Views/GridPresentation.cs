@@ -28,11 +28,15 @@ public static class GridPresentation
     }
     /// <summary>将模型字段映射为中文表头，只负责展示名称。</summary>
     private static string ColumnTitle(string key) => key switch {
+        // 抵免表格沿用统一中文列名，摘要只用于凭证原件核对。
+        "Country" => "国家／地区", "IncomeCny" => "人民币所得", "LimitCny" => "辅助抵免限额", "PaidCny" => "符合明细条件税款",
+        "ExcludedCny" => "排除税款", "CreditCny" => "辅助抵免金额", "ExcessCny" => "超限未结转", "Authority" => "征税机关",
+        "Reference" => "凭证编号", "Exclusion" => "排除原因", "Role" => "凭证类型", "Name" => "文件名", "Sha256" => "文件摘要", "Broker" => "券商",
         "AccountName" => "账户名称", "Dividend" => "股息", "Interest" => "利息", "OtherIncome" => "其他收入（未计税）",
         "Sheet" => "工作表／页码", "Row" => "原始行号", "Type" => "类型", "Direction" => "方向", "Amount" => "金额", "Description" => "备注",
         "ExpectedGross" => "数量价格金额", "ReportedGross" => "原成交金额", "ExpectedNet" => "应变动金额", "ReportedNet" => "原变动金额",
         "Count" => "笔数", "Market" => "市场",
-        "EstimatedTopUpCny" => "年度预计补税",
+        "EstimatedTopUpCny" => "年度预计补税", "ParentSnapshotId" => "来源父任务",
         "Account" => "账户", "Key" => "账户／证券／币种", "Symbol" => "证券", "Currency" => "币种", "Year" => "年度", "Id" or "TradeId" or "RecordId" => "记录编号",
         "Cost" => "成本", "Revenue" => "收入", "Quantity" => "数量", "BuyFee" => "买入费用", "SellFee" => "卖出费用", "Gain" => "收益", "GainCny" => "人民币收益",
         "BuyDate" => "买入日期", "SellDate" => "卖出日期", "BuyId" => "买入编号", "SellId" => "卖出编号", "BuyFile" => "买入文件", "SellFile" => "卖出文件",
@@ -41,6 +45,6 @@ public static class GridPresentation
         "Difference" => "差额", "Status" => "状态", "Reason" => "原因", "Calculated" => "计算收益", "Reported" => "券商收益", "Value" => "汇率", "Source" => "来源",
         "Url" => "网址", "Method" => "统计方法", "Provisional" => "临时测算", "SourceConfirmed" => "来源已登记", "BuyTime" => "原始买入时间", "HasOffset" => "含时区",
         "SourceFile" => "来源文件", "Fee" => "剩余费用", "DividendCny" => "人民币股息", "InterestCny" => "人民币利息", "DividendInterestTax" => "股息利息税",
-        "GainTax" => "收益税", "ForeignCredit" => "境外抵免", "SupplementTax" => "辅助测算补税", "CreatedUtc" => "保存时间UTC", "Complete" => "支持范围内完成",
+        "GainTax" => "收益税", "ForeignCredit" => "辅助境外抵免", "SupplementTax" => "辅助测算补税", "CreatedUtc" => "保存时间UTC", "Complete" => "支持范围内完成",
         "Issues" => "待复核数量", "SnapshotId" => "计算编号", "Category" => "复核类型", "Evidence" => "复核依据", _ => key };
 }

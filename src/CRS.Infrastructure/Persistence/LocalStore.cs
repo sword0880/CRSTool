@@ -49,18 +49,38 @@ public sealed class LocalStore : ICalculationRepository
     public void Save(CalculationResult r)
     {
         using var c = Open(); using var tx = c.BeginTransaction();
+        // 复算只能追加到已存在的父运行，避免保存断链历史或覆盖原任务。
+        if (r.ParentSnapshotId is { } parent && (parent == r.SnapshotId
+            || c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations WHERE id=@Parent AND year=@Year", new { Parent = parent, r.Year }, tx) != 1))
+            throw new CrsException("复算父运行不存在或年度不一致，不能保存。");
+        // 来源任务必须存在且属于相同年度，汇总记录与来源关系在同一事务中保存。
+        foreach (var source in r.AggregationSources)
+            if (source.SnapshotId == r.SnapshotId || source.Year != r.Year
+                || c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations WHERE id=@Id AND year=@Year", new { Id = source.SnapshotId, r.Year }, tx) != 1)
+                throw new CrsException("年度汇总来源不存在或年度不一致，不能保存。");
         c.Execute("INSERT INTO calculations(id,year,created_utc,complete,issues,result_json,carry) VALUES(@Id,@Year,@Utc,@Complete,@Issues,@Json,@Carry)",
             new { Id = r.SnapshotId, r.Year, Utc = DateTimeOffset.UtcNow.ToString("O"), Complete = r.Complete ? 1 : 0,
                 Issues = r.Issues.Count, Json = JsonSerializer.Serialize(r), Carry = r.CarryEligible ? CarryFiles.Encode(CarryFiles.Create(r)) : null }, tx);
         tx.Commit();
     }
-    /// <summary>读取最近一百份计算的索引信息供历史窗口选择。</summary>
-    public List<HistoryItem> History()
+    /// <summary>保留最近任务查询，完整历史由分页入口提供。</summary>
+    public List<HistoryItem> History() => QueryHistory(1, 100).Rows;
+
+    /// <summary>计数和分页在同一读取事务中完成，同一时间以运行编号稳定排序。</summary>
+    public HistoryPageResult QueryHistory(int pageNumber, int pageSize)
     {
-        using var c = Open();
+        if (pageNumber < 1 || pageSize is < 1 or > 100 || (long)(pageNumber - 1) * pageSize > int.MaxValue)
+            throw new CrsException("历史页码或每页数量无效。");
+        using var c = Open(); using var tx = c.BeginTransaction();
+        var total = c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations", transaction: tx);
+        // 总数减少时回到最后有效页，刷新后不显示空的越界页。
+        var page = Math.Min(pageNumber, Math.Max(1, (int)Math.Ceiling(total / (double)pageSize)));
         // SQLite INTEGER 返回 Int64，先映射可写行模型再构造领域记录，避免 record 构造类型不匹配。
-        return c.Query<HistoryRow>("SELECT id AS Id,year AS Year,created_utc AS CreatedUtc,complete AS Complete,issues AS Issues,COALESCE(json_extract(result_json, '$.Broker'), '未登记') AS Broker FROM calculations ORDER BY created_utc DESC LIMIT 100")
-            .Select(r => new HistoryItem(r.Id, r.Year, r.CreatedUtc, r.Complete == 1, r.Issues, r.Broker)).ToList();
+        var rows = c.Query<HistoryRow>("SELECT id AS Id,year AS Year,created_utc AS CreatedUtc,complete AS Complete,issues AS Issues,COALESCE(json_extract(result_json, '$.Broker'), '未登记') AS Broker,json_extract(result_json, '$.ParentSnapshotId') AS ParentSnapshotId,COALESCE(json_array_length(json_extract(result_json, '$.AggregationSources')),0) AS AggregationSourceCount,COALESCE(json_extract(result_json, '$.CoveredAccounts'),'[]') AS AccountsJson FROM calculations ORDER BY created_utc DESC,id DESC LIMIT @Limit OFFSET @Offset",
+            new { Limit = pageSize, Offset = (page - 1) * pageSize }, tx)
+            .Select(r => new HistoryItem(r.Id, r.Year, r.CreatedUtc, r.Complete == 1, r.Issues, r.Broker, r.ParentSnapshotId, r.AggregationSourceCount > 0 || r.Broker == "MULTI",
+                string.Join("、",JsonSerializer.Deserialize<string[]>(r.AccountsJson) ?? []))).ToList();
+        return new(rows, total, page, pageSize);
     }
     /// <summary>按计算编号恢复历史结果，历史底稿保持原始汇率与状态。</summary>
     public CalculationResult Load(string id)
@@ -88,6 +108,9 @@ public sealed class LocalStore : ICalculationRepository
     {
         public string Broker { get; set; } = "未登记";
         public string Id { get; set; } = "";
+        public string? ParentSnapshotId { get; set; }
+        public int AggregationSourceCount { get; set; }
+        public string AccountsJson { get; set; } = "[]";
         public int Year { get; set; }
         public string CreatedUtc { get; set; } = "";
         public int Complete { get; set; }
