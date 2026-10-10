@@ -16,5 +16,7 @@
     <!-- 离线二维码仅生成内存 PNG，不保存绑定秘密。 -->
     <PackageVersion Include="QRCoder" Version="1.7.0" />
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
+    <!-- 本机日常登录由 Windows 当前用户保护密钥，跨机恢复仍使用独立恢复槽。 -->
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
   </ItemGroup>
 </Project>

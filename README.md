@@ -20,4 +20,4 @@ dotnet run --project src/CRS.Desktop.Wpf
 
 境外抵免支持历史任务导入国家、所得项目与凭证明细，说明见 [抵免复核](docs/FOREIGN_CREDIT_REVIEW.md)。发布验证及未完成门槛见 [发布验收](docs/RELEASE_ACCEPTANCE.md)，数据保存范围见 [隐私说明](docs/PRIVACY.md)。
 
-启动现须创建或解锁 SQLCipher 保险库，旧明文数据库不兼容且不会迁移。独立 Security 模块、恢复密钥与加密备份使用说明见 [保险库指南](docs/VAULT_GUIDE.md)。
+首次进入设置主密码保护 SQLCipher 数据库并用 Microsoft Authenticator“其他账户”扫码绑定；日常在已启用的 Windows 用户环境中只输入手机验证码，验证成功直接进入。本机凭证失效或换电脑时保留主密码／独立恢复密钥路径。旧明文数据库不兼容且不会迁移；说明见 [保险库指南](docs/VAULT_GUIDE.md) 与 [认证流程](docs/AUTH_IMPLEMENTATION.md)。

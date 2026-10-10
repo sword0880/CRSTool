@@ -21,6 +21,8 @@ internal static class VaultAuthenticationStore
         public int FailedAttempts {get;set;}
         public long? LockedUntilUtc {get;set;}
         public int InitializationComplete {get;set;}
+        // 版本一没有此列时按启用处理；版本二把开关保存在加密库，普通配置不能绕过认证。
+        public int PhoneVerificationEnabled {get;set;}=1;
     }
     internal static void Ensure(VaultSession session,VaultEnvelope envelope)
     {
@@ -44,9 +46,13 @@ internal static class VaultAuthenticationStore
     internal static State Read(SqliteConnection c,SqliteTransaction? tx,VaultEnvelope envelope)
     {
         var s=c.QuerySingle<State>("SELECT * FROM SecuritySettings WHERE Id=1",transaction:tx);
-        if(s.VaultId!=envelope.VaultId.ToString("D") || s.EnvelopeVersion!=envelope.Version || s.SecurityVersion!=1
+        if(s.SecurityVersion==2 && c.ExecuteScalar<int>("SELECT COUNT(*) FROM pragma_table_info('SecuritySettings') WHERE name='PhoneVerificationEnabled'",transaction:tx)!=1)
+            throw new CrsException("保险库手机验证配置结构不完整。");
+        if(s.VaultId!=envelope.VaultId.ToString("D") || s.EnvelopeVersion!=envelope.Version || s.SecurityVersion is not (1 or 2)
             || s.MfaStatus is not ("Pending" or "Enabled" or "RecoveryOnly")
             || s.InitializationComplete is not (0 or 1)
+            || s.PhoneVerificationEnabled is not (0 or 1)
+            || (s.SecurityVersion==1 && s.PhoneVerificationEnabled!=1)
             || s.FailedAttempts is <0 or >5 || (s.PendingTotpSecret is not null && s.PendingTotpSecret.Length!=20)
             || (s.MfaStatus=="Enabled" && s.TotpSecret?.Length!=20)) throw new CrsException("保险库认证状态或身份不一致，禁止访问。");
         return s;

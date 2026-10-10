@@ -24,3 +24,5 @@ await AnnualAggregationChecks.RunAsync(root);
 await ForeignCreditChecks.RunAsync(root);
 await VaultChecks.RunAsync(root);
 await MfaChecks.RunAsync(root);
+await LocalKeyChecks.RunAsync(root);
+await PhoneSettingsChecks.RunAsync(root);

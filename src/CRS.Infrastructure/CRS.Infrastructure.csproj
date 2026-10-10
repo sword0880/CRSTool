@@ -18,6 +18,7 @@
     <PackageReference Include="QRCoder" />
     <!-- 覆盖 NPOI 的旧间接依赖，使用已修复安全问题的版本。 -->
     <PackageReference Include="System.Security.Cryptography.Xml" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Pdf\" />

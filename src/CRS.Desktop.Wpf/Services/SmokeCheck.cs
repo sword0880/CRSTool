@@ -49,6 +49,8 @@ internal static class SmokeCheck
             if (shell.Settings is null) throw new InvalidOperationException("设置服务未装配。");
             var settingsWindow = new SettingsWindow(shell.Settings) { Owner = window };
             settingsWindow.Show(); settingsWindow.UpdateLayout();
+            if(!shell.Settings.SecuritySettingsAvailable || !shell.Settings.PhoneVerificationEnabled
+                || !((FrameworkElement)settingsWindow.FindName("PhoneVerificationPanel")).IsVisible) throw new InvalidOperationException("设置未显示当前保险库的手机验证开关。");
             shell.Settings.LogRetentionFiles = 9;
             await shell.Settings.SaveCommand.ExecuteAsync(null);
             shell.Settings.Reload();
@@ -181,6 +183,8 @@ internal static class SmokeCheck
                 vault.Lock(); var security=new VaultViewModel(vault,settings,new SmokeInteraction());
                 var gate=new VaultWindow(security) {Owner=window}; gate.Show(); await Task.Delay(250); gate.UpdateLayout();
                 if(security.ContinueCommand.CanExecute(null) || security.IsUnlocked) throw new InvalidOperationException("未解锁仍允许进入工作区。");
+                if(security.ShowPasswordEntry || security.CreateCommand.CanExecute(null) || !security.VerifyCodeCommand.CanExecute(null)) throw new InvalidOperationException("本机日常手机登录仍显示主密码或创建入口。");
+                if(security.ShowDirectoryEntry || ((FrameworkElement)gate.FindName("DirectoryPanel")).IsVisible) throw new InvalidOperationException("日常登录仍展示数据库位置。");
                 if(imagePath is not null) Capture(gate,VariantPath(imagePath,"vault")); gate.Close();
                 // 换机限制会话后再遇到系统锁屏，应能重复清理而不复用敏感模型。
                 window.PrepareLock(); window.PrepareLock();

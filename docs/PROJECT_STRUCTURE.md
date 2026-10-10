@@ -150,6 +150,6 @@ flowchart TD
 
 **职责边界：** `CRS.Security` 负责可单独测试的密码学机制（Argon2id、密钥生成、AES-GCM 封装、恢复凭证）；`Infrastructure/Security` 只是接口适配与保险库会话编排，SQLCipher、磁盘文件及备份 I/O 留在 Infrastructure。`VaultId` 仅用于保险库身份，不取代按券商/账户/证券/币种隔离的业务身份键。新增 `CRS.Security` 不意味着实现在线账户、订阅或多租户服务。
 
-**认证新增边界：** 正常登录通过主密码解封装 DEK 后，仅允许受限连接读取 TOTP 配置；完成验证码验证、时间窗口原子消费后才授予业务会话。Application 不引用 Security，WPF 非 Composition 层不接触 SQLCipher 或密钥。保持既有 10 分钟锁定；恢复由独立数据库恢复密钥与一次性 MFA 恢复码区分。
+**认证新增边界：** 首次／恢复由主密码解封 DEK，日常由 Infrastructure 的 DPAPI CurrentUser 本机槽准备受限认证；完成 TOTP 原子消费后才授予业务会话。Application 不引用 Security，WPF 非 Composition 层不接触 SQLCipher 或密钥。保持 10 分钟锁定；独立数据库恢复密钥与一次性手机恢复码用途分开，便携备份不含本机 Windows 槽。
 
 **兼容边界：** 当前使用 SQLCipher，业务 `user_version=1` 与独立认证 `SecurityVersion=1` 分别验证。安全版本**发现明文库即拒绝读取，不做转换或迁移**；只能在用户明确指定的空目录创建或恢复加密保险库，不删除或覆盖旧库与 WAL/SHM。已验证的加密库可补建认证表，但仍须扫码绑定才能访问业务。Application 保持已有的导入、计算、冻结历史、复算与导出门槛。

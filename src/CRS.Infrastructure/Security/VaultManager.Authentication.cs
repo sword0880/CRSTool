@@ -8,7 +8,7 @@ using QRCoder;
 
 namespace CRS.Infrastructure;
 
-/// <summary>主密码只建立五分钟受限上下文；手机验证成功后才发布业务仓储。</summary>
+/// <summary>主密码恢复或本机受保护槽建立受限上下文；手机验证成功后才发布业务仓储。</summary>
 public sealed partial class VaultManager
 {
     private VaultSession? pending;
@@ -37,7 +37,7 @@ public sealed partial class VaultManager
     }
     private VaultSession Pending()
     {
-        if(pending is null || Stopwatch.GetElapsedTime(pendingStarted)>TimeSpan.FromMinutes(5)) {ClearPending(); throw new CrsException("认证已过期，请重新输入主密码。");}
+        if(pending is null || Stopwatch.GetElapsedTime(pendingStarted)>TimeSpan.FromMinutes(5)) {ClearPending(); throw new CrsException("认证已过期，请重新开始手机验证；本机凭证不可用时使用主密码恢复。");}
         if(Stopwatch.GetTimestamp()<nextAttempt) throw new CrsException("请稍候再试验证码。");
         if(Stopwatch.GetTimestamp()<cooldownUntil) throw new CrsException("验证码仍在 15 分钟冷却中。");
         return pending;
@@ -126,13 +126,18 @@ public sealed partial class VaultManager
     private void Promote()
     {
         // 发布全新的业务会话，旧会话永远不能复活。
-        var candidate=Pending(); var store=new LocalStore(candidate); session=candidate; repository=store; pending=null; awaitingConfirmation=false; nextAttempt=0;
+        var candidate=Pending(); var store=new LocalStore(candidate);
+        RememberLocalKey(candidate);
+        session=candidate; repository=store; pending=null; awaitingConfirmation=false; nextAttempt=0;
     }
-    public Task RecoverMfaAsync(string recoveryCode)=>Task.Run(()=>
+    public Task RecoverMfaAsync(string recoveryCode,string masterPassword)=>Task.Run(()=>
     {
         lock(gate)
         {
-            var candidate=Pending(); using var c=candidate.Open(); using var tx=c.BeginTransaction(); var s=VaultAuthenticationStore.Read(c,tx,envelope!); var now=Now();
+            var candidate=Pending();
+            // 手机丢失属于恢复而非日常登录，仍须证明主密码，不能只凭本机槽消费备用恢复码。
+            using var proof=VaultKeyManager.Unlock(envelope!,masterPassword);
+            using var c=candidate.Open(); using var tx=c.BeginTransaction(); var s=VaultAuthenticationStore.Read(c,tx,envelope!); var now=Now();
             try
             {
                 if(VaultAuthenticationStore.NeedsEnrollment(s)) throw new CrsException("请完成新手机绑定。");

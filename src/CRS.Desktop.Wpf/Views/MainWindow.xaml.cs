@@ -18,6 +18,8 @@ public partial class MainWindow : FluentWindow
         forceClose=true;
         // 换手机限制会话与系统锁屏可能先后触发，已清理窗口应允许重复关闭。
         if(DataContext is not ShellViewModel shell) return;
+        foreach(var settings in OwnedWindows.OfType<SettingsWindow>().ToArray()) settings.AbortForLock();
+        shell.Settings?.ClearSecurityInputs();
         shell.State.UseCases.EndSession(); shell.Import.CancelCommand.Execute(null); shell.History.CancelOperationCommand.Execute(null);
         shell.Import.Token=""; shell.State.Clear(); DataContext=null;
     }

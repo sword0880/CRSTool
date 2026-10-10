@@ -116,6 +116,7 @@
           "QRCoder": "[1.7.0, )",
           "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )",
           "SkiaSharp": "[3.119.4, )",
+          "System.Security.Cryptography.ProtectedData": "[10.0.12, )",
           "System.Security.Cryptography.Xml": "[10.0.12, )"
         }
       },
@@ -207,6 +208,12 @@
           "SQLitePCLRaw.lib.e_sqlcipher": "2.1.11",
           "SQLitePCLRaw.provider.e_sqlcipher": "2.1.11"
         }
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "wO0W8VDMeRJZakRySOmemAnrBZMwEFRlbfBtATxUiLf2I3IhSRnCp1Vt157NWptdE4IJ7eftd5n8q9LtaKHFTQ=="
       },
       "System.Security.Cryptography.Xml": {
         "type": "CentralTransitive",

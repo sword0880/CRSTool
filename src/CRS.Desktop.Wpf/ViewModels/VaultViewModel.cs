@@ -18,7 +18,11 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     [ObservableProperty] private System.Windows.Media.Imaging.BitmapSource? enrollmentQr;
     [ObservableProperty] private string mfaRecoveryCodes="";
     [ObservableProperty] private bool mfaRecoverySaved;
-    [ObservableProperty] private string authenticationHint=vault.IsUnlocked?"当前已解锁，可创建加密备份、改密或更换手机。":"请输入主密码，再验证手机上的六位代码。";
+    [ObservableProperty] private string authenticationHint=vault.IsUnlocked?"当前已解锁，可创建加密备份、改密或更换手机。":"首次设置主密码保护数据库；日常进入只验证手机上的六位代码。";
+    [ObservableProperty] private VaultState directoryState=vault.Inspect(settings.Load().DatabaseDirectory);
+    [ObservableProperty] private bool localKeyAvailable=vault.HasLocalKey(settings.Load().DatabaseDirectory);
+    [ObservableProperty] private bool useMasterPassword;
+    [ObservableProperty] private bool showDirectoryOptions;
     [ObservableProperty] private string status=StateMessage(vault.Inspect(settings.Load().DatabaseDirectory));
     // PasswordBox 将输入交给本会话，完成操作后主动清空，不做持久化。
     public string Password {get;set;}="";
@@ -27,15 +31,25 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     public string Code {get;set;}="";
     public string MfaRecoveryCode {get;set;}="";
     private string? unlockedDirectory=vault.IsUnlocked?settings.Load().DatabaseDirectory:null;
+    private bool readyAfterRun;
     public bool IsUnlocked=>vault.IsUnlocked;
     public bool IsIdle=>!IsBusy;
     public bool HasDatabaseRecovery=>RecoveryKey.Length>0;
     public bool HasMfaRecoveryCodes=>MfaRecoveryCodes.Length>0;
+    public bool IsNewVault=>DirectoryState==VaultState.Missing;
+    public bool IsExistingVault=>DirectoryState==VaultState.Encrypted;
+    // 已有保险库的日常登录隐藏路径，仅首次创建、异常目录或主动选择恢复位置时展示。
+    public bool ShowDirectoryEntry=>IsNewVault || DirectoryState is VaultState.Invalid or VaultState.PlaintextRejected || ShowDirectoryOptions;
+    public bool ShowPasswordEntry=>IsNewVault || (IsExistingVault && !vault.IsUnlocked && (UseMasterPassword || (!LocalKeyAvailable && vault.Authentication==AuthenticationState.Locked)));
+    public string PasswordEntryLabel=>IsNewVault?"首次设置主密码（至少 12 个字符，用于保护数据库资料）":"本机凭证不可用：用原主密码重新启用本机登录";
+    public string UnlockLabel=>LocalKeyAvailable&&!UseMasterPassword?"准备手机验证":"用主密码启用本机登录";
     public event Action? Ready;
     public event Action? LockRequested;
     public event Action? SessionRestricted;
     public event Action? SensitiveCleared;
     private bool CanOperate()=>!IsBusy;
+    private bool CanCreate()=>!IsBusy && IsNewVault && vault.Authentication==AuthenticationState.Locked;
+    private bool CanUnlock()=>!IsBusy && IsExistingVault && !vault.IsUnlocked;
     // 控件门槛对应服务端状态，不让未验证密码时的按钮误导用户。
     private bool CanEnroll()=>!IsBusy && Directory==unlockedDirectory && vault.Authentication==AuthenticationState.PendingEnrollment;
     private bool CanVerify()=>!IsBusy && Directory==unlockedDirectory && vault.Authentication is AuthenticationState.PendingEnrollment or AuthenticationState.PendingMfa;
@@ -44,15 +58,24 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     private bool CanContinue()=>!IsBusy && Directory==unlockedDirectory && (RecoveryKey.Length==0 || RecoverySaved)
         && (vault.IsUnlocked || (vault.Authentication==AuthenticationState.AwaitingRecoveryConfirmation && MfaRecoverySaved));
     partial void OnIsBusyChanged(bool value) {OnPropertyChanged(nameof(IsIdle)); Refresh();}
-    partial void OnDirectoryChanged(string value) {Status=StateMessage(vault.Inspect(value)); Refresh();}
+    partial void OnDirectoryChanged(string value) {UpdateDirectoryState(); Status=StateMessage(DirectoryState); Refresh();}
+    private void UpdateDirectoryState()
+    {
+        DirectoryState=vault.Inspect(Directory); LocalKeyAvailable=vault.HasLocalKey(Directory);
+        OnPropertyChanged(nameof(IsNewVault)); OnPropertyChanged(nameof(IsExistingVault)); OnPropertyChanged(nameof(ShowPasswordEntry));
+        OnPropertyChanged(nameof(ShowDirectoryEntry));
+        OnPropertyChanged(nameof(PasswordEntryLabel)); OnPropertyChanged(nameof(UnlockLabel));
+    }
     private static string StateMessage(VaultState state)=>state switch
     {
         VaultState.PlaintextRejected=>"检测到未加密旧库，本版本拒绝读取和迁移。请另选新的空目录，旧库和附属文件会保持原样。",
-        VaultState.Encrypted=>"已有加密保险库，请先验证主密码，再输入手机验证码；遗忘密码可用数据库恢复密钥重设并重新绑定。",
+        VaultState.Encrypted=>"已有加密保险库，无需重新创建主密码。本机登录只验证手机代码；换电脑或本机凭证丢失时使用主密码或恢复密钥。",
         VaultState.Invalid=>"当前目录格式未知或不完整，不会自动覆盖或重建。请检查资料或选择新的空目录恢复备份。",
         _=>"当前没有保险库，请明确创建新库或从加密备份恢复。主密码至少 12 个字符。"
     };
     partial void OnRecoverySavedChanged(bool value)=>ContinueCommand.NotifyCanExecuteChanged();
+    partial void OnUseMasterPasswordChanged(bool value) {OnPropertyChanged(nameof(ShowPasswordEntry)); OnPropertyChanged(nameof(UnlockLabel));}
+    partial void OnShowDirectoryOptionsChanged(bool value)=>OnPropertyChanged(nameof(ShowDirectoryEntry));
     partial void OnMfaRecoverySavedChanged(bool value)=>ContinueCommand.NotifyCanExecuteChanged();
     partial void OnRecoveryKeyChanged(string value)=>OnPropertyChanged(nameof(HasDatabaseRecovery));
     partial void OnMfaRecoveryCodesChanged(string value)=>OnPropertyChanged(nameof(HasMfaRecoveryCodes));
@@ -61,32 +84,50 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
         CreateCommand.NotifyCanExecuteChanged(); UnlockCommand.NotifyCanExecuteChanged(); ChangePasswordCommand.NotifyCanExecuteChanged();
         ResetPasswordCommand.NotifyCanExecuteChanged(); BackupCommand.NotifyCanExecuteChanged(); RestoreCommand.NotifyCanExecuteChanged();
         LockCommand.NotifyCanExecuteChanged(); ContinueCommand.NotifyCanExecuteChanged(); OnPropertyChanged(nameof(IsUnlocked));
+        OnPropertyChanged(nameof(ShowPasswordEntry));
         BeginEnrollmentCommand.NotifyCanExecuteChanged(); VerifyCodeCommand.NotifyCanExecuteChanged(); RecoverPhoneCommand.NotifyCanExecuteChanged(); ReplacePhoneCommand.NotifyCanExecuteChanged();
     }
     private async Task Run(Func<Task> action)
     {
         IsBusy=true;
         try { await action(); }
-        catch(Exception ex) { Status=ex is CrsException?ex.Message:"安全操作失败，请核对凭证、备份格式和文件权限。原文件未被覆盖。"; interaction.ShowError(Status); }
-        finally { Password=""; NewPassword=""; Secret=""; Code=""; MfaRecoveryCode=""; IsBusy=false; }
+        catch(Exception ex) {readyAfterRun=false; Status=ex is CrsException?ex.Message:"安全操作失败，请核对凭证、备份格式和文件权限。原文件未被覆盖。"; interaction.ShowError(Status); }
+        finally { Password=""; NewPassword=""; Secret=""; Code=""; MfaRecoveryCode=""; UpdateDirectoryState(); IsBusy=false; }
+        // 日常验证码通过即进入，先结束忙碌状态，避免关闭安全窗口时被后台门槛拦截。
+        if(readyAfterRun) {readyAfterRun=false; Ready?.Invoke();}
     }
     private async Task SaveLocation(string path)=>await settings.SaveAsync(settings.Load() with {DatabaseDirectory=path});
-    [RelayCommand(CanExecute=nameof(CanOperate))]
+    [RelayCommand(CanExecute=nameof(CanCreate))]
     private async Task CreateAsync()=>await Run(async()=>
     {
         RecoverySaved=false; var created=await vault.CreateAsync(Directory,Password); RecoveryKey=created.RecoveryKey;
         unlockedDirectory=Directory;
-        Status="请离线保存恢复密钥并勾选确认。主密码与恢复密钥全部丢失后，无法恢复数据。";
+        Status="请离线保存恢复密钥并勾选确认。主密码与恢复密钥全部丢失后，无法在新电脑恢复数据。";
         await ShowEnrollment();
         await SaveLocation(Directory);
+        UpdateDirectoryState();
     });
-    [RelayCommand(CanExecute=nameof(CanOperate))]
+    [RelayCommand(CanExecute=nameof(CanUnlock))]
     private async Task UnlockAsync()=>await Run(async()=>
     {
-        ClearMfaDisplay(); await vault.UnlockAsync(Directory,Password); unlockedDirectory=Directory;
-        if(vault.Authentication==AuthenticationState.PendingEnrollment) await ShowEnrollment();
-        else {Status="主密码已验证，输入 Microsoft Authenticator 上的六位验证码。"; AuthenticationHint=Status;}
+        ClearMfaDisplay();
+        if(LocalKeyAvailable && !UseMasterPassword) await vault.BeginLocalUnlockAsync(Directory);
+        else await vault.UnlockAsync(Directory,Password);
+        unlockedDirectory=Directory;
+        if(vault.IsUnlocked)
+        {
+            await SaveLocation(unlockedDirectory); Status="手机验证已关闭，已通过本机受保护凭证进入。";
+            ClearSensitiveDisplay(); readyAfterRun=true;
+        }
+        else if(vault.Authentication==AuthenticationState.PendingEnrollment) await ShowEnrollment();
+        else {Status="输入 Microsoft Authenticator 上的六位验证码即可进入。"; AuthenticationHint=Status;}
     });
+    /// <summary>本机自动准备受限手机验证，不自动进入业务界面。</summary>
+    public async Task InitializeAsync()
+    {
+        UpdateDirectoryState();
+        if(!vault.IsUnlocked && vault.Authentication==AuthenticationState.Locked && LocalKeyAvailable && !UseMasterPassword) await UnlockAsync();
+    }
     [RelayCommand(CanExecute=nameof(CanOperate))]
     private async Task ResetPasswordAsync()=>await Run(async()=> {await vault.ResetPasswordAsync(Directory,Secret,NewPassword); unlockedDirectory=Directory; ClearMfaDisplay(); await ShowEnrollment(); Status="主密码已重设，必须绑定新手机并保存新的恢复码。";});
     [RelayCommand(CanExecute=nameof(CanAuthorized))]
@@ -118,10 +159,14 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
             MfaRecoveryCodes=string.Join(Environment.NewLine,await vault.ConfirmEnrollmentAsync(Code)); EnrollmentQr=null; MfaRecoverySaved=false;
             AuthenticationHint="手机已验证。请离线保存八条一次性恢复码，勾选确认后进入工作区。"; Status=AuthenticationHint;
         }
-        else {await vault.VerifyTotpAsync(Code); Status="主密码与手机验证成功，可以进入工作区。";}
+        else
+        {
+            await vault.VerifyTotpAsync(Code); await SaveLocation(unlockedDirectory!);
+            Status="手机验证成功。"; ClearSensitiveDisplay(); readyAfterRun=true;
+        }
     });
     [RelayCommand(CanExecute=nameof(CanRecoverPhone))]
-    private async Task RecoverPhoneAsync()=>await Run(async()=> {await vault.RecoverMfaAsync(MfaRecoveryCode); ClearMfaDisplay(); await ShowEnrollment(); Status="手机恢复码已消费，只能绑定新手机，当前不能访问业务资料。";});
+    private async Task RecoverPhoneAsync()=>await Run(async()=> {await vault.RecoverMfaAsync(MfaRecoveryCode,Password); ClearMfaDisplay(); await ShowEnrollment(); Status="手机恢复码已消费，只能绑定新手机，当前不能访问业务资料。";});
     [RelayCommand(CanExecute=nameof(CanAuthorized))]
     private async Task ReplacePhoneAsync()=>await Run(async()=> {await vault.BeginPhoneReplacementAsync(Password,Code); SessionRestricted?.Invoke(); unlockedDirectory=Directory; ClearMfaDisplay(); await ShowEnrollment(); Status="请扫描新手机；首码验证失败或取消时旧绑定仍可用。";});
     private void ClearMfaDisplay() {EnrollmentQr=null; MfaRecoveryCodes=""; MfaRecoverySaved=false;}
@@ -132,7 +177,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
         if(IsBusy || unlockedDirectory is null || vault.IsUnlocked) return;
         if(vault.Authentication==AuthenticationState.Locked)
         {
-            unlockedDirectory=null; ClearSensitiveDisplay(); Status="认证已过期，请重新验证主密码。"; AuthenticationHint=Status; Refresh();
+            unlockedDirectory=null; ClearSensitiveDisplay(); Status="认证已过期，请重新准备手机验证。"; AuthenticationHint=Status; Refresh();
         }
     }
     [RelayCommand(CanExecute=nameof(CanContinue))]
@@ -145,7 +190,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
             await SaveLocation(unlockedDirectory!);
             if(vault.Authentication==AuthenticationState.AwaitingRecoveryConfirmation) await vault.CompleteEnrollmentAsync(MfaRecoverySaved && (RecoveryKey.Length==0 || RecoverySaved));
             if(!vault.IsUnlocked) throw new CrsException("手机认证未完成。");
-            IsBusy=false; ClearSensitiveDisplay(); RecoverySaved=false; Ready?.Invoke();
+            UpdateDirectoryState(); IsBusy=false; ClearSensitiveDisplay(); RecoverySaved=false; Ready?.Invoke();
         }
         catch(Exception ex) {IsBusy=false; Status=ex is CrsException?ex.Message:"无法保存保险库位置，请检查本机设置目录权限。"; interaction.ShowError(Status);}
     }

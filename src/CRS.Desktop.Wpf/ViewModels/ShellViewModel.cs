@@ -17,12 +17,12 @@ public sealed class ShellViewModel : ObservableObject
     public ExchangeRatesViewModel ExchangeRates { get; }
     public SettingsViewModel? Settings { get; }
     public event Action<string>? NavigateRequested;
-    public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null)
+    public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null,IVaultService? vault=null)
     {
         State = new(useCases, interaction); Results = new(State); History = new(State, () => NavigateRequested?.Invoke("tax"));
         Dashboard = new(State, History, page => NavigateRequested?.Invoke(page));
         Review = new(State); Reports = new(State); ExchangeRates = new(State);
-        Settings = settings is null ? null : new(State, settings);
+        Settings = settings is null ? null : new(State, settings,vault);
         Import = new(State, () => { NavigateRequested?.Invoke("tax"); _ = History.RefreshCommand.ExecuteAsync(null); });
     }
 }

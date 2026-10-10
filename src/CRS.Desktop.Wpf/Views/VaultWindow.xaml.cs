@@ -17,12 +17,15 @@ public partial class VaultWindow : Window
         expiry=new(TimeSpan.FromSeconds(5),System.Windows.Threading.DispatcherPriority.Background,(_,_)=>model.CheckAuthenticationExpiry(),Dispatcher);
         Closed+=(_,_)=> {expiry.Stop(); model.Ready-=Ready; model.PropertyChanged-=Changed; model.SensitiveCleared-=Clear; Clear(); model.ClearSensitiveDisplay();};
         Closing+=(_,e)=> {if(model.IsBusy && !locking) e.Cancel=true;};
+        // 仅已有本机凭证时自动准备认证；首次进入仍由用户明确创建数据库。
+        Loaded+=async(_,_)=> {await model.InitializeAsync(); if(model.VerifyCodeCommand.CanExecute(null)) CodeInput.Focus(); else if(model.ShowPasswordEntry) PasswordInput.Focus();};
     }
     /// <summary>自动锁定可关闭安全对话框，先清除密码控件，再由应用销毁密钥会话。</summary>
     public void AbortForLock() {locking=true; Clear(); Close();}
     private void Ready()=>DialogResult=true;
     private void Changed(object? sender,PropertyChangedEventArgs e) {if(e.PropertyName==nameof(model.IsBusy) && !model.IsBusy) Clear();}
-    private void Clear() {PasswordInput.Clear(); NewPasswordInput.Clear(); SecretInput.Clear(); CodeInput.Clear(); MfaRecoveryInput.Clear(); model.Password=""; model.NewPassword=""; model.Secret=""; model.Code=""; model.MfaRecoveryCode="";}
+    private void Clear() {PasswordInput.Clear(); MaintenancePasswordInput.Clear(); NewPasswordInput.Clear(); SecretInput.Clear(); CodeInput.Clear(); MfaRecoveryInput.Clear(); model.Password=""; model.NewPassword=""; model.Secret=""; model.Code=""; model.MfaRecoveryCode="";}
+    private void OnMaintenancePassword(object sender,RoutedEventArgs e) {if(DataContext is VaultViewModel m) m.Password=MaintenancePasswordInput.Password;}
     private void OnCode(object sender,RoutedEventArgs e) {if(DataContext is VaultViewModel m) m.Code=CodeInput.Password;}
     private void OnMfaRecovery(object sender,RoutedEventArgs e) {if(DataContext is VaultViewModel m) m.MfaRecoveryCode=MfaRecoveryInput.Password;}
     private void OnPassword(object sender,RoutedEventArgs e) {if(DataContext is VaultViewModel m) m.Password=PasswordInput.Password;}

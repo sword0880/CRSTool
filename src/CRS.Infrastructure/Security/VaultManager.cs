@@ -8,7 +8,7 @@ using Dapper;
 
 namespace CRS.Infrastructure;
 
-/// <summary>单保险库安全适配器；创建、恢复和改密原子提交，不依赖 Windows 用户或机器身份。</summary>
+/// <summary>单保险库适配器；本机槽由 Windows 用户保护，主密码及独立恢复槽保留跨机恢复能力。</summary>
 public sealed partial class VaultManager : IVaultService
 {
     private readonly object gate=new();
@@ -66,6 +66,12 @@ public sealed partial class VaultManager : IVaultService
             VaultAuthenticationStore.Ensure(candidate,metadata);
             envelope=metadata; pending=candidate; pendingStarted=System.Diagnostics.Stopwatch.GetTimestamp(); candidate=null;
             passwordFailures=0; nextPasswordAttempt=0;
+            using(var c=pending.Open())
+            {
+                var state=VaultAuthenticationStore.Read(c,null,metadata);
+                try {if(state.PhoneVerificationEnabled==0 && !VaultAuthenticationStore.NeedsEnrollment(state)) Promote();}
+                finally {VaultAuthenticationStore.Clear(state);}
+            }
         }
         catch(CryptographicException) {passwordFailures++; nextPasswordAttempt=System.Diagnostics.Stopwatch.GetTimestamp()+(long)(System.Diagnostics.Stopwatch.Frequency*Math.Min(8,passwordFailures)); throw new CrsException("主密码错误或保险库认证失败。"); }
         finally { candidate?.Dispose(); }

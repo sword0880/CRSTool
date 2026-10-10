@@ -38,11 +38,11 @@ internal static class MfaChecks
         now+=30; await vault.UnlockAsync(path,password);
         if(vault.Authentication!=AuthenticationState.PendingMfa) throw new Exception("取消替换导致旧绑定失效。");
         await vault.VerifyTotpAsync(vault.CodeForTest()); vault.Lock(); now+=30;
-        await vault.UnlockAsync(path,password); await vault.RecoverMfaAsync(codes[0]); AssertRestricted(vault); vault.Lock();
+        await vault.UnlockAsync(path,password); await vault.RecoverMfaAsync(codes[0],password); AssertRestricted(vault); vault.Lock();
         await vault.UnlockAsync(path,password);
         if(vault.Authentication!=AuthenticationState.PendingEnrollment) throw new Exception("手机恢复中断后绕过强制绑定。");
         var rotated=await TestStores.Enroll(vault); vault.Lock(); now+=30; await vault.UnlockAsync(path,password);
-        await Reject(()=>vault.RecoverMfaAsync(codes[0])); AssertRestricted(vault); vault.Lock();
+        await Reject(()=>vault.RecoverMfaAsync(codes[0],password)); AssertRestricted(vault); vault.Lock();
         await vault.ResetPasswordAsync(path,created.RecoveryKey,password); AssertRestricted(vault); await TestStores.Enroll(vault);
         // 同一数据库已消费步骤，时间回退不能放行；快照回滚的边界另在用户说明中公开。
         vault.Lock(); now-=60; await vault.UnlockAsync(path,password); await Reject(()=>vault.VerifyTotpAsync(vault.CodeForTest())); vault.Lock();

@@ -76,6 +76,12 @@
           "SQLitePCLRaw.provider.e_sqlcipher": "2.1.11"
         }
       },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "Direct",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "wO0W8VDMeRJZakRySOmemAnrBZMwEFRlbfBtATxUiLf2I3IhSRnCp1Vt157NWptdE4IJ7eftd5n8q9LtaKHFTQ=="
+      },
       "System.Security.Cryptography.Xml": {
         "type": "Direct",
         "requested": "[10.0.12, )",

@@ -2,21 +2,21 @@
 
 > **状态：设计 / P0 实施与验收目标，不代表已完成代码。**  
 > **实现记录：** 主密码、受限认证、首次扫码、防重放、手机恢复及锁定已进入源码并提供自动测试；实际行为与尚缺人工证据见 [AUTH_IMPLEMENTATION.md](AUTH_IMPLEMENTATION.md)。本文仍是完整验收规范，不能将自动测试通过等同全部 P0 关闭。
-> 版本：1.0｜日期：2026-10-10｜适用：.NET 10 / WPF / SQLCipher / Dapper。  
+> 版本：1.2（首次主密码、本机登录及可选手机验证）｜日期：2026-10-10｜适用：.NET 10 / WPF / SQLCipher / Dapper。
 > 上位规范：[SECURITY_DESIGN.md](SECURITY_DESIGN.md)，架构：[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)。若本文件与上位规范冲突，以已确认的“五项目架构、10 分钟自动锁定、明文 SQLite 直接拒绝、跨电脑恢复”原则为准。  
 > **无关范围：** 不实现微软账号登录、Entra ID、MFA 推送、服务器、联网验证、注册/订阅系统；不更改税务计算口径。
 
 ## 0. 决策摘要（不得擅自放宽）
 
-1. CRS 为单用户、本地优先、完全离线工具。V1 的正常解锁必须验证**主密码 + TOTP**，TOTP 使用 Microsoft Authenticator 的“其他账户”扫码功能，无 Microsoft 账户依赖。
-2. 正常登录仅在 MFA 成功后授予业务会话。主密码派生 KEK → 解封装随机 DEK → 以 SQLCipher 打开受限的认证上下文 → 验证 TOTP → 允许业务访问。
-3. **MFA 不是数据库密钥学上的第二重因素。** 已知主密码者能够在受控程序之外自行解封装 DEK；离线 TOTP 主要防护正常客户端 UI/业务操作，不能承诺防止管理员、恶意软件、本地反编译/补丁或主密码泄露者直接读取已解密文件。
+1. CRS 为单用户、本地优先、完全离线工具。首次创建设置主密码保护数据库并绑定手机；在已启用的 Windows 用户环境中，日常解锁**仅输入 TOTP**。使用 Microsoft Authenticator“其他账户”扫码，无 Microsoft 账户依赖。
+2. 正常登录只在 TOTP 成功后授予业务会话。首次／恢复用主密码解封随机 DEK，日常由 Windows DPAPI CurrentUser 本机槽解封 DEK → 受限 SQLCipher 认证上下文 → 原子验证并消费 TOTP → 业务访问。只在完整认证及恢复凭证保存确认后记住本机槽，不保存主密码。
+3. **TOTP 不是数据库密钥学上的第二重因素。** 掌握主密码或当前 Windows 用户资料者可能在受控程序之外解封 DEK；不能承诺防止同用户恶意进程、管理员、本地补丁或凭证泄露者直接读取解密数据。
 4. 不把 6 位 TOTP 当作数据库密码、KDF 输入、DEK 或恢复密钥。TOTP Secret 独立用 CSPRNG 生成，并仅存于 SQLCipher 加密库。
 5. 原有 Argon2id + AES-256-GCM Envelope + 随机 256 位 DEK + SQLCipher 方案保持不变；原有恢复密钥必须继续实现跨设备恢复，不依赖 Windows SID 或 DPAPI。
-6. **普通登录必须 TOTP；仅显式“恢复流程”允许用足够强的替代凭证恢复。** 无隐藏管理员账户、万能 OTP、系统时间回退放行或失败自动关闭 MFA。
+6. **手机验证默认开启，设置可显式关闭。** 切换要求授权会话、主密码及新 TOTP，策略保存于加密库并审计。关闭后只对已完整初始化的库使用 DPAPI 本机凭证进入；恢复中不能借开关绕过确认。无万能 OTP、游客访问或失败自动关闭。
 7. 明文 SQLite `crs.db` 一律拒绝；**不读取、不转换、不迁移、不删除、不覆盖**；用户只可在新空目录显式创建新加密保险库。
 8. WPF Views/ViewModels 仅调用 Application 用例；Security 只含纯密码学/TOTP 机制；Infrastructure 承担 SQLCipher、事务、备份及会话适配。
-9. 已有 10 分钟无活动锁定与 Windows 锁屏/休眠重新验证规则不变，不采用 15 分钟新值。默认每次解除**完全锁定**都验证主密码及 TOTP，不提供“记住设备 30 天免 MFA”。
+9. 10 分钟无活动锁定与 Windows 锁屏/休眠规则不变；启用手机验证时解除锁定必须重新验证 TOTP，关闭时依靠本机凭证建立新业务会话。本机槽丢失需主密码／独立恢复路径，不自动覆盖数据。
 10. 所有 P0 项须有自动测试和跨设备恢复验收；文档批准不等于代码已完成或正式发布批准。
 
 ## 1. 威胁模型与关键约束
@@ -29,7 +29,7 @@
 
 ### 1.2 不可宣称的保证
 
-- 已掌握主密码、控制本机管理员权限或能修改 EXE/内存/SQLite 文件的攻击者，可能绕过客户端 MFA；
+- 已掌握主密码、可使用当前 Windows 用户资料、控制管理员权限或能修改 EXE/内存/SQLite 文件的攻击者，可能绕过客户端 TOTP；
 - 本地系统时钟可修改、持久化状态可快照回滚，因此离线防重放、锁定和设备撤销不能视为防篡改机制；
 - 运行中的原始导入文件、导出 Excel/PDF/CSV、剪贴板、截图及受管终端监控未必被数据库加密覆盖；
 - TOTP 不抗钓鱼，不验证用户输入验证码时所处的可信环境。
@@ -74,6 +74,9 @@
 VaultAbsent --明确创建--> Locked/PasswordVerified
 PasswordVerified --MFA未配置--> PendingEnrollment
 PasswordVerified --MFA已配置--> PendingMfa
+Locked --Windows当前用户解封本机槽--> LocalKeyVerified
+LocalKeyVerified --读取已有认证状态--> PendingMfa/PendingEnrollment
+LocalKeyVerified --手机验证明确关闭且初始化完整--> Authenticated
 PendingEnrollment --首码+恢复凭证确认成功--> Authenticated
 PendingMfa --TOTP成功且原子消费step--> Authenticated
 Locked --恢复密钥--> RecoveryOnly
@@ -100,9 +103,9 @@ Authenticated --超时/锁屏/休眠/退出--> Locked
 
 ### 3.3 日常登录
 
-1. 从 `Locked` 开始。验证路径/格式与 Key Envelope 版本，输入主密码；Argon2id 解封 DEK，失败仅显示笼统提示，不开启业务 DB Factory。
+1. 从 `Locked` 开始，验证路径／格式／封装版本。默认由 DPAPI CurrentUser 解封与 VaultId 绑定的本机槽，无需主密码；本机槽损坏、丢失或新 Windows 用户环境时，显式提供原主密码或独立恢复入口重新启用。任何路径都不能直接开启业务 DB Factory。
 2. 创建生命周期最短的**受限 SQLCipher 认证连接**，只可访问 SecuritySettings / RecoveryCodes（不让业务仓储/工作流拿到该连接或 DEK）。
-3. 若已启用 MFA，输入 6 位代码；按参数校验，先检查并更新失败次数/冷却状态。
+3. 手机开关开启时输入六位代码并检查失败计数／冷却；明确关闭且初始化完整时由本机凭证直接建立业务会话，不能读取普通配置决定跳过验证。
 4. 算法验证通过后，执行 `TryConsumeTotpStepAsync` 在 SQLite 事务中 `LastAcceptedStep < matchedStep` 条件更新；只有受影响行数为 1 才成功。
 5. 提交验证/计数器事务，释放受限连接，创建正常 `Authenticated` 会话与业务 DB Factory。失败时清理短期 DEK 及句柄，保持 `Locked`/`PendingMfa`。
 6. 每次授权的业务操作在入口和持久化提交前检查会话代际 `SessionGeneration`；锁定后旧的异步任务不能提交。
@@ -129,7 +132,7 @@ UPDATE SecuritySettings
 - **更换手机（正常通道）：** 主密码 + 旧 TOTP 校验 → 生成 PendingReplacement Secret → 新手机扫码并首码校验 → 在一个事务中替换 Secret、重置 `LastAcceptedStep`、作废旧恢复码并保存新恢复码；新扫码失败时旧 Secret 仍生效。显示新恢复码前不能先销毁唯一有效恢复通道。
 - **手机丢失（主密码仍在）：** 提供明确入口“使用 MFA 恢复码”。要求正确主密码 + **未使用过**的高熵恢复码，原子消费恢复码后进入 `RecoveryOnly`，只能重新绑定 TOTP/再生成恢复码；不能直接放开业务数据页面。
 - **忘记主密码：** 使用独立 256 位恢复密钥解封 DEK → 进入 `RecoveryOnly` → 必须重设主密码并重新绑定 TOTP、旋转 MFA 恢复码。此密钥是最高强度的紧急恢复通道，持有者可解密数据库；流程中显著告知风险并生成本地事件审计。
-- **全部凭证遗失：** 主密码与数据库恢复密钥都丢失，数据原则上不可恢复；不得暗藏绕过 MFA/数据库解密的超级口令。
+- **全部凭证遗失：** 主密码与数据库恢复密钥丢失时，不能依靠便携备份迁移；本机槽仍有效且手机可用则可以继续日常访问。本机槽也无法解封时，数据不可恢复；不得暗藏万能口令。
 - **恢复后的旧备份：** 可能仍携带旧密码封装、旧 Secret 和旧恢复码；无法远程吊销离线副本。提供提示，不声称“所有旧凭证已在全部副本作废”。
 
 `RecoveryOnly` 不允许进入业务功能；在恢复操作完成且新 TOTP 首码通过前保持受限态。
@@ -186,7 +189,7 @@ CREATE TABLE SecurityEvents (
 
 ### 4.3 失败状态与强制关闭
 
-- 只有主密码正确时才能访问加密库内的持久化 MFA 失败次数；主密码错误的尝试在当前进程中做临时限速，不能假定加密库能持久记录密码错误。
+- 只有主密码恢复或本机 DPAPI 槽成功解封后才能访问加密库内的持久化失败次数；主密码错误仍在当前进程临时限速，不能假定加密库能持久记录密码错误。
 - 计数更新和锁定检查事务化；15 分钟的 `LockedUntilUtc` 会受本机时钟回退影响。对本进程可使用单调计时辅助；安全承诺仍仅限普通客户端。
 - 错误密码、错误恢复密钥、SQLCipher 损坏、不支持版本、缓存同步异常，全部 **fail-closed**：不得自动关闭 MFA、允许游客访问业务或降级为普通 SQLite。
 - 应审查 SQLite WAL/journal、备份临时文件、崩溃转储、WPF 绑定异常与 NLog 格式化对象，以免产生明文 TOTP Secret / DEK。
@@ -232,7 +235,7 @@ public interface ILocalAuthenticationUseCases
 ## 6. 备份、升级、时间回退
 
 1. `.crsbak` 必须包括**加密一致性快照**、`vault.meta`、格式版本、完整性清单和必要恢复说明；不能对运行中的 `data.db` 直接 `File.Copy` 冒充完整备份。
-2. 备份默认加密，跨 Windows 账号/电脑可用原主密码或数据库恢复密钥解锁；不依赖 DPAPI/SID。恢复时检查 VaultId、EnvelopeVersion、库结构版本和完整性。
+2. 备份默认加密，排除 vault.device 本机槽，跨 Windows 账号／电脑用备份时主密码或数据库恢复密钥解封，不依赖 DPAPI/SID。恢复检查身份、结构及完整性；成功手机认证后重新启用该 Windows 用户的本机槽。
 3. 更换 Windows 电脑且仍有有效 Authenticator 绑定时，原 TOTP 可继续使用；用户可手动旋转绑定。跨机恢复不能静默绕过 MFA。
 4. 数据库恢复密钥不可写入备份包的明文区，不得自动在本机生成一个可直接跳过密码/MFA 的持久明文凭证。
 5. 备份时间早于 MFA 旋转时，可能重现旧 Secret、旧恢复码、旧 `LastAcceptedStep`。恢复 UI 必须明确警告，推荐完成新绑定/旧备份安全处理；纯离线不可保证全局撤销。
@@ -258,7 +261,7 @@ public interface ILocalAuthenticationUseCases
 | ID | 场景 | 通过条件 |
 | --- | --- | --- |
 | AUTH-01 | Microsoft Authenticator 首次扫码 | 断网可绑定并校验，URI/标签正确；未验证首码不能启用 |
-| AUTH-02 | 正常登录 | 正确主密码 + TOTP + 原子消费 → Authenticated；任一步失败业务仓储拒绝 |
+| AUTH-02 | 正常登录 | 首次主密码与手机绑定；日常本机槽解封 + TOTP 原子消费 → Authenticated；本机解封本身不开放业务，损坏／丢失槽可用主密码恢复 |
 | AUTH-03 | TOTP 边界时间 | 当前、前后 1 步可按策略校验；超过窗口拒绝；前导零正确 |
 | AUTH-04 | 并发/重复验证码 | 同一 Vault 同一步骤并行验证只有一个成功 |
 | AUTH-05 | 失败次数锁定 | 5 次后 15 分钟冷却；错误值无日志、无业务进入 |

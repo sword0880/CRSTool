@@ -2,10 +2,20 @@
  <Grid><Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <ui:TitleBar Title="设置" ShowClose="True" ShowMaximize="False" ShowMinimize="False" ForceShutdown="False"/>
   <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><StackPanel Margin="24,8,24,12" IsEnabled="{Binding State.IsIdle}">
+   <!-- 手机开关归属当前加密保险库，只有授权会话能验证和保存。 -->
+   <StackPanel x:Name="PhoneVerificationPanel" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}" Margin="0,0,0,20">
+    <TextBlock Text="登录验证" FontSize="20" FontWeight="SemiBold"/>
+    <CheckBox Content="启用手机验证" IsChecked="{Binding PhoneVerificationEnabled}" Margin="0,12,0,8"/>
+    <TextBlock Text="默认开启。关闭后，使用当前 Windows 用户的本机密钥直接进入；数据库仍加密。" TextWrapping="Wrap" Foreground="#64748B"/>
+    <TextBlock Text="确认修改：主密码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityPasswordInput" PasswordChanged="OnSecurityPassword"/>
+    <TextBlock Text="手机上的新六位代码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityCodeInput" PasswordChanged="OnSecurityCode" MaxLength="6"/>
+    <ui:Button Content="保存手机验证设置" Command="{Binding SavePhoneVerificationCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
+    <TextBlock Text="{Binding SecurityMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
+   </StackPanel>
    <TextBlock Text="数据库" FontSize="20" FontWeight="SemiBold"/>
    <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
    <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
-   <TextBlock Text="选择已有数据库目录可继续使用历史；新目录会创建空数据库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,16"/>
+   <TextBlock Text="已有加密库需验证后访问；新目录进入首次创建或恢复向导，不会自动建库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,16"/>
    <TextBlock Text="日志" FontSize="20" FontWeight="SemiBold"/>
    <CheckBox Content="启用日志" IsChecked="{Binding LoggingEnabled}" Margin="0,12,0,4"/>
    <TextBlock Text="日志目录" Style="{StaticResource InputLabel}"/>
@@ -18,7 +28,7 @@
   </StackPanel></ScrollViewer>
   <Border Grid.Row="2" Padding="24,12" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0"><StackPanel>
    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,12"/>
-   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><ui:Button Content="保存设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><ui:Button Content="保存目录和日志设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
   </StackPanel></Border>
  </Grid>
 </ui:FluentWindow>
