@@ -16,8 +16,7 @@ public sealed class LocalStore : ICalculationRepository
     /// <summary>打开本地 SQLite 存储并初始化版本化表结构，不向仓库写入账户资料。</summary>
     public LocalStore(string? directory = null)
     {
-        // 旧目录名保留为存量数据兼容路径；不依赖已删除的前台项目。
-        DirectoryPath = directory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS.WinForms");
+        DirectoryPath = directory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS", "data");
         Directory.CreateDirectory(DirectoryPath);
         connectionString = new SqliteConnectionStringBuilder { DataSource = Path.Combine(DirectoryPath, "crs.db"), ForeignKeys = true }.ToString();
         using var connection = Open();
@@ -38,7 +37,7 @@ public sealed class LocalStore : ICalculationRepository
         var config = new LoggingConfiguration();
         if (enabled)
         {
-            var target = new FileTarget("local") { FileName = Path.Combine(exactLogDirectory ? directory : Path.Combine(directory, "logs"), "crs-${shortdate}.log"),
+            var target = new FileTarget("local") { FileName = Path.Combine(exactLogDirectory ? directory : Path.Combine(directory, "logs"), "crs.log"),
                 Layout = "${longdate}|${level}|${message}", ArchiveAboveSize = fileSizeMb * 1024L * 1024, MaxArchiveFiles = retentionFiles };
             config.AddRule(LogLevel.FromString(minimumLevel), LogLevel.Fatal, target);
         }

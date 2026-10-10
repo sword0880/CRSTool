@@ -1,35 +1,6 @@
 # IBKR Activity Flex XML 导入说明
 
-实现日期：2026-09-22。当前为本地 XML 导入首版；已实现逐笔已实现盈亏对账。2026-09-30 已用三份真实导出文件做部分结构与成交验收，完整年度验收仍待进行。
-
-## 0. 手机下载的 CSV／PDF 与这里的 XML 有什么区别
-
-IBKR 的税务文件、普通活动报表和 Flex 查询是不同入口。手机某份报告只提供 CSV／PDF，并不表示遗漏了 XML 选项，也不能从扩展名判断是哪种报告。
-
-- **Tax Documents／税务文件**：例如 Dividend Report、1042-S 等，内容和用途取决于具体表单；不是本解析器接收的 Activity Flex XML。
-- **Activity Statement／活动报表**：与自定义 Activity Flex Query 区分；同样是 CSV，区段和字段也可能不同。
-- **Activity Flex Query／活动 Flex 查询**：在网页 Client Portal 的 Performance & Reports → Flex Queries 创建，选择所需字段和 XML 格式。官方 Flex 也可导出 CSV；本项目当前仅实现其中的 XML 输入。
-
-因此，不要把手机 CSV 改名为 XML，也不要把“首版仅支持 XML”理解为“IBKR 只提供 XML”。如已有 CSV，后续适配应先确认报告名称及实际字段；只有股息／扣税汇总的报告不能补出缺失的买卖和历史成本。
-
-参考：[Client Portal Flex 入口](https://www.ibkrguides.com/clientportal/performanceandstatements/flex.htm)、[Flex 格式配置](https://www.ibkrguides.com/clientportal/performanceandstatements/activityflex.htm)、[税务文件入口](https://www.ibkrguides.com/brokerportal/performanceandstatements/taxform.htm)。具体手机菜单及可用格式随报告和账户而异，本说明不声称已在用户手机上验证。
-
-### 0.1 已确认的手机税务文件入口
-
-用户反馈路径：下载税表 → 税务文件 → 2025 税表，下面列出 1042-S 表格、外汇收入工作表、股息报告。此处是税务文件入口，不能要求在这些表单下寻找 Activity Flex XML。
-
-| 手机显示名称 | 数据用途及后续接入方式 | 当前支持状态 |
-| --- | --- | --- |
-| 股息报告 / Dividend Report | 优先取得实际 CSV，映射股息、代替股息支付及对应预扣税；与现金交易交叉核对，重叠金额不重复相加 | 尚未实现 CSV 解析，待真实格式样例 |
-| 1042-S 表格 | 核对表内列示的收入类别、收入及美国预扣税；按表单范围与股息等明细关联，不作为另一笔收入重复计入 | 尚未实现解析 |
-| 外汇收入工作表 / Forex Income Worksheet | 外币取得与处置形成的汇兑损益；与证券本身的买卖收益分别保存和核对 | 尚未实现解析，不可直接并入股票收益 |
-| 年度活动报表 / Annual Activity Statement（另一个入口） | 股票买卖明细、费用及券商收益；FIFO 还需对应历史成交或可靠期初成本批次 | 普通报表 CSV／PDF 尚未支持；目前已支持自定义 Activity Flex XML |
-
-官方说明指出 Dividend Report 包括股息、代替股息支付和预扣税，并以账户基础币种报告。实际接入须保留报告币种及原币字段（如果提供），不能把基础币种金额误当证券原币再换算；不能因文件名含“股息”就把所有收入类型统一按股息处理。1042-S、股息报告与活动报告存在内容交集，导入流程必须明确主数据和核对资料的关系。
-
-下一步需用户提供 2025 年股息报告 CSV（若该项可下载 CSV；否则先提供其 PDF）来确认字段、区段、编码、汇总行及金额口径。当前提供的真实 Activity Flex XML 不含该税务文件，故尚未按猜测的列名实现股息报告 CSV 解析器。可以隐藏姓名、地址、税号；保留原始表头、币种、日期及金额列，账户若替换则各文件保持一致。完整年度成本测算还需活动报表及历史成本，不以这三份税务文件自动认定数据完整。
-
-官方参考：[年末活动报表与股息报告](https://www.interactivebrokers.com/en/support/tax-nonus-reports.php)、[外汇收入工作表](https://www.interactivebrokers.com/en/support/tax-fxpl.php)、[1042-S 等年末税表](https://www.interactivebrokers.com/en/support/tax-nonus-forms.php)。
+当前 WPF 版本支持 Activity Flex XML 本地导入和 Flex 下载；不支持普通 IBKR CSV／PDF 或税务表单。
 
 ## 1. WPF 页面使用
 
@@ -175,7 +146,7 @@ IBKR 官方说明指出交易已实现盈亏考虑佣金影响，具体定义见
 
 XML 中的“记录序号”是所属区段的记录位置，不是文本物理行号。未完整覆盖的结果继续使用 `Partial_Review_<年度>.xlsx`，不能把已计算部分当作完整年度申报金额。
 
-## 5. 本轮范围和限制
+## 5. 支持范围和限制
 
 已实现本地 Activity Flex XML 导入、多个文件和多个账户、ID 去重与冲突检查、现金分类、可选期初批次、期末数量核对、逐笔已实现盈亏对账、页面选择与导出来源。
 
@@ -192,37 +163,4 @@ XML 每份最多 25 MB，一次最多 36 份活动报告；不接受 DTD／实�
 - 测试另覆盖两批期初成本、缺少资料、季度／月度覆盖、重复及冲突 ID、不支持事件、异常 XML 和页面结果失效。
 - C# 后台验证：`dotnet run --project tests/CRS.Tests.Verification -c Release`。
 
-合成测试只能证明实现与预设契约一致；真实报告的部分验收结果和剩余资料见下一节。
-
-## 7. 真实导出文件的部分验收（2026-09-30）
-
-用户提供的 `samples/IBKR/CRS.xml` 覆盖 **2026-01-01 至 2026-09-28**。本节只记录不含账户号、证券代码和实际收益金额的核对结论；原始文件位于被 Git 忽略的 `samples` 目录，不复制到测试夹具。
-
-| 检查项 | 结果 |
-| --- | --- |
-| XML 结构 | 1 份 FlexStatement，当前解析器可读取；包含 Trades 和 ChangeInDividendAccruals |
-| 股票成交 | 21 条 STK Execution 均导入；数量×价格、proceeds、netCash、佣金与税额的逐笔差额均为 0 |
-| 外汇成交 | 63 条 CASH Execution 按现有范围标为未支持；不并入股票 FIFO |
-| 股票卖出与成本 | 4 笔卖出中 3 笔完成 FIFO 匹配，1 笔缺少可确认的期初成本 |
-| 券商已实现盈亏 | 已匹配的 3 笔均在 0.02 原币容差内；最大绝对差额为 0.007368 USD |
-| 收入与持仓 | 文件缺少 CashTransactions 和 OpenPositions；ChangeInDividendAccruals 是应计变动，不能作为已到账收入 |
-
-因此，这份文件只能验收所含股票成交的字段兼容性与部分金额核对。正常完整计算因缺少现金收入数据而停止；不把诊断时绕过该检查所得的数值作为年度结果。2026 年报告尚未覆盖全年，配置文件也尚无 2026 年兑人民币汇率。
-
-要完成目标年度验收，需补充覆盖该年度的 Activity Flex XML：包含 Trades / Executions、Cash Transactions / Detail、年度末 Open Positions / Summary；若年初已有持仓，还需上一年 12 月 31 日的 Open Positions / LOT 成本批次。取得后再核对未匹配卖出、现金和期末数量，并逐项解释券商收益差异。
-
-### 7.1 补充滚动报告后的核对
-
-另收到 `samples/IBKR/CRS-L.xml`，期间为 **2025-09-29 至 2026-09-28**。它仍是 Activity Flex 成交报告，不含 OpenPositions，不能放入“期初成本报告”上传位；解析器会以“期初成本文件缺少 OpenPositions”拒绝。它同样缺少 CashTransactions，仅有 Trades 和 ChangeInDividendAccruals。
-
-单独读取补充文件可导入 45 条股票成交；与第一份合并读取时，84 条重复成交按账户和 ID 去重，股票成交仍为 45 条。两份报告中出现的股票成交金额及净现金校验均无超出 0.02 原币的差异。补入较早成交后，**2026 年 4 笔股票卖出均形成 FIFO 匹配，且逐笔券商收益差异均在 0.02 原币容差内**（最大绝对差额 0.007368 USD）。另有 **1 笔 2025 年卖出**仍缺少此前的成本；2026 年的期初持仓范围也未获确认，因此当前匹配不能替代期初 LOT 成本验收。
-
-两份报告都截止于 2026-09-28，不构成 2026 全年覆盖；仍需目标年度的 CashTransactions / Detail、年度末 OpenPositions / Summary，以及有期初持仓时的上一年 12 月 31 日 OpenPositions / LOT。2026 年兑人民币汇率尚未配置，不得以推测汇率生成完整人民币结果。
-
-### 7.2 补充现金与持仓报告后的核对
-
-第三份真实文件 `samples/IBKR/CRS-M.xml` 同样覆盖 **2025-09-29 至 2026-09-28**，含 141 条 Trades / Execution、35 条 CashTransactions / Detail、7 条 OpenPositions / Summary，并附 CashReport。当前解析器导入 45 条股票成交、35 条现金事件和 7 条持仓记录；96 条 CASH 外汇成交保持未支持状态。现金明细中另有 1 条 Payment In Lieu Of Dividends 和 4 条 Other Fees，均保留为待复核，不混入已支持的股息或费用。
-
-以原币分项核对 CashReport / Currency 与 CashTransactions，HKD、USD 的股息、券商利息和预扣税合计均一致。程序现已自动执行上述分项核对，并核对每份报告的原币现金余额闭环；BaseCurrency 汇总不与原币明细直接比较。缺少现金字段、期间不一致或未支持现金事件时会显示“无法核对”。
-
-按 2026 年测算时，程序使用 `config/exchange_rate.json` 中截至 2026-10-08 的临时平均汇率，并在结果和汇率底稿中标记“临时测算”；年末需更新为全年汇率。仅用诊断用固定汇率 1 验证解析、状态与 FIFO：4 笔 2026 年股票卖出完成匹配且券商收益差异均不超过 0.02 原币；结果仍有期间不完整、期初未确认、缺少年末持仓、未支持外汇／现金类型及 1 笔 2025 年成本缺口，不能作为税额结果。文件中的 OpenPositions 是 **2026-09-28 期末 SUMMARY**，不能代替 **2025-12-31 期初 LOT** 或 **2026-12-31 年末 SUMMARY**。
+合成测试只能证明实现与预设契约一致；真实全年和成本来源仍需独立验收。

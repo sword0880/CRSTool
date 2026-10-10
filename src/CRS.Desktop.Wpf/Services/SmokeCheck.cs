@@ -40,6 +40,22 @@ internal static class SmokeCheck
             if (shell.Dashboard.RecentTasks.Count != 1 || shell.Dashboard.TradeCount != "1") throw new InvalidOperationException("概览未读取真实任务。");
             var imageIndex = Array.IndexOf(args, "--image");
             var imagePath = imageIndex >= 0 && imageIndex + 1 < args.Length ? args[imageIndex + 1] : null;
+            window.IsNavigationExpanded = false;
+            window.UpdateLayout(); await Task.Delay(250);
+            if (window.IsNavigationExpanded) throw new InvalidOperationException("侧栏未折叠。");
+            if (imagePath is not null) Capture(window, VariantPath(imagePath, "collapsed"));
+            window.IsNavigationExpanded = true;
+            if (shell.Settings is null) throw new InvalidOperationException("设置服务未装配。");
+            var settingsWindow = new SettingsWindow(shell.Settings) { Owner = window };
+            settingsWindow.Show(); settingsWindow.UpdateLayout();
+            shell.Settings.LogRetentionFiles = 9;
+            await shell.Settings.SaveCommand.ExecuteAsync(null);
+            shell.Settings.Reload();
+            if (shell.Settings.LogRetentionFiles != 9 || (await useCasesForSettings()).Count != 1)
+                throw new InvalidOperationException("设置未保存，或改变了当前历史数据库。");
+            if (imagePath is not null) Capture(settingsWindow, VariantPath(imagePath, "settings"));
+            settingsWindow.Close();
+            Task<List<HistoryItem>> useCasesForSettings() => shell.State.UseCases.HistoryAsync();
             foreach (var key in MainWindow.PageTypes.Keys)
             {
                 Console.Error.WriteLine("smoke: navigate " + key);
@@ -50,6 +66,8 @@ internal static class SmokeCheck
                 if (key == "tax") await Task.Delay(800);
                 if (imagePath is not null && key is "dashboard" or "import" or "tax")
                 {
+                    // 等待导航过渡与字形渲染完成，截图反映最终页面。
+                    await Task.Delay(400); window.UpdateLayout();
                     var file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(imagePath)!,
                         System.IO.Path.GetFileNameWithoutExtension(imagePath) + "-" + key + ".png");
                     Capture(window, file);
@@ -79,7 +97,8 @@ internal static class SmokeCheck
         }
         finally { PresentationTraceSources.DataBindingSource.Listeners.Remove(bindingErrors); }
     }
-    private static void Capture(MainWindow window, string path)
+    private static string VariantPath(string path, string suffix) => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, System.IO.Path.GetFileNameWithoutExtension(path) + "-" + suffix + ".png");
+    private static void Capture(Window window, string path)
     {
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);
         bitmap.Render(window); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));

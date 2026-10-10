@@ -9,6 +9,8 @@ public partial class ImportViewModel : ObservableObject
     public WorkspaceState State { get; }
     private readonly Action calculated;
     private string[] files = [];
+    private string? futuDividendFile;
+    private string[] futuTradeFiles = [];
     private string? openingPath;
     private CancellationTokenSource? cancellation;
     [ObservableProperty] private int year;
@@ -18,6 +20,8 @@ public partial class ImportViewModel : ObservableObject
     [ObservableProperty] private bool scopeConfirmed;
     [ObservableProperty] private bool saveCanonicalSnapshot;
     [ObservableProperty] private string reportsLabel = "尚未选择报表";
+    [ObservableProperty] private string futuDividendLabel = "尚未选择股息收入文件";
+    [ObservableProperty] private string futuTradesLabel = "尚未选择交易明细文件";
     [ObservableProperty] private string openingLabel = "尚未选择期初资料";
     [ObservableProperty] private string queryId = "";
     [ObservableProperty] private string token = "";
@@ -25,6 +29,8 @@ public partial class ImportViewModel : ObservableObject
     [ObservableProperty] private DateTime? to;
     public string[] Brokers { get; } = ["IBKR", "FUTU"];
     public bool IsIbkr => Broker == "IBKR";
+    public bool IsFutu => !IsIbkr;
+    private string[] SelectedFiles => IsIbkr ? files : (futuDividendFile is null ? futuTradeFiles : new[] { futuDividendFile }.Concat(futuTradeFiles).ToArray());
 
     /// <summary>创建表单并在共享忙碌状态变化时刷新命令。</summary>
     public ImportViewModel(WorkspaceState state, Action calculated)
@@ -37,8 +43,10 @@ public partial class ImportViewModel : ObservableObject
     partial void OnBrokerChanged(string value)
     {
         files = []; openingPath = null; ReportsLabel = "尚未选择报表"; OpeningLabel = "尚未选择期初资料";
+        futuDividendFile = null; futuTradeFiles = [];
+        FutuDividendLabel = "尚未选择股息收入文件"; FutuTradesLabel = "尚未选择交易明细文件";
         OpeningZero = false; ScopeConfirmed = false; UseCarry = value == "FUTU";
-        OnPropertyChanged(nameof(IsIbkr)); Invalidate();
+        OnPropertyChanged(nameof(IsIbkr)); OnPropertyChanged(nameof(IsFutu)); Invalidate(); RefreshCommands();
     }
     partial void OnUseCarryChanged(bool value) { openingPath = null; OpeningLabel = "尚未选择期初资料"; Invalidate(); }
     partial void OnOpeningZeroChanged(bool value) => Invalidate();
@@ -46,14 +54,19 @@ public partial class ImportViewModel : ObservableObject
     partial void OnSaveCanonicalSnapshotChanged(bool value) => Invalidate();
     /// <summary>预填完整自然年日期。</summary>
     private void SetDates() { if (Year is >= 2000 and <= 2100) { From = new(Year, 1, 1); To = new(Year, 12, 31); } }
-    private void Invalidate() { State.Clear(); State.Status = "输入已更新，请重新计算。"; CalculateCommand.NotifyCanExecuteChanged(); }
+    private void Invalidate() { State.Clear(); State.Status = "输入已更新，请重新计算。"; RefreshCommands(); }
     private bool CanOperate() => State.IsIdle;
-    private bool CanCalculate() => State.IsIdle && files.Length > 0;
+    private bool CanCalculate() => State.IsIdle && SelectedFiles.Length > 0;
+    private bool CanFutuOperate() => State.IsIdle && IsFutu;
+    private bool CanClearDividend() => CanFutuOperate() && futuDividendFile is not null;
+    private bool CanClearTrades() => CanFutuOperate() && futuTradeFiles.Length > 0;
     private bool CanCancel() => State.IsBusy && cancellation is not null;
     private void RefreshCommands()
     {
         PickReportsCommand.NotifyCanExecuteChanged(); PickOpeningCommand.NotifyCanExecuteChanged();
         CalculateCommand.NotifyCanExecuteChanged(); DownloadCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
+        PickFutuDividendCommand.NotifyCanExecuteChanged(); PickFutuTradesCommand.NotifyCanExecuteChanged();
+        ClearFutuDividendCommand.NotifyCanExecuteChanged(); ClearFutuTradesCommand.NotifyCanExecuteChanged();
     }
     /// <summary>选择对应券商的本地文件。</summary>
     [RelayCommand(CanExecute = nameof(CanOperate))]
@@ -63,6 +76,29 @@ public partial class ImportViewModel : ObservableObject
         if (selected.Length == 0) return;
         files = selected; ReportsLabel = string.Join("；", selected.Select(System.IO.Path.GetFileName)); Invalidate();
     }
+    /// <summary>重新选择只替换收入主表；取消选择保持原文件。</summary>
+    [RelayCommand(CanExecute = nameof(CanFutuOperate))]
+    private void PickFutuDividend()
+    {
+        var selected = State.Interaction.PickFiles("富途股息收入|*.xlsx;*.pdf", false);
+        if (selected.Length == 0) return;
+        if (futuTradeFiles.Contains(selected[0], StringComparer.OrdinalIgnoreCase)) { State.Interaction.ShowError("股息收入与交易明细请选择不同文件。"); return; }
+        futuDividendFile = selected[0]; FutuDividendLabel = System.IO.Path.GetFileName(selected[0]); Invalidate();
+    }
+    /// <summary>替换交易文件集合，不影响已选择的收入文件。</summary>
+    [RelayCommand(CanExecute = nameof(CanFutuOperate))]
+    private void PickFutuTrades()
+    {
+        var selected = State.Interaction.PickFiles("富途交易明细|*.xlsx", true);
+        if (selected.Length == 0) return;
+        if (futuDividendFile is not null && selected.Contains(futuDividendFile, StringComparer.OrdinalIgnoreCase))
+        { State.Interaction.ShowError("股息收入与交易明细请选择不同文件。"); return; }
+        futuTradeFiles = selected; FutuTradesLabel = string.Join("；", selected.Select(System.IO.Path.GetFileName)); Invalidate();
+    }
+    [RelayCommand(CanExecute = nameof(CanClearDividend))]
+    private void ClearFutuDividend() { futuDividendFile = null; FutuDividendLabel = "尚未选择股息收入文件"; Invalidate(); }
+    [RelayCommand(CanExecute = nameof(CanClearTrades))]
+    private void ClearFutuTrades() { futuTradeFiles = []; FutuTradesLabel = "尚未选择交易明细文件"; Invalidate(); }
     /// <summary>选择期初成本，取消不改变现有资料。</summary>
     [RelayCommand(CanExecute = nameof(CanOperate))]
     private void PickOpening()
@@ -76,7 +112,7 @@ public partial class ImportViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanCalculate))]
     private async Task CalculateAsync()
     {
-        var request = new DesktopCalculationRequest(files.ToArray(), Year, Broker, OpeningZero, ScopeConfirmed, UseCarry, openingPath, SaveCanonicalSnapshot);
+        var request = new DesktopCalculationRequest(SelectedFiles.ToArray(), Year, Broker, OpeningZero, ScopeConfirmed, UseCarry, openingPath, SaveCanonicalSnapshot);
         Invalidate();
         using var cts = new CancellationTokenSource(); cancellation = cts;
         try
