@@ -11,7 +11,8 @@ namespace CRS.DesktopClient.Services;
 /// <summary>隔离数据库验证页面导航、状态联动、实际绘制和后台用例。</summary>
 internal static class SmokeCheck
 {
-    public static async Task RunAsync(MainWindow window, ShellViewModel shell, IDesktopOperations operations, string[] args)
+    public static async Task RunAsync(MainWindow window, ShellViewModel shell, IDesktopOperations operations, string[] args,
+        IVaultService? vault=null,IDesktopSettingsService? settings=null)
     {
         using var bindingErrors = new BindingErrors();
         PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
@@ -90,7 +91,20 @@ internal static class SmokeCheck
                 window.UpdateLayout();
                 await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
                 if (key == "tax") await Task.Delay(800);
-                if (imagePath is not null && key is "dashboard" or "import" or "tax")
+                if (key == "history")
+                {
+                    // 最小窗口下分页栏不能被表格挤出可见区域。
+                    await Task.Delay(400);
+                    var historyPage = FindVisual<Views.Pages.HistoryPage>(window)!;
+                    var bar = (FrameworkElement)historyPage.FindName("PagingBar");
+                    var originalWidth = window.Width; var originalHeight = window.Height;
+                    window.Width = window.MinWidth; window.Height = window.MinHeight; window.UpdateLayout();
+                    var bottom = bar.TranslatePoint(new Point(0,bar.ActualHeight),window).Y;
+                    if (bottom > window.ActualHeight - 40 || bar.ActualWidth < 200)
+                        throw new InvalidOperationException("最小窗口下历史分页栏不可见。");
+                    window.Width = originalWidth; window.Height = originalHeight; window.UpdateLayout();
+                }
+                if (imagePath is not null && key is "dashboard" or "import" or "tax" or "history")
                 {
                     // 等待导航过渡与字形渲染完成，截图反映最终页面。
                     await Task.Delay(400); window.UpdateLayout();
@@ -119,6 +133,59 @@ internal static class SmokeCheck
                 var outcome = await useCases.CalculateAsync(new([args[fixtureIndex+1]],2025,"IBKR",true,true,false,null,true),CancellationToken.None);
                 if (outcome.Result.ImportedTradeCount != 2 || useCases.Trades(await useCases.LoadAsync(outcome.Result.SnapshotId)).Count != 2)
                     throw new InvalidOperationException("应用用例未保存可恢复交易快照。");
+                // 用真实脱敏 XML 验证原件校验及复算持久化，原运行必须保持不变。
+                var originalId = outcome.Result.SnapshotId;
+                var requirements = await useCases.OriginalFileRequirementsAsync(originalId);
+                if (requirements.Reports.Length != 1 || requirements.OpeningFile is not null)
+                    throw new InvalidOperationException("历史原件要求与导入文件不一致。");
+                await useCases.VerifyOriginalFilesAsync(originalId, [args[fixtureIndex + 1]], null, CancellationToken.None);
+                try { await useCases.VerifyOriginalFilesAsync(originalId, [], null, CancellationToken.None);
+                    throw new InvalidOperationException("缺少原件仍通过历史校验。"); }
+                catch (CrsException) { }
+                var replay = await useCases.ReplayAsync(originalId, CancellationToken.None);
+                if (replay.ParentSnapshotId != originalId || replay.SnapshotId == originalId
+                    || (await useCases.LoadAsync(originalId)).ParentSnapshotId is not null
+                    || (await useCases.QueryHistoryAsync(1, 50)).TotalCount != 3)
+                    throw new InvalidOperationException("复算未另存新运行或改写了原运行。");
+                try { await useCases.ReplayAsync(originalId, cts.Token);
+                    throw new InvalidOperationException("取消的复算仍执行。"); }
+                catch (OperationCanceledException) { }
+                if ((await useCases.QueryHistoryAsync(1, 50)).TotalCount != 3)
+                    throw new InvalidOperationException("取消复算留下半成品历史。");
+                // 实际窗口勾选两个券商的来源任务，验证汇总另存、导航和来源表格。
+                var frozenRate = outcome.Result.Rates.Single(r => r.Currency == "USD");
+                var annualIncome = new Income("ANNUAL-SECOND",2025,"USD",10,0);
+                var annualSummary = TaxEngine.Calculate([annualIncome],[],new Dictionary<string,decimal>(),2025,(_,_)=>frozenRate.Value);
+                var second = new CalculationResult { Year=2025,Broker="FUTU",SnapshotId="annual-source-futu",Summary=annualSummary,
+                    CoveredAccounts=["ANNUAL-SECOND"],Rates=[frozenRate],TaxInputs=new(1,TaxEngine.PolicyVersion,[annualIncome],[],"FUTU"),
+                    CalculationStatus=CalculationStatus.Completed,DataCompleteness=DataCompleteness.Confirmed,
+                    ReconciliationStatus=ReconciliationStatus.Matched,UsageLabel=UsageLabel.ReviewReady,Reconciled=true,
+                    EstimatedTopUpCny=annualSummary.SupplementTax };
+                operations.Repository.Save(second);
+                window.Navigate("history"); await shell.History.RefreshCommand.ExecuteAsync(null); await Task.Delay(400);
+                shell.History.SelectableRows.Single(r=>r.Task.Id==originalId).IsIncluded=true;
+                shell.History.SelectableRows.Single(r=>r.Task.Id==second.SnapshotId).IsIncluded=true;
+                shell.History.OwnershipConfirmed=true;
+                if (imagePath is not null) { window.UpdateLayout(); Capture(window,VariantPath(imagePath,"annual-selection")); }
+                await shell.History.AggregateAnnualCommand.ExecuteAsync(null); await Task.Delay(500); window.UpdateLayout();
+                if (shell.State.Result?.IsAnnualAggregate != true || shell.State.Result.AggregationSources.Count != 2
+                    || shell.History.TotalCount != 5 || shell.History.AggregationSelection.Count != 0
+                    || !shell.Results.TaxTables.Any(t=>t.Title=="年度汇总来源"))
+                    throw new InvalidOperationException("窗口年度汇总未另存、清理选择或展示来源。");
+                if (imagePath is not null) Capture(window,VariantPath(imagePath,"annual-tax"));
+                if (bindingErrors.Errors.Count > 0) throw new InvalidOperationException("汇总绑定错误："+string.Join("\n",bindingErrors.Errors));
+            }
+            if(vault is not null && settings is not null)
+            {
+                // 所有业务检查完成后锁定隔离库，核验真实启动界面的绑定与绘制，不读取真实账户。
+                vault.Lock(); var security=new VaultViewModel(vault,settings,new SmokeInteraction());
+                var gate=new VaultWindow(security) {Owner=window}; gate.Show(); await Task.Delay(250); gate.UpdateLayout();
+                if(security.ContinueCommand.CanExecute(null) || security.IsUnlocked) throw new InvalidOperationException("未解锁仍允许进入工作区。");
+                if(imagePath is not null) Capture(gate,VariantPath(imagePath,"vault")); gate.Close();
+                // 换机限制会话后再遇到系统锁屏，应能重复清理而不复用敏感模型。
+                window.PrepareLock(); window.PrepareLock();
+                if(window.DataContext is not null || shell.State.HasResult) throw new InvalidOperationException("锁定未清除敏感工作区。");
+                if(bindingErrors.Errors.Count>0) throw new InvalidOperationException("保险库绑定出现错误。");
             }
         }
         finally { PresentationTraceSources.DataBindingSource.Listeners.Remove(bindingErrors); }

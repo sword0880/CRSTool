@@ -10,6 +10,10 @@ var config = Path.Combine(workspace, "config"); Directory.CreateDirectory(config
 File.WriteAllText(Path.Combine(config, "exchange_rate.json"), """{"2025":{"USD":1,"HKD":1,"CNY":1},"2026":{"USD":1,"HKD":1,"CNY":1}}""");
 File.WriteAllText(Path.Combine(config, "exchange_rate_sources.json"), """{"2025":{"source":"合成验证数据","url":"https://example.com/verification","method":"固定测试汇率","start_date":"2025-01-01","end_date":"2025-12-31","provisional":false,"rates":{"USD":1,"HKD":1}}}""");
 var rates = new ExchangeRates(config);
+// 性能入口与普通回归分开，避免把合成大样本耗时混入测试正确性结论。
+if (args.Length == 2 && args[0] == "--benchmark") { ReleaseBenchmark.Run(args[1],workspace,rates); return; }
+// 真实样本只能来自用户提供的脱敏原件和独立人工基准，不能从合成 fixture 自动升级。
+if (args.Length == 3 && args[0] == "--accept-real") { RealSampleAcceptance.Run(args[1],args[2]); return; }
 if (args.Length >= 2 && args[0] == "--analyze")
 {
     var analyzed = CalculationServices.Create(args.Length >= 3 ? new ExchangeRates(args[2]) : rates).Calculate([args[1]], 2025, true, true);
@@ -28,9 +32,11 @@ void Assert(bool condition) { if (!condition) throw new Exception("断言不满�
 // 检查无效资料明确产生业务异常，而非被静默接受。
 void Reject(Action action) { try { action(); } catch (CrsException) { return; } throw new Exception("预期拒绝但被接受"); }
 var key = new SecurityKey("TEST", "111", "USD");
+// 合成报告每次创建成交都具有独立原始行号，明确表达原有测试已知的成交先后。
+var syntheticRow = 0;
 // 创建合成成交，保留指定总金额，以验证分配而非重新计算价格金额。
 Trade Trade(string id, string side, decimal qty, decimal gross, decimal fee = 0, int year = 2025, int day = 2) => new(key, "DEMO", new(year, 1, day, 10, 0, 0, TimeSpan.Zero), false,
-    side, qty, gross / qty, gross, fee, side == "BUY" ? -gross - fee : gross - fee, id, "synthetic.xml", day, "STK", null);
+    side, qty, gross / qty, gross, fee, side == "BUY" ? -gross - fee : gross - fee, id, "synthetic.xml", ++syntheticRow, "STK", null);
 // 使用固定测试汇率运行 FIFO，独立于用户汇率文件。
 List<Match> Run(Trade[] trades, FifoEngine? engine = null) => (engine ?? new()).Calculate(trades, [], [], [], 2025, (_, _) => 1);
 // 创建覆盖全年、可控制盈亏及余额的脱敏合成 XML。
@@ -85,7 +91,7 @@ Check("AR-01-05 拒绝冲突汇率及错年度事实", () => {
     Reject(() => new AnnualTaxAggregationService().Aggregate("LOCAL_USER", 2025, [wrong]));
 });
 Check("AR-01-06 原币事实保存加载后仍可聚合", () => {
-    var db = new LocalStore(Path.Combine(workspace, "aggregation-db")); var a = AccountRun("A", 100); var b = AccountRun("B", -100);
+    var db = TestStores.Create(Path.Combine(workspace, "aggregation-db")); var a = AccountRun("A", 100); var b = AccountRun("B", -100);
     db.Save(a); db.Save(b);
     var r = new AnnualTaxAggregationService().Aggregate("LOCAL_USER", 2025, [db.Load(a.SnapshotId), db.Load(b.SnapshotId)]);
     Assert(r.EstimatedTopUpCny == 0 && r.TaxInputs is not null);
@@ -127,7 +133,7 @@ Check("期初必须确认", () => { Assert(!service.Calculate([Xml()], 2025, fal
 Check("未支持资产不能计入股票收益", () => { var r = service.Calculate([Xml(asset: "OPT")], 2025, true, true); Assert(!r.Complete && r.Matches.Count == 0); });
 Check("DTD 被拒绝", () => { var p = Path.Combine(workspace, "dtd.xml"); File.WriteAllText(p, "<!DOCTYPE x [<!ENTITY a SYSTEM 'file:///no-file'>]><x>&a;</x>"); Reject(() => new IbkrXmlParser().Parse([p])); });
 Check("无时分秒成交被拒绝", () => { var p = Xml(); var d = XDocument.Load(p); d.Descendants("Trade").First().SetAttributeValue("dateTime", "20250102"); d.Save(p); Reject(() => service.Calculate([p], 2025, true, true)); });
-Check("SQLite 计算及复核记录持久化", () => { var db = new LocalStore(Path.Combine(workspace, "db")); var r = service.Calculate([Xml()], 2025, true, true); db.Save(r); db.AddReview(r.SnapshotId, "普通换汇", "已查原始成交记录"); Assert(db.Load(r.SnapshotId).Summary == r.Summary && db.History().Count == 1 && db.Reviews(r.SnapshotId).Count == 1); });
+Check("SQLite 计算及复核记录持久化", () => { var db = TestStores.Create(Path.Combine(workspace, "db")); var r = service.Calculate([Xml()], 2025, true, true); db.Save(r); db.AddReview(r.SnapshotId, "普通换汇", "已查原始成交记录"); Assert(db.Load(r.SnapshotId).Summary == r.Summary && db.History().Count == 1 && db.Reviews(r.SnapshotId).Count == 1); });
 Check("NPOI 报告写入与读取", () => { var r = service.Calculate([Xml()], 2025, true, true); var p = Path.Combine(workspace, "report.xlsx"); ExcelReports.Export(p, r); var rows = ExcelReports.ReadSheet(p, "税务汇总"); Assert(rows.Count == 9 && rows[3][1] == "496.00"); });
 Check("结转摘要及年度验证", () => { var r = service.Calculate([Xml()], 2025, true, true); var p = Path.Combine(workspace, "carry.json"); File.WriteAllBytes(p, CarryFiles.Encode(CarryFiles.Create(r))); var d = CarryFiles.Read(p); CarryFiles.Validate(d, 2026, ["TEST"]); Reject(() => CarryFiles.Validate(d, 2025, ["TEST"])); });
 Check("结转不接受篡改", () => { var r = service.Calculate([Xml()], 2025, true, true); var p = Path.Combine(workspace, "tampered.json"); File.WriteAllText(p, System.Text.Encoding.UTF8.GetString(CarryFiles.Encode(CarryFiles.Create(r))).Replace("2025", "2024")); Reject(() => CarryFiles.Read(p)); });

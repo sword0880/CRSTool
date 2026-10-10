@@ -7,6 +7,8 @@ public interface ICalculationRepository
     void Save(CalculationResult result);
     /// <summary>查询最近的运行索引。</summary>
     List<HistoryItem> History();
+    /// <summary>稳定排序并分页查询运行索引，页码从一开始。</summary>
+    HistoryPageResult QueryHistory(int pageNumber, int pageSize);
     /// <summary>恢复指定运行的冻结结果。</summary>
     CalculationResult Load(string id);
     /// <summary>追加人工复核依据，不改变原始金额。</summary>

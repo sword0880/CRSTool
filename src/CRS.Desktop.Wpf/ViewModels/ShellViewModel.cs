@@ -19,7 +19,7 @@ public sealed class ShellViewModel : ObservableObject
     public event Action<string>? NavigateRequested;
     public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null)
     {
-        State = new(useCases, interaction); Results = new(State); History = new(State);
+        State = new(useCases, interaction); Results = new(State); History = new(State, () => NavigateRequested?.Invoke("tax"));
         Dashboard = new(State, History, page => NavigateRequested?.Invoke(page));
         Review = new(State); Reports = new(State); ExchangeRates = new(State);
         Settings = settings is null ? null : new(State, settings);

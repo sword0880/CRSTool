@@ -10,6 +10,10 @@
 | --- | --- |
 | CalculateAsync(request, cancellation) | 后台导入、校验、计算；保存前检查取消；返回结果和配置指纹 |
 | HistoryAsync / LoadAsync | 读取索引／冻结结果，不自动重算 |
+| QueryHistoryAsync(pageNumber, pageSize) | 查询分页索引和总数，页码从 1 开始，单页最多 100 份 |
+| OriginalFileRequirementsAsync / VerifyOriginalFilesAsync | 查询报告和期初原件要求，并按历史摘要校验；不改写冻结结果 |
+| ReplayAsync(id, cancellation) | 使用冻结口径复算，业务输出比对通过后另存并保留父运行 |
+| AggregateAnnualAsync(sourceIds, ownershipConfirmed, cancellation) | 确认同一纳税人后汇总 2—100 份同年度来源任务，冻结汇率及原币事实统一计税，另存来源关系 |
 | ReviewsAsync / SaveReviewAsync | 读取或保存人工依据；不修改原税额，不自动解除成本问题 |
 | ExportAsync(path, result, fingerprint) | 新计算校验当前配置指纹；冻结历史沿用原汇率 |
 | ExportCarryAsync(path, result) | 仅 CarryEligible 结果允许写结转 |
@@ -27,9 +31,9 @@ Application/Abstractions 中的 IBrokerImporter、IExchangeRateProvider、ICarry
 
 ## 计算与重放
 
-CalculationService.Calculate 是同步后台服务，由 DesktopWorkflow 安排后台执行；Replay 和 VerifyOriginalFiles 是后台审计能力，尚未接入 WPF 历史操作。
+CalculationService.Calculate 是同步后台服务，由 DesktopWorkflow 安排后台执行；Replay 和 VerifyOriginalFiles 已通过应用用例接入 WPF 历史操作。
 
-Replay 要求完整规范化快照、输入摘要一致及兼容的执行元数据。历史汇率缺失、重复、错年度或无效时拒绝重放；沿用历史配置指纹与临时状态。此能力仍不等于严格输出一致性验证。
+Replay 要求 v2 完整规范化快照、输入摘要一致及 V3 排序口径。历史汇率缺失、重复、错年度或无效时拒绝重放；沿用历史配置指纹与临时状态。复算后比较金额、LOT、舍入余差、来源、问题、状态和所得原币事实，不一致不保存。旧快照仍可查看；执行程序集封存及旧格式转换仍待完成。
 
 ## 错误与未知值
 

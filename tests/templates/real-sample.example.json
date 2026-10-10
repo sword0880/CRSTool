@@ -1,0 +1,17 @@
+{
+  "SourceKind": "real-anonymized",
+  "OwnerAttestation": "请替换为样本提供方对真实全年、脱敏、授权和独立人工基准的说明",
+  "Year": 2025,
+  "Broker": "IBKR",
+  "Files": ["请填写本地脱敏全年报告.xml"],
+  "ConfigDirectory": "请填写已核对汇率的配置目录",
+  "OpeningZero": true,
+  "ScopeConfirmed": true,
+  "OpeningPath": null,
+  "Expected": {
+    "TradeCount": 0, "MatchCount": 0, "AccountCount": 1,
+    "DividendCny": 0, "InterestCny": 0, "GainCny": 0, "SupplementTax": 0,
+    "CashCheckCount": 1, "PnlCheckCount": 0,
+    "ReconciliationStatus": "Matched", "IssueCodes": []
+  }
+}

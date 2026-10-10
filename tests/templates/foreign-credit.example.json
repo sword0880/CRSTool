@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Year": 2025,
+  "Income": [
+    {"Broker":"IBKR","Account":"请填写实际账户","Country":"US","Category":"Dividend","Currency":"USD","Amount":100}
+  ],
+  "Payments": [
+    {"Broker":"IBKR","Account":"请填写实际账户","Country":"US","Category":"Dividend","Currency":"USD","Amount":15,
+     "Authority":"请填写征税机关","Reference":"请填写唯一凭证编号","Exclusion":"",
+     "Proofs":[{"Role":"TaxReceipt","Path":"请填写实际凭证.pdf"}]}
+  ]
+}

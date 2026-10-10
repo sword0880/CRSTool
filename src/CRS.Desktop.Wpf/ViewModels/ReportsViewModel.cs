@@ -18,6 +18,7 @@ public partial class ReportsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExport))]
     private async Task ExportAsync()
     {
+        if(!State.Interaction.ConfirmPlaintextExport()) {State.Status="已取消明文导出。"; return;}
         var result = State.Result!;
         var path = State.Interaction.SaveFile("Excel 底稿|*.xlsx", $"{(result.Complete ? "Tax_Report" : "Partial_Review")}_{result.Year}.xlsx");
         if (path is null) return;
@@ -26,6 +27,7 @@ public partial class ReportsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanCarry))]
     private async Task ExportCarryAsync()
     {
+        if(!State.Interaction.ConfirmPlaintextExport()) {State.Status="已取消明文导出。"; return;}
         var result = State.Result!;
         var path = State.Interaction.SaveFile("C# LOT 结转|*.json", $"LOTS_{result.Year}.json");
         if (path is null) return;

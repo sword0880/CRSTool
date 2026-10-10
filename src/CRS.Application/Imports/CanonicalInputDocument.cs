@@ -5,6 +5,8 @@ internal sealed class CanonicalInputDocument
 {
     public string Schema { get; set; } = "";
     public string Broker { get; set; } = "IBKR";
+    /// <summary>完整保留结转及期初来源语义；重放时重新校验，不能重复合入 LOT。</summary>
+    public CarryDocument? Carry { get; set; }
     public List<AnnualIncome> AnnualIncome { get; set; } = [];
     public List<FundMovement> FundMovements { get; set; } = [];
     public List<TradeAmountCheck> TradeAmountChecks { get; set; } = [];

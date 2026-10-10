@@ -2,6 +2,8 @@
   <ItemGroup>
     <ProjectReference Include="../CRS.Domain/CRS.Domain.csproj" />
     <ProjectReference Include="../CRS.Application/CRS.Application.csproj" />
+    <!-- 安全核心不认识文件和业务模型，所有持久化仍由基础设施协调。 -->
+    <ProjectReference Include="../CRS.Security/CRS.Security.csproj" />
     <Using Include="CRS.Domain" />
     <Using Include="CRS.Application" />
     <PackageReference Include="NPOI" />
@@ -10,8 +12,10 @@
     <!-- NPOI 2.8.1 将绘图依赖标记为可选，这里显式引用以确保运行时能加载 SkiaSharp。 -->
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="NLog" />
-    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
     <PackageReference Include="Dapper" />
+    <PackageReference Include="QRCoder" />
     <!-- 覆盖 NPOI 的旧间接依赖，使用已修复安全问题的版本。 -->
     <PackageReference Include="System.Security.Cryptography.Xml" />
   </ItemGroup>

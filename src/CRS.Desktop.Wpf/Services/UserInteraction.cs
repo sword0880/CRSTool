@@ -11,10 +11,14 @@ public interface IUserInteraction
     void ShowError(string message);
     void OpenFolder(string path);
     string? PickFolder() => null;
+    /// <summary>普通导出包含敏感明文，必须由用户明确确认；测试替身可自行控制确认结果。</summary>
+    bool ConfirmPlaintextExport()=>false;
 }
 
 public sealed class UserInteraction : IUserInteraction
 {
+    public bool ConfirmPlaintextExport()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,
+        "导出文件不会被保险库加密，可能包含账户、交易和成本信息。确认保存到你信任的位置？","明文导出",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;
     public string? PickFolder()
     {
         var dialog = new OpenFolderDialog { Title = "选择目录", Multiselect = false };

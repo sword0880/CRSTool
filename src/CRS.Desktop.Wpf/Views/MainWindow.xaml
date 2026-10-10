@@ -1,6 +1,7 @@
-<ui:FluentWindow x:Class="CRS.DesktopClient.Views.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:pages="clr-namespace:CRS.DesktopClient.Views.Pages" Title="CRS Tax Manager" Width="1280" Height="880" MinWidth="1040" MinHeight="700" WindowStartupLocation="CenterScreen" Background="#FBFCFD">
+<ui:FluentWindow x:Class="CRS.DesktopClient.Views.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:pages="clr-namespace:CRS.DesktopClient.Views.Pages" xmlns:services="clr-namespace:CRS.DesktopClient.Services" Title="{x:Static services:ProductIdentity.Name}" Width="1280" Height="880" MinWidth="1040" MinHeight="700" WindowStartupLocation="CenterScreen" Background="#FBFCFD">
  <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <ui:TitleBar Title="CRS Tax Manager" Height="64" FontSize="23" FontWeight="Bold" ShowClose="True" ShowMinimize="True" ShowMaximize="True" ForceShutdown="False"/>
+  <!-- 产品全称使用统一定义，明确辅助计算定位。 -->
+  <ui:TitleBar Title="{x:Static services:ProductIdentity.Name}" Height="64" FontSize="23" FontWeight="Bold" ShowClose="True" ShowMinimize="True" ShowMaximize="True" ForceShutdown="False"/>
   <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="#E5E7EB">
    <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="True" IsBackButtonVisible="Collapsed" IsPaneOpen="True">
     <ui:NavigationView.MenuItems>
@@ -16,6 +17,9 @@
     <ui:NavigationView.FooterMenuItems>
      <ui:NavigationViewItem Content="历史任务" TargetPageType="{x:Type pages:HistoryPage}" Icon="{ui:SymbolIcon History24}"/>
      <ui:NavigationViewItem Content="设置" Icon="{ui:SymbolIcon Settings24}" Click="OnSettings" IsEnabled="{Binding State.IsIdle}" ToolTip="设置" AutomationProperties.Name="打开日志和数据库设置"/>
+     <!-- 安全入口与主动锁定保留在菜单栏，锁定不能被后台忙碌状态挡住。 -->
+     <ui:NavigationViewItem Content="保险库与备份" Icon="{ui:SymbolIcon Shield24}" Click="OnSecurity"/>
+     <ui:NavigationViewItem Content="锁定" Icon="{ui:SymbolIcon LockClosed24}" Click="OnLock"/>
     </ui:NavigationView.FooterMenuItems>
    </ui:NavigationView>
   </Border>

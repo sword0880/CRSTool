@@ -20,7 +20,8 @@ public partial class DashboardViewModel : ObservableObject
     {
         State = state; History = history; this.navigate = navigate;
         state.ResultChanged += () => { OnPropertyChanged(nameof(TradeCount)); OnPropertyChanged(nameof(IssueCount)); OnPropertyChanged(nameof(MatchCount)); OnPropertyChanged(nameof(TaxStatus)); OnPropertyChanged(nameof(TaxHint)); };
-        history.Rows.CollectionChanged += (_, _) => { RecentTasks.Clear(); foreach (var row in history.Rows.Take(5)) RecentTasks.Add(row); };
+        // 历史换页不应把旧任务误显示成“最新导入任务”。
+        history.RecentRows.CollectionChanged += (_, _) => { RecentTasks.Clear(); foreach (var row in history.RecentRows) RecentTasks.Add(row); };
         state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) OpenTaskCommand.NotifyCanExecuteChanged(); };
     }
     /// <summary>从概览卡片跳转至对应业务模块。</summary>

@@ -29,6 +29,9 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         string? openingXml, CarryDocument? carry, CancellationToken cancellation, ReplayExecutionContext? replayContext = null,
         string? canonicalInputOverride = null, bool saveCanonicalSnapshot = false)
     {
+        // 保存合入结转前的原始期初记录；完整快照另外保存结转，重放只合入一次。
+        var rawOpeningLots = FifoOrdering.Lots(data.OpeningLots).Select(l => l.Copy()).ToArray();
+        var rawOpeningRounding = data.OpeningRounding.ToArray();
         var prepared = new AnnualInputPreparation(carryValidator).Prepare(
             data, year, openingZero, scopeConfirmed, carry, cancellation);
         var begin = prepared.Begin; var end = prepared.End;
@@ -54,6 +57,9 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         // 没有应税现金的币种不触发无意义的汇率配置要求。
         income = income.Where(i => i.Dividend != 0 || i.Interest != 0).ToList();
         var summary = TaxEngine.Calculate(income, matches, withholding, year, Rate);
+        // 券商预扣税不是自动取得抵免资格；缺少国家分配和凭证时关闭年度预计补税。
+        if (withholding.Values.Any(v => v != 0)) issues.Add(new("TAX_CREDIT_UNVERIFIED",
+            "境外预扣税尚未关联国家／地区、所得项目和缴税凭证；现有抵免金额仅供辅助核对，请在历史任务导入抵免明细。"));
         // 保留未施加抵免上限的原币净税款，年度聚合只能汇总事实后统一计算。
         var taxInputs = new TaxCalculationInputs(1, TaxEngine.PolicyVersion, income,
             data.Cash.Where(c => c.Date.Year == year && c.Type == "Withholding Tax")
@@ -68,22 +74,21 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             finalIssues, scopeConfirmed, positionReconciled, cashChecks, pnlChecks, provisional, used.Values, summary, data.Broker != "FUTU");
         summary = summary with { EstimatedTopUpCny = estimated };
         // 规范化快照同时保存排序后的领域记录，使历史结果在原文件暂时不可用时仍可重放审计。
-        var fileRefs = files.Select(path => new { name = Path.GetFileName(path), sha256 = evidence.FileHash(path) }).OrderBy(x => x.name).ToArray();
+        var fileRefs = files.Select(path => new { name = Path.GetFileName(path), sha256 = evidence.FileHash(path) })
+            .OrderBy(x => x.name, StringComparer.Ordinal).ThenBy(x => x.sha256, StringComparer.Ordinal).ToArray();
         var openingRef = openingXml is null ? null : new { name = Path.GetFileName(openingXml), sha256 = evidence.FileHash(openingXml) };
         object canonicalValue = saveCanonicalSnapshot ? new
         {
-            schema = "CRS.CanonicalInput.v1", files = fileRefs, opening = openingRef,
-            broker = data.Broker, annualIncome = data.AnnualIncome, fundMovements = data.FundMovements,
-            tradeAmountChecks = data.TradeAmountChecks, securityMovements = data.SecurityMovements, beginningPositions = data.BeginningPositions,
-            trades = data.Trades.OrderBy(t => t.Key.Account).ThenBy(t => t.Key.Instrument).ThenBy(t => t.Time).ThenBy(t => t.Id),
-            reportedSales = data.ReportedSales.OrderBy(t => t.Key.Account).ThenBy(t => t.Time).ThenBy(t => t.Id),
-            cash = data.Cash.OrderBy(c => c.Account).ThenBy(c => c.Date).ThenBy(c => c.Id),
-            openingLots = data.OpeningLots.OrderBy(l => l.Key.Account).ThenBy(l => l.Key.Instrument).ThenBy(l => l.BuyTime).ThenBy(l => l.RecordId),
-            positions = data.Positions.OrderBy(p => p.Key.Account).ThenBy(p => p.Key.Instrument).ThenBy(p => p.Date),
-            sources = data.Sources.OrderBy(s => s.Account).ThenBy(s => s.Start).ThenBy(s => s.File),
-            openingRounding = data.OpeningRounding.OrderBy(r => r.Key.Account).ThenBy(r => r.Key.Instrument),
-            cashChecks = data.CashChecks.OrderBy(c => c.Account).ThenBy(c => c.Currency).ThenBy(c => c.Start),
-            warnings = data.Warnings.Order(), issues = data.Issues.OrderBy(i => i.Code).ThenBy(i => i.RecordId),
+            schema = "CRS.CanonicalInput.v2", files = fileRefs, opening = openingRef, carry,
+            broker = data.Broker, annualIncome = StableRows(data.AnnualIncome), fundMovements = StableRows(data.FundMovements),
+            tradeAmountChecks = StableRows(data.TradeAmountChecks), securityMovements = StableRows(data.SecurityMovements), beginningPositions = StableRows(data.BeginningPositions),
+            trades = FifoOrdering.Trades(data.Trades),
+            reportedSales = FifoOrdering.Trades(data.ReportedSales),
+            cash = StableRows(data.Cash),
+            openingLots = rawOpeningLots,
+            positions = StableRows(data.Positions), sources = StableRows(data.Sources),
+            openingRounding = StableRows(rawOpeningRounding), cashChecks = StableRows(data.CashChecks),
+            warnings = data.Warnings.Order(StringComparer.Ordinal), issues = StableRows(data.Issues),
             confirmations = new { openingZero, scopeConfirmed, taxpayerScopeId = "LOCAL_USER" }
         } : new
         {
@@ -93,7 +98,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         var canonical = canonicalInputOverride ?? JsonSerializer.Serialize(canonicalValue);
         var canonicalDigest = evidence.Hash(Encoding.UTF8.GetBytes(canonical));
         var result = new CalculationResult { Broker = data.Broker, ImportedTradeCount = data.Trades.Count(t => t.Time.Year == year),
-            SessionTrades = data.Trades.Where(t => t.Time.Year == year).ToList(), AnnualIncome = data.AnnualIncome, FundMovements = data.FundMovements.Where(f => f.Date.Year == year).ToList(),
+            SessionTrades = FifoOrdering.Trades(data.Trades.Where(t => t.Time.Year == year)).ToList(), AnnualIncome = data.AnnualIncome, FundMovements = data.FundMovements.Where(f => f.Date.Year == year).ToList(),
             TradeAmountChecks = data.TradeAmountChecks.Where(c => data.Trades.Any(t => t.Id == c.TradeId && t.Time.Year == year)).ToList(),
             SecurityMovements = data.SecurityMovements, Year = year, Summary = summary, TaxInputs = taxInputs, Matches = matches, Issues = finalIssues, Warnings = data.Warnings,
             CashChecks = cashChecks, PnlChecks = pnlChecks, Rates = used.Values.OrderBy(r => r.Currency).ToList(), Sources = data.Sources,
@@ -120,6 +125,9 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         return result;
     }
 
+    /// <summary>快照其他集合以完整记录的序列化键稳定排序，避免相同局部键仍依赖文件选择顺序。</summary>
+    private static IEnumerable<T> StableRows<T>(IEnumerable<T> rows) => rows.OrderBy(row => JsonSerializer.Serialize(row), StringComparer.Ordinal);
+
     /// <summary>从完整规范化快照重放计算，使用历史汇率快照而不是当前配置。</summary>
     public CalculationResult Replay(CalculationResult snapshot, CancellationToken cancellation = default)
     {
@@ -130,14 +138,20 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         if (digest != snapshot.CanonicalInputDigest) throw new CrsException("规范化输入快照摘要不一致，不能重放。");
         var document = JsonSerializer.Deserialize<CanonicalInputDocument>(snapshot.CanonicalInputJson,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new CrsException("规范化输入快照格式无效。");
-        if (document.Schema != "CRS.CanonicalInput.v1") throw new CrsException("规范化输入快照版本不受当前程序支持。");
+        if (document.Schema != "CRS.CanonicalInput.v2") throw new CrsException("规范化输入快照版本不受当前程序支持，请重新导入原件；仍可查看冻结结果。");
         var replayContext = ReplayExecutionContext.Read(snapshot);
         var data = document.ToImportData();
         cancellation.ThrowIfCancellationRequested();
         var replay = CalculateParsed(data, [], snapshot.Year, document.Confirmations.OpeningZero,
-            document.Confirmations.ScopeConfirmed, null, null, cancellation, replayContext, snapshot.CanonicalInputJson, true);
+            document.Confirmations.ScopeConfirmed, null, document.Carry, cancellation, replayContext, snapshot.CanonicalInputJson, true);
         if (replay.CanonicalInputDigest != snapshot.CanonicalInputDigest)
             throw new CrsException("重放后的输入摘要不一致，历史结果不能被静默替换。");
+        // 全量业务输出一致才允许作为复算结果；时间、运行编号和父运行不参与金额比对。
+        ReplayResultComparison.Verify(snapshot, replay);
+        replay.ParentSnapshotId = snapshot.SnapshotId;
+        var audit = System.Text.Json.Nodes.JsonNode.Parse(replay.SnapshotJson)!.AsObject();
+        audit["parentSnapshotId"] = snapshot.SnapshotId;
+        replay.SnapshotJson = audit.ToJsonString();
         return replay;
     }
 

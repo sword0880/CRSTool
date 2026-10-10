@@ -54,14 +54,29 @@ public static class ExcelReports
             ["年度", r.Year], ["券商", r.Broker], ["计算状态", ResultLabels.Calculation(r.CalculationStatus)], ["数据完整性", ResultLabels.Completeness(r.DataCompleteness)],
             ["对账状态", ResultLabels.Reconciliation(r.ReconciliationStatus)], ["使用标签", ResultLabels.Usage(r.UsageLabel)], ["可作为完整结果", r.Complete],
             ["纳税人范围", r.TaxpayerScopeId], ["纳入账户", string.Join("、", r.CoveredAccounts)], ["临时测算", r.Provisional],
-            ["规则版本", TaxEngine.PolicyVersion], ["计算编号", r.SnapshotId], ["期末结转可用", r.CarryEligible],
+            ["规则版本", TaxEngine.PolicyVersion], ["计算编号", r.SnapshotId], ["复算父任务", r.ParentSnapshotId], ["期末结转可用", r.CarryEligible],
+            ["年度汇总", r.IsAnnualAggregate], ["来源任务数", r.AggregationSources.Count],
             ["输入恢复模式", r.InputRecoveryMode], ["规范化输入摘要", r.CanonicalInputDigest], ["可重放", r.IsReplayable],
             ["适用边界", "迁移现有税务辅助测算口径；抵免归属和实际申报规则仍需独立核实。"] });
         Sheet("税务汇总", ["项目", "人民币金额"], new object?[][] { ["股息", r.Summary.DividendCny], ["利息", r.Summary.InterestCny],
             ["资本收益", r.Summary.GainCny], ["股息利息税", r.Summary.DividendInterestTax], ["资本收益税", r.Summary.GainTax], ["境外抵免", r.Summary.ForeignCredit],
             ["辅助测算补税（原始公式）", r.Summary.SupplementTax], ["年度预计补税（状态允许时）", r.EstimatedTopUpCny] });
-        Sheet("FIFO明细", ["账户", "证券", "币种", "买入日期", "卖出日期", "数量", "已含费总成本", "收入", "买入费用披露", "卖出费用", "收益", "人民币收益", "成本口径", "买入ID", "卖出ID", "买入文件", "卖出文件"],
-            r.Matches.Select(m => new object?[] { m.Key.Account, m.Symbol, m.Key.Currency, m.BuyDate, m.SellDate, m.Quantity, m.Cost, m.Revenue, m.BuyFee, m.SellFee, m.Gain, m.GainCny, m.CostBasisMode, m.BuyId, m.SellId, m.BuyFile, m.SellFile }));
+        // 汇总底稿披露全部来源任务及券商账户关系，原账户底稿仍可独立追溯。
+        if (r.IsAnnualAggregate)
+            Sheet("年度汇总来源", ["来源任务", "券商", "年度", "账户"], r.AggregationSources.SelectMany(s => s.Accounts
+                .Select(a => new object?[] { s.SnapshotId, s.Broker, s.Year, a })));
+        Sheet("FIFO明细", ["账户", "证券", "币种", "买入日期", "卖出日期", "数量", "已含费总成本", "收入", "买入费用披露", "卖出费用", "收益", "人民币收益", "成本口径", "买入ID", "卖出ID", "买入文件", "卖出文件", "券商"],
+            r.Matches.Select(m => new object?[] { m.Key.Account, m.Symbol, m.Key.Currency, m.BuyDate, m.SellDate, m.Quantity, m.Cost, m.Revenue, m.BuyFee, m.SellFee, m.Gain, m.GainCny, m.CostBasisMode, m.BuyId, m.SellId, m.BuyFile, m.SellFile, m.Key.Broker }));
+        if (r.ForeignCreditAssessment is { } credit)
+        {
+            // 国家限额、所得归属和凭证摘要随同税务底稿导出，排除税款单独披露。
+            Sheet("抵免国家限额", ["国家地区", "收入人民币", "辅助限额", "可核对税款", "排除税款", "辅助抵免", "超限未结转"],
+                credit.Countries.Select(c => new object?[] { c.Country, c.IncomeCny, c.LimitCny, c.PaidCny, c.ExcludedCny, c.CreditCny, c.ExcessCny }));
+            Sheet("抵免所得分配", ["券商", "账户", "国家地区", "所得项目", "币种", "原币金额"],
+                credit.Evidence.Income.Select(i => new object?[] { i.Broker, i.Account, i.Country, i.Category, i.Currency, i.Amount }));
+            Sheet("抵免凭证关系", ["券商", "账户", "国家地区", "所得项目", "币种", "原币税款", "征税机关", "凭证编号", "排除原因", "凭证类型", "文件名", "SHA256"],
+                credit.Evidence.Payments.SelectMany(t => t.Proofs.Select(p => new object?[] { t.Broker, t.Account, t.Country, t.Category, t.Currency, t.Amount, t.Authority, t.Reference, t.Exclusion, p.Role, p.Name, p.Sha256 })));
+        }
         Sheet("待复核", ["代码", "说明", "账户", "证券", "币种", "日期", "原始ID", "来源文件"], r.Issues.Select(i => new object?[] { i.Code, i.Message, i.Account, i.Symbol, i.Currency, i.Date, i.RecordId, i.File }));
         Sheet("现金余额对账", ["账户", "币种", "起日", "止日", "期初现金", "明细变动", "计算期末", "报告期末", "差额", "状态", "说明", "文件"],
             r.CashChecks.Select(c => new object?[] { c.Account, c.Currency, c.Start, c.End, c.Starting, c.Movement, c.CalculatedEnding, c.ReportedEnding, c.Difference, c.Status, c.Reason, c.File }));

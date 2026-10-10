@@ -11,16 +11,21 @@ public sealed class AnnualTaxAggregationService
         if (string.IsNullOrWhiteSpace(taxpayerScopeId)) throw new CrsException("纳税人范围标识不能为空。");
         if (results.Count == 0) throw new CrsException("至少需要一份账户计算结果才能进行年度聚合。");
         if (results.Any(r => r.Year != year)) throw new CrsException("年度聚合不能混入不同年度的计算结果。");
+        if (results.Any(r => r.IsAnnualAggregate || r.Broker == "MULTI"))
+            throw new CrsException("请选择原始账户任务，不能再次纳入已生成的年度汇总任务。");
 
         if (results.Any(r => r.CoveredAccounts.Count == 0 || r.CoveredAccounts.Any(string.IsNullOrWhiteSpace)))
             throw new CrsException("年度聚合需明确每份运行的账户范围。");
         if (results.Any(r => r.TaxpayerScopeId != taxpayerScopeId))
             throw new CrsException("年度聚合的账户运行必须属于同一纳税人范围。");
-        var accountKeys = results.SelectMany(r => r.CoveredAccounts.Select(a => (Broker: r.TaxInputs?.Broker ?? "IBKR", Account: a))).ToList();
-        if (accountKeys.Count != accountKeys.Distinct().Count())
-            throw new CrsException("年度聚合发现重复账户，请先拆分或确认账户归属。");
+        var accountKeys = results.SelectMany(r => r.CoveredAccounts.Select(a => (Broker: r.Broker, Account: a))).ToList();
+        var duplicate = accountKeys.GroupBy(k=>k).FirstOrDefault(g=>g.Count()>1);
+        if (duplicate is not null)
+            throw new CrsException($"年度聚合发现重复账户：{duplicate.Key.Broker} / {duplicate.Key.Account}，请选择该账户的一份任务。");
         var accounts = accountKeys.Select(k => k.Account).ToList();
         var rateGroups = results.SelectMany(r => r.Rates).GroupBy(r => (r.Year, r.Currency)).ToList();
+        if (rateGroups.Any(g => g.Key.Year != year || string.IsNullOrWhiteSpace(g.Key.Currency) || g.Any(r => r.Value <= 0)))
+            throw new CrsException("来源任务的冻结汇率存在错年度或无效币种、数值，不能聚合。");
         if (rateGroups.Any(g => g.Distinct().Count() != 1))
             throw new CrsException("同年度同币种的汇率数值或来源不一致，不能聚合。");
         var rates = rateGroups.Select(g => g.First()).OrderBy(r => r.Currency, StringComparer.Ordinal).ToList();
@@ -30,7 +35,7 @@ public sealed class AnnualTaxAggregationService
         foreach (var run in results.Where(r => r.TaxInputs is not null))
         {
             var facts = run.TaxInputs!;
-            if (facts.Income.Any(i => i.Year != year || !run.CoveredAccounts.Contains(i.Account))
+            if (facts.Broker != run.Broker || facts.Income.Any(i => i.Year != year || !run.CoveredAccounts.Contains(i.Account))
                 || facts.ForeignTax.Any(t => t.Year != year || !run.CoveredAccounts.Contains(t.Account))
                 || run.Matches.Any(m => m.SellDate.Year != year || !run.CoveredAccounts.Contains(m.Key.Account) || m.Key.Broker != facts.Broker))
                 throw new CrsException("年度事实的账户、券商或年度超出运行范围。");
@@ -42,6 +47,9 @@ public sealed class AnnualTaxAggregationService
         // 汇总原币收入、净税款与已匹配收益后，只执行一次年度算法；不相加账户税额。
         var summary = TaxEngine.Calculate(income, matches, withholding, year, Rate);
         var issues = results.SelectMany(r => r.Issues).Distinct().ToList();
+        // 国家分配必须覆盖合并后的整个年度，不能简单相加各账户已限额的抵免金额。
+        if (foreignTax.Any(t => t.Amount != 0)) issues.Add(new("TAX_CREDIT_UNVERIFIED",
+            "年度汇总需重新分配全年度所得来源国家并关联税款凭证，请导入覆盖全部来源账户的抵免明细。"));
         var factsMissing = inputs.Count != results.Count;
         if (factsMissing)
             issues.Add(new("TAX_FACTS_MISSING", "历史运行缺少可聚合收入或未限额税款事实，仅显示已有事实，年度预计补税保持为空。"));
@@ -62,10 +70,13 @@ public sealed class AnnualTaxAggregationService
             && results.All(r => r.EstimatedTopUpCny is not null && r.Complete) ? (decimal?)summary.SupplementTax : null;
         summary = summary with { EstimatedTopUpCny = estimated };
         var snapshotId = Guid.NewGuid().ToString("N");
-        var sourceIds = results.Select(r => r.SnapshotId).Where(id => id != "").Order().ToArray();
+        var sourceIds = results.Select(r => r.SnapshotId).Where(id => id != "").Order(StringComparer.Ordinal).ToArray();
         var result = new CalculationResult
         {
             Broker = results.Select(r => r.Broker).Distinct().Count() == 1 ? results.First().Broker : "MULTI",
+            AggregationSources = results.OrderBy(r => r.SnapshotId, StringComparer.Ordinal)
+                .Select(r => new AggregationSource(r.SnapshotId, r.Broker, r.Year, r.CoveredAccounts.Order(StringComparer.Ordinal).ToArray())).ToList(),
+            ImportedTradeCount = results.All(r => r.ImportedTradeCount is not null) ? results.Sum(r => r.ImportedTradeCount!.Value) : null,
             AnnualIncome = results.SelectMany(r => r.AnnualIncome).ToList(), FundMovements = results.SelectMany(r => r.FundMovements).ToList(),
             TradeAmountChecks = results.SelectMany(r => r.TradeAmountChecks).ToList(), SecurityMovements = results.SelectMany(r => r.SecurityMovements).ToList(),
             Year = year,
@@ -91,6 +102,7 @@ public sealed class AnnualTaxAggregationService
         result.SnapshotJson = JsonSerializer.Serialize(new
         {
             result.SnapshotId, result.TaxpayerScopeId, result.Year, parentSnapshotIds = sourceIds,
+            aggregationSources = result.AggregationSources,
             result.CalculationStatus, result.DataCompleteness, result.ReconciliationStatus, result.UsageLabel,
             createdUtc = DateTimeOffset.UtcNow
         });

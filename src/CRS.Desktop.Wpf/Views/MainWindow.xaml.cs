@@ -7,6 +7,20 @@ namespace CRS.DesktopClient.Views;
 /// <summary>导航壳只管理页面缓存和窗口生命周期。</summary>
 public partial class MainWindow : FluentWindow
 {
+    private bool forceClose;
+    public event Action? SecurityRequested;
+    public event Action? LockRequested;
+    private void OnSecurity(object sender,System.Windows.RoutedEventArgs e) {if(((ShellViewModel)DataContext).State.IsIdle) SecurityRequested?.Invoke();}
+    private void OnLock(object sender,System.Windows.RoutedEventArgs e)=>LockRequested?.Invoke();
+    /// <summary>安全锁定独立于普通关闭，取消请求、清空令牌并解除敏感页面引用。</summary>
+    public void PrepareLock()
+    {
+        forceClose=true;
+        // 换手机限制会话与系统锁屏可能先后触发，已清理窗口应允许重复关闭。
+        if(DataContext is not ShellViewModel shell) return;
+        shell.State.UseCases.EndSession(); shell.Import.CancelCommand.Execute(null); shell.History.CancelOperationCommand.Execute(null);
+        shell.Import.Token=""; shell.State.Clear(); DataContext=null;
+    }
     public static readonly IReadOnlyDictionary<string, Type> PageTypes = new Dictionary<string, Type>
     {
         ["dashboard"] = typeof(DashboardPage), ["import"] = typeof(ImportPage), ["trades"] = typeof(TradesPage),
@@ -35,6 +49,7 @@ public partial class MainWindow : FluentWindow
     }
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        if(forceClose) return;
         var shell = (ShellViewModel)DataContext;
         if (Environment.GetCommandLineArgs().Contains("--smoke-test")) { shell.Import.Token = ""; return; }
         if (shell.State.IsBusy) { e.Cancel = true; System.Windows.MessageBox.Show(this, "请等待操作结束，或先取消当前操作。", "操作正在进行"); }

@@ -86,7 +86,7 @@ internal static class FutuVerification
             Assert(r.TradeAmountChecks.All(c => c.Status == "一致") && r.TradeAmountChecks[0].Row == 2);
             Assert(r.Broker == "FUTU" && !r.Complete && r.EstimatedTopUpCny is null && r.ReconciliationStatus == ReconciliationStatus.NotVerifiable);
             var replay = calculator.Replay(r); Assert(replay.Summary == r.Summary && replay.FundMovements.Count == r.FundMovements.Count && replay.TradeAmountChecks.Count == 3);
-            var store = new LocalStore(Path.Combine(workspace, "futu-db")); store.Save(r); Assert(store.Load(r.SnapshotId).AnnualIncome.Count == 1);
+            var store = TestStores.Create(Path.Combine(workspace, "futu-db")); store.Save(r); Assert(store.Load(r.SnapshotId).AnnualIncome.Count == 1);
             var report = Path.Combine(workspace, "futu-report.xlsx"); ExcelReports.Export(report, r);
             Assert(ExcelReports.ReadSheet(report, "年度收入主表").Count == 2 && ExcelReports.ReadSheet(report, "成交金额核对").Count == 4);
         });
@@ -185,7 +185,7 @@ internal static class FutuVerification
             Assert(r.Matches.Sum(m => m.Cost) == 10.34m && r.Matches.Sum(m => m.Gain) == -9.36m && r.CarryEligible && r.EndingLots.Single().Quantity == 1);
         });
         check("DB-DAPPER-001 查询映射、参数化文本及失败回滚", () => {
-            var r = calculator.Calculate(Files(workspace), 2025, true, true); var db = new LocalStore(Path.Combine(workspace, "dapper-db")); db.Save(r);
+            var r = calculator.Calculate(Files(workspace), 2025, true, true); var db = TestStores.Create(Path.Combine(workspace, "dapper-db")); db.Save(r);
             var text = "中文依据'); DROP TABLE calculations; --"; db.AddReview(r.SnapshotId, "核对", text);
             Assert(db.Reviews(r.SnapshotId).Single().Evidence == text && db.History().Single().Year == 2025 && !db.History().Single().Complete);
             try { db.Save(r); throw new Exception("重复主键未拒绝"); } catch (Microsoft.Data.Sqlite.SqliteException) { }

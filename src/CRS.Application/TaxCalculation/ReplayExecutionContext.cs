@@ -6,7 +6,8 @@ namespace CRS.Application;
 internal sealed record ReplayExecutionContext(bool Provisional, string Configuration,
     IReadOnlyDictionary<(int Year, string Currency), AppliedRate> Rates)
 {
-    internal const string SupportedAlgorithm = "FIFO_TOTAL_COST_V2";
+    // 稳定排序和歧义门槛改变计算口径，旧版本只能查看冻结结果，不能伪称等价重放。
+    internal const string SupportedAlgorithm = "FIFO_TOTAL_COST_V3";
 
     public static ReplayExecutionContext Read(CalculationResult snapshot)
     {

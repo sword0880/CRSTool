@@ -1,0 +1,46 @@
+<Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="加密保险库" Width="660" Height="720" MinWidth="560" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#FBFCFD">
+ <Window.Resources><BooleanToVisibilityConverter x:Key="ShowWhenTrue"/></Window.Resources>
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="26" IsEnabled="{Binding IsIdle}">
+  <TextBlock Text="保护与恢复你的数据" FontSize="24" FontWeight="SemiBold"/>
+  <TextBlock Text="主密码 + Microsoft Authenticator · 本地离线验证" Foreground="#64748B" Margin="0,8,0,20"/>
+  <TextBlock Text="保险库目录（新建必须是空目录）"/><TextBox Text="{Binding Directory, UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>
+  <TextBlock Text="主密码（新建至少 12 个字符）"/><PasswordBox x:Name="PasswordInput" PasswordChanged="OnPassword" Margin="0,6"/>
+  <WrapPanel Margin="0,8"><Button Content="创建新保险库" Command="{Binding CreateCommand}" Margin="0,0,8,0"/><Button Content="解锁" Command="{Binding UnlockCommand}" Margin="0,0,8,0"/><Button Content="进入工作区" Command="{Binding ContinueCommand}"/></WrapPanel>
+  <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#334155" Margin="0,8"/>
+  <!-- 首次扫码只显示内存素材，不提供二维码保存或复制按钮。 -->
+  <Border Background="#EFF6FF" CornerRadius="10" Padding="14" Margin="0,10"><StackPanel>
+   <TextBlock Text="手机验证" FontWeight="SemiBold" FontSize="16"/>
+   <TextBlock Text="{Binding AuthenticationHint}" TextWrapping="Wrap" Margin="0,6"/>
+   <Image Source="{Binding EnrollmentQr}" Width="210" MaxHeight="210" Stretch="Uniform" HorizontalAlignment="Center"/>
+   <DockPanel Margin="0,8"><Button DockPanel.Dock="Right" Content="验证六位代码" Command="{Binding VerifyCodeCommand}" Margin="8,0,0,0"/><PasswordBox x:Name="CodeInput" PasswordChanged="OnCode" MaxLength="6"/></DockPanel>
+   <TextBlock Text="同一验证码只能使用一次；刚绑定或解锁后，请等下一组代码再操作。" Foreground="#64748B" TextWrapping="Wrap"/>
+   <StackPanel Visibility="{Binding HasMfaRecoveryCodes,Converter={StaticResource ShowWhenTrue}}">
+    <TextBox Text="{Binding MfaRecoveryCodes,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,8"/>
+    <CheckBox Content="我已离线保存八条手机恢复码" IsChecked="{Binding MfaRecoverySaved}"/>
+   </StackPanel>
+   <Button Content="重新显示绑定二维码" Command="{Binding BeginEnrollmentCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+  </StackPanel></Border>
+  <!-- 恢复密钥只在创建时显示，离开向导必须确认已离线保存。 -->
+  <StackPanel Visibility="{Binding HasDatabaseRecovery,Converter={StaticResource ShowWhenTrue}}">
+   <TextBlock Text="新建恢复密钥（仅本次显示，请离线保存）"/><TextBox Text="{Binding RecoveryKey, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,6"/>
+   <CheckBox Content="我已离线保存恢复密钥，知道两种凭证全部丢失后无法恢复" IsChecked="{Binding RecoverySaved}" Margin="0,6"/>
+  </StackPanel>
+  <Expander Header="更换手机、恢复与加密备份" IsExpanded="False" Margin="0,18,0,8"><StackPanel Margin="0,12,0,0">
+   <Button Content="验证当前密码与手机代码，更换绑定" Command="{Binding ReplacePhoneCommand}" HorizontalAlignment="Left" Margin="0,6"/>
+   <TextBlock Text="手机丢失：先验证主密码，再输入一条未使用的手机恢复码" TextWrapping="Wrap"/>
+   <PasswordBox x:Name="MfaRecoveryInput" PasswordChanged="OnMfaRecovery" Margin="0,6"/>
+   <Button Content="消费恢复码并绑定新手机" Command="{Binding RecoverPhoneCommand}" HorizontalAlignment="Left" Margin="0,6"/>
+   <TextBlock Text="新主密码（修改或恢复时填写）"/><PasswordBox x:Name="NewPasswordInput" PasswordChanged="OnNewPassword" Margin="0,6"/>
+   <TextBlock Text="恢复凭证（恢复密钥，或备份时的主密码）"/><PasswordBox x:Name="SecretInput" PasswordChanged="OnSecret" Margin="0,6"/>
+   <WrapPanel Margin="0,8"><Button Content="验证旧密码并改密" Command="{Binding ChangePasswordCommand}" Margin="0,0,8,0"/><Button Content="用恢复密钥重设主密码" Command="{Binding ResetPasswordCommand}"/></WrapPanel>
+   <TextBlock Text="备份路径（.crsbak）"/><DockPanel Margin="0,6"><Button DockPanel.Dock="Right" Content="选择" Click="OnSelectBackup" Margin="8,0,0,0"/><TextBox Text="{Binding BackupPath, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
+   <Button Content="创建加密备份（不覆盖已有文件）" Command="{Binding BackupCommand}" HorizontalAlignment="Left" Margin="0,6"/>
+   <TextBlock Text="恢复目标（新的空目录）"/><TextBox Text="{Binding TargetDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>
+   <CheckBox Content="使用恢复密钥解封备份；未勾选时使用备份时主密码" IsChecked="{Binding UseRecovery}" Margin="0,6"/>
+   <Button Content="验证并恢复到新位置" Command="{Binding RestoreCommand}" HorizontalAlignment="Left" Margin="0,6"/>
+   <TextBlock Text="旧备份会带回当时的手机绑定和恢复码记录，不能保证旧凭证全局撤销。" TextWrapping="Wrap" Foreground="#64748B"/>
+  </StackPanel></Expander>
+  <TextBlock Text="旧明文库不会迁移或删除。原始报表、Excel 和结转导出仍需自行妥善管理。" TextWrapping="Wrap" Foreground="#64748B"/>
+  <Button Content="锁定保险库" Command="{Binding LockCommand}" HorizontalAlignment="Left" Margin="0,14"/>
+ </StackPanel></ScrollViewer>
+</Window>

@@ -7,6 +7,13 @@ $domain = Join-Path $RepositoryRoot 'src/CRS.Domain'
 $app = Join-Path $RepositoryRoot 'src/CRS.Application'
 $infra = Join-Path $RepositoryRoot 'src/CRS.Infrastructure'
 $wpf = Join-Path $RepositoryRoot 'src/CRS.Desktop.Wpf'
+$security = Join-Path $RepositoryRoot 'src/CRS.Security'
+[xml]$securityProject=Get-Content -Raw (Join-Path $security 'CRS.Security.csproj')
+Assert-Boundary ($securityProject.SelectNodes('//ProjectReference').Count -eq 0) 'Security 不得引用其他生产项目。'
+foreach($file in Get-ChildItem $security -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
+    $source=Get-Content -Raw $file.FullName
+    Assert-Boundary (-not ($source -match 'CRS\.(Domain|Application|Infrastructure|Desktop)|Microsoft\.Data\.Sqlite|Dapper|System\.IO|\b(File|Directory|FileStream)\b')) "Security 出现业务、持久化或文件依赖：$($file.Name)"
+}
 [xml]$domainProject = Get-Content -Raw (Join-Path $domain 'CRS.Domain.csproj')
 Assert-Boundary ($domainProject.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) 'Domain 不得引用外层或 UI 包。'
 [xml]$appProject = Get-Content -Raw (Join-Path $app 'CRS.Application.csproj')
@@ -14,7 +21,7 @@ $appReferences = @($appProject.SelectNodes('//ProjectReference'))
 Assert-Boundary ($appReferences.Count -eq 1 -and $appReferences[0].Include -eq '../CRS.Domain/CRS.Domain.csproj') 'Application 只能引用 Domain。'
 [xml]$infraProject = Get-Content -Raw (Join-Path $infra 'CRS.Infrastructure.csproj')
 foreach ($reference in $infraProject.SelectNodes('//ProjectReference')) {
-    Assert-Boundary ($reference.Include -match 'CRS\.(Domain|Application)/CRS\.(Domain|Application)\.csproj$') 'Infrastructure 反向引用前台。'
+    Assert-Boundary ($reference.Include -match 'CRS\.(Domain|Application|Security)/CRS\.(Domain|Application|Security)\.csproj$') 'Infrastructure 反向引用前台。'
 }
 foreach ($root in @($domain,$app)) {
     foreach ($file in Get-ChildItem $root -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {

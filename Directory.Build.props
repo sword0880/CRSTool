@@ -7,5 +7,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- 对传递引用也固定集中声明版本，避免重新拉入旧 SkiaSharp 和易混淆的原生 SQLite。 -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CRS.Tests.Infrastructure' Or '$(MSBuildProjectName)' == 'CRS.Tests.Verification'">
+    <Compile Include="$(MSBuildThisFileDirectory)tests/TestStores.cs" Link="TestStores.cs" />
+  </ItemGroup>
 </Project>
