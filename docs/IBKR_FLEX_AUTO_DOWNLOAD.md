@@ -6,7 +6,7 @@ Python 与 WinForms 前台已移除。使用 WPF 的“数据导入”页面：
 dotnet run --project src/CRS.Desktop.Wpf
 ```
 
-在 IBKR Client Portal 创建 XML 格式的 Activity Flex 查询，并取得查询 ID 和 Flex 服务令牌。查询 ID 可以写入 `config/ibkr_flex.json`；令牌只在前台密码框输入，不写入配置、报告或日志。
+在 IBKR Client Portal 创建 XML 格式的 Activity Flex 查询，并取得查询 ID 和 Flex 服务令牌。查询 ID 可以写入 `src/CRS.Desktop.Wpf/config/ibkr_flex.json`；令牌只在前台密码框输入，不写入配置、报告或日志。
 
 1. 在“数据导入”选择 IBKR 及测算年度，右侧填写“IBKR 自动下载”。
 2. 输入年度查询 ID、服务令牌、起止日期。

@@ -23,6 +23,7 @@ if (shell.Dashboard.TradeCount!="0") throw new Exception("真实零笔被显示�
 await shell.State.DisplayAsync(new() {Year=2025,Summary=new(0,0,0,0,0,0,0),SnapshotId="LEGACY"});
 if (shell.Dashboard.TradeCount!="未登记") throw new Exception("旧记录缺失笔数被当作零。");
 Console.WriteLine("WPF 模型验证通过：结果联动、并发门槛、输入失效、任务列表和历史（5 项）。");
+await ImportInteractionChecks.RunAsync();
 
 sealed class SilentInteraction : IUserInteraction
 {
@@ -33,9 +34,11 @@ sealed class SilentInteraction : IUserInteraction
 }
 sealed class FakeUseCases : IDesktopUseCases
 {
+    public DesktopCalculationRequest? LastRequest { get; private set; }
     public CalculationResult Result {get;}=new() {Year=2025,Summary=new(1,2,3,1,1,0,2),SnapshotId="SYNTHETIC",Issues=[new("SYNTHETIC","合成问题")],ImportedTradeCount=2};
     public string ConfigPath=>"unused";public string ReadQueryId()=>"";public void LogFailure(string exceptionType){}
-    public Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request,CancellationToken cancellation)=>Task.FromResult(new DesktopCalculationOutcome(Result,"synthetic"));
+    public Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request,CancellationToken cancellation)
+    { LastRequest = request; return Task.FromResult(new DesktopCalculationOutcome(Result,"synthetic")); }
     public Task<List<HistoryItem>> HistoryAsync()=>Task.FromResult(new List<HistoryItem>{new("SYNTHETIC",2025,"synthetic",false,1,"IBKR")});
     public Task<CalculationResult> LoadAsync(string id)=>Task.FromResult(Result);
     public Task<List<ReviewNote>> ReviewsAsync(string id)=>Task.FromResult(new List<ReviewNote>());

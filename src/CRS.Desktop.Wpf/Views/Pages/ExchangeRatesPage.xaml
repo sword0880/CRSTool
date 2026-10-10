@@ -2,10 +2,14 @@
  <Grid Margin="24,26,32,24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <StackPanel><TextBlock Text="汇率管理" Style="{StaticResource PageTitle}"/><TextBlock Text="查看年度汇率、来源及临时测算标记。修改配置后需要重新计算当前报表。" Style="{StaticResource Subtitle}"/></StackPanel>
   <WrapPanel Grid.Row="1" IsEnabled="{Binding State.IsIdle}" Margin="0,0,0,12">
-   <ui:NumberBox Value="{Binding Year, Mode=TwoWay}" Minimum="2000" Maximum="2100" MaxDecimalPlaces="0" Width="140" Margin="0,0,12,8"/>
-   <ui:Button Content="读取年度汇率" Command="{Binding RefreshCommand}" Style="{StaticResource ActionButton}"/>
+   <!-- 数值变化立即同步年度；读取按钮负责提交尚未解析的手动输入文本。 -->
+   <ui:NumberBox x:Name="YearInput" Value="{Binding Year, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Minimum="2000" Maximum="2100" MaxDecimalPlaces="0" AcceptsExpression="False" Width="140" Margin="0,0,12,8"/>
+   <ui:Button x:Name="ReadRatesButton" Content="读取年度汇率" Click="OnReadRates" Style="{StaticResource ActionButton}"/>
    <ui:Button Content="打开配置目录" Command="{Binding OpenConfigurationCommand}" Style="{StaticResource ActionButton}"/>
   </WrapPanel>
-  <DataGrid Grid.Row="2" ItemsSource="{Binding Rates}" AutoGenerateColumns="True"/>
+  <Grid Grid.Row="2"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <TextBlock Text="{Binding RateStatus}" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,12"/>
+   <DataGrid Grid.Row="1" ItemsSource="{Binding Rates}" AutoGenerateColumns="True"/>
+  </Grid>
  </Grid>
 </Page>

@@ -18,3 +18,4 @@ File.WriteAllText(Path.Combine(config,"exchange_rate_sources.json"),"{}");
 var rates=new ExchangeRates(config);
 if (rates.ForYear(2025).Count!=2 || rates.ForYear(2024).Count!=0 || rates.Get(2025,"USD").SourceConfirmed) throw new Exception("汇率列表猜测了来源或缺失年度。");
 Console.WriteLine("Infrastructure 验证通过：旧 JSON、交易隐私、年度汇率列表（3 项）。");
+await SettingsChecks.RunAsync(root);

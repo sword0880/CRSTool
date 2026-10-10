@@ -13,9 +13,7 @@ public sealed class DesktopSettingsStore(string? localDataRoot = null) : IDeskto
     {
         if (!File.Exists(SettingsPath))
         {
-            var legacy = Path.Combine(root, "CRS.WinForms");
-            return new(File.Exists(Path.Combine(legacy, "crs.db")) ? legacy : Path.Combine(root, "CRS", "data"),
-                Path.Combine(root, "CRS", "logs"));
+            return new(Path.Combine(root, "CRS", "data"), Path.Combine(root, "CRS", "logs"));
         }
         try { return Validate(JsonSerializer.Deserialize<DesktopSettings>(File.ReadAllText(SettingsPath))
             ?? throw new CrsException("本机设置为空，请检查 CRS/settings.json。")); }

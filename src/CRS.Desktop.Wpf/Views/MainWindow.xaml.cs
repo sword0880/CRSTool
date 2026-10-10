@@ -25,6 +25,14 @@ public partial class MainWindow : FluentWindow
         if (Navigation.SelectedItem is NavigationViewItem item && item.TargetPageType == type) return true;
         return Navigation.Navigate(type);
     }
+    public bool IsNavigationExpanded { get => Navigation.IsPaneOpen; set => Navigation.IsPaneOpen = value; }
+    private void OnSettings(object sender, System.Windows.RoutedEventArgs e)
+    {
+        var shell = (ShellViewModel)DataContext;
+        if (!shell.State.IsIdle || shell.Settings is null) return;
+        try { shell.Settings.Reload(); new SettingsWindow(shell.Settings) { Owner = this }.ShowDialog(); }
+        catch (Exception error) { shell.State.UseCases.LogFailure(error.GetType().Name); shell.State.Interaction.ShowError("无法读取设置，请检查本机设置文件和目录权限。"); }
+    }
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         var shell = (ShellViewModel)DataContext;

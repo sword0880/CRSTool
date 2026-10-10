@@ -1,6 +1,6 @@
 # 富途字段映射与规范化输入
 
-更新日期：2026-10-10。依据当前 FutuImporter、FutuTradeExcelImporter 与 FutuDividendExcelImporter。支持布局和限制见 [导入指南](FUTU_CSHARP_IMPORT_GUIDE.md)；[原字段提案](archive/FUTU_FIELD_MAPPING.md)仅作历史参考。
+更新日期：2026-10-10。依据当前 FutuImporter、FutuTradeExcelImporter 与 FutuDividendExcelImporter。支持布局和限制见 [导入指南](FUTU_CSHARP_IMPORT_GUIDE.md)；未完成的工作见 [问题清单](KNOWN_ISSUES.md)。
 
 ## 收入主表
 

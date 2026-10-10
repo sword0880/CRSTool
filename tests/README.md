@@ -6,8 +6,8 @@
 | --- | --- |
 | CRS.Tests.Domain | FIFO 含费成本守恒、税额基线、领域程序集独立性 |
 | CRS.Tests.Application | 取消不保存、冻结历史导出、结转门槛、复核、依赖；年度覆盖、账户对账；历史汇率与指纹隔离、无效重放输入、执行口径、跨年状态与元数据门槛 |
-| CRS.Tests.Infrastructure | 旧结果 JSON 往返、会话交易隐私、年度汇率枚举 |
-| CRS.Tests.Wpf | 概览与结果联动、跨页面忙碌门槛、输入失效、历史任务恢复 |
+| CRS.Tests.Infrastructure | 旧结果 JSON、会话交易隐私、年度汇率、设置保存与日志开关 |
+| CRS.Tests.Wpf | 概览、忙碌门槛、输入失效、历史、富途文件独立替换与清除 |
 | CRS.Tests.Verification | 原有 68 项金额、导入、状态、SQLite、NPOI、Flex 模拟和富途综合回归 |
 
 在仓库根目录运行：
@@ -29,6 +29,6 @@ dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --fixture D:
 dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --futu
 ```
 
-WPF 窗口检查会导航九个页面、检查绑定错误、历史 / 复核 / Excel 导出、取消不保存及输入清理。传入 --image 的绝对 PNG 路径可输出概览、导入和税务页截图。
+WPF 窗口检查会导航九个页面、检查绑定错误、历史 / 复核 / Excel 导出、取消不保存及输入清理。窗口检查还验证折叠菜单和设置窗口保存；传入 --image 的绝对 PNG 路径可输出折叠、设置、概览、导入和税务截图。
 
 WinForms 项目已删除。当前解决方案只有 WPF 前台、三个后台项目及五个验证项目。

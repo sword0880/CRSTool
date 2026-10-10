@@ -2,9 +2,9 @@
 
 ## 2026 年临时测算
 
-WPF 使用根 `config/` 配置源；构建后读取 WPF 运行目录的 `config/`。Python 与 WinForms 项目已移除。
+WPF 使用 `src/CRS.Desktop.Wpf/config/` 配置源；构建后读取 WPF 运行目录的 `config/`。Python 与 WinForms 项目已移除。
 
-`config/exchange_rate.json` 的 2026 年汇率为年初至今的报价日平均值，供临时测算使用。它不是 2026 年全年平均汇率，年末需重新核算。
+`src/CRS.Desktop.Wpf/config/exchange_rate.json` 的 2026 年汇率为年初至今的报价日平均值，供临时测算使用。它不是 2026 年全年平均汇率，年末需重新核算。
 
 - 来源：[中国货币网——人民币汇率中间价历史数据](https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2)，发布机构为中国外汇交易中心。
 - 查询期间：2026-01-01 至 2026-10-08。
@@ -18,6 +18,6 @@ WPF 使用根 `config/` 配置源；构建后读取 WPF 运行目录的 `config/
 | USD | 1247.2229 | 182 | 6.852873 |
 | HKD | 159.27864 | 182 | 0.875157 |
 
-来源元数据存于 `config/exchange_rate_sources.json`，原始日报价摘录存于 `config/exchange_rate_observations_2026.json`。计算时实际使用这些汇率，会在提示和“汇率底稿”中注明截止日期与临时用途。修改汇率时，应同时更新来源元数据中的数值、统计期间及方法；数值不匹配时不会沿用旧来源说明。
+来源元数据存于 `src/CRS.Desktop.Wpf/config/exchange_rate_sources.json`，原始日报价摘录存于 `src/CRS.Desktop.Wpf/config/exchange_rate_observations_2026.json`。计算时实际使用这些汇率，会在提示和“汇率底稿”中注明截止日期与临时用途。修改汇率时，应同时更新来源元数据中的数值、统计期间及方法；数值不匹配时不会沿用旧来源说明。
 
 2021—2025 年配置值保持原样，本次未重新核验其来源。

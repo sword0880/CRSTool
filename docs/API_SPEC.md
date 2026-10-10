@@ -1,6 +1,6 @@
 # 应用接口说明
 
-更新日期：2026-10-10。当前为本地 C# 调用接口，不是 HTTP API。[原始接口提案](archive/API_SPEC.md)保留作历史资料。
+当前为本地 C# 调用接口，不是 HTTP API。未完成能力见 [当前问题](KNOWN_ISSUES.md)。
 
 ## 前台入口
 
@@ -21,7 +21,7 @@
 
 DesktopCalculationRequest 包含文件、年度、券商、期初与范围确认、结转／期初路径及完整快照保存选项。DesktopCalculationOutcome 包含 Result 和 RatesFingerprint。前台持有取消令牌和忙碌状态，不取得仓储。
 
-## 后台端口
+## 本机设置端口
 
 Application/Abstractions 中的 IBrokerImporter、IExchangeRateProvider、ICarryValidator、ICalculationEvidence、ICalculationRepository 和 IReportExporter 由 Infrastructure 实现。IDesktopOperations 仅用于后台装配，不供 ViewModel 调用。
 

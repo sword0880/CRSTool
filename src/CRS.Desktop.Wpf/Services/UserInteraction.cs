@@ -10,10 +10,16 @@ public interface IUserInteraction
     string? SaveFile(string filter, string fileName);
     void ShowError(string message);
     void OpenFolder(string path);
+    string? PickFolder() => null;
 }
 
 public sealed class UserInteraction : IUserInteraction
 {
+    public string? PickFolder()
+    {
+        var dialog = new OpenFolderDialog { Title = "选择目录", Multiselect = false };
+        return dialog.ShowDialog(System.Windows.Application.Current.MainWindow) == true ? dialog.FolderName : null;
+    }
     /// <summary>返回用户选择的文件路径。</summary>
     public string[] PickFiles(string filter, bool multiple)
     {

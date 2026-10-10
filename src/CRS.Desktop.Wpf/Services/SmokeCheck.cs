@@ -40,16 +40,60 @@ internal static class SmokeCheck
             if (shell.Dashboard.RecentTasks.Count != 1 || shell.Dashboard.TradeCount != "1") throw new InvalidOperationException("概览未读取真实任务。");
             var imageIndex = Array.IndexOf(args, "--image");
             var imagePath = imageIndex >= 0 && imageIndex + 1 < args.Length ? args[imageIndex + 1] : null;
+            window.IsNavigationExpanded = false;
+            window.UpdateLayout(); await Task.Delay(250);
+            if (window.IsNavigationExpanded) throw new InvalidOperationException("侧栏未折叠。");
+            if (imagePath is not null) Capture(window, VariantPath(imagePath, "collapsed"));
+            window.IsNavigationExpanded = true;
+            if (shell.Settings is null) throw new InvalidOperationException("设置服务未装配。");
+            var settingsWindow = new SettingsWindow(shell.Settings) { Owner = window };
+            settingsWindow.Show(); settingsWindow.UpdateLayout();
+            shell.Settings.LogRetentionFiles = 9;
+            await shell.Settings.SaveCommand.ExecuteAsync(null);
+            shell.Settings.Reload();
+            if (shell.Settings.LogRetentionFiles != 9 || (await useCasesForSettings()).Count != 1)
+                throw new InvalidOperationException("设置未保存，或改变了当前历史数据库。");
+            if (imagePath is not null) Capture(settingsWindow, VariantPath(imagePath, "settings"));
+            settingsWindow.Close();
+            Task<List<HistoryItem>> useCasesForSettings() => shell.State.UseCases.HistoryAsync();
             foreach (var key in MainWindow.PageTypes.Keys)
             {
                 Console.Error.WriteLine("smoke: navigate " + key);
                 if (!window.Navigate(key)) throw new InvalidOperationException($"导航失败：{key}");
-                if (key == "rates") await shell.ExchangeRates.RefreshCommand.ExecuteAsync(null);
+                if (key == "rates")
+                {
+                    // 等导航动画结束，再验证数值调整、手动输入和未配置年度三种读取路径。
+                    await Task.Delay(400);
+                    window.UpdateLayout();
+                    var yearInput = FindVisual<Wpf.Ui.Controls.NumberBox>(window)
+                        ?? throw new InvalidOperationException("汇率年度输入框未显示。");
+                    yearInput.Focus();
+                    yearInput.SetCurrentValue(Wpf.Ui.Controls.NumberBox.ValueProperty, 2024d);
+                    if (shell.ExchangeRates.Year != 2024)
+                        throw new InvalidOperationException("修改汇率年度后未立即提交，读取会沿用旧年度。");
+                    await shell.ExchangeRates.RefreshCommand.ExecuteAsync(null);
+                    if (shell.ExchangeRates.Rates.Count == 0 || shell.ExchangeRates.Rates.Any(rate => rate.Year != 2024))
+                        throw new InvalidOperationException("汇率读取未使用修改后的年度。");
+                    var ratesPage = FindVisual<Views.Pages.ExchangeRatesPage>(window)!;
+                    var readButton = (Wpf.Ui.Controls.Button)ratesPage.FindName("ReadRatesButton");
+                    yearInput.Focus(); yearInput.Text = "2023";
+                    readButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    await shell.ExchangeRates.RefreshCommand.ExecutionTask!;
+                    if (shell.ExchangeRates.Year != 2023 || shell.ExchangeRates.Rates.Count == 0
+                        || shell.ExchangeRates.Rates.Any(rate => rate.Year != 2023))
+                        throw new InvalidOperationException($"手动修改年度后点击读取未提交新年度：{shell.ExchangeRates.Year}，{yearInput.Text}，{shell.ExchangeRates.Rates.Count}，{shell.ExchangeRates.RateStatus}");
+                    yearInput.SetCurrentValue(Wpf.Ui.Controls.NumberBox.ValueProperty, 2020d);
+                    await shell.ExchangeRates.RefreshCommand.ExecuteAsync(null);
+                    if (shell.ExchangeRates.Rates.Count != 0 || !shell.ExchangeRates.RateStatus.Contains("2020 年尚未配置汇率"))
+                        throw new InvalidOperationException("未配置年度没有清空汇率或明确提示。");
+                }
                 window.UpdateLayout();
                 await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
                 if (key == "tax") await Task.Delay(800);
                 if (imagePath is not null && key is "dashboard" or "import" or "tax")
                 {
+                    // 等待导航过渡与字形渲染完成，截图反映最终页面。
+                    await Task.Delay(400); window.UpdateLayout();
                     var file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(imagePath)!,
                         System.IO.Path.GetFileNameWithoutExtension(imagePath) + "-" + key + ".png");
                     Capture(window, file);
@@ -79,7 +123,16 @@ internal static class SmokeCheck
         }
         finally { PresentationTraceSources.DataBindingSource.Listeners.Remove(bindingErrors); }
     }
-    private static void Capture(MainWindow window, string path)
+    private static string VariantPath(string path, string suffix) => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, System.IO.Path.GetFileNameWithoutExtension(path) + "-" + suffix + ".png");
+    /// <summary>从已绘制的窗口查找控件，验证真实页面而非仅修改页面模型。</summary>
+    private static T? FindVisual<T>(DependencyObject parent) where T : DependencyObject
+    {
+        if (parent is T match) return match;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            if (FindVisual<T>(VisualTreeHelper.GetChild(parent, i)) is { } child) return child;
+        return null;
+    }
+    private static void Capture(Window window, string path)
     {
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);
         bitmap.Render(window); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
