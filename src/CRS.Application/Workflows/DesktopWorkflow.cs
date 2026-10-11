@@ -169,16 +169,21 @@ public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUse
     /// <summary>保存依据，不修改原始税额或复核状态。</summary>
     public Task SaveReviewAsync(string id, string category, string evidence) => reviews.SaveAsync(id, category, evidence);
     /// <summary>导出前验证当前汇率指纹；历史结果使用冻结汇率。</summary>
-    public Task ExportAsync(string path, CalculationResult result, string fingerprint) => Task.Run(() =>
+    public Task ExportAsync(string path, CalculationResult result, string fingerprint, CancellationToken cancellation = default) => Task.Run(() =>
     {
+        // 用户取消与锁定共用取消边界，写入适配器在最终提交前再次检查。
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
+        linked.Token.ThrowIfCancellationRequested();
         if (fingerprint.Length > 0 && operations.LoadRates().Fingerprint != fingerprint)
             throw new CrsException("汇率配置已更改，请重新计算后导出。");
-        operations.Reports.Export(path, result, operations.Repository.Reviews(result.SnapshotId));
-    });
+        operations.Reports.Export(path, result, operations.Repository.Reviews(result.SnapshotId),linked.Token);
+    },cancellation);
     /// <summary>只允许可信年末成本生成结转。</summary>
-    public Task ExportCarryAsync(string path, CalculationResult result) => Task.Run(() =>
+    public Task ExportCarryAsync(string path, CalculationResult result, CancellationToken cancellation = default) => Task.Run(() =>
     {
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
+        linked.Token.ThrowIfCancellationRequested();
         if (!result.CarryEligible) throw new CrsException("年末成本尚未核实，不能导出结转。");
-        operations.SaveCarry(path, result);
-    });
+        operations.SaveCarry(path, result,linked.Token);
+    },cancellation);
 }

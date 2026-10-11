@@ -48,19 +48,21 @@ internal static class XmlFields
     /// <summary>限量读取本地 XML，单文件最多 25 MB。</summary>
     public static byte[] ReadBytes(string path)
     {
-        using var file = File.OpenRead(path);
-        if (file.Length > MaxBytes) throw new CrsException("单份 XML 不能超过 25 MB。");
-        using var memory = new MemoryStream(); file.CopyTo(memory);
-        return memory.ToArray();
+        return FrozenInput.Read(path).CopyBytes();
     }
     /// <summary>安全读取 XML 并统一元素命名空间；禁止 DTD 和外部实体。</summary>
     public static XDocument ReadXml(byte[] raw)
     {
         if (raw.Length > MaxBytes) throw new CrsException("XML 超过 25 MB。");
+        using var stream=new MemoryStream(raw,false);
+        return ReadXml(stream);
+    }
+    /// <summary>直接解析冻结只读流；禁止 DTD 和外部实体，不重新打开原件。</summary>
+    internal static XDocument ReadXml(Stream stream)
+    {
         try
         {
             // 禁用 DTD 和外部实体，避免本地或远程实体解析。
-            using var stream = new MemoryStream(raw);
             using var reader = XmlReader.Create(stream, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit,
                 XmlResolver = null, MaxCharactersInDocument = MaxBytes });
             var document = XDocument.Load(reader);

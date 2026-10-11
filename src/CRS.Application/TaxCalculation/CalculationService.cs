@@ -17,9 +17,17 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         if (year is < 2000 or > 2100) throw new CrsException("年度必须在 2000 至 2100 之间。");
         if ((openingXml is not null || carry is not null) && openingZero || openingXml is not null && carry is not null)
             throw new CrsException("期初 XML、结转和期初无持仓确认只能选择一种。");
+        // 固定本次文件选择；同名来源不能通过目录不同绕过快照追溯。
+        files=files.ToArray();
+        if(files.GroupBy(Path.GetFileName,StringComparer.OrdinalIgnoreCase)
+                .Any(g=>g.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).Count()>1)
+            || openingXml is not null && files.Any(p=>string.Equals(Path.GetFileName(p),Path.GetFileName(openingXml),StringComparison.OrdinalIgnoreCase)))
+            throw new CrsException("源文件名重复，请保留唯一文件名以便追溯活动报告和期初资料。");
         operationLog?.Invoke($"开始计算；文件数量={files.Length}，年度={year}");
         cancellation.ThrowIfCancellationRequested();
         var data = importer.Parse(files, openingXml, cancellation);
+        // IBKR 允许重复选择同一原件，解析器只读取一次，引用清单也只记录一次。
+        files=files.DistinctBy(Path.GetFullPath,StringComparer.OrdinalIgnoreCase).ToArray();
         return CalculateParsed(data, files, year, openingZero, scopeConfirmed, openingXml, carry, cancellation,
             saveCanonicalSnapshot: saveCanonicalSnapshot);
     }
@@ -74,9 +82,18 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             finalIssues, scopeConfirmed, positionReconciled, cashChecks, pnlChecks, provisional, used.Values, summary, data.Broker != "FUTU");
         summary = summary with { EstimatedTopUpCny = estimated };
         // 规范化快照同时保存排序后的领域记录，使历史结果在原文件暂时不可用时仍可重放审计。
-        var fileRefs = files.Select(path => new { name = Path.GetFileName(path), sha256 = evidence.FileHash(path) })
+        // 指纹采用解析器返回的冻结来源，不在计算结束后重新打开可能已被替换的原件。
+        string SourceHash(string path,bool opening)
+        {
+            var hashes=data.Sources.Where(s=>s.File==Path.GetFileName(path) && s.Opening==opening)
+                .Select(s=>s.Sha256.ToLowerInvariant()).Distinct(StringComparer.Ordinal).ToArray();
+            if(hashes.Length!=1 || string.IsNullOrWhiteSpace(hashes[0]))
+                throw new CrsException("解析来源缺少唯一内容摘要，不能生成可信输入快照。");
+            return hashes[0];
+        }
+        var fileRefs = files.Select(path => new { name = Path.GetFileName(path), sha256 = SourceHash(path,false) })
             .OrderBy(x => x.name, StringComparer.Ordinal).ThenBy(x => x.sha256, StringComparer.Ordinal).ToArray();
-        var openingRef = openingXml is null ? null : new { name = Path.GetFileName(openingXml), sha256 = evidence.FileHash(openingXml) };
+        var openingRef = openingXml is null ? null : new { name = Path.GetFileName(openingXml), sha256 = SourceHash(openingXml,true) };
         object canonicalValue = saveCanonicalSnapshot ? new
         {
             schema = "CRS.CanonicalInput.v2", files = fileRefs, opening = openingRef, carry,

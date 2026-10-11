@@ -54,7 +54,8 @@ public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction 
         if (IsBusy) return false;
         IsBusy = true;
         try { await action(); return true; }
-        catch (OperationCanceledException) { Status = "操作已取消，未保存半成品计算。"; }
+        // 下载、计算和导出共用此入口，取消提示不再限定为计算。
+        catch (OperationCanceledException) { Status = "操作已取消。"; }
         catch (Exception error)
         {
             UseCases.LogFailure(error.GetType().Name);

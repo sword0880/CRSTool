@@ -8,11 +8,13 @@ public static class FutuDividendPdfImporter
 {
     /// <summary>识别英文账户收入表并保持页码行号，不支持扫描件或无法可靠定位的布局。</summary>
     internal static List<FutuRow> Read(string path, CancellationToken cancellation)
+        =>Read(FrozenInput.Read(path,cancellation),cancellation);
+    /// <summary>解析冻结 PDF 副本，避免文本与来源摘要使用不同版本的原件。</summary>
+    internal static List<FutuRow> Read(FrozenInput input,CancellationToken cancellation)
     {
-        FutuFields.CheckFile(path);
         try
         {
-            var document = PdfReader.Read(path, cancellation);
+            var document = PdfReader.Read(input.CopyBytes(), cancellation);
             var result = new List<FutuRow>();
             for (var pageNumber = 1; pageNumber <= document.Count; pageNumber++)
             {

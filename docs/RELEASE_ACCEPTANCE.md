@@ -1,8 +1,12 @@
 # 发布验收
 
-本轮覆盖独立 Security、SQLCipher、加密备份、Authenticator、本机密钥、锁定及手机开关，包含五个生产程序集和六组测试。最新产物为 `artifacts/phone-settings-acceptance`，此前产物保留在 `artifacts/local-login-acceptance` 和 `artifacts/auth-acceptance`；行为与人工缺口见 [AUTH_IMPLEMENTATION.md](AUTH_IMPLEMENTATION.md)。下文旧轮次数字保留为历史记录。
+当前验收覆盖独立 Security、SQLCipher、加密备份、Authenticator、本机密钥、锁定、手机开关、导出取消及导入一致性，包含五个生产程序集和六组测试。最新产物为 `artifacts/input-consistency-acceptance`，导出专项在 `artifacts/export-cancellation-acceptance`；此前认证产物保留在 `artifacts/phone-settings-acceptance`、`artifacts/local-login-acceptance` 和 `artifacts/auth-acceptance`。认证行为与人工缺口见 [AUTH_IMPLEMENTATION.md](AUTH_IMPLEMENTATION.md)。下文旧轮次数字保留为历史记录。
 
 运行 `./tests/Run-ReleaseAcceptance.ps1 -Smoke`，产物在被 Git 忽略的 `artifacts/acceptance`。构建失败、回归失败、基准金额不符或窗口失败时脚本返回错误并保存当前验收状态；清理只针对本次隔离临时目录，不删除用户数据。`-SkipBuild` 仅使用已有 Release 文件，报告明确标注构建未重新运行。
+
+导出取消与原子提交专项记录于 `artifacts/export-cancellation-acceptance`：覆盖取消不替换旧文件、写入失败临时清理、真实保险库锁定期间旧导出不能提交，以及前台取消后保留当前结果。特殊文件系统、断电／磁盘满仍需实际环境演练，公开发布状态不变。
+
+2026-10-11 导入冻结输入与同源摘要专项产物在 `artifacts/input-consistency-acceptance`，覆盖原件解析后被替换／删除、XML／Excel／PDF 同源读取、取消／大小限制及来源摘要冲突拒绝。未提供真实全年样本；`ReleaseApproved=false` 保持不变。
 
 ## 已提供的验收工具
 

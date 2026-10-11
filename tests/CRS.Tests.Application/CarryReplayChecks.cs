@@ -88,7 +88,8 @@ internal static class CarryReplayChecks
         {
             var data = new ImportData(); var key = new SecurityKey("A","STOCK","USD");
             foreach (var hash in new[]{"one","two"})
-                data.Sources.Add(new("a.xml",hash,"A",new(2025,1,1),new(2025,12,31),true,true,true));
+                data.Sources.Add(new("a.xml","hash","A",new(2025,1,1),new(2025,12,31),true,true,true,Authority:hash));
+            data.Sources.Add(new("b.xml","hash","A",new(2025,1,1),new(2025,12,31),true,true,true));
             Trade Buy(string id,int row,decimal cost)=>new(key,"STOCK",new(2025,1,1,12,0,0,TimeSpan.Zero),true,"BUY",1,cost,cost,0,-cost,id,"a.xml",row,"STK",null);
             data.Trades.Add(Buy("Z",1,100)); data.Trades.Add(Buy("A",2,200));
             var sell = Buy("S",3,300) with { Time=new(2025,2,1,12,0,0,TimeSpan.Zero), Side="SELL", Net=300, ReportedPnl=200 };

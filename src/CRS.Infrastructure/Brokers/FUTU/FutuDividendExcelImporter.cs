@@ -8,8 +8,11 @@ internal static class FutuDividendExcelImporter
 {
     /// <summary>读取唯一收入工作表，支持中文和原版英文表头。</summary>
     public static List<FutuRow> Read(string path)
+        =>Read(FrozenInput.Read(path));
+    /// <summary>从已冻结的收入主表读取，来源摘要无需再次访问文件。</summary>
+    internal static List<FutuRow> Read(FrozenInput input)
     {
-        using var table = new FutuTable(path);
+        using var table = new FutuTable(input);
         var rows = table.Read("股息", false) ?? table.Read("Income", false) ?? throw new CrsException("未找到富途股息收入工作表。");
         if (rows.Count == 0) throw new CrsException("富途收入表没有记录，不能视为全年零收入。");
         return rows;

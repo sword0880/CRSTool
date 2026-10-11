@@ -4,5 +4,5 @@ namespace CRS.Application.Abstractions;
 public interface IReportExporter
 {
     /// <summary>将冻结结果及复核记录输出至指定文件。</summary>
-    void Export(string path, CalculationResult result, IEnumerable<ReviewNote>? reviews = null);
+    void Export(string path, CalculationResult result, IEnumerable<ReviewNote>? reviews = null, CancellationToken cancellation = default);
 }

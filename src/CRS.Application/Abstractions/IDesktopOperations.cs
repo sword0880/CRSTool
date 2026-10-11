@@ -20,7 +20,7 @@ public interface IDesktopOperations
     /// <summary>读取抵免明细并对用户提供的凭证计算摘要，不保存凭证正文。</summary>
     ForeignCreditEvidence ReadForeignCredit(string path);
     /// <summary>将可信结果转换为年度结转并保存。</summary>
-    void SaveCarry(string path, CalculationResult result);
+    void SaveCarry(string path, CalculationResult result, CancellationToken cancellation = default);
     /// <summary>请求官方 Flex 报告并保存，响应取消且不记录令牌。</summary>
     Task DownloadAsync(string queryId, string token, DateOnly from, DateOnly to, string path, CancellationToken cancellation);
     /// <summary>只记录异常类别，避免外部异常正文暴露敏感数据。</summary>

@@ -15,22 +15,23 @@ public partial class ReportsViewModel : ObservableObject
     private void Refresh() { ExportCommand.NotifyCanExecuteChanged(); ExportCarryCommand.NotifyCanExecuteChanged(); }
     private bool CanExport() => State.IsIdle && State.HasResult;
     private bool CanCarry() => CanExport() && State.Result!.CarryEligible;
-    [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task ExportAsync()
+    // 取消命令只作用于本次导出，后台同时关联工作区锁定信号。
+    [RelayCommand(CanExecute = nameof(CanExport),IncludeCancelCommand = true)]
+    private async Task ExportAsync(CancellationToken cancellation)
     {
         if(!State.Interaction.ConfirmPlaintextExport()) {State.Status="已取消明文导出。"; return;}
         var result = State.Result!;
         var path = State.Interaction.SaveFile("Excel 底稿|*.xlsx", $"{(result.Complete ? "Tax_Report" : "Partial_Review")}_{result.Year}.xlsx");
         if (path is null) return;
-        await State.RunAsync(async () => { await State.UseCases.ExportAsync(path, result, State.Fingerprint); State.Status = "Excel 底稿已保存。"; });
+        await State.RunAsync(async () => { await State.UseCases.ExportAsync(path, result, State.Fingerprint,cancellation); State.Status = "Excel 底稿已保存。"; });
     }
-    [RelayCommand(CanExecute = nameof(CanCarry))]
-    private async Task ExportCarryAsync()
+    [RelayCommand(CanExecute = nameof(CanCarry),IncludeCancelCommand = true)]
+    private async Task ExportCarryAsync(CancellationToken cancellation)
     {
         if(!State.Interaction.ConfirmPlaintextExport()) {State.Status="已取消明文导出。"; return;}
         var result = State.Result!;
         var path = State.Interaction.SaveFile("C# LOT 结转|*.json", $"LOTS_{result.Year}.json");
         if (path is null) return;
-        await State.RunAsync(async () => { await State.UseCases.ExportCarryAsync(path, result); State.Status = "年末 LOT 结转已保存。"; });
+        await State.RunAsync(async () => { await State.UseCases.ExportCarryAsync(path, result,cancellation); State.Status = "年末 LOT 结转已保存。"; });
     }
 }

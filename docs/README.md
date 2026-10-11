@@ -17,6 +17,7 @@
 - [应用接口](API_SPEC.md) · [开发约定](CRS开发规范.md)
 - [FIFO 实现](CAPITAL_GAIN_FIFO_SPEC.md) · [税额算法](TAX_ENGINE_SPEC.md)
 - [富途字段映射](FUTU_FIELD_MAPPING.md)
+- [导入原件与快照摘要一致性](INPUT_CONSISTENCY.md)
 - [测试规范](TEST_SPEC.md) · [验证命令](../tests/README.md)
 - [当前问题与验收缺口](KNOWN_ISSUES.md)
 

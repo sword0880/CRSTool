@@ -24,6 +24,7 @@ CRS/
 │  ├─ CRS.Infrastructure/
 │  │  ├─ Persistence/
 │  │  ├─ Brokers/IBKR, FUTU/Pdf
+│  │  ├─ Imports/                  # 原件单次读取、只读内存副本与同源摘要
 │  │  ├─ ExchangeRateProviders/
 │  │  ├─ Exports/
 │  │  ├─ Configuration/

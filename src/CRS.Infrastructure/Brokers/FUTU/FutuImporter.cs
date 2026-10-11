@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using CRS.Domain;
 using CRS.Application.Abstractions;
 using CRS.Infrastructure.Pdf;
@@ -15,24 +14,31 @@ public sealed class FutuImporter(int year) : IBrokerImporter
         var paths = files.ToArray(); if (paths.Length is 0 or > 36) throw new CrsException("请选择 1 至 36 份富途收入／年度交易文件。");
         if (paths.Select(Path.GetFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Length)
             throw new CrsException("富途源文件名重复，请保留唯一文件名以便逐行追溯。");
-        var data = new ImportData { Broker = "FUTU" }; var incomePaths = new List<string>(); var nameMap = new Dictionary<string, HashSet<string>>();
+        var data = new ImportData { Broker = "FUTU" }; FrozenInput? incomeInput=null; var incomeIsPdf=false;
+        var nameMap = new Dictionary<string, HashSet<string>>();
+        void SetIncome(FrozenInput input,bool pdf)
+        {
+            // 最多保留一份收入原件的内存副本，重复收入立即拒绝，避免累积全部文件字节。
+            if(incomeInput is not null) throw new CrsException("请选择且仅选择一份富途年度收入主表（Excel 或 PDF）；两种格式不能重复计入。");
+            incomeInput=input; incomeIsPdf=pdf;
+        }
         foreach (var path in paths)
         {
-            cancellation.ThrowIfCancellationRequested(); FutuFields.CheckFile(path);
+            cancellation.ThrowIfCancellationRequested();
             var extension = Path.GetExtension(path).ToLowerInvariant();
-            if (extension == ".pdf") { incomePaths.Add(path); continue; }
+            if (extension == ".pdf") { SetIncome(FrozenInput.Read(path,cancellation),true); continue; }
             if (extension != ".xlsx") throw new CrsException("富途仅支持券商原始 XLSX 和可提取文字的收入 PDF。");
-            using var table = new FutuTable(path);
+            var input=FrozenInput.Read(path,cancellation); using var table = new FutuTable(input);
             if (table.Read("交易流水", false) is not null)
             {
-                var map = new FutuTradeExcelImporter().Read(path, data, year, cancellation);
+                var map = new FutuTradeExcelImporter().Read(input,table, data, year, cancellation);
                 foreach (var (name, ids) in map) { if (!nameMap.TryGetValue(name, out var existing)) nameMap[name] = existing = []; existing.UnionWith(ids); }
             }
-            else incomePaths.Add(path);
+            else SetIncome(input,false);
         }
-        if (incomePaths.Count != 1) throw new CrsException("请选择且仅选择一份富途年度收入主表（Excel 或 PDF）；两种格式不能重复计入。");
-        var incomePath = incomePaths.Single(); var file = Path.GetFileName(incomePath);
-        var rows = Path.GetExtension(incomePath).Equals(".pdf", StringComparison.OrdinalIgnoreCase) ? FutuDividendPdfImporter.Read(incomePath, cancellation) : FutuDividendExcelImporter.Read(incomePath);
+        if (incomeInput is null) throw new CrsException("请选择且仅选择一份富途年度收入主表（Excel 或 PDF）；两种格式不能重复计入。");
+        var file=incomeInput.Name;
+        var rows = incomeIsPdf ? FutuDividendPdfImporter.Read(incomeInput, cancellation) : FutuDividendExcelImporter.Read(incomeInput);
         foreach (var row in rows)
         {
             cancellation.ThrowIfCancellationRequested(); var name = row["账户名称"] == "" ? row["Account"] : row["账户名称"];
@@ -52,7 +58,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
             data.AnnualIncome.Add(income);
         }
         if (data.AnnualIncome.Count == 0) throw new CrsException("收入主表没有所选年度的有效记录。");
-        var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(incomePath)));
+        var hash = incomeInput.Sha256.ToUpperInvariant();
         foreach (var account in data.AnnualIncome.Select(i => i.Account).Distinct()) data.Sources.Add(new(file, hash, account, new(year, 1, 1), new(year, 12, 31), false, false, false, Purpose: "AnnualIncomeSummary"));
         foreach (var account in data.Sources.Where(s => s.Purpose == "AnnualActivity" && s.Start.Year == year).Select(s => s.Account).Distinct().ToArray())
             if (!data.AnnualIncome.Any(i => i.Account == account)) data.Issues.Add(new("MISSING_ACCOUNT_INCOME", "交易账户没有可唯一绑定的年度收入记录，不能视为零收入。", account));

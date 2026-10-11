@@ -25,8 +25,9 @@ public interface IDesktopUseCases
     Task<CalculationResult> LoadAsync(string id);
     Task<List<ReviewNote>> ReviewsAsync(string id);
     Task SaveReviewAsync(string id, string category, string evidence);
-    Task ExportAsync(string path, CalculationResult result, string fingerprint);
-    Task ExportCarryAsync(string path, CalculationResult result);
+    // 导出取消同时关联工作区会话；锁定后旧导出不得提交目标文件。
+    Task ExportAsync(string path, CalculationResult result, string fingerprint, CancellationToken cancellation = default);
+    Task ExportCarryAsync(string path, CalculationResult result, CancellationToken cancellation = default);
     Task DownloadAsync(string queryId, string token, DateOnly from, DateOnly to, string path, CancellationToken cancellation);
     Task<List<AppliedRate>> RatesAsync(int year);
     IReadOnlyList<Trade> Trades(CalculationResult result);

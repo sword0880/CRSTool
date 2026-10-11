@@ -28,6 +28,7 @@ await HistoryInteractionChecks.RunAsync();
 await AnnualAggregationInteractionChecks.RunAsync();
 await ForeignCreditInteractionChecks.RunAsync();
 await VaultInteractionChecks.RunAsync();
+await ReportsInteractionChecks.RunAsync();
 
 sealed class SilentInteraction : IUserInteraction
 {
@@ -53,8 +54,8 @@ class FakeUseCases : IDesktopUseCases
     public Task<CalculationResult> LoadAsync(string id)=>Task.FromResult(Result);
     public Task<List<ReviewNote>> ReviewsAsync(string id)=>Task.FromResult(new List<ReviewNote>());
     public Task SaveReviewAsync(string id,string category,string evidence)=>Task.CompletedTask;
-    public Task ExportAsync(string path,CalculationResult result,string fingerprint)=>Task.CompletedTask;
-    public Task ExportCarryAsync(string path,CalculationResult result)=>Task.CompletedTask;
+    public virtual Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default)=>Task.CompletedTask;
+    public virtual Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default)=>Task.CompletedTask;
     public Task DownloadAsync(string queryId,string token,DateOnly from,DateOnly to,string path,CancellationToken cancellation)=>Task.CompletedTask;
     public Task<List<AppliedRate>> RatesAsync(int year)=>Task.FromResult(new List<AppliedRate>());
     public IReadOnlyList<Trade> Trades(CalculationResult result)=>[];

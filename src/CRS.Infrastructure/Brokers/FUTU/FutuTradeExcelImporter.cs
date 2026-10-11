@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using CRS.Domain;
 
 namespace CRS.Infrastructure;
@@ -7,9 +6,8 @@ namespace CRS.Infrastructure;
 internal sealed class FutuTradeExcelImporter
 {
     /// <summary>读取一个年度工作簿，返回可用于绑定收入账户的名称与号码关系。</summary>
-    public Dictionary<string, HashSet<string>> Read(string path, ImportData data, int selectedYear, CancellationToken cancellation)
+    public Dictionary<string, HashSet<string>> Read(FrozenInput input,FutuTable table, ImportData data, int selectedYear, CancellationToken cancellation)
     {
-        using var table = new FutuTable(path);
         var accounts = table.Read("账户信息", true, "年份", "账户号码", "账户名称")!;
         if (accounts.Count == 0) throw new CrsException("富途账户信息没有年度和账户记录；只有表头的文件不能证明全年零交易。");
         var years = accounts.Select(r => FutuFields.Year(r["年份"])).Distinct().ToArray();
@@ -17,8 +15,9 @@ internal sealed class FutuTradeExcelImporter
         var reportYear = years[0]; if (reportYear > selectedYear) throw new CrsException("富途交易报告晚于所选年度。");
         var accountIds = accounts.Select(r => Account(r)).Distinct().ToHashSet();
         var names = accounts.GroupBy(r => r["账户名称"]).ToDictionary(g => g.Key, g => g.Select(Account).ToHashSet());
-        var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
-        var file = Path.GetFileName(path);
+        // 保持富途既有大写摘要与成交编号格式，字节来自同一次读取。
+        var hash = input.Sha256.ToUpperInvariant();
+        var file = input.Name;
         if (data.Sources.Any(s => s.Purpose == "AnnualActivity" && s.Sha256 == hash)) throw new CrsException("同一富途交易文件被重复选择，不能重复计入。");
         if (data.Sources.Any(s => s.Purpose == "AnnualActivity" && s.Start.Year == reportYear && accountIds.Contains(s.Account)))
             throw new CrsException("同账户同年度富途交易来源重叠；缺少稳定成交 ID，不能安全自动去重，请选择唯一完整报表。");

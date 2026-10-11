@@ -25,19 +25,25 @@ public static class ExcelReports
         return rows;
     }
     /// <summary>使用 NPOI 导出计算、复核、来源及快照，缺失金额保留空白。</summary>
-    public static void Export(string path, CalculationResult r, IEnumerable<ReviewNote>? reviews = null)
+    public static void Export(string path, CalculationResult r, IEnumerable<ReviewNote>? reviews = null,
+        CancellationToken cancellation = default,Action<Action>? commitGuard=null)
     {
+        cancellation.ThrowIfCancellationRequested();
+        commitGuard?.Invoke(()=>cancellation.ThrowIfCancellationRequested());
         using var workbook = new XSSFWorkbook();
         var header = workbook.CreateCellStyle(); var font = workbook.CreateFont(); font.IsBold = true; header.SetFont(font);
         var number = workbook.CreateCellStyle(); number.DataFormat = workbook.CreateDataFormat().GetFormat("0.00########");
         // 创建固定表头工作表，将外部字符串强制写为文本，金额仅在输出阶段转换。
         void Sheet(string name, string[] titles, IEnumerable<object?[]> rows)
         {
+            // 每个工作表和数据行都响应取消，避免大量明细继续构建。
+            cancellation.ThrowIfCancellationRequested();
             var sheet = workbook.CreateSheet(name); var top = sheet.CreateRow(0);
             for (int i = 0; i < titles.Length; i++) { var cell = top.CreateCell(i); cell.SetCellValue(titles[i]); cell.CellStyle = header; sheet.SetColumnWidth(i, Math.Min(i == 1 ? 48 : 24, 80) * 256); }
             int index = 1;
             foreach (var values in rows)
             {
+                cancellation.ThrowIfCancellationRequested();
                 var row = sheet.CreateRow(index++);
                 for (int i = 0; i < values.Length; i++)
                 {
@@ -106,6 +112,6 @@ public static class ExcelReports
         Sheet("提示", ["说明"], r.Warnings.Select(w => new object?[] { w }));
         // Excel 单元格限制为 32767 字符；长快照分段存放，禁止静默截断。
         Sheet("计算快照", ["段号", "JSON文本"], Enumerable.Range(0, (r.SnapshotJson.Length + 29999) / 30000).Select(i => new object?[] { i + 1, r.SnapshotJson.Substring(i * 30000, Math.Min(30000, r.SnapshotJson.Length - i * 30000)) }));
-        using var output = File.Create(path); workbook.Write(output, true);
+        AtomicExport.Write(path,output=>workbook.Write(output,true),cancellation,commitGuard);
     }
 }

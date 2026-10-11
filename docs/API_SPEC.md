@@ -15,8 +15,8 @@
 | ReplayAsync(id, cancellation) | 使用冻结口径复算，业务输出比对通过后另存并保留父运行 |
 | AggregateAnnualAsync(sourceIds, ownershipConfirmed, cancellation) | 确认同一纳税人后汇总 2—100 份同年度来源任务，冻结汇率及原币事实统一计税，另存来源关系 |
 | ReviewsAsync / SaveReviewAsync | 读取或保存人工依据；不修改原税额，不自动解除成本问题 |
-| ExportAsync(path, result, fingerprint) | 新计算校验当前配置指纹；冻结历史沿用原汇率 |
-| ExportCarryAsync(path, result) | 仅 CarryEligible 结果允许写结转 |
+| ExportAsync(path, result, fingerprint, cancellation) | 新计算校验当前配置指纹；冻结历史沿用原汇率；响应取消及会话失效，完成暂存后原子提交 |
+| ExportCarryAsync(path, result, cancellation) | 仅 CarryEligible 结果允许写结转；响应取消及会话失效，失败保留原目标 |
 | DownloadAsync | IBKR Flex 下载；支持取消 |
 | RatesAsync(year) | 枚举已配置年度汇率 |
 | Trades(result) | 优先会话交易；完整快照可恢复历史交易，引用型历史不虚构明细 |
@@ -28,6 +28,8 @@ DesktopCalculationRequest 包含文件、年度、券商、期初与范围确认
 ## 本机设置端口
 
 Application/Abstractions 中的 IBrokerImporter、IExchangeRateProvider、ICarryValidator、ICalculationEvidence、ICalculationRepository 和 IReportExporter 由 Infrastructure 实现。IDesktopOperations 仅用于后台装配，不供 ViewModel 调用。
+
+IBrokerImporter.Parse 必须用一次冻结的原件字节解析并生成 SourceReport.Sha256。CalculationService 的活动／期初快照引用只采用该解析来源摘要；同名不同目录、缺失或冲突摘要拒绝，不在计算末尾重新读取原件。IBKR 同一路径重复选择先去重；富途继续执行唯一收入和重叠报告限制。详见 [导入一致性](INPUT_CONSISTENCY.md)。
 
 ## 计算与重放
 

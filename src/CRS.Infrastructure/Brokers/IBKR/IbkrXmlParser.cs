@@ -20,6 +20,12 @@ public sealed class IbkrXmlParser
         cancellation = cancellationToken;
         var reports = files.ToList();
         if (reports.Count is 0 or > 36) throw new CrsException("请提供 1 至 36 份活动报告。");
+        // 保留重复选择不重复计税的既有行为，并确保同一路径只读取一次。
+        reports=reports.DistinctBy(Path.GetFullPath,StringComparer.OrdinalIgnoreCase).ToList();
+        // 仅用文件名追溯来源时不允许同名不同目录，避免快照绑定产生歧义。
+        if(reports.Select(Path.GetFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=reports.Count
+            || opening is not null && reports.Any(p=>string.Equals(Path.GetFileName(p),Path.GetFileName(opening),StringComparison.OrdinalIgnoreCase)))
+            throw new CrsException("源文件名重复，请保留唯一文件名以便追溯活动报告和期初资料。");
         foreach (var path in reports) { cancellation.ThrowIfCancellationRequested(); Read(path, false); }
         if (opening is not null) Read(opening, true);
         return data;
@@ -27,7 +33,8 @@ public sealed class IbkrXmlParser
     /// <summary>校验文件类型和报告期间，并按账户分派成交、现金、持仓及未支持事件。</summary>
     private void Read(string path, bool opening)
     {
-        var raw = ReadBytes(path); var doc = ReadXml(raw); var name = Path.GetFileName(path);
+        var input=FrozenInput.Read(path,cancellation); using var stream=input.OpenRead();
+        var doc = ReadXml(stream); var name = input.Name;
         if (doc.Root?.Name != "FlexQueryResponse" || Optional(doc.Root, "type", "AF") != "AF")
             throw new CrsException("请提供 Activity Flex XML，不接受请求回执或其他报告。");
         var statements = doc.Root.Element("FlexStatements")?.Elements("FlexStatement").ToList() ?? [];
@@ -39,7 +46,7 @@ public sealed class IbkrXmlParser
             if (start > end || start.Year < 2000 || end.Year > 2100) throw new CrsException("报告期间无效。");
             var positions = s.Element("OpenPositions");
             var hasPositions = positions is not null && (!positions.HasElements || positions.Elements().Any(e => Optional(e, "levelOfDetail") == "SUMMARY"));
-            data.Sources.Add(new(name, Hash(raw), account, start, end, s.Element("Trades") is not null,
+            data.Sources.Add(new(name, input.Sha256, account, start, end, s.Element("Trades") is not null,
                 s.Element("CashTransactions") is not null, hasPositions, opening,
                 opening ? "OpeningLot" : "AnnualActivity", "IBKRActivityFlex"));
             if (opening) { ReadOpening(s, account, end, name); continue; }

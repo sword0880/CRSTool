@@ -16,10 +16,11 @@ internal sealed class FutuTable : IDisposable
 {
     private readonly IWorkbook workbook;
     /// <summary>限量打开工作簿并将底层格式异常转换为中文业务错误。</summary>
-    public FutuTable(string path)
+    public FutuTable(string path):this(FrozenInput.Read(path)) { }
+    /// <summary>格式识别与明细读取共用冻结输入，不再次读取本地路径。</summary>
+    internal FutuTable(FrozenInput input)
     {
-        FutuFields.CheckFile(path);
-        try { using var stream = File.OpenRead(path); workbook = WorkbookFactory.Create(stream); }
+        try { using var stream = input.OpenRead(); workbook = WorkbookFactory.Create(stream); }
         catch (Exception e) when (e is not CrsException) { throw new CrsException("无法读取富途 Excel，请检查文件是否损坏或加密。"); }
     }
     /// <summary>按唯一关键词匹配工作表，拒绝歧义，必填表缺失时报错。</summary>
