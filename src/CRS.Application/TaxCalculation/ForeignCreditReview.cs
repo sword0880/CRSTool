@@ -9,12 +9,12 @@ public sealed record CreditIncome(string Broker, string Account, string Country,
 public sealed record CreditProof(string Role, string Name, string Sha256);
 /// <summary>税款与所得项目、账户和缴税凭证的一对一关系；排除原因非空时不参与抵免。</summary>
 public sealed record CreditPayment(string Broker, string Account, string Country, string Category, string Currency,
-    decimal Amount, string Authority, string Reference, string Exclusion, List<CreditProof> Proofs);
-public sealed record ForeignCreditEvidence(int Version, int Year, List<CreditIncome> Income, List<CreditPayment> Payments);
+    decimal Amount, string Authority, string Reference, string Exclusion, SnapshotList<CreditProof> Proofs);
+public sealed record ForeignCreditEvidence(int Version, int Year, SnapshotList<CreditIncome> Income, SnapshotList<CreditPayment> Payments);
 /// <summary>按国家汇总本项目支持的分类所得限额，超限仅披露，不自动生成跨年抵免。</summary>
 public sealed record CreditCountry(string Country, decimal IncomeCny, decimal LimitCny, decimal PaidCny,
     decimal ExcludedCny, decimal CreditCny, decimal ExcessCny);
-public sealed record ForeignCreditAssessment(ForeignCreditEvidence Evidence, List<CreditCountry> Countries, decimal CreditCny);
+public sealed record ForeignCreditAssessment(ForeignCreditEvidence Evidence, SnapshotList<CreditCountry> Countries, decimal CreditCny);
 
 /// <summary>结构化抵免复核：校验原币事实、凭证关系及国家限额，结果仍需核对申报折算口径。</summary>
 public static class ForeignCreditReview
@@ -132,7 +132,9 @@ public static class ForeignCreditReview
             snapshotId, source.Year, source.Broker, parentSnapshotId = source.SnapshotId, createdUtc = DateTimeOffset.UtcNow, policy = "FOREIGN_CREDIT_REVIEW_V1",
             assessment, originalSnapshot = source.SnapshotJson, summary
         });
-        return node.Deserialize<CalculationResult>()!;
+        // 派生任务需重新封存；不能复制父运行摘要冒充本次结果。
+        node[nameof(CalculationResult.EvidenceSeal)]=null;
+        return node.Deserialize<CalculationResult>()!.Freeze();
     }
 
     private static (string, string, string, string) Key(CreditIncome i) => (i.Broker, i.Account, i.Category, i.Currency);

@@ -35,6 +35,8 @@ internal static class CarryReplayChecks
         changed["Summary"]!["GainCny"] = original.Summary.GainCny + 1;
         Reject(() => service.Replay(changed.Deserialize<CalculationResult>()!), "不一致");
         var old = JsonSerializer.SerializeToNode(original)!.AsObject();
+        // 旧规范快照没有新封存，以便验证版本拒绝分支本身。
+        old.Remove(nameof(CalculationResult.EvidenceSeal));
         var oldInput = JsonNode.Parse(original.CanonicalInputJson)!.AsObject(); oldInput["schema"] = "CRS.CanonicalInput.v1";
         old["CanonicalInputJson"] = oldInput.ToJsonString();
         old["CanonicalInputDigest"] = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(oldInput.ToJsonString())));
@@ -68,7 +70,7 @@ internal static class CarryReplayChecks
         public ImportData Parse(IEnumerable<string> files,string? opening=null,CancellationToken cancellationToken=default)
         {
             var data = new ImportData();
-            data.Sources.Add(new("report.xml","hash","A",new(2025,1,1),new(2025,12,31),true,true,true));
+            data.Sources.Add(new("report.xml",new string('a',64),"A",new(2025,1,1),new(2025,12,31),true,true,true));
             data.Trades.Add(new(key,"STOCK",new(2025,2,1,12,0,0,TimeSpan.Zero),true,"SELL",1,10,10,.01m,9.99m,"SELL","report.xml",1,"STK",null));
             data.Positions.Add(new(key,"STOCK",new(2025,12,31),2));
             return data;
@@ -88,8 +90,8 @@ internal static class CarryReplayChecks
         {
             var data = new ImportData(); var key = new SecurityKey("A","STOCK","USD");
             foreach (var hash in new[]{"one","two"})
-                data.Sources.Add(new("a.xml","hash","A",new(2025,1,1),new(2025,12,31),true,true,true,Authority:hash));
-            data.Sources.Add(new("b.xml","hash","A",new(2025,1,1),new(2025,12,31),true,true,true));
+                data.Sources.Add(new("a.xml",new string('a',64),"A",new(2025,1,1),new(2025,12,31),true,true,true,Authority:hash));
+            data.Sources.Add(new("b.xml",new string('b',64),"A",new(2025,1,1),new(2025,12,31),true,true,true));
             Trade Buy(string id,int row,decimal cost)=>new(key,"STOCK",new(2025,1,1,12,0,0,TimeSpan.Zero),true,"BUY",1,cost,cost,0,-cost,id,"a.xml",row,"STK",null);
             data.Trades.Add(Buy("Z",1,100)); data.Trades.Add(Buy("A",2,200));
             var sell = Buy("S",3,300) with { Time=new(2025,2,1,12,0,0,TimeSpan.Zero), Side="SELL", Net=300, ReportedPnl=200 };

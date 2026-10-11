@@ -3,6 +3,10 @@ using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
 var root=Path.Combine(Path.GetTempPath(),"CRS-Layers-"+Guid.NewGuid().ToString("N"));
+// 目录清理等局部修正可单独复验加密容器，不重复运行无关的认证与数据库场景。
+if(args is ["--encrypted-export-only"]) {await EncryptedExportChecks.RunAsync(root); return;}
+// 局部结构升级与归档故障演练可独立运行，仍只使用隔离的加密库。
+if(args is ["--schema-upgrade-only"]) {await SchemaUpgradeChecks.RunAsync(root); return;}
 var store=TestStores.Create(root);
 var oldJson="""{"Year":2025,"Broker":"FUTU","Summary":{"DividendCny":100,"InterestCny":25,"GainCny":200,"DividendInterestTax":25,"GainTax":40,"ForeignCredit":5,"SupplementTax":60},"SnapshotId":"SYNTHETIC-OLD"}""";
 var old=JsonSerializer.Deserialize<CalculationResult>(oldJson)!; store.Save(old);
@@ -28,3 +32,5 @@ await MfaChecks.RunAsync(root);
 await LocalKeyChecks.RunAsync(root);
 await PhoneSettingsChecks.RunAsync(root);
 await ExportChecks.RunAsync(root);
+await EncryptedExportChecks.RunAsync(root);
+await SchemaUpgradeChecks.RunAsync(root);

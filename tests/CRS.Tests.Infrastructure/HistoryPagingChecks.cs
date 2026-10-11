@@ -31,6 +31,14 @@ internal static class HistoryPagingChecks
         var broken = Result("BROKEN"); broken.ParentSnapshotId = "missing";
         try { store.Save(broken); throw new Exception("断链复算被保存。"); } catch (CrsException) { }
         if (store.QueryHistory(1, 50).TotalCount != 106) throw new Exception("拒绝保存仍留下半成品任务。");
+        // 模拟持久业务载荷损坏：必须在读取时拒绝，不能带着新税额进入界面。
+        using(var connection=TestStores.Open(store))
+        {
+            using var command=connection.CreateCommand();
+            command.CommandText="UPDATE calculations SET result_json=json_set(result_json,'$.Summary.GainCny',123) WHERE id='H000'";
+            command.ExecuteNonQuery();
+        }
+        try {store.Load("H000"); throw new Exception("损坏持久封存仍可读取。");} catch(CrsException) { }
         Console.WriteLine("历史持久化验证通过：超过百份分页、同秒稳定顺序、边界页、父运行及事务拒绝（4 项）。");
     }
     private static CalculationResult Result(string id)=>new() { Year=2025, Summary=new(0,0,0,0,0,0,0), SnapshotId=id };

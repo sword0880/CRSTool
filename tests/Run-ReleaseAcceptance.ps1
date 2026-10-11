@@ -1,4 +1,4 @@
-param([switch]$SkipBuild, [switch]$Smoke, [switch]$ReuseBenchmark, [string]$CoverageTool, [string]$RealManifest,
+param([switch]$SkipBuild, [switch]$Smoke, [switch]$ReuseBenchmark, [string]$CoverageTool, [string]$RealManifest, [string]$LocalRealDirectory,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '../artifacts/acceptance'))
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -62,7 +62,13 @@ try {
         & dotnet (Join-Path $repository 'tests/CRS.Tests.Verification/bin/Release/net10.0/CRS.Tests.Verification.dll') --accept-real $RealManifest $output *> (Join-Path $output 'real-sample.log')
         if ($LASTEXITCODE -ne 0) { throw '真实全年样本验收不通过，请查看 real-sample.log。' }
         $checks.RealSample = 'expected_values_matched_provenance_owner_attested'
-    } else { $checks.RealSample = 'not_provided' }
+    } else { $checks.RealSample = 'independent_expected_values_not_provided' }
+    # 技术往返与独立金额签认分开，真实原件不会因缺少人工基准而被误标成未提供。
+    if ($LocalRealDirectory) {
+        & dotnet (Join-Path $repository 'tests/CRS.Tests.Verification/bin/Release/net10.0/CRS.Tests.Verification.dll') --verify-local-real $LocalRealDirectory (Join-Path $repository 'src/CRS.Desktop.Wpf/config') $output *> (Join-Path $output 'local-real-samples.log')
+        if ($LASTEXITCODE -ne 0) { throw '真实样本技术往返验收失败，请查看 local-real-samples.log。' }
+        $checks.RealSampleTechnical = 'futu_2021_2025_persistence_replay_passed_originals_unchanged'
+    } else { $checks.RealSampleTechnical = 'not_run' }
     if ($Smoke) {
         $binary = Join-Path $repository 'src/CRS.Desktop.Wpf/bin/Release/net10.0-windows10.0.19041.0/CRS.Desktop.Wpf.dll'
         $fixture = Join-Path $repository 'tests/fixtures/ibkr_activity.xml'

@@ -19,23 +19,7 @@ public sealed class LocalStore : ICalculationRepository
         this.session=session; DirectoryPath=session.DirectoryPath;
         using var lease=session.Enter();
         using var connection = session.Open(create:create);
-        // 表结构与业务版本分开记录；未识别的数据库版本拒绝降级写入。
-        if (connection.ExecuteScalar<int>("PRAGMA user_version") > 1) throw new CrsException("数据库版本高于当前程序，请使用较新版本。");
-        if (!create)
-        {
-            // 解锁不得把未知数据库静默变成新的空业务库。
-            if(connection.ExecuteScalar<int>("PRAGMA user_version")!=1
-                || connection.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('calculations','reviews')")!=2)
-                throw new CrsException("保险库业务格式无效或版本不支持。");
-            return;
-        }
-        connection.Execute("""
-            CREATE TABLE IF NOT EXISTS calculations(id TEXT PRIMARY KEY, year INTEGER NOT NULL, created_utc TEXT NOT NULL,
-              complete INTEGER NOT NULL, issues INTEGER NOT NULL, result_json TEXT NOT NULL, carry BLOB);
-            CREATE TABLE IF NOT EXISTS reviews(id INTEGER PRIMARY KEY, snapshot_id TEXT NOT NULL REFERENCES calculations(id),
-              category TEXT NOT NULL, evidence TEXT NOT NULL, created_utc TEXT NOT NULL);
-            PRAGMA user_version=1;
-            """);
+        DatabaseSchema.Ensure(session,connection,create);
     }
     /// <summary>配置 NLog 本地轮转日志，日志正文仅由调用方提供脱敏操作信息。</summary>
     public static void ConfigureLogging(string directory, bool enabled = true, string minimumLevel = "Info",
@@ -55,6 +39,9 @@ public sealed class LocalStore : ICalculationRepository
     /// <summary>在事务中保存计算结果和可用结转，参数化写入避免说明文本改变 SQL。</summary>
     public void Save(CalculationResult r)
     {
+        // 所有历史入口都冻结结果，人工复核通过独立表另存，不改写核算事实。
+        r.Freeze();
+        r.SealForPersistence(RunEvidenceSeal.AssemblyHash(typeof(LocalStore).Assembly.Location));
         // 整个事务受解锁会话门闩保护，锁定后旧后台任务无法追加结果。
         using var lease=session.Enter();
         using var c = Open(); using var tx = c.BeginTransaction();
@@ -67,9 +54,11 @@ public sealed class LocalStore : ICalculationRepository
             if (source.SnapshotId == r.SnapshotId || source.Year != r.Year
                 || c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations WHERE id=@Id AND year=@Year", new { Id = source.SnapshotId, r.Year }, tx) != 1)
                 throw new CrsException("年度汇总来源不存在或年度不一致，不能保存。");
-        c.Execute("INSERT INTO calculations(id,year,created_utc,complete,issues,result_json,carry) VALUES(@Id,@Year,@Utc,@Complete,@Issues,@Json,@Carry)",
+        c.Execute("INSERT INTO calculations(id,year,created_utc,complete,issues,result_json,carry,execution_archived) VALUES(@Id,@Year,@Utc,@Complete,@Issues,@Json,@Carry,1)",
             new { Id = r.SnapshotId, r.Year, Utc = DateTimeOffset.UtcNow.ToString("O"), Complete = r.Complete ? 1 : 0,
                 Issues = r.Issues.Count, Json = JsonSerializer.Serialize(r), Carry = r.CarryEligible ? CarryFiles.Encode(CarryFiles.Create(r)) : null }, tx);
+        // 文件归档和计算事实同时提交，缺失或不匹配时不留下孤立任务。
+        ExecutionArchive.Save(c,tx,r);
         tx.Commit();
     }
     /// <summary>保留最近任务查询，完整历史由分页入口提供。</summary>
@@ -97,8 +86,16 @@ public sealed class LocalStore : ICalculationRepository
     {
         using var lease=session.Enter();
         using var c = Open();
-        var json = c.QuerySingleOrDefault<string>("SELECT result_json FROM calculations WHERE id=@Id", new { Id = id }) ?? throw new CrsException("找不到计算记录。");
-        return JsonSerializer.Deserialize<CalculationResult>(json) ?? throw new CrsException("计算记录无效。");
+        using var tx=c.BeginTransaction(deferred:true);
+        var archived=c.ExecuteScalar<int?>("SELECT execution_archived FROM calculations WHERE id=@Id",new {Id=id},tx)??throw new CrsException("找不到计算记录。");
+        var json = c.QuerySingle<string>("SELECT result_json FROM calculations WHERE id=@Id", new { Id = id },tx);
+        var result=JsonSerializer.Deserialize<CalculationResult>(json) ?? throw new CrsException("计算记录无效。");
+        // 从数据库读取后先核验证据，再交付冻结结果，避免损坏记录进入界面或导出。
+        RunEvidenceSeal.Verify(result);
+        if(result.SnapshotId!=id || archived is not (0 or 1)) throw new CrsException("运行编号或归档状态无效。");
+        if(archived==1) ExecutionArchive.Verify(c,tx,id,result.EvidenceSeal);
+        tx.Commit();
+        return result.Freeze();
     }
     /// <summary>追加与指定快照绑定的人工依据，不覆盖原始问题及计算金额。</summary>
     public void AddReview(string id, string category, string evidence)

@@ -5,17 +5,17 @@ using CRS.Infrastructure;
 
 internal static class RealSampleAcceptance
 {
-    /// <summary>从用户本地脱敏原件验收人工期望值；只保存摘要和金额核对结果，不复制原始报表。</summary>
+    /// <summary>从用户授权的本地原件验收人工期望值；只保存摘要和金额核对结果，不复制原始报表。</summary>
     public static void Run(string manifestPath,string output)
     {
         // 人工基准必须完整填写，不能让遗漏字段自动成为零值期望。
         var options=new JsonSerializerOptions { PropertyNameCaseInsensitive=true,RespectRequiredConstructorParameters=true,
             UnmappedMemberHandling=JsonUnmappedMemberHandling.Disallow };
         var manifest=JsonSerializer.Deserialize<Manifest>(File.ReadAllBytes(manifestPath),options) ?? throw new Exception("真实验收清单为空。");
-        if (manifest.SourceKind!="real-anonymized" || string.IsNullOrWhiteSpace(manifest.OwnerAttestation)
+        if (manifest.SourceKind is not ("real-anonymized" or "real-private") || string.IsNullOrWhiteSpace(manifest.OwnerAttestation)
             || manifest.Broker is not ("IBKR" or "FUTU") || manifest.Files is null || manifest.Files.Length==0 || manifest.Expected is null
             || !manifest.ScopeConfirmed || (!manifest.OpeningZero && string.IsNullOrWhiteSpace(manifest.OpeningPath)))
-            throw new Exception("真实验收需声明脱敏来源、样本授权、完整账户范围、期初依据及人工期望值。");
+            throw new Exception("真实验收需声明真实来源及隐私类别、样本授权、完整账户范围、期初依据及人工期望值。");
         var directory=Path.GetDirectoryName(Path.GetFullPath(manifestPath))!;
         string Resolve(string path)=>Path.GetFullPath(path,directory);
         var files=manifest.Files.Select(Resolve).ToArray();
@@ -33,7 +33,8 @@ internal static class RealSampleAcceptance
         {
             sourceKind=manifest.SourceKind,provenance="owner-attested; source authenticity not automatically verified",
             manifest.Year,manifest.Broker,createdUtc=DateTimeOffset.UtcNow, actual,
-            originals=files.Select(path=>new { name=Path.GetFileName(path),sha256=Hash(path) }),
+            // 文件名可能含账户号码，只记录索引及摘要。
+            originals=files.Select((path,index)=>new { index,sha256=Hash(path) }),
             openingSha256=string.IsNullOrWhiteSpace(manifest.OpeningPath)?null:Hash(Resolve(manifest.OpeningPath))
         },new JsonSerializerOptions { WriteIndented=true }));
         Console.WriteLine("真实全年样本金额、账户数量和对账状态与人工期望值一致；来源真实性仍由样本提供方核实。");

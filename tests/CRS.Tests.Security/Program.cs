@@ -40,3 +40,4 @@ if(Totp.Match(rfcSecret,zero,1111111109,1111111109/30) is not null || Totp.Match
     || Totp.Match(rfcSecret,zero,1111111109+30,null) is null || Totp.Match(rfcSecret,"０８１８０４",1111111109,null) is not null) throw new Exception("验证码窗口、防重放或 ASCII 限制失败。");
 var uri=Totp.EnrollmentUri(rfcSecret,Guid.NewGuid()); if(!uri.StartsWith("otpauth://totp/CRS%20Desktop%3A") || !uri.Contains("secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ") || !uri.EndsWith("algorithm=SHA1&digits=6&period=30")) throw new Exception("二维码绑定 URI 参数错误。");
 Console.WriteLine("TOTP 核心通过：RFC6238 SHA1 六组向量、六位前导零、窗口、已消费拒绝、非 ASCII 拒绝、Base32 与 URI 参数。");
+PasswordExportChecks.Run();

@@ -27,9 +27,9 @@ public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUse
     public IReadOnlyList<Trade> Trades(CalculationResult result)
     {
         if (result.SessionTrades.Count > 0) return result.SessionTrades;
-        if (!result.IsReplayable || string.IsNullOrWhiteSpace(result.CanonicalInputJson)) return [];
-        var document = System.Text.Json.JsonSerializer.Deserialize<CanonicalInputDocument>(result.CanonicalInputJson,
-            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        // 宣称可重放的历史任务必须经过校验，空白或超限内容不能被当成正常空明细。
+        if (!result.IsReplayable) return [];
+        var document = CanonicalInputReader.ReadFull(result);
         return document?.Trades.Where(t => t.Time.Year == result.Year).ToList() ?? [];
     }
     /// <summary>统一前台和导出的辅助汇总入口，展示层不重新聚合业务金额。</summary>
@@ -79,7 +79,7 @@ public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUse
         var snapshot = operations.Repository.Load(id);
         try
         {
-            using var document = System.Text.Json.JsonDocument.Parse(snapshot.CanonicalInputJson);
+            using var document = CanonicalInputReader.Read(snapshot);
             var root = document.RootElement;
             var files = root.GetProperty("files").EnumerateArray().Select(f => f.GetProperty("name").GetString()!).ToArray();
             if (files.Length == 0) throw new CrsException("该任务没有可校验的原始报告记录。");
@@ -177,6 +177,21 @@ public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUse
         if (fingerprint.Length > 0 && operations.LoadRates().Fingerprint != fingerprint)
             throw new CrsException("汇率配置已更改，请重新计算后导出。");
         operations.Reports.Export(path, result, operations.Repository.Reviews(result.SnapshotId),linked.Token);
+    },cancellation);
+    /// <summary>加密导出沿用原汇率门槛和会话取消，不复用保险库主密码。</summary>
+    public Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)=>Task.Run(()=>
+    {
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
+        linked.Token.ThrowIfCancellationRequested();
+        if(fingerprint.Length>0 && operations.LoadRates().Fingerprint!=fingerprint) throw new CrsException("汇率配置已更改，请重新计算后导出。");
+        operations.Reports.ExportEncrypted(path,result,password,operations.Repository.Reviews(result.SnapshotId),linked.Token);
+    },cancellation);
+    /// <summary>解密只恢复文件，不导入或改写当前数据库。</summary>
+    public Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default)=>Task.Run(()=>
+    {
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
+        linked.Token.ThrowIfCancellationRequested();
+        return operations.Reports.RestoreEncrypted(path,parentDirectory,password,linked.Token);
     },cancellation);
     /// <summary>只允许可信年末成本生成结转。</summary>
     public Task ExportCarryAsync(string path, CalculationResult result, CancellationToken cancellation = default) => Task.Run(() =>

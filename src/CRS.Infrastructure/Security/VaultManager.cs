@@ -108,26 +108,7 @@ public sealed partial class VaultManager : IVaultService
         lock(gate)
         {
             var active=Required();
-            active.Use(()=>
-            {
-                active.Verify();
-                var snapshot=Path.Combine(active.DirectoryPath,".backup-"+Guid.NewGuid().ToString("N")+".db");
-                byte[]? bytes=null; byte[]? body=null;
-                try
-                {
-                    using(var source=active.Open()) using(var destination=active.Open(snapshot,true)) source.BackupDatabase(destination);
-                    using(var c=active.Open(snapshot)) { if(c.ExecuteScalar<string>("PRAGMA integrity_check")!="ok" || c.Query<string>("PRAGMA cipher_integrity_check").Any(s=>s!="ok")) throw new CrsException("备份快照完整性校验失败。"); }
-                    bytes=File.ReadAllBytes(snapshot);
-                    if(bytes.Length>128*1024*1024) throw new CrsException("当前备份支持最大 128 MB 加密数据库。");
-                    body=JsonSerializer.SerializeToUtf8Bytes(new BackupBody(envelope!,bytes,SHA256.HashData(bytes)));
-                    using var key=active.CloneKey(); var sealedBody=AuthenticatedEncryption.Seal(body,key,Guid.NewGuid());
-                    var backup=new BackupFile("CRS.Backup.v1",envelope!,sealedBody);
-                    // 先验证容器确实可解封再原子提交，不覆盖已有备份。
-                    var verify=AuthenticatedEncryption.Open(sealedBody,key); CryptographicOperations.ZeroMemory(verify);
-                    VaultFiles.AtomicWrite(Path.GetFullPath(path),JsonSerializer.SerializeToUtf8Bytes(backup));
-                }
-                finally { Clear(bytes); Clear(body); foreach(var suffix in new[]{"","-wal","-shm","-journal"}) if(File.Exists(snapshot+suffix)) File.Delete(snapshot+suffix); }
-            });
+            VaultBackupFiles.Write(active,envelope!,path);
         }
     });
     /// <summary>恢复先认证容器、核对摘要和加密库完整性，成功后才将暂存目录提交到新空位置。</summary>
@@ -138,13 +119,13 @@ public sealed partial class VaultManager : IVaultService
             if(session is not null || pending is not null) throw new CrsException("请先锁定当前保险库。");
             using var stream=File.OpenRead(backupPath);
             if(stream.Length is <=0 or >256*1024*1024) throw new CrsException("备份大小无效，最大支持 256 MB 容器。");
-            var backup=JsonSerializer.Deserialize<BackupFile>(stream,VaultFiles.Options)??throw new CrsException("备份格式无效。");
+            var backup=JsonSerializer.Deserialize<VaultBackupFile>(stream,VaultFiles.Options)??throw new CrsException("备份格式无效。");
             if(backup.Schema!="CRS.Backup.v1") throw new CrsException("备份版本不支持。");
             using var key=useRecovery?RecoveryKeyManager.Recover(backup.Envelope,secret):VaultKeyManager.Unlock(backup.Envelope,secret);
             var plain=AuthenticatedEncryption.Open(backup.Payload,key); string? staging=null;
             try
             {
-                var body=JsonSerializer.Deserialize<BackupBody>(plain,VaultFiles.Options)??throw new CrsException("备份正文无效。");
+                var body=JsonSerializer.Deserialize<VaultBackupBody>(plain,VaultFiles.Options)??throw new CrsException("备份正文无效。");
                 try
                 {
                     if(JsonSerializer.Serialize(body.Envelope)!=JsonSerializer.Serialize(backup.Envelope)
@@ -171,6 +152,4 @@ public sealed partial class VaultManager : IVaultService
     // 仅清理本组件随机创建的同级暂存目录，绝不删除目标或旧数据库目录。
     private static void Cleanup(string staging) { if(Directory.Exists(staging) && Path.GetFileName(staging).StartsWith(".crs-new-",StringComparison.Ordinal)) Directory.Delete(staging,true); }
     private static void Clear(byte[]? data) {if(data is not null) CryptographicOperations.ZeroMemory(data);}
-    private sealed record BackupFile(string Schema,VaultEnvelope Envelope,SealedPayload Payload);
-    private sealed record BackupBody(VaultEnvelope Envelope,byte[] Database,byte[] Sha256);
 }

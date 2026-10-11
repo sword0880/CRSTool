@@ -1,5 +1,7 @@
 # 应用接口说明
 
+`ExportEncryptedAsync(path,result,fingerprint,password,cancellation)` 沿用冻结结果、汇率指纹与会话取消门槛，输出独立密码 `.crsexport`；`RestoreEncryptedAsync(path,parentDirectory,password,cancellation)` 返回新建目录，不改写数据库。`IReportExporter` 对应加密导出／恢复端口由 Infrastructure 实现，Security 不进行文件 I/O。格式、密码与大小限制见 [加密底稿与恢复](ENCRYPTED_EXPORT.md)。
+
 当前为本地 C# 调用接口，不是 HTTP API。未完成能力见 [当前问题](KNOWN_ISSUES.md)。
 
 ## 前台入口
@@ -31,11 +33,13 @@ Application/Abstractions 中的 IBrokerImporter、IExchangeRateProvider、ICarry
 
 IBrokerImporter.Parse 必须用一次冻结的原件字节解析并生成 SourceReport.Sha256。CalculationService 的活动／期初快照引用只采用该解析来源摘要；同名不同目录、缺失或冲突摘要拒绝，不在计算末尾重新读取原件。IBKR 同一路径重复选择先去重；富途继续执行唯一收入和重叠报告限制。详见 [导入一致性](INPUT_CONSISTENCY.md)。
 
+新快照生成、Replay、历史 Trades、原件要求查询和原件校验统一使用 CanonicalInputReader 校验版本、摘要、结构、读取上限及冻结归属。损坏或超限内容返回中文 CrsException，不能静默返回空明细或靠默认零值补全记录；前台可保留冻结汇总并显示明细不可读取的原因。详见 [快照读取校验](CANONICAL_VALIDATION.md)。
+
 ## 计算与重放
 
 CalculationService.Calculate 是同步后台服务，由 DesktopWorkflow 安排后台执行；Replay 和 VerifyOriginalFiles 已通过应用用例接入 WPF 历史操作。
 
-Replay 要求 v2 完整规范化快照、输入摘要一致及 V3 排序口径。历史汇率缺失、重复、错年度或无效时拒绝重放；沿用历史配置指纹与临时状态。复算后比较金额、LOT、舍入余差、来源、问题、状态和所得原币事实，不一致不保存。旧快照仍可查看；执行程序集封存及旧格式转换仍待完成。
+Replay 要求 v2 完整规范化快照、输入摘要一致及 V3 排序口径。历史汇率缺失、重复、错年度或无效时拒绝重放；沿用历史配置指纹与临时状态。复算后比较金额、LOT、舍入余差、来源、问题、状态和所得原币事实，不一致不保存。新结果冻结并保存三个计算程序集摘要及业务载荷证据，已有封存构建不同则拒绝复算；旧快照仍可查看，旧格式转换与执行二进制归档待完成。见 [冻结结果与运行证据](FROZEN_EVIDENCE.md)。
 
 ## 错误与未知值
 

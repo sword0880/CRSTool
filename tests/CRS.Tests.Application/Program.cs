@@ -32,6 +32,8 @@ Console.WriteLine("Application 验证通过：取消、导出门槛、历史汇�
 AnnualCalculationChecks.Run();
 ReplayChecks.Run();
 CarryReplayChecks.Run();
+await CanonicalInputChecks.RunAsync();
+FrozenEvidenceChecks.Run();
 
 sealed class StubOperations : IDesktopOperations
 {

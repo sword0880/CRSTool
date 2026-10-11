@@ -28,8 +28,18 @@ public static class ExcelReports
     public static void Export(string path, CalculationResult r, IEnumerable<ReviewNote>? reviews = null,
         CancellationToken cancellation = default,Action<Action>? commitGuard=null)
     {
+        // 构建工作簿前检查原会话，保持明文导出的锁定拒绝行为。
+        cancellation.ThrowIfCancellationRequested(); commitGuard?.Invoke(()=>cancellation.ThrowIfCancellationRequested());
+        WriteWorkbook(r,reviews,cancellation,write=>AtomicExport.Write(path,write,cancellation,commitGuard));
+    }
+    /// <summary>加密导出直接写入内存，不先创建明文工作簿文件。</summary>
+    internal static void Write(Stream destination,CalculationResult r,IEnumerable<ReviewNote>? reviews,CancellationToken cancellation)
+        =>WriteWorkbook(r,reviews,cancellation,write=>write(destination));
+    private static void WriteWorkbook(CalculationResult r,IEnumerable<ReviewNote>? reviews,CancellationToken cancellation,Action<Action<Stream>> save)
+    {
         cancellation.ThrowIfCancellationRequested();
-        commitGuard?.Invoke(()=>cancellation.ThrowIfCancellationRequested());
+        // 直接调用导出适配器也需校验，不能依赖界面先加载过历史记录。
+        RunEvidenceSeal.Verify(r); r.Freeze();
         using var workbook = new XSSFWorkbook();
         var header = workbook.CreateCellStyle(); var font = workbook.CreateFont(); font.IsBold = true; header.SetFont(font);
         var number = workbook.CreateCellStyle(); number.DataFormat = workbook.CreateDataFormat().GetFormat("0.00########");
@@ -67,6 +77,12 @@ public static class ExcelReports
         Sheet("税务汇总", ["项目", "人民币金额"], new object?[][] { ["股息", r.Summary.DividendCny], ["利息", r.Summary.InterestCny],
             ["资本收益", r.Summary.GainCny], ["股息利息税", r.Summary.DividendInterestTax], ["资本收益税", r.Summary.GainTax], ["境外抵免", r.Summary.ForeignCredit],
             ["辅助测算补税（原始公式）", r.Summary.SupplementTax], ["年度预计补税（状态允许时）", r.EstimatedTopUpCny] });
+        // 不给旧记录补造历史执行身份；新底稿披露真实封存版本和摘要。
+        Sheet("运行证据", ["项目", "内容"], r.EvidenceSeal is { } seal ? new object?[][] {
+            ["编码版本",seal.Encoding],["Application SHA256",seal.ApplicationSha256],["Domain SHA256",seal.DomainSha256],
+            ["Infrastructure SHA256",seal.InfrastructureSha256],["业务载荷摘要",seal.PayloadDigest],["运行证据摘要",seal.EvidenceDigest],
+            ["边界","一致性摘要，不是数字签名或券商来源认证；不包含执行程序集副本。"] }
+            : new object?[][] { ["封存状态","旧记录无运行封存，不推定历史执行构建。"] });
         // 汇总底稿披露全部来源任务及券商账户关系，原账户底稿仍可独立追溯。
         if (r.IsAnnualAggregate)
             Sheet("年度汇总来源", ["来源任务", "券商", "年度", "账户"], r.AggregationSources.SelectMany(s => s.Accounts
@@ -112,6 +128,6 @@ public static class ExcelReports
         Sheet("提示", ["说明"], r.Warnings.Select(w => new object?[] { w }));
         // Excel 单元格限制为 32767 字符；长快照分段存放，禁止静默截断。
         Sheet("计算快照", ["段号", "JSON文本"], Enumerable.Range(0, (r.SnapshotJson.Length + 29999) / 30000).Select(i => new object?[] { i + 1, r.SnapshotJson.Substring(i * 30000, Math.Min(30000, r.SnapshotJson.Length - i * 30000)) }));
-        AtomicExport.Write(path,output=>workbook.Write(output,true),cancellation,commitGuard);
+        save(output=>workbook.Write(output,true));
     }
 }

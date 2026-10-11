@@ -26,7 +26,7 @@ ReplayExecutionContext 校验历史口径，禁止缺失冻结汇率时回退当
 
 ## 数据安全与用户体系（规划，尚未实现）
 
-**唯一详细设计规范：** [SECURITY_DESIGN.md](SECURITY_DESIGN.md)。现有程序采用 **SQLCipher + Dapper 加密数据库**，默认路径、`user_version=1`、目录设置生效规则不变；当前已实现 SQLCipher、主密码解锁、加密备份与恢复；独立加密报表导出仍未实现。现状的敏感数据披露见 [PRIVACY.md](PRIVACY.md)。
+**唯一详细设计规范：** [SECURITY_DESIGN.md](SECURITY_DESIGN.md)。现有程序采用 **SQLCipher + Dapper 加密数据库**，默认路径、`user_version=1`、目录设置生效规则不变；当前已实现 SQLCipher、主密码解锁、加密备份与恢复，以及独立密码加密底稿／新目录恢复。Security 仅提供用途隔离与密码派生机制，文件容器及恢复由 Infrastructure 实现，见 [ENCRYPTED_EXPORT.md](ENCRYPTED_EXPORT.md)。现状的敏感数据披露见 [PRIVACY.md](PRIVACY.md)。
 
 ### 当前安全架构：五个生产项目
 

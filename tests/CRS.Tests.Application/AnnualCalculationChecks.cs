@@ -60,7 +60,7 @@ internal static class AnnualCalculationChecks
 
     private static CalculationResult Calculate(ImportData data, CarryDocument? carry = null) =>
         new CalculationService(new Rates(), new SyntheticImporter(data), new SyntheticCarryValidator(), new SyntheticEvidence())
-            .Calculate([], 2025, carry is null, true, carry: carry);
+            .Calculate(["synthetic"], 2025, carry is null, true, carry: carry);
 
     private static ImportData Data(params string[] accounts)
     {
@@ -70,7 +70,7 @@ internal static class AnnualCalculationChecks
     }
 
     private static SourceReport Report(string account, DateOnly begin) =>
-        new("synthetic", "synthetic", account, begin, new(2025, 12, 31), true, true, true);
+        new("synthetic", new string('a',64), account, begin, new(2025, 12, 31), true, true, true);
 
     private static Trade Trade(SecurityKey key, string id, string side, decimal price) =>
         new(key, "STOCK", new(2025, side == "BUY" ? 1 : 2, 1, 12, 0, 0, TimeSpan.Zero), true,

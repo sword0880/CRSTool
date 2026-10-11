@@ -10,7 +10,7 @@ internal static class ReplayChecks
     public static void Run()
     {
         var originalRates = new FrozenRates(7m, "historical-config");
-        var original = Service(originalRates, 2025).Calculate([], 2025, true, true, saveCanonicalSnapshot: true);
+        var original = Service(originalRates, 2025).Calculate(["synthetic"], 2025, true, true, saveCanonicalSnapshot: true);
         var currentRates = new FrozenRates(99m, "changed-config", forbidAccess: true);
         var service = Service(currentRates, 2026);
         var replay = service.Replay(original);
@@ -50,7 +50,9 @@ internal static class ReplayChecks
 
     private static CalculationResult Clone(CalculationResult source, Action<JsonObject> change)
     {
-        var node = JsonSerializer.SerializeToNode(source)!.AsObject(); change(node);
+        var node = JsonSerializer.SerializeToNode(source)!.AsObject();
+        // 本组专门验证旧记录的语义门槛；新封存的篡改另有独立测试。
+        node.Remove(nameof(CalculationResult.EvidenceSeal)); change(node);
         return node.Deserialize<CalculationResult>()!;
     }
 
@@ -83,7 +85,7 @@ internal static class ReplayChecks
         public ImportData Parse(IEnumerable<string> files, string? opening = null, CancellationToken cancellationToken = default)
         {
             var data = new ImportData();
-            data.Sources.Add(new("synthetic", "synthetic", "A", new(2025, 1, 1), new(2025, 12, 31), true, true, true));
+            data.Sources.Add(new("synthetic", new string('a',64), "A", new(2025, 1, 1), new(2025, 12, 31), true, true, true));
             data.Cash.Add(new("A", new(2025, 2, 1), "Dividends", "USD", 10m, "D", "synthetic"));
             return data;
         }

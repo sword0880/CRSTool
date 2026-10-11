@@ -1,6 +1,8 @@
 # 发布验收
 
-当前验收覆盖独立 Security、SQLCipher、加密备份、Authenticator、本机密钥、锁定、手机开关、导出取消及导入一致性，包含五个生产程序集和六组测试。最新产物为 `artifacts/input-consistency-acceptance`，导出专项在 `artifacts/export-cancellation-acceptance`；此前认证产物保留在 `artifacts/phone-settings-acceptance`、`artifacts/local-login-acceptance` 和 `artifacts/auth-acceptance`。认证行为与人工缺口见 [AUTH_IMPLEMENTATION.md](AUTH_IMPLEMENTATION.md)。下文旧轮次数字保留为历史记录。
+当前验收还覆盖结果冻结、运行证据及独立密码加密底稿／新目录恢复，包含五个生产程序集和六组测试。最新产物为 `artifacts/encrypted-export-acceptance`；此前冻结／快照／导入／导出及认证产物保留。认证人工缺口见 [AUTH_IMPLEMENTATION.md](AUTH_IMPLEMENTATION.md)，运行证据边界见 [FROZEN_EVIDENCE.md](FROZEN_EVIDENCE.md)，加密容器边界见 [ENCRYPTED_EXPORT.md](ENCRYPTED_EXPORT.md)。下文旧轮次数字保留为历史记录。
+
+使用 `-LocalRealDirectory sample/FUTU` 运行五年度真实私有样本技术验收，`RealSampleTechnical` 记录原件未改写、SQLCipher 往返与复算通过。`RealSample` 单独表示 `-RealManifest` 的独立人工期望值验收；没有基准不宣称金额正确。IBKR 用户后补，完整发布仍为 `ReleaseApproved=false`。见 [真实样本进展](REAL_SAMPLE_PROGRESS.md)。
 
 运行 `./tests/Run-ReleaseAcceptance.ps1 -Smoke`，产物在被 Git 忽略的 `artifacts/acceptance`。构建失败、回归失败、基准金额不符或窗口失败时脚本返回错误并保存当前验收状态；清理只针对本次隔离临时目录，不删除用户数据。`-SkipBuild` 仅使用已有 Release 文件，报告明确标注构建未重新运行。
 

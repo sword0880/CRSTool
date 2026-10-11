@@ -9,8 +9,10 @@ public static class CarryFiles
     /// <summary>仅从可信年末库存创建结转，保存成本、费用及舍入余差。</summary>
     public static CarryDocument Create(CalculationResult r)
     {
+        // 结转文件只能取自封存校验通过的运行。
+        RunEvidenceSeal.Verify(r);
         if (!r.CarryEligible) throw new CrsException("成本或持仓链未完成核对，不能生成可信结转。");
-        return new(1, r.Year, r.SnapshotId, r.Sources.Where(s => !s.Opening && s.Start.Year <= r.Year && s.End.Year >= r.Year).Select(s => s.Account).Distinct().Order().ToArray(), r.EndingLots, r.EndingRounding);
+        return new(1, r.Year, r.SnapshotId, r.Sources.Where(s => !s.Opening && s.Start.Year <= r.Year && s.End.Year >= r.Year).Select(s => s.Account).Distinct().Order().ToArray(), r.EndingLots.Select(l=>l.Copy()).ToList(), r.EndingRounding.ToList());
     }
     /// <summary>序列化带版本及 SHA256 的 C# 版结转格式。</summary>
     public static byte[] Encode(CarryDocument document) => JsonSerializer.SerializeToUtf8Bytes(new Envelope("CRS_DOTNET_LOT_CARRY", XmlFields.HashJson(document), document));

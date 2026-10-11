@@ -20,6 +20,7 @@ public partial class MainWindow : FluentWindow
         if(DataContext is not ShellViewModel shell) return;
         foreach(var settings in OwnedWindows.OfType<SettingsWindow>().ToArray()) settings.AbortForLock();
         shell.Settings?.ClearSecurityInputs();
+        shell.Reports.ClearSensitiveInputs(); // 锁定也清空导出密码，不能随页面缓存继续保留。
         shell.State.UseCases.EndSession(); shell.Import.CancelCommand.Execute(null); shell.History.CancelOperationCommand.Execute(null);
         shell.Import.Token=""; shell.State.Clear(); DataContext=null;
     }

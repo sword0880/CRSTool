@@ -34,10 +34,18 @@ public partial class ResultsViewModel : ObservableObject
             else if (section.Title is "税务汇总" or "年度收入主表" or "年度汇总来源" or "抵免国家限额" or "抵免所得分配" or "抵免凭证关系") TaxTables.Add(table);
             else ReconciliationTables.Add(table);
         }
-        Trades = State.UseCases.Trades(value);
-        TradesHint = value.IsAnnualAggregate ? "年度汇总展示合并收入与收益，交易明细请打开各来源任务查看。"
-            : Trades.Count > 0 ? $"当前展示 {Trades.Count} 笔规范化交易，金额与排序来自后台。"
-            : "这份历史记录未保存完整交易快照，请重新导入原报表查看交易明细。";
+        try
+        {
+            Trades = State.UseCases.Trades(value);
+            TradesHint = value.IsAnnualAggregate ? "年度汇总展示合并收入与收益，交易明细请打开各来源任务查看。"
+                : Trades.Count > 0 ? $"当前展示 {Trades.Count} 笔规范化交易，金额与排序来自后台。"
+                : "这份历史记录未保存完整交易快照，请重新导入原报表查看交易明细。";
+        }
+        catch(CrsException error)
+        {
+            // 快照明细损坏时明确显示原因，不影响冻结汇总，也不沿用上一份交易。
+            Trades=[]; TradesHint=error.Message;
+        }
         Estimate = value.EstimatedTopUpCny is decimal amount ? $"年度预计补税：{amount:N2} 元" : "年度预计补税：不可确定";
         IncomeSeries = [new ColumnSeries<decimal> { Name = "收入（人民币）", Values = new[] { value.Summary.DividendCny, value.Summary.InterestCny, value.Summary.GainCny } }];
     }

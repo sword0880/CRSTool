@@ -1,8 +1,14 @@
 # 验证与验收规范
 
+加密底稿专项由 Security 的 `PasswordExportChecks`、Infrastructure 的 `EncryptedExportChecks` 和 WPF 的 `EncryptedReportsInteractionChecks` 覆盖密码／用途隔离／完整性、路径与重复文件名拒绝、正常恢复、取消／锁定保留原密文、交互门槛及密码清理。最新整体产物为 `artifacts/encrypted-export-acceptance`，实施与限制见 [ENCRYPTED_EXPORT.md](ENCRYPTED_EXPORT.md)。
+
+结果冻结专项由 `FrozenEvidenceChecks` 检查集合、LOT、元数据防改写、持久往返和固定证据编码；历史 SQL 损坏由 `HistoryPagingChecks` 验证读取拒绝。冻结专项产物为 `artifacts/frozen-evidence-acceptance`，新整体产物包含这些检查。真实私有 FUTU 五年度技术验收独立于人工金额签认，见 [进展与命令](REAL_SAMPLE_PROGRESS.md)，IBKR 等待用户补充。
+
 手机认证专项当前证据与人工缺口见 [AUTH_IMPLEMENTATION.md](AUTH_IMPLEMENTATION.md)：RFC6238 向量、首次绑定、受限会话、并发防重放、恢复码消费、换机取消、密码恢复强制绑定、时间回退、持久冷却和原有业务回归均有自动检查；手机实机、跨电脑及系统故障测试不得以合成检查替代。
 
 本文列出当前可执行检查和验收边界；[未完成的工作](KNOWN_ISSUES.md)单独维护。
+
+快照读取专项：`CanonicalInputChecks` 覆盖合法完整／引用快照及 22 类损坏／超限输入在三个后台入口统一拒绝；`CanonicalViewChecks` 检查明细失败不沿用旧交易、中文原因及冻结汇总保留。检查限制与未完成范围见 [快照校验说明](CANONICAL_VALIDATION.md)，产物在 `artifacts/canonical-validation-acceptance`。
 
 导入一致性专项新增 `ImportConsistencyChecks`：真实 XML／期初解析后替换删除、同源摘要与无原件复算、只读内存及独立数组副本、Excel／PDF 原路径删除后读取、空文件／超限／取消、同名和缺失／冲突摘要拒绝。正常券商解析、金额及复算继续通过原有回归；产物在 `artifacts/input-consistency-acceptance`，详见 [实现边界](INPUT_CONSISTENCY.md)。
 
@@ -13,10 +19,10 @@
 | 项目 | 当前覆盖内容 |
 | --- | --- |
 | CRS.Tests.Domain | FIFO 金额守恒、稳定排序和歧义隔离、税额基线、依赖 |
-| CRS.Tests.Application | 用例门槛、年度资料、结转／账户隔离、冻结复算与全量输出比对、乱序快照一致、导出取消及会话失效 |
+| CRS.Tests.Application | 用例门槛、年度资料、结转／账户隔离、冻结复算与全量输出比对、乱序快照一致、导出取消及会话失效、严格快照契约与超限拒绝 |
 | CRS.Tests.Security | KDF／密钥封装与恢复、TOTP 标准向量、窗口、防重放及手机恢复码机制 |
 | CRS.Tests.Infrastructure | 历史 JSON、分页与父运行、交易隐私、汇率、设置与日志、年度汇总与抵免持久化、SQLCipher／备份／恢复／手机开关、导出原子提交及冻结输入一致性 |
-| CRS.Tests.Wpf | 状态联动、输入失效、历史分页／取消／复算、汇总与抵免交互、富途文件选择、认证／设置及导出取消命令 |
+| CRS.Tests.Wpf | 状态联动、输入失效、历史分页／取消／复算、汇总与抵免交互、富途文件选择、认证／设置及导出取消命令、损坏快照提示与冻结汇总保留 |
 | CRS.Tests.Verification | 68 个既有金额、券商、SQLite、NPOI、Flex 模拟及富途综合场景 |
 
 六组控制台套件的分组粒度不同，不再沿用过时的 129 项总数；各套件实际执行结果以验收日志为准。通过数量不能代替测试覆盖率，实际覆盖率由验收脚本收集。运行命令和窗口入口见 [tests/README](../tests/README.md)。新增用例后同时更新此表。

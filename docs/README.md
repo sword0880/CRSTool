@@ -18,6 +18,10 @@
 - [FIFO 实现](CAPITAL_GAIN_FIFO_SPEC.md) · [税额算法](TAX_ENGINE_SPEC.md)
 - [富途字段映射](FUTU_FIELD_MAPPING.md)
 - [导入原件与快照摘要一致性](INPUT_CONSISTENCY.md)
+- [规范化快照读取校验](CANONICAL_VALIDATION.md)
+- [冻结结果与运行证据](FROZEN_EVIDENCE.md)
+- [加密底稿与恢复](ENCRYPTED_EXPORT.md)
+- [真实样本验收进展](REAL_SAMPLE_PROGRESS.md)
 - [测试规范](TEST_SPEC.md) · [验证命令](../tests/README.md)
 - [当前问题与验收缺口](KNOWN_ISSUES.md)
 

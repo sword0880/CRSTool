@@ -10,6 +10,8 @@ public sealed class AnnualTaxAggregationService
     {
         if (string.IsNullOrWhiteSpace(taxpayerScopeId)) throw new CrsException("纳税人范围标识不能为空。");
         if (results.Count == 0) throw new CrsException("至少需要一份账户计算结果才能进行年度聚合。");
+        // 汇总也必须拒绝封存后被修改的来源，不能从损坏记录派生新任务。
+        foreach(var source in results) RunEvidenceSeal.Verify(source);
         if (results.Any(r => r.Year != year)) throw new CrsException("年度聚合不能混入不同年度的计算结果。");
         if (results.Any(r => r.IsAnnualAggregate || r.Broker == "MULTI"))
             throw new CrsException("请选择原始账户任务，不能再次纳入已生成的年度汇总任务。");
@@ -106,7 +108,7 @@ public sealed class AnnualTaxAggregationService
             result.CalculationStatus, result.DataCompleteness, result.ReconciliationStatus, result.UsageLabel,
             createdUtc = DateTimeOffset.UtcNow
         });
-        return result;
+        return result.Freeze();
 
         /// <summary>只采用父运行的冻结汇率，缺失时拒绝聚合，不引入当前配置。</summary>
         decimal Rate(int taxYear, string currency)

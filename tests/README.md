@@ -1,6 +1,10 @@
 # CRS 验证项目
 
-新增 CRS.Tests.Security 的密码学与 RFC6238 向量检查，以及 Infrastructure 的 SQLCipher/MFA/恢复/并发防重放专项。最新整体入口：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -OutputDirectory artifacts/auth-acceptance`。WPF 模型与窗口冒烟使用独立日志，避免 Windows 大小写文件名覆盖；人工手机及跨电脑验收见 docs/AUTH_IMPLEMENTATION.md。
+加密底稿与新目录恢复专项：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -LocalRealDirectory sample/FUTU -OutputDirectory artifacts/encrypted-export-acceptance`。独立密码机制、容器与实际锁定检查、前台密码清理分别在 Security／Infrastructure／Wpf 项目；原加密备份用例仍执行以确认用途隔离兼容。
+
+冻结专项入口：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -LocalRealDirectory sample/FUTU -OutputDirectory artifacts/frozen-evidence-acceptance`。真实私有原件仅读取，报告不含身份文件名或交易金额；该技术检查不替代 `-RealManifest` 的独立金额验收。IBKR 真实样本由用户后续补充。冻结与证据测试见 `CRS.Tests.Application/FrozenEvidenceChecks.cs`。
+
+新增 CRS.Tests.Security 的密码学与 RFC6238 向量检查，以及 Infrastructure 的 SQLCipher/MFA/恢复/并发防重放专项。认证专项入口：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -OutputDirectory artifacts/auth-acceptance`。WPF 模型与窗口冒烟使用独立日志，避免 Windows 大小写文件名覆盖；人工手机及跨电脑验收见 docs/AUTH_IMPLEMENTATION.md。
 
 分层验证保持独立控制台入口，运行时失败会返回非零退出码；没有引入仅用于改目录的测试框架替换。
 

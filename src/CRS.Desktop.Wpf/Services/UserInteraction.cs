@@ -13,10 +13,14 @@ public interface IUserInteraction
     string? PickFolder() => null;
     /// <summary>普通导出包含敏感明文，必须由用户明确确认；测试替身可自行控制确认结果。</summary>
     bool ConfirmPlaintextExport()=>false;
+    /// <summary>解密恢复产生明文，需明确告知用户选择可信位置。</summary>
+    bool ConfirmPlaintextRestore()=>false;
 }
 
 public sealed class UserInteraction : IUserInteraction
 {
+    public bool ConfirmPlaintextRestore()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,
+        "解密后将在你选择的位置新建文件夹，里面的报表和结转资料为明文。确认恢复到你信任的位置？","解密恢复",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;
     public bool ConfirmPlaintextExport()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,
         "导出文件不会被保险库加密，可能包含账户、交易和成本信息。确认保存到你信任的位置？","明文导出",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;
     public string? PickFolder()

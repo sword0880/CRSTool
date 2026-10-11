@@ -7,26 +7,26 @@ public sealed class CalculationResult
     public string Broker { get; init; } = "IBKR";
     /// <summary>只保留笔数；交易原始明细默认仅存在于本次会话。</summary>
     public int? ImportedTradeCount { get; init; }
-    [JsonIgnore] public List<Trade> SessionTrades { get; init; } = [];
-    public List<AnnualIncome> AnnualIncome { get; init; } = [];
-    public List<FundMovement> FundMovements { get; init; } = [];
-    public List<TradeAmountCheck> TradeAmountChecks { get; init; } = [];
-    public List<SecurityMovement> SecurityMovements { get; init; } = [];
+    [JsonIgnore] public SnapshotList<Trade> SessionTrades { get; init; } = [];
+    public SnapshotList<AnnualIncome> AnnualIncome { get; init; } = [];
+    public SnapshotList<FundMovement> FundMovements { get; init; } = [];
+    public SnapshotList<TradeAmountCheck> TradeAmountChecks { get; init; } = [];
+    public SnapshotList<SecurityMovement> SecurityMovements { get; init; } = [];
     public required int Year { get; init; }
     public required TaxSummary Summary { get; init; }
     /// <summary>原币年度事实；旧历史记录缺失时不得据其税额生成完整年度聚合。</summary>
     public TaxCalculationInputs? TaxInputs { get; init; }
     /// <summary>结构化境外抵免复核及冻结凭证关系；旧历史缺失时不推定已核实。</summary>
     public ForeignCreditAssessment? ForeignCreditAssessment { get; init; }
-    public List<Match> Matches { get; init; } = [];
-    public List<Issue> Issues { get; init; } = [];
-    public List<string> Warnings { get; init; } = [];
-    public List<CashReconciliation> CashChecks { get; init; } = [];
-    public List<PnlReconciliation> PnlChecks { get; init; } = [];
-    public List<AppliedRate> Rates { get; init; } = [];
-    public List<CostLot> EndingLots { get; init; } = [];
-    public List<RoundingState> EndingRounding { get; init; } = [];
-    public List<SourceReport> Sources { get; init; } = [];
+    public SnapshotList<Match> Matches { get; init; } = [];
+    public SnapshotList<Issue> Issues { get; init; } = [];
+    public SnapshotList<string> Warnings { get; init; } = [];
+    public SnapshotList<CashReconciliation> CashChecks { get; init; } = [];
+    public SnapshotList<PnlReconciliation> PnlChecks { get; init; } = [];
+    public SnapshotList<AppliedRate> Rates { get; init; } = [];
+    public SnapshotList<CostLot> EndingLots { get; init; } = [];
+    public SnapshotList<RoundingState> EndingRounding { get; init; } = [];
+    public SnapshotList<SourceReport> Sources { get; init; } = [];
     public bool Provisional { get; init; }
     public bool Reconciled { get; init; }
     public bool CarryEligible { get; init; }
@@ -39,7 +39,7 @@ public sealed class CalculationResult
     public UsageLabel UsageLabel { get; init; } = UsageLabel.ReviewOnly;
     /// <summary>纳税人范围标识及纳入的账户，防止不同账户被无意混算。</summary>
     public string TaxpayerScopeId { get; init; } = "LOCAL_USER";
-    public List<string> CoveredAccounts { get; init; } = [];
+    public SnapshotList<string> CoveredAccounts { get; init; } = [];
     public int UnknownGainCount { get; init; }
     /// <summary>只在年度完整且结果状态允许时填充；不确定时保持 null 而非 0。</summary>
     public decimal? EstimatedTopUpCny { get; init; }
@@ -48,12 +48,43 @@ public sealed class CalculationResult
     /// <summary>规范化输入快照仍含账户和交易事实；不保存 Flex 服务令牌，不代表匿名化。</summary>
     public string CanonicalInputJson { get; init; } = "";
     public bool IsReplayable { get; init; }
-    public string SnapshotId { get; set; } = "";
+    private bool frozen;
+    private string snapshotId="",snapshotJson="";
+    private string? parentSnapshotId;
+    private RunEvidenceSeal? evidenceSeal;
+    public RunEvidenceSeal? EvidenceSeal {get=>evidenceSeal;set {CheckMutable(); evidenceSeal=value;}}
+    [JsonIgnore] public bool IsFrozen=>frozen;
+    public string SnapshotId { get=>snapshotId; set {CheckMutable(); snapshotId=value;} }
     /// <summary>复算另存新运行并保留父运行，不覆盖原始冻结结果。</summary>
-    public string? ParentSnapshotId { get; set; }
+    public string? ParentSnapshotId { get=>parentSnapshotId; set {CheckMutable(); parentSnapshotId=value;} }
     /// <summary>年度汇总的来源任务，随结果持久化并在底稿中披露。</summary>
-    public List<AggregationSource> AggregationSources { get; init; } = [];
+    public SnapshotList<AggregationSource> AggregationSources { get; init; } = [];
     [JsonIgnore] public bool IsAnnualAggregate => AggregationSources.Count > 0;
-    public string SnapshotJson { get; set; } = "";
+    public string SnapshotJson { get=>snapshotJson; set {CheckMutable(); snapshotJson=value;} }
     public bool Complete => CalculationStatus == CalculationStatus.Completed && Issues.Count == 0 && Reconciled && !Provisional;
+    /// <summary>发布时冻结全部业务集合和可变成本副本；新任务需复制，不能复活旧结果。</summary>
+    public CalculationResult Freeze()
+    {
+        if(frozen) return this;
+        for(var i=0;i<EndingLots.Count;i++) {var lot=EndingLots[i].Copy(); lot.Freeze(); EndingLots[i]=lot;}
+        SessionTrades.Freeze(); AnnualIncome.Freeze(); FundMovements.Freeze(); TradeAmountChecks.Freeze(); SecurityMovements.Freeze();
+        Matches.Freeze(); Issues.Freeze(); Warnings.Freeze(); CashChecks.Freeze(); PnlChecks.Freeze(); Rates.Freeze(); Sources.Freeze();
+        EndingLots.Freeze(); EndingRounding.Freeze(); CoveredAccounts.Freeze();
+        if(TaxInputs is { } facts) {facts.Income.Freeze(); facts.ForeignTax.Freeze();}
+        if(ForeignCreditAssessment is { } credit)
+        {
+            credit.Countries.Freeze(); credit.Evidence.Income.Freeze();
+            foreach(var payment in credit.Evidence.Payments) payment.Proofs.Freeze();
+            credit.Evidence.Payments.Freeze();
+        }
+        foreach(var source in AggregationSources) source.Accounts.Freeze();
+        AggregationSources.Freeze(); frozen=true; return this;
+    }
+    /// <summary>持久化时补齐旧构建结果的封存，不允许重封一个已经有证据的结果。</summary>
+    public void SealForPersistence(string infrastructureSha256)
+    {
+        if(evidenceSeal is null) evidenceSeal=RunEvidenceSeal.Create(this,infrastructureSha256);
+        else RunEvidenceSeal.Verify(this);
+    }
+    private void CheckMutable() {if(frozen) throw new CrsException("计算结果已冻结，请另存新任务，不能覆盖历史执行信息。");}
 }

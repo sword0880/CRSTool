@@ -28,8 +28,9 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         var data = importer.Parse(files, openingXml, cancellation);
         // IBKR 允许重复选择同一原件，解析器只读取一次，引用清单也只记录一次。
         files=files.DistinctBy(Path.GetFullPath,StringComparer.OrdinalIgnoreCase).ToArray();
-        return CalculateParsed(data, files, year, openingZero, scopeConfirmed, openingXml, carry, cancellation,
+        var result=CalculateParsed(data, files, year, openingZero, scopeConfirmed, openingXml, carry, cancellation,
             saveCanonicalSnapshot: saveCanonicalSnapshot);
+        result.SealForPersistence(evidence.InfrastructureAssemblyHash); return result.Freeze();
     }
 
     /// <summary>使用已经规范化的领域输入执行统一计算，供原始导入和本地快照重放共用。</summary>
@@ -138,6 +139,8 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             carry = carry?.SourceSnapshotId, carryFingerprint = carry is null ? null : evidence.HashJson(carry),
             coreAssembly = evidence.FileHash(typeof(FifoEngine).Assembly.Location),
             infrastructureAssembly = evidence.InfrastructureAssemblyHash, result.Complete, summary });
+        // 新生成的快照也遵守相同契约，超限或结构错误不得先保存为不可读取的历史任务。
+        using var validatedInput=CanonicalInputReader.Read(result,saveCanonicalSnapshot);
         operationLog?.Invoke($"计算结束；匹配批次数={matches.Count}，待复核数={result.Issues.Count}");
         return result;
     }
@@ -148,14 +151,15 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
     /// <summary>从完整规范化快照重放计算，使用历史汇率快照而不是当前配置。</summary>
     public CalculationResult Replay(CalculationResult snapshot, CancellationToken cancellation = default)
     {
+        RunEvidenceSeal.Verify(snapshot);
+        if(snapshot.EvidenceSeal is { } seal && (seal.ApplicationSha256!=RunEvidenceSeal.AssemblyHash(typeof(CalculationService).Assembly.Location)
+            || seal.DomainSha256!=RunEvidenceSeal.AssemblyHash(typeof(FifoEngine).Assembly.Location) || seal.InfrastructureSha256!=evidence.InfrastructureAssemblyHash))
+            throw new CrsException("历史执行构建与当前版本不同，不能用新程序冒充原版本复算；仍可查看冻结结果。");
         cancellation.ThrowIfCancellationRequested();
         if (!snapshot.IsReplayable || snapshot.InputRecoveryMode != InputRecoveryMode.CanonicalLocalSnapshot)
             throw new CrsException("该历史结果未保存可重放的规范化快照。");
-        var digest = evidence.Hash(Encoding.UTF8.GetBytes(snapshot.CanonicalInputJson));
-        if (digest != snapshot.CanonicalInputDigest) throw new CrsException("规范化输入快照摘要不一致，不能重放。");
-        var document = JsonSerializer.Deserialize<CanonicalInputDocument>(snapshot.CanonicalInputJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new CrsException("规范化输入快照格式无效。");
-        if (document.Schema != "CRS.CanonicalInput.v2") throw new CrsException("规范化输入快照版本不受当前程序支持，请重新导入原件；仍可查看冻结结果。");
+        // 复算、明细展示及原件校验共用同一套有界契约检查。
+        var document=CanonicalInputReader.ReadFull(snapshot);
         var replayContext = ReplayExecutionContext.Read(snapshot);
         var data = document.ToImportData();
         cancellation.ThrowIfCancellationRequested();
@@ -169,7 +173,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         var audit = System.Text.Json.Nodes.JsonNode.Parse(replay.SnapshotJson)!.AsObject();
         audit["parentSnapshotId"] = snapshot.SnapshotId;
         replay.SnapshotJson = audit.ToJsonString();
-        return replay;
+        replay.SealForPersistence(evidence.InfrastructureAssemblyHash); return replay.Freeze();
     }
 
     /// <summary>按历史规范化快照校验重新选择的原始文件，防止用错年度或被修改的报告。</summary>
@@ -178,7 +182,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         if (snapshot.InputRecoveryMode is not (InputRecoveryMode.ReimportOriginalFiles or InputRecoveryMode.CanonicalLocalSnapshot)
             || string.IsNullOrWhiteSpace(snapshot.CanonicalInputJson))
             throw new CrsException("当前计算没有可用于原始文件校验的输入摘要。");
-        using var document = JsonDocument.Parse(snapshot.CanonicalInputJson);
+        using var document = CanonicalInputReader.Read(snapshot);
         var expected = document.RootElement.GetProperty("files").EnumerateArray()
             .Select(e => (Name: e.GetProperty("name").GetString() ?? "", Sha: e.GetProperty("sha256").GetString() ?? ""))
             .OrderBy(v => v.Name, StringComparer.Ordinal).ThenBy(v => v.Sha, StringComparer.Ordinal).ToArray();

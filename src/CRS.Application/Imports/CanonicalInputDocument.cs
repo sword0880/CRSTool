@@ -4,6 +4,9 @@ namespace CRS.Application;
 internal sealed class CanonicalInputDocument
 {
     public string Schema { get; set; } = "";
+    // 文件引用也进入严格 DTO，不能忽略未知来源字段。
+    public List<CanonicalFileReference> Files {get;set;}=[];
+    public CanonicalFileReference? Opening {get;set;}
     public string Broker { get; set; } = "IBKR";
     /// <summary>完整保留结转及期初来源语义；重放时重新校验，不能重复合入 LOT。</summary>
     public CarryDocument? Carry { get; set; }
@@ -38,6 +41,8 @@ internal sealed class CanonicalInputDocument
         return data;
     }
 }
+
+internal sealed record CanonicalFileReference(string Name,string Sha256);
 
 /// <summary>快照中用户确认项的显式结构，避免从备注文本猜测确认状态。</summary>
 internal sealed class CanonicalConfirmations
