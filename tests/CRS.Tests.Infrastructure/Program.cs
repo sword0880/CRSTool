@@ -13,6 +13,8 @@ if(args is ["--resource-limits-only"]) {await ResourceProtectionChecks.RunAsync(
 if(args is ["--lock-interruption-only"]) {await LockInterruptionChecks.RunAsync(root); return;}
 // 期间清单、加密持久化及底稿可单独复验，不重复无关认证场景。
 if(args is ["--account-periods-only"]) {AccountPeriodFileChecks.Run(root); return;}
+// 敏感导出策略可单独检查，不重复无关认证测试。
+if(args is ["--sensitive-exports-only"]) {await SensitiveExportChecks.RunAsync(root); return;}
 var store=TestStores.Create(root);
 var oldJson="""{"Year":2025,"Broker":"FUTU","Summary":{"DividendCny":100,"InterestCny":25,"GainCny":200,"DividendInterestTax":25,"GainTax":40,"ForeignCredit":5,"SupplementTax":60},"SnapshotId":"SYNTHETIC-OLD"}""";
 var old=JsonSerializer.Deserialize<CalculationResult>(oldJson)!; store.Save(old);
@@ -39,6 +41,7 @@ await MfaChecks.RunAsync(root);
 await LocalKeyChecks.RunAsync(root);
 await PhoneSettingsChecks.RunAsync(root);
 await ExportChecks.RunAsync(root);
+await SensitiveExportChecks.RunAsync(root);
 await EncryptedExportChecks.RunAsync(root);
 await SchemaUpgradeChecks.RunAsync(root);
 await ResourceProtectionChecks.RunAsync(root);

@@ -36,6 +36,7 @@ CarryReplayChecks.Run();
 await CanonicalInputChecks.RunAsync();
 FrozenEvidenceChecks.Run();
 TaxPresentationChecks.Run();
+await SensitiveExportPolicyChecks.RunAsync();
 
 sealed class StubOperations : IDesktopOperations
 {
@@ -46,8 +47,10 @@ sealed class StubOperations : IDesktopOperations
     public string ReadQueryId()=>""; public CarryDocument ReadCarry(string path)=>throw new NotSupportedException();
     public IReadOnlyList<AccountPeriodEvidence> ReadAccountPeriods(string path,CancellationToken cancellation=default)=>throw new NotSupportedException();
     // 导出策略端口替身，仅用于验证授权与调用次序。
-    public void ValidateExportDestination(string path,bool plaintext,bool temporaryLocationConfirmed) { }
-    public void LogExportEvent(SensitiveExportOperation operation,SensitiveExportOutcome outcome) { }
+    public Action<string,bool,bool>? ValidateDestination {get;set;}
+    public List<(SensitiveExportOperation Operation,SensitiveExportOutcome Outcome)> ExportEvents {get;}=[];
+    public void ValidateExportDestination(string path,bool plaintext,bool temporaryLocationConfirmed)=>ValidateDestination?.Invoke(path,plaintext,temporaryLocationConfirmed);
+    public void LogExportEvent(SensitiveExportOperation operation,SensitiveExportOutcome outcome)=>ExportEvents.Add((operation,outcome));
     public ForeignCreditEvidence ReadForeignCredit(string path)=>throw new NotSupportedException();
     public void SaveCarry(string path,CalculationResult result,CancellationToken cancellation=default)=>CarryCount++;
     public Task DownloadAsync(string queryId,string token,DateOnly from,DateOnly to,string path,CancellationToken cancellation)=>Task.CompletedTask;
