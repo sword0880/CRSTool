@@ -26,9 +26,9 @@ internal static class ReportsInteractionChecks
         public bool ExcelCancelled {get;private set;}
         public bool CarryCancelled {get;private set;}
         public override async Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
-        {try {await Task.Delay(Timeout.Infinite,cancellation);} finally {ExcelCancelled=cancellation.IsCancellationRequested;}}
+        {if(consent?.PlaintextConfirmed!=true || consent.TemporaryLocationConfirmed) throw new Exception("界面未传本次明文授权或开放临时目录。"); try {await Task.Delay(Timeout.Infinite,cancellation);} finally {ExcelCancelled=cancellation.IsCancellationRequested;}}
         public override async Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
-        {try {await Task.Delay(Timeout.Infinite,cancellation);} finally {CarryCancelled=cancellation.IsCancellationRequested;}}
+        {if(consent?.PlaintextConfirmed!=true || consent.TemporaryLocationConfirmed) throw new Exception("结转未传本次明文授权。"); try {await Task.Delay(Timeout.Infinite,cancellation);} finally {CarryCancelled=cancellation.IsCancellationRequested;}}
     }
     private sealed class Interaction:IUserInteraction
     {

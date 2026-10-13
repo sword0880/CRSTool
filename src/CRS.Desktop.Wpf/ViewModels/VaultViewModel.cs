@@ -42,6 +42,12 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     private string? unlockedDirectory=vault.IsUnlocked?settings.Load().DatabaseDirectory:null;
     private bool readyAfterRun;
     public bool IsUnlocked=>vault.IsUnlocked;
+    // 首次选择与已登记 Hello 分开显示，验证码失败时永远不会出现替代入口。
+    public bool ShowHelloChoice=>Directory==unlockedDirectory && vault.CanChooseWindowsHello;
+    public bool ShowHelloVerification=>Directory==unlockedDirectory && vault.Authentication==AuthenticationState.PendingWindowsHello;
+    public bool ShowTotp=>!vault.UsesWindowsHello;
+    private bool CanChooseHello()=>!IsBusy && ShowHelloChoice && (RecoveryKey.Length==0 || RecoverySaved);
+    private bool CanVerifyHello()=>!IsBusy && ShowHelloVerification;
     public bool IsIdle=>!IsBusy;
     public bool HasDatabaseRecovery=>RecoveryKey.Length>0;
     public bool HasMfaRecoveryCodes=>MfaRecoveryCodes.Length>0;
@@ -51,7 +57,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     public bool ShowDirectoryEntry=>IsNewVault || DirectoryState is VaultState.Invalid or VaultState.PlaintextRejected || ShowDirectoryOptions;
     public bool ShowPasswordEntry=>IsNewVault || (IsExistingVault && !vault.IsUnlocked && (UseMasterPassword || (!LocalKeyAvailable && vault.Authentication==AuthenticationState.Locked)));
     public string PasswordEntryLabel=>IsNewVault?"首次设置主密码（至少 12 个字符，用于保护数据库资料）":"本机凭证不可用：用原主密码重新启用本机登录";
-    public string UnlockLabel=>LocalKeyAvailable&&!UseMasterPassword?"准备手机验证":"用主密码启用本机登录";
+    public string UnlockLabel=>LocalKeyAvailable&&!UseMasterPassword?"准备身份验证":"用主密码启用本机登录";
     public event Action? Ready;
     public event Action? LockRequested;
     public event Action? SessionRestricted;
@@ -78,11 +84,11 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     private static string StateMessage(VaultState state)=>state switch
     {
         VaultState.PlaintextRejected=>"检测到未加密旧库，本版本拒绝读取和迁移。请另选新的空目录，旧库和附属文件会保持原样。",
-        VaultState.Encrypted=>"已有加密保险库，无需重新创建主密码。本机登录只验证手机代码；换电脑或本机凭证丢失时使用主密码或恢复密钥。",
+        VaultState.Encrypted=>"已有加密保险库，无需重新创建主密码。按已选手机代码或 Windows Hello 验证进入；换电脑或本机凭证丢失时使用主密码或恢复密钥。",
         VaultState.Invalid=>"当前目录格式未知或不完整，不会自动覆盖或重建。请检查资料或选择新的空目录恢复备份。",
         _=>"当前没有保险库，请明确创建新库或从加密备份恢复。主密码至少 12 个字符。"
     };
-    partial void OnRecoverySavedChanged(bool value)=>ContinueCommand.NotifyCanExecuteChanged();
+    partial void OnRecoverySavedChanged(bool value) {ContinueCommand.NotifyCanExecuteChanged(); ChooseWindowsHelloCommand.NotifyCanExecuteChanged();}
     partial void OnUseMasterPasswordChanged(bool value) {OnPropertyChanged(nameof(ShowPasswordEntry)); OnPropertyChanged(nameof(UnlockLabel));}
     partial void OnShowDirectoryOptionsChanged(bool value)=>OnPropertyChanged(nameof(ShowDirectoryEntry));
     partial void OnMfaRecoverySavedChanged(bool value)=>ContinueCommand.NotifyCanExecuteChanged();
@@ -96,12 +102,14 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
         if (!IsBusy) BackupCapacityHint=DescribeCapacity(vault.BackupCapacity);
         OnPropertyChanged(nameof(ShowPasswordEntry));
         BeginEnrollmentCommand.NotifyCanExecuteChanged(); VerifyCodeCommand.NotifyCanExecuteChanged(); RecoverPhoneCommand.NotifyCanExecuteChanged(); ReplacePhoneCommand.NotifyCanExecuteChanged();
+        ChooseWindowsHelloCommand.NotifyCanExecuteChanged(); VerifyWindowsHelloCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ShowHelloChoice)); OnPropertyChanged(nameof(ShowHelloVerification)); OnPropertyChanged(nameof(ShowTotp));
     }
     private async Task Run(Func<Task> action)
     {
         IsBusy=true;
         try { await action(); }
-        catch(OperationCanceledException) {readyAfterRun=false; Status="操作已取消，未提交新的备份或恢复目录。";}
+        catch(OperationCanceledException) {readyAfterRun=false; Status="操作已取消；未通过验证时数据保持锁定。";}
         catch(Exception ex) {readyAfterRun=false; Status=ex is CrsException?ex.Message:"安全操作失败，请核对凭证、备份格式和文件权限。原文件未被覆盖。"; interaction.ShowError(Status); }
         finally { Password=""; NewPassword=""; Secret=""; Code=""; MfaRecoveryCode=""; UpdateDirectoryState(); IsBusy=false; }
         // 日常验证码通过即进入，先结束忙碌状态，避免关闭安全窗口时被后台门槛拦截。
@@ -131,7 +139,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
             ClearSensitiveDisplay(); readyAfterRun=true;
         }
         else if(vault.Authentication==AuthenticationState.PendingEnrollment) await ShowEnrollment();
-        else {Status="输入 Microsoft Authenticator 上的六位验证码即可进入。"; AuthenticationHint=Status;}
+        else {Status=vault.UsesWindowsHello?"请明确点击 Windows Hello 验证进入；如更换 Windows 用户，先用主密码恢复本机登录。":"输入 Microsoft Authenticator 上的六位验证码即可进入。"; AuthenticationHint=Status;}
     });
     /// <summary>本机自动准备受限手机验证，不自动进入业务界面。</summary>
     public async Task InitializeAsync()
@@ -140,7 +148,19 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
         if(!vault.IsUnlocked && vault.Authentication==AuthenticationState.Locked && LocalKeyAvailable && !UseMasterPassword) await UnlockAsync();
     }
     [RelayCommand(CanExecute=nameof(CanOperate))]
-    private async Task ResetPasswordAsync()=>await Run(async()=> {await vault.ResetPasswordAsync(Directory,Secret,NewPassword); unlockedDirectory=Directory; ClearMfaDisplay(); await ShowEnrollment(); Status="主密码已重设，必须绑定新手机并保存新的恢复码。";});
+    private async Task ResetPasswordAsync()=>await Run(async()=> {await vault.ResetPasswordAsync(Directory,Secret,NewPassword); unlockedDirectory=Directory; ClearMfaDisplay(); if(!vault.UsesWindowsHello) await ShowEnrollment(); Status=vault.UsesWindowsHello?"主密码已重设，请明确验证 Windows Hello 重新启用本机登录。":"主密码已重设，必须绑定新手机并保存新的恢复码。"; AuthenticationHint=Status;});
+    [RelayCommand(CanExecute=nameof(CanChooseHello))]
+    private async Task ChooseWindowsHelloAsync()=>await Run(async()=>
+    {
+        await vault.EnrollWindowsHelloAsync(RecoveryKey.Length==0 || RecoverySaved);
+        await SaveLocation(unlockedDirectory!); ClearSensitiveDisplay(); Status="Windows Hello 已启用。"; readyAfterRun=true;
+    });
+    [RelayCommand(CanExecute=nameof(CanVerifyHello))]
+    private async Task VerifyWindowsHelloAsync()=>await Run(async()=>
+    {
+        await vault.VerifyWindowsHelloAsync(); await SaveLocation(unlockedDirectory!);
+        ClearSensitiveDisplay(); Status="Windows Hello 验证成功。"; readyAfterRun=true;
+    });
     [RelayCommand(CanExecute=nameof(CanAuthorized))]
     private async Task ChangePasswordAsync()=>await Run(async()=> {await vault.ChangePasswordAsync(Password,NewPassword,Code); Status="主密码已修改，恢复密钥仍有效；旧备份仍使用备份时的凭证。";});
     [RelayCommand(CanExecute=nameof(CanAuthorized))]

@@ -6,7 +6,7 @@ namespace CRS.DesktopClient.Composition;
 /// <summary>桌面启动组合根，基础设施类型只在此处装配。</summary>
 internal static class DesktopComposition
 {
-    public static IVaultService CreateVault()=>new VaultManager();
+    public static IVaultService CreateVault()=>new VaultManager(new WindowsHelloVerifier());
     public static IDesktopSettingsService CreateSettings()=>new DesktopSettingsStore();
     public static DesktopRuntime Create(bool smoke,IVaultService? vault=null,IDesktopSettingsService? userSettings=null)
     {
@@ -23,7 +23,7 @@ internal static class DesktopComposition
         var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager);
         return new(new DesktopWorkflow(operations),operations,settings.DatabaseDirectory,settingsStore,vault);
     }
-    public static void LogStartupFailure(Exception error) => LogManager.GetCurrentClassLogger().Error("程序启动失败；类别={0}",error.GetType().Name);
+    public static void LogStartupFailure(Exception error) => LogManager.GetCurrentClassLogger().Error("程序启动失败；类别={0}",SensitiveDiagnostics.FailureCategory(error.GetType().Name));
     public static void Shutdown() => LogManager.Shutdown();
 }
 internal sealed record DesktopRuntime(IDesktopUseCases UseCases, IDesktopOperations Operations, string DirectoryPath,

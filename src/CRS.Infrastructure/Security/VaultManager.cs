@@ -11,6 +11,10 @@ namespace CRS.Infrastructure;
 /// <summary>单保险库适配器；本机槽由 Windows 用户保护，主密码及独立恢复槽保留跨机恢复能力。</summary>
 public sealed partial class VaultManager : IVaultService
 {
+    private readonly IWindowsHelloVerifier? hello;
+    public VaultManager(IWindowsHelloVerifier? hello = null) { this.hello=hello; }
+    // 主密码或恢复密钥证明，只用于显式重新登记 Hello 的 Windows 身份。
+    private bool pendingPasswordProof;
     private readonly object gate=new();
     private readonly object operationGate=new();
     private CancellationTokenSource operationLifetime=new();
@@ -85,7 +89,7 @@ public sealed partial class VaultManager : IVaultService
         {
             candidate=new(directory,VaultKeyManager.Unlock(metadata,password)); candidate.Verify();
             VaultAuthenticationStore.Ensure(candidate,metadata);
-            envelope=metadata; pending=candidate; pendingStarted=System.Diagnostics.Stopwatch.GetTimestamp(); candidate=null;
+            envelope=metadata; pending=candidate; pendingPasswordProof=true; pendingStarted=System.Diagnostics.Stopwatch.GetTimestamp(); candidate=null;
             passwordFailures=0; nextPasswordAttempt=0;
             using(var c=pending.Open())
             {
@@ -97,17 +101,26 @@ public sealed partial class VaultManager : IVaultService
         catch(CryptographicException) {passwordFailures++; nextPasswordAttempt=System.Diagnostics.Stopwatch.GetTimestamp()+(long)(System.Diagnostics.Stopwatch.Frequency*Math.Min(8,passwordFailures)); throw new CrsException("主密码错误或保险库认证失败。"); }
         finally { candidate?.Dispose(); }
     }
-    public Task ChangePasswordAsync(string oldPassword,string newPassword,string code)=>Task.Run(()=>
+    public async Task ChangePasswordAsync(string oldPassword,string newPassword,string code)
     {
+        var generation=CaptureOperation(); VaultSession expected; bool useHello;
+        lock(gate) {generation.ThrowIfCancellationRequested(); expected=Required(); useHello=UsesWindowsHello;}
+        // Hello 方式改密同样重新验证；系统弹窗不占用锁定所需的门闩。
+        if(useHello) await (hello??throw new CrsException("Windows Hello 不可用。")).VerifyAsync(generation).ConfigureAwait(false);
+        await Task.Run(()=>
+        {
         lock(gate)
         {
+            generation.ThrowIfCancellationRequested();
             var active=Required();
+            if(!ReferenceEquals(active,expected)) throw new CrsException("改密会话已失效。");
             using var proof=VaultKeyManager.Unlock(envelope!,oldPassword);
-            VaultAuthenticationStore.Consume(active,envelope!,code,Now());
+            if(!useHello) VaultAuthenticationStore.Consume(active,envelope!,code,Now());
             var changed=VaultKeyManager.ChangePassword(envelope!,proof,newPassword);
             VaultFiles.AtomicWrite(VaultFiles.EnvelopePath(active.DirectoryPath),JsonSerializer.SerializeToUtf8Bytes(changed),true); envelope=changed;
         }
-    });
+        }).ConfigureAwait(false);
+    }
     public Task ResetPasswordAsync(string directory,string recoveryKey,string newPassword)=>Task.Run(()=>
     {
         lock(gate)
@@ -120,7 +133,7 @@ public sealed partial class VaultManager : IVaultService
             var changed=VaultKeyManager.ChangePassword(metadata,recovered,newPassword);
             ForceRecovery(check,changed);
             VaultFiles.AtomicWrite(VaultFiles.EnvelopePath(directory),JsonSerializer.SerializeToUtf8Bytes(changed),true);
-            envelope=changed; pending=new VaultSession(directory,recovered.Clone()); pendingStarted=System.Diagnostics.Stopwatch.GetTimestamp();
+            envelope=changed; pending=new VaultSession(directory,recovered.Clone()); pendingPasswordProof=true; pendingStarted=System.Diagnostics.Stopwatch.GetTimestamp();
         }
     });
     /// <summary>SQLite 在线备份 API 生成独立加密快照，经验证后封装；不直接复制正在写入的数据库。</summary>

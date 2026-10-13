@@ -189,6 +189,14 @@ internal static class SmokeCheck
                 // 换机限制会话后再遇到系统锁屏，应能重复清理而不复用敏感模型。
                 window.PrepareLock(); window.PrepareLock();
                 if(window.DataContext is not null || shell.State.HasResult) throw new InvalidOperationException("锁定未清除敏感工作区。");
+                // 锁定页显示后不能自行触发解锁，且不绑定原业务模型。
+                var locked=new LockWindow(); var requested=false; locked.UnlockRequested+=()=>requested=true;
+                locked.Show(); await Task.Delay(200); locked.UpdateLayout();
+                if(requested || locked.DataContext is not null) throw new InvalidOperationException("锁定页自动进入或沿用敏感模型。");
+                if(imagePath is not null) Capture(locked,VariantPath(imagePath,"locked"));
+                ((System.Windows.Controls.Button)locked.FindName("UnlockButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                if(!requested) throw new InvalidOperationException("锁定页未响应主动解锁。");
+                locked.Close();
                 if(bindingErrors.Errors.Count>0) throw new InvalidOperationException("保险库绑定出现错误。");
             }
         }

@@ -1,5 +1,7 @@
 # CRS 验证项目
 
+敏感导出专项：`dotnet run --project tests/CRS.Tests.Infrastructure -c Release -- --sensitive-exports-only`。应用与界面回归同时覆盖本次明文声明、恢复确认及锁定取消；生产界面不开放临时目录明文特许，合成验收明确授权其隔离临时目的地。说明见 [敏感导出](../docs/implementation/SENSITIVE_EXPORT.md)。
+
 2026-10-13 P0 续修：应用 `AccountPeriodChecks`、基础设施 `AccountPeriodFileChecks` 与 `LockInterruptionChecks`、界面 `ImportInteractionChecks` 增加有凭证的生命周期、快照重放、严格凭证清单和长备份锁定回归。中断可单独执行 `dotnet run --project tests/CRS.Tests.Infrastructure -c Release -- --lock-interruption-only`。独立税额记录未提供，人工金额验收仍未通过。
 
 最新整体验收：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -LocalRealDirectory Sample/FUTU -IbkrRealDirectory Sample/IBKR -OutputDirectory artifacts/resource-protection-acceptance`。资源专项单独入口：`dotnet run --project tests/CRS.Tests.Infrastructure -c Release -- --resource-limits-only`。构造超过 128 MiB 的隔离 SQLCipher 库验证分块恢复；不读取或修改用户现有数据库。此前结构升级和金额展示回归继续执行，以下旧产物路径保留。

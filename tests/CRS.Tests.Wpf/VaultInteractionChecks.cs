@@ -58,10 +58,30 @@ internal static class VaultInteractionChecks
         if(!vault.PhoneVerificationEnabled || securitySettings.SecurityPassword!="" || securitySettings.SecurityCode!="") throw new Exception("设置没有保存开关或保留了确认凭证。");
         vault.Lock();
         if(await VaultStartup.TryEnterAsync(vault,initial) || vault.Authentication!=AuthenticationState.Locked) throw new Exception("重新启用手机验证后仍跳过验证窗口或残留预检会话。");
-        Console.WriteLine("保险库界面验证通过：恢复确认、密码清理、目录与解锁绑定、进入后清理、锁定门槛（5 项）。");
+        // 首次 Hello 按钮等待恢复密钥保存确认；再次进入只显示所选方式且不显示路径/密码。
+        var helloVault=new FakeVault {HelloSupported=true}; var helloSettings=new Settings();
+        var firstHello=new VaultViewModel(helloVault,helloSettings,new Interaction());
+        firstHello.Password="synthetic-hello-password"; await firstHello.CreateCommand.ExecuteAsync(null);
+        if(!firstHello.ShowHelloChoice || firstHello.ChooseWindowsHelloCommand.CanExecute(null)) throw new Exception("Hello 首次入口未等待恢复密钥确认。");
+        firstHello.RecoverySaved=true; await firstHello.ChooseWindowsHelloCommand.ExecuteAsync(null);
+        helloVault.Lock(); var helloDaily=new VaultViewModel(helloVault,helloSettings,new Interaction());
+        await helloDaily.InitializeAsync();
+        if(!helloDaily.ShowHelloVerification || helloDaily.ShowHelloChoice || helloDaily.ShowTotp || helloDaily.ShowPasswordEntry || helloDaily.ShowDirectoryEntry || helloDaily.VerifyCodeCommand.CanExecute(null))
+            throw new Exception("日常 Hello 显示了 TOTP 降级入口或首次密码/路径。");
+        var helloEntered=0; helloDaily.Ready+=()=>helloEntered++;
+        await helloDaily.VerifyWindowsHelloCommand.ExecuteAsync(null);
+        if(helloEntered!=1 || !helloVault.IsUnlocked) throw new Exception("Hello 成功未进入工作区。");
+        var helloSecurity=new SettingsViewModel(new WorkspaceState(new FakeUseCases(),new Interaction()),helloSettings,helloVault);
+        if(helloSecurity.SecuritySettingsAvailable || helloSecurity.SavePhoneVerificationCommand.CanExecute(null)) throw new Exception("Hello 可以关闭手机开关绕过认证。");
+        Console.WriteLine("保险库界面验证通过：恢复确认、凭证清理、目录绑定、日常 TOTP/Hello、首次选择与手机开关隔离。");
     }
     private sealed class FakeVault : IVaultService
     {
+        public bool HelloSupported {get;set;}
+        public bool UsesWindowsHello {get;private set;}
+        public bool CanChooseWindowsHello=>HelloSupported && Authentication==AuthenticationState.PendingEnrollment;
+        public async Task EnrollWindowsHelloAsync(bool saved) {if(!saved) throw new CrsException("请保存恢复密钥。"); UsesWindowsHello=true; await CompleteEnrollmentAsync(true);}
+        public Task VerifyWindowsHelloAsync()=>CompleteEnrollmentAsync(true);
         public bool IsUnlocked {get;private set;}
         // 假服务只提供容量元数据，不接触真实文件或密钥。
         public VaultBackupCapacity? BackupCapacity {get;set;}
@@ -80,7 +100,7 @@ internal static class VaultInteractionChecks
             LocalUnlocks++;
             // 模拟读取过程中已产生受限上下文后失败，验证启动层会清理该上下文。
             if(FailLocalUnlock) {Authentication=AuthenticationState.PendingMfa; throw new InvalidOperationException("模拟本机凭证损坏。");}
-            IsUnlocked=!PhoneVerificationEnabled; Authentication=PhoneVerificationEnabled?AuthenticationState.PendingMfa:AuthenticationState.Authenticated; return Task.CompletedTask;
+            IsUnlocked=!PhoneVerificationEnabled && !UsesWindowsHello; Authentication=UsesWindowsHello?AuthenticationState.PendingWindowsHello:PhoneVerificationEnabled?AuthenticationState.PendingMfa:AuthenticationState.Authenticated; return Task.CompletedTask;
         }
         public Task<VaultCreationInfo> CreateAsync(string directory,string password) {created=true; Authentication=AuthenticationState.PendingEnrollment; return Task.FromResult(new VaultCreationInfo("synthetic-recovery-secret"));}
         public Task UnlockAsync(string directory,string password) {PasswordUnlocks++; Authentication=AuthenticationState.PendingMfa; return Task.CompletedTask;}

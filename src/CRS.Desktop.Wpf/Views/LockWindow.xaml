@@ -1,0 +1,10 @@
+<Window x:Class="CRS.DesktopClient.Views.LockWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="程序已锁定" Width="500" Height="320" MinWidth="440" MinHeight="300" WindowStartupLocation="CenterScreen" ResizeMode="NoResize" Background="#FBFCFD">
+ <!-- 锁定页不绑定旧工作区或恢复秘密；关闭手机验证也须主动点击才能重新进入。 -->
+ <Grid Margin="32"><StackPanel VerticalAlignment="Center">
+  <TextBlock Text="程序已锁定" FontSize="26" FontWeight="SemiBold" Margin="0,0,0,16"/>
+  <TextBlock Text="你的资料已隐藏，后台会话已关闭。" FontSize="15" Foreground="#334155" TextWrapping="Wrap"/>
+  <TextBlock Text="点击解锁后按当前登录设置进入，完成手机验证码或 Windows Hello 验证。" Foreground="#64748B" TextWrapping="Wrap" Margin="0,10,0,24"/>
+  <Button x:Name="UnlockButton" Content="解锁并进入" Padding="18,10" HorizontalAlignment="Left" Click="OnUnlock"/>
+ </StackPanel></Grid>
+</Window>

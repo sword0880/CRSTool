@@ -11,6 +11,7 @@
 - [富途字段映射](FUTU_FIELD_MAPPING.md)
 - [输入一致性](INPUT_CONSISTENCY.md)
 - [长任务锁定中断](LOCK_INTERRUPTION.md)
+- [敏感导出与诊断保护](SENSITIVE_EXPORT.md)
 - [税额引擎](TAX_ENGINE_SPEC.md)
 
 [返回文档首页](../README.md)

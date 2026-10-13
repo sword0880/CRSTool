@@ -18,7 +18,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int logFileSizeMb;
     [ObservableProperty] private bool phoneVerificationEnabled=true;
     [ObservableProperty] private string securityMessage="手机验证默认启用；关闭后，本机依靠 Windows 用户保护的密钥进入。";
-    public bool SecuritySettingsAvailable=>vault is {IsUnlocked:true};
+    public bool SecuritySettingsAvailable=>vault is {IsUnlocked:true,UsesWindowsHello:false};
     // 凭证仅用于本次开关验证，不进入 DesktopSettings 或日志。
     public string SecurityPassword {get;set;}="";
     public string SecurityCode {get;set;}="";
@@ -38,6 +38,8 @@ public partial class SettingsViewModel : ObservableObject
         LoggingEnabled = settings.LoggingEnabled; LogLevel = settings.LogLevel;
         LogRetentionFiles = settings.LogRetentionFiles; LogFileSizeMb = settings.LogFileSizeMb;
         if(SecuritySettingsAvailable) PhoneVerificationEnabled=vault!.PhoneVerificationEnabled;
+        // Hello 不显示手机开关，避免让用户误以为关闭手机即可跳过 Hello。
+        if(vault is {IsUnlocked:true,UsesWindowsHello:true}) SecurityMessage="当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。";
         OnPropertyChanged(nameof(SecuritySettingsAvailable)); ClearSecurityInputs();
         Message = "目录和日志设置保存后下次启动生效；更换目录不会移动原数据库。";
     }

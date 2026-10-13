@@ -28,7 +28,9 @@ internal static class SensitiveExportChecks
             for(var i=0;i<attacks.Length;i++)
             {
                 var cell=warnings.GetRow(i+1).GetCell(0);
-                if(cell.CellType!=CellType.String || cell.StringCellValue!=attacks[i]) throw new Exception("恶意文本变成公式或被修改。");
+                // XML 读取会把回车规范化为换行；不添加前缀，也不能将内容变成公式。
+                var expected=attacks[i].Replace("\r\n","\n").Replace("\r","\n");
+                if(cell.CellType!=CellType.String || cell.StringCellValue!=expected) throw new Exception($"合成恶意文本 {i} 的类型或内容不一致。");
             }
             for(var i=0;i<workbook.NumberOfSheets;i++)
                 foreach(IRow row in workbook.GetSheetAt(i)) foreach(var cell in row.Cells)
@@ -44,6 +46,10 @@ internal static class SensitiveExportChecks
         if(!File.Exists(Path.Combine(restored,"report.xlsx"))) throw new Exception("明确授权的合成恢复失败。");
         // 正规目录的加密归档允许 TEMP，普通明文的路径大小写、扩展前缀和点段均不能绕过。
         var temp=Path.GetFullPath(Path.GetTempPath());
+        // 只读验证普通可信目录及相似前缀，不在生产输出目录创建测试文件。
+        ExportDestinationPolicy.Validate(Path.Combine(AppContext.BaseDirectory,"never-written.xlsx"),true,false);
+        var sibling=Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(temp))!,Path.GetFileName(Path.TrimEndingDirectorySeparator(temp))+"-other","never-written.xlsx");
+        ExportDestinationPolicy.Validate(sibling,true,false);
         RejectPath(Path.Combine(temp.ToUpperInvariant(),"blocked.xlsx"));
         RejectPath(Path.Combine(temp,"sub","..","blocked.xlsx"));
         if(OperatingSystem.IsWindows()) RejectPath(@"\\?\"+Path.Combine(temp,"blocked.xlsx"));
@@ -53,7 +59,8 @@ internal static class SensitiveExportChecks
             LocalStore.ConfigureLogging(directory,exactLogDirectory:true);
             operations.LogFailure("PRIVATE-ACCOUNT\r\nPassword=PRIVATE-PASSWORD DEK=PRIVATE-KEY");
             operations.LogExportEvent(SensitiveExportOperation.EncryptedArchive,SensitiveExportOutcome.Completed);
-            LogManager.Flush(); var log=File.ReadAllText(Path.Combine(directory,"crs.log"));
+            LogManager.Flush(); LogManager.Configuration=previous;
+            var log=File.ReadAllText(Path.Combine(directory,"crs.log"));
             if(log.Contains("PRIVATE-") || log.Contains(password) || log.Contains(result.SnapshotId) || !log.Contains("UnexpectedException"))
                 throw new Exception("安全日志记录了敏感调用字符串。");
         }

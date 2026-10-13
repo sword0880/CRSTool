@@ -36,7 +36,7 @@ public sealed partial class VaultManager
                     // 仅升级已验证的加密认证表；旧程序会拒绝版本二，避免忽略已保存的开关。
                     c.Execute("ALTER TABLE SecuritySettings ADD COLUMN PhoneVerificationEnabled INTEGER NOT NULL DEFAULT 1 CHECK(PhoneVerificationEnabled IN (0,1));",transaction:tx);
                 }
-                c.Execute("UPDATE SecuritySettings SET SecurityVersion=2,PhoneVerificationEnabled=@value WHERE Id=1",new {value=enabled?1:0},tx);
+                c.Execute("UPDATE SecuritySettings SET SecurityVersion=MAX(SecurityVersion,2),PhoneVerificationEnabled=@value WHERE Id=1",new {value=enabled?1:0},tx);
                 VaultAuthenticationStore.Event(c,tx,envelope!,"PhoneVerificationSettingChanged",enabled?"Enabled":"Disabled",Now()); tx.Commit();
             }
             finally {VaultAuthenticationStore.Clear(s);}

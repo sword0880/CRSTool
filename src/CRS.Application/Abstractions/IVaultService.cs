@@ -9,7 +9,7 @@ public sealed record VaultBackupCapacity(long DatabaseBytes, long MaximumBytes)
     public bool NearLimit => DatabaseBytes >= MaximumBytes / 4 * 3;
 }
 // 认证状态与短暂展示素材通过端口传递，不含数据库密钥或原生连接。
-public enum AuthenticationState { Locked, PendingEnrollment, PendingMfa, AwaitingRecoveryConfirmation, Authenticated }
+public enum AuthenticationState { Locked, PendingEnrollment, PendingMfa, AwaitingRecoveryConfirmation, Authenticated, PendingWindowsHello }
 public sealed record EnrollmentImage(byte[] Png);
 /// <summary>安全用例端口不暴露 DEK、SQLCipher 或密码学类型；恢复只写入新的空目录。</summary>
 public interface IVaultService : IDisposable
@@ -18,6 +18,11 @@ public interface IVaultService : IDisposable
     VaultBackupCapacity? BackupCapacity { get; }
     bool PhoneVerificationEnabled { get; }
     AuthenticationState Authentication { get; }
+    // 旧适配器默认只有 TOTP；Hello 必须由可信操作系统端口完成。
+    bool UsesWindowsHello => false;
+    bool CanChooseWindowsHello => false;
+    Task EnrollWindowsHelloAsync(bool recoverySaved) => throw new CrsException("当前不支持 Windows Hello。");
+    Task VerifyWindowsHelloAsync() => throw new CrsException("当前不支持 Windows Hello。");
     VaultState Inspect(string directory);
     // 本机受保护凭证只用于准备手机验证，不代表已经通过业务认证。
     bool HasLocalKey(string directory);

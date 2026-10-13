@@ -6,6 +6,10 @@
 
 ## 可执行验证
 
+`AutomaticLockChecks` 使用可控单调时钟验证不足十分钟、正好十分钟、输入重置、系统锁屏／注销／断开及休眠／恢复事件。WPF 窗口检查独立锁定页不会自动解锁，不绑定旧模型；实际设备演练仍待完成。
+
+敏感导出新增 `SensitiveExportPolicyChecks`／`SensitiveExportChecks`：后台缺省明文拒绝、临时路径、加密恢复授权、恶意文本单元格类型、真实负金额和日志／诊断允许字段；WPF 验证本次确认实际传入后台。说明见 [敏感导出保护](../implementation/SENSITIVE_EXPORT.md)。
+
 | 项目 | 当前覆盖内容 |
 | --- | --- |
 | CRS.Tests.Domain | FIFO 金额守恒、稳定排序和歧义隔离、税额基线、依赖 |

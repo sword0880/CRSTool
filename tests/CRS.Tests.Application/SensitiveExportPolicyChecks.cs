@@ -25,6 +25,8 @@ internal static class SensitiveExportPolicyChecks
         workflow.EndSession();
         try {await workflow.ExportAsync("unused",result,"",consent:new(true)); throw new Exception("明文确认绕过会话锁定。");}
         catch(OperationCanceledException) { }
+        var diagnostic=SensitiveDiagnostics.FormatError(new InvalidOperationException("PRIVATE-ACCOUNT PRIVATE-KEY",new Exception("PRIVATE-PASSWORD")));
+        if(diagnostic.Contains("PRIVATE-") || !diagnostic.Contains("InvalidOperationException")) throw new Exception("诊断输出泄露异常正文。");
         Console.WriteLine("敏感导出策略通过：后台默认拒绝、单次确认、目录校验前置、固定事件及会话锁定。");
     }
     private static async Task Reject(Task task)

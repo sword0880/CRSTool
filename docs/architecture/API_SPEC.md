@@ -49,6 +49,8 @@ Replay 要求 v2 完整规范化快照、输入摘要一致及 V3 排序口径�
 
 ## 错误与未知值
 
+普通 `ExportAsync`、`ExportCarryAsync` 及 `RestoreEncryptedAsync` 增加可选 `SensitiveExportConsent`，缺省表示未确认明文、后台拒绝；界面只有在用户明确确认后提供本次声明。加密导出不要求明文确认。`SensitiveDataExportService` 统一执行目的地、汇率、结转、会话取消和固定事件策略；新后台端口为 `ValidateExportDestination` 与 `LogExportEvent`，见 [敏感导出](../implementation/SENSITIVE_EXPORT.md)。
+
 业务失败使用 CrsException；取消使用 OperationCanceledException。资料不足可产生带 Issues 的部分结果。未知收益、差额与预计补税使用可空 decimal；不得在展示层补成零。
 
 C# 实际签名以源码为准。本文件不声明尚未实现的旧提案模型或新的远程 API。

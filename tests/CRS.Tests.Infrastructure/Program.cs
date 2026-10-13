@@ -3,6 +3,8 @@ using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
 var root=Path.Combine(Path.GetTempPath(),"CRS-Layers-"+Guid.NewGuid().ToString("N"));
+// Hello 的操作系统交互使用替身，库、备份及本机槽均执行真实实现。
+if(args is ["--hello-only"]) {await WindowsHelloChecks.RunAsync(root); return;}
 // 目录清理等局部修正可单独复验加密容器，不重复运行无关的认证与数据库场景。
 if(args is ["--encrypted-export-only"]) {await EncryptedExportChecks.RunAsync(root); return;}
 // 局部结构升级与归档故障演练可独立运行，仍只使用隔离的加密库。
@@ -40,6 +42,7 @@ await VaultChecks.RunAsync(root);
 await MfaChecks.RunAsync(root);
 await LocalKeyChecks.RunAsync(root);
 await PhoneSettingsChecks.RunAsync(root);
+await WindowsHelloChecks.RunAsync(root);
 await ExportChecks.RunAsync(root);
 await SensitiveExportChecks.RunAsync(root);
 await EncryptedExportChecks.RunAsync(root);

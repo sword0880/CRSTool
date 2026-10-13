@@ -23,6 +23,9 @@ internal static class VaultAuthenticationStore
         public int InitializationComplete {get;set;}
         // 版本一没有此列时按启用处理；版本二把开关保存在加密库，普通配置不能绕过认证。
         public int PhoneVerificationEnabled {get;set;}=1;
+        // 版本三将认证方式和 Windows 用户身份保存在加密库中，不能由普通配置降级。
+        public string LoginMethod {get;set;}="Totp";
+        public string? HelloIdentity {get;set;}
     }
     internal static void Ensure(VaultSession session,VaultEnvelope envelope)
     {
@@ -46,10 +49,16 @@ internal static class VaultAuthenticationStore
     internal static State Read(SqliteConnection c,SqliteTransaction? tx,VaultEnvelope envelope)
     {
         var s=c.QuerySingle<State>("SELECT * FROM SecuritySettings WHERE Id=1",transaction:tx);
-        if(s.SecurityVersion==2 && c.ExecuteScalar<int>("SELECT COUNT(*) FROM pragma_table_info('SecuritySettings') WHERE name='PhoneVerificationEnabled'",transaction:tx)!=1)
+        if(s.SecurityVersion>=2 && c.ExecuteScalar<int>("SELECT COUNT(*) FROM pragma_table_info('SecuritySettings') WHERE name='PhoneVerificationEnabled'",transaction:tx)!=1)
             throw new CrsException("保险库手机验证配置结构不完整。");
-        if(s.VaultId!=envelope.VaultId.ToString("D") || s.EnvelopeVersion!=envelope.Version || s.SecurityVersion is not (1 or 2)
-            || s.MfaStatus is not ("Pending" or "Enabled" or "RecoveryOnly")
+        if(s.SecurityVersion==3 && c.ExecuteScalar<int>("SELECT COUNT(*) FROM pragma_table_info('SecuritySettings') WHERE name IN ('LoginMethod','HelloIdentity')",transaction:tx)!=2)
+            throw new CrsException("保险库登录方式结构不完整。");
+        if(s.VaultId!=envelope.VaultId.ToString("D") || s.EnvelopeVersion!=envelope.Version || s.SecurityVersion is not (1 or 2 or 3)
+            || s.LoginMethod is not ("Totp" or "WindowsHello")
+            || (s.SecurityVersion<3 && (s.LoginMethod!="Totp" || s.HelloIdentity is not null))
+            || (s.LoginMethod=="Totp" && (s.HelloIdentity is not null || s.MfaStatus=="HelloEnabled"))
+            || (s.LoginMethod=="WindowsHello" && (s.SecurityVersion!=3 || s.PhoneVerificationEnabled!=1 || string.IsNullOrWhiteSpace(s.HelloIdentity) || s.HelloIdentity.Length>256 || s.TotpSecret is not null || s.PendingTotpSecret is not null || s.MfaStatus is not ("HelloEnabled" or "RecoveryOnly")))
+            || s.MfaStatus is not ("Pending" or "Enabled" or "RecoveryOnly" or "HelloEnabled")
             || s.InitializationComplete is not (0 or 1)
             || s.PhoneVerificationEnabled is not (0 or 1)
             || (s.SecurityVersion==1 && s.PhoneVerificationEnabled!=1)
@@ -57,7 +66,7 @@ internal static class VaultAuthenticationStore
             || (s.MfaStatus=="Enabled" && s.TotpSecret?.Length!=20)) throw new CrsException("保险库认证状态或身份不一致，禁止访问。");
         return s;
     }
-    internal static bool NeedsEnrollment(State state)=>state.MfaStatus!="Enabled" || state.InitializationComplete!=1;
+    internal static bool NeedsEnrollment(State state)=>state.MfaStatus is not ("Enabled" or "HelloEnabled") || state.InitializationComplete!=1;
     internal static void Clear(State s) {if(s.TotpSecret is not null) CryptographicOperations.ZeroMemory(s.TotpSecret); if(s.PendingTotpSecret is not null) CryptographicOperations.ZeroMemory(s.PendingTotpSecret);}
     internal static void Event(SqliteConnection c,SqliteTransaction tx,VaultEnvelope envelope,string type,string result,long now)=>
         c.Execute("INSERT INTO SecurityEvents VALUES(@Id,@VaultId,@type,@now,@result)",new {Id=Guid.NewGuid().ToString("N"),VaultId=envelope.VaultId.ToString("D"),type,now,result},tx);
@@ -78,7 +87,7 @@ internal static class VaultAuthenticationStore
         try
         {
             CheckCooldown(s,now);
-            if(NeedsEnrollment(s)) throw new CrsException("请先完成手机绑定。");
+            if(s.LoginMethod!="Totp" || NeedsEnrollment(s)) throw new CrsException("当前不能使用手机验证码，请完成所选认证方式。");
             var step=Totp.Match(s.TotpSecret!,code,now,s.LastAcceptedStep);
             if(step is null) Failure(c,tx,envelope,s,now);
             if(c.Execute("UPDATE SecuritySettings SET LastAcceptedStep=@step,FailedAttempts=0,LockedUntilUtc=NULL WHERE Id=1 AND MfaStatus='Enabled' AND InitializationComplete=1 AND (LastAcceptedStep IS NULL OR LastAcceptedStep<@step)",new {step},tx)!=1) throw new CrsException("验证码已使用。");

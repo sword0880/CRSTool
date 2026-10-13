@@ -89,6 +89,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "implementation", "implement
 		docs\implementation\INPUT_CONSISTENCY.md = docs\implementation\INPUT_CONSISTENCY.md
 		docs\implementation\LOCK_INTERRUPTION.md = docs\implementation\LOCK_INTERRUPTION.md
 		docs\implementation\README.md = docs\implementation\README.md
+		docs\implementation\SENSITIVE_EXPORT.md = docs\implementation\SENSITIVE_EXPORT.md
 		docs\implementation\TAX_ENGINE_SPEC.md = docs\implementation\TAX_ENGINE_SPEC.md
 	EndProjectSection
 EndProject

@@ -2,7 +2,7 @@
  <Window.Resources><BooleanToVisibilityConverter x:Key="ShowWhenTrue"/></Window.Resources>
  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="26" IsEnabled="{Binding IsIdle}">
   <TextBlock Text="保护与恢复你的数据" FontSize="24" FontWeight="SemiBold"/>
-  <TextBlock Text="首次主密码加密 · 日常手机验证码进入 · 本地离线" Foreground="#64748B" Margin="0,8,0,20"/>
+  <TextBlock Text="首次主密码加密 · 默认手机验证码 · 可首次选择 Windows Hello" Foreground="#64748B" Margin="0,8,0,20"/>
   <!-- 日常手机验证不展示数据库路径；首次创建和用户主动选择位置时才展开。 -->
   <StackPanel x:Name="DirectoryPanel" Visibility="{Binding ShowDirectoryEntry,Converter={StaticResource ShowWhenTrue}}">
    <TextBlock Text="保险库目录（新建必须是空目录）"/><TextBox Text="{Binding Directory, UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>
@@ -16,8 +16,15 @@
   <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#334155" Margin="0,8"/>
   <!-- 首次扫码只显示内存素材，不提供二维码保存或复制按钮。 -->
   <Border Background="#EFF6FF" CornerRadius="10" Padding="14" Margin="0,10"><StackPanel>
-   <TextBlock Text="手机验证" FontWeight="SemiBold" FontSize="16"/>
+   <TextBlock Text="身份验证" FontWeight="SemiBold" FontSize="16"/>
    <TextBlock Text="{Binding AuthenticationHint}" TextWrapping="Wrap" Margin="0,6"/>
+   <!-- 只有首次未绑定状态出现替代方式；验证器故障不会自动降级。 -->
+   <StackPanel Visibility="{Binding ShowHelloChoice,Converter={StaticResource ShowWhenTrue}}" Margin="0,6,0,12">
+    <TextBlock Text="默认使用下方 TOTP。首次没有验证器时，请先保存下方数据库恢复密钥，再明确选择 Windows Hello（PIN、指纹或人脸）。" TextWrapping="Wrap"/>
+    <Button Content="首次没有验证器：选择 Windows Hello" Command="{Binding ChooseWindowsHelloCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+   </StackPanel>
+   <Button Content="Windows Hello 验证 / 重新启用本机登录" Command="{Binding VerifyWindowsHelloCommand}" Visibility="{Binding ShowHelloVerification,Converter={StaticResource ShowWhenTrue}}" HorizontalAlignment="Left" Margin="0,8"/>
+   <StackPanel Visibility="{Binding ShowTotp,Converter={StaticResource ShowWhenTrue}}">
    <Image Source="{Binding EnrollmentQr}" Width="210" MaxHeight="210" Stretch="Uniform" HorizontalAlignment="Center"/>
    <DockPanel Margin="0,8"><Button DockPanel.Dock="Right" Content="验证六位代码" Command="{Binding VerifyCodeCommand}" Margin="8,0,0,0"/><PasswordBox x:Name="CodeInput" PasswordChanged="OnCode" MaxLength="6"/></DockPanel>
    <TextBlock Text="同一验证码只能使用一次；刚绑定或解锁后，请等下一组代码再操作。" Foreground="#64748B" TextWrapping="Wrap"/>
@@ -26,6 +33,7 @@
     <CheckBox Content="我已离线保存八条手机恢复码" IsChecked="{Binding MfaRecoverySaved}"/>
    </StackPanel>
    <Button Content="重新显示绑定二维码" Command="{Binding BeginEnrollmentCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+   </StackPanel>
   </StackPanel></Border>
   <!-- 恢复密钥只在创建时显示，离开向导必须确认已离线保存。 -->
   <StackPanel Visibility="{Binding HasDatabaseRecovery,Converter={StaticResource ShowWhenTrue}}">

@@ -31,7 +31,7 @@ public sealed partial class VaultManager
             if(awaitingConfirmation) return AuthenticationState.AwaitingRecoveryConfirmation;
             if(replacingPhone) return AuthenticationState.PendingEnrollment;
             using var c=pending.Open(); var s=VaultAuthenticationStore.Read(c,null,envelope!);
-            try {return VaultAuthenticationStore.NeedsEnrollment(s)?AuthenticationState.PendingEnrollment:AuthenticationState.PendingMfa;}
+            try {return s.LoginMethod=="WindowsHello"?AuthenticationState.PendingWindowsHello:VaultAuthenticationStore.NeedsEnrollment(s)?AuthenticationState.PendingEnrollment:AuthenticationState.PendingMfa;}
             finally {VaultAuthenticationStore.Clear(s);}
         }}
     }
@@ -42,7 +42,7 @@ public sealed partial class VaultManager
         if(Stopwatch.GetTimestamp()<cooldownUntil) throw new CrsException("验证码仍在 15 分钟冷却中。");
         return pending;
     }
-    private void ClearPending() {pending?.Dispose(); pending=null; awaitingConfirmation=false; replacingPhone=false; nextAttempt=0;}
+    private void ClearPending() {pending?.Dispose(); pending=null; pendingPasswordProof=false; awaitingConfirmation=false; replacingPhone=false; nextAttempt=0;}
     private static void VaultAuthenticationInitialize(string directory,VaultEnvelope metadata,string password)
     {
         using var check=new VaultSession(directory,VaultKeyManager.Unlock(metadata,password)); VaultAuthenticationStore.Ensure(check,metadata);
@@ -55,7 +55,7 @@ public sealed partial class VaultManager
             byte[]? secret=null;
             try
             {
-                if((!VaultAuthenticationStore.NeedsEnrollment(s) && !replacingPhone) || awaitingConfirmation) throw new CrsException("当前不允许绑定，请先验证旧手机或使用恢复方式。");
+                if(s.LoginMethod!="Totp" || (!VaultAuthenticationStore.NeedsEnrollment(s) && !replacingPhone) || awaitingConfirmation) throw new CrsException("当前不允许绑定，请先验证旧手机或使用恢复方式。");
                 VaultAuthenticationStore.CheckCooldown(s,Now()); secret=s.PendingTotpSecret??Totp.GenerateSecret();
                 c.Execute("UPDATE SecuritySettings SET PendingTotpSecret=@secret WHERE Id=1",new {secret},tx); tx.Commit();
                 // URI 和二维码仅留在受限绑定操作与内存中，不写入图片文件或通用设置。
@@ -72,7 +72,7 @@ public sealed partial class VaultManager
             var candidate=Pending(); using var c=candidate.Open(); using var tx=c.BeginTransaction(); var s=VaultAuthenticationStore.Read(c,tx,envelope!); var now=Now();
             try
             {
-                if((!VaultAuthenticationStore.NeedsEnrollment(s) && !replacingPhone) || awaitingConfirmation || s.PendingTotpSecret is null) throw new CrsException("请先扫描绑定二维码。");
+                if(s.LoginMethod!="Totp" || (!VaultAuthenticationStore.NeedsEnrollment(s) && !replacingPhone) || awaitingConfirmation || s.PendingTotpSecret is null) throw new CrsException("请先扫描绑定二维码。");
                 VaultAuthenticationStore.CheckCooldown(s,now);
                 var step=Totp.Match(s.PendingTotpSecret,code,now,null);
                 if(step is null) {RegisterDelay(s,true); VaultAuthenticationStore.Failure(c,tx,envelope!,s,now);}

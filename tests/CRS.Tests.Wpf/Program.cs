@@ -28,6 +28,7 @@ await HistoryInteractionChecks.RunAsync();
 await AnnualAggregationInteractionChecks.RunAsync();
 await ForeignCreditInteractionChecks.RunAsync();
 await VaultInteractionChecks.RunAsync();
+AutomaticLockChecks.Run();
 await ReportsInteractionChecks.RunAsync();
 await EncryptedReportsInteractionChecks.RunAsync();
 await CanonicalViewChecks.RunAsync();

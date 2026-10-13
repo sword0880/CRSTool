@@ -13,7 +13,8 @@ public partial class App : System.Windows.Application
     private MainWindow? workspace;
     private bool locking;
     private System.Windows.Threading.DispatcherTimer? idle;
-    private long lastInput=System.Diagnostics.Stopwatch.GetTimestamp();
+    private readonly AutomaticLockPolicy automaticLock=new();
+    private LockWindow? lockedWindow;
     private VaultWindow? securityDialog;
     /// <summary>组合根连接后台和前台，界面不直接构造解析器或数据库。</summary>
     protected override void OnStartup(StartupEventArgs e)
@@ -27,7 +28,8 @@ public partial class App : System.Windows.Application
         {
             DispatcherUnhandledException += (_, failure) =>
             {
-                System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CRS-UI-smoke-error.txt"), failure.Exception.ToString());
+                // 即使是窗口验收诊断也不落盘完整异常，避免原件路径和业务内容泄露。
+                System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CRS-UI-smoke-error.txt"), CRS.Application.SensitiveDiagnostics.FormatError(failure.Exception));
                 failure.Handled = true; Shutdown(1);
             };
         }
@@ -50,7 +52,7 @@ public partial class App : System.Windows.Application
                 window.Loaded += async (_, _) =>
                 {
                     try { await SmokeCheck.RunAsync(window, viewModel, runtime.Operations, e.Args,runtime.Vault,runtime.Settings); Shutdown(0); }
-                    catch (Exception error) { System.IO.File.WriteAllText(System.IO.Path.Combine(runtime.DirectoryPath, "smoke-error.txt"), error.ToString()); Shutdown(1); }
+                    catch (Exception error) { System.IO.File.WriteAllText(System.IO.Path.Combine(runtime.DirectoryPath, "smoke-error.txt"), CRS.Application.SensitiveDiagnostics.FormatError(error)); Shutdown(1); }
                 };
             }
             window.Show();
@@ -59,7 +61,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception error)
         {
-            if (e.Args.Contains("--smoke-test")) System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CRS-UI-smoke-error.txt"), error.ToString());
+            if (e.Args.Contains("--smoke-test")) System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CRS-UI-smoke-error.txt"), CRS.Application.SensitiveDiagnostics.FormatError(error));
             DesktopComposition.LogStartupFailure(error);
             if (!e.Args.Contains("--smoke-test")) MessageBox.Show("程序无法启动，请检查本地数据目录及配置文件。", ProductIdentity.Name);
             Shutdown(1);
@@ -103,29 +105,47 @@ public partial class App : System.Windows.Application
         workspace.LockRequested+=LockWorkspace;
         workspace.Closed+=(_,_)=> {if(!locking) Shutdown();};
         System.Windows.Input.InputManager.Current.PreProcessInput+=InputActivity;
-        lastInput=System.Diagnostics.Stopwatch.GetTimestamp(); workspace.Show(); _=shell.History.RefreshCommand.ExecuteAsync(null);
-        idle=new(TimeSpan.FromSeconds(10),System.Windows.Threading.DispatcherPriority.Background,(_,_)=> {if(System.Diagnostics.Stopwatch.GetElapsedTime(lastInput)>=TimeSpan.FromMinutes(10)) LockWorkspace();},Dispatcher);
+        automaticLock.RecordActivity(); workspace.Show(); _=shell.History.RefreshCommand.ExecuteAsync(null);
+        idle=new(TimeSpan.FromSeconds(1),System.Windows.Threading.DispatcherPriority.Input,(_,_)=> {if(automaticLock.IsExpired) LockWorkspace();},Dispatcher);
     }
     private void InputActivity(object sender,System.Windows.Input.PreProcessInputEventArgs e)
     {
         // 排除布局触发的 QueryCursor 和焦点事件；使用单调时钟，不让系统校时延长解锁时间。
         var input=e.StagingItem.Input;
         if(input is System.Windows.Input.KeyEventArgs or System.Windows.Input.MouseButtonEventArgs or System.Windows.Input.MouseWheelEventArgs or System.Windows.Input.TouchEventArgs
-            || input.RoutedEvent==System.Windows.Input.Mouse.MouseMoveEvent) lastInput=System.Diagnostics.Stopwatch.GetTimestamp();
+            || input.RoutedEvent==System.Windows.Input.Mouse.MouseMoveEvent) automaticLock.RecordActivity();
     }
-    private void SessionChanged(object sender,Microsoft.Win32.SessionSwitchEventArgs e) {if(e.Reason is Microsoft.Win32.SessionSwitchReason.SessionLock or Microsoft.Win32.SessionSwitchReason.SessionLogoff) Dispatcher.BeginInvoke(LockWorkspace);}
-    private void PowerChanged(object sender,Microsoft.Win32.PowerModeChangedEventArgs e) {if(e.Mode is Microsoft.Win32.PowerModes.Suspend or Microsoft.Win32.PowerModes.Resume) Dispatcher.BeginInvoke(LockWorkspace);}
+    private void SessionChanged(object sender,Microsoft.Win32.SessionSwitchEventArgs e)
+    {if(AutomaticLockPolicy.RequiresLock(e.Reason)) Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send,LockWorkspace);}
+    private void PowerChanged(object sender,Microsoft.Win32.PowerModeChangedEventArgs e)
+    {if(AutomaticLockPolicy.RequiresLock(e.Mode)) Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send,LockWorkspace);}
     /// <summary>立即隐藏敏感窗口，取消后台请求并销毁会话；不复用已锁定的模型或密钥。</summary>
     private void LockWorkspace()
     {
         if(locking) return;
+        // 休眠与恢复等事件可连续到达，已经锁定时保持遮挡，不重复退出或自动进入。
+        if(lockedWindow is not null) return;
         // 创建／恢复向导也可能显示恢复秘密；系统锁屏时关闭启动层，重开应用后必须重新验证。
         if(workspace is null) {foreach(Window window in Windows) window.Hide(); securityDialog?.AbortForLock(); vault?.Lock(); Shutdown(); return;}
         locking=true; idle?.Stop();
         System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity;
         workspace.Hide(); securityDialog?.AbortForLock(); securityDialog=null;
         workspace.PrepareLock(); vault?.Lock(); workspace.Close(); workspace=null;
-        locking=false; OpenWorkspace();
+        locking=false; ShowLockedWindow();
+    }
+    /// <summary>锁定后保持等待；手机验证关闭时也不能自动重新开放工作区。</summary>
+    private void ShowLockedWindow()
+    {
+        var screen=new LockWindow(); lockedWindow=screen; MainWindow=screen;
+        var resuming=false;
+        screen.UnlockRequested+=()=>
+        {
+            if(resuming) return;
+            resuming=true; screen.Close(); lockedWindow=null;
+            OpenWorkspace();
+        };
+        screen.Closed+=(_,_)=> {if(!resuming) Shutdown();};
+        screen.Show();
     }
     /// <summary>退出时清空日志资源，令牌随窗口会话释放。</summary>
     protected override void OnExit(ExitEventArgs e) {idle?.Stop(); Microsoft.Win32.SystemEvents.SessionSwitch-=SessionChanged; Microsoft.Win32.SystemEvents.PowerModeChanged-=PowerChanged; System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity; vault?.Dispose(); DesktopComposition.Shutdown(); base.OnExit(e); }
