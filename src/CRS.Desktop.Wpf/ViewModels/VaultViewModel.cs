@@ -28,6 +28,15 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     public string Password {get;set;}="";
     public string NewPassword {get;set;}="";
     public string Secret {get;set;}="";
+    // 提示使用缓存值；后台备份期间界面绑定不再查询持有门闩的数据库。
+    [ObservableProperty] private string backupCapacityHint=DescribeCapacity(vault.BackupCapacity);
+    private static string DescribeCapacity(VaultBackupCapacity? capacity)
+    {
+        if (capacity is null) return "解锁后可查看备份容量。";
+        var amount=$"当前数据约 {capacity.DatabaseBytes / 1048576d:F1} MiB，备份支持上限 {capacity.MaximumBytes / 1073741824d:F0} GiB。";
+        return amount + (capacity.ExceedsLimit ? " 已超出备份上限，请先处理容量；原库不会自动删除。"
+            : capacity.NearLimit ? " 已接近上限，请及时备份并规划容量。" : " 备份按块加密，已有备份不会被覆盖。");
+    }
     public string Code {get;set;}="";
     public string MfaRecoveryCode {get;set;}="";
     private string? unlockedDirectory=vault.IsUnlocked?settings.Load().DatabaseDirectory:null;
@@ -84,6 +93,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
         CreateCommand.NotifyCanExecuteChanged(); UnlockCommand.NotifyCanExecuteChanged(); ChangePasswordCommand.NotifyCanExecuteChanged();
         ResetPasswordCommand.NotifyCanExecuteChanged(); BackupCommand.NotifyCanExecuteChanged(); RestoreCommand.NotifyCanExecuteChanged();
         LockCommand.NotifyCanExecuteChanged(); ContinueCommand.NotifyCanExecuteChanged(); OnPropertyChanged(nameof(IsUnlocked));
+        if (!IsBusy) BackupCapacityHint=DescribeCapacity(vault.BackupCapacity);
         OnPropertyChanged(nameof(ShowPasswordEntry));
         BeginEnrollmentCommand.NotifyCanExecuteChanged(); VerifyCodeCommand.NotifyCanExecuteChanged(); RecoverPhoneCommand.NotifyCanExecuteChanged(); ReplacePhoneCommand.NotifyCanExecuteChanged();
     }
@@ -91,6 +101,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     {
         IsBusy=true;
         try { await action(); }
+        catch(OperationCanceledException) {readyAfterRun=false; Status="操作已取消，未提交新的备份或恢复目录。";}
         catch(Exception ex) {readyAfterRun=false; Status=ex is CrsException?ex.Message:"安全操作失败，请核对凭证、备份格式和文件权限。原文件未被覆盖。"; interaction.ShowError(Status); }
         finally { Password=""; NewPassword=""; Secret=""; Code=""; MfaRecoveryCode=""; UpdateDirectoryState(); IsBusy=false; }
         // 日常验证码通过即进入，先结束忙碌状态，避免关闭安全窗口时被后台门槛拦截。

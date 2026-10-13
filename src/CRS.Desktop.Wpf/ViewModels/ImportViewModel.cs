@@ -12,6 +12,8 @@ public partial class ImportViewModel : ObservableObject
     private string? futuDividendFile;
     private string[] futuTradeFiles = [];
     private string? openingPath;
+    private string? accountPeriodsPath;
+    [ObservableProperty] private string accountPeriodsLabel="未提供账户期间依据，按自然年检查";
     private CancellationTokenSource? cancellation;
     [ObservableProperty] private int year;
     [ObservableProperty] private string broker = "IBKR";
@@ -42,6 +44,7 @@ public partial class ImportViewModel : ObservableObject
     partial void OnYearChanged(int value) { State.Year = value; SetDates(); Invalidate(); }
     partial void OnBrokerChanged(string value)
     {
+        accountPeriodsPath=null; AccountPeriodsLabel="未提供账户期间依据，按自然年检查";
         files = []; openingPath = null; ReportsLabel = "尚未选择报表"; OpeningLabel = "尚未选择期初资料";
         futuDividendFile = null; futuTradeFiles = [];
         FutuDividendLabel = "尚未选择股息收入文件"; FutuTradesLabel = "尚未选择交易明细文件";
@@ -64,6 +67,7 @@ public partial class ImportViewModel : ObservableObject
     private void RefreshCommands()
     {
         PickReportsCommand.NotifyCanExecuteChanged(); PickOpeningCommand.NotifyCanExecuteChanged();
+        PickAccountPeriodsCommand.NotifyCanExecuteChanged(); ClearAccountPeriodsCommand.NotifyCanExecuteChanged();
         CalculateCommand.NotifyCanExecuteChanged(); DownloadCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
         PickFutuDividendCommand.NotifyCanExecuteChanged(); PickFutuTradesCommand.NotifyCanExecuteChanged();
         ClearFutuDividendCommand.NotifyCanExecuteChanged(); ClearFutuTradesCommand.NotifyCanExecuteChanged();
@@ -109,10 +113,20 @@ public partial class ImportViewModel : ObservableObject
         openingPath = selected[0]; OpeningLabel = System.IO.Path.GetFileName(openingPath); OpeningZero = false; Invalidate();
     }
     /// <summary>提交输入快照，成功后刷新历史并导航至税务结果。</summary>
+    [RelayCommand(CanExecute=nameof(CanOperate))]
+    private void PickAccountPeriods()
+    {
+        var selected=State.Interaction.PickFiles("账户开户／关闭期间清单|*.json",false);
+        if(selected.Length==0) return;
+        accountPeriodsPath=selected[0]; AccountPeriodsLabel=System.IO.Path.GetFileName(selected[0]); Invalidate();
+    }
+    [RelayCommand(CanExecute=nameof(CanOperate))]
+    private void ClearAccountPeriods() {accountPeriodsPath=null; AccountPeriodsLabel="未提供账户期间依据，按自然年检查"; Invalidate();}
+    /// <summary>提交输入快照，成功后刷新历史并导航至税务结果。</summary>
     [RelayCommand(CanExecute = nameof(CanCalculate))]
     private async Task CalculateAsync()
     {
-        var request = new DesktopCalculationRequest(SelectedFiles.ToArray(), Year, Broker, OpeningZero, ScopeConfirmed, UseCarry, openingPath, SaveCanonicalSnapshot);
+        var request = new DesktopCalculationRequest(SelectedFiles.ToArray(), Year, Broker, OpeningZero, ScopeConfirmed, UseCarry, openingPath, SaveCanonicalSnapshot,accountPeriodsPath);
         Invalidate();
         using var cts = new CancellationTokenSource(); cancellation = cts;
         try

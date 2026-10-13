@@ -8,32 +8,34 @@ using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
 try { await workflow.CalculateAsync(new([],2025,"IBKR",true,true,false,null,false),cancelled.Token); throw new Exception("取消请求未被拒绝。"); }
 catch (OperationCanceledException) { }
 if (operations.Store.Saved!=0) throw new Exception("取消请求被持久化。");
-try { await workflow.ExportAsync("unused",result,"old-fingerprint"); throw new Exception("过期汇率允许导出。"); } catch (CrsException) { }
+try { await workflow.ExportAsync("unused",result,"old-fingerprint",consent:new(true)); throw new Exception("过期汇率允许导出。"); } catch (CrsException) { }
 if (operations.Export.Count!=0) throw new Exception("校验失败仍调用导出适配器。");
-await workflow.ExportAsync("unused",result,"");
+await workflow.ExportAsync("unused",result,"",consent:new(true));
 if (operations.Export.Count!=1) throw new Exception("历史结果没有使用冻结汇率。");
-try { await workflow.ExportCarryAsync("unused",result); throw new Exception("不可信结转允许保存。"); } catch (CrsException) { }
+try { await workflow.ExportCarryAsync("unused",result,consent:new(true)); throw new Exception("不可信结转允许保存。"); } catch (CrsException) { }
 if (operations.CarryCount!=0) throw new Exception("结转门槛未阻止写入。");
 await workflow.SaveReviewAsync(result.SnapshotId,"资料核对","合成依据");
 if ((await workflow.ReviewsAsync(result.SnapshotId)).Count!=1) throw new Exception("复核用例未关联快照。");
 // 用户预取消或会话锁定后，不得触碰输出适配器。
 try {await workflow.ExportAsync("unused",result,"",cancelled.Token); throw new Exception("取消导出仍放行。");} catch(OperationCanceledException) { }
 workflow.EndSession();
-try {await workflow.ExportAsync("unused",result,""); throw new Exception("锁定工作区仍可导出。");} catch(OperationCanceledException) { }
-try {await workflow.ExportCarryAsync("unused",result); throw new Exception("锁定工作区仍可导出结转。");} catch(OperationCanceledException) { }
+try {await workflow.ExportAsync("unused",result,"",consent:new(true)); throw new Exception("锁定工作区仍可导出。");} catch(OperationCanceledException) { }
+try {await workflow.ExportCarryAsync("unused",result,consent:new(true)); throw new Exception("锁定工作区仍可导出结转。");} catch(OperationCanceledException) { }
 if(operations.Export.Count!=1 || operations.CarryCount!=0) throw new Exception("已取消或锁定的导出调用了写入适配器。");
 // 导出已开始后发生锁定，链接令牌也必须传到写入端口。
 var runningOperations=new StubOperations(); var runningWorkflow=new DesktopWorkflow(runningOperations);
 runningOperations.Export.BeforeWrite=token=> {runningWorkflow.EndSession(); token.ThrowIfCancellationRequested();};
-try {await runningWorkflow.ExportAsync("unused",result,""); throw new Exception("导出中锁定没有传递取消信号。");} catch(OperationCanceledException) { }
+try {await runningWorkflow.ExportAsync("unused",result,"",consent:new(true)); throw new Exception("导出中锁定没有传递取消信号。");} catch(OperationCanceledException) { }
 if(runningOperations.Export.Count!=0) throw new Exception("锁定后输出适配器仍提交。");
 if (typeof(DesktopWorkflow).Assembly.GetReferencedAssemblies().Any(a=>a.Name is "CRS.Infrastructure" or "CRS.Desktop.Wpf")) throw new Exception("Application 反向依赖实现。");
 Console.WriteLine("Application 验证通过：取消、导出门槛、历史汇率、结转、复核及依赖（6 项）。");
 AnnualCalculationChecks.Run();
+AccountPeriodChecks.Run();
 ReplayChecks.Run();
 CarryReplayChecks.Run();
 await CanonicalInputChecks.RunAsync();
 FrozenEvidenceChecks.Run();
+TaxPresentationChecks.Run();
 
 sealed class StubOperations : IDesktopOperations
 {
@@ -42,6 +44,10 @@ sealed class StubOperations : IDesktopOperations
     public IExchangeRateProvider LoadRates()=>new Rates();
     public CalculationService CreateCalculator(IExchangeRateProvider rates,string broker="IBKR",int year=2025)=>throw new Exception("取消请求不应创建计算器。");
     public string ReadQueryId()=>""; public CarryDocument ReadCarry(string path)=>throw new NotSupportedException();
+    public IReadOnlyList<AccountPeriodEvidence> ReadAccountPeriods(string path,CancellationToken cancellation=default)=>throw new NotSupportedException();
+    // 导出策略端口替身，仅用于验证授权与调用次序。
+    public void ValidateExportDestination(string path,bool plaintext,bool temporaryLocationConfirmed) { }
+    public void LogExportEvent(SensitiveExportOperation operation,SensitiveExportOutcome outcome) { }
     public ForeignCreditEvidence ReadForeignCredit(string path)=>throw new NotSupportedException();
     public void SaveCarry(string path,CalculationResult result,CancellationToken cancellation=default)=>CarryCount++;
     public Task DownloadAsync(string queryId,string token,DateOnly from,DateOnly to,string path,CancellationToken cancellation)=>Task.CompletedTask;

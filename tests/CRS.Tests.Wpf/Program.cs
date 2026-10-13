@@ -31,6 +31,7 @@ await VaultInteractionChecks.RunAsync();
 await ReportsInteractionChecks.RunAsync();
 await EncryptedReportsInteractionChecks.RunAsync();
 await CanonicalViewChecks.RunAsync();
+await TaxAmountViewChecks.RunAsync();
 
 sealed class SilentInteraction : IUserInteraction
 {
@@ -56,13 +57,13 @@ class FakeUseCases : IDesktopUseCases
     public Task<CalculationResult> LoadAsync(string id)=>Task.FromResult(Result);
     public Task<List<ReviewNote>> ReviewsAsync(string id)=>Task.FromResult(new List<ReviewNote>());
     public Task SaveReviewAsync(string id,string category,string evidence)=>Task.CompletedTask;
-    public virtual Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default)=>Task.CompletedTask;
-    public virtual Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default)=>Task.CompletedTask;
+    public virtual Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.CompletedTask;
+    public virtual Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.CompletedTask;
     // 加密交互测试可覆盖独立用例，不在替身中执行密码学或文件操作。
     public virtual Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)=>Task.CompletedTask;
-    public virtual Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default)=>Task.FromResult("synthetic-restored");
+    public virtual Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.FromResult("synthetic-restored");
     public Task DownloadAsync(string queryId,string token,DateOnly from,DateOnly to,string path,CancellationToken cancellation)=>Task.CompletedTask;
     public Task<List<AppliedRate>> RatesAsync(int year)=>Task.FromResult(new List<AppliedRate>());
     public virtual IReadOnlyList<Trade> Trades(CalculationResult result)=>[];
-    public IReadOnlyList<ReportSection> Sections(CalculationResult result,IReadOnlyList<ReviewNote> reviews)=>[new("税务汇总",new[]{result.Summary}),new("待复核",result.Issues)];
+    public IReadOnlyList<ReportSection> Sections(CalculationResult result,IReadOnlyList<ReviewNote> reviews)=>[new("税务汇总",TaxSummaryPresentation.Rows(result)),new("待复核",result.Issues)];
 }

@@ -4,7 +4,7 @@ namespace CRS.Application;
 
 /// <summary>不可变桌面请求；前台只提交用户选择，不解析券商文件。</summary>
 public sealed record DesktopCalculationRequest(string[] Files, int Year, string Broker,
-    bool OpeningZero, bool ScopeConfirmed, bool UseCarry, string? OpeningPath, bool SaveCanonicalSnapshot);
+    bool OpeningZero, bool ScopeConfirmed, bool UseCarry, string? OpeningPath, bool SaveCanonicalSnapshot,string? AccountPeriodsPath=null);
 public sealed record DesktopCalculationOutcome(CalculationResult Result, string RatesFingerprint);
 
 /// <summary>WPF 前台的应用用例，集中计算、持久化和导出门槛。</summary>
@@ -35,10 +35,15 @@ public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUse
     /// <summary>统一前台和导出的辅助汇总入口，展示层不重新聚合业务金额。</summary>
     public IReadOnlyList<ReportSection> Sections(CalculationResult r, IReadOnlyList<ReviewNote> reviews)
     {
-        List<ReportSection> sections = [new("税务汇总", new[] { r.Summary }), new("待复核", r.Issues), new("FIFO 明细", r.Matches),
+        List<ReportSection> sections = [new("税务汇总", TaxSummaryPresentation.Rows(r)), new("待复核", r.Issues), new("FIFO 明细", r.Matches),
             new("卖出收益核对", r.PnlChecks), new("现金余额核对", r.CashChecks), new("汇率底稿", r.Rates), new("期末 LOT", r.EndingLots), new("人工复核", reviews)];
         if (r.IsAnnualAggregate) sections.Add(new("年度汇总来源", r.AggregationSources.SelectMany(s => s.Accounts
             .Select(a => new { 来源任务 = s.SnapshotId, 券商 = s.Broker, 年度 = s.Year, 账户 = a })).ToList()));
+        // 显示已核对事实及来源摘要，避免把活动期完整误称为完整自然年。
+        if(r.AccountPeriods is not null) sections.Add(new("账户期间依据",r.AccountPeriods.Select(p=>new
+            {账户=p.Account,开户日期=p.Opened,关闭日期=p.Closed,开户零持仓已确认=p.OpeningZeroConfirmed,凭证=p.EvidenceName,凭证摘要=p.EvidenceSha256,已核对=p.Reviewed}).ToList()));
+        if(r.AccountCoverage is not null) sections.Add(new("期间覆盖状态",r.AccountCoverage.Select(p=>new
+            {账户=p.Account,开始日期=p.Start,结束日期=p.End,期间类型=p.Kind switch {"AccountActivity"=>"账户活动期","CalendarYear"=>"完整自然年",_=>"临时报告"},期间完整=p.PeriodComplete}).ToList()));
         if (r.ForeignCreditAssessment is { } credit)
         {
             // 抵免明细与国家限额一起呈现，不用币种代替所得来源地。
@@ -59,9 +64,10 @@ public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUse
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token); cancellation=linked.Token;
         var rates = operations.LoadRates();
         var carry = request.UseCarry && request.OpeningPath is not null ? operations.ReadCarry(request.OpeningPath) : null;
+        var periods=request.AccountPeriodsPath is null?null:operations.ReadAccountPeriods(request.AccountPeriodsPath,cancellation);
         var result = operations.CreateCalculator(rates, request.Broker, request.Year).Calculate(request.Files, request.Year,
             request.OpeningZero, request.ScopeConfirmed, request.UseCarry ? null : request.OpeningPath,
-            carry, cancellation, request.SaveCanonicalSnapshot);
+            carry, cancellation, request.SaveCanonicalSnapshot,periods);
         cancellation.ThrowIfCancellationRequested();
         operations.Repository.Save(result);
         return new DesktopCalculationOutcome(result, rates.Fingerprint);
@@ -168,37 +174,14 @@ public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUse
     public Task<List<ReviewNote>> ReviewsAsync(string id) => reviews.NotesAsync(id);
     /// <summary>保存依据，不修改原始税额或复核状态。</summary>
     public Task SaveReviewAsync(string id, string category, string evidence) => reviews.SaveAsync(id, category, evidence);
-    /// <summary>导出前验证当前汇率指纹；历史结果使用冻结汇率。</summary>
-    public Task ExportAsync(string path, CalculationResult result, string fingerprint, CancellationToken cancellation = default) => Task.Run(() =>
-    {
-        // 用户取消与锁定共用取消边界，写入适配器在最终提交前再次检查。
-        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
-        linked.Token.ThrowIfCancellationRequested();
-        if (fingerprint.Length > 0 && operations.LoadRates().Fingerprint != fingerprint)
-            throw new CrsException("汇率配置已更改，请重新计算后导出。");
-        operations.Reports.Export(path, result, operations.Repository.Reviews(result.SnapshotId),linked.Token);
-    },cancellation);
-    /// <summary>加密导出沿用原汇率门槛和会话取消，不复用保险库主密码。</summary>
-    public Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)=>Task.Run(()=>
-    {
-        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
-        linked.Token.ThrowIfCancellationRequested();
-        if(fingerprint.Length>0 && operations.LoadRates().Fingerprint!=fingerprint) throw new CrsException("汇率配置已更改，请重新计算后导出。");
-        operations.Reports.ExportEncrypted(path,result,password,operations.Repository.Reviews(result.SnapshotId),linked.Token);
-    },cancellation);
-    /// <summary>解密只恢复文件，不导入或改写当前数据库。</summary>
-    public Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default)=>Task.Run(()=>
-    {
-        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
-        linked.Token.ThrowIfCancellationRequested();
-        return operations.Reports.RestoreEncrypted(path,parentDirectory,password,linked.Token);
-    },cancellation);
-    /// <summary>只允许可信年末成本生成结转。</summary>
-    public Task ExportCarryAsync(string path, CalculationResult result, CancellationToken cancellation = default) => Task.Run(() =>
-    {
-        using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
-        linked.Token.ThrowIfCancellationRequested();
-        if (!result.CarryEligible) throw new CrsException("年末成本尚未核实，不能导出结转。");
-        operations.SaveCarry(path, result,linked.Token);
-    },cancellation);
+    /// <summary>导出统一经过后台授权与路径策略；用户确认不替代会话有效性。</summary>
+    private SensitiveDataExportService Exports=>new(operations,lifetime.Token);
+    public Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
+        =>Exports.ExportAsync(path,result,fingerprint,cancellation,consent);
+    public Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
+        =>Exports.ExportCarryAsync(path,result,cancellation,consent);
+    public Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)
+        =>Exports.ExportEncryptedAsync(path,result,fingerprint,password,cancellation);
+    public Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
+        =>Exports.RestoreEncryptedAsync(path,parentDirectory,password,cancellation,consent);
 }

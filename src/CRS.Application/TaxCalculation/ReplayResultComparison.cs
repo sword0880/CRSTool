@@ -14,6 +14,7 @@ internal static class ReplayResultComparison
     private static string Describe(CalculationResult r) => JsonSerializer.Serialize(new
     {
         r.Broker, r.Year, r.Summary, r.ImportedTradeCount,
+        periods=r.AccountPeriods is null?null:Rows(r.AccountPeriods), coverage=r.AccountCoverage is null?null:Rows(r.AccountCoverage),
         matches = Rows(r.Matches), lots = Rows(r.EndingLots), rounding = Rows(r.EndingRounding),
         issues = Rows(r.Issues), warnings = r.Warnings.Order(StringComparer.Ordinal),
         cash = Rows(r.CashChecks), pnl = Rows(r.PnlChecks), rates = Rows(r.Rates), sources = Rows(r.Sources),

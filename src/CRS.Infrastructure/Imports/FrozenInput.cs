@@ -8,6 +8,7 @@ internal sealed class FrozenInput
     private const int MaxBytes=25*1024*1024;
     private readonly byte[] content;
     internal string Name {get;}
+    internal int Length=>content.Length;
     internal string Sha256 {get;}
     private FrozenInput(string path,byte[] bytes)
     {

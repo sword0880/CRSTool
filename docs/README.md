@@ -1,28 +1,33 @@
-# 项目文档
+# 文档导航
 
-本文档集只保留当前 WPF 版本的使用、实现和验收说明。旧 Python／WinForms 设计、重复迁移记录和原始归档已移出 docs；未解决的问题集中维护，避免丢失待办。
+从这里进入当前文档。操作说明、现有实现、设计目标和历史记录分别维护；**未完成项目以 [当前待办](KNOWN_ISSUES.md) 为准，发布状态以 [发布验收](validation/RELEASE_ACCEPTANCE.md) 为准**。
 
-## 使用
+Visual Studio 打开或重新加载 CRS.sln 后，在解决方案资源管理器的 docs 节点中可按相同目录阅读文档与示例。
 
-- [启动说明](../README.md)
-- [产品与页面](PRD.md)
-- [日志与数据库设置](SETTINGS.md)
-- [IBKR 导入](IBKR_IMPORT_GUIDE.md) · [Flex 下载](IBKR_FLEX_AUTO_DOWNLOAD.md)
-- [富途导入](FUTU_CSHARP_IMPORT_GUIDE.md)
-- [汇率来源与截止期间](EXCHANGE_RATE_SOURCES.md)
+## 常用入口
 
-## 开发与验证
+- 开始使用：[启动](../README.md)、[IBKR 导入](guides/IBKR_IMPORT_GUIDE.md)、[富途导入](guides/FUTU_CSHARP_IMPORT_GUIDE.md)。
+- 保护与恢复数据：[保险库](guides/VAULT_GUIDE.md)、[手机验证](guides/AUTH_IMPLEMENTATION.md)、[设置](guides/SETTINGS.md)、[加密底稿](guides/ENCRYPTED_EXPORT.md)。
+- 核对资料：[账户期间](guides/ACCOUNT_PERIODS.md)、[汇率来源](guides/EXCHANGE_RATE_SOURCES.md)、[抵免复核](guides/FOREIGN_CREDIT_REVIEW.md)。
+- 继续开发：[项目结构](architecture/PROJECT_STRUCTURE.md)、[应用接口](architecture/API_SPEC.md)、[当前待办](KNOWN_ISSUES.md)。
+- 查看验证：[验证范围](validation/TEST_SPEC.md)、[真实样本](validation/REAL_SAMPLE_PROGRESS.md)、[P0 修复记录](validation/P0_FIX_PROGRESS.md)、[运行命令](../tests/README.md)。
 
-- [系统架构](SAD.md) · [项目结构](PROJECT_STRUCTURE.md)
-- [应用接口](API_SPEC.md) · [开发约定](CRS开发规范.md)
-- [FIFO 实现](CAPITAL_GAIN_FIFO_SPEC.md) · [税额算法](TAX_ENGINE_SPEC.md)
-- [富途字段映射](FUTU_FIELD_MAPPING.md)
-- [导入原件与快照摘要一致性](INPUT_CONSISTENCY.md)
-- [规范化快照读取校验](CANONICAL_VALIDATION.md)
-- [冻结结果与运行证据](FROZEN_EVIDENCE.md)
-- [加密底稿与恢复](ENCRYPTED_EXPORT.md)
-- [真实样本验收进展](REAL_SAMPLE_PROGRESS.md)
-- [测试规范](TEST_SPEC.md) · [验证命令](../tests/README.md)
-- [当前问题与验收缺口](KNOWN_ISSUES.md)
+## 目录
 
-规范描述现有辅助算法和产品边界，不把未完成业务签认、覆盖率或性能目标写成已实现。代码变化时同步更新对应说明及问题清单。
+| 目录 | 内容 | 阅读用途 |
+| --- | --- | --- |
+| [guides](guides/README.md) | 操作指南、资料要求与设置 | 使用产品 |
+| [architecture](architecture/README.md) | 产品、分层、接口与开发约定 | 理解项目 |
+| [implementation](implementation/README.md) | 当前算法、格式、限额与保护机制 | 核对现有行为 |
+| [specifications](specifications/README.md) | 安全、证据、税务验证与发布目标 | 查设计要求，不代表全部已实现 |
+| [validation](validation/README.md) | 测试范围、发布门槛、真实样本与 P0 记录 | 查验收证据 |
+| [archive](archive/README.md) | 旧交付、审查原状与历史测量 | 追溯历史 |
+| [examples](examples/README.md) | 可复制的输入清单示例 | 准备资料，必须替换占位值 |
+
+## 维护约定
+
+1. 新文档放入对应目录，并更新该目录导航；根目录只保留本导航和当前待办。
+2. 使用指南说明操作；实现文档说明当前代码；设计规范写目标；验收文档注明日期、产物及未通过项。
+3. 未完成项集中更新 KNOWN_ISSUES；发布门槛集中更新 RELEASE_ACCEPTANCE，避免在各文档复制进度表。
+4. 旧轮次测量和交付记录归档，不把历史覆盖率、合成测试或技术往返一致当作最新业务签认。
+5. 文件名尽量稳定，新增或移动时更新 Markdown 链接、目录索引及 CRS.sln 的解决方案文件条目；文中的 src、tests、Sample、artifacts 路径和运行命令均以仓库根目录为基准。

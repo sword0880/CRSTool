@@ -65,8 +65,9 @@ internal static class VaultChecks
         var passwordRestored=Path.Combine(root,"restored-password"); await portable.RestoreAsync(backup,passwordRestored,password,false,newPassword);
         await Reject(()=>portable.RestoreAsync(backup,restored,password,false,newPassword));
         await Reject(()=>portable.RestoreAsync(backup,Path.Combine(root,"wrong-secret"),"wrong-password",false,newPassword));
-        var tampered=JsonNode.Parse(backupBefore)!.AsObject(); var data=Convert.FromBase64String(tampered["Payload"]!["Ciphertext"]!.GetValue<string>()); data[0]^=1;
-        tampered["Payload"]!["Ciphertext"]=Convert.ToBase64String(data); var invalid=Path.Combine(root,"tampered.crsbak"); File.WriteAllText(invalid,tampered.ToJsonString());
+        // 新容器任何一块或尾部损坏都不能留下可用恢复目标。
+        var tampered=backupBefore.ToArray(); tampered[^5]^=1;
+        var invalid=Path.Combine(root,"tampered.crsbak"); File.WriteAllBytes(invalid,tampered);
         var invalidTarget=Path.Combine(root,"must-not-exist"); await Reject(()=>portable.RestoreAsync(invalid,invalidTarget,password,false,newPassword));
         if(Directory.Exists(invalidTarget)) throw new Exception("损坏备份留下目标目录。");
         // 只构造明文头样本；应用不得建立明文连接、读表、重命名或删除旧文件。

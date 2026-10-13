@@ -17,6 +17,8 @@ public interface IDesktopOperations
     string ReadQueryId();
     /// <summary>校验并读取 C# 年度结转文件。</summary>
     CarryDocument ReadCarry(string path);
+    /// <summary>限量读取账户期间清单和凭证，仅返回经用户核对的事实及摘要。</summary>
+    IReadOnlyList<AccountPeriodEvidence> ReadAccountPeriods(string path,CancellationToken cancellation=default);
     /// <summary>读取抵免明细并对用户提供的凭证计算摘要，不保存凭证正文。</summary>
     ForeignCreditEvidence ReadForeignCredit(string path);
     /// <summary>将可信结果转换为年度结转并保存。</summary>
@@ -25,4 +27,8 @@ public interface IDesktopOperations
     Task DownloadAsync(string queryId, string token, DateOnly from, DateOnly to, string path, CancellationToken cancellation);
     /// <summary>只记录异常类别，避免外部异常正文暴露敏感数据。</summary>
     void LogFailure(string exceptionType);
+    /// <summary>检查导出／恢复目的地及明文临时目录策略，不创建任何文件。</summary>
+    void ValidateExportDestination(string path,bool plaintext,bool temporaryLocationConfirmed);
+    /// <summary>仅记录固定导出事件和结果，不接受路径、账户、金额或密码。</summary>
+    void LogExportEvent(SensitiveExportOperation operation,SensitiveExportOutcome outcome);
 }

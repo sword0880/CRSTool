@@ -46,7 +46,7 @@ public partial class ReportsViewModel : ObservableObject
             if(files.Length!=1 || !State.Interaction.ConfirmPlaintextRestore()) return;
             var parent=State.Interaction.PickFolder(); if(parent is null) return;
             var secret=password;
-            await State.RunAsync(async()=> {var restored=await State.UseCases.RestoreEncryptedAsync(files[0],parent,secret,cancellation); State.Status="已恢复到新文件夹："+restored;});
+            await State.RunAsync(async()=> {var restored=await State.UseCases.RestoreEncryptedAsync(files[0],parent,secret,cancellation,new(true)); State.Status="已恢复到新文件夹："+restored;});
         }
         finally {ClearSensitiveInputs();}
     }
@@ -58,7 +58,7 @@ public partial class ReportsViewModel : ObservableObject
         var result = State.Result!;
         var path = State.Interaction.SaveFile("Excel 底稿|*.xlsx", $"{(result.Complete ? "Tax_Report" : "Partial_Review")}_{result.Year}.xlsx");
         if (path is null) return;
-        await State.RunAsync(async () => { await State.UseCases.ExportAsync(path, result, State.Fingerprint,cancellation); State.Status = "Excel 底稿已保存。"; });
+        await State.RunAsync(async () => { await State.UseCases.ExportAsync(path, result, State.Fingerprint,cancellation,new(true)); State.Status = "Excel 底稿已保存。"; });
     }
     [RelayCommand(CanExecute = nameof(CanCarry),IncludeCancelCommand = true)]
     private async Task ExportCarryAsync(CancellationToken cancellation)
@@ -67,6 +67,6 @@ public partial class ReportsViewModel : ObservableObject
         var result = State.Result!;
         var path = State.Interaction.SaveFile("C# LOT 结转|*.json", $"LOTS_{result.Year}.json");
         if (path is null) return;
-        await State.RunAsync(async () => { await State.UseCases.ExportCarryAsync(path, result,cancellation); State.Status = "年末 LOT 结转已保存。"; });
+        await State.RunAsync(async () => { await State.UseCases.ExportCarryAsync(path, result,cancellation,new(true)); State.Status = "年末 LOT 结转已保存。"; });
     }
 }

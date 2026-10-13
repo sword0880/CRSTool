@@ -35,7 +35,7 @@ internal static class EncryptedReportsInteractionChecks
         public int Exports,Restores; public bool Cancelled;
         public override async Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)
         {Exports++; try {await Task.Delay(Timeout.Infinite,cancellation);} finally {Cancelled=cancellation.IsCancellationRequested;}}
-        public override Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default)
+        public override Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
         {Restores++; return Task.FromResult("synthetic-restored");}
     }
     private sealed class Interaction:IUserInteraction

@@ -16,6 +16,8 @@ if (args.Length == 2 && args[0] == "--benchmark") { ReleaseBenchmark.Run(args[1]
 if (args.Length == 3 && args[0] == "--accept-real") { RealSampleAcceptance.Run(args[1],args[2]); return; }
 // 真实私有样本的技术验收不代替独立人工金额签认，且不输出原件身份信息。
 if (args.Length == 4 && args[0] == "--verify-local-real") { LocalRealSampleChecks.Run(args[1],args[2],args[3],workspace); return; }
+// IBKR 使用正文期间及真实历史组合验证，不凭文件名认定年度覆盖完整。
+if (args.Length == 4 && args[0] == "--verify-ibkr-real") { IbkrRealSampleChecks.Run(args[1],args[2],args[3],workspace); return; }
 if (args.Length >= 2 && args[0] == "--analyze")
 {
     var analyzed = CalculationServices.Create(args.Length >= 3 ? new ExchangeRates(args[2]) : rates).Calculate([args[1]], 2025, true, true);

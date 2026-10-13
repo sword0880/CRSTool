@@ -45,7 +45,8 @@ internal static class DatabaseSchema
             {
                 // 先保留同格式可恢复备份；备份失败时还未执行任何业务结构修改。
                 var path=Path.Combine(session.DirectoryPath,"schema-v1-"+Guid.NewGuid().ToString("N")+".crsbak");
-                (writeBackup??VaultBackupFiles.Write)(session,VaultFiles.ReadEnvelope(session.DirectoryPath),path);
+                if(writeBackup is not null) writeBackup(session,VaultFiles.ReadEnvelope(session.DirectoryPath),path);
+                else VaultBackupFiles.Write(session,VaultFiles.ReadEnvelope(session.DirectoryPath),path);
                 c.Execute("ALTER TABLE calculations ADD COLUMN execution_archived INTEGER NOT NULL DEFAULT 0 CHECK(execution_archived IN (0,1));"+ArchiveTables+"PRAGMA user_version=2;",transaction:tx);
             }
         }

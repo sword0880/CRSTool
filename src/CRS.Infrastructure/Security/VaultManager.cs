@@ -12,10 +12,31 @@ namespace CRS.Infrastructure;
 public sealed partial class VaultManager : IVaultService
 {
     private readonly object gate=new();
+    private readonly object operationGate=new();
+    private CancellationTokenSource operationLifetime=new();
+    private CancellationToken CaptureOperation() {lock(operationGate) return operationLifetime.Token;}
     private VaultSession? session;
     private VaultEnvelope? envelope;
     private LocalStore? repository;
     public bool IsUnlocked {get {lock(gate) return session is not null;}}
+    public VaultBackupCapacity? BackupCapacity
+    {
+        get
+        {
+            lock(gate)
+            {
+                if (session is null) return null;
+                return session.Use(() =>
+                {
+                    using var connection=session.Open();
+                    using var transaction=connection.BeginTransaction(deferred:true);
+                    var bytes=connection.ExecuteScalar<long>("PRAGMA page_count",transaction:transaction)
+                        * connection.ExecuteScalar<long>("PRAGMA page_size",transaction:transaction);
+                    return new VaultBackupCapacity(bytes,ChunkedVaultBackup.MaxDatabaseBytes);
+                });
+            }
+        }
+    }
     public ICalculationRepository Repository {get {lock(gate) return repository??throw new CrsException("保险库未解锁。");}}
     public VaultState Inspect(string directory)
     {
@@ -103,46 +124,110 @@ public sealed partial class VaultManager : IVaultService
         }
     });
     /// <summary>SQLite 在线备份 API 生成独立加密快照，经验证后封装；不直接复制正在写入的数据库。</summary>
-    public Task BackupAsync(string path)=>Task.Run(()=>
+    public Task BackupAsync(string path,CancellationToken cancellation=default)=>BackupCoreAsync(path,cancellation);
+    // 单次调用的进度探针只供隔离故障验证，不引入全局开关或跳过认证。
+    internal Task BackupCoreAsync(string path,CancellationToken cancellation=default,Action<CancellationToken>? afterStep=null)
     {
+        var generation=CaptureOperation();
+        return Task.Run(()=>
+        {
         lock(gate)
         {
+            generation.ThrowIfCancellationRequested();
+            using var linked=CancellationTokenSource.CreateLinkedTokenSource(generation,cancellation);
             var active=Required();
-            VaultBackupFiles.Write(active,envelope!,path);
+            try {VaultBackupFiles.Write(active,envelope!,path,linked.Token,afterStep);}
+            catch(Exception) when(linked.IsCancellationRequested) {throw new OperationCanceledException(linked.Token);}
         }
-    });
+        });
+    }
     /// <summary>恢复先认证容器、核对摘要和加密库完整性，成功后才将暂存目录提交到新空位置。</summary>
-    public Task RestoreAsync(string backupPath,string targetDirectory,string secret,bool useRecovery,string newPassword)=>Task.Run(()=>
+    public Task RestoreAsync(string backupPath,string targetDirectory,string secret,bool useRecovery,string newPassword,CancellationToken cancellation=default)
     {
+        var generation=CaptureOperation();
+        return Task.Run(()=>
+        {
         lock(gate)
         {
+            generation.ThrowIfCancellationRequested();
+            using var linked=CancellationTokenSource.CreateLinkedTokenSource(generation,cancellation); cancellation=linked.Token;
+            cancellation.ThrowIfCancellationRequested();
             if(session is not null || pending is not null) throw new CrsException("请先锁定当前保险库。");
             using var stream=File.OpenRead(backupPath);
+            // 固定头区分新分块容器与旧加密 JSON；不提供明文库兼容或转换。
+            Span<byte> prefix = stackalloc byte[ChunkedVaultBackup.Magic.Length];
+            prefix.Clear();
+            if (stream.Length >= prefix.Length) stream.ReadExactly(prefix);
+            stream.Position = 0;
+            if (prefix.SequenceEqual(ChunkedVaultBackup.Magic))
+            {
+                RestoreChunked(stream,targetDirectory,secret,useRecovery,newPassword,cancellation); return;
+            }
             if(stream.Length is <=0 or >256*1024*1024) throw new CrsException("备份大小无效，最大支持 256 MB 容器。");
             var backup=JsonSerializer.Deserialize<VaultBackupFile>(stream,VaultFiles.Options)??throw new CrsException("备份格式无效。");
             if(backup.Schema!="CRS.Backup.v1") throw new CrsException("备份版本不支持。");
             using var key=useRecovery?RecoveryKeyManager.Recover(backup.Envelope,secret):VaultKeyManager.Unlock(backup.Envelope,secret);
+            cancellation.ThrowIfCancellationRequested();
             var plain=AuthenticatedEncryption.Open(backup.Payload,key); string? staging=null;
             try
             {
                 var body=JsonSerializer.Deserialize<VaultBackupBody>(plain,VaultFiles.Options)??throw new CrsException("备份正文无效。");
                 try
                 {
-                    if(JsonSerializer.Serialize(body.Envelope)!=JsonSerializer.Serialize(backup.Envelope)
+                    if(body.Database is null || body.Database.Length is <=0 or >128*1024*1024 || body.Sha256 is not {Length:32}
+                        || JsonSerializer.Serialize(body.Envelope)!=JsonSerializer.Serialize(backup.Envelope)
                         || !CryptographicOperations.FixedTimeEquals(SHA256.HashData(body.Database),body.Sha256)) throw new CrsException("备份元数据或数据库摘要不一致。");
                     staging=VaultFiles.BeginNewDirectory(targetDirectory);
-                    VaultFiles.AtomicWrite(Path.Combine(staging,"crs.db"),body.Database);
+                    VaultFiles.AtomicWrite(Path.Combine(staging,"crs.db"),s=>s.Write(body.Database),cancellation:cancellation);
                     var changed=VaultKeyManager.ChangePassword(body.Envelope,key,newPassword);
                     VaultFiles.AtomicWrite(VaultFiles.EnvelopePath(staging),JsonSerializer.SerializeToUtf8Bytes(changed));
-                    using(var check=new VaultSession(staging,key.Clone())) { check.Verify(); VaultAuthenticationStore.Ensure(check,changed); _=new LocalStore(check); }
+                    using(var check=new VaultSession(staging,key.Clone()))
+                    { using var registration=cancellation.Register(check.RequestLock); check.Verify(); VaultAuthenticationStore.Ensure(check,changed); _=new LocalStore(check); }
+                    cancellation.ThrowIfCancellationRequested();
                     VaultFiles.CommitDirectory(staging,targetDirectory);
                 }
                 finally { Clear(body.Database); }
             }
             finally { Clear(plain); if(staging is not null) Cleanup(staging); }
         }
-    });
-    public void Lock() {lock(gate) {ClearPending(); session?.Dispose(); session=null; repository=null; envelope=null;}}
+        });
+    }
+    /// <summary>分块逐一认证后只写加密数据库字节；全部块和数据库校验通过才提交新目录。</summary>
+    private static void RestoreChunked(Stream stream,string target,string secret,bool recovery,string password,CancellationToken cancellation)
+    {
+        if (stream.Length is <=0 or >3L*1024*1024*1024) throw new CrsException("分块备份容器超过 3 GiB 上限。");
+        var header = ChunkedVaultBackup.ReadHeader(stream);
+        using var key = recovery ? RecoveryKeyManager.Recover(header.Envelope,secret) : VaultKeyManager.Unlock(header.Envelope,secret);
+        var manifest = ChunkedVaultBackup.Authenticate(header,key);
+        cancellation.ThrowIfCancellationRequested();
+        string? staging = null;
+        try
+        {
+            staging = VaultFiles.BeginNewDirectory(target);
+            using (var database = new FileStream(Path.Combine(staging,"crs.db"),FileMode.CreateNew,FileAccess.Write,FileShare.None))
+            {
+                ChunkedVaultBackup.Extract(stream,database,manifest,key,cancellation); database.Flush(true);
+            }
+            var changed = VaultKeyManager.ChangePassword(manifest.Envelope,key,password);
+            VaultFiles.AtomicWrite(VaultFiles.EnvelopePath(staging),JsonSerializer.SerializeToUtf8Bytes(changed));
+            using (var check = new VaultSession(staging,key.Clone()))
+            { using var registration=cancellation.Register(check.RequestLock); check.Verify(); VaultAuthenticationStore.Ensure(check,changed); _=new LocalStore(check); }
+            cancellation.ThrowIfCancellationRequested();
+            VaultFiles.CommitDirectory(staging,target);
+        }
+        finally { if (staging is not null) Cleanup(staging); }
+    }
+    public void Lock()
+    {
+        // 先发出不可复活的取消，再等待事务退出；不能先等门闩再通知后台停止。
+        lock(operationGate) operationLifetime.Cancel();
+        Volatile.Read(ref session)?.RequestLock(); Volatile.Read(ref pending)?.RequestLock();
+        lock(gate)
+        {
+            ClearPending(); session?.Dispose(); session=null; repository=null; envelope=null;
+            lock(operationGate) {operationLifetime.Cancel(); operationLifetime.Dispose(); operationLifetime=new();}
+        }
+    }
     public void Dispose()=>Lock();
     internal void Execute(Action action) {lock(gate) Required().Use(action);}
     /// <summary>捕获当前不可复活会话，防止旧导出任务借后续新解锁继续写入。</summary>

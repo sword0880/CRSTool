@@ -95,7 +95,11 @@ internal static class CanonicalInputChecks
         public IReportExporter Reports=>throw new NotSupportedException(); public IExchangeRateProvider LoadRates()=>throw new NotSupportedException();
         public CalculationService CreateCalculator(IExchangeRateProvider rates,string broker="IBKR",int year=2025)=>throw new NotSupportedException();
         public string ReadQueryId()=>""; public CarryDocument ReadCarry(string path)=>throw new NotSupportedException();
-        public ForeignCreditEvidence ReadForeignCredit(string path)=>throw new NotSupportedException();
+        public IReadOnlyList<AccountPeriodEvidence> ReadAccountPeriods(string path,CancellationToken cancellation=default)=>throw new NotSupportedException();
+        // 导出策略端口替身，仅用于验证授权与调用次序。
+    public void ValidateExportDestination(string path,bool plaintext,bool temporaryLocationConfirmed) { }
+    public void LogExportEvent(SensitiveExportOperation operation,SensitiveExportOutcome outcome) { }
+    public ForeignCreditEvidence ReadForeignCredit(string path)=>throw new NotSupportedException();
         public void SaveCarry(string path,CalculationResult value,CancellationToken cancellation=default)=>throw new NotSupportedException();
         public Task DownloadAsync(string queryId,string token,DateOnly from,DateOnly to,string path,CancellationToken cancellation)=>throw new NotSupportedException();
         public void LogFailure(string exceptionType) { }

@@ -26,6 +26,22 @@ internal static class ImportInteractionChecks
         if (shell.Import.PickFutuDividendCommand.CanExecute(null) || shell.Import.ClearFutuDividendCommand.CanExecute(null)) throw new Exception("运行中仍允许修改富途输入。");
         shell.State.IsBusy = false; shell.Import.Broker = "IBKR"; shell.Import.Broker = "FUTU";
         if (shell.Import.CalculateCommand.CanExecute(null)) throw new Exception("切换券商保留了旧文件。");
+        // 期间清单独立选择；取消保持，清除与切换券商不能沿用旧声明。
+        picker.Files=["periods.json"]; shell.Import.PickAccountPeriodsCommand.Execute(null);
+        picker.Files=[]; shell.Import.PickAccountPeriodsCommand.Execute(null);
+        if(shell.Import.AccountPeriodsLabel!="periods.json") throw new Exception("取消选择清除了期间清单。");
+        picker.Files=["income.xlsx"]; shell.Import.PickFutuDividendCommand.Execute(null);
+        await shell.Import.CalculateCommand.ExecuteAsync(null);
+        if(cases.LastRequest?.AccountPeriodsPath!="periods.json") throw new Exception("期间清单未传入计算请求。");
+        shell.State.IsBusy=true;
+        if(shell.Import.PickAccountPeriodsCommand.CanExecute(null) || shell.Import.ClearAccountPeriodsCommand.CanExecute(null))
+            throw new Exception("忙碌时仍允许改变期间依据。");
+        shell.State.IsBusy=false; shell.Import.ClearAccountPeriodsCommand.Execute(null);
+        await shell.Import.CalculateCommand.ExecuteAsync(null);
+        if(cases.LastRequest?.AccountPeriodsPath is not null) throw new Exception("清除后仍提交期间依据。");
+        picker.Files=["periods.json"]; shell.Import.PickAccountPeriodsCommand.Execute(null); shell.Import.Broker="IBKR";
+        if(shell.Import.AccountPeriodsLabel=="periods.json") throw new Exception("切换券商保留了期间依据。");
+        Console.WriteLine("期间导入交互通过：选择／取消、请求传递、忙碌、清除及券商切换隔离。");
         Console.WriteLine("富途交互验证通过：独立替换、取消保持、提交与清除、忙碌与券商切换（4 项）。");
     }
     private sealed class TestPicker : IUserInteraction

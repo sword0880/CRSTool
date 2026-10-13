@@ -2,6 +2,12 @@ namespace CRS.Application.Abstractions;
 
 public enum VaultState { Missing, Encrypted, PlaintextRejected, Invalid }
 public sealed record VaultCreationInfo(string RecoveryKey);
+/// <summary>逻辑数据库容量含 WAL 页；界面只显示容量，不暴露位置或密钥。</summary>
+public sealed record VaultBackupCapacity(long DatabaseBytes, long MaximumBytes)
+{
+    public bool ExceedsLimit => DatabaseBytes > MaximumBytes;
+    public bool NearLimit => DatabaseBytes >= MaximumBytes / 4 * 3;
+}
 // 认证状态与短暂展示素材通过端口传递，不含数据库密钥或原生连接。
 public enum AuthenticationState { Locked, PendingEnrollment, PendingMfa, AwaitingRecoveryConfirmation, Authenticated }
 public sealed record EnrollmentImage(byte[] Png);
@@ -9,6 +15,7 @@ public sealed record EnrollmentImage(byte[] Png);
 public interface IVaultService : IDisposable
 {
     bool IsUnlocked { get; }
+    VaultBackupCapacity? BackupCapacity { get; }
     bool PhoneVerificationEnabled { get; }
     AuthenticationState Authentication { get; }
     VaultState Inspect(string directory);
@@ -26,7 +33,7 @@ public interface IVaultService : IDisposable
     Task BeginPhoneReplacementAsync(string password,string code);
     Task ResetPasswordAsync(string directory,string recoveryKey,string newPassword);
     Task ChangePasswordAsync(string oldPassword,string newPassword,string code);
-    Task BackupAsync(string path);
-    Task RestoreAsync(string backupPath,string targetDirectory,string secret,bool useRecovery,string newPassword);
+    Task BackupAsync(string path,CancellationToken cancellation=default);
+    Task RestoreAsync(string backupPath,string targetDirectory,string secret,bool useRecovery,string newPassword,CancellationToken cancellation=default);
     void Lock();
 }

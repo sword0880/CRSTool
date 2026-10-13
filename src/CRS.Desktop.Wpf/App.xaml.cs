@@ -120,7 +120,7 @@ public partial class App : System.Windows.Application
     {
         if(locking) return;
         // 创建／恢复向导也可能显示恢复秘密；系统锁屏时关闭启动层，重开应用后必须重新验证。
-        if(workspace is null) {vault?.Lock(); foreach(Window window in Windows) window.Hide(); Shutdown(); return;}
+        if(workspace is null) {foreach(Window window in Windows) window.Hide(); securityDialog?.AbortForLock(); vault?.Lock(); Shutdown(); return;}
         locking=true; idle?.Stop();
         System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity;
         workspace.Hide(); securityDialog?.AbortForLock(); securityDialog=null;

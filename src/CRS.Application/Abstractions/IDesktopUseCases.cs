@@ -26,11 +26,11 @@ public interface IDesktopUseCases
     Task<List<ReviewNote>> ReviewsAsync(string id);
     Task SaveReviewAsync(string id, string category, string evidence);
     // 导出取消同时关联工作区会话；锁定后旧导出不得提交目标文件。
-    Task ExportAsync(string path, CalculationResult result, string fingerprint, CancellationToken cancellation = default);
-    Task ExportCarryAsync(string path, CalculationResult result, CancellationToken cancellation = default);
+    Task ExportAsync(string path, CalculationResult result, string fingerprint, CancellationToken cancellation = default,SensitiveExportConsent? consent=null);
+    Task ExportCarryAsync(string path, CalculationResult result, CancellationToken cancellation = default,SensitiveExportConsent? consent=null);
     /// <summary>独立密码保护底稿与可用结转。</summary>
     Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)=>throw new NotSupportedException();
-    Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default)=>throw new NotSupportedException();
+    Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>throw new NotSupportedException();
     Task DownloadAsync(string queryId, string token, DateOnly from, DateOnly to, string path, CancellationToken cancellation);
     Task<List<AppliedRate>> RatesAsync(int year);
     IReadOnlyList<Trade> Trades(CalculationResult result);

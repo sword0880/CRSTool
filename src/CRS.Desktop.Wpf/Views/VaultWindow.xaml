@@ -43,6 +43,8 @@
    <TextBlock Text="新主密码（修改或恢复时填写）"/><PasswordBox x:Name="NewPasswordInput" PasswordChanged="OnNewPassword" Margin="0,6"/>
    <TextBlock Text="恢复凭证（恢复密钥，或备份时的主密码）"/><PasswordBox x:Name="SecretInput" PasswordChanged="OnSecret" Margin="0,6"/>
    <WrapPanel Margin="0,8"><Button Content="验证旧密码并改密" Command="{Binding ChangePasswordCommand}" Margin="0,0,8,0"/><Button Content="用恢复密钥重设主密码" Command="{Binding ResetPasswordCommand}"/></WrapPanel>
+   <!-- 容量只在已认证会话显示，接近上限时明确提示，避免直到升级时才发现无法备份。 -->
+   <TextBlock Text="{Binding BackupCapacityHint}" TextWrapping="Wrap" Foreground="#92400E" Margin="0,6"/>
    <TextBlock Text="备份路径（.crsbak）"/><DockPanel Margin="0,6"><Button DockPanel.Dock="Right" Content="选择" Click="OnSelectBackup" Margin="8,0,0,0"/><TextBox Text="{Binding BackupPath, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
    <Button Content="创建加密备份（不覆盖已有文件）" Command="{Binding BackupCommand}" HorizontalAlignment="Left" Margin="0,6"/>
    <TextBlock Text="恢复目标（新的空目录）"/><TextBox Text="{Binding TargetDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>

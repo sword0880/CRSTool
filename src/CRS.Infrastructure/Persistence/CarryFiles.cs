@@ -19,10 +19,15 @@ public static class CarryFiles
     /// <summary>限量读取结转文件，验证格式、摘要及内部批次约束。</summary>
     public static CarryDocument Read(string path)
     {
-        if (new FileInfo(path).Length > 2 * 1024 * 1024) throw new CrsException("结转文件不能超过 2 MB。");
         try
         {
-            var e = JsonSerializer.Deserialize<Envelope>(File.ReadAllBytes(path));
+            // 大小检查与正文读取使用同一只读句柄；读取期间禁止写入或替换原件。
+            using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (file.Length is <= 0 or > 2 * 1024 * 1024) throw new CrsException("结转文件必须非空且不能超过 2 MB。");
+            var bytes = new byte[(int)file.Length]; file.ReadExactly(bytes);
+            if (file.ReadByte() != -1) throw new CrsException("结转文件在读取期间发生变化，请重试。");
+            PersistedResultLimits.Validate(bytes,"结转文件");
+            var e = JsonSerializer.Deserialize<Envelope>(bytes);
             if (e is null || e.Format != "CRS_DOTNET_LOT_CARRY" || e.Data is null || e.Sha256 != XmlFields.HashJson(e.Data)) throw new CrsException("结转格式或摘要无效。");
             Validate(e.Data, e.Data.Year + 1, e.Data.Accounts); return e.Data;
         }

@@ -5,6 +5,10 @@ namespace CRS.Application;
 public sealed class CalculationResult
 {
     public string Broker { get; init; } = "IBKR";
+    // 缺失的新字段不写入旧载荷，避免给旧封存擅自补造期间依据。
+    // 旧任务省略新增空字段，保持原封存载荷；活动期完整不能等同税额已签认。
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] public SnapshotList<AccountPeriodEvidence>? AccountPeriods {get;init;}
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] public SnapshotList<AccountCoverage>? AccountCoverage {get;init;}
     /// <summary>只保留笔数；交易原始明细默认仅存在于本次会话。</summary>
     public int? ImportedTradeCount { get; init; }
     [JsonIgnore] public SnapshotList<Trade> SessionTrades { get; init; } = [];
@@ -66,6 +70,7 @@ public sealed class CalculationResult
     public CalculationResult Freeze()
     {
         if(frozen) return this;
+        AccountPeriods?.Freeze(); AccountCoverage?.Freeze();
         for(var i=0;i<EndingLots.Count;i++) {var lot=EndingLots[i].Copy(); lot.Freeze(); EndingLots[i]=lot;}
         SessionTrades.Freeze(); AnnualIncome.Freeze(); FundMovements.Freeze(); TradeAmountChecks.Freeze(); SecurityMovements.Freeze();
         Matches.Freeze(); Issues.Freeze(); Warnings.Freeze(); CashChecks.Freeze(); PnlChecks.Freeze(); Rates.Freeze(); Sources.Freeze();

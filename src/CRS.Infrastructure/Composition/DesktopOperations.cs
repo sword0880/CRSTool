@@ -22,6 +22,7 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public string ReadQueryId() => FlexConfiguration.ReadQueryId(ConfigPath);
     /// <summary>读取并验证本地结转。</summary>
     public CarryDocument ReadCarry(string path) => CarryFiles.Read(path);
+    public IReadOnlyList<AccountPeriodEvidence> ReadAccountPeriods(string path,CancellationToken cancellation=default)=>AccountPeriodFiles.Read(path,cancellation);
     /// <summary>读取结构化抵免明细及实际凭证摘要。</summary>
     public ForeignCreditEvidence ReadForeignCredit(string path) => ForeignCreditFiles.Read(path);
     /// <summary>沿用现有结转格式保存可信期末 LOT。</summary>
@@ -44,5 +45,13 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
         if(guard is null) Write(); else guard(Write);
     }
     /// <summary>记录固定失败类别，不记录原始错误正文。</summary>
-    public void LogFailure(string exceptionType) => LogManager.GetCurrentClassLogger().Warn("操作失败；类别={0}", exceptionType);
+    public void LogFailure(string exceptionType) => LogManager.GetCurrentClassLogger().Warn("操作失败；类别={0}", SensitiveLog.FailureCategory(exceptionType));
+    /// <summary>统一后台导出策略只读检查，不提前创建明文文件。</summary>
+    public void ValidateExportDestination(string path,bool plaintext,bool temporaryLocationConfirmed)=>ExportDestinationPolicy.Validate(path,plaintext,temporaryLocationConfirmed);
+    /// <summary>枚举只允许固定事件；非法值也不把任意字符串写入日志。</summary>
+    public void LogExportEvent(SensitiveExportOperation operation,SensitiveExportOutcome outcome)
+    {
+        if(!Enum.IsDefined(operation) || !Enum.IsDefined(outcome)) return;
+        LogManager.GetCurrentClassLogger().Info("敏感文件操作；类型={0}；结果={1}",operation,outcome);
+    }
 }

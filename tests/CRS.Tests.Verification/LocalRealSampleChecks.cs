@@ -34,8 +34,8 @@ internal static class LocalRealSampleChecks
         Directory.CreateDirectory(output);
         File.WriteAllText(Path.Combine(output,"local-real-samples.json"),JsonSerializer.Serialize(new
         {sourceKind="real-private",broker="FUTU",originalsUnchanged=true,originals=before.Select((sha256,index)=>new {index,sha256}),
-            rows,independentAmountsApproved=false,ibkrRealSamples="awaiting-owner",releaseApproved=false},new JsonSerializerOptions {WriteIndented=true}));
-        Console.WriteLine("FUTU 五年度真实原件读取、SQLCipher 持久化及复算一致性通过；原件未改写。独立金额签认与 IBKR 真实样本仍待补充。");
+            rows,independentAmountsApproved=false,releaseApproved=false},new JsonSerializerOptions {WriteIndented=true}));
+        Console.WriteLine("FUTU 五年度真实原件读取、SQLCipher 持久化及复算一致性通过；原件未改写。独立金额签认仍待补充。");
     }
     private static string Hash(string path) {using var stream=File.OpenRead(path); return Convert.ToHexStringLower(SHA256.HashData(stream));}
 }

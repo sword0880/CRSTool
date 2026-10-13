@@ -1,4 +1,4 @@
-param([switch]$SkipBuild, [switch]$Smoke, [switch]$ReuseBenchmark, [string]$CoverageTool, [string]$RealManifest, [string]$LocalRealDirectory,
+param([switch]$SkipBuild, [switch]$Smoke, [switch]$ReuseBenchmark, [string]$CoverageTool, [string]$RealManifest, [string]$LocalRealDirectory, [string]$IbkrRealDirectory,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '../artifacts/acceptance'))
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -69,6 +69,12 @@ try {
         if ($LASTEXITCODE -ne 0) { throw '真实样本技术往返验收失败，请查看 local-real-samples.log。' }
         $checks.RealSampleTechnical = 'futu_2021_2025_persistence_replay_passed_originals_unchanged'
     } else { $checks.RealSampleTechnical = 'not_run' }
+    # 新开户年度与单日报告仅用于真实资料技术验证，不提升为全年金额验收。
+    if ($IbkrRealDirectory) {
+        & dotnet (Join-Path $repository 'tests/CRS.Tests.Verification/bin/Release/net10.0/CRS.Tests.Verification.dll') --verify-ibkr-real $IbkrRealDirectory (Join-Path $repository 'src/CRS.Desktop.Wpf/config') $output *> (Join-Path $output 'ibkr-real-samples.log')
+        if ($LASTEXITCODE -ne 0) { throw 'IBKR 真实样本技术验收失败，请查看 ibkr-real-samples.log。' }
+        $checks.IbkrRealSampleTechnical = 'persistence_replay_passed_originals_unchanged_incomplete_period_review_pending'
+    } else { $checks.IbkrRealSampleTechnical = 'not_run' }
     if ($Smoke) {
         $binary = Join-Path $repository 'src/CRS.Desktop.Wpf/bin/Release/net10.0-windows10.0.19041.0/CRS.Desktop.Wpf.dll'
         $fixture = Join-Path $repository 'tests/fixtures/ibkr_activity.xml'

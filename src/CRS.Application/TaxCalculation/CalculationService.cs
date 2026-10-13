@@ -12,7 +12,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
     /// <summary>执行年度导入、FIFO、税额及三项对账，并生成不可混用的来源快照。</summary>
     public CalculationResult Calculate(string[] files, int year, bool openingZero, bool scopeConfirmed,
         string? openingXml = null, CarryDocument? carry = null, CancellationToken cancellation = default,
-        bool saveCanonicalSnapshot = false)
+        bool saveCanonicalSnapshot = false,IReadOnlyList<AccountPeriodEvidence>? accountPeriods=null)
     {
         if (year is < 2000 or > 2100) throw new CrsException("年度必须在 2000 至 2100 之间。");
         if ((openingXml is not null || carry is not null) && openingZero || openingXml is not null && carry is not null)
@@ -26,6 +26,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         operationLog?.Invoke($"开始计算；文件数量={files.Length}，年度={year}");
         cancellation.ThrowIfCancellationRequested();
         var data = importer.Parse(files, openingXml, cancellation);
+        if(accountPeriods is not null) data.AccountPeriods.AddRange(accountPeriods);
         // IBKR 允许重复选择同一原件，解析器只读取一次，引用清单也只记录一次。
         files=files.DistinctBy(Path.GetFullPath,StringComparer.OrdinalIgnoreCase).ToArray();
         var result=CalculateParsed(data, files, year, openingZero, scopeConfirmed, openingXml, carry, cancellation,
@@ -114,15 +115,31 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             confirmations = new { openingZero, scopeConfirmed, taxpayerScopeId = "LOCAL_USER" }
         };
         var canonical = canonicalInputOverride ?? JsonSerializer.Serialize(canonicalValue);
+        if(canonicalInputOverride is null && data.AccountPeriods.Count>0)
+        {
+            // 新契约显式保存期间依据；不能向旧 v2／引用 v1 快照偷偷添加字段。
+            var node=System.Text.Json.Nodes.JsonNode.Parse(canonical)!.AsObject();
+            node["schema"]=saveCanonicalSnapshot?"CRS.CanonicalInput.v3":"CRS.InputReferences.v2";
+            node["accountPeriods"]=JsonSerializer.SerializeToNode(data.AccountPeriods.OrderBy(p=>p.Account,StringComparer.Ordinal));
+            canonical=node.ToJsonString();
+        }
         var canonicalDigest = evidence.Hash(Encoding.UTF8.GetBytes(canonical));
         var result = new CalculationResult { Broker = data.Broker, ImportedTradeCount = data.Trades.Count(t => t.Time.Year == year),
+            AccountPeriods=data.AccountPeriods.Count==0?null:(SnapshotList<AccountPeriodEvidence>)data.AccountPeriods.OrderBy(p=>p.Account,StringComparer.Ordinal).ToList(),
+            AccountCoverage=data.AccountPeriods.Count==0?null:(SnapshotList<AccountCoverage>)accounts.Select(account=>
+            {
+                var window=AccountPeriodPolicy.Window(data,account,begin,end);
+                return new AccountCoverage(account,window.Start,window.End,provisional?"Provisional":window.Start==begin && window.End==end?"CalendarYear":"AccountActivity",
+                    !finalIssues.Any(i=>i.Code=="INCOMPLETE_PERIOD" && i.Account==account));
+            }).ToList(),
             SessionTrades = FifoOrdering.Trades(data.Trades.Where(t => t.Time.Year == year)).ToList(), AnnualIncome = data.AnnualIncome, FundMovements = data.FundMovements.Where(f => f.Date.Year == year).ToList(),
             TradeAmountChecks = data.TradeAmountChecks.Where(c => data.Trades.Any(t => t.Id == c.TradeId && t.Time.Year == year)).ToList(),
             SecurityMovements = data.SecurityMovements, Year = year, Summary = summary, TaxInputs = taxInputs, Matches = matches, Issues = finalIssues, Warnings = data.Warnings,
             CashChecks = cashChecks, PnlChecks = pnlChecks, Rates = used.Values.OrderBy(r => r.Currency).ToList(), Sources = data.Sources,
             EndingLots = engine.EndingLots, EndingRounding = engine.EndingRounding, OpeningZero = openingZero, ScopeConfirmed = scopeConfirmed,
             Provisional = provisional, Reconciled = data.Broker != "FUTU" && positionReconciled && pnlChecks.All(p => p.Status == "一致") && cashChecks.Count > 0 && cashChecks.All(c => c.Status == "一致"),
-            CarryEligible = positionReconciled && engine.Uncertain.Count == 0 && !provisional && !finalIssues.Any(i => i.AffectsCost || i.Code is "INCOMPLETE_PERIOD" or "OPENING_UNCONFIRMED" or "SCOPE_UNCONFIRMED" or "UNSUPPORTED_POSITION"),
+            CarryEligible = positionReconciled && engine.Uncertain.Count == 0 && !provisional && !data.AccountPeriods.Any(p=>p.Closed is {} close && close<=end)
+                && !finalIssues.Any(i => i.AffectsCost || i.Code is "INCOMPLETE_PERIOD" or "OPENING_UNCONFIRMED" or "SCOPE_UNCONFIRMED" or "UNSUPPORTED_POSITION"),
             CalculationStatus = calculationStatus, DataCompleteness = completeness, ReconciliationStatus = reconciliation, UsageLabel = usage,
             CoveredAccounts = accounts.ToList(), UnknownGainCount = finalIssues.Count(i => i.Code == "MISSING_COST"), EstimatedTopUpCny = estimated,
             // 原始导入要求重新提供文件；从完整规范化快照进入时才标记为可重放。

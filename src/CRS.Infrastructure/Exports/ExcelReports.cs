@@ -74,14 +74,13 @@ public static class ExcelReports
             ["年度汇总", r.IsAnnualAggregate], ["来源任务数", r.AggregationSources.Count],
             ["输入恢复模式", r.InputRecoveryMode], ["规范化输入摘要", r.CanonicalInputDigest], ["可重放", r.IsReplayable],
             ["适用边界", "迁移现有税务辅助测算口径；抵免归属和实际申报规则仍需独立核实。"] });
-        Sheet("税务汇总", ["项目", "人民币金额"], new object?[][] { ["股息", r.Summary.DividendCny], ["利息", r.Summary.InterestCny],
-            ["资本收益", r.Summary.GainCny], ["股息利息税", r.Summary.DividendInterestTax], ["资本收益税", r.Summary.GainTax], ["境外抵免", r.Summary.ForeignCredit],
-            ["辅助测算补税（原始公式）", r.Summary.SupplementTax], ["年度预计补税（状态允许时）", r.EstimatedTopUpCny] });
+        // 与界面共用金额语义；未知金额留空，说明明确区分空白、真实零值与公式核对值。
+        Sheet("税务汇总", ["项目", "人民币金额", "说明"], TaxSummaryPresentation.Rows(r).Select(row=>new object?[] {row.项目,row.人民币金额,row.说明}));
         // 不给旧记录补造历史执行身份；新底稿披露真实封存版本和摘要。
         Sheet("运行证据", ["项目", "内容"], r.EvidenceSeal is { } seal ? new object?[][] {
             ["编码版本",seal.Encoding],["Application SHA256",seal.ApplicationSha256],["Domain SHA256",seal.DomainSha256],
             ["Infrastructure SHA256",seal.InfrastructureSha256],["业务载荷摘要",seal.PayloadDigest],["运行证据摘要",seal.EvidenceDigest],
-            ["边界","一致性摘要，不是数字签名或券商来源认证；不包含执行程序集副本。"] }
+            ["边界","一致性摘要，不是数字签名或券商来源认证；本工作簿不含程序副本，新任务的程序文件由加密库另存，旧记录可能无归档。"] }
             : new object?[][] { ["封存状态","旧记录无运行封存，不推定历史执行构建。"] });
         // 汇总底稿披露全部来源任务及券商账户关系，原账户底稿仍可独立追溯。
         if (r.IsAnnualAggregate)
@@ -110,6 +109,11 @@ public static class ExcelReports
             r.EndingLots.Select(l => new object?[] { l.Key.Account, l.Key.Instrument, l.Symbol, l.Key.Currency, l.BuyTime, l.Quantity, l.Cost, l.Fee, l.RecordId, l.SourceFile }));
         Sheet("来源文件", ["文件", "SHA256", "账户", "起日", "止日", "期初", "用途", "权威级别"], r.Sources.Select(s => new object?[] { s.File, s.Sha256, s.Account, s.Start, s.End, s.Opening, s.Purpose, s.Authority }));
         Sheet("人工复核", ["计算编号", "类型", "依据", "确认时间UTC"], (reviews ?? []).Select(v => new object?[] { v.SnapshotId, v.Category, v.Evidence, v.CreatedUtc }));
+        // 生命周期资料跟随底稿，完整活动期与完整自然年必须明确区分。
+        if(r.AccountPeriods is not null) Sheet("账户期间依据",["账户","开户日期","关闭日期","开户零持仓已核对","凭证","凭证摘要","用户已核对"],
+            r.AccountPeriods.Select(p=>new object?[]{p.Account,p.Opened,p.Closed?.ToString()??"尚未关闭",p.OpeningZeroConfirmed,p.EvidenceName,p.EvidenceSha256,p.Reviewed}));
+        if(r.AccountCoverage is not null) Sheet("期间覆盖状态",["账户","需核对起日","需核对止日","覆盖类型","期间完整（非税额签认）"],
+            r.AccountCoverage.Select(p=>new object?[]{p.Account,p.Start,p.End,p.Kind=="Provisional"?"临时报告":p.Kind=="AccountActivity"?"账户活动期":"自然年",p.PeriodComplete}));
         if (r.Broker == "FUTU")
         {
             Sheet("资本收益汇总", ["账户", "证券", "市场", "币种", "匹配笔数", "已确定收益（原币）", "已确定收益（人民币）"],

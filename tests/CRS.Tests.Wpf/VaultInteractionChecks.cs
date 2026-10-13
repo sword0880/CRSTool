@@ -29,6 +29,12 @@ internal static class VaultInteractionChecks
         daily.ShowDirectoryOptions=true; if(!daily.ShowDirectoryEntry) throw new Exception("主动恢复／切换位置时无法查看目录。");
         daily.ShowDirectoryOptions=false;
         daily.Code="123456"; await daily.VerifyCodeCommand.ExecuteAsync(null); if(!vault.IsUnlocked || dailyEntered!=1 || daily.Code!="") throw new Exception("仅手机验证码日常登录未直接进入或未清理验证码。");
+        // 容量提示在达到 75% 时预警，超限明确拒绝，不暗示原库会自动清理。
+        vault.BackupCapacity=new(1536L*1024*1024,2L*1024*1024*1024);
+        if(!new VaultViewModel(vault,settings,new Interaction()).BackupCapacityHint.Contains("接近上限")) throw new Exception("接近备份上限没有预警。");
+        vault.BackupCapacity=new(2L*1024*1024*1024+4096,2L*1024*1024*1024);
+        if(!new VaultViewModel(vault,settings,new Interaction()).BackupCapacityHint.Contains("超出备份上限")) throw new Exception("备份超限没有明确提示。");
+        vault.BackupCapacity=null;
         vault.Lock(); vault.LocalAvailable=false;
         var recovery=new VaultViewModel(vault,settings,new Interaction()); await recovery.InitializeAsync();
         if(!recovery.ShowPasswordEntry || recovery.IsNewVault || vault.LocalUnlocks!=1) throw new Exception("本机凭证丢失时未提供原主密码恢复或重新要求创建库。");
@@ -57,6 +63,8 @@ internal static class VaultInteractionChecks
     private sealed class FakeVault : IVaultService
     {
         public bool IsUnlocked {get;private set;}
+        // 假服务只提供容量元数据，不接触真实文件或密钥。
+        public VaultBackupCapacity? BackupCapacity {get;set;}
         public bool PhoneVerificationEnabled {get;private set;}=true;
         public Task SetPhoneVerificationAsync(bool enabled,string password,string code) {PhoneVerificationEnabled=enabled; return Task.CompletedTask;}
         public AuthenticationState Authentication {get;private set;}=AuthenticationState.Locked;
@@ -84,8 +92,8 @@ internal static class VaultInteractionChecks
         public Task BeginPhoneReplacementAsync(string password,string code)=>Task.CompletedTask;
         public Task ResetPasswordAsync(string directory,string secret,string password)=>Task.CompletedTask;
         public Task ChangePasswordAsync(string oldPassword,string newPassword,string code)=>Task.CompletedTask;
-        public Task BackupAsync(string path)=>Task.CompletedTask;
-        public Task RestoreAsync(string path,string target,string secret,bool recovery,string password)=>Task.CompletedTask;
+        public Task BackupAsync(string path,CancellationToken cancellation=default)=>Task.CompletedTask;
+        public Task RestoreAsync(string path,string target,string secret,bool recovery,string password,CancellationToken cancellation=default)=>Task.CompletedTask;
         public void Lock() {IsUnlocked=false; Authentication=AuthenticationState.Locked;}
         public void Dispose()=>Lock();
     }

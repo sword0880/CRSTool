@@ -17,6 +17,7 @@ internal sealed class AnnualInputPreparation(ICarryValidator carryValidator)
             if (carry.Lots.Any(l => l.Key.Broker != data.Broker)) throw new CrsException("结转证券批次的券商与本次导入不一致。");
             data.OpeningLots.AddRange(carry.Lots.Select(l => l.Copy())); data.OpeningRounding.AddRange(carry.Rounding);
         }
+        AccountPeriodPolicy.Validate(data,year,accounts);
         foreach (var s in data.Sources.Where(s => s.Opening))
         {
             cancellation.ThrowIfCancellationRequested();
@@ -44,25 +45,27 @@ internal sealed class AnnualInputPreparation(ICarryValidator carryValidator)
         bool positionReconciled = true;
         foreach (var account in accounts)
         {
+            var window=AccountPeriodPolicy.Window(data,account,begin,end);
             cancellation.ThrowIfCancellationRequested();
             var reports = data.Sources.Where(s => !s.Opening && s.Account == account).ToList();
             foreach (var section in new[] { "成交", "现金" })
             {
                 // 富途历史成交参与成本时，历史年度之间也必须连续覆盖，不能只检查目标年。
                 var next = data.Broker == "FUTU" && carry is null && reports.Any(s => s.Purpose == "AnnualActivity")
-                    ? reports.Where(s => s.Purpose == "AnnualActivity").Min(s => s.Start) : begin;
+                    ? reports.Where(s => s.Purpose == "AnnualActivity").Min(s => s.Start) : window.Start;
                 foreach (var s in reports.Where(s => section == "成交" ? s.HasTrades : s.HasCash).OrderBy(s => s.Start))
                 {
                     if (s.End < next) continue;
                     if (s.Start > next) break;
                     next = s.End.AddDays(1);
-                    if (next > end) break;
+                    if (next > window.End) break;
                 }
-                if (next <= end) issues.Add(new("INCOMPLETE_PERIOD", $"{section}报告未覆盖完整年度。", account, AffectsCost: data.Broker == "FUTU" && section == "成交"));
+                if (next <= window.End) issues.Add(new("INCOMPLETE_PERIOD", $"{section}报告未覆盖需要核对的账户活动期间。", account, AffectsCost: data.Broker == "FUTU" && section == "成交"));
             }
-            if (!openingZero && carry is null && !data.Sources.Any(s => s.Opening && s.Account == account))
+            var newbornZero=data.AccountPeriods.Any(p=>p.Account==account && p.Opened.Year==year && p.OpeningZeroConfirmed);
+            if (!openingZero && !newbornZero && carry is null && !data.Sources.Any(s => s.Opening && s.Account == account))
                 issues.Add(new("OPENING_UNCONFIRMED", "需期初 LOT 或确认期初无持仓。", account));
-            if (!reports.Any(s => s.HasPositions && s.End == end))
+            if (!reports.Any(s => s.HasPositions && s.End == window.End))
             { positionReconciled = false; issues.Add(new("MISSING_END_POSITIONS", "缺少年末完整持仓 SUMMARY。", account)); }
         }
         return new(begin, end, accounts, issues, positionReconciled);

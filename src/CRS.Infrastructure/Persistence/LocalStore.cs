@@ -41,7 +41,10 @@ public sealed class LocalStore : ICalculationRepository
     {
         // 所有历史入口都冻结结果，人工复核通过独立表另存，不改写核算事实。
         r.Freeze();
+        // 无效大载荷应在生成封存编码前被拒绝，而不是先复制整个载荷再检查。
+        _ = PersistedResultLimits.Encode(r);
         r.SealForPersistence(RunEvidenceSeal.AssemblyHash(typeof(LocalStore).Assembly.Location));
+        var payload = PersistedResultLimits.Encode(r);
         // 整个事务受解锁会话门闩保护，锁定后旧后台任务无法追加结果。
         using var lease=session.Enter();
         using var c = Open(); using var tx = c.BeginTransaction();
@@ -56,9 +59,13 @@ public sealed class LocalStore : ICalculationRepository
                 throw new CrsException("年度汇总来源不存在或年度不一致，不能保存。");
         c.Execute("INSERT INTO calculations(id,year,created_utc,complete,issues,result_json,carry,execution_archived) VALUES(@Id,@Year,@Utc,@Complete,@Issues,@Json,@Carry,1)",
             new { Id = r.SnapshotId, r.Year, Utc = DateTimeOffset.UtcNow.ToString("O"), Complete = r.Complete ? 1 : 0,
-                Issues = r.Issues.Count, Json = JsonSerializer.Serialize(r), Carry = r.CarryEligible ? CarryFiles.Encode(CarryFiles.Create(r)) : null }, tx);
+                Issues = r.Issues.Count, Json = System.Text.Encoding.UTF8.GetString(payload), Carry = r.CarryEligible ? CarryFiles.Encode(CarryFiles.Create(r)) : null }, tx);
         // 文件归档和计算事实同时提交，缺失或不匹配时不留下孤立任务。
         ExecutionArchive.Save(c,tx,r);
+        // 归档也会增长数据库；提交前按实际逻辑页数检查，超出可备份范围就回滚本次任务。
+        if (c.ExecuteScalar<long>("PRAGMA page_count",transaction:tx) * c.ExecuteScalar<long>("PRAGMA page_size",transaction:tx)
+            > ChunkedVaultBackup.MaxDatabaseBytes)
+            throw new CrsException("保存后数据库会超过 2 GiB 备份上限，本次任务已取消，原历史保留。");
         tx.Commit();
     }
     /// <summary>保留最近任务查询，完整历史由分页入口提供。</summary>
@@ -75,11 +82,30 @@ public sealed class LocalStore : ICalculationRepository
         // 总数减少时回到最后有效页，刷新后不显示空的越界页。
         var page = Math.Min(pageNumber, Math.Max(1, (int)Math.Ceiling(total / (double)pageSize)));
         // SQLite INTEGER 返回 Int64，先映射可写行模型再构造领域记录，避免 record 构造类型不匹配。
-        var rows = c.Query<HistoryRow>("SELECT id AS Id,year AS Year,created_utc AS CreatedUtc,complete AS Complete,issues AS Issues,COALESCE(json_extract(result_json, '$.Broker'), '未登记') AS Broker,json_extract(result_json, '$.ParentSnapshotId') AS ParentSnapshotId,COALESCE(json_array_length(json_extract(result_json, '$.AggregationSources')),0) AS AggregationSourceCount,COALESCE(json_extract(result_json, '$.CoveredAccounts'),'[]') AS AccountsJson FROM calculations ORDER BY created_utc DESC,id DESC LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize }, tx)
+        // 先限制本页，再处理 JSON；超大或损坏单条记录仍占据原历史位置，但不拖垮整页。
+        var rows = c.Query<HistoryRow>("""
+            WITH page AS MATERIALIZED (SELECT id FROM calculations ORDER BY created_utc DESC,id DESC LIMIT @Limit OFFSET @Offset),
+            bounded AS (SELECT calculations.*,CASE WHEN length(CAST(result_json AS BLOB)) BETWEEN 1 AND @MaxBytes
+              THEN CASE WHEN json_valid(result_json) THEN result_json ELSE NULL END ELSE NULL END AS safe_json
+              FROM calculations INNER JOIN page ON calculations.id=page.id)
+            SELECT id AS Id,year AS Year,created_utc AS CreatedUtc,complete AS Complete,issues AS Issues,
+              COALESCE(substr(json_extract(safe_json,'$.Broker'),1,32),CASE WHEN safe_json IS NULL THEN '记录异常' ELSE '未登记' END) AS Broker,
+              substr(json_extract(safe_json,'$.ParentSnapshotId'),1,128) AS ParentSnapshotId,
+              COALESCE(json_array_length(json_extract(safe_json,'$.AggregationSources')),0) AS AggregationSourceCount,
+              CASE WHEN length(CAST(json_extract(safe_json,'$.CoveredAccounts') AS BLOB))<=262144
+                THEN json_extract(safe_json,'$.CoveredAccounts') ELSE '[]' END AS AccountsJson
+            FROM bounded ORDER BY created_utc DESC,id DESC
+            """,
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, MaxBytes=PersistedResultLimits.MaxBytes }, tx)
             .Select(r => new HistoryItem(r.Id, r.Year, r.CreatedUtc, r.Complete == 1, r.Issues, r.Broker, r.ParentSnapshotId, r.AggregationSourceCount > 0 || r.Broker == "MULTI",
-                string.Join("、",JsonSerializer.Deserialize<string[]>(r.AccountsJson) ?? []))).ToList();
+                string.Join("、",ReadAccounts(r.AccountsJson)))).ToList();
         return new(rows, total, page, pageSize);
+    }
+    // 列表元数据不是业务正文；损坏的账户结构仅显示为空，完整读取仍必须拒绝坏记录。
+    private static string[] ReadAccounts(string? json)
+    {
+        if (json is null) return [];
+        try { return JsonSerializer.Deserialize<string[]>(json) ?? []; } catch(JsonException) { return []; }
     }
     /// <summary>按计算编号恢复历史结果，历史底稿保持原始汇率与状态。</summary>
     public CalculationResult Load(string id)
@@ -88,7 +114,11 @@ public sealed class LocalStore : ICalculationRepository
         using var c = Open();
         using var tx=c.BeginTransaction(deferred:true);
         var archived=c.ExecuteScalar<int?>("SELECT execution_archived FROM calculations WHERE id=@Id",new {Id=id},tx)??throw new CrsException("找不到计算记录。");
-        var json = c.QuerySingle<string>("SELECT result_json FROM calculations WHERE id=@Id", new { Id = id },tx);
+        // 在取出正文前用数据库字节长度拒绝超大记录；与读取共用同一事务，避免检查后被替换。
+        var size = c.ExecuteScalar<long>("SELECT length(CAST(result_json AS BLOB)) FROM calculations WHERE id=@Id", new { Id = id },tx);
+        if (size is <= 0 or > PersistedResultLimits.MaxBytes) throw new CrsException("历史记录为空或超过 128 MiB，未加载。");
+        var json = c.QuerySingle<byte[]>("SELECT CAST(result_json AS BLOB) FROM calculations WHERE id=@Id", new { Id = id },tx);
+        PersistedResultLimits.Validate(json);
         var result=JsonSerializer.Deserialize<CalculationResult>(json) ?? throw new CrsException("计算记录无效。");
         // 从数据库读取后先核验证据，再交付冻结结果，避免损坏记录进入界面或导出。
         RunEvidenceSeal.Verify(result);

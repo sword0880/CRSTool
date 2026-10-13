@@ -3,7 +3,7 @@
   <TextBlock Text="报表导出" Style="{StaticResource PageTitle}"/><TextBlock Text="输出当前计算或历史任务的冻结底稿，保存到你选择的位置。" Style="{StaticResource Subtitle}"/>
   <!-- 独立导出密码不与数据库主密码绑定，解密恢复会明确提示产生明文。 -->
   <Border Style="{StaticResource Card}" Margin="0,0,0,16"><StackPanel>
-   <TextBlock Text="加密底稿与恢复" FontSize="20" FontWeight="SemiBold"/>
+   <TextBlock Text="加密底稿与恢复（推荐）" FontSize="20" FontWeight="SemiBold"/>
    <TextBlock Text="用独立密码保护 Excel 底稿及可用的年末结转。密码遗失后无法恢复，请妥善保管。解密时会新建文件夹。" TextWrapping="Wrap" Margin="0,12,0,16"/>
    <TextBlock Text="导出密码（至少 12 个字符；解密时输入原导出密码）" Margin="0,0,0,6"/>
    <PasswordBox x:Name="ExportSecret" MaxLength="1024" PasswordChanged="PasswordChanged" Margin="0,0,0,12" IsEnabled="{Binding State.IsIdle}"/>
@@ -15,8 +15,8 @@
     <ui:Button Content="取消解密" Command="{Binding RestoreEncryptedCancelCommand}" Margin="0,0,0,8"/></WrapPanel>
   </StackPanel></Border>
   <!-- 导出期间可主动取消；跨页面忙碌门槛不阻断本次取消命令。 -->
-  <Border Style="{StaticResource Card}" Margin="0,0,0,16"><StackPanel><TextBlock Text="Excel 核算底稿" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="包含税务汇总、FIFO 明细、核对问题、实际汇率和人工复核依据。" TextWrapping="Wrap" Margin="0,12,0,18"/><WrapPanel><ui:Button Content="导出 Excel 底稿" Command="{Binding ExportCommand}" Appearance="Primary" Margin="0,0,12,0"/><ui:Button Content="取消导出" Command="{Binding ExportCancelCommand}"/></WrapPanel></StackPanel></Border>
-  <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="年末 LOT 结转" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="后台确认年末成本可信后才能保存，用于下一年度导入。" TextWrapping="Wrap" Margin="0,12,0,18"/><WrapPanel><ui:Button Content="导出 C# LOT 结转" Command="{Binding ExportCarryCommand}" Margin="0,0,12,0"/><ui:Button Content="取消导出" Command="{Binding ExportCarryCancelCommand}"/></WrapPanel></StackPanel></Border>
+  <Border Style="{StaticResource Card}" Margin="0,0,0,16"><StackPanel><TextBlock Text="普通 Excel 底稿（明文）" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="包含账户、税务汇总、FIFO 明细和复核依据。文件不受数据库加密保护，请保存到可信的普通目录；临时目录不支持明文导出。" TextWrapping="Wrap" Margin="0,12,0,18"/><WrapPanel><ui:Button Content="导出普通 Excel" Command="{Binding ExportCommand}" Margin="0,0,12,0"/><ui:Button Content="取消导出" Command="{Binding ExportCancelCommand}"/></WrapPanel></StackPanel></Border>
+  <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="年末 LOT 结转（明文）" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="后台确认年末成本可信后才能保存，用于下一年度导入。文件包含账户和成本资料，不受数据库加密保护；加密归档会附带可用结转。" TextWrapping="Wrap" Margin="0,12,0,18"/><WrapPanel><ui:Button Content="导出 C# LOT 结转" Command="{Binding ExportCarryCommand}" Margin="0,0,12,0"/><ui:Button Content="取消导出" Command="{Binding ExportCarryCancelCommand}"/></WrapPanel></StackPanel></Border>
   <TextBlock Text="{Binding State.Status}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,18,0,0"/>
  </StackPanel></ScrollViewer>
 </Page>

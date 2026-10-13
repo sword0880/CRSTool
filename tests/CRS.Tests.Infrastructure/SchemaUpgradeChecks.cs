@@ -41,14 +41,15 @@ internal static class SchemaUpgradeChecks
             AssertOld(c);
         }
         var backup=Directory.GetFiles(directory,"schema-v1-*.crsbak").Single();
-        var text=File.ReadAllText(backup);
+        var text=System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(backup));
         if(text.Contains("PRIVATE-SCHEMA-SENTINEL") || text.Contains(password)) throw new Exception("升级备份含明文资料或口令。");
         // 确认升级前备份确为旧业务版本，不能在修改之后再补做快照。
-        var envelope=JsonSerializer.Deserialize<VaultBackupFile>(text,VaultFiles.Options)!;
-        var plain=CRS.Security.Cryptography.AuthenticatedEncryption.Open(envelope.Payload,key);
-        VaultBackupBody body;
-        try {body=JsonSerializer.Deserialize<VaultBackupBody>(plain,VaultFiles.Options)!;} finally {CryptographicOperations.ZeroMemory(plain);}
-        var snapshot=Path.Combine(root,"pre-upgrade-snapshot.db"); File.WriteAllBytes(snapshot,body.Database); CryptographicOperations.ZeroMemory(body.Database);
+        var snapshot=Path.Combine(root,"pre-upgrade-snapshot.db");
+        using (var input=File.OpenRead(backup)) using (var output=File.Create(snapshot))
+        {
+            var header=ChunkedVaultBackup.ReadHeader(input);
+            ChunkedVaultBackup.Extract(input,output,ChunkedVaultBackup.Authenticate(header,key),key);
+        }
         using(var c=session.Open(snapshot)) AssertOld(c);
         using(var c=session.Open())
         {

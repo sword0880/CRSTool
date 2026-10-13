@@ -37,7 +37,9 @@ public static class Totp
         if(secret.Length!=20) throw new CryptographicException("绑定参数无效。");
         const string alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; var encoded=new StringBuilder(32); int bits=0,value=0;
         foreach(var b in secret) {value=(value<<8)|b; bits+=8; while(bits>=5) {bits-=5; encoded.Append(alphabet[(value>>bits)&31]);}}
-        var label="CRS Desktop:"+vaultId.ToString("N")[..12];
-        return "otpauth://totp/"+Uri.EscapeDataString(label)+"?secret="+encoded+"&issuer=CRS%20Desktop&algorithm=SHA1&digits=6&period=30";
+        // 微软验证器的发行者与账户标签统一使用产品中文名，仍只附加保险库短标识。
+        const string issuer="境外证券投资所得税辅助计算工具";
+        var label=issuer+":"+vaultId.ToString("N")[..12];
+        return "otpauth://totp/"+Uri.EscapeDataString(label)+"?secret="+encoded+"&issuer="+Uri.EscapeDataString(issuer)+"&algorithm=SHA1&digits=6&period=30";
     }
 }

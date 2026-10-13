@@ -1,0 +1,13 @@
+{
+  "Version": 1,
+  "Accounts": [
+    {
+      "Account": "请替换为报告中的实际账户号",
+      "Opened": "2025-06-17",
+      "Closed": null,
+      "OpeningZeroConfirmed": false,
+      "ProofPath": "开户凭证.pdf",
+      "Reviewed": false
+    }
+  ]
+}

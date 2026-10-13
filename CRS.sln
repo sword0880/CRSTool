@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -28,6 +28,89 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Security", "src\CRS.Security\CRS.Security.csproj", "{36DAD597-EEA9-40E4-BDC6-9FB9BC0B0F6E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Tests.Security", "tests\CRS.Tests.Security\CRS.Tests.Security.csproj", "{C3F3F369-4B62-4E15-8ACC-2521CDD6C319}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{565AA4D7-A634-41BA-9B86-6D7376855889}"
+	ProjectSection(SolutionItems) = preProject
+		docs\KNOWN_ISSUES.md = docs\KNOWN_ISSUES.md
+		docs\README.md = docs\README.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "architecture", "architecture", "{9F9BC824-1AD2-4FAD-AADD-0949B4DA572E}"
+	ProjectSection(SolutionItems) = preProject
+		docs\architecture\API_SPEC.md = docs\architecture\API_SPEC.md
+		docs\architecture\CRS开发规范.md = docs\architecture\CRS开发规范.md
+		docs\architecture\PRD.md = docs\architecture\PRD.md
+		docs\architecture\PROJECT_STRUCTURE.md = docs\architecture\PROJECT_STRUCTURE.md
+		docs\architecture\README.md = docs\architecture\README.md
+		docs\architecture\SAD.md = docs\architecture\SAD.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "archive", "archive", "{E5B3BB5F-0FF0-42A7-923B-597E3572FF4F}"
+	ProjectSection(SolutionItems) = preProject
+		docs\archive\ADVERSARIAL_REVIEW.md = docs\archive\ADVERSARIAL_REVIEW.md
+		docs\archive\MERGE_GUIDE.md = docs\archive\MERGE_GUIDE.md
+		docs\archive\README.md = docs\archive\README.md
+		docs\archive\RELEASE_ACCEPTANCE_HISTORY.md = docs\archive\RELEASE_ACCEPTANCE_HISTORY.md
+		docs\archive\SECURITY_STRUCTURE_PROPOSAL.md = docs\archive\SECURITY_STRUCTURE_PROPOSAL.md
+		docs\archive\TEST_ACCEPTANCE_HISTORY.md = docs\archive\TEST_ACCEPTANCE_HISTORY.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{116DE3BA-A76E-413E-8F14-490CBC280524}"
+	ProjectSection(SolutionItems) = preProject
+		docs\examples\account-periods.example.json = docs\examples\account-periods.example.json
+		docs\examples\README.md = docs\examples\README.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "guides", "guides", "{01180C7A-DD82-4F3C-8ABE-AD26D53D8F2A}"
+	ProjectSection(SolutionItems) = preProject
+		docs\guides\ACCOUNT_PERIODS.md = docs\guides\ACCOUNT_PERIODS.md
+		docs\guides\AUTH_IMPLEMENTATION.md = docs\guides\AUTH_IMPLEMENTATION.md
+		docs\guides\ENCRYPTED_EXPORT.md = docs\guides\ENCRYPTED_EXPORT.md
+		docs\guides\EXCHANGE_RATE_SOURCES.md = docs\guides\EXCHANGE_RATE_SOURCES.md
+		docs\guides\FOREIGN_CREDIT_REVIEW.md = docs\guides\FOREIGN_CREDIT_REVIEW.md
+		docs\guides\FUTU_CSHARP_IMPORT_GUIDE.md = docs\guides\FUTU_CSHARP_IMPORT_GUIDE.md
+		docs\guides\IBKR_FLEX_AUTO_DOWNLOAD.md = docs\guides\IBKR_FLEX_AUTO_DOWNLOAD.md
+		docs\guides\IBKR_IMPORT_GUIDE.md = docs\guides\IBKR_IMPORT_GUIDE.md
+		docs\guides\PRIVACY.md = docs\guides\PRIVACY.md
+		docs\guides\README.md = docs\guides\README.md
+		docs\guides\SETTINGS.md = docs\guides\SETTINGS.md
+		docs\guides\VAULT_GUIDE.md = docs\guides\VAULT_GUIDE.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "implementation", "implementation", "{EA2851F9-C9D6-4587-A32F-D4B84E3C18F3}"
+	ProjectSection(SolutionItems) = preProject
+		docs\implementation\AMOUNT_PRESENTATION.md = docs\implementation\AMOUNT_PRESENTATION.md
+		docs\implementation\BACKUP_CAPACITY.md = docs\implementation\BACKUP_CAPACITY.md
+		docs\implementation\CANONICAL_VALIDATION.md = docs\implementation\CANONICAL_VALIDATION.md
+		docs\implementation\CAPITAL_GAIN_FIFO_SPEC.md = docs\implementation\CAPITAL_GAIN_FIFO_SPEC.md
+		docs\implementation\DATABASE_UPGRADE.md = docs\implementation\DATABASE_UPGRADE.md
+		docs\implementation\FROZEN_EVIDENCE.md = docs\implementation\FROZEN_EVIDENCE.md
+		docs\implementation\FUTU_FIELD_MAPPING.md = docs\implementation\FUTU_FIELD_MAPPING.md
+		docs\implementation\INPUT_CONSISTENCY.md = docs\implementation\INPUT_CONSISTENCY.md
+		docs\implementation\LOCK_INTERRUPTION.md = docs\implementation\LOCK_INTERRUPTION.md
+		docs\implementation\README.md = docs\implementation\README.md
+		docs\implementation\TAX_ENGINE_SPEC.md = docs\implementation\TAX_ENGINE_SPEC.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "specifications", "specifications", "{E62493C1-6497-4F48-84CA-95E3111B65B6}"
+	ProjectSection(SolutionItems) = preProject
+		docs\specifications\CALCULATION_EVIDENCE_SPEC.md = docs\specifications\CALCULATION_EVIDENCE_SPEC.md
+		docs\specifications\CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md = docs\specifications\CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md
+		docs\specifications\README.md = docs\specifications\README.md
+		docs\specifications\RELEASE_PLAN.md = docs\specifications\RELEASE_PLAN.md
+		docs\specifications\SECURITY_AUTH_SPEC.md = docs\specifications\SECURITY_AUTH_SPEC.md
+		docs\specifications\SECURITY_DESIGN.md = docs\specifications\SECURITY_DESIGN.md
+		docs\specifications\TAX_RULE_VALIDATION.md = docs\specifications\TAX_RULE_VALIDATION.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "validation", "validation", "{7BFA079A-6147-4A4E-9DA8-82AAF92AF9F4}"
+	ProjectSection(SolutionItems) = preProject
+		docs\validation\P0_FIX_PROGRESS.md = docs\validation\P0_FIX_PROGRESS.md
+		docs\validation\README.md = docs\validation\README.md
+		docs\validation\REAL_SAMPLE_PROGRESS.md = docs\validation\REAL_SAMPLE_PROGRESS.md
+		docs\validation\RELEASE_ACCEPTANCE.md = docs\validation\RELEASE_ACCEPTANCE.md
+		docs\validation\TEST_SPEC.md = docs\validation\TEST_SPEC.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -176,6 +259,13 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{9F9BC824-1AD2-4FAD-AADD-0949B4DA572E} = {565AA4D7-A634-41BA-9B86-6D7376855889}
+		{E5B3BB5F-0FF0-42A7-923B-597E3572FF4F} = {565AA4D7-A634-41BA-9B86-6D7376855889}
+		{116DE3BA-A76E-413E-8F14-490CBC280524} = {565AA4D7-A634-41BA-9B86-6D7376855889}
+		{01180C7A-DD82-4F3C-8ABE-AD26D53D8F2A} = {565AA4D7-A634-41BA-9B86-6D7376855889}
+		{EA2851F9-C9D6-4587-A32F-D4B84E3C18F3} = {565AA4D7-A634-41BA-9B86-6D7376855889}
+		{E62493C1-6497-4F48-84CA-95E3111B65B6} = {565AA4D7-A634-41BA-9B86-6D7376855889}
+		{7BFA079A-6147-4A4E-9DA8-82AAF92AF9F4} = {565AA4D7-A634-41BA-9B86-6D7376855889}
 		{AA8062F2-2E45-49B9-A114-7D16C065CC2B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{66D7BABF-0C72-4D87-AB4C-EA125DD530A0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{D03E7451-C9D5-4E7D-B41F-762C117A94FC} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}

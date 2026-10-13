@@ -8,9 +8,10 @@ internal static class AnnualReconciliation
     {
         foreach (var account in accounts)
         {
+            var accountEnd=AccountPeriodPolicy.Window(data,account,new DateOnly(end.Year,1,1),end).End;
             cancellation.ThrowIfCancellationRequested();
-            if (!data.Sources.Any(s => !s.Opening && s.Account == account && s.End == end && s.HasPositions)) continue;
-            var expected = data.Positions.Where(p => p.Date == end && p.Key.Account == account).ToDictionary(p => p.Key, p => p.Quantity);
+            if (!data.Sources.Any(s => !s.Opening && s.Account == account && s.End == accountEnd && s.HasPositions)) continue;
+            var expected = data.Positions.Where(p => p.Date == accountEnd && p.Key.Account == account).ToDictionary(p => p.Key, p => p.Quantity);
             foreach (var key in expected.Keys.Concat(engine.EndingQuantities.Keys.Where(k => k.Account == account)).Distinct())
                 if (expected.GetValueOrDefault(key) != engine.EndingQuantities.GetValueOrDefault(key) || engine.Uncertain.Contains(key))
                 {

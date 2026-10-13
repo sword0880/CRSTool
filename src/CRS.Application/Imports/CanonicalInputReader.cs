@@ -35,12 +35,21 @@ internal static class CanonicalInputReader
             var total=0; CheckTree(document.RootElement,ref total);
             var root=document.RootElement; Require(root,["schema","files","opening","confirmations"]);
             var schema=Field(root,"schema").GetString();
-            var complete=schema=="CRS.CanonicalInput.v2";
-            if(!complete && schema!="CRS.InputReferences.v1" || full && !complete)
+            var withPeriods=schema is "CRS.CanonicalInput.v3" or "CRS.InputReferences.v2";
+            var complete=schema is "CRS.CanonicalInput.v2" or "CRS.CanonicalInput.v3";
+            if(!complete && schema is not ("CRS.InputReferences.v1" or "CRS.InputReferences.v2") || full && !complete)
                 throw new CrsException("规范化输入快照版本不受当前程序支持，请重新导入原件；仍可查看冻结结果。");
             if(complete && snapshot.InputRecoveryMode!=InputRecoveryMode.CanonicalLocalSnapshot
                 || !complete && snapshot.InputRecoveryMode!=InputRecoveryMode.ReimportOriginalFiles) throw new JsonException();
             var allowed=new HashSet<string>(["schema","files","opening","confirmations"],StringComparer.OrdinalIgnoreCase);
+            if(withPeriods)
+            {
+                Require(root,["accountPeriods"]); allowed.Add("accountPeriods");
+                var periods=Field(root,"accountPeriods").Deserialize<List<AccountPeriodEvidence>>(Options);
+                if(periods is null || periods.Count is <1 or >1000 || snapshot.AccountPeriods is null
+                    || !periods.SequenceEqual(snapshot.AccountPeriods)) throw new JsonException();
+            }
+            else if(snapshot.AccountPeriods is not null || snapshot.AccountCoverage is not null) throw new JsonException();
             if(complete)
             {
                 Require(root,["broker","carry",..Collections]); allowed.UnionWith(["broker","carry",..Collections]);

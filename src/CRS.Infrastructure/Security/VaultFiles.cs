@@ -33,11 +33,18 @@ internal static class VaultFiles
         catch(JsonException) { throw new CrsException("保险库元数据损坏或版本不支持。"); }
     }
     internal static void AtomicWrite(string path,byte[] data,bool overwrite=false)
+        => AtomicWrite(path, stream => stream.Write(data), overwrite);
+    /// <summary>大容器按流写入并校验；同目录持久刷新后才提交，失败不留下半个目标文件。</summary>
+    internal static void AtomicWrite(string path, Action<FileStream> write, bool overwrite=false,CancellationToken cancellation=default)
     {
+        // 提前拒绝已有目标以免无谓执行大备份；最终移动仍保留同样的竞态保护。
+        if (!overwrite && (File.Exists(path) || Directory.Exists(path))) throw new CrsException("目标已存在，未覆盖任何文件。");
         var temporary=path+"."+Guid.NewGuid().ToString("N")+".tmp";
         try
         {
-            using(var stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.None)) { stream.Write(data); stream.Flush(true); }
+            cancellation.ThrowIfCancellationRequested();
+            using(var stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None)) { write(stream); stream.Flush(true); }
+            cancellation.ThrowIfCancellationRequested();
             File.Move(temporary,path,overwrite);
         }
         finally { if(File.Exists(temporary)) File.Delete(temporary); }

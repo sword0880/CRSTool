@@ -67,6 +67,18 @@ internal static class ExportChecks
         Reject<OperationCanceledException>(()=>operations.SaveCarry(carry,carryResult,cancelled.Token));
         if(!before.SequenceEqual(File.ReadAllBytes(carry)) || CarryFiles.Read(carry).SourceSnapshotId!="CARRY-CHECK") throw new Exception("取消结转改变原文件或成功结转无法读取。"); Clean();
         Console.WriteLine("导出验证通过：预取消、行构建取消、写入失败／取消、提交前取消、新文件清理、真实锁定不中断原文件、Excel 与结转有效输出。");
+        // 未知金额和已确认零值在真实工作簿中必须具有不同单元格语义。
+        var partialPath=Path.Combine(directory,"partial-amount.xlsx");
+        ExcelReports.Export(partialPath,new CalculationResult {Year=2025,Summary=new(10,0,0,2,0,0,2),EstimatedTopUpCny=2,UnknownGainCount=1});
+        var amountRows=ExcelReports.ReadSheet(partialPath,"税务汇总");
+        if(amountRows[8][1]!="" || !amountRows[8][2].Contains("不可确定") || amountRows[7][1]!="2.00" || !amountRows[3][2].Contains("1 笔"))
+            throw new Exception("工作簿未知金额未留空或原始公式语义丢失。");
+        var zeroPath=Path.Combine(directory,"zero-amount.xlsx");
+        ExcelReports.Export(zeroPath,new CalculationResult {Year=2025,Summary=new(0,0,0,0,0,0,0),EstimatedTopUpCny=0,Reconciled=true,
+            CalculationStatus=CalculationStatus.Completed,DataCompleteness=DataCompleteness.Confirmed,
+            ReconciliationStatus=ReconciliationStatus.Matched,UsageLabel=UsageLabel.ReviewReady});
+        if(ExcelReports.ReadSheet(zeroPath,"税务汇总")[8][1]!="0.00") throw new Exception("工作簿把真实零值当作未知。");
+        Console.WriteLine("金额底稿通过：未知预计值留空、说明保留、原始公式分列及真实零值输出。");
         void Clean() {if(Directory.EnumerateFiles(directory,"*.tmp").Any()) throw new Exception("导出失败或取消残留临时文件。");}
         void Unchanged() {if(File.ReadAllText(target)!=original) throw new Exception("失败或取消覆盖已有报告。"); Clean();}
     }

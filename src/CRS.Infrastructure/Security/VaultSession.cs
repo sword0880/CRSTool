@@ -12,15 +12,19 @@ internal sealed class VaultSession(string directory,SecretKey key) : IDisposable
 {
     private readonly object gate=new();
     private bool closed;
+    private readonly CancellationTokenSource lifetime=new();
+    internal CancellationToken Lifetime => lifetime.Token;
+    // 锁定请求不等待数据库门闩；长 SQL 和备份先收到中断，随后再完成密钥释放。
+    internal void RequestLock()=>lifetime.Cancel();
     internal string DirectoryPath {get;}=Path.GetFullPath(directory);
     internal IDisposable Enter()
     {
         Monitor.Enter(gate);
-        if (closed) { Monitor.Exit(gate); throw new CrsException("保险库已锁定，请重新解锁。"); }
+        if (closed || lifetime.IsCancellationRequested) { Monitor.Exit(gate); throw new CrsException("保险库已锁定，请重新解锁。"); }
         return new Lease(gate);
     }
     private sealed class Lease(object gate) : IDisposable { public void Dispose()=>Monitor.Exit(gate); }
-    internal T Use<T>(Func<T> action) { lock(gate) { if(closed) throw new CrsException("保险库已锁定，请重新解锁。"); return action(); } }
+    internal T Use<T>(Func<T> action) { lock(gate) { if(closed || lifetime.IsCancellationRequested) throw new CrsException("保险库已锁定，请重新解锁。"); return action(); } }
     internal void Use(Action action)=>Use(()=> { action(); return true; });
     internal byte[] CopyKey()=>Use(key.Copy);
     internal SecretKey CloneKey()=>Use(key.Clone);
@@ -56,9 +60,8 @@ internal sealed class VaultSession(string directory,SecretKey key) : IDisposable
         Use(()=>
         {
             using var c=Open();
-            if (c.Query<string>("PRAGMA cipher_integrity_check").Any(s=>s!="ok") || c.ExecuteScalar<string>("PRAGMA integrity_check")!="ok")
-                throw new CrsException("加密数据库完整性检查失败。");
+            CancellableDatabaseBackup.Verify(c,Lifetime);
         });
     }
-    public void Dispose() { lock(gate) { if(closed) return; closed=true; key.Dispose(); } }
+    public void Dispose() { RequestLock(); lock(gate) { if(closed) return; closed=true; key.Dispose(); } }
 }

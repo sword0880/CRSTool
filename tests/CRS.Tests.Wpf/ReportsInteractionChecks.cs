@@ -25,9 +25,9 @@ internal static class ReportsInteractionChecks
     {
         public bool ExcelCancelled {get;private set;}
         public bool CarryCancelled {get;private set;}
-        public override async Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default)
+        public override async Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
         {try {await Task.Delay(Timeout.Infinite,cancellation);} finally {ExcelCancelled=cancellation.IsCancellationRequested;}}
-        public override async Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default)
+        public override async Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
         {try {await Task.Delay(Timeout.Infinite,cancellation);} finally {CarryCancelled=cancellation.IsCancellationRequested;}}
     }
     private sealed class Interaction:IUserInteraction

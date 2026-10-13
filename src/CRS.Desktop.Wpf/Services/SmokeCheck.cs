@@ -120,7 +120,7 @@ internal static class SmokeCheck
             await useCases.SaveReviewAsync(result.SnapshotId, "合成复核", "合成来源，不含真实账户。");
             if ((await useCases.ReviewsAsync(result.SnapshotId)).Count != 1) throw new InvalidOperationException("复核保存失败。");
             var exportPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CRS-export-" + Guid.NewGuid().ToString("N") + ".xlsx");
-            try { await useCases.ExportAsync(exportPath, result, ""); if (new System.IO.FileInfo(exportPath).Length == 0) throw new InvalidOperationException("Excel 导出为空。"); }
+            try { await useCases.ExportAsync(exportPath, result, "",consent:new(true,true)); if (new System.IO.FileInfo(exportPath).Length == 0) throw new InvalidOperationException("Excel 导出为空。"); }
             finally { System.IO.File.Delete(exportPath); }
             using var cts = new CancellationTokenSource(); cts.Cancel();
             try { await useCases.CalculateAsync(new([],2025,"IBKR",true,true,false,null,false),cts.Token); throw new InvalidOperationException("取消请求仍计算。"); }

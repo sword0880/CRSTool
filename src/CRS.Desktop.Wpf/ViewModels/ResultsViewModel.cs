@@ -46,7 +46,8 @@ public partial class ResultsViewModel : ObservableObject
             // 快照明细损坏时明确显示原因，不影响冻结汇总，也不沿用上一份交易。
             Trades=[]; TradesHint=error.Message;
         }
-        Estimate = value.EstimatedTopUpCny is decimal amount ? $"年度预计补税：{amount:N2} 元" : "年度预计补税：不可确定";
+        // 顶部金额与税务表、Excel 使用相同状态门槛，不能把部分结果的公式金额当成预计值。
+        Estimate = TaxSummaryPresentation.EstimatedAmount(value) is decimal amount ? $"年度预计补税：{amount:N2} 元" : "年度预计补税：不可确定";
         IncomeSeries = [new ColumnSeries<decimal> { Name = "收入（人民币）", Values = new[] { value.Summary.DividendCny, value.Summary.InterestCny, value.Summary.GainCny } }];
     }
 }

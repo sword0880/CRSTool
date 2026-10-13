@@ -16,8 +16,8 @@ dotnet run --project src/CRS.Desktop.Wpf
 
 年度汇总：在历史任务页勾选同年度的账户任务（可跨页），确认均属于同一纳税人后点击“汇总并另存”。后台合并原币事实统一计税，汇总结果和 Excel 保留全部来源及券商账户关系，原任务不变。同券商重复账户、不同年度或冲突汇率会拒绝；资料不足保持待复核及未知预计补税。
 
-[使用与开发文档](docs/README.md) · [设置说明](docs/SETTINGS.md) · [未完成问题](docs/KNOWN_ISSUES.md) · [验证](tests/README.md)
+[使用与开发文档](docs/README.md) · [设置说明](docs/guides/SETTINGS.md) · [未完成问题](docs/KNOWN_ISSUES.md) · [验证](tests/README.md)
 
-境外抵免支持历史任务导入国家、所得项目与凭证明细，说明见 [抵免复核](docs/FOREIGN_CREDIT_REVIEW.md)。发布验证及未完成门槛见 [发布验收](docs/RELEASE_ACCEPTANCE.md)，数据保存范围见 [隐私说明](docs/PRIVACY.md)。
+境外抵免支持历史任务导入国家、所得项目与凭证明细，说明见 [抵免复核](docs/guides/FOREIGN_CREDIT_REVIEW.md)。发布验证及未完成门槛见 [发布验收](docs/validation/RELEASE_ACCEPTANCE.md)，数据保存范围见 [隐私说明](docs/guides/PRIVACY.md)。
 
-首次进入设置主密码保护 SQLCipher 数据库并用 Microsoft Authenticator“其他账户”扫码绑定；日常在已启用的 Windows 用户环境中只输入手机验证码，验证成功直接进入。本机凭证失效或换电脑时保留主密码／独立恢复密钥路径。旧明文数据库不兼容且不会迁移；说明见 [保险库指南](docs/VAULT_GUIDE.md) 与 [认证流程](docs/AUTH_IMPLEMENTATION.md)。
+首次进入设置主密码保护 SQLCipher 数据库并用 Microsoft Authenticator“其他账户”扫码绑定；日常在已启用的 Windows 用户环境中只输入手机验证码，验证成功直接进入。本机凭证失效或换电脑时保留主密码／独立恢复密钥路径。旧明文数据库不兼容且不会迁移；说明见 [保险库指南](docs/guides/VAULT_GUIDE.md) 与 [认证流程](docs/guides/AUTH_IMPLEMENTATION.md)。

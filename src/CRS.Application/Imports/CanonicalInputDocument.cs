@@ -4,6 +4,7 @@ namespace CRS.Application;
 internal sealed class CanonicalInputDocument
 {
     public string Schema { get; set; } = "";
+    public List<AccountPeriodEvidence>? AccountPeriods {get;set;}
     // 文件引用也进入严格 DTO，不能忽略未知来源字段。
     public List<CanonicalFileReference> Files {get;set;}=[];
     public CanonicalFileReference? Opening {get;set;}
@@ -31,6 +32,7 @@ internal sealed class CanonicalInputDocument
     public ImportData ToImportData()
     {
         var data = new ImportData();
+        if(AccountPeriods is not null) data.AccountPeriods.AddRange(AccountPeriods);
         data.Broker = Broker; data.AnnualIncome.AddRange(AnnualIncome); data.FundMovements.AddRange(FundMovements);
         data.TradeAmountChecks.AddRange(TradeAmountChecks); data.SecurityMovements.AddRange(SecurityMovements);
         data.BeginningPositions.AddRange(BeginningPositions);
