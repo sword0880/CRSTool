@@ -12,7 +12,7 @@ internal static class CanonicalViewChecks
         if(shell.Results.Trades.Count!=1) throw new Exception("有效交易没有展示。");
         cases.Damaged=true; await shell.State.DisplayAsync(cases.Result);
         if(shell.Results.Trades.Count!=0 || !shell.Results.TradesHint.Contains("快照损坏")
-            || shell.Results.IncomeSeries.Length!=1 || shell.Results.TaxTables.Count==0 || !shell.Reports.ExportCommand.CanExecute(null))
+            || shell.Results.IncomeChart.Series.Length!=1 || shell.Results.TaxTables.Count==0 || !shell.Reports.ExportCommand.CanExecute(null))
             throw new Exception("损坏快照沿用旧交易、缺少原因或阻断了冻结汇总。");
         Console.WriteLine("快照展示通过：损坏明细清除旧交易、显示原因、保留冻结汇总和导出资格。");
     }

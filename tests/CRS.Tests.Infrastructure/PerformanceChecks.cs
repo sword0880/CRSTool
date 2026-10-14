@@ -22,6 +22,8 @@ internal static class PerformanceChecks
     internal static async Task RunAsync(string root,bool realOnly=false)
     {
         const string password="Synthetic-Performance-Password-2026";
+        await CheckMarketAsync();
+        await CheckFutuLabelsAsync(root);
         var path=Path.Combine(root,"performance");using var vault=new VaultManager();var created=await vault.CreateAsync(path,password);await TestStores.Enroll(vault);
         var cases=vault.CreatePerformanceUseCases();
         if(realOnly){await RealSamples(cases);return;}
@@ -65,11 +67,13 @@ internal static class PerformanceChecks
         if(File.ReadAllText(encrypted).Contains("合成") || File.ReadAllText(encrypted).Contains(run.Id))throw new Exception("密文外层泄漏绩效。");
         var restoredReport=EncryptedReportFiles.Restore(encrypted,root,password);
         if(!File.Exists(Path.Combine(restoredReport,"report.xlsx")) || !File.Exists(Path.Combine(restoredReport,"evidence.json")))throw new Exception("绩效加密底稿恢复失败。");
+        await vault.SetDocumentEncryptionPasswordAsync(password);
         var backup=Path.Combine(root,"performance.crsbak");await vault.BackupAsync(backup);
         using(var restored=new VaultManager())
         {
             var target=Path.Combine(root,"performance-restored");await restored.RestoreAsync(backup,target,created.RecoveryKey,true,password);await restored.UnlockAsync(target,password);await TestStores.Authenticate(restored);
             var recovered=restored.CreatePerformanceUseCases();var recoveredWorkspace=await recovered.LoadAsync();
+            if(restored.DocumentEncryptionPassword!=password)throw new Exception("统一文档密码未随加密备份恢复。");
             if(recoveredWorkspace.History.Length!=2 || recoveredWorkspace.Data.Prices.Length!=1 || recoveredWorkspace.Data.Fx.Length!=2 || recoveredWorkspace.Portfolios.Length!=1 || recoveredWorkspace.Sources.Length!=1 || (await recovered.OpenRunAsync(run.Id)).InputHash!=run.InputHash)throw new Exception("PA-17 便携备份遗漏绩效资料。");
             // 解密库中模拟原件损坏：摘要不一致必须阻断，不沿用派生结果掩盖错误。
             using(var c=restored.OpenForTest())c.Execute("UPDATE performance_documents SET raw=@raw",new{raw=Encoding.UTF8.GetBytes("damaged-source")});
@@ -96,6 +100,41 @@ internal static class PerformanceChecks
         public string Fingerprint=>"shared-synthetic";
         public AppliedRate Get(int year,string currency)=>new(year,currency,1,"合成","","",null,null,false,true);
         public List<AppliedRate> ForYear(int year)=>[];
+    }
+    private static async Task CheckMarketAsync()
+    {
+        using var http=new HttpClient(new MarketHandler());var provider=new YahooPerformanceMarketData(http);
+        var document=await provider.FetchAsync("SPX",new(2025,1,2),new(2025,1,3),"CNY",default);
+        if(document.Data.Prices.Count(p=>p.Market=="INDEX")!=2 || document.Data.Prices.Count(p=>p.Market=="INDEX_FX")!=2 || document.Data.Fx.Length!=0 || document.Hash!=PerformanceCodec.Hash(document.Raw))throw new Exception("联网指数和汇率未冻结来源，或混入组合汇率。");
+        using var summerHttp=new HttpClient(new MarketHandler(true));var summer=await new YahooPerformanceMarketData(summerHttp).FetchAsync("SPX",new(2025,6,2),new(2025,6,3),"USD",default);
+        if(summer.Data.Prices.Min(p=>p.Date)!=new DateOnly(2025,6,2))throw new Exception("行情未按市场时区确定交易日期。");
+    }
+    private static async Task CheckFutuLabelsAsync(string root)
+    {
+        using var book=new XSSFWorkbook();var sheet=book.CreateSheet("账户信息");
+        var header=sheet.CreateRow(0);header.CreateCell(0).SetCellValue("年份");header.CreateCell(1).SetCellValue("账户号码");header.CreateCell(2).SetCellValue("账户名称");
+        var row=sheet.CreateRow(1);row.CreateCell(0).SetCellValue("2025");row.CreateCell(1).SetCellValue("12345678");row.CreateCell(2).SetCellValue("合成港股账户");
+        using var output=new MemoryStream();book.Write(output,true);var raw=output.ToArray();
+        var id="FUTU:"+PerformanceCodec.Hash(Encoding.UTF8.GetBytes("FUTU:12345678"))[..24];
+        var labels=PerformanceBrokerImporter.FutuAccountLabels(FrozenInput.FromBytes("legacy.xlsx",raw));
+        if(!labels[id].Contains("12345678") || !labels[id].Contains("合成港股账户"))throw new Exception("富途显示名称未包含报表真实账户。");
+        using var vault=new VaultManager();await vault.CreateAsync(Path.Combine(root,"futu-alias"),"Synthetic-Legacy-Account-Password");await TestStores.Enroll(vault);
+        var cases=vault.CreatePerformanceUseCases(false);
+        var data=new PerformanceData{Accounts=[new(id,"FUTU","富途账户 "+id[^6..],"HKD",new(2025,1,1),BaseCurrencyConfirmed:false)]};
+        using(var c=vault.OpenForTest()) c.Execute("INSERT INTO performance_documents(hash,name,format,raw,data) VALUES(@hash,'legacy.xlsx','.xlsx',@raw,@data)",new{hash=PerformanceCodec.Hash(raw),raw,data=PerformanceCodec.Encode(data)});
+        if(!(await cases.LoadAsync()).Data.Accounts.Single().Alias.Contains("12345678"))throw new Exception("旧版富途摘要别名未自动修正。");
+        await cases.RenameAccountAsync(id,"我的港股账户");
+        if((await cases.LoadAsync()).Data.Accounts.Single().Alias!="我的港股账户")throw new Exception("用户账户别名被自动修正覆盖。");
+    }
+    private sealed class MarketHandler(bool summer=false):HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellation)
+        {
+            if(request.RequestUri!.Host!="query1.finance.yahoo.com")throw new Exception("行情请求发送到错误地址。");
+            var first=summer?new DateTimeOffset(2025,6,1,23,0,0,TimeSpan.Zero).ToUnixTimeSeconds():1735776000L;
+            var json=JsonSerializer.Serialize(new{chart=new{result=new[]{new{meta=new{exchangeTimezoneName=summer?"Europe/London":"UTC"},timestamp=new[]{first,first+86400},indicators=new{quote=new[]{new{close=new[]{100,110}}}}}}}});
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK){Content=new StringContent(json)});
+        }
     }
     private static async Task Transfers(string root,string password)
     {

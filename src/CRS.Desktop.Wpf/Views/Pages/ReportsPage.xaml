@@ -5,10 +5,7 @@
   <Border Style="{StaticResource Card}" Margin="0,0,0,16"><StackPanel>
    <TextBlock Text="加密底稿与恢复（推荐）" FontSize="20" FontWeight="SemiBold"/>
    <TextBlock Text="用独立密码保护 Excel 底稿及可用的年末结转。密码遗失后无法恢复，请妥善保管。解密时会新建文件夹。" TextWrapping="Wrap" Margin="0,12,0,16"/>
-   <TextBlock Text="导出密码（至少 12 个字符；解密时输入原导出密码）" Margin="0,0,0,6"/>
-   <PasswordBox x:Name="ExportSecret" MaxLength="1024" PasswordChanged="PasswordChanged" Margin="0,0,0,12" IsEnabled="{Binding State.IsIdle}"/>
-   <TextBlock Text="再次输入密码（仅导出时需要）" Margin="0,0,0,6"/>
-   <PasswordBox x:Name="ConfirmSecret" MaxLength="1024" PasswordChanged="ConfirmationChanged" Margin="0,0,0,18" IsEnabled="{Binding State.IsIdle}"/>
+   <TextBlock Text="加密和解密统一使用设置中的文档加密密码；打开旧文件时，可在设置中切换为其原密码。" TextWrapping="Wrap" Margin="0,0,0,16"/>
    <WrapPanel><ui:Button Content="保存加密底稿" Command="{Binding ExportEncryptedCommand}" Appearance="Primary" Margin="0,0,12,8"/>
     <ui:Button Content="解密到新文件夹" Command="{Binding RestoreEncryptedCommand}" Margin="0,0,12,8"/>
     <ui:Button Content="取消加密导出" Command="{Binding ExportEncryptedCancelCommand}" Margin="0,0,12,8"/>

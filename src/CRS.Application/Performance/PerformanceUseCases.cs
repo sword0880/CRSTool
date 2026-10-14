@@ -3,8 +3,24 @@ using CRS.Domain.Performance;
 namespace CRS.Application.Performance;
 
 /// <summary>每次任务绑定原解锁会话；取消后不保存半份结果，历史始终另存。</summary>
-public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFiles files,CancellationToken session) : IPerformanceUseCases
+public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFiles files,CancellationToken session,IPerformanceMarketData? market=null) : IPerformanceUseCases
 {
+    public async Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false)
+    {
+        if(market is null)return false;
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(session,cancellation);
+        var current=await LoadAsync(linked.Token);
+        var from=request.SinceInception?PerformanceCalculator.Calculate(current.Data,request,linked.Token).EffectiveFrom:request.From;
+        var to=request.To;var currency=request.Currency;
+        var prices=current.Data.Prices.Where(p=>p.Security==symbol && p.Market=="INDEX").ToArray();
+        var native=symbol=="HSI"?"HKD":"USD";
+        var hasFx=native==currency || current.Data.Prices.Any(p=>p.Market=="INDEX_FX" && p.Security==native+currency && p.Id.StartsWith("Yahoo:FX:"+symbol+":",StringComparison.Ordinal));
+        if(!force && hasFx && prices.Any(p=>p.Date<=from && p.Date>=from.AddDays(-7)) && prices.Any(p=>p.Date<=to && p.Date>=to.AddDays(-7)))return false;
+        var document=await market.FetchAsync(symbol,from,to,currency,linked.Token);
+        return await Run(linked.Token,token=>{token.ThrowIfCancellationRequested();return store.Import(document);});
+    }
+    public Task<PerformanceCurve> CurveAsync(string runId,string benchmark,CancellationToken cancellation=default)=>Run(cancellation,token=>
+    {var run=store.OpenRun(runId);PerformanceEvidence.Verify(run);return PerformanceCurveCalculator.Calculate(run.Input,run.Result,benchmark,token);});
     private Task<T> Run<T>(CancellationToken cancellation,Func<CancellationToken,T> action)=>Task.Run(()=>
     {
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(session,cancellation);

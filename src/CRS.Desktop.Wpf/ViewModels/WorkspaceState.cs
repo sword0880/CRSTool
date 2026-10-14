@@ -5,8 +5,9 @@ using CRS.DesktopClient.Services;
 namespace CRS.DesktopClient.ViewModels;
 
 /// <summary>各页面共享当前计算和操作状态，所有金额来自后台。</summary>
-public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction interaction) : ObservableObject
+public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction interaction,Func<string>? documentPassword=null) : ObservableObject
 {
+    public string DocumentEncryptionPassword=>documentPassword?.Invoke()??"";
     public IDesktopUseCases UseCases { get; } = useCases;
     public IUserInteraction Interaction { get; } = interaction;
     [ObservableProperty] private int year = DateTime.Today.Year - 1;

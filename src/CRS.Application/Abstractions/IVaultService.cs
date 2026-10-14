@@ -15,6 +15,8 @@ public sealed record EnrollmentImage(byte[] Png);
 public interface IVaultService : IDisposable
 {
     bool IsUnlocked { get; }
+    string DocumentEncryptionPassword=>"";
+    Task SetDocumentEncryptionPasswordAsync(string password)=>throw new CrsException("当前不支持文档加密密码设置。");
     VaultBackupCapacity? BackupCapacity { get; }
     bool PhoneVerificationEnabled { get; }
     AuthenticationState Authentication { get; }

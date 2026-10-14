@@ -16,18 +16,15 @@ public partial class ReportsViewModel : ObservableObject
     private bool CanExport() => State.IsIdle && State.HasResult;
     private bool CanCarry() => CanExport() && State.Result!.CarryEligible;
     private bool CanRestore()=>State.IsIdle;
-    // 密码仅在当前页面短暂保留，不绑定配置或日志；离开页面、完成操作及锁定时清空。
-    private string password="",confirmation="";
     public event Action? SensitiveCleared;
-    public void SetPassword(string value)=>password=value;
-    public void SetConfirmation(string value)=>confirmation=value;
-    public void ClearSensitiveInputs() {password=""; confirmation=""; SensitiveCleared?.Invoke();}
+    public void ClearSensitiveInputs()=>SensitiveCleared?.Invoke();
     [RelayCommand(CanExecute=nameof(CanExport),IncludeCancelCommand=true)]
     private async Task ExportEncryptedAsync(CancellationToken cancellation)
     {
         try
         {
-            if(password.Length is <12 or >1024 || password!=confirmation) {State.Status="请输入 12—1024 个字符的导出密码，并确保两次输入一致。"; return;}
+            var password=State.DocumentEncryptionPassword;
+            if(password.Length is <12 or >1024) {State.Status="请先在设置中统一配置文档加密密码。";return;}
             var result=State.Result!;
             var path=State.Interaction.SaveFile("加密底稿|*.crsexport","Protected_Report.crsexport");
             if(path is null) return;
@@ -41,7 +38,8 @@ public partial class ReportsViewModel : ObservableObject
     {
         try
         {
-            if(password.Length is <12 or >1024) {State.Status="请先输入此文件的独立导出密码。"; return;}
+            var password=State.DocumentEncryptionPassword;
+            if(password.Length is <12 or >1024) {State.Status="请先在设置中配置此文件使用的文档加密密码。";return;}
             var files=State.Interaction.PickFiles("加密底稿|*.crsexport",false);
             if(files.Length!=1 || !State.Interaction.ConfirmPlaintextRestore()) return;
             var parent=State.Interaction.PickFolder(); if(parent is null) return;

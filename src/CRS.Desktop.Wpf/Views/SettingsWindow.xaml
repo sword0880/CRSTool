@@ -14,7 +14,17 @@
     <ui:Button Content="保存验证方式" Command="{Binding SavePhoneVerificationCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
     <TextBlock Text="{Binding SecurityMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
    </StackPanel>
+   <StackPanel Margin="0,0,0,20" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}">
+    <TextBlock Text="文档加密密码" FontSize="20" FontWeight="SemiBold"/>
+    <TextBlock Text="统一用于所有页面的加密文档导出和解密；密码保存在加密数据库中。更改密码不会重写旧文件。" TextWrapping="Wrap" Margin="0,8"/>
+    <TextBlock Text="新密码（12—1024 个字符）"/><PasswordBox x:Name="DocumentPasswordInput" MaxLength="1024" PasswordChanged="OnDocumentPassword" Margin="0,6"/>
+    <TextBlock Text="再次输入"/><PasswordBox x:Name="DocumentConfirmationInput" MaxLength="1024" PasswordChanged="OnDocumentConfirmation" Margin="0,6"/>
+    <ui:Button Content="保存文档加密密码" Command="{Binding SaveDocumentPasswordCommand}" HorizontalAlignment="Left" Margin="0,6"/>
+    <TextBlock Text="{Binding DocumentPasswordMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
+   </StackPanel>
    <TextBlock Text="数据库" FontSize="20" FontWeight="SemiBold"/>
+   <ui:Button x:Name="DatabaseManagementButton" Content="数据库与备份管理" Click="OnDatabaseManagement" HorizontalAlignment="Left" Margin="0,10,0,6" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}"/>
+   <TextBlock Text="统一管理数据库加密备份、恢复、主密码与手机绑定。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"/>
    <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
    <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
    <TextBlock Text="已有加密库需验证后访问；新目录进入首次创建或恢复向导，不会自动建库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,16"/>

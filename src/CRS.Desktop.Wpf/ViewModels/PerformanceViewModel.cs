@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using CRS.Application;
 using CRS.Application.Performance;
 using CRS.Domain.Performance;
+using CRS.DesktopClient.Charts;
 
 namespace CRS.DesktopClient.ViewModels;
 
@@ -29,6 +30,40 @@ public partial class PerformanceViewModel : ObservableObject
     private PerformanceWorkspace? workspace;
     private PerformanceRun? run;
     private bool closed;
+    private bool rebuildingWorkspace;
+    [ObservableProperty] private bool hasNetAssetsPoints;
+    [ObservableProperty] private bool hasComparisonPoints;
+    public bool NoNetAssetsPoints=>!HasNetAssetsPoints;
+    public bool NoComparisonPoints=>!HasComparisonPoints;
+    partial void OnHasNetAssetsPointsChanged(bool value)=>OnPropertyChanged(nameof(NoNetAssetsPoints));
+    partial void OnHasComparisonPointsChanged(bool value)=>OnPropertyChanged(nameof(NoComparisonPoints));
+    [ObservableProperty] private string netAssetsStatus="尚未计算，请选择账户和期间后点击“更新曲线”。";
+    [ObservableProperty] private string comparisonStatus="尚未计算，请点击“更新曲线”。";
+    [ObservableProperty] private ChartPresentation netAssetsChart=ChartPresentation.Empty;
+    [ObservableProperty] private ChartPresentation comparisonChart=ChartPresentation.Empty;
+    [ObservableProperty] private string curveExplanation="导入证券流水并计算后显示净值；指数行情在计算时自动联网获取。缺少资料时保留空白。";
+    public string[] Benchmarks {get;}=["SPX","HSI","IXIC"];
+    [ObservableProperty] private string benchmark="SPX";
+    partial void OnBenchmarkChanged(string value) {ComparisonChart=ChartPresentation.Empty;HasComparisonPoints=false;ComparisonStatus="指数已切换，请点击“更新曲线”；缺少报价时可点击“联网更新并重算”。";CurveExplanation=ComparisonStatus;}
+    private bool CanRefreshCurve()=>CanExport() || CanCalculate();
+    [RelayCommand(CanExecute=nameof(CanRefreshCurve))]
+    private async Task RefreshCurveAsync()
+    {if(run is null)await CalculateAsync();else await Run(UpdateCurve);}
+    private async Task UpdateCurve(CancellationToken token)
+    {
+        var curve=await useCases!.CurveAsync(run!.Id,Benchmark,token);if(closed)return;
+        NetAssetsChart=DesktopChartAdapter.NetAssets(curve,run.Result.Request.Currency);ComparisonChart=DesktopChartAdapter.Comparison(curve);
+        var navCount=curve.Points.Count(p=>p.NetAssets.HasValue);var unitCount=curve.Points.Count(p=>p.UnitValue.HasValue);var indexCount=curve.Points.Count(p=>p.BenchmarkValue.HasValue);
+        HasNetAssetsPoints=navCount>0;HasComparisonPoints=unitCount>0 || indexCount>0;
+        var reasons=run.Result.Issues.Where(i=>i.Code is "FX_MISSING" or "INITIAL_NAV_MISSING" || i.Code.Contains("VALUATION",StringComparison.Ordinal)).Select(i=>i.Explanation).Distinct().Take(2);
+        NetAssetsStatus=navCount==0?"没有可计算的净资产点。请检查“资金流与异常检查”中的净值及估值日汇率问题。 "+string.Join(" ",reasons)
+            :navCount==1?"目前只有 1 个有效净值点，只能显示单点；至少 2 个不同日期的完整估值才能画折线。":$"已显示 {navCount} 个净资产点。";
+        ComparisonStatus=$"组合净值 {unitCount} 个有效点，指数 {indexCount} 个有效点。"+(unitCount<2?" 组合 TWR 需要完整期初、期末净值及资金流证据。":"")+(indexCount<2?" 指数需要所选期间的报价和对比用汇率；可点击“联网更新并重算”。":"");
+        CurveExplanation=curve.Explanation+(curve.Points.Any(p=>p.BenchmarkValue.HasValue)?"":" 当前缺少所选指数的同日起点报价或报告币种汇率。")+(curve.Points.Count(p=>p.NetAssets.HasValue)<2?" 当前不足两个完整净值点，无法连接净值曲线。":"");
+    }
+    [RelayCommand(CanExecute=nameof(CanCalculate))]
+    private async Task DownloadBenchmarkAsync(){forceMarketRefresh=true;try {await CalculateAsync();}finally{forceMarketRefresh=false;}}
+    private bool forceMarketRefresh;
     public ObservableCollection<PerformanceAccountSelection> Accounts {get;}=[];
     public ObservableCollection<PerformanceMetricDisplay> Metrics {get;}=[];
     public ObservableCollection<PerformanceIssue> Issues {get;}=[];
@@ -79,7 +114,7 @@ public partial class PerformanceViewModel : ObservableObject
     [ObservableProperty] private bool flowsComplete;
     [ObservableProperty] private bool incomeCostsComplete;
     [ObservableProperty] private string manualJson="";
-    [ObservableProperty] private string exportPassword="";
+
     [ObservableProperty] private DateTime eventDate=DateTime.Today;
     [ObservableProperty] private InvestmentEventKind manualEventKind=InvestmentEventKind.Deposit;
     [ObservableProperty] private decimal eventAmount;
@@ -103,8 +138,15 @@ public partial class PerformanceViewModel : ObservableObject
     private bool CanRevise()=>CanRun() && SelectedEvent is not null && RevisionReason.Trim().Length>0;
     private bool CanTransfer()=>CanRun() && TransferOut is not null && TransferIn is not null && TransferReason.Trim().Length>0;
     private void RefreshCommands()
-    {RefreshCommand.NotifyCanExecuteChanged();CalculateCommand.NotifyCanExecuteChanged();SavePortfolioCommand.NotifyCanExecuteChanged();ExportCommand.NotifyCanExecuteChanged();ExportEncryptedCommand.NotifyCanExecuteChanged();OpenHistoryCommand.NotifyCanExecuteChanged();ReplayHistoryCommand.NotifyCanExecuteChanged();ReviseCommand.NotifyCanExecuteChanged();MatchTransferCommand.NotifyCanExecuteChanged();AddAccountCommand.NotifyCanExecuteChanged();RenameAccountCommand.NotifyCanExecuteChanged();AddNavCommand.NotifyCanExecuteChanged();ConfirmCoverageCommand.NotifyCanExecuteChanged();ImportManualCommand.NotifyCanExecuteChanged();AddEventCommand.NotifyCanExecuteChanged();ReviseSourceCommand.NotifyCanExecuteChanged();}
-    private void Invalidate() {run=null;Metrics.Clear();AccountResults.Clear();Issues.Clear();Exposure.Clear();Summary="统计范围或参数已改变，请重新计算；已存历史保留原范围。";RefreshCommands();}
+    {RefreshCurveCommand.NotifyCanExecuteChanged();DownloadBenchmarkCommand.NotifyCanExecuteChanged();RefreshCommand.NotifyCanExecuteChanged();CalculateCommand.NotifyCanExecuteChanged();SavePortfolioCommand.NotifyCanExecuteChanged();ExportCommand.NotifyCanExecuteChanged();ExportEncryptedCommand.NotifyCanExecuteChanged();OpenHistoryCommand.NotifyCanExecuteChanged();ReplayHistoryCommand.NotifyCanExecuteChanged();ReviseCommand.NotifyCanExecuteChanged();MatchTransferCommand.NotifyCanExecuteChanged();AddAccountCommand.NotifyCanExecuteChanged();RenameAccountCommand.NotifyCanExecuteChanged();AddNavCommand.NotifyCanExecuteChanged();ConfirmCoverageCommand.NotifyCanExecuteChanged();ImportManualCommand.NotifyCanExecuteChanged();AddEventCommand.NotifyCanExecuteChanged();ReviseSourceCommand.NotifyCanExecuteChanged();}
+    private void Invalidate()
+    {
+        if(rebuildingWorkspace)return;
+        run=null;NetAssetsChart=ChartPresentation.Empty;ComparisonChart=ChartPresentation.Empty;HasNetAssetsPoints=false;HasComparisonPoints=false;
+        NetAssetsStatus=Accounts.Any(a=>a.Selected)?"统计范围或资料已改变，点击“更新曲线”即可重新计算。":"请先在绩效工作台选择账户，再点击“更新曲线”。";
+        ComparisonStatus=NetAssetsStatus;CurveExplanation=NetAssetsStatus;
+        Metrics.Clear();AccountResults.Clear();Issues.Clear();Exposure.Clear();Summary="统计范围或参数已改变，请重新计算；已存历史保留原范围。";RefreshCommands();
+    }
     partial void OnCurrencyChanged(string value)=>Invalidate();
     partial void OnFromChanged(DateTime value)=>Invalidate();
     partial void OnToChanged(DateTime value)=>Invalidate();
@@ -128,12 +170,18 @@ public partial class PerformanceViewModel : ObservableObject
     {
         if(!CanRun())return;operation=new();
         try {await state.RunAsync(()=>action(operation.Token));}
-        finally {operation.Dispose();operation=null;ExportPassword="";RefreshCommands();}
+        finally {operation.Dispose();operation=null;RefreshCommands();}
     }
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task RefreshAsync()=>await Run(Reload);
     private async Task Reload(CancellationToken token)
     {
-        var firstLoad=Accounts.Count==0;var previous=Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToHashSet();var next=await useCases!.LoadAsync(token);token.ThrowIfCancellationRequested();if(closed)return;workspace=next;
+        var firstLoad=Accounts.Count==0;var previous=Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToHashSet();var next=await useCases!.LoadAsync(token);token.ThrowIfCancellationRequested();if(closed)return;
+        var unchanged=workspace is not null && workspace.Sources.SequenceEqual(next.Sources) && workspace.Data.Accounts.SequenceEqual(next.Data.Accounts)
+            && workspace.Data.Revisions.SequenceEqual(next.Data.Revisions) && workspace.Data.Transfers.SequenceEqual(next.Data.Transfers)
+            && workspace.Data.Events.Length==next.Data.Events.Length && workspace.Data.Valuations.Length==next.Data.Valuations.Length && workspace.Data.Prices.Length==next.Data.Prices.Length && workspace.Data.Fx.Length==next.Data.Fx.Length;
+        workspace=next;rebuildingWorkspace=true;
+        try
+        {
         Accounts.Clear();foreach(var a in workspace.Data.Accounts)Accounts.Add(new(a,Invalidate){Selected=firstLoad?a.Included:previous.Contains(a.Id)});
         Portfolios.Clear();foreach(var p in workspace.Portfolios)Portfolios.Add(p);
         History.Clear();foreach(var h in workspace.History)History.Add(h);
@@ -143,12 +191,18 @@ public partial class PerformanceViewModel : ObservableObject
             var revision=workspace.Data.Revisions.Where(r=>r.EventId==e.Id).OrderBy(r=>r.CreatedAt).ThenBy(r=>r.Id).LastOrDefault();
             Events.Add(new(e.Id,workspace.Data.Accounts.FirstOrDefault(a=>a.Id==e.AccountId)?.Alias??"未绑定账户",e.Date.ToString("yyyy-MM-dd"),EventName(revision?.Kind??e.Kind)+(revision is {Confirmed:false}?"（待确认）":""),e.Amount,e.Currency,e.Source.DocumentId,e.Source.RowIdentity,e.Security));
         }
-        ManualAccount=Accounts.FirstOrDefault();Invalidate();state.Status=$"绩效资料：{Accounts.Count} 个账户、{Events.Count} 条事件、{workspace.Data.Valuations.Length} 个净值快照；未自动认定完整。";
+        ManualAccount=Accounts.FirstOrDefault();
+        }
+        finally {rebuildingWorkspace=false;}
+        if(!unchanged)Invalidate();else RefreshCommands();
+        state.Status=$"绩效资料：{Accounts.Count} 个账户、{Events.Count} 条事件、{workspace.Data.Valuations.Length} 个净值快照；未自动认定完整。";
     }
     [RelayCommand(CanExecute=nameof(CanCalculate))] private async Task CalculateAsync()=>await Run(async token=>
     {
         var request=new PerformanceRequest(Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToArray(),DateOnly.FromDateTime(From),DateOnly.FromDateTime(To),Currency,(ReturnMethod)MethodIndex,FallbackDays,SinceInception:Period=="成立以来");
-        var result=await useCases!.CalculateAsync(request,token);await Reload(token);Display(result);
+        string marketMessage="";
+        try {await useCases!.FetchBenchmarkAsync(Benchmark,request,token,forceMarketRefresh);} catch(CrsException error) {marketMessage=error.Message;}
+        var result=await useCases!.CalculateAsync(request,token);await Reload(token);Display(result);await UpdateCurve(token);CurveExplanation+=" "+marketMessage;
     });
     private void Display(PerformanceRun value)
     {
@@ -161,8 +215,8 @@ public partial class PerformanceViewModel : ObservableObject
     private static string Quality(PerformanceQuality q)=>q switch {PerformanceQuality.Verified=>"已核对",PerformanceQuality.Reconstructed=>"可重建",PerformanceQuality.Estimated=>"估算",_=>"不可计算"};
     private static string EventName(InvestmentEventKind k)=>k switch {InvestmentEventKind.Deposit=>"外部入金",InvestmentEventKind.Withdrawal=>"外部出金",InvestmentEventKind.CashTransfer=>"账户现金转账",InvestmentEventKind.SecurityTransfer=>"证券实物转仓",InvestmentEventKind.Buy=>"买入",InvestmentEventKind.Sell=>"卖出",InvestmentEventKind.Dividend=>"股息",InvestmentEventKind.Interest=>"利息",InvestmentEventKind.WithholdingTax=>"预扣税",InvestmentEventKind.Fee=>"其他费用",InvestmentEventKind.FinancingInterest=>"融资利息",InvestmentEventKind.FxExchange=>"内部换汇",InvestmentEventKind.Borrowing=>"借款本金",InvestmentEventKind.Split=>"拆合股",InvestmentEventKind.Unsupported=>"暂不支持",_=>"未分类"};
     [RelayCommand(CanExecute=nameof(CanCalculate))] private async Task SavePortfolioAsync()=>await Run(async token=>{await useCases!.SavePortfolioAsync(new(SelectedPortfolio?.Id??Guid.NewGuid().ToString("N"),PortfolioName,Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToArray(),Currency),token);await Reload(token);});
-    [RelayCommand(CanExecute=nameof(CanOpen))] private async Task OpenHistoryAsync()=>await Run(async token=>Display(await useCases!.OpenRunAsync(SelectedHistory!.Id,token)));
-    [RelayCommand(CanExecute=nameof(CanOpen))] private async Task ReplayHistoryAsync()=>await Run(async token=>{var result=await useCases!.ReplayAsync(SelectedHistory!.Id,token);await Reload(token);Display(result);});
+    [RelayCommand(CanExecute=nameof(CanOpen))] private async Task OpenHistoryAsync()=>await Run(async token=>{Display(await useCases!.OpenRunAsync(SelectedHistory!.Id,token));await UpdateCurve(token);});
+    [RelayCommand(CanExecute=nameof(CanOpen))] private async Task ReplayHistoryAsync()=>await Run(async token=>{var result=await useCases!.ReplayAsync(SelectedHistory!.Id,token);await Reload(token);Display(result);await UpdateCurve(token);});
     [RelayCommand(CanExecute=nameof(CanRevise))] private async Task ReviseAsync()=>await Run(async token=>{await useCases!.ReviseClassificationAsync(SelectedEvent!.Id,Classification,ClassificationConfirmed,RevisionReason,token);await Reload(token);RevisionReason="";});
     [RelayCommand(CanExecute=nameof(CanTransfer))] private async Task MatchTransferAsync()=>await Run(async token=>{await useCases!.ConfirmTransferAsync(TransferOut!.Id,TransferIn!.Id,TransferTolerance,TransferReason,Currency,token);await Reload(token);TransferReason="";});
     // 确认缺失基础币种后才允许用基础币种输入整体净值，原币结单组成保持不变。
@@ -202,15 +256,15 @@ public partial class PerformanceViewModel : ObservableObject
     {
         if(!encrypted && !state.Interaction.ConfirmPlaintextExport())return;
         var path=state.Interaction.SaveFile(encrypted?"加密底稿|*.crsexport":"Excel 报表|*.xlsx",encrypted?"绩效底稿.crsexport":"绩效报告.xlsx");if(path is null)return;
-        var id=run!.Id;var password=ExportPassword;await Run(token=>useCases!.ExportAsync(id,path,encrypted,password,encrypted?null:new(true),token));
+        var id=run!.Id;var password=encrypted?state.DocumentEncryptionPassword:""; if(encrypted && password.Length is <12 or >1024) {state.Status="请先在设置中统一配置文档加密密码。";return;}await Run(token=>useCases!.ExportAsync(id,path,encrypted,password,encrypted?null:new(true),token));
     }
     [RelayCommand] private void Cancel()=>operation?.Cancel();
     public void ClearForLock()
     {
         // 选择项与补录表单也持有敏感引用，不能只清空列表和密码。
-        closed=true;operation?.Cancel();ExportPassword="";ManualJson="";ManualSource="";AccountAlias="";RevisionReason="";TransferReason="";SourceReason="";
+        closed=true;operation?.Cancel();ManualJson="";ManualSource="";AccountAlias="";RevisionReason="";TransferReason="";SourceReason="";
         SelectedHistory=null;SelectedEvent=null;TransferOut=null;TransferIn=null;ManualAccount=null;SelectedPortfolio=null;SelectedSource=null;
         SecuritiesValue=CashValue=Receivable=Liability=Payable=EventAmount=EventQuantity=EventFee=EventWithholding=0;EventSecurity="";EventMarket="";
-        Accounts.Clear();Events.Clear();Metrics.Clear();Issues.Clear();History.Clear();Portfolios.Clear();Sources.Clear();AccountResults.Clear();Exposure.Clear();workspace=null;run=null;Summary="保险库已锁定，绩效资料已清理。";RefreshCommands();
+        Accounts.Clear();Events.Clear();Metrics.Clear();Issues.Clear();History.Clear();Portfolios.Clear();Sources.Clear();AccountResults.Clear();Exposure.Clear();workspace=null;run=null;NetAssetsChart=ChartPresentation.Empty;ComparisonChart=ChartPresentation.Empty;HasNetAssetsPoints=false;HasComparisonPoints=false;NetAssetsStatus=ComparisonStatus=CurveExplanation="数据已锁定。";Summary="保险库已锁定，绩效资料已清理。";RefreshCommands();
     }
 }

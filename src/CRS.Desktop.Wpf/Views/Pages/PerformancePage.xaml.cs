@@ -19,7 +19,5 @@ public partial class PerformancePage : Page
                 ViewportGrid.SetBinding(HeightProperty,new Binding(nameof(ActualHeight)){Source=viewport,Converter=new Converters.NavigationViewportHeightConverter()});
             if(model.RefreshCommand.CanExecute(null))await model.RefreshCommand.ExecuteAsync(null);
         };
-        model.State.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(model.State.IsBusy) && !model.State.IsBusy)ExportPasswordInput.Clear();};
     }
-    private void OnExportPassword(object sender,System.Windows.RoutedEventArgs e)=>model.ExportPassword=((PasswordBox)sender).Password;
 }

@@ -13,7 +13,7 @@ shell.State.IsBusy=true;
 if (shell.Import.CalculateCommand.CanExecute(null) || shell.Review.SaveCommand.CanExecute(null) || shell.Reports.ExportCommand.CanExecute(null)) throw new Exception("跨页面仍可并发操作。");
 shell.State.IsBusy=false;
 shell.Review.Evidence="上一份资料";shell.Review.Confirmed=true;shell.Import.Year=2024;
-if (shell.State.HasResult || shell.Review.Confirmed || shell.Review.Evidence!="" || shell.Results.IncomeSeries.Length!=0 || shell.Reports.ExportCommand.CanExecute(null)) throw new Exception("跨年度沿用了旧结果。");
+if (shell.State.HasResult || shell.Review.Confirmed || shell.Review.Evidence!="" || shell.Results.IncomeChart.Series.Length!=0 || shell.Reports.ExportCommand.CanExecute(null)) throw new Exception("跨年度沿用了旧结果。");
 await shell.History.RefreshCommand.ExecuteAsync(null);
 if (shell.Dashboard.RecentTasks.Count!=1) throw new Exception("概览任务列表与历史未联动。");
 shell.History.Selected=shell.History.Rows.Single();await shell.History.OpenCommand.ExecuteAsync(null);

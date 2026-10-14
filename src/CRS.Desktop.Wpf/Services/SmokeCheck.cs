@@ -68,7 +68,11 @@ internal static class SmokeCheck
             if (shell.Settings.LogRetentionFiles != 9 || (await useCasesForSettings()).Count != 1)
                 throw new InvalidOperationException("设置未保存，或改变了当前历史数据库。");
             if (imagePath is not null) Capture(settingsWindow, VariantPath(imagePath, "settings"));
-            settingsWindow.Close();
+            var managementButton=(Wpf.Ui.Controls.Button)settingsWindow.FindName("DatabaseManagementButton");
+            if(!managementButton.IsVisible)throw new InvalidOperationException("设置中没有数据库与备份管理入口。");
+            if(((Wpf.Ui.Controls.NavigationView)window.FindName("Navigation")).FooterMenuItems.OfType<Wpf.Ui.Controls.NavigationViewItem>().Any(i=>Equals(i.Content,"保险库与备份")))throw new InvalidOperationException("数据库与备份仍显示在左侧菜单。");
+            managementButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            if(!settingsWindow.OpenDatabaseManagement)throw new InvalidOperationException("设置入口未请求数据库与备份管理。");
             Task<List<HistoryItem>> useCasesForSettings() => shell.State.UseCases.HistoryAsync();
             foreach (var key in MainWindow.PageTypes.Keys)
             {
@@ -85,6 +89,7 @@ internal static class SmokeCheck
                         Valuations=[new("OPEN","SMOKE-PERFORMANCE",new(start.ToDateTime(new(23,59,59)),TimeSpan.Zero),start,CRS.Domain.Performance.ValuationMoment.EndOfDay,[new("Cash","USD",10000)],new("","合成期初")),
                             new("END","SMOKE-PERFORMANCE",new(end.ToDateTime(new(23,59,59)),TimeSpan.Zero),end,CRS.Domain.Performance.ValuationMoment.EndOfDay,[new("Cash","USD",11000)],new("","合成期末"))],
                         Coverage=[new("SMOKE-PERFORMANCE",start,end,true,new("","合成完整流量"),IncomeComplete:true,CostsComplete:true)]
+                        ,Prices=[new("INDEX0","SPX","INDEX","USD",start,100,new("","合成指数起点")),new("INDEX1","SPX","INDEX","USD",end,112,new("","合成指数终点"))]
                     };
                     shell.Performance.ManualJson=System.Text.Json.JsonSerializer.Serialize(input,new System.Text.Json.JsonSerializerOptions{Converters={new System.Text.Json.Serialization.JsonStringEnumConverter()}});
                     await shell.Performance.ImportManualCommand.ExecuteAsync(null);
@@ -100,6 +105,20 @@ internal static class SmokeCheck
                     foreach(var name in new[]{"CalculateButton","ExportActions"})
                     {var control=(FrameworkElement)page.FindName(name);var bottom=control.TranslatePoint(new Point(0,control.ActualHeight),window).Y;Console.Error.WriteLine($"smoke: performance {name} bottom={bottom:F0}, window={window.ActualHeight:F0}");if(bottom>window.ActualHeight-40)throw new InvalidOperationException("最小窗口绩效操作栏被挤出可见范围。");}
                     window.Width=width;window.Height=height;window.UpdateLayout();
+                    var tabs=FindVisual<System.Windows.Controls.TabControl>(page)!;
+                    tabs.SelectedItem=tabs.Items.OfType<System.Windows.Controls.TabItem>().Single(t=>Equals(t.Header,"净值曲线与指数"));
+                    await Task.Delay(300);window.UpdateLayout();
+                    if(shell.Performance.NetAssetsChart.Series.Length!=1 || shell.Performance.ComparisonChart.Series.Length!=2 || FindVisual<LiveChartsCore.SkiaSharpView.WPF.CartesianChart>(page) is null)throw new InvalidOperationException("净值与指数图表未绑定适配层。");
+                    await Task.Delay(800);window.UpdateLayout();
+                    if(imagePath is not null)Capture(window,VariantPath(imagePath,"performance-curves"));
+                    var curveTabs=FindVisual<System.Windows.Controls.TabControl>(tabs.SelectedContent as DependencyObject??page);
+                    if(curveTabs is not null)
+                    {curveTabs.SelectedIndex=1;await Task.Delay(800);window.UpdateLayout();if(imagePath is not null)Capture(window,VariantPath(imagePath,"performance-comparison"));}
+                    await shell.Performance.RefreshCommand.ExecuteAsync(null);
+                    if(!shell.Performance.HasNetAssetsPoints || !shell.Performance.ExportCommand.CanExecute(null))throw new InvalidOperationException("重新进入绩效页清空已绘制的曲线。");
+                    shell.Performance.Currency="CNY";window.UpdateLayout();
+                    if(shell.Performance.HasNetAssetsPoints || !shell.Performance.RefreshCurveCommand.CanExecute(null))throw new InvalidOperationException("参数改变仍展示空坐标轴或更新曲线被禁用。");
+                    if(imagePath is not null)Capture(window,VariantPath(imagePath,"performance-needs-calculation"));
                 }
                 if (key == "rates")
                 {
@@ -165,7 +184,7 @@ internal static class SmokeCheck
             catch (OperationCanceledException) { }
             if ((await useCases.HistoryAsync()).Count != 1) throw new InvalidOperationException("取消请求仍保存。");
             shell.Review.Evidence = "上一份依据"; shell.Review.Confirmed = true; shell.Import.Year = 2024;
-            if (shell.State.HasResult || shell.Reports.ExportCommand.CanExecute(null) || shell.Review.Confirmed || shell.Results.IncomeSeries.Length != 0)
+            if (shell.State.HasResult || shell.Reports.ExportCommand.CanExecute(null) || shell.Review.Confirmed || shell.Results.IncomeChart.Series.Length != 0)
                 throw new InvalidOperationException("输入变化没有清除旧结果和复核依据。");
             var fixtureIndex = Array.IndexOf(args, "--fixture");
             if (fixtureIndex >= 0 && fixtureIndex + 1 < args.Length)
@@ -227,14 +246,7 @@ internal static class SmokeCheck
                 // 换机限制会话后再遇到系统锁屏，应能重复清理而不复用敏感模型。
                 window.PrepareLock(); window.PrepareLock();
                 if(window.DataContext is not null || shell.State.HasResult) throw new InvalidOperationException("锁定未清除敏感工作区。");
-                // 锁定页显示后不能自行触发解锁，且不绑定原业务模型。
-                var locked=new LockWindow(); var requested=false; locked.UnlockRequested+=()=>requested=true;
-                locked.Show(); await Task.Delay(200); locked.UpdateLayout();
-                if(requested || locked.DataContext is not null) throw new InvalidOperationException("锁定页自动进入或沿用敏感模型。");
-                if(imagePath is not null) Capture(locked,VariantPath(imagePath,"locked"));
-                ((System.Windows.Controls.Button)locked.FindName("UnlockButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-                if(!requested) throw new InvalidOperationException("锁定页未响应主动解锁。");
-                locked.Close();
+                if(gate.Title!="身份验证")throw new InvalidOperationException("锁定后未使用身份验证窗体。");
                 if(bindingErrors.Errors.Count>0) throw new InvalidOperationException("保险库绑定出现错误。");
             }
         }

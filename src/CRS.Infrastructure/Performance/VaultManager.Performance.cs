@@ -17,12 +17,12 @@ public sealed partial class VaultManager
         }
     }
     /// <summary>绑定当前真实会话，旧绩效用例不能在重新解锁后恢复权限。</summary>
-    public IPerformanceUseCases CreatePerformanceUseCases()
+    public IPerformanceUseCases CreatePerformanceUseCases(bool online=true)
     {
         lock(gate)
         {
             var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this),active.Lifetime);
-            return new PerformanceUseCases(new PerformanceStore(active),new PerformanceFiles(CaptureGuard(),exports),active.Lifetime);
+            return new PerformanceUseCases(new PerformanceStore(active),new PerformanceFiles(CaptureGuard(),exports),active.Lifetime,online?new YahooPerformanceMarketData():null);
         }
     }
 }

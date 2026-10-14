@@ -19,8 +19,13 @@ internal static class PerformanceChecks
         var absent=PerformanceCalculator.Calculate(Base() with{Valuations=[],Coverage=[]},Request());
         if(Metric(absent,"Twr") is not null || Metric(absent,"Xirr") is not null || Metric(absent,"IncomeNet") is not null)throw new Exception("PA-01 缺资料被当作零/精确回报。");
         var simple=PerformanceCalculator.Calculate(Base(),Request());Equal(Metric(simple,"Twr"),.1m,"PA-02 TWR");Near(Metric(simple,"Xirr"),.1m,.000000001m,"PA-02 XIRR");
+        var curveData=Base() with{Prices=[new("I0","SPX","INDEX","USD",From,100,Source("I0")),new("I1","SPX","INDEX","USD",To,120,Source("I1"))]};
+        var curve=PerformanceCurveCalculator.Calculate(curveData,simple,"SPX");
+        Equal(curve.Points.Last().NetAssets,11000,"曲线净资产");Equal(curve.Points.Last().UnitValue,110,"曲线净值");Equal(curve.Points.Last().BenchmarkValue,120,"指数归一化");
+        var noIndex=PerformanceCurveCalculator.Calculate(Base(),simple,"SPX");if(noIndex.Points.Any(p=>p.BenchmarkValue.HasValue))throw new Exception("缺指数报价仍伪造对比线。");
         var added=Base(10000,15000) with{Events=[Event("D","A",InvestmentEventKind.Deposit,5000)],Valuations=[Nav("A",From,10000),Nav("A",FlowDay,10000,ValuationMoment.BeforeFlow,12),Nav("A",FlowDay,15000,ValuationMoment.AfterFlow,12),Nav("A",To,15000)]};
         var unchanged=PerformanceCalculator.Calculate(added,Request());Equal(Metric(unchanged,"Profit"),0,"PA-03 损益");Equal(Metric(unchanged,"Twr"),0,"PA-03 TWR");Near(Metric(unchanged,"Xirr"),0,.000000001m,"PA-03 XIRR");
+        Equal(PerformanceCurveCalculator.Calculate(added,unchanged,"SPX").Points.Last().UnitValue,100,"净入金不抬高累计净值曲线");
         var missingPoint=PerformanceCalculator.Calculate(added with{Valuations=added.Valuations.Where(v=>v.Moment==ValuationMoment.EndOfDay).ToArray()},Request());
         if(Metric(missingPoint,"Twr") is not null || Metric(missingPoint,"Profit")!=0)throw new Exception("缺流量估值时没有按指标独立阻断。");
         var transfer=Base(100,50) with{Accounts=[new("A","FUTU","富途合成","USD",From),new("B","IBKR","IBKR 合成","USD",From)],Valuations=[Nav("A",From,100),Nav("A",To,50),Nav("B",From,0),Nav("B",To,50)],Coverage=[new("A",From,To,true,Source("A")),new("B",From,To,true,Source("B"))],Events=[Event("OUT","A",InvestmentEventKind.CashTransfer,-50),Event("IN","B",InvestmentEventKind.CashTransfer,50)],Transfers=[new("L","OUT","IN",true)]};

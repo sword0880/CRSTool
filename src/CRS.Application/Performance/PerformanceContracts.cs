@@ -13,6 +13,8 @@ public sealed record PerformanceWorkspace(PerformanceData Data,InvestmentPortfol
 /// <summary>绩效端口只暴露用例，桌面不接触密钥、数据库或文件解析器。</summary>
 public interface IPerformanceUseCases
 {
+    Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false)=>Task.FromResult(false);
+    Task<PerformanceCurve> CurveAsync(string runId,string benchmark,CancellationToken cancellation=default)=>Task.FromResult(new PerformanceCurve([],benchmark,"暂无曲线资料。"));
     Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default);
     Task<bool> ImportAsync(string path,string broker,CancellationToken cancellation=default);
     Task<bool> ImportManualAsync(string json,CancellationToken cancellation=default);
@@ -26,6 +28,10 @@ public interface IPerformanceUseCases
     Task<PerformanceRun> OpenRunAsync(string id,CancellationToken cancellation=default);
     Task<PerformanceRun> ReplayAsync(string id,CancellationToken cancellation=default);
     Task ExportAsync(string id,string path,bool encrypted,string password,SensitiveExportConsent? consent=null,CancellationToken cancellation=default);
+}
+public interface IPerformanceMarketData
+{
+    Task<PerformanceDocument> FetchAsync(string symbol,DateOnly from,DateOnly to,string currency,CancellationToken cancellation);
 }
 public interface IPerformanceStore
 {

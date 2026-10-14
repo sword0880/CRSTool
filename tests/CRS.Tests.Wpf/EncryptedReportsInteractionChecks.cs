@@ -7,25 +7,26 @@ internal static class EncryptedReportsInteractionChecks
     /// <summary>验证加密操作门槛、密码确认、取消传递及操作完成后的密码清理。</summary>
     public static async Task RunAsync()
     {
-        var cases=new Cases(); var interaction=new Interaction(); var shell=new ShellViewModel(cases,interaction);
+        var cases=new Cases(); var interaction=new Interaction();string configuredPassword="";var shell=new ShellViewModel(cases,interaction,documentPassword:()=>configuredPassword);
         var model=shell.Reports;
         if(model.ExportEncryptedCommand.CanExecute(null) || !model.RestoreEncryptedCommand.CanExecute(null)) throw new Exception("无结果时加密操作门槛错误。");
         await shell.State.DisplayAsync(cases.Result); var cleared=0; model.SensitiveCleared+=()=>cleared++;
-        model.SetPassword("Synthetic-Export-Password"); model.SetConfirmation("Different-Password");
+        configuredPassword="";
         await model.ExportEncryptedCommand.ExecuteAsync(null);
         if(cases.Exports!=0 || cleared!=1) throw new Exception("确认不一致仍导出或密码未清理。");
-        model.SetPassword("Synthetic-Export-Password"); model.SetConfirmation("Synthetic-Export-Password");
+        configuredPassword="Synthetic-Export-Password";
         var exporting=model.ExportEncryptedCommand.ExecuteAsync(null);
         if(!shell.State.IsBusy || !model.ExportEncryptedCancelCommand.CanExecute(null) || model.RestoreEncryptedCommand.CanExecute(null)) throw new Exception("加密忙碌门槛错误。");
         model.ExportEncryptedCancelCommand.Execute(null); await exporting;
         if(!cases.Cancelled || shell.State.IsBusy || cleared!=2 || !shell.State.HasResult) throw new Exception("加密取消或密码清理错误。");
-        // 密码已经清理，再次执行不得沿用上一条密码调用后台。
+        // 配置缺失时不调用后台，明确提示先到设置配置。
+        configuredPassword="";
         await model.ExportEncryptedCommand.ExecuteAsync(null);
         if(cases.Exports!=1) throw new Exception("完成操作后仍沿用密码。");
-        model.SetPassword("Synthetic-Export-Password");
+        configuredPassword="Synthetic-Export-Password";
         await model.RestoreEncryptedCommand.ExecuteAsync(null);
         if(cases.Restores!=1 || !interaction.RestoreConfirmed || shell.State.IsBusy) throw new Exception("解密未确认明文恢复或未调用后台。");
-        model.SetPassword("Synthetic-Export-Password"); model.ClearSensitiveInputs();
+        configuredPassword="";model.ClearSensitiveInputs();
         await model.RestoreEncryptedCommand.ExecuteAsync(null);
         if(cases.Restores!=1) throw new Exception("锁定清理后仍能沿用密码恢复。");
         Console.WriteLine("加密报表交互通过：无结果恢复、密码确认、忙碌／取消、明文恢复确认及密码清理。");

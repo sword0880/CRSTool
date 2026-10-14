@@ -36,4 +36,6 @@ internal sealed class FrozenInput
     // 不公开底层数组，避免某个解析器修改其他用途所依赖的冻结内容。
     internal Stream OpenRead()=>new MemoryStream(content,0,content.Length,false,false);
     internal byte[] CopyBytes()=>content.ToArray();
+    internal static FrozenInput FromBytes(string name,byte[] raw)
+    {if(raw.Length is <=0 or >MaxBytes)throw new CrsException("源文件大小无效。");return new(name,raw);}
 }

@@ -9,6 +9,13 @@ namespace CRS.Infrastructure;
 /// <summary>仅映射实际结单字段；现金汇总不生成事件，缺净值/价时/流量证据不补零。</summary>
 internal static class PerformanceBrokerImporter
 {
+    internal static Dictionary<string,string> FutuAccountLabels(FrozenInput input)
+    {
+        using var table=new FutuTable(input);
+        return FutuAccountLabels(table.Read("账户信息",true,"年份","账户号码","账户名称")!);
+    }
+    private static Dictionary<string,string> FutuAccountLabels(IEnumerable<FutuRow> rows)
+        =>rows.Where(r=>r["账户号码"]!="").GroupBy(r=>r["账户号码"]).ToDictionary(g=>AccountId("FUTU","FUTU:"+g.Key),g=>"富途 "+g.First()["账户名称"]+"（"+g.Key+"）");
     private static string AccountId(string broker,string raw)=>broker+":"+PerformanceCodec.Hash(Encoding.UTF8.GetBytes(raw))[..24];
     private static DateTimeOffset End(DateOnly day)=>new(day.ToDateTime(new(23,59,59)),TimeSpan.Zero);
     private static InvestmentEventKind CashKind(string type,decimal amount)=>type.Trim().ToUpperInvariant() switch
@@ -114,7 +121,8 @@ internal static class PerformanceBrokerImporter
         var ids=imported.Sources.Select(s=>s.Account).Distinct().ToDictionary(raw=>raw,raw=>AccountId("FUTU",raw));
         PerformanceSource Source(string row)=>new(input.Sha256,row);
         // 年度表缺可靠基础币种字段；HKD 只是待确认编辑初值，不用于解释原币资产。
-        var accounts=ids.Select(k=>new InvestmentAccount(k.Value,"FUTU","富途账户 "+k.Value[^6..],"HKD",new(year-1,12,31),BaseCurrencyConfirmed:false)).ToArray();var events=new List<InvestmentEvent>();var navs=new List<ValuationSnapshot>();
+        var labels=FutuAccountLabels(rows);
+        var accounts=ids.Select(k=>new InvestmentAccount(k.Value,"FUTU",labels.GetValueOrDefault(k.Value,"富途（"+k.Key.Replace("FUTU:","")+"）"),"HKD",new(year-1,12,31),BaseCurrencyConfirmed:false)).ToArray();var events=new List<InvestmentEvent>();var navs=new List<ValuationSnapshot>();
         foreach(var t in imported.Trades)events.Add(new("FUTU:"+t.Id,ids[t.Key.Account],t.Time,DateOnly.FromDateTime(t.Time.DateTime),t.Side=="BUY"?InvestmentEventKind.Buy:InvestmentEventKind.Sell,t.Side=="BUY"?-t.Gross:t.Gross,t.Key.Currency,Source("交易流水:"+t.Row),t.Key.Instrument,t.Key.Market,t.Quantity,t.Fee,Confirmed:true));
         foreach(var f in imported.FundMovements)
         {

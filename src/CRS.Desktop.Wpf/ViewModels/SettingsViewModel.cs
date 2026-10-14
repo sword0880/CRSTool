@@ -42,6 +42,18 @@ public partial class SettingsViewModel : ObservableObject
     // 凭证仅用于本次开关验证，不进入 DesktopSettings 或日志。
     public string SecurityPassword {get;set;}="";
     public string SecurityCode {get;set;}="";
+    public string DocumentPassword {get;set;}="";
+    public string DocumentPasswordConfirmation {get;set;}="";
+    public event Action? DocumentInputsCleared;
+    [ObservableProperty] private string documentPasswordMessage="文档加密密码统一用于税务底稿、投资绩效归档及解密，在当前加密数据库内保存。旧文件仍需要其原密码，可在此切换。";
+    [RelayCommand(CanExecute=nameof(CanSavePhone))]
+    private async Task SaveDocumentPasswordAsync()
+    {
+        if(DocumentPassword.Length is <12 or >1024 || DocumentPassword!=DocumentPasswordConfirmation)
+        {DocumentPasswordMessage="请填写 12—1024 个字符，并确保两次密码一致。";return;}
+        try {DocumentPasswordMessage=await State.RunAsync(()=>vault!.SetDocumentEncryptionPasswordAsync(DocumentPassword))?"文档加密密码已保存，所有文档导出与解密立即使用此设置。":"文档加密密码未保存，请检查提示后重试。";}
+        finally {DocumentPassword="";DocumentPasswordConfirmation="";DocumentInputsCleared?.Invoke();}
+    }
     public event Action? SecurityInputsCleared;
     [ObservableProperty] private string message = "目录和日志设置保存后下次启动生效；更换目录不会移动原数据库。";
     public string[] LogLevels { get; } = ["Debug", "Info", "Warn", "Error"];
@@ -49,7 +61,7 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null)
     {
         State = state; this.service = service; this.vault=vault; Reload();
-        state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();} };
+        state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();} };
     }
     public void Reload()
     {
@@ -62,6 +74,7 @@ public partial class SettingsViewModel : ObservableObject
         SecurityMessage=WindowsHelloEnabled?"当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。":"当前使用手机验证，进入及解除锁定需要手机代码。";
         OnPropertyChanged(nameof(SecuritySettingsAvailable)); ClearSecurityInputs();
         OnPropertyChanged(nameof(ShowPhoneCode));
+        if(SecuritySettingsAvailable)DocumentPasswordMessage=vault!.DocumentEncryptionPassword.Length>0?"已配置统一文档加密密码。留空保持当前密码；旧文件仍使用其原密码。":"尚未配置文档加密密码，请在此统一设置。";
         Message = "目录和日志设置保存后下次启动生效；更换目录不会移动原数据库。";
     }
     private bool CanSave() => State.IsIdle;
@@ -101,7 +114,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         finally {ClearSecurityInputs();}
     }
-    public void ClearSecurityInputs() {SecurityPassword=""; SecurityCode=""; SecurityInputsCleared?.Invoke();}
+    public void ClearSecurityInputs() {SecurityPassword=""; SecurityCode=""; DocumentPassword="";DocumentPasswordConfirmation="";SecurityInputsCleared?.Invoke();}
     [RelayCommand]
     private void BrowseDatabase() { var path = State.Interaction.PickFolder(); if (path is not null) DatabaseDirectory = path; }
     [RelayCommand]
@@ -110,6 +123,8 @@ public partial class SettingsViewModel : ObservableObject
     private async Task SaveAsync()
     {
         if(HasLoginMethodChanges && !ValidateSecurityInputs()) return;
+        if(DocumentPassword.Length>0 || DocumentPasswordConfirmation.Length>0)
+        {await SaveDocumentPasswordAsync();if(!DocumentPasswordMessage.Contains("已保存"))return;}
         var settings = new DesktopSettings(DatabaseDirectory, LogDirectory, LoggingEnabled, LogLevel, LogRetentionFiles, LogFileSizeMb);
         if (!await State.RunAsync(() => service.SaveAsync(settings))) return;
         if(HasLoginMethodChanges)

@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using LiveChartsCore;
-using LiveChartsCore.SkiaSharpView;
+using CRS.DesktopClient.Charts;
+
 
 namespace CRS.DesktopClient.ViewModels;
 
@@ -9,22 +9,20 @@ namespace CRS.DesktopClient.ViewModels;
 public partial class ResultsViewModel : ObservableObject
 {
     public WorkspaceState State { get; }
-    [ObservableProperty] private ISeries[] incomeSeries = [];
+    [ObservableProperty] private ChartPresentation incomeChart = ChartPresentation.Empty;
     [ObservableProperty] private string estimate = "年度预计补税：不可确定";
     [ObservableProperty] private IReadOnlyList<Trade> trades = [];
     [ObservableProperty] private string tradesHint = "导入并计算报表后查看交易记录。";
     public ObservableCollection<ResultTable> TaxTables { get; } = [];
     public ObservableCollection<ResultTable> FifoTables { get; } = [];
     public ObservableCollection<ResultTable> ReconciliationTables { get; } = [];
-    public Axis[] IncomeAxes { get; } = [new Axis { Labels = ["股息", "利息", "证券收益"], Name = "收入项目" }];
-    public Axis[] MoneyAxes { get; } = [new Axis { Name = "人民币", Labeler = value => value.ToString("N0") }];
 
     public ResultsViewModel(WorkspaceState state) { State = state; state.ResultChanged += Update; }
     /// <summary>更新只读表格和图表，空结果不会沿用上一份金额。</summary>
     private void Update()
     {
         TaxTables.Clear(); FifoTables.Clear(); ReconciliationTables.Clear();
-        Trades = []; IncomeSeries = []; Estimate = "年度预计补税：不可确定";
+        Trades = []; IncomeChart = ChartPresentation.Empty; Estimate = "年度预计补税：不可确定";
         if (State.Result is not { } value) { TradesHint = "导入并计算报表后查看交易记录。"; return; }
         foreach (var section in State.UseCases.Sections(value, State.Reviews))
         {
@@ -48,6 +46,6 @@ public partial class ResultsViewModel : ObservableObject
         }
         // 顶部金额与税务表、Excel 使用相同状态门槛，不能把部分结果的公式金额当成预计值。
         Estimate = TaxSummaryPresentation.EstimatedAmount(value) is decimal amount ? $"年度预计补税：{amount:N2} 元" : "年度预计补税：不可确定";
-        IncomeSeries = [new ColumnSeries<decimal> { Name = "收入（人民币）", Values = new[] { value.Summary.DividendCny, value.Summary.InterestCny, value.Summary.GainCny } }];
+        IncomeChart = DesktopChartAdapter.Income(value.Summary);
     }
 }

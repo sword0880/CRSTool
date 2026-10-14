@@ -51,6 +51,18 @@ internal sealed class PerformanceStore : IPerformanceStore
         {if(row.Data is null)throw new CrsException("绩效输入超限。");if(!excluded.Contains(row.Hash))documents.Add(PerformanceCodec.Decode<PerformanceData>(row.Data));}
         foreach(var row in c.Query<(string Hash,string Name)>("SELECT hash,name FROM performance_documents ORDER BY hash",transaction:tx))sourceRows.Add(new(row.Hash,row.Name,!excluded.Contains(row.Hash)));
         var data=Merge(documents) with {Revisions=settings.Revisions,Transfers=settings.Transfers};
+        // 只修正旧版摘要占位别名，不修改原件、冻结历史或用户命名。
+        if(data.Accounts.Any(a=>a.Broker=="FUTU" && a.Id.Length>=6 && a.Alias=="富途账户 "+a.Id[^6..]))
+        {
+            var labels=new Dictionary<string,string>();
+            foreach(var row in c.Query<(string Hash,string Name)>("SELECT hash,name FROM performance_documents WHERE format='.xlsx'",transaction:tx))
+            {
+                if(excluded.Contains(row.Hash))continue;
+                var raw=c.ExecuteScalar<byte[]>("SELECT CASE WHEN length(raw)<=26214400 THEN raw ELSE NULL END FROM performance_documents WHERE hash=@Hash",new{row.Hash},tx)??throw new CrsException("富途账户原件超限。");
+                foreach(var label in PerformanceBrokerImporter.FutuAccountLabels(FrozenInput.FromBytes(row.Name,raw)))labels[label.Key]=label.Value;
+            }
+            data=data with{Accounts=data.Accounts.Select(a=>a.Id.Length>=6 && a.Alias=="富途账户 "+a.Id[^6..] && labels.TryGetValue(a.Id,out var label)?a with{Alias=label}:a).ToArray()};
+        }
         data=data with{Accounts=data.Accounts.Select(a=>settings.Aliases.TryGetValue(a.Id,out var alias)?a with{Alias=alias}:a).ToArray()};
         data=data with{Accounts=data.Accounts.Select(a=>settings.BaseCurrencies.TryGetValue(a.Id,out var currency)?a with{BaseCurrency=currency,BaseCurrencyConfirmed=true}:a).ToArray()};
         // 列表只读取有界索引，不能每次刷新解码一百份完整交易/估值快照。
@@ -70,10 +82,10 @@ internal sealed class PerformanceStore : IPerformanceStore
         return new()
         {
             Accounts=docs.SelectMany(d=>d.Accounts).GroupBy(a=>a.Id).Select(g=>
-            {var first=g.First();if(g.Any(a=>a.Broker!=first.Broker || a.BaseCurrency!=first.BaseCurrency || a.Alias!=first.Alias))throw new CrsException("账户券商、币种或别名冲突。");return first with{TrustedFrom=g.Min(a=>a.TrustedFrom),Margin=g.Any(a=>a.Margin)};}).ToArray(),
+            {var first=g.First();if(g.Any(a=>a.Broker!=first.Broker || a.BaseCurrency!=first.BaseCurrency))throw new CrsException("账户券商或币种冲突。");return first with{TrustedFrom=g.Min(a=>a.TrustedFrom),Margin=g.Any(a=>a.Margin)};}).ToArray(),
             Events=Unique(docs.SelectMany(d=>d.Events),e=>e.Id,(a,b)=>a with {Source=b.Source}==b),
             Valuations=Unique(docs.SelectMany(d=>d.Valuations),v=>v.Id),
-            Prices=Unique(docs.SelectMany(d=>d.Prices),p=>p.Id),Fx=Unique(docs.SelectMany(d=>d.Fx),f=>f.Id),
+            Prices=Unique(docs.SelectMany(d=>d.Prices),p=>p.Id,(a,b)=>a with{Source=b.Source}==b),Fx=Unique(docs.SelectMany(d=>d.Fx),f=>f.Id),
             Coverage=docs.SelectMany(d=>d.Coverage).ToArray()
         };
     }
@@ -93,16 +105,26 @@ internal sealed class PerformanceStore : IPerformanceStore
     {
         if(document.Hash!=PerformanceCodec.Hash(document.Raw) || document.Raw.Length is <=0 or >25*1024*1024)throw new CrsException("绩效原件摘要或大小不一致。");
         var encoded=PerformanceCodec.Encode(document.Data);using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();
-        if(c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents WHERE hash=@Hash",document,tx)>0)return false;
-        if(c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents",transaction:tx)>=500 || c.ExecuteScalar<long>("SELECT COALESCE(SUM(length(data)),0) FROM performance_documents",transaction:tx)+encoded.Length>128L*1024*1024)throw new CrsException("导入后绩效工作区会超过限额。");
+        var exists=c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents WHERE hash=@Hash",document,tx)>0;
+        if(exists && document.Format!="YahooChartJSON")return false;
+        if(!exists && (c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents",transaction:tx)>=500 || c.ExecuteScalar<long>("SELECT COALESCE(SUM(length(data)),0) FROM performance_documents",transaction:tx)+encoded.Length>128L*1024*1024))throw new CrsException("导入后绩效工作区会超过限额。");
         // 导入预检在同一事务中完成，冲突或重复成交现金汇总不留下半份资料。
         var currentSettings=ReadSettings(c,tx);var excluded=currentSettings.Sources.OrderBy(s=>s.CreatedAt).GroupBy(s=>s.Hash).Where(g=>!g.Last().Included).Select(g=>g.Key).ToHashSet();
+        if(document.Format=="YahooChartJSON")
+        {
+            var symbol=document.Data.Prices.First(p=>p.Market=="INDEX").Security;
+            foreach(var old in c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents WHERE format='YahooChartJSON'",transaction:tx))
+                if(old.Hash!=document.Hash && !excluded.Contains(old.Hash) && PerformanceCodec.Decode<PerformanceData>(old.Data).Prices.Any(p=>p.Market=="INDEX" && p.Security==symbol))
+                {excluded.Add(old.Hash);currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(old.Hash,false,"联网更新同一指数，保留旧原响应和冻结历史。",DateTimeOffset.UtcNow)]};}
+            if(excluded.Remove(document.Hash))currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(document.Hash,true,"重新使用已缓存的指数响应。",DateTimeOffset.UtcNow)]};
+            c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload=PerformanceCodec.Encode(currentSettings)},tx);
+        }
         var previous=c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents",transaction:tx).Where(r=>!excluded.Contains(r.Hash)).Select(r=>PerformanceCodec.Decode<PerformanceData>(r.Data));
         var merged=Merge(previous.Append(document.Data));
         if(merged.Events.Any(e=>!merged.Accounts.Any(a=>a.Id==e.AccountId)) || merged.Valuations.Any(v=>!merged.Accounts.Any(a=>a.Id==v.AccountId)) || merged.Coverage.Any(v=>!merged.Accounts.Any(a=>a.Id==v.AccountId)))throw new CrsException("补录资料引用了不存在的账户，请先登记或导入账户。");
         if(merged.Accounts.Length>100 || merged.Events.Length>20000 || merged.Valuations.Length>20000 || merged.Prices.Length>50000 || merged.Fx.Length>50000)throw new CrsException("合并后的绩效资料超过集合限额。");
         if(merged.Accounts.Length>0)_=PerformanceCalculator.Calculate(merged,new(merged.Accounts.Select(a=>a.Id).ToArray(),new(2000,1,1),new(2000,1,2)));
-        c.Execute("INSERT INTO performance_documents VALUES(@Hash,@Name,@Format,@Raw,@data)",new{document.Hash,document.Name,document.Format,document.Raw,data=encoded},tx);Capacity(c,tx);tx.Commit();return true;
+        if(!exists)c.Execute("INSERT INTO performance_documents VALUES(@Hash,@Name,@Format,@Raw,@data)",new{document.Hash,document.Name,document.Format,document.Raw,data=encoded},tx);Capacity(c,tx);tx.Commit();return !exists;
     }
     private void Update(Func<Settings,Settings> action)
     {using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();var next=PerformanceCodec.Encode(action(ReadSettings(c,tx)));if(next.Length>4*1024*1024)throw new CrsException("绩效修订台账超过限额。");c.Execute("UPDATE performance_settings SET payload=@next WHERE id=1",new{next},tx);Capacity(c,tx);tx.Commit();}

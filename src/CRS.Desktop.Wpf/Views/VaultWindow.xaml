@@ -1,8 +1,8 @@
 <Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="身份验证" Width="660" Height="720" MinWidth="560" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#FBFCFD">
  <Window.Resources><BooleanToVisibilityConverter x:Key="ShowWhenTrue"/></Window.Resources>
  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="26" IsEnabled="{Binding IsIdle}">
-  <TextBlock Text="身份验证" FontSize="24" FontWeight="SemiBold"/>
-  <TextBlock Text="使用已设置的手机验证或 Windows Hello 解锁" Foreground="#64748B" Margin="0,8,0,20"/>
+  <TextBlock Text="{Binding PageHeading}" FontSize="24" FontWeight="SemiBold"/>
+  <TextBlock Text="{Binding PageDescription}" Foreground="#64748B" Margin="0,8,0,20" TextWrapping="Wrap"/>
   <!-- 日常手机验证不展示数据库路径；首次创建和用户主动选择位置时才展开。 -->
   <StackPanel x:Name="DirectoryPanel" Visibility="{Binding ShowDirectoryEntry,Converter={StaticResource ShowWhenTrue}}">
    <TextBlock Text="保险库目录（新建必须是空目录）"/><TextBox Text="{Binding Directory, UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>

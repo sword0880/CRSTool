@@ -17,9 +17,8 @@
     </ui:NavigationView.MenuItems>
     <ui:NavigationView.FooterMenuItems>
      <ui:NavigationViewItem Content="历史任务" TargetPageType="{x:Type pages:HistoryPage}" Icon="{ui:SymbolIcon History24}"/>
-     <ui:NavigationViewItem Content="设置" Icon="{ui:SymbolIcon Settings24}" Click="OnSettings" IsEnabled="{Binding State.IsIdle}" ToolTip="设置" AutomationProperties.Name="打开日志和数据库设置"/>
-     <!-- 安全入口与主动锁定保留在菜单栏，锁定不能被后台忙碌状态挡住。 -->
-     <ui:NavigationViewItem Content="保险库与备份" Icon="{ui:SymbolIcon Shield24}" Click="OnSecurity"/>
+     <ui:NavigationViewItem Content="设置" Icon="{ui:SymbolIcon Settings24}" Click="OnSettings" IsEnabled="{Binding State.IsIdle}" ToolTip="设置" AutomationProperties.Name="打开统一设置"/>
+     <!-- 数据库与备份统一从设置进入；主动锁定不能被后台忙碌状态挡住。 -->
      <ui:NavigationViewItem Content="锁定" Icon="{ui:SymbolIcon LockClosed24}" Click="OnLock"/>
     </ui:NavigationView.FooterMenuItems>
    </ui:NavigationView>

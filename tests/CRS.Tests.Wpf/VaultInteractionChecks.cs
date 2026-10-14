@@ -43,6 +43,12 @@ internal static class VaultInteractionChecks
         var state=new WorkspaceState(new FakeUseCases(),new Interaction()); var securitySettings=new SettingsViewModel(state,settings,vault);
         await securitySettings.CheckHelloAvailabilityAsync();
         if(!securitySettings.SecuritySettingsAvailable || !securitySettings.PhoneVerificationEnabled || securitySettings.WindowsHelloEnabled || securitySettings.WindowsHelloAvailable) throw new Exception("未配置 Hello 时没有限定手机验证。");
+        securitySettings.DocumentPassword="Synthetic-Document-Password";securitySettings.DocumentPasswordConfirmation="different";
+        await securitySettings.SaveDocumentPasswordCommand.ExecuteAsync(null);
+        if(vault.DocumentEncryptionPassword!="")throw new Exception("统一文档密码不一致仍保存。");
+        securitySettings.DocumentPasswordConfirmation="Synthetic-Document-Password";
+        await securitySettings.SaveDocumentPasswordCommand.ExecuteAsync(null);
+        if(vault.DocumentEncryptionPassword!="Synthetic-Document-Password" || securitySettings.DocumentPassword!="" || securitySettings.DocumentPasswordConfirmation!="")throw new Exception("统一文档密码未保存或输入未清理。");
         state.IsBusy=true; if(securitySettings.SavePhoneVerificationCommand.CanExecute(null)) throw new Exception("后台忙碌仍能改变验证方式。"); state.IsBusy=false;
         securitySettings.SecurityPassword="synthetic-password"; securitySettings.SecurityCode="123456";
         await securitySettings.SavePhoneVerificationCommand.ExecuteAsync(null);
@@ -90,6 +96,8 @@ internal static class VaultInteractionChecks
     private sealed class FakeVault : IVaultService
     {
         public bool HelloSupported {get;set;}
+        public string DocumentEncryptionPassword {get;private set;}="";
+        public Task SetDocumentEncryptionPasswordAsync(string password){DocumentEncryptionPassword=password;return Task.CompletedTask;}
         public bool UsesWindowsHello {get;private set;}
         public Task<bool> IsWindowsHelloAvailableAsync()=>Task.FromResult(HelloSupported);
         public bool CancelLoginChange {get;set;}

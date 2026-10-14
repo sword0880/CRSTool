@@ -14,7 +14,7 @@ public partial class App : System.Windows.Application
     private bool locking;
     private System.Windows.Threading.DispatcherTimer? idle;
     private readonly AutomaticLockPolicy automaticLock=new();
-    private LockWindow? lockedWindow;
+    private bool awaitingUnlock;
     private VaultWindow? securityDialog;
     /// <summary>组合根连接后台和前台，界面不直接构造解析器或数据库。</summary>
     protected override void OnStartup(StartupEventArgs e)
@@ -72,7 +72,9 @@ public partial class App : System.Windows.Application
     {
         var security=new VaultViewModel(vault!,vaultSettings!,new UserInteraction());
         var gate=new VaultWindow(security); MainWindow=gate;
-        if(gate.ShowDialog()!=true || !vault!.IsUnlocked) {vault!.Lock(); Shutdown(); return;}
+        securityDialog=gate;
+        var accepted=gate.ShowDialog();securityDialog=null;
+        if(accepted!=true || !vault!.IsUnlocked) {vault!.Lock(); Shutdown(); return;}
         OpenAuthenticatedWorkspace();
     }
     /// <summary>手机旋转会销毁原业务会话，重新认证后必须重建整个工作区。</summary>
@@ -84,7 +86,7 @@ public partial class App : System.Windows.Application
         workspace.SecurityRequested+=()=>
         {
             var model=new VaultViewModel(vault!,vaultSettings!,new UserInteraction());
-            var dialog=new VaultWindow(model) {Owner=workspace}; securityDialog=dialog;
+            var dialog=new VaultWindow(model) {Owner=workspace,Title="数据库与备份管理"}; securityDialog=dialog;
             var restricted=false;
             model.SessionRestricted+=()=> {restricted=true; workspace.PrepareLock();};
             model.LockRequested+=()=> {dialog.Close(); Dispatcher.BeginInvoke(LockWorkspace);};
@@ -119,28 +121,14 @@ public partial class App : System.Windows.Application
     {
         if(locking) return;
         // 休眠与恢复等事件可连续到达，已经锁定时保持遮挡，不重复退出或自动进入。
-        if(lockedWindow is not null) return;
+        if(awaitingUnlock) {vault?.Lock();securityDialog?.AbortForLock();return;}
         // 创建／恢复向导也可能显示恢复秘密；系统锁屏时关闭启动层，重开应用后必须重新验证。
         if(workspace is null) {foreach(Window window in Windows) window.Hide(); securityDialog?.AbortForLock(); vault?.Lock(); Shutdown(); return;}
         locking=true; idle?.Stop();
         System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity;
         workspace.Hide(); securityDialog?.AbortForLock(); securityDialog=null;
         workspace.PrepareLock(); vault?.Lock(); workspace.Close(); workspace=null;
-        locking=false; ShowLockedWindow();
-    }
-    /// <summary>锁定后保持等待，必须完成已登记的身份验证才能重新进入。</summary>
-    private void ShowLockedWindow()
-    {
-        var screen=new LockWindow(); lockedWindow=screen; MainWindow=screen;
-        var resuming=false;
-        screen.UnlockRequested+=()=>
-        {
-            if(resuming) return;
-            resuming=true; screen.Close(); lockedWindow=null;
-            OpenWorkspace();
-        };
-        screen.Closed+=(_,_)=> {if(!resuming) Shutdown();};
-        screen.Show();
+        locking=false; awaitingUnlock=true; try {OpenWorkspace();} finally {awaitingUnlock=false;}
     }
     /// <summary>退出时清空日志资源，令牌随窗口会话释放。</summary>
     protected override void OnExit(ExitEventArgs e) {idle?.Stop(); Microsoft.Win32.SystemEvents.SessionSwitch-=SessionChanged; Microsoft.Win32.SystemEvents.PowerModeChanged-=PowerChanged; System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity; vault?.Dispose(); DesktopComposition.Shutdown(); base.OnExit(e); }
