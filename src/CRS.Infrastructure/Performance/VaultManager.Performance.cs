@@ -16,7 +16,7 @@ public sealed partial class VaultManager
             });
         }
     }
-    /// <summary>绑定当前真实会话，旧绩效用例不能在重新解锁后恢复权限。</summary>
+    /// <summary>绑定真实会话；online 仅决定是否提供行情适配器，实际请求仍需会话内显式授权，默认仅离线。</summary>
     public IPerformanceUseCases CreatePerformanceUseCases(bool online=true)
     {
         lock(gate)

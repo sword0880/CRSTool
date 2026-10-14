@@ -11,6 +11,7 @@ public partial class PerformancePage : Page
     public PerformancePage(ShellViewModel shell)
     {
         InitializeComponent();model=shell.Performance;DataContext=model;
+        Unloaded+=(_,_)=>model.HideAccountDetailsCommand.Execute(null);
         Loaded+=async(_,_)=>
         {
             // 导航页的独立视觉树找不到 NavigationView 祖先；显式绑定所属窗口的视口。

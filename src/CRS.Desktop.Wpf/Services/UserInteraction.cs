@@ -15,10 +15,14 @@ public interface IUserInteraction
     bool ConfirmPlaintextExport()=>false;
     /// <summary>解密恢复产生明文，需明确告知用户选择可信位置。</summary>
     bool ConfirmPlaintextRestore()=>false;
+    bool ConfirmPerformanceOnlineUpdates()=>false;
 }
 
 public sealed class UserInteraction : IUserInteraction
 {
+    public bool ConfirmPerformanceOnlineUpdates()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,
+        "允许本次解锁期间联网获取指数历史报价和对比用汇率？\n\n数据来源：Yahoo Finance。请求只发送指数代码（如标普500）、期间和币种，不发送账户、持仓或交易。选择允许后，重算可按需查询；切回仅离线或锁定即撤销授权并取消未完成的请求。",
+        "授权在线更新",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes;
     public bool ConfirmPlaintextRestore()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,
         "解密后将在你选择的位置新建文件夹，里面的报表和结转资料为明文。确认恢复到你信任的位置？","解密恢复",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;
     public bool ConfirmPlaintextExport()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,

@@ -9,10 +9,16 @@ public sealed record PerformanceHistory(string Id,DateTimeOffset CreatedAt,DateO
 public sealed record PerformanceInputInfo(string Hash,string Name,bool Included);
 public sealed record PerformanceSourceRevision(string Hash,bool Included,string Reason,DateTimeOffset CreatedAt);
 public sealed record PerformanceWorkspace(PerformanceData Data,InvestmentPortfolio[] Portfolios,PerformanceHistory[] History)
-{public PerformanceInputInfo[] Sources {get;init;}=[];}
+{
+    public PerformanceInputInfo[] Sources {get;init;}=[];
+    public PerformanceAccountIdentity[] AccountIdentities {get;init;}=[];
+    public string InputSnapshotId=>PerformanceSnapshot.Identity(Data);
+}
 /// <summary>绩效端口只暴露用例，桌面不接触密钥、数据库或文件解析器。</summary>
 public interface IPerformanceUseCases
 {
+    bool OnlineUpdatesAllowed=>false;
+    bool SetOnlineUpdatesAllowed(bool userAuthorized)=>false;
     Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false)=>Task.FromResult(false);
     Task<PerformanceCurve> CurveAsync(string runId,string benchmark,CancellationToken cancellation=default)=>Task.FromResult(new PerformanceCurve([],benchmark,"暂无曲线资料。"));
     Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default);

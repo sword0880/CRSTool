@@ -1,4 +1,7 @@
 using CRS.Domain;
+if(args is ["--performance-architecture",var architectureRoot]) {PerformanceArchitectureChecks.Run(architectureRoot);return;}
+if(args is ["--capture-performance-complexity",var complexityRoot]) {PerformanceArchitectureChecks.Run(complexityRoot,true);return;}
+if(args is ["--performance-benchmark"]) {PerformanceRegression.Benchmark();return;}
 var key = new SecurityKey("SYNTHETIC", "DEMO", "USD");
 var trades = new[]
 {
@@ -14,3 +17,5 @@ if (typeof(FifoEngine).Assembly.GetReferencedAssemblies().Any(a=>a.Name?.StartsW
 Console.WriteLine("Domain 验证通过：FIFO、税额及程序集独立性（3 项）。");
 FifoOrderingChecks.Run();
 PerformanceChecks.Run();
+PerformanceRegression.Verify(args is ["--capture-performance-baseline",var path]?path:null);
+PerformanceComponentChecks.Run();

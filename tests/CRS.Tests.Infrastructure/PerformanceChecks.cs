@@ -21,6 +21,7 @@ internal static class PerformanceChecks
     /// <summary>使用真实 SQLCipher 与恢复流程，但只用合成金额；真实样本仅输出结构和问题码。</summary>
     internal static async Task RunAsync(string root,bool realOnly=false)
     {
+        PerformanceImportRegression.Run();
         const string password="Synthetic-Performance-Password-2026";
         await CheckMarketAsync();
         await CheckFutuLabelsAsync(root);
@@ -37,6 +38,7 @@ internal static class PerformanceChecks
             var sharedOperations=new DesktopOperations(sharedVault.Repository,"",sharedVault);
             var parsed=sharedOperations.CreateCalculator(new SharedRates()).Calculate([sharedPath],2025,true,true);
             var shared=await sharedCases.LoadAsync();
+            if(shared.AccountIdentities.Single().AccountNumber!="SHARED")throw new Exception("IBKR 展示账号未从真实原件取得。");
             if(shared.Data.Accounts.Length!=1 || shared.Sources.Single().Hash!=originalHash || !parsed.Sources.Any(s=>s.Sha256.Equals(originalHash,StringComparison.OrdinalIgnoreCase))) throw new Exception("证券流水与绩效没有共用同一份原件。");
             sharedOperations.CreateCalculator(new SharedRates()).Calculate([sharedPath],2025,true,true);
             if((await sharedCases.LoadAsync()).Sources.Length!=1) throw new Exception("重算证券流水重复导入了绩效资料。");
@@ -51,6 +53,9 @@ internal static class PerformanceChecks
         await Reject(()=>cases.ImportManualAsync(JsonSerializer.Serialize(new PerformanceData{Events=[new("BAD","MISSING",DateTimeOffset.UtcNow,DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),InvestmentEventKind.Dividend,1,"USD",Source("bad"))]},Json)));
         var request=new PerformanceRequest(["A"],From,To,"USD");var run=await cases.CalculateAsync(request);
         if(run.Result.Metrics.Single(m=>m.Id=="Profit").Value!=1000 || run.Result.Exposure.Length!=2 || run.ResultSeal.Length!=64)throw new Exception("绩效结果或证据不完整。");
+        if(CRS.Application.Performance.PerformanceSnapshot.Identity(run.Input)!=PerformanceCodec.Hash(PerformanceCodec.Encode(PerformanceCodec.Ordered(run.Input))))throw new Exception("新快照身份与既有历史摘要格式不兼容。");
+        var manifest=CRS.Application.Performance.PerformanceRunManifests.From(run);
+        if(manifest.InputSnapshotId!=run.InputHash || manifest.AlgorithmVersion!=run.Result.EngineVersion || manifest.CostMethodVersion!=run.Result.CostMethodVersion || manifest.ExternalDatasets.Length!=2 || !manifest.NormalizationVersion.StartsWith("Unrecorded",StringComparison.Ordinal))throw new Exception("运行清单遗漏来源/版本或伪造历史解析版本。");
         await cases.SavePortfolioAsync(new("P","合成组合",["A"],"USD"));await cases.RenameAccountAsync("A","新的合成别名");await cases.ConfirmBaseCurrencyAsync("A","HKD");
         var original=await cases.OpenRunAsync(run.Id);if(original.Input.Accounts.Single().Alias!="=HYPERLINK(合成)" || original.Input.Accounts.Single().BaseCurrency!="USD")throw new Exception("当前元数据改写了历史。");
         var replay=await cases.ReplayAsync(run.Id);if(replay.ParentId!=run.Id || replay.InputHash!=run.InputHash || JsonSerializer.Serialize(replay.Result)!=JsonSerializer.Serialize(run.Result))throw new Exception("PA-15 冻结重放不同。");
@@ -122,7 +127,10 @@ internal static class PerformanceChecks
         var cases=vault.CreatePerformanceUseCases(false);
         var data=new PerformanceData{Accounts=[new(id,"FUTU","富途账户 "+id[^6..],"HKD",new(2025,1,1),BaseCurrencyConfirmed:false)]};
         using(var c=vault.OpenForTest()) c.Execute("INSERT INTO performance_documents(hash,name,format,raw,data) VALUES(@hash,'legacy.xlsx','.xlsx',@raw,@data)",new{hash=PerformanceCodec.Hash(raw),raw,data=PerformanceCodec.Encode(data)});
-        if(!(await cases.LoadAsync()).Data.Accounts.Single().Alias.Contains("12345678"))throw new Exception("旧版富途摘要别名未自动修正。");
+        var legacy=await cases.LoadAsync();
+        if(!legacy.Data.Accounts.Single().Alias.Contains("12345678") || legacy.AccountIdentities.Single().AccountNumber!="12345678")throw new Exception("旧版富途摘要别名或真实账号读取不正确。");
+        var privateDisplay=new CRS.Application.Performance.PerformanceAccountPrivacy(legacy.Data.Accounts,legacy.AccountIdentities);
+        if(privateDisplay.Account(legacy.Data.Accounts.Single()).Contains("12345678") || !privateDisplay.Account(legacy.Data.Accounts.Single()).Contains("5678"))throw new Exception("富途默认展示未遮蔽账号。");
         await cases.RenameAccountAsync(id,"我的港股账户");
         if((await cases.LoadAsync()).Data.Accounts.Single().Alias!="我的港股账户")throw new Exception("用户账户别名被自动修正覆盖。");
     }

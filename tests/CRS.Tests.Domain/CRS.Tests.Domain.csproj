@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
  <ItemGroup><ProjectReference Include="../../src/CRS.Domain/CRS.Domain.csproj"/></ItemGroup>
+ <ItemGroup><Content Include="Fixtures/performance-v1.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Fixtures/performance-v1.json')"/></ItemGroup>
+ <ItemGroup>
+  <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
+  <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
+ </ItemGroup>
 </Project>

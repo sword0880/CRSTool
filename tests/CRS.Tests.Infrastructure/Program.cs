@@ -2,6 +2,7 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--capture-performance-imports"]) {PerformanceImportRegression.Run(true);return;}
 var root=Path.Combine(Path.GetTempPath(),"CRS-Layers-"+Guid.NewGuid().ToString("N"));
 // 绩效资料和税务相互独立，专项验收使用新的合成加密库。
 if(args is ["--performance-only"]) {await PerformanceChecks.RunAsync(root);return;}

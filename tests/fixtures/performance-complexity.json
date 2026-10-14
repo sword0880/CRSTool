@@ -1,0 +1,70 @@
+{
+  "PerformanceCalculator.Evaluation.BuildMetrics()": {
+    "Branches": 44,
+    "Lines": 42
+  },
+  "PerformanceCashFlowClassifier.Classify(InvestmentEvent[])": {
+    "Branches": 36,
+    "Lines": 30
+  },
+  "PerformanceClassifications.ValidateDirection(InvestmentEvent)": {
+    "Branches": 19,
+    "Lines": 5
+  },
+  "PerformanceCostCalculator.Calculate(PerformanceData,InvestmentEvent[],string[],DateOnly,DateOnly,Func\u003Cdecimal,string,DateOnly,decimal?\u003E,CancellationToken)": {
+    "Branches": 62,
+    "Lines": 53
+  },
+  "PerformanceCurveCalculator.Calculate(PerformanceData,PerformanceResult,string,CancellationToken)": {
+    "Branches": 37,
+    "Lines": 33
+  },
+  "PerformanceInputValidator.Validate(PerformanceData,PerformanceRequest,CancellationToken)": {
+    "Branches": 79,
+    "Lines": 20
+  },
+  "PerformanceReturnCalculator.Twr()": {
+    "Branches": 33,
+    "Lines": 25
+  },
+  "PerformanceValuationEngine.AccountNav(string,DateOnly,ValuationMoment,DateTimeOffset?)": {
+    "Branches": 28,
+    "Lines": 27
+  },
+  "XirrSolver.Solve(IEnumerable\u003C(DateOnly Date,decimal Amount)\u003E,CancellationToken)": {
+    "Branches": 24,
+    "Lines": 25
+  },
+  "FutuPerformanceAdapter.Project(FrozenInput,BrokerActivityFacts,int,Dictionary\u003Cstring,string\u003E)": {
+    "Branches": 32,
+    "Lines": 22
+  },
+  "IbkrPerformanceAdapter.Project(FrozenInput,XElement[],CancellationToken)": {
+    "Branches": 68,
+    "Lines": 55
+  },
+  "PerformanceBrokerMapping.CashKind(string,decimal)": {
+    "Branches": 28,
+    "Lines": 11
+  },
+  "PerformanceFiles.Write(PerformanceRun,string,bool,string,CancellationToken)": {
+    "Branches": 16,
+    "Lines": 34
+  },
+  "PerformanceStore.Load()": {
+    "Branches": 21,
+    "Lines": 24
+  },
+  "PerformanceStore.Import(PerformanceDocument)": {
+    "Branches": 26,
+    "Lines": 20
+  },
+  "YahooPerformanceMarketData.FetchAsync(string,DateOnly,DateOnly,string,CancellationToken)": {
+    "Branches": 37,
+    "Lines": 37
+  },
+  "PerformanceViewModel.EventName(InvestmentEventKind)": {
+    "Branches": 17,
+    "Lines": 1
+  }
+}

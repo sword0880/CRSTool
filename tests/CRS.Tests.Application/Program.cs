@@ -1,6 +1,7 @@
 using CRS.Application;
 using CRS.Application.Abstractions;
 using CRS.Domain;
+await PerformancePolicyChecks.RunAsync();
 var operations = new StubOperations();
 var workflow = new DesktopWorkflow(operations);
 var result = new CalculationResult { Year=2025, Summary=new(0,0,0,0,0,0,0), SnapshotId="SYNTHETIC" };

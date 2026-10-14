@@ -80,13 +80,18 @@ internal sealed class PerformanceFiles(Action<Action> guard,SensitiveDataExportS
         Sheet("净值核对",["账户别名","日期","组成NAV","结单NAV","差额","容差","一致"],run.Result.Reconciliations.Select(r=>new object?[]{r.AccountAlias,r.Date.ToString("yyyy-MM-dd"),r.CalculatedNav,r.StatementNav,r.Difference,r.Tolerance,r.Matched}));
         Sheet("原币资产组成",["账户别名","日期","资产类别","证券标识","市场","数量","原币","原币金额","报告币金额","来源摘要","原始行"],run.Result.Exposure.Select(r=>new object?[]{r.AccountAlias,r.Date.ToString("yyyy-MM-dd"),r.Kind,r.Security,r.Market,r.Quantity,r.Currency,r.NativeAmount,r.ReportAmount,r.SourceDocument,r.SourceRow}));
         Sheet("历史汇率依据",["日期","原币","目标币","汇率","质量","来源摘要","原始行"],run.Input.Fx.Select(f=>new object?[]{f.Date.ToString("yyyy-MM-dd"),f.From,f.To,f.Rate,f.Quality,f.Source.DocumentId,f.Source.RowIdentity}));
-        Sheet("版本依据",["运行编号","输入摘要","引擎版本","成本口径","可信起点"],[new object?[]{run.Id,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.EffectiveFrom.ToString("yyyy-MM-dd")}]);
+        var manifest=PerformanceRunManifests.From(run);
+        string Summary(IEnumerable<string> values)
+        {var text=string.Join(";",values);return text.Length<=30000?text:text[..29900]+"…（完整明细见各来源表或加密归档 evidence.json）";}
+        Sheet("版本依据",["运行编号","输入摘要","引擎版本","成本口径","可信起点","数据模型版本","解析版本记录","来源摘要","外部数据集摘要","结果指纹"],
+            [new object?[]{run.Id,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.EffectiveFrom.ToString("yyyy-MM-dd"),manifest.DataModelVersion,manifest.NormalizationVersion,
+                Summary(manifest.SourceHashes),Summary(manifest.ExternalDatasets.Select(d=>d.Kind+":"+d.SourceHash)),manifest.ResultSeal}]);
         if(!encrypted) {AtomicExport.Write(path,stream=>book.Write(stream,true),cancellation,guard);return;}
         byte[]? plain=null;byte[]? excel=null;
         try
         {
             using(var stream=new BoundedMemory(cancellation)){book.Write(stream,true);excel=stream.ToArray();}
-            var evidence=PerformanceCodec.Encode(new{run.Id,run.ParentId,run.CreatedAt,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.Request,Sources=run.Input.Events.Select(e=>e.Source.DocumentId).Concat(run.Input.Valuations.Select(v=>v.Source.DocumentId)).Distinct().Order().ToArray()});
+            var evidence=PerformanceCodec.Encode(new{run.Id,run.ParentId,run.CreatedAt,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.Request,Sources=run.Input.Events.Select(e=>e.Source.DocumentId).Concat(run.Input.Valuations.Select(v=>v.Source.DocumentId)).Distinct().Order().ToArray(),Manifest=manifest});
             plain=JsonSerializer.SerializeToUtf8Bytes(new {Version=1,Files=new[]{new{Name="report.xlsx",Content=excel},new{Name="evidence.json",Content=evidence}}});
             var payload=PasswordEncryption.Seal(plain,password);cancellation.ThrowIfCancellationRequested();
             // 沿用已有加密底稿容器，报表页的“恢复加密底稿”可明确确认后解密到新目录。

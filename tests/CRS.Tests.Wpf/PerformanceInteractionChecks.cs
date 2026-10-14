@@ -11,7 +11,18 @@ internal static class PerformanceInteractionChecks
     {
         var cases=new Cases();var interaction=new Interaction();var shell=new ShellViewModel(new FakeUseCases(),interaction,performance:cases,documentPassword:()=>"Synthetic-Encrypted-Password");var vm=shell.Performance;
         await vm.RefreshCommand.ExecuteAsync(null);vm.Currency="USD";vm.From=new(2024,12,31);vm.To=new(2025,12,31);
+        if(!vm.IsOffline || vm.OnlineUpdatesAllowed || vm.DownloadBenchmarkCommand.CanExecute(null) || vm.Accounts.Single().Alias.Contains("12345678") || !vm.Accounts.Single().Alias.Contains("5678") || vm.HasAccountDetails)throw new Exception("账户默认展示或默认离线不正确。");
+        vm.RevealAccountCommand.Execute(vm.Accounts.Single());if(!vm.AccountDetails.Contains("12345678"))throw new Exception("无法主动查看完整账号。");
+        vm.HideAccountDetailsCommand.Execute(null);if(vm.HasAccountDetails)throw new Exception("完整账号未收起。");
+        vm.AuthorizeOnlineUpdatesCommand.Execute(null);if(vm.OnlineUpdatesAllowed)throw new Exception("取消联网授权仍进入在线模式。");
         await vm.CalculateCommand.ExecuteAsync(null);
+        if(cases.MarketRequests!=0)throw new Exception("离线重算仍触发指数查询。");
+        interaction.OnlineConsent=true;vm.AuthorizeOnlineUpdatesCommand.Execute(null);
+        if(!vm.OnlineUpdatesAllowed || !vm.DownloadBenchmarkCommand.CanExecute(null))throw new Exception("允许联网授权未生效。");
+        await vm.DownloadBenchmarkCommand.ExecuteAsync(null);if(cases.MarketRequests!=1)throw new Exception("授权后不能更新行情。");
+        vm.UseOfflineCommand.Execute(null);await vm.CalculateCommand.ExecuteAsync(null);
+        if(cases.MarketRequests!=1 || !vm.IsOffline)throw new Exception("切回离线后仍查询行情。");
+        if(vm.History.Any(h=>h.Scope.Contains("12345678")) || vm.Summary.Contains("12345678") || vm.AccountResults.Any(a=>a.AccountAlias.Contains("12345678")))throw new Exception("历史或汇总泄露完整账号。");
         if(!vm.Metrics.Any(m=>m.Value=="不可计算") || !vm.ExportCommand.CanExecute(null) || cases.Request?.AccountIds.Single()!="A")throw new Exception("绩效缺项或边界展示错误。");
         if(!vm.HasNetAssetsPoints || !vm.HasComparisonPoints)throw new Exception("有效曲线点未显示。");
         var summary=vm.Summary;await vm.RefreshCommand.ExecuteAsync(null);
@@ -20,6 +31,32 @@ internal static class PerformanceInteractionChecks
         if(vm.HasNetAssetsPoints || !vm.NetAssetsStatus.Contains("更新曲线") || !vm.RefreshCurveCommand.CanExecute(null))throw new Exception("参数改变后只剩空坐标轴或无法直接重算。");
         await vm.RefreshCurveCommand.ExecuteAsync(null);
         if(cases.Request?.Currency!="CNY" || !vm.HasNetAssetsPoints)throw new Exception("更新曲线未重新计算失效结果。");
+        cases.Data=cases.Data with{Coverage=[new("A",new(2024,12,31),new(2025,12,31),true,new("SYNTHETIC","coverage"))]};
+        await vm.RefreshCommand.ExecuteAsync(null);await vm.CalculateCommand.ExecuteAsync(null);
+        cases.Data=cases.Data with{Coverage=[cases.Data.Coverage.Single() with{ExternalFlowsComplete=false}]};
+        await vm.RefreshCommand.ExecuteAsync(null);
+        if(vm.ExportCommand.CanExecute(null) || vm.HasNetAssetsPoints)throw new Exception("同条数的覆盖证据变化未使当前结果失效。");
+        await vm.CalculateCommand.ExecuteAsync(null);
+        cases.CalculationGate=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldCalculation=vm.CalculateCommand.ExecuteAsync(null);vm.Currency="HKD";
+        cases.CalculationGate.SetResult();await oldCalculation;cases.CalculationGate=null;
+        if(vm.ExportCommand.CanExecute(null) || vm.Metrics.Count!=0 || vm.HasNetAssetsPoints)throw new Exception("旧任务结束覆盖了新参数。");
+        await vm.CalculateCommand.ExecuteAsync(null);
+        cases.CurveGate=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldCurve=vm.RefreshCurveCommand.ExecuteAsync(null);vm.Benchmark="HSI";
+        cases.CurveGate.SetResult();await oldCurve;cases.CurveGate=null;
+        if(vm.HasComparisonPoints)throw new Exception("旧指数任务覆盖了新指数选择。");
+        cases.CalculationGate=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        oldCalculation=vm.CalculateCommand.ExecuteAsync(null);
+        cases.Data=cases.Data with{Coverage=[cases.Data.Coverage.Single() with{ExternalFlowsComplete=true}]};
+        cases.CalculationGate.SetResult();await oldCalculation;cases.CalculationGate=null;
+        if(vm.ExportCommand.CanExecute(null))throw new Exception("旧输入任务在数据更新后仍作为当前结果展示。");
+        await vm.CalculateCommand.ExecuteAsync(null);
+        cases.LoadGate=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var refresh=vm.RefreshCommand.ExecuteAsync(null);vm.Accounts.Single().Selected=false;
+        cases.LoadGate.SetResult();await refresh;cases.LoadGate=null;
+        if(vm.Accounts.Single().Selected || vm.ExportCommand.CanExecute(null))throw new Exception("刷新任务恢复了用户已取消的旧账户选择。");
+        vm.Accounts.Single().Selected=true;await vm.CalculateCommand.ExecuteAsync(null);
         shell.Import.Year=2024;if(!vm.ExportCommand.CanExecute(null))throw new Exception("税务年度清掉独立绩效。");
         vm.Accounts.Single().Selected=false;if(vm.ExportCommand.CanExecute(null) || vm.CalculateCommand.CanExecute(null) || vm.Metrics.Count!=0)throw new Exception("范围改变沿用旧结果。");
         await vm.RefreshCommand.ExecuteAsync(null);if(vm.Accounts.Single().Selected)throw new Exception("刷新自动勾回已取消账户。");
@@ -32,13 +69,16 @@ internal static class PerformanceInteractionChecks
         await vm.ExportEncryptedCommand.ExecuteAsync(null);if(cases.Password!="Synthetic-Encrypted-Password")throw new Exception("加密导出密码传递/清理失败。");
         cases.Wait=true;var calculation=vm.CalculateCommand.ExecuteAsync(null);if(!shell.State.IsBusy)throw new Exception("未进入忙碌状态。");vm.CancelCommand.Execute(null);await calculation;
         if(shell.State.IsBusy || !shell.State.Status.Contains("取消"))throw new Exception("绩效取消没有恢复状态。");
-        vm.ManualJson="synthetic-private";vm.ClearForLock();
+        vm.AuthorizeOnlineUpdatesCommand.Execute(null);vm.RevealAccountCommand.Execute(vm.Accounts.Single());vm.ManualJson="synthetic-private";vm.ClearForLock();
+        if(vm.HasAccountDetails || vm.OnlineUpdatesAllowed || cases.OnlineUpdatesAllowed)throw new Exception("锁定未撤销授权/清理主动查看信息。");
         if(vm.Accounts.Count!=0 || vm.History.Count!=0 || vm.Metrics.Count!=0 || vm.Events.Count!=0 || vm.Exposure.Count!=0 || vm.ManualJson!="" || vm.RefreshCommand.CanExecute(null))throw new Exception("锁定未清理敏感状态或仍可刷新。");
         Console.WriteLine("绩效界面通过：账户选择、缺项展示、税务隔离、参数失效、历史冻结、跨页忙碌、导出确认/密码清理、取消与锁定清理。");
     }
     private sealed class Interaction:IUserInteraction
     {
         public bool Consent;
+        public bool OnlineConsent;
+        public bool ConfirmPerformanceOnlineUpdates()=>OnlineConsent;
         public bool ConfirmPlaintextExport()=>Consent;
         public string[] PickFiles(string filter,bool multiple)=>[];
         public string? SaveFile(string filter,string name)=>"synthetic-output";
@@ -47,11 +87,18 @@ internal static class PerformanceInteractionChecks
     }
     private sealed class Cases:IPerformanceUseCases
     {
-        private readonly PerformanceData data=new(){Accounts=[new("A","IBKR","合成账户","USD",new(2024,12,31))]};
+        public PerformanceData Data=new(){Accounts=[new("A","IBKR","合成账户","USD",new(2024,12,31))]};
         private readonly PerformanceRun run=new("0123456789abcdef",null,DateTimeOffset.UtcNow,"synthetic",new(),new("Performance.v1",new(["A"],new(2024,12,31),new(2025,12,31),"USD"),[new("Twr","TWR",null,"比例",PerformanceQuality.InsufficientData,"缺净值")],[],[],[new("合成账户","IBKR",null,null,null,null,null,null,"USD")],[],new(2024,12,31)));
         public PerformanceRequest? Request;public bool Wait;public int Exports;public SensitiveExportConsent? Consent;public string Password="";
-        public Task<PerformanceCurve> CurveAsync(string id,string benchmark,CancellationToken cancellation=default)=>Task.FromResult(new PerformanceCurve([new(new(2024,12,31),100,null,100),new(new(2025,12,31),110,null,112)],benchmark,"合成曲线"));
-        public Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default)=>Task.FromResult(new PerformanceWorkspace(data,[],[new(run.Id,run.CreatedAt,run.Result.Request.From,run.Result.Request.To,"USD","合成账户","synthetic")]));
+        public bool OnlineUpdatesAllowed {get;private set;}
+        public int MarketRequests;
+        public bool SetOnlineUpdatesAllowed(bool authorized)=>OnlineUpdatesAllowed=authorized;
+        public Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false){MarketRequests++;return Task.FromResult(false);}
+        public TaskCompletionSource? CalculationGate,CurveGate,LoadGate;
+        public async Task<PerformanceCurve> CurveAsync(string id,string benchmark,CancellationToken cancellation=default)
+        {if(CurveGate is not null)await CurveGate.Task;return new PerformanceCurve([new(new(2024,12,31),100,null,100),new(new(2025,12,31),110,null,112)],benchmark,"合成曲线");}
+        public async Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default)
+        {if(LoadGate is not null)await LoadGate.Task;return new PerformanceWorkspace(Data,[],[new(run.Id,run.CreatedAt,run.Result.Request.From,run.Result.Request.To,"USD","合成账户 12345678","synthetic")]){AccountIdentities=[new("A","合成开户姓名","12345678")]};}
         public Task<bool> ImportAsync(string path,string broker,CancellationToken cancellation=default)=>Task.FromResult(true);
         public Task<bool> ImportManualAsync(string json,CancellationToken cancellation=default)=>Task.FromResult(true);
         public Task SavePortfolioAsync(InvestmentPortfolio portfolio,CancellationToken cancellation=default)=>Task.CompletedTask;
@@ -60,7 +107,8 @@ internal static class PerformanceInteractionChecks
         public Task SetSourceIncludedAsync(string hash,bool included,string reason,CancellationToken cancellation=default)=>Task.CompletedTask;
         public Task ReviseClassificationAsync(string eventId,InvestmentEventKind kind,bool confirmed,string reason,CancellationToken cancellation=default)=>Task.CompletedTask;
         public Task ConfirmTransferAsync(string outgoingId,string incomingId,decimal tolerance,string reason,string toleranceCurrency="CNY",CancellationToken cancellation=default)=>Task.CompletedTask;
-        public async Task<PerformanceRun> CalculateAsync(PerformanceRequest request,CancellationToken cancellation=default){Request=request;if(Wait)await Task.Delay(Timeout.Infinite,cancellation);return run;}
+        public async Task<PerformanceRun> CalculateAsync(PerformanceRequest request,CancellationToken cancellation=default)
+        {Request=request;var input=Data;if(Wait)await Task.Delay(Timeout.Infinite,cancellation);if(CalculationGate is not null)await CalculationGate.Task;return run with{Input=input,InputHash=PerformanceSnapshot.Identity(input),Result=run.Result with{Request=request}};}
         public Task<PerformanceRun> OpenRunAsync(string id,CancellationToken cancellation=default)=>Task.FromResult(run);
         public Task<PerformanceRun> ReplayAsync(string id,CancellationToken cancellation=default)=>Task.FromResult(run);
         public Task ExportAsync(string id,string path,bool encrypted,string password,SensitiveExportConsent? consent=null,CancellationToken cancellation=default){Exports++;Consent=consent;Password=password;return Task.CompletedTask;}

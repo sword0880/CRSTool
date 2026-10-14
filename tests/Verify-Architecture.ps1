@@ -34,6 +34,7 @@ foreach ($entry in @(@($wpf,'Views'),@($wpf,'ViewModels'),@($wpf,'Controls'))) {
         $source = Get-Content -Raw -LiteralPath $file.FullName
         Assert-Boundary (-not ($source -match '(?m)^\s*using\s+(?:CRS\.Infrastructure|NPOI|Dapper|NLog|Microsoft\.Data\.Sqlite|System\.Net\.Http)\b')) "前台越过用例边界：$($file.Name)"
         Assert-Boundary (-not ($source -match '\bIDesktopOperations\b|\bICalculationRepository\b|\bFifoEngine\b|\bTaxEngine\b|File\.(Read|Write)')) "前台出现后台职责：$($file.Name)"
+        Assert-Boundary (-not ($source -match '\b(PerformanceCalculator|PerformanceCostCalculator|PerformanceCurveCalculator|XirrSolver)\s*\.')) "前台直接运行绩效算法：$($file.Name)"
     }
 }
 [xml]$packages = Get-Content -Raw (Join-Path $RepositoryRoot 'Directory.Packages.props')
@@ -60,3 +61,6 @@ $solution = Get-Content -Raw (Join-Path $RepositoryRoot 'CRS.sln')
 Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.Desktop.WinForms'))) 'WinForms 项目仍存在。'
 Assert-Boundary (-not ($solution -match 'CRS\.Desktop\.WinForms')) '解决方案仍引用 WinForms 项目。'
 Write-Output 'Domain / Application / Infrastructure / 前台边界、页面、项目引用和包版本检查通过。'
+# 先完成 Release 构建；以 SDK Roslyn 语法树检查绩效模块的新方法和已评审复杂度增量。
+& dotnet run --project (Join-Path $RepositoryRoot 'tests/CRS.Tests.Domain') -c Release --no-build -- --performance-architecture $RepositoryRoot
+Assert-Boundary ($LASTEXITCODE -eq 0) '绩效复杂度/方法规模门禁失败（请先构建当前源码）。'

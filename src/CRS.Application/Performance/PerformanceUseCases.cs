@@ -5,10 +5,14 @@ namespace CRS.Application.Performance;
 /// <summary>每次任务绑定原解锁会话；取消后不保存半份结果，历史始终另存。</summary>
 public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFiles files,CancellationToken session,IPerformanceMarketData? market=null) : IPerformanceUseCases
 {
+    private readonly PerformanceOnlineAccess onlineAccess=new();
+    public bool OnlineUpdatesAllowed=>!session.IsCancellationRequested && onlineAccess.Allowed;
+    public bool SetOnlineUpdatesAllowed(bool userAuthorized)
+    {onlineAccess.SetAllowed(userAuthorized && market is not null && !session.IsCancellationRequested);return OnlineUpdatesAllowed;}
     public async Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false)
     {
         if(market is null)return false;
-        using var linked=CancellationTokenSource.CreateLinkedTokenSource(session,cancellation);
+        using var linked=onlineAccess.Link(session,cancellation);
         var current=await LoadAsync(linked.Token);
         var from=request.SinceInception?PerformanceCalculator.Calculate(current.Data,request,linked.Token).EffectiveFrom:request.From;
         var to=request.To;var currency=request.Currency;
@@ -41,12 +45,16 @@ public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFile
     public Task ConfirmBaseCurrencyAsync(string id,string currency,CancellationToken cancellation=default)=>Run(cancellation,_=>{if(currency.Length!=3 || !currency.All(c=>c is >= 'A' and <= 'Z'))throw new CrsException("请填写三位大写币种。");store.ConfirmBaseCurrency(id,currency);return true;});
     public Task ConfirmTransferAsync(string outgoingId,string incomingId,decimal tolerance,string reason,string toleranceCurrency="CNY",CancellationToken cancellation=default)=>Run(cancellation,_=>
     {if(string.IsNullOrWhiteSpace(reason) || reason.Length>1000 || tolerance is <0 or >100000 || toleranceCurrency.Length!=3 || !toleranceCurrency.All(c=>c is >= 'A' and <= 'Z'))throw new CrsException("请填写转账/证券转仓核对原因及合理差额容差。");store.Transfer(new(Guid.NewGuid().ToString("N"),outgoingId,incomingId,true,tolerance,reason,toleranceCurrency));return true;});
-    public Task<PerformanceRun> CalculateAsync(PerformanceRequest request,CancellationToken cancellation=default)=>Run(cancellation,token=>
+    public Task<PerformanceRun> CalculateAsync(PerformanceRequest request,CancellationToken cancellation=default)
     {
-        var data=store.Load().Data;var result=PerformanceCalculator.Calculate(data,request,token);
-        var run=PerformanceEvidence.Seal(new PerformanceRun(Guid.NewGuid().ToString("N"),null,DateTimeOffset.UtcNow,files.Hash(data),data,result));
-        token.ThrowIfCancellationRequested();store.SaveRun(run);return run;
-    });
+        var frozenRequest=request with{AccountIds=[..request.AccountIds]};
+        return Run(cancellation,token=>
+        {
+            var data=PerformanceDataSnapshot.Copy(store.Load().Data);var result=PerformanceCalculator.Calculate(data,frozenRequest,token);
+            var run=PerformanceEvidence.Seal(new PerformanceRun(Guid.NewGuid().ToString("N"),null,DateTimeOffset.UtcNow,files.Hash(data),data,result));
+            token.ThrowIfCancellationRequested();store.SaveRun(run);return run;
+        });
+    }
     public Task<PerformanceRun> OpenRunAsync(string id,CancellationToken cancellation=default)=>Run(cancellation,_=>store.OpenRun(id));
     public Task<PerformanceRun> ReplayAsync(string id,CancellationToken cancellation=default)=>Run(cancellation,token=>
     {
