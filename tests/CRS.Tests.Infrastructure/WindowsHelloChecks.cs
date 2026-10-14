@@ -53,23 +53,49 @@ internal static class WindowsHelloChecks
         if(restored.HasLocalKey(target)) throw new Exception("备份带入本机槽。");
         await restored.UnlockAsync(target,password); await restored.VerifyWindowsHelloAsync();
         // 已启用 TOTP 或确认中的 TOTP 均不能再显示/接受首次 Hello 选择。
-        using var totp=new VaultManager(verifier); await totp.CreateAsync(Path.Combine(root,"hello-totp"),password);
+        long now=1_950_000_000;
+        using var totp=new VaultManager(verifier) {Clock=()=>now}; await totp.CreateAsync(Path.Combine(root,"hello-totp"),password);
         _=await totp.BeginEnrollmentAsync(); _=await totp.ConfirmEnrollmentAsync(totp.CodeForTest(true));
         await Reject(()=>totp.EnrollWindowsHelloAsync(true)); await totp.CompleteEnrollmentAsync(true); totp.Lock();
         await totp.BeginLocalUnlockAsync(Path.Combine(root,"hello-totp"));
         if(totp.CanChooseWindowsHello) throw new Exception("已有 TOTP 出现 Hello 降级入口。");
         await Reject(totp.VerifyWindowsHelloAsync); await Reject(()=>totp.EnrollWindowsHelloAsync(true));
-        Console.WriteLine("Windows Hello 策略通过：默认 TOTP、首次明确选择、恢复确认、取消/失败、方式隔离、日常本机验证、改密、锁屏迟到、Windows 身份变化及加密备份恢复。");
+        now+=30;await totp.VerifyTotpAsync(totp.CodeForTest());
+        await RejectMessage(()=>totp.SetLoginMethodAsync(true,"",totp.CodeForTest()),"请输入主密码");
+        await RejectMessage(()=>totp.SetLoginMethodAsync(true,password,""),"六位");
+        await RejectMessage(()=>totp.SetLoginMethodAsync(true,password,"abcdef"),"六位");
+        await RejectMessage(()=>totp.SetLoginMethodAsync(true,"Wrong-Synthetic-Password",totp.CodeForTest()),"主密码错误");
+        if(totp.UsesWindowsHello || !totp.IsUnlocked) throw new Exception("缺失或错误凭证改变了验证方式或会话。");
+        now+=30;verifier.Available=false;await Reject(()=>totp.SetLoginMethodAsync(true,password,totp.CodeForTest()));
+        if(totp.UsesWindowsHello) throw new Exception("未配置 Hello 仍能切换。");
+        verifier.Available=true;now+=30;await totp.SetLoginMethodAsync(true,password,totp.CodeForTest());
+        if(!totp.UsesWindowsHello || totp.PhoneVerificationEnabled) throw new Exception("设置没有互斥切换至 Hello。");
+        totp.Lock();await totp.BeginLocalUnlockAsync(Path.Combine(root,"hello-totp"));
+        if(totp.Authentication!=AuthenticationState.PendingWindowsHello || !totp.UsesWindowsHello || totp.IsUnlocked) throw new Exception("设置保存 Hello 后锁定仍要求手机或绕过验证。");
+        await totp.VerifyWindowsHelloAsync();
+        await totp.SetLoginMethodAsync(false,password,"");totp.Lock();
+        await totp.BeginLocalUnlockAsync(Path.Combine(root,"hello-totp"));
+        if(totp.IsUnlocked || totp.UsesWindowsHello || totp.Authentication!=CRS.Application.Abstractions.AuthenticationState.PendingEnrollment) throw new Exception("切回手机没有强制绑定。");
+        await TestStores.Enroll(totp);
+        Console.WriteLine("Windows Hello 策略通过：首次选择、日常验证、恢复、锁屏中断及设置中互斥切换和重新绑定手机。");
     }
     private static async Task Reject(Func<Task> action)
     {
         try {await action();} catch(Exception ex) when(ex is CrsException or OperationCanceledException) {return;}
         throw new Exception("应拒绝的 Hello 操作被允许。");
     }
+    private static async Task RejectMessage(Func<Task> action,string expected)
+    {
+        try {await action();}
+        catch(CrsException ex) when(ex.Message.Contains(expected)) {return;}
+        throw new Exception("验证方式设置未给出明确的凭证错误提示。");
+    }
     private sealed class Verifier : IWindowsHelloVerifier
     {
         public string UserIdentity {get;set;}="S-1-5-21-SYNTHETIC-FIRST";
         public Exception? Failure {get;set;}
+        public bool Available {get;set;}=true;
+        public Task<bool> IsAvailableAsync()=>Task.FromResult(Available);
         public Func<Task>? Wait {get;set;}
         public async Task VerifyAsync(CancellationToken cancellation=default)
         {

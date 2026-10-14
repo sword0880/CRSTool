@@ -17,7 +17,7 @@ internal static class PerformanceInteractionChecks
         vm.Accounts.Single().Selected=false;if(vm.ExportCommand.CanExecute(null) || vm.CalculateCommand.CanExecute(null) || vm.Metrics.Count!=0)throw new Exception("范围改变沿用旧结果。");
         await vm.RefreshCommand.ExecuteAsync(null);if(vm.Accounts.Single().Selected)throw new Exception("刷新自动勾回已取消账户。");
         vm.Accounts.Single().Selected=true;await vm.CalculateCommand.ExecuteAsync(null);shell.State.IsBusy=true;
-        if(vm.CalculateCommand.CanExecute(null) || vm.ImportCommand.CanExecute(null) || vm.ExportCommand.CanExecute(null))throw new Exception("跨页忙碌门槛失效。");shell.State.IsBusy=false;
+        if(vm.CalculateCommand.CanExecute(null) || vm.RefreshCommand.CanExecute(null) || vm.ExportCommand.CanExecute(null))throw new Exception("跨页忙碌门槛失效。");shell.State.IsBusy=false;
         vm.SelectedHistory=vm.History.Single();await vm.OpenHistoryCommand.ExecuteAsync(null);vm.Currency="HKD";await vm.OpenHistoryCommand.ExecuteAsync(null);
         if(!vm.Summary.Contains("USD"))throw new Exception("历史误用当前报告币种。");
         interaction.Consent=false;await vm.ExportCommand.ExecuteAsync(null);if(cases.Exports!=0)throw new Exception("未确认明文就导出。");

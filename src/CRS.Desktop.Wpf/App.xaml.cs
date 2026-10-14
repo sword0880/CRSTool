@@ -70,11 +70,6 @@ public partial class App : System.Windows.Application
     /// <summary>每次解锁都建立全新的工作区和仓储会话，旧后台任务无法借新会话继续提交。</summary>
     private void OpenWorkspace()
     {
-        // 关闭手机验证且本机登录有效时直接创建工作区，避免验证窗口先显示再关闭。
-        if(VaultStartup.TryEnterAsync(vault!,vaultSettings!.Load().DatabaseDirectory).GetAwaiter().GetResult())
-        {
-            OpenAuthenticatedWorkspace(); return;
-        }
         var security=new VaultViewModel(vault!,vaultSettings!,new UserInteraction());
         var gate=new VaultWindow(security); MainWindow=gate;
         if(gate.ShowDialog()!=true || !vault!.IsUnlocked) {vault!.Lock(); Shutdown(); return;}
@@ -133,7 +128,7 @@ public partial class App : System.Windows.Application
         workspace.PrepareLock(); vault?.Lock(); workspace.Close(); workspace=null;
         locking=false; ShowLockedWindow();
     }
-    /// <summary>锁定后保持等待；手机验证关闭时也不能自动重新开放工作区。</summary>
+    /// <summary>锁定后保持等待，必须完成已登记的身份验证才能重新进入。</summary>
     private void ShowLockedWindow()
     {
         var screen=new LockWindow(); lockedWindow=screen; MainWindow=screen;

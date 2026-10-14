@@ -50,7 +50,7 @@ public partial class PerformanceViewModel : ObservableObject
     [ObservableProperty] private DateTime to=DateTime.Today;
     [ObservableProperty] private int methodIndex;
     [ObservableProperty] private int fallbackDays;
-    [ObservableProperty] private string summary="导入境外结单或补录净值与资金流；成交记录不能代替期初净资产。";
+    [ObservableProperty] private string summary="共用证券流水导入的数据，无需重复导入；缺少期初净值时，相应收益率显示不可计算。";
     [ObservableProperty] private string portfolioName="我的境外组合";
     [ObservableProperty] private InvestmentPortfolio? selectedPortfolio;
     [ObservableProperty] private PerformanceHistory? selectedHistory;
@@ -103,7 +103,7 @@ public partial class PerformanceViewModel : ObservableObject
     private bool CanRevise()=>CanRun() && SelectedEvent is not null && RevisionReason.Trim().Length>0;
     private bool CanTransfer()=>CanRun() && TransferOut is not null && TransferIn is not null && TransferReason.Trim().Length>0;
     private void RefreshCommands()
-    {RefreshCommand.NotifyCanExecuteChanged();ImportCommand.NotifyCanExecuteChanged();CalculateCommand.NotifyCanExecuteChanged();SavePortfolioCommand.NotifyCanExecuteChanged();ExportCommand.NotifyCanExecuteChanged();ExportEncryptedCommand.NotifyCanExecuteChanged();OpenHistoryCommand.NotifyCanExecuteChanged();ReplayHistoryCommand.NotifyCanExecuteChanged();ReviseCommand.NotifyCanExecuteChanged();MatchTransferCommand.NotifyCanExecuteChanged();AddAccountCommand.NotifyCanExecuteChanged();RenameAccountCommand.NotifyCanExecuteChanged();AddNavCommand.NotifyCanExecuteChanged();ConfirmCoverageCommand.NotifyCanExecuteChanged();ImportManualCommand.NotifyCanExecuteChanged();AddEventCommand.NotifyCanExecuteChanged();ReviseSourceCommand.NotifyCanExecuteChanged();}
+    {RefreshCommand.NotifyCanExecuteChanged();CalculateCommand.NotifyCanExecuteChanged();SavePortfolioCommand.NotifyCanExecuteChanged();ExportCommand.NotifyCanExecuteChanged();ExportEncryptedCommand.NotifyCanExecuteChanged();OpenHistoryCommand.NotifyCanExecuteChanged();ReplayHistoryCommand.NotifyCanExecuteChanged();ReviseCommand.NotifyCanExecuteChanged();MatchTransferCommand.NotifyCanExecuteChanged();AddAccountCommand.NotifyCanExecuteChanged();RenameAccountCommand.NotifyCanExecuteChanged();AddNavCommand.NotifyCanExecuteChanged();ConfirmCoverageCommand.NotifyCanExecuteChanged();ImportManualCommand.NotifyCanExecuteChanged();AddEventCommand.NotifyCanExecuteChanged();ReviseSourceCommand.NotifyCanExecuteChanged();}
     private void Invalidate() {run=null;Metrics.Clear();AccountResults.Clear();Issues.Clear();Exposure.Clear();Summary="统计范围或参数已改变，请重新计算；已存历史保留原范围。";RefreshCommands();}
     partial void OnCurrencyChanged(string value)=>Invalidate();
     partial void OnFromChanged(DateTime value)=>Invalidate();
@@ -144,11 +144,6 @@ public partial class PerformanceViewModel : ObservableObject
             Events.Add(new(e.Id,workspace.Data.Accounts.FirstOrDefault(a=>a.Id==e.AccountId)?.Alias??"未绑定账户",e.Date.ToString("yyyy-MM-dd"),EventName(revision?.Kind??e.Kind)+(revision is {Confirmed:false}?"（待确认）":""),e.Amount,e.Currency,e.Source.DocumentId,e.Source.RowIdentity,e.Security));
         }
         ManualAccount=Accounts.FirstOrDefault();Invalidate();state.Status=$"绩效资料：{Accounts.Count} 个账户、{Events.Count} 条事件、{workspace.Data.Valuations.Length} 个净值快照；未自动认定完整。";
-    }
-    [RelayCommand(CanExecute=nameof(CanRun))] private async Task ImportAsync()
-    {
-        var paths=state.Interaction.PickFiles("绩效资料|*.json;*.xml;*.xlsx",true);if(paths.Length==0)return;
-        await Run(async token=>{foreach(var path in paths)await useCases!.ImportAsync(path,Broker,token);await Reload(token);});
     }
     [RelayCommand(CanExecute=nameof(CanCalculate))] private async Task CalculateAsync()=>await Run(async token=>
     {

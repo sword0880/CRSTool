@@ -12,12 +12,13 @@ public sealed partial class VaultManager
         {
             var active=session??pending??throw new CrsException("尚未建立安全会话。");
             using var c=active.Open(); var s=VaultAuthenticationStore.Read(c,null,envelope!);
-            try {return s.PhoneVerificationEnabled==1;} finally {VaultAuthenticationStore.Clear(s);}
+            try {return s.LoginMethod=="Totp";} finally {VaultAuthenticationStore.Clear(s);}
         }}
     }
     /// <summary>切换登录保护需要已授权会话、主密码和新手机代码，成功后写入审计。</summary>
     public Task SetPhoneVerificationAsync(bool enabled,string masterPassword,string code)
     {
+        if(!enabled) throw new CrsException("必须使用手机验证或 Windows Hello；不能关闭所有验证方式。");
         VaultSession expected;
         lock(gate) expected=Required();
         return Task.Run(()=>

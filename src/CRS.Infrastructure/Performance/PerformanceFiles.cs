@@ -13,8 +13,10 @@ namespace CRS.Infrastructure;
 internal sealed class PerformanceFiles(Action<Action> guard,SensitiveDataExportService exports) : IPerformanceFiles
 {
     public PerformanceDocument Read(string path,string broker,CancellationToken cancellation)
+        =>Read(FrozenInput.Read(path,cancellation),broker,cancellation);
+    internal PerformanceDocument Read(FrozenInput input,string broker,CancellationToken cancellation)
     {
-        var input=FrozenInput.Read(path,cancellation);var raw=input.CopyBytes();PerformanceData data;var ext=Path.GetExtension(path).ToLowerInvariant();
+        var raw=input.CopyBytes();PerformanceData data;var ext=Path.GetExtension(input.Name).ToLowerInvariant();
         if(ext==".json")data=Stamp(PerformanceCodec.Decode<PerformanceData>(raw),input.Sha256,true);
         else if(ext==".xml" && broker=="IBKR")data=PerformanceBrokerImporter.Ibkr(input,cancellation);
         else if(ext==".xlsx" && broker=="FUTU")data=PerformanceBrokerImporter.Futu(input,cancellation);

@@ -7,6 +7,7 @@ namespace CRS.Infrastructure;
 
 public sealed class IbkrXmlParser
 {
+    internal Action<FrozenInput,CancellationToken,List<string>>? SharedImport {get;init;}
     private readonly Dictionary<(string Account, string Type, string Id), string> seen = [];
     private readonly Dictionary<(string Account, DateOnly End), Dictionary<SecurityKey, decimal>> snapshots = [];
     private readonly HashSet<(SecurityKey Key, string Id)> openingIds = [];
@@ -71,6 +72,7 @@ public sealed class IbkrXmlParser
             data.CashChecks.AddRange(CashBalanceChecker.Check(s, account, start, end, name));
             CheckCashTotals(s, account, end, name);
         }
+        if(!opening) SharedImport?.Invoke(input,cancellation,data.Warnings);
     }
     /// <summary>读取执行级成交，保留券商原始金额；边界异常进入复核并阻断相关成本链。</summary>
     private void ReadTrades(XElement s, string account, DateOnly start, DateOnly end, string name)

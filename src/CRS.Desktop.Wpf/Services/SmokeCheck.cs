@@ -52,6 +52,17 @@ internal static class SmokeCheck
             if(!shell.Settings.SecuritySettingsAvailable || !shell.Settings.PhoneVerificationEnabled
                 || !((FrameworkElement)settingsWindow.FindName("PhoneVerificationPanel")).IsVisible) throw new InvalidOperationException("设置未显示当前保险库的手机验证开关。");
             shell.Settings.LogRetentionFiles = 9;
+            var helloOption=(System.Windows.Controls.RadioButton)settingsWindow.FindName("WindowsHelloOption");
+            var phoneOption=(System.Windows.Controls.RadioButton)settingsWindow.FindName("PhoneVerificationOption");
+            helloOption.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,true);
+            if(!shell.Settings.WindowsHelloEnabled || shell.Settings.PhoneVerificationEnabled || !shell.Settings.HasLoginMethodChanges)
+                throw new InvalidOperationException("Hello 单选控件没有更新待保存的验证方式。");
+            phoneOption.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,true);
+            if(shell.Settings.WindowsHelloEnabled || !shell.Settings.PhoneVerificationEnabled || shell.Settings.HasLoginMethodChanges)
+                throw new InvalidOperationException("手机单选控件没有恢复当前验证方式。");
+            var authenticationWindow=new VaultWindow(new VaultViewModel(vault!,settings!,new SmokeInteraction()));
+            if(authenticationWindow.Title!="身份验证") throw new InvalidOperationException("验证窗口标题未更新。");
+            authenticationWindow.Close();
             await shell.Settings.SaveCommand.ExecuteAsync(null);
             shell.Settings.Reload();
             if (shell.Settings.LogRetentionFiles != 9 || (await useCasesForSettings()).Count != 1)

@@ -7,6 +7,7 @@ namespace CRS.Infrastructure;
 /// <summary>富途输入组合适配器：唯一收入主表加不重叠的年度交易工作簿。</summary>
 public sealed class FutuImporter(int year) : IBrokerImporter
 {
+    internal Action<FrozenInput,CancellationToken,List<string>>? SharedImport {get;init;}
     /// <summary>识别交易和收入用途，绑定可靠账户，拒绝重叠主数据且保留缺失资料问题。</summary>
     public ImportData Parse(IEnumerable<string> files, string? opening = null, CancellationToken cancellation = default)
     {
@@ -32,6 +33,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
             if (table.Read("交易流水", false) is not null)
             {
                 var map = new FutuTradeExcelImporter().Read(input,table, data, year, cancellation);
+                SharedImport?.Invoke(input,cancellation,data.Warnings);
                 foreach (var (name, ids) in map) { if (!nameMap.TryGetValue(name, out var existing)) nameMap[name] = existing = []; existing.UnionWith(ids); }
             }
             else SetIncome(input,false);

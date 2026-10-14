@@ -33,13 +33,14 @@ internal static class PerformanceBrokerImporter
         {
             cancellation.ThrowIfCancellationRequested();var raw=Required(s,"accountId");var account=AccountId("IBKR",raw);var start=Date(Required(s,"fromDate"));var end=Date(Required(s,"toDate"));
             // 缺少基础币种时拒绝转换，避免凭美元假定解释 fxRateToBase。
-            var baseCurrency=s.Element("AccountInformation") is { } info?Required(info,"currency"):throw new CrsException("IBKR 缺少账户基础币种，请重新导出包含 AccountInformation 的 Activity Flex。");
+            var reportedCurrency=s.Element("AccountInformation") is { } info?Optional(info,"currency"):"";
+            var baseCurrency=reportedCurrency.Length==3?reportedCurrency:"USD";
             if(start>end)throw new CrsException("IBKR 结单期间无效。");
-            accounts.Add(new(account,"IBKR","IBKR 账户 "+account[^6..],baseCurrency,start));
+            accounts.Add(new(account,"IBKR","IBKR 账户 "+account[^6..],baseCurrency,start,BaseCurrencyConfirmed:reportedCurrency.Length==3));
             PerformanceSource Source(string row)=>new(input.Sha256,row);
             void Fx(XElement e,DateOnly date,string row)
             {
-                var currency=Optional(e,"currency");if(currency=="" || currency==baseCurrency || Optional(e,"fxRateToBase")=="")return;
+                var currency=Optional(e,"currency");if(reportedCurrency.Length!=3 || currency=="" || currency==baseCurrency || Optional(e,"fxRateToBase")=="")return;
                 fx.Add(new(input.Sha256+":"+row+":FX",currency,baseCurrency,date,Number(e,"fxRateToBase"),Source(row),PerformanceQuality.Reconstructed));
             }
             var rowIndex=0;

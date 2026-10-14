@@ -18,7 +18,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     [ObservableProperty] private System.Windows.Media.Imaging.BitmapSource? enrollmentQr;
     [ObservableProperty] private string mfaRecoveryCodes="";
     [ObservableProperty] private bool mfaRecoverySaved;
-    [ObservableProperty] private string authenticationHint=vault.IsUnlocked?"当前已解锁，可创建加密备份、改密或更换手机。":"首次设置主密码保护数据库；日常进入只验证手机上的六位代码。";
+    [ObservableProperty] private string authenticationHint=vault.IsUnlocked?"当前已解锁，可创建加密备份、改密或更换手机。":"正在读取已保存的身份验证方式……";
     [ObservableProperty] private VaultState directoryState=vault.Inspect(settings.Load().DatabaseDirectory);
     [ObservableProperty] private bool localKeyAvailable=vault.HasLocalKey(settings.Load().DatabaseDirectory);
     [ObservableProperty] private bool useMasterPassword;
@@ -42,10 +42,15 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     private string? unlockedDirectory=vault.IsUnlocked?settings.Load().DatabaseDirectory:null;
     private bool readyAfterRun;
     public bool IsUnlocked=>vault.IsUnlocked;
+    private readonly bool maintenanceWindow=vault.IsUnlocked;
+    public bool ShowMaintenance=>maintenanceWindow || IsNewVault || DirectoryState is VaultState.Invalid or VaultState.PlaintextRejected;
+    public bool ShowEnrollmentPanel=>vault.Authentication==AuthenticationState.PendingEnrollment;
+    [ObservableProperty] private bool windowsHelloAvailable;
     // 首次选择与已登记 Hello 分开显示，验证码失败时永远不会出现替代入口。
-    public bool ShowHelloChoice=>Directory==unlockedDirectory && vault.CanChooseWindowsHello;
+    public bool ShowHelloChoice=>Directory==unlockedDirectory && vault.CanChooseWindowsHello && WindowsHelloAvailable;
+    partial void OnWindowsHelloAvailableChanged(bool value) {OnPropertyChanged(nameof(ShowHelloChoice)); ChooseWindowsHelloCommand.NotifyCanExecuteChanged();}
     public bool ShowHelloVerification=>Directory==unlockedDirectory && vault.Authentication==AuthenticationState.PendingWindowsHello;
-    public bool ShowTotp=>!vault.UsesWindowsHello;
+    public bool ShowTotp=>IsNewVault || (Directory==unlockedDirectory && !vault.UsesWindowsHello);
     private bool CanChooseHello()=>!IsBusy && ShowHelloChoice && (RecoveryKey.Length==0 || RecoverySaved);
     private bool CanVerifyHello()=>!IsBusy && ShowHelloVerification;
     public bool IsIdle=>!IsBusy;
@@ -80,6 +85,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     {
         DirectoryState=vault.Inspect(Directory); LocalKeyAvailable=vault.HasLocalKey(Directory);
         OnPropertyChanged(nameof(IsNewVault)); OnPropertyChanged(nameof(IsExistingVault)); OnPropertyChanged(nameof(ShowPasswordEntry));
+        OnPropertyChanged(nameof(ShowMaintenance)); OnPropertyChanged(nameof(ShowEnrollmentPanel));
         OnPropertyChanged(nameof(ShowDirectoryEntry));
         OnPropertyChanged(nameof(PasswordEntryLabel)); OnPropertyChanged(nameof(UnlockLabel));
     }
@@ -125,6 +131,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
         unlockedDirectory=Directory;
         Status="请离线保存恢复密钥并勾选确认。主密码与恢复密钥全部丢失后，无法在新电脑恢复数据。";
         await ShowEnrollment();
+        WindowsHelloAvailable=await vault.IsWindowsHelloAvailableAsync();
         await SaveLocation(Directory);
         UpdateDirectoryState();
     });
@@ -146,6 +153,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     /// <summary>本机自动准备受限手机验证，不自动进入业务界面。</summary>
     public async Task InitializeAsync()
     {
+        WindowsHelloAvailable=await vault.IsWindowsHelloAvailableAsync();
         UpdateDirectoryState();
         if(!vault.IsUnlocked && vault.Authentication==AuthenticationState.Locked && LocalKeyAvailable && !UseMasterPassword) await UnlockAsync();
     }

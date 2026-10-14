@@ -17,7 +17,13 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     /// <summary>加载并校验当前汇率配置。</summary>
     public IExchangeRateProvider LoadRates() => new ExchangeRates(ConfigPath);
     /// <summary>装配年度计算所需基础设施。</summary>
-    public CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025) => CalculationServices.Create(rates, broker, year);
+    public CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025)
+        =>CalculationServices.Create(rates,broker,year,vault is null?null:(input,token,warnings)=>
+        {
+            token.ThrowIfCancellationRequested();
+            try {vault.ImportSharedPerformance(input,broker,token,guard!);}
+            catch(CrsException ex) {token.ThrowIfCancellationRequested();warnings.Add("证券流水已导入，但该报表的绩效资料同步未完成："+ex.Message);}
+        });
     /// <summary>只读取本地查询 ID，不读取服务令牌。</summary>
     public string ReadQueryId() => FlexConfiguration.ReadQueryId(ConfigPath);
     /// <summary>读取并验证本地结转。</summary>

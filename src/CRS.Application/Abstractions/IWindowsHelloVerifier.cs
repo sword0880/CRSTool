@@ -4,5 +4,6 @@ namespace CRS.Application.Abstractions;
 public interface IWindowsHelloVerifier
 {
     string UserIdentity { get; }
+    Task<bool> IsAvailableAsync();
     Task VerifyAsync(CancellationToken cancellation = default);
 }

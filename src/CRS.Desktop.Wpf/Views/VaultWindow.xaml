@@ -1,8 +1,8 @@
-<Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="加密保险库" Width="660" Height="720" MinWidth="560" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#FBFCFD">
+<Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="身份验证" Width="660" Height="720" MinWidth="560" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#FBFCFD">
  <Window.Resources><BooleanToVisibilityConverter x:Key="ShowWhenTrue"/></Window.Resources>
  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="26" IsEnabled="{Binding IsIdle}">
-  <TextBlock Text="保护与恢复你的数据" FontSize="24" FontWeight="SemiBold"/>
-  <TextBlock Text="首次主密码加密 · 默认手机验证码 · 可首次选择 Windows Hello" Foreground="#64748B" Margin="0,8,0,20"/>
+  <TextBlock Text="身份验证" FontSize="24" FontWeight="SemiBold"/>
+  <TextBlock Text="使用已设置的手机验证或 Windows Hello 解锁" Foreground="#64748B" Margin="0,8,0,20"/>
   <!-- 日常手机验证不展示数据库路径；首次创建和用户主动选择位置时才展开。 -->
   <StackPanel x:Name="DirectoryPanel" Visibility="{Binding ShowDirectoryEntry,Converter={StaticResource ShowWhenTrue}}">
    <TextBlock Text="保险库目录（新建必须是空目录）"/><TextBox Text="{Binding Directory, UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>
@@ -32,7 +32,7 @@
     <TextBox Text="{Binding MfaRecoveryCodes,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,8"/>
     <CheckBox Content="我已离线保存八条手机恢复码" IsChecked="{Binding MfaRecoverySaved}"/>
    </StackPanel>
-   <Button Content="重新显示绑定二维码" Command="{Binding BeginEnrollmentCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+   <Button Content="重新显示绑定二维码" Command="{Binding BeginEnrollmentCommand}" Visibility="{Binding ShowEnrollmentPanel,Converter={StaticResource ShowWhenTrue}}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
    </StackPanel>
   </StackPanel></Border>
   <!-- 恢复密钥只在创建时显示，离开向导必须确认已离线保存。 -->
@@ -40,7 +40,7 @@
    <TextBlock Text="新建恢复密钥（仅本次显示，请离线保存）"/><TextBox Text="{Binding RecoveryKey, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,6"/>
    <CheckBox Content="我已离线保存恢复密钥，知道主密码与恢复密钥全部丢失后无法在新电脑恢复" IsChecked="{Binding RecoverySaved}" Margin="0,6"/>
   </StackPanel>
-  <Expander Header="更换手机、恢复与加密备份" IsExpanded="False" Margin="0,18,0,8"><StackPanel Margin="0,12,0,0">
+  <Expander Header="更换手机、恢复与加密备份" Visibility="{Binding ShowMaintenance,Converter={StaticResource ShowWhenTrue}}" IsExpanded="False" Margin="0,18,0,8"><StackPanel Margin="0,12,0,0">
    <CheckBox Content="选择其他数据库位置" IsChecked="{Binding ShowDirectoryOptions}" Margin="0,6"/>
    <CheckBox Content="本机凭证异常：使用原主密码重新启用本机登录" IsChecked="{Binding UseMasterPassword}" Margin="0,6"/>
    <TextBlock Text="主密码（改密及恢复时填写；不会用于日常登录）" TextWrapping="Wrap"/><PasswordBox x:Name="MaintenancePasswordInput" PasswordChanged="OnMaintenancePassword" Margin="0,6"/>
@@ -63,7 +63,7 @@
    <Button Content="验证并恢复到新位置" Command="{Binding RestoreCommand}" HorizontalAlignment="Left" Margin="0,6"/>
    <TextBlock Text="旧备份会带回当时的手机绑定和恢复码记录，不能保证旧凭证全局撤销。" TextWrapping="Wrap" Foreground="#64748B"/>
   </StackPanel></Expander>
-  <TextBlock Text="旧明文库不会迁移或删除。原始报表、Excel 和结转导出仍需自行妥善管理。" TextWrapping="Wrap" Foreground="#64748B"/>
-  <Button Content="锁定保险库" Command="{Binding LockCommand}" HorizontalAlignment="Left" Margin="0,14"/>
+  <TextBlock Text="旧明文库不会迁移或删除。原始报表、Excel 和结转导出仍需自行妥善管理。" Visibility="{Binding ShowMaintenance,Converter={StaticResource ShowWhenTrue}}" TextWrapping="Wrap" Foreground="#64748B"/>
+  <Button Content="锁定保险库" Visibility="{Binding IsUnlocked,Converter={StaticResource ShowWhenTrue}}" Command="{Binding LockCommand}" HorizontalAlignment="Left" Margin="0,14"/>
  </StackPanel></ScrollViewer>
 </Window>

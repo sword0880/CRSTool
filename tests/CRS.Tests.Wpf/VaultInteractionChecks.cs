@@ -24,7 +24,7 @@ internal static class VaultInteractionChecks
         model.LockCommand.Execute(null); if(vault.IsUnlocked || model.ContinueCommand.CanExecute(null)) throw new Exception("锁定后可继续进入。");
         var daily=new VaultViewModel(vault,settings,new Interaction()); await daily.InitializeAsync();
         if(daily.IsNewVault || daily.ShowPasswordEntry || daily.ShowDirectoryEntry || daily.CreateCommand.CanExecute(null) || !daily.VerifyCodeCommand.CanExecute(null)
-            || daily.IsUnlocked || vault.LocalUnlocks!=1 || vault.PasswordUnlocks!=0) throw new Exception("已有本机凭证仍要求创建／输入主密码，或未经手机验证已经进入。");
+            || daily.ShowMaintenance || daily.IsUnlocked || vault.LocalUnlocks!=1 || vault.PasswordUnlocks!=0) throw new Exception("已有本机凭证仍要求创建／输入主密码，或未经手机验证已经进入。");
         var dailyEntered=0; daily.Ready+=()=>dailyEntered++;
         daily.ShowDirectoryOptions=true; if(!daily.ShowDirectoryEntry) throw new Exception("主动恢复／切换位置时无法查看目录。");
         daily.ShowDirectoryOptions=false;
@@ -39,25 +39,37 @@ internal static class VaultInteractionChecks
         var recovery=new VaultViewModel(vault,settings,new Interaction()); await recovery.InitializeAsync();
         if(!recovery.ShowPasswordEntry || recovery.IsNewVault || vault.LocalUnlocks!=1) throw new Exception("本机凭证丢失时未提供原主密码恢复或重新要求创建库。");
         vault.LocalAvailable=true;
-        await vault.VerifyTotpAsync("123456"); await vault.SetPhoneVerificationAsync(false,"synthetic-password","123456"); vault.Lock();
-        // 实际启动入口在创建任何验证窗口前放行；异常本机凭证必须清理并回到恢复入口。
-        if(!await VaultStartup.TryEnterAsync(vault,initial) || !vault.IsUnlocked) throw new Exception("关闭手机验证仍需创建验证窗口。");
-        vault.Lock(); vault.FailLocalUnlock=true;
-        if(await VaultStartup.TryEnterAsync(vault,initial) || vault.IsUnlocked || vault.Authentication!=AuthenticationState.Locked) throw new Exception("损坏本机凭证仍自动进入或残留认证上下文。");
-        vault.FailLocalUnlock=false; vault.LocalAvailable=false;
-        if(await VaultStartup.TryEnterAsync(vault,initial)) throw new Exception("关闭手机验证后缺失本机凭证仍能进入。");
-        vault.LocalAvailable=true;
-        var automatic=new VaultViewModel(vault,settings,new Interaction()); var automaticEntered=0; automatic.Ready+=()=>automaticEntered++;
-        await automatic.InitializeAsync(); if(!vault.IsUnlocked || automaticEntered!=1 || automatic.ShowDirectoryEntry) throw new Exception("关闭手机验证后未自动进入或暴露了数据库位置。");
-        // 设置开关走安全端口，独立于普通目录／日志保存，并在操作后清空确认凭证。
+        await vault.VerifyTotpAsync("123456");
         var state=new WorkspaceState(new FakeUseCases(),new Interaction()); var securitySettings=new SettingsViewModel(state,settings,vault);
-        if(!securitySettings.SecuritySettingsAvailable || securitySettings.PhoneVerificationEnabled) throw new Exception("设置没有读取当前库的关闭状态。");
-        state.IsBusy=true; if(securitySettings.SavePhoneVerificationCommand.CanExecute(null)) throw new Exception("后台忙碌仍能改变登录开关。"); state.IsBusy=false;
-        securitySettings.PhoneVerificationEnabled=true; securitySettings.SecurityPassword="synthetic-password"; securitySettings.SecurityCode="123456";
+        await securitySettings.CheckHelloAvailabilityAsync();
+        if(!securitySettings.SecuritySettingsAvailable || !securitySettings.PhoneVerificationEnabled || securitySettings.WindowsHelloEnabled || securitySettings.WindowsHelloAvailable) throw new Exception("未配置 Hello 时没有限定手机验证。");
+        state.IsBusy=true; if(securitySettings.SavePhoneVerificationCommand.CanExecute(null)) throw new Exception("后台忙碌仍能改变验证方式。"); state.IsBusy=false;
+        securitySettings.SecurityPassword="synthetic-password"; securitySettings.SecurityCode="123456";
         await securitySettings.SavePhoneVerificationCommand.ExecuteAsync(null);
-        if(!vault.PhoneVerificationEnabled || securitySettings.SecurityPassword!="" || securitySettings.SecurityCode!="") throw new Exception("设置没有保存开关或保留了确认凭证。");
+        if(!vault.PhoneVerificationEnabled || securitySettings.SecurityPassword!="" || securitySettings.SecurityCode!="") throw new Exception("设置未保存或未清理凭证。");
+        vault.HelloSupported=true;await securitySettings.CheckHelloAvailabilityAsync();
+        securitySettings.WindowsHelloEnabled=true;
+        if(!securitySettings.HasLoginMethodChanges || !securitySettings.SecurityMessage.Contains("尚未保存") || vault.UsesWindowsHello) throw new Exception("尚未验证保存的选择被误报为已启用。");
+        var savedLogRetention=settings.Current.LogRetentionFiles;securitySettings.LogRetentionFiles=savedLogRetention+1;
+        await securitySettings.SaveCommand.ExecuteAsync(null);
+        if(!securitySettings.SecurityMessage.Contains("请输入") || !securitySettings.WindowsHelloEnabled || vault.UsesWindowsHello || settings.Current.LogRetentionFiles!=savedLogRetention) throw new Exception("缺主密码时未提示，或误保存了设置。");
+        securitySettings.SecurityPassword="synthetic-password";await securitySettings.SavePhoneVerificationCommand.ExecuteAsync(null);
+        if(!securitySettings.SecurityMessage.Contains("六位") || vault.UsesWindowsHello || !securitySettings.HasLoginMethodChanges) throw new Exception("缺手机代码时没有提示并保留待保存选项。");
+        securitySettings.SecurityCode="abcdef";await securitySettings.SavePhoneVerificationCommand.ExecuteAsync(null);
+        if(!securitySettings.SecurityMessage.Contains("六位") || vault.UsesWindowsHello) throw new Exception("非数字手机代码进入了系统验证。");
+        securitySettings.SecurityPassword="synthetic-password";securitySettings.SecurityCode="123456";
+        vault.CancelLoginChange=true;await securitySettings.SaveCommand.ExecuteAsync(null);
+        if(vault.UsesWindowsHello || securitySettings.WindowsHelloEnabled || !securitySettings.SecurityMessage.Contains("未修改")) throw new Exception("取消验证没有保留当前手机方式。");
+        vault.CancelLoginChange=false;securitySettings.WindowsHelloEnabled=true;securitySettings.SecurityPassword="synthetic-password";securitySettings.SecurityCode="123456";
+        await securitySettings.SaveCommand.ExecuteAsync(null);
+        if(!vault.UsesWindowsHello || securitySettings.HasLoginMethodChanges || securitySettings.SecurityPassword!="" || securitySettings.SecurityCode!="") throw new Exception("底部保存设置未保存 Hello 或未清理凭证。");
+        securitySettings.Reload();if(!securitySettings.WindowsHelloEnabled) throw new Exception("重新打开设置丢失已保存的 Hello。");
+        vault.Lock();var changedLogin=new VaultViewModel(vault,settings,new Interaction());
+        if(changedLogin.ShowTotp || changedLogin.AuthenticationHint.Contains("只验证手机")) throw new Exception("读取认证方式前误显示手机验证。");
+        await changedLogin.InitializeAsync();
+        if(!changedLogin.ShowHelloVerification || changedLogin.ShowTotp || !changedLogin.AuthenticationHint.Contains("Windows Hello")) throw new Exception("保存 Hello 后锁定仍显示手机验证。");
         vault.Lock();
-        if(await VaultStartup.TryEnterAsync(vault,initial) || vault.Authentication!=AuthenticationState.Locked) throw new Exception("重新启用手机验证后仍跳过验证窗口或残留预检会话。");
+        if(await VaultStartup.TryEnterAsync(vault,initial) || vault.Authentication!=AuthenticationState.Locked) throw new Exception("未验证手机便进入工作区。");
         // 首次 Hello 按钮等待恢复密钥保存确认；再次进入只显示所选方式且不显示路径/密码。
         var helloVault=new FakeVault {HelloSupported=true}; var helloSettings=new Settings();
         var firstHello=new VaultViewModel(helloVault,helloSettings,new Interaction());
@@ -66,19 +78,22 @@ internal static class VaultInteractionChecks
         firstHello.RecoverySaved=true; await firstHello.ChooseWindowsHelloCommand.ExecuteAsync(null);
         helloVault.Lock(); var helloDaily=new VaultViewModel(helloVault,helloSettings,new Interaction());
         await helloDaily.InitializeAsync();
-        if(!helloDaily.ShowHelloVerification || helloDaily.ShowHelloChoice || helloDaily.ShowTotp || helloDaily.ShowPasswordEntry || helloDaily.ShowDirectoryEntry || helloDaily.VerifyCodeCommand.CanExecute(null))
+        if(helloDaily.ShowMaintenance || !helloDaily.ShowHelloVerification || helloDaily.ShowHelloChoice || helloDaily.ShowTotp || helloDaily.ShowPasswordEntry || helloDaily.ShowDirectoryEntry || helloDaily.VerifyCodeCommand.CanExecute(null))
             throw new Exception("日常 Hello 显示了 TOTP 降级入口或首次密码/路径。");
         var helloEntered=0; helloDaily.Ready+=()=>helloEntered++;
         await helloDaily.VerifyWindowsHelloCommand.ExecuteAsync(null);
         if(helloEntered!=1 || !helloVault.IsUnlocked || helloDaily.ReplacePhoneCommand.CanExecute(null)) throw new Exception("Hello 成功未进入工作区或仍启用手机维护。");
         var helloSecurity=new SettingsViewModel(new WorkspaceState(new FakeUseCases(),new Interaction()),helloSettings,helloVault);
-        if(helloSecurity.SecuritySettingsAvailable || helloSecurity.SavePhoneVerificationCommand.CanExecute(null)) throw new Exception("Hello 可以关闭手机开关绕过认证。");
+        if(!helloSecurity.SecuritySettingsAvailable || !helloSecurity.WindowsHelloEnabled || helloSecurity.PhoneVerificationEnabled) throw new Exception("Hello 与手机选项没有互斥。");
         Console.WriteLine("保险库界面验证通过：恢复确认、凭证清理、目录绑定、日常 TOTP/Hello、首次选择与手机开关隔离。");
     }
     private sealed class FakeVault : IVaultService
     {
         public bool HelloSupported {get;set;}
         public bool UsesWindowsHello {get;private set;}
+        public Task<bool> IsWindowsHelloAvailableAsync()=>Task.FromResult(HelloSupported);
+        public bool CancelLoginChange {get;set;}
+        public Task SetLoginMethodAsync(bool useHello,string password,string code) {if(CancelLoginChange) throw new OperationCanceledException();UsesWindowsHello=useHello;PhoneVerificationEnabled=!useHello;return Task.CompletedTask;}
         public bool CanChooseWindowsHello=>HelloSupported && Authentication==AuthenticationState.PendingEnrollment;
         public async Task EnrollWindowsHelloAsync(bool saved) {if(!saved) throw new CRS.Domain.CrsException("请保存恢复密钥。"); UsesWindowsHello=true; await CompleteEnrollmentAsync(true);}
         public Task VerifyWindowsHelloAsync()=>CompleteEnrollmentAsync(true);

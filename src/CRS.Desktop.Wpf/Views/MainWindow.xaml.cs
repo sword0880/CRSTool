@@ -48,7 +48,7 @@ public partial class MainWindow : FluentWindow
     {
         var shell = (ShellViewModel)DataContext;
         if (!shell.State.IsIdle || shell.Settings is null) return;
-        try { shell.Settings.Reload(); new SettingsWindow(shell.Settings) { Owner = this }.ShowDialog(); }
+        try { shell.Settings.Reload(); var dialog=new SettingsWindow(shell.Settings) { Owner = this };dialog.ShowDialog();if(dialog.RequiresPhoneEnrollment) LockRequested?.Invoke(); }
         catch (Exception error) { shell.State.UseCases.LogFailure(error.GetType().Name); shell.State.Interaction.ShowError("无法读取设置，请检查本机设置文件和目录权限。"); }
     }
     private void OnClosing(object? sender, CancelEventArgs e)

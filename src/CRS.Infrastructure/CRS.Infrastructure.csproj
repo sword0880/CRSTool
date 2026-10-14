@@ -20,9 +20,6 @@
     <PackageReference Include="System.Security.Cryptography.Xml" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Pdf\" />
-  </ItemGroup>
   <PropertyGroup>
     <!-- 本项目用于个人辅助测算，接受 NPOI 的 OSMF 许可条款。 -->
     <AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense>

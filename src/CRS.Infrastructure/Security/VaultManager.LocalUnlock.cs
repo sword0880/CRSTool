@@ -27,16 +27,13 @@ public sealed partial class VaultManager
             {
                 candidate=new VaultSession(directory,DeviceKeyStore.Read(directory,metadata.VaultId)); candidate.Verify();
                 // 本机入口只能读取已有认证表，不得把未知库自动升级为免密码的新库。
-                var enterWithoutPhone=false;
                 using(var c=candidate.Open())
                 {
                     var state=VaultAuthenticationStore.Read(c,null,metadata);
-                    try {enterWithoutPhone=state.PhoneVerificationEnabled==0 && !VaultAuthenticationStore.NeedsEnrollment(state);}
-                    finally {VaultAuthenticationStore.Clear(state);}
+                    VaultAuthenticationStore.Clear(state);
                 }
                 envelope=metadata; pending=candidate; pendingStarted=Stopwatch.GetTimestamp(); candidate=null;
-                // 只允许完整初始化且明确关闭手机验证的库使用本机自动进入；恢复中的库仍强制绑定。
-                if(enterWithoutPhone) Promote();
+                // 兼容旧的关闭状态，但日常进入仍必须完成手机验证。
             }
             finally {candidate?.Dispose();}
         }

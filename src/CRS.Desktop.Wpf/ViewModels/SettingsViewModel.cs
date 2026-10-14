@@ -17,8 +17,28 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int logRetentionFiles;
     [ObservableProperty] private int logFileSizeMb;
     [ObservableProperty] private bool phoneVerificationEnabled=true;
-    [ObservableProperty] private string securityMessage="手机验证默认启用；关闭后，本机依靠 Windows 用户保护的密钥进入。";
-    public bool SecuritySettingsAvailable=>vault is {IsUnlocked:true,UsesWindowsHello:false};
+    [ObservableProperty] private bool windowsHelloEnabled;
+    [ObservableProperty] private bool windowsHelloAvailable;
+    [ObservableProperty] private string securityMessage="手机验证与 Windows Hello 只能选择一种；未配置 Windows Hello 时只能使用手机验证。";
+    public bool SecuritySettingsAvailable=>vault is {IsUnlocked:true};
+    public bool ShowPhoneCode=>vault is {IsUnlocked:true,UsesWindowsHello:false};
+    public event Action? PhoneEnrollmentRequired;
+    private bool savedWindowsHelloEnabled;
+    public bool HasLoginMethodChanges=>SecuritySettingsAvailable && WindowsHelloEnabled!=savedWindowsHelloEnabled;
+    partial void OnPhoneVerificationEnabledChanged(bool value) => WindowsHelloEnabled=!value;
+    partial void OnWindowsHelloEnabledChanged(bool value)
+    {
+        PhoneVerificationEnabled=!value;
+        OnPropertyChanged(nameof(HasLoginMethodChanges));
+        SecurityMessage=HasLoginMethodChanges
+            ? $"尚未保存：已选择{(value?" Windows Hello":"手机验证")}。请填写确认凭证并点击“保存设置”；当前仍使用{(savedWindowsHelloEnabled?" Windows Hello":"手机验证")}。"
+            : value?"当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。":"当前使用手机验证，进入及解除锁定需要手机代码。";
+    }
+    public async Task CheckHelloAvailabilityAsync()
+    {
+        WindowsHelloAvailable=vault is not null && await vault.IsWindowsHelloAvailableAsync();
+        if(!WindowsHelloAvailable) SecurityMessage="尚未配置 Windows Hello，只能使用手机验证。请先在 Windows 设置中配置 PIN、指纹或人脸。";
+    }
     // 凭证仅用于本次开关验证，不进入 DesktopSettings 或日志。
     public string SecurityPassword {get;set;}="";
     public string SecurityCode {get;set;}="";
@@ -37,23 +57,47 @@ public partial class SettingsViewModel : ObservableObject
         DatabaseDirectory = settings.DatabaseDirectory; LogDirectory = settings.LogDirectory;
         LoggingEnabled = settings.LoggingEnabled; LogLevel = settings.LogLevel;
         LogRetentionFiles = settings.LogRetentionFiles; LogFileSizeMb = settings.LogFileSizeMb;
-        if(SecuritySettingsAvailable) PhoneVerificationEnabled=vault!.PhoneVerificationEnabled;
-        // Hello 不显示手机开关，避免让用户误以为关闭手机即可跳过 Hello。
-        if(vault is {IsUnlocked:true,UsesWindowsHello:true}) SecurityMessage="当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。";
+        if(SecuritySettingsAvailable) {savedWindowsHelloEnabled=vault!.UsesWindowsHello; WindowsHelloEnabled=savedWindowsHelloEnabled;}
+        OnPropertyChanged(nameof(HasLoginMethodChanges));
+        SecurityMessage=WindowsHelloEnabled?"当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。":"当前使用手机验证，进入及解除锁定需要手机代码。";
         OnPropertyChanged(nameof(SecuritySettingsAvailable)); ClearSecurityInputs();
+        OnPropertyChanged(nameof(ShowPhoneCode));
         Message = "目录和日志设置保存后下次启动生效；更换目录不会移动原数据库。";
     }
     private bool CanSave() => State.IsIdle;
     private bool CanSavePhone()=>State.IsIdle && SecuritySettingsAvailable;
+    private bool ValidateSecurityInputs()
+    {
+        string? error=string.IsNullOrEmpty(SecurityPassword)?"请输入创建数据库时设置的主密码，以确认修改验证方式。"
+            : ShowPhoneCode && (SecurityCode.Length!=6 || !SecurityCode.All(c=>c is >= '0' and <= '9'))
+                ?"请输入当前手机上的新六位验证码，以确认切换验证方式。":null;
+        if(error is null) return true;
+        SecurityMessage=error;Message="验证方式尚未保存。";State.Status=error;return false;
+    }
     /// <summary>登录开关保存在加密库，单独验证并即时生效，不与路径／日志设置混为一项。</summary>
     [RelayCommand(CanExecute=nameof(CanSavePhone))]
-    private async Task SavePhoneVerificationAsync()
+    private async Task SavePhoneVerificationAsync()=>await SaveVerificationAsync();
+    private async Task<bool> SaveVerificationAsync()
     {
+        if(!ValidateSecurityInputs()) return false;
         try
         {
-            if(await State.RunAsync(()=>vault!.SetPhoneVerificationAsync(PhoneVerificationEnabled,SecurityPassword,SecurityCode)))
-                SecurityMessage=PhoneVerificationEnabled?"手机验证已启用，下次进入或解除锁定需要手机代码。":"手机验证已关闭，下次本机进入不再要求手机代码。数据库仍保持加密。";
-            else PhoneVerificationEnabled=vault!.PhoneVerificationEnabled;
+            var rebind=vault!.UsesWindowsHello && !WindowsHelloEnabled;
+            if(await State.RunAsync(()=>vault.SetLoginMethodAsync(WindowsHelloEnabled,SecurityPassword,SecurityCode)))
+            {
+                savedWindowsHelloEnabled=WindowsHelloEnabled;
+                OnPropertyChanged(nameof(HasLoginMethodChanges));
+                SecurityMessage=WindowsHelloEnabled?"已使用 Windows Hello 验证，下次进入或解锁需要 Windows Hello。":"已选择手机验证，下次进入或解锁需要手机代码。";
+                OnPropertyChanged(nameof(ShowPhoneCode));
+                if(rebind) PhoneEnrollmentRequired?.Invoke();
+                return true;
+            }
+            else
+            {
+                WindowsHelloEnabled=savedWindowsHelloEnabled;
+                SecurityMessage="验证方式未修改："+State.Status;
+                return false;
+            }
         }
         finally {ClearSecurityInputs();}
     }
@@ -65,8 +109,16 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync()
     {
+        if(HasLoginMethodChanges && !ValidateSecurityInputs()) return;
         var settings = new DesktopSettings(DatabaseDirectory, LogDirectory, LoggingEnabled, LogLevel, LogRetentionFiles, LogFileSizeMb);
-        if (await State.RunAsync(() => service.SaveAsync(settings)))
-        { Message = "目录和日志设置已保存，下次启动生效。当前任务和数据库保持不变。"; State.Status = Message; }
+        if (!await State.RunAsync(() => service.SaveAsync(settings))) return;
+        if(HasLoginMethodChanges)
+        {
+            if(!await SaveVerificationAsync())
+            {Message="目录和日志设置已保存；验证方式未修改，请重新选择并完成验证。";return;}
+            Message="设置已保存，验证方式立即生效；目录和日志设置下次启动生效。";
+        }
+        else Message="目录和日志设置已保存，下次启动生效。当前验证方式保持不变。";
+        State.Status=Message;
     }
 }

@@ -94,8 +94,7 @@ public sealed partial class VaultManager : IVaultService
             using(var c=pending.Open())
             {
                 var state=VaultAuthenticationStore.Read(c,null,metadata);
-                try {if(state.PhoneVerificationEnabled==0 && !VaultAuthenticationStore.NeedsEnrollment(state)) Promote();}
-                finally {VaultAuthenticationStore.Clear(state);}
+                VaultAuthenticationStore.Clear(state);
             }
         }
         catch(CryptographicException) {passwordFailures++; nextPasswordAttempt=System.Diagnostics.Stopwatch.GetTimestamp()+(long)(System.Diagnostics.Stopwatch.Frequency*Math.Min(8,passwordFailures)); throw new CrsException("主密码错误或保险库认证失败。"); }

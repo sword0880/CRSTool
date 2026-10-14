@@ -10,6 +10,7 @@ namespace CRS.DesktopClient.Composition;
 /// <summary>真实系统验证只由组合根装配，结果不能由界面输入伪造。</summary>
 internal sealed class WindowsHelloVerifier : IWindowsHelloVerifier
 {
+    public async Task<bool> IsAvailableAsync() => await UserConsentVerifier.CheckAvailabilityAsync()==UserConsentVerifierAvailability.Available;
     public string UserIdentity => WindowsIdentity.GetCurrent().User?.Value
         ?? throw new CrsException("无法获取当前 Windows 用户身份。");
 
@@ -19,7 +20,7 @@ internal sealed class WindowsHelloVerifier : IWindowsHelloVerifier
         await app.Dispatcher.InvokeAsync(async () =>
         {
             cancellation.ThrowIfCancellationRequested();
-            var owner=app.Windows.OfType<VaultWindow>().LastOrDefault(x=>x.IsVisible)
+            var owner=app.Windows.OfType<Window>().LastOrDefault(x=>x.IsVisible && x is VaultWindow or SettingsWindow)
                 ?? throw new CrsException("请在安全验证窗口中进行 Windows Hello 验证。");
             var availability=await UserConsentVerifier.CheckAvailabilityAsync();
             cancellation.ThrowIfCancellationRequested();

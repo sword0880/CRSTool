@@ -8,10 +8,14 @@ namespace CRS.DesktopClient.Views;
 public partial class SettingsWindow : FluentWindow
 {
     private bool locking;
+    public bool RequiresPhoneEnrollment {get;private set;}
+    private void OnPhoneEnrollmentRequired() {RequiresPhoneEnrollment=true; Close();}
     public SettingsWindow(SettingsViewModel model)
     {
         InitializeComponent(); DataContext=model; Closing+=OnClosing; model.SecurityInputsCleared+=ClearSecurityInputs;
-        Closed+=(_,_)=> {model.SecurityInputsCleared-=ClearSecurityInputs; model.ClearSecurityInputs(); ClearSecurityInputs();};
+        model.PhoneEnrollmentRequired+=OnPhoneEnrollmentRequired;
+        Loaded+=async (_,_)=>await model.CheckHelloAvailabilityAsync();
+        Closed+=(_,_)=> {model.PhoneEnrollmentRequired-=OnPhoneEnrollmentRequired; model.SecurityInputsCleared-=ClearSecurityInputs; model.ClearSecurityInputs(); ClearSecurityInputs();};
     }
     private void ClearSecurityInputs() {SecurityPasswordInput.Clear(); SecurityCodeInput.Clear();}
     /// <summary>系统锁定关闭设置窗口时清理凭证，允许中断普通的忙碌关闭门槛。</summary>

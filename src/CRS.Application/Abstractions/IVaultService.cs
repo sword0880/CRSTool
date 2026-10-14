@@ -21,6 +21,8 @@ public interface IVaultService : IDisposable
     // 旧适配器默认只有 TOTP；Hello 必须由可信操作系统端口完成。
     bool UsesWindowsHello => false;
     bool CanChooseWindowsHello => false;
+    Task<bool> IsWindowsHelloAvailableAsync() => Task.FromResult(false);
+    Task SetLoginMethodAsync(bool useWindowsHello,string password,string code) => throw new CrsException("当前不支持修改验证方式。");
     Task EnrollWindowsHelloAsync(bool recoverySaved) => throw new CrsException("当前不支持 Windows Hello。");
     Task VerifyWindowsHelloAsync() => throw new CrsException("当前不支持 Windows Hello。");
     VaultState Inspect(string directory);

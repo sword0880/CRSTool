@@ -2,18 +2,18 @@
  <Grid><Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <ui:TitleBar Title="设置" ShowClose="True" ShowMaximize="False" ShowMinimize="False" ForceShutdown="False"/>
   <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><StackPanel Margin="24,8,24,12" IsEnabled="{Binding State.IsIdle}">
-   <!-- 手机开关归属当前加密保险库，只有授权会话能验证和保存。 -->
+   <!-- 验证方式归属当前加密保险库，只有授权会话能验证和保存。 -->
    <StackPanel x:Name="PhoneVerificationPanel" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}" Margin="0,0,0,20">
     <TextBlock Text="登录验证" FontSize="20" FontWeight="SemiBold"/>
-    <CheckBox Content="启用手机验证" IsChecked="{Binding PhoneVerificationEnabled}" Margin="0,12,0,8"/>
-    <TextBlock Text="默认开启。关闭后，使用当前 Windows 用户的本机密钥直接进入；数据库仍加密。" TextWrapping="Wrap" Foreground="#64748B"/>
-    <TextBlock Text="确认修改：主密码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityPasswordInput" PasswordChanged="OnSecurityPassword"/>
-    <TextBlock Text="手机上的新六位代码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityCodeInput" PasswordChanged="OnSecurityCode" MaxLength="6"/>
-    <ui:Button Content="保存手机验证设置" Command="{Binding SavePhoneVerificationCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
+    <RadioButton x:Name="PhoneVerificationOption" GroupName="LoginVerification" Content="启用手机验证" IsChecked="{Binding PhoneVerificationEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" Margin="0,12,0,8"/>
+    <RadioButton x:Name="WindowsHelloOption" GroupName="LoginVerification" Content="使用 Windows Hello" IsChecked="{Binding WindowsHelloEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding WindowsHelloAvailable}" Margin="0,0,0,8"/>
+    <TextBlock Text="两种方式只能选择一种。未配置 Windows Hello 时，只能使用手机验证。" TextWrapping="Wrap" Foreground="#64748B"/>
+    <TextBlock Text="切换验证方式需填写主密码；当前使用手机验证时，还需手机上的新六位代码。选择 Hello 并保存后会弹出系统验证窗口。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,0"/>
+    <TextBlock Text="确认修改：创建数据库时设置的主密码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityPasswordInput" PasswordChanged="OnSecurityPassword"/>
+    <StackPanel Visibility="{Binding ShowPhoneCode,Converter={StaticResource BooleanVisibility}}"><TextBlock Text="当前手机上的新六位代码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityCodeInput" PasswordChanged="OnSecurityCode" MaxLength="6"/></StackPanel>
+    <ui:Button Content="保存验证方式" Command="{Binding SavePhoneVerificationCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
     <TextBlock Text="{Binding SecurityMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
    </StackPanel>
-   <!-- Hello 模式隐藏手机开关时仍说明当前认证方式。 -->
-   <TextBlock Text="{Binding SecurityMessage}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,12"/>
    <TextBlock Text="数据库" FontSize="20" FontWeight="SemiBold"/>
    <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
    <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
@@ -30,7 +30,7 @@
   </StackPanel></ScrollViewer>
   <Border Grid.Row="2" Padding="24,12" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0"><StackPanel>
    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,12"/>
-   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><ui:Button Content="保存目录和日志设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><ui:Button Content="保存设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
   </StackPanel></Border>
  </Grid>
 </ui:FluentWindow>

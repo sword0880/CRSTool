@@ -25,6 +25,20 @@ internal static class PerformanceChecks
         var path=Path.Combine(root,"performance");using var vault=new VaultManager();var created=await vault.CreateAsync(path,password);await TestStores.Enroll(vault);
         var cases=vault.CreatePerformanceUseCases();
         if(realOnly){await RealSamples(cases);return;}
+        using(var sharedVault=new VaultManager())
+        {
+            await sharedVault.CreateAsync(Path.Combine(root,"shared-performance"),password);await TestStores.Enroll(sharedVault);
+            var sharedCases=sharedVault.CreatePerformanceUseCases();
+            var sharedPath=Path.Combine(root,"shared-activity.xml");
+            File.WriteAllText(sharedPath,"<FlexQueryResponse type=\"AF\"><FlexStatements><FlexStatement accountId=\"SHARED\" fromDate=\"20250101\" toDate=\"20251231\"><Trades/><CashTransactions/><OpenPositions/></FlexStatement></FlexStatements></FlexQueryResponse>");
+            var originalHash=FrozenInput.Read(sharedPath).Sha256;
+            var sharedOperations=new DesktopOperations(sharedVault.Repository,"",sharedVault);
+            var parsed=sharedOperations.CreateCalculator(new SharedRates()).Calculate([sharedPath],2025,true,true);
+            var shared=await sharedCases.LoadAsync();
+            if(shared.Data.Accounts.Length!=1 || shared.Sources.Single().Hash!=originalHash || !parsed.Sources.Any(s=>s.Sha256.Equals(originalHash,StringComparison.OrdinalIgnoreCase))) throw new Exception("证券流水与绩效没有共用同一份原件。");
+            sharedOperations.CreateCalculator(new SharedRates()).Calculate([sharedPath],2025,true,true);
+            if((await sharedCases.LoadAsync()).Sources.Length!=1) throw new Exception("重算证券流水重复导入了绩效资料。");
+        }
         var json=JsonSerializer.Serialize(Fixture(),Json);
         if(!await cases.ImportManualAsync(json) || await cases.ImportManualAsync(json))throw new Exception("PA-09 重复原件未去重。");
         var workspace=await cases.LoadAsync();
@@ -76,6 +90,12 @@ internal static class PerformanceChecks
         vault.Lock();await Reject(()=>cases.LoadAsync());await vault.BeginLocalUnlockAsync(path);await TestStores.Authenticate(vault);await Reject(()=>cases.LoadAsync());
         await Transfers(root,password);
         Console.WriteLine("绩效集成通过：SQLCipher、原件去重/格式拒绝、历史冻结与重放、取消、普通导出授权/TEMP 拒绝、公式注入、加密底稿、便携备份完整恢复、来源修订、税务隔离、原件/结果篡改及旧会话失效。");
+    }
+    private sealed class SharedRates:CRS.Application.Abstractions.IExchangeRateProvider
+    {
+        public string Fingerprint=>"shared-synthetic";
+        public AppliedRate Get(int year,string currency)=>new(year,currency,1,"合成","","",null,null,false,true);
+        public List<AppliedRate> ForYear(int year)=>[];
     }
     private static async Task Transfers(string root,string password)
     {
