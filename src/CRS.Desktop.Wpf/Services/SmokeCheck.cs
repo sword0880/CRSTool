@@ -63,6 +63,33 @@ internal static class SmokeCheck
             {
                 Console.Error.WriteLine("smoke: navigate " + key);
                 if (!window.Navigate(key)) throw new InvalidOperationException($"导航失败：{key}");
+                if(key=="performance")
+                {
+                    // 实际窗口用合成期初/末净值计算，验证新页面展示；不读取真实金融资料。
+                    await Task.Delay(300);if(shell.Performance.RefreshCommand.ExecutionTask is { } loading)await loading;
+                    var start=new DateOnly(2024,12,31);var end=new DateOnly(2025,12,31);
+                    var input=new CRS.Domain.Performance.PerformanceData
+                    {
+                        Accounts=[new("SMOKE-PERFORMANCE","IBKR","合成绩效账户","USD",start)],
+                        Valuations=[new("OPEN","SMOKE-PERFORMANCE",new(start.ToDateTime(new(23,59,59)),TimeSpan.Zero),start,CRS.Domain.Performance.ValuationMoment.EndOfDay,[new("Cash","USD",10000)],new("","合成期初")),
+                            new("END","SMOKE-PERFORMANCE",new(end.ToDateTime(new(23,59,59)),TimeSpan.Zero),end,CRS.Domain.Performance.ValuationMoment.EndOfDay,[new("Cash","USD",11000)],new("","合成期末"))],
+                        Coverage=[new("SMOKE-PERFORMANCE",start,end,true,new("","合成完整流量"),IncomeComplete:true,CostsComplete:true)]
+                    };
+                    shell.Performance.ManualJson=System.Text.Json.JsonSerializer.Serialize(input,new System.Text.Json.JsonSerializerOptions{Converters={new System.Text.Json.Serialization.JsonStringEnumConverter()}});
+                    await shell.Performance.ImportManualCommand.ExecuteAsync(null);
+                    shell.Performance.From=start.ToDateTime(TimeOnly.MinValue);shell.Performance.To=end.ToDateTime(TimeOnly.MinValue);shell.Performance.Currency="USD";
+                    await shell.Performance.CalculateCommand.ExecuteAsync(null);
+                    if(shell.Performance.Metrics.Count<10 || shell.Performance.Exposure.Count!=2 || !shell.Performance.ExportCommand.CanExecute(null))throw new InvalidOperationException("绩效实际窗口没有展示独立计算。");
+                    // 最小窗口也必须能看见计算与导出栏，长指标在表格内部滚动。
+                    var page=FindVisual<Views.Pages.PerformancePage>(window)!;var width=window.Width;var height=window.Height;
+                    window.Width=window.MinWidth;window.Height=window.MinHeight;window.UpdateLayout();
+                    await Task.Delay(300);window.UpdateLayout();
+                    Console.Error.WriteLine($"smoke: performance page height={page.Height:F0}, actual={page.ActualHeight:F0}, content={((FrameworkElement)page.Content).ActualHeight:F0}, tabs={FindVisual<System.Windows.Controls.TabControl>(page)?.ActualHeight:F0}, bindingErrors={bindingErrors.Errors.Count}");
+                    if(imagePath is not null)Capture(window,VariantPath(imagePath,"performance-minimum"));
+                    foreach(var name in new[]{"CalculateButton","ExportActions"})
+                    {var control=(FrameworkElement)page.FindName(name);var bottom=control.TranslatePoint(new Point(0,control.ActualHeight),window).Y;Console.Error.WriteLine($"smoke: performance {name} bottom={bottom:F0}, window={window.ActualHeight:F0}");if(bottom>window.ActualHeight-40)throw new InvalidOperationException("最小窗口绩效操作栏被挤出可见范围。");}
+                    window.Width=width;window.Height=height;window.UpdateLayout();
+                }
                 if (key == "rates")
                 {
                     // 等导航动画结束，再验证数值调整、手动输入和未配置年度三种读取路径。
@@ -106,7 +133,7 @@ internal static class SmokeCheck
                         throw new InvalidOperationException("最小窗口下历史分页栏不可见。");
                     window.Width = originalWidth; window.Height = originalHeight; window.UpdateLayout();
                 }
-                if (imagePath is not null && key is "dashboard" or "import" or "tax" or "history")
+                if (imagePath is not null && key is "dashboard" or "import" or "tax" or "history" or "performance")
                 {
                     // 等待导航过渡与字形渲染完成，截图反映最终页面。
                     await Task.Delay(400); window.UpdateLayout();

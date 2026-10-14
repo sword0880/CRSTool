@@ -17,7 +17,8 @@ internal sealed class PageProvider(ShellViewModel shell) : INavigationViewPagePr
             : pageType == typeof(TaxCalculationPage) ? new TaxCalculationPage(shell)
             : pageType == typeof(ReconciliationPage) ? new ReconciliationPage(shell)
             : pageType == typeof(ReportsPage) ? new ReportsPage(shell)
-            : pageType == typeof(HistoryPage) ? new HistoryPage(shell) : null;
+            : pageType == typeof(HistoryPage) ? new HistoryPage(shell)
+            : pageType == typeof(PerformancePage) ? new PerformancePage(shell) : null;
         if (page is not null) pages[pageType] = page;
         return page;
     }

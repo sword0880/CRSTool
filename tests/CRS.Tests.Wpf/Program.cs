@@ -33,6 +33,7 @@ await ReportsInteractionChecks.RunAsync();
 await EncryptedReportsInteractionChecks.RunAsync();
 await CanonicalViewChecks.RunAsync();
 await TaxAmountViewChecks.RunAsync();
+await PerformanceInteractionChecks.RunAsync();
 
 sealed class SilentInteraction : IUserInteraction
 {

@@ -115,3 +115,8 @@ CRS.Security 已是独立生产项目，包含 Cryptography、Vault、Recovery�
 首次／恢复由主密码或数据库恢复密钥解封 DEK；日常由 DPAPI CurrentUser 本机槽准备访问。手机验证启用时必须完成 TOTP 原子消费；关闭时完整初始化的保险库可以本机直接进入。默认 10 分钟自动锁定，便携备份不含 Windows 本机槽。详细流程见 [认证](../guides/AUTH_IMPLEMENTATION.md)。
 
 仅支持已验证的 SQLCipher 及明确识别的加密 v1→v2 结构升级；明文 SQLite 只识别并拒绝，不读取、转换或覆盖。加密备份恢复到新空目录；手机恢复码与数据库恢复密钥用途不同。当前实现及限制见 [数据库升级](../implementation/DATABASE_UPGRADE.md)、[备份容量](../implementation/BACKUP_CAPACITY.md) 和 [锁定中断](../implementation/LOCK_INTERRUPTION.md)。
+
+
+## 投资绩效模块
+
+Domain/Performance 存放独立净值、流量、TWR/XIRR 与区间市场成本引擎；Application/Performance 暴露端口与冻结运行；Infrastructure/Performance 解析原件、存储 SQLCipher 和导出；WPF 的 PerformanceViewModel/PerformancePage 提供第十个页面。实现说明见[绩效 P0](../implementation/PERFORMANCE_P0.md)。

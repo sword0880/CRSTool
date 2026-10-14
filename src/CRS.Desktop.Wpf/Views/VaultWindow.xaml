@@ -43,11 +43,14 @@
   <Expander Header="更换手机、恢复与加密备份" IsExpanded="False" Margin="0,18,0,8"><StackPanel Margin="0,12,0,0">
    <CheckBox Content="选择其他数据库位置" IsChecked="{Binding ShowDirectoryOptions}" Margin="0,6"/>
    <CheckBox Content="本机凭证异常：使用原主密码重新启用本机登录" IsChecked="{Binding UseMasterPassword}" Margin="0,6"/>
-   <TextBlock Text="主密码（仅改密、更换手机或丢失手机恢复时需要）" TextWrapping="Wrap"/><PasswordBox x:Name="MaintenancePasswordInput" PasswordChanged="OnMaintenancePassword" Margin="0,6"/>
+   <TextBlock Text="主密码（改密及恢复时填写；不会用于日常登录）" TextWrapping="Wrap"/><PasswordBox x:Name="MaintenancePasswordInput" PasswordChanged="OnMaintenancePassword" Margin="0,6"/>
+   <!-- Hello 用户只保留数据库恢复与改密，手机维护属于 TOTP 模式。 -->
+   <StackPanel Visibility="{Binding ShowTotp,Converter={StaticResource ShowWhenTrue}}">
    <Button Content="验证当前密码与手机代码，更换绑定" Command="{Binding ReplacePhoneCommand}" HorizontalAlignment="Left" Margin="0,6"/>
    <TextBlock Text="手机丢失：填写主密码和一条未使用的手机恢复码" TextWrapping="Wrap"/>
    <PasswordBox x:Name="MfaRecoveryInput" PasswordChanged="OnMfaRecovery" Margin="0,6"/>
    <Button Content="消费恢复码并绑定新手机" Command="{Binding RecoverPhoneCommand}" HorizontalAlignment="Left" Margin="0,6"/>
+   </StackPanel>
    <TextBlock Text="新主密码（修改或恢复时填写）"/><PasswordBox x:Name="NewPasswordInput" PasswordChanged="OnNewPassword" Margin="0,6"/>
    <TextBlock Text="恢复凭证（恢复密钥，或备份时的主密码）"/><PasswordBox x:Name="SecretInput" PasswordChanged="OnSecret" Margin="0,6"/>
    <WrapPanel Margin="0,8"><Button Content="验证旧密码并改密" Command="{Binding ChangePasswordCommand}" Margin="0,0,8,0"/><Button Content="用恢复密钥重设主密码" Command="{Binding ResetPasswordCommand}"/></WrapPanel>

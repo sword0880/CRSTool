@@ -3,6 +3,9 @@ using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
 var root=Path.Combine(Path.GetTempPath(),"CRS-Layers-"+Guid.NewGuid().ToString("N"));
+// 绩效资料和税务相互独立，专项验收使用新的合成加密库。
+if(args is ["--performance-only"]) {await PerformanceChecks.RunAsync(root);return;}
+if(args is ["--performance-real-only"]) {await PerformanceChecks.RunAsync(root,true);return;}
 // Hello 的操作系统交互使用替身，库、备份及本机槽均执行真实实现。
 if(args is ["--hello-only"]) {await WindowsHelloChecks.RunAsync(root); return;}
 // 目录清理等局部修正可单独复验加密容器，不重复运行无关的认证与数据库场景。
@@ -43,6 +46,7 @@ await MfaChecks.RunAsync(root);
 await LocalKeyChecks.RunAsync(root);
 await PhoneSettingsChecks.RunAsync(root);
 await WindowsHelloChecks.RunAsync(root);
+await PerformanceChecks.RunAsync(root);
 await ExportChecks.RunAsync(root);
 await SensitiveExportChecks.RunAsync(root);
 await EncryptedExportChecks.RunAsync(root);

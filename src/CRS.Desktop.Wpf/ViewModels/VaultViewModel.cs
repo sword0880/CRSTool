@@ -70,6 +70,8 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     private bool CanVerify()=>!IsBusy && Directory==unlockedDirectory && vault.Authentication is AuthenticationState.PendingEnrollment or AuthenticationState.PendingMfa;
     private bool CanRecoverPhone()=>!IsBusy && Directory==unlockedDirectory && vault.Authentication==AuthenticationState.PendingMfa;
     private bool CanAuthorized()=>!IsBusy && Directory==unlockedDirectory && vault.IsUnlocked;
+    // 手机维护仅属于 TOTP，Hello 会话不展示也不启用不适用的手机操作。
+    private bool CanPhoneMaintenance()=>CanAuthorized() && ShowTotp;
     private bool CanContinue()=>!IsBusy && Directory==unlockedDirectory && (RecoveryKey.Length==0 || RecoverySaved)
         && (vault.IsUnlocked || (vault.Authentication==AuthenticationState.AwaitingRecoveryConfirmation && MfaRecoverySaved));
     partial void OnIsBusyChanged(bool value) {OnPropertyChanged(nameof(IsIdle)); Refresh();}
@@ -198,7 +200,7 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     });
     [RelayCommand(CanExecute=nameof(CanRecoverPhone))]
     private async Task RecoverPhoneAsync()=>await Run(async()=> {await vault.RecoverMfaAsync(MfaRecoveryCode,Password); ClearMfaDisplay(); await ShowEnrollment(); Status="手机恢复码已消费，只能绑定新手机，当前不能访问业务资料。";});
-    [RelayCommand(CanExecute=nameof(CanAuthorized))]
+    [RelayCommand(CanExecute=nameof(CanPhoneMaintenance))]
     private async Task ReplacePhoneAsync()=>await Run(async()=> {await vault.BeginPhoneReplacementAsync(Password,Code); SessionRestricted?.Invoke(); unlockedDirectory=Directory; ClearMfaDisplay(); await ShowEnrollment(); Status="请扫描新手机；首码验证失败或取消时旧绑定仍可用。";});
     private void ClearMfaDisplay() {EnrollmentQr=null; MfaRecoveryCodes=""; MfaRecoverySaved=false;}
     public void ClearSensitiveDisplay() {ClearMfaDisplay(); RecoveryKey=""; Password=""; Secret=""; NewPassword=""; Code=""; MfaRecoveryCode=""; SensitiveCleared?.Invoke();}

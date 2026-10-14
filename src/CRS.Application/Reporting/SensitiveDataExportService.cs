@@ -4,12 +4,15 @@ namespace CRS.Application;
 
 /// <summary>单次明文授权声明；它不替代保险库会话认证，也不保存到配置。</summary>
 public sealed record SensitiveExportConsent(bool PlaintextConfirmed,bool TemporaryLocationConfirmed=false);
-public enum SensitiveExportOperation {Excel,Carry,EncryptedArchive,RestoreArchive}
+public enum SensitiveExportOperation {Excel,Carry,EncryptedArchive,RestoreArchive,PerformanceReport}
 public enum SensitiveExportOutcome {Started,Completed,Cancelled,Failed}
 
 /// <summary>统一导出门槛、目标验证、会话取消和无敏感字段审计，不实现文件或密码学操作。</summary>
 public sealed class SensitiveDataExportService(IDesktopOperations operations,CancellationToken session)
 {
+    // 绩效与税务输出共用一次明文确认、临时路径拒绝、会话取消及固定类别审计。
+    public Task ExportPerformanceAsync(string path,bool encrypted,CancellationToken cancellation,SensitiveExportConsent? consent,Action<CancellationToken> write)
+        =>Run(encrypted?SensitiveExportOperation.EncryptedArchive:SensitiveExportOperation.PerformanceReport,path,consent,cancellation,token=>{write(token);return true;});
     public Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation,SensitiveExportConsent? consent)
         =>Run(SensitiveExportOperation.Excel,path,consent,cancellation,token=>
         {CheckRates(fingerprint); operations.Reports.Export(path,result,operations.Repository.Reviews(result.SnapshotId),token); return true;});

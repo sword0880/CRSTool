@@ -1,4 +1,5 @@
 using CRS.Application.Abstractions;
+using CRS.Domain;
 using CRS.Infrastructure;
 using Dapper;
 

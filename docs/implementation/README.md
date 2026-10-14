@@ -12,7 +12,9 @@
 - [输入一致性](INPUT_CONSISTENCY.md)
 - [长任务锁定中断](LOCK_INTERRUPTION.md)
 - [敏感导出与诊断保护](SENSITIVE_EXPORT.md)
+- [默认 TOTP 与首次 Windows Hello](WINDOWS_HELLO.md)
 - [税额引擎](TAX_ENGINE_SPEC.md)
 
 [返回文档首页](../README.md)
 
+- [投资绩效 P0 实现与操作](PERFORMANCE_P0.md)

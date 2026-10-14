@@ -54,3 +54,8 @@ Replay 要求 v2 完整规范化快照、输入摘要一致及 V3 排序口径�
 业务失败使用 CrsException；取消使用 OperationCanceledException。资料不足可产生带 Issues 的部分结果。未知收益、差额与预计补税使用可空 decimal；不得在展示层补成零。
 
 C# 实际签名以源码为准。本文件不声明尚未实现的旧提案模型或新的远程 API。
+
+
+## 绩效用例
+
+IPerformanceUseCases 独立提供 Load / Import / ImportManual / SavePortfolio / RenameAccount / ConfirmBaseCurrency / SetSourceIncluded / ReviseClassification / ConfirmTransfer / Calculate / OpenRun / Replay / Export。全部绑定原保险库会话并接受取消；不以税务 CalculationResult 作为绩效输入。ConfirmTransfer 冻结容差币种，Replay 冻结原输入及规则，Export 使用统一敏感导出策略。模型、限制和失败边界见[绩效当前实现](../implementation/PERFORMANCE_P0.md)。

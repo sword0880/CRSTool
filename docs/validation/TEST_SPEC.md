@@ -6,6 +6,8 @@
 
 ## 可执行验证
 
+`WindowsHelloChecks` 验证默认 TOTP、首次明确选择 Hello、失败/取消、方式隔离、锁屏迟到结果、改密、Windows 身份变化及加密备份恢复。WPF 交互验证恢复确认和日常显示。真实 Hello 硬件与系统提示仍待实机验收，见 [Hello 当前实现](../implementation/WINDOWS_HELLO.md)。
+
 `AutomaticLockChecks` 使用可控单调时钟验证不足十分钟、正好十分钟、输入重置、系统锁屏／注销／断开及休眠／恢复事件。WPF 窗口检查独立锁定页不会自动解锁，不绑定旧模型；实际设备演练仍待完成。
 
 敏感导出新增 `SensitiveExportPolicyChecks`／`SensitiveExportChecks`：后台缺省明文拒绝、临时路径、加密恢复授权、恶意文本单元格类型、真实负金额和日志／诊断允许字段；WPF 验证本次确认实际传入后台。说明见 [敏感导出保护](../implementation/SENSITIVE_EXPORT.md)。
@@ -42,3 +44,6 @@
 真实全年成本及抵免证据、复杂事件、严格历史重放、旧结转转换、发布授权／隐私仍需专项证据。已有实际覆盖率报告及合成耗时／内存测量，尚未约定验收阈值，不宣称达到原提案中的 95%／90% 等目标。合成窗口检查不代替真实账户业务验收。
 
 安全验证新增 CRS.Tests.Security 与 Infrastructure/VaultChecks：纯 KDF／封装、实际 SQLCipher、WAL、一致性加密备份、恢复、改密、旧会话和明文库拒绝；前台新增恢复确认与目录绑定门槛检查。详见 VAULT_GUIDE.md；真实硬件锁屏、跨设备恢复和发布审查不能由合成测试自动认定通过。
+
+
+投资绩效 P0 新增 Domain/PerformanceChecks、Infrastructure/PerformanceChecks 和 Wpf/PerformanceInteractionChecks；真实样本与场景 PA-01—PA-20 的逐项证据、未通过项见[绩效验收记录](PERFORMANCE_ACCEPTANCE.md)。

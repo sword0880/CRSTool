@@ -51,7 +51,7 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src'),(Join-P
     }
     Assert-Boundary ($project.SelectNodes('//PackageReference[@Version]').Count -eq 0) "包版本未集中管理：$($projectFile.Name)"
 }
-foreach ($name in @('Dashboard','Import','Trades','Fifo','ExchangeRates','TaxCalculation','Reconciliation','Reports','History')) {
+foreach ($name in @('Dashboard','Import','Trades','Fifo','ExchangeRates','TaxCalculation','Reconciliation','Reports','History','Performance')) {
     Assert-Boundary (Test-Path (Join-Path $wpf "Views/Pages/${name}Page.xaml")) "缺少页面：$name"
 }
 Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'CRS.Python'))) 'Python 版本仍存在。'

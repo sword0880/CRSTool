@@ -31,3 +31,5 @@ Visual Studio 打开或重新加载 CRS.sln 后，在解决方案资源管理器
 3. 未完成项集中更新 KNOWN_ISSUES；发布门槛集中更新 RELEASE_ACCEPTANCE，避免在各文档复制进度表。
 4. 旧轮次测量和交付记录归档，不把历史覆盖率、合成测试或技术往返一致当作最新业务签认。
 5. 文件名尽量稳定，新增或移动时更新 Markdown 链接、目录索引及 CRS.sln 的解决方案文件条目；文中的 src、tests、Sample、artifacts 路径和运行命令均以仓库根目录为基准。
+
+- 投资绩效：[P0 操作与算法](implementation/PERFORMANCE_P0.md)、[离线模板](examples/performance.example.json)、[验收记录](validation/PERFORMANCE_ACCEPTANCE.md)。

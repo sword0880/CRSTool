@@ -16,13 +16,15 @@ public sealed class ShellViewModel : ObservableObject
     public ReportsViewModel Reports { get; }
     public ExchangeRatesViewModel ExchangeRates { get; }
     public SettingsViewModel? Settings { get; }
+    public PerformanceViewModel Performance {get;}
     public event Action<string>? NavigateRequested;
-    public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null,IVaultService? vault=null)
+    public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null,IVaultService? vault=null,CRS.Application.Performance.IPerformanceUseCases? performance=null)
     {
         State = new(useCases, interaction); Results = new(State); History = new(State, () => NavigateRequested?.Invoke("tax"));
         Dashboard = new(State, History, page => NavigateRequested?.Invoke(page));
         Review = new(State); Reports = new(State); ExchangeRates = new(State);
         Settings = settings is null ? null : new(State, settings,vault);
+        Performance=new(State,performance);
         Import = new(State, () => { NavigateRequested?.Invoke("tax"); _ = History.RefreshCommand.ExecuteAsync(null); });
     }
 }

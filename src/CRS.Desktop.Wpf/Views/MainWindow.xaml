@@ -6,6 +6,7 @@
    <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="True" IsBackButtonVisible="Collapsed" IsPaneOpen="True">
     <ui:NavigationView.MenuItems>
      <ui:NavigationViewItem Content="概览" TargetPageType="{x:Type pages:DashboardPage}" Icon="{ui:SymbolIcon Grid24}"/>
+     <ui:NavigationViewItem Content="投资绩效" TargetPageType="{x:Type pages:PerformancePage}" Icon="{ui:SymbolIcon Money24}"/>
      <ui:NavigationViewItem Content="数据导入" TargetPageType="{x:Type pages:ImportPage}" Icon="{ui:SymbolIcon ArrowUpload24}"/>
      <ui:NavigationViewItem Content="交易记录" TargetPageType="{x:Type pages:TradesPage}" Icon="{ui:SymbolIcon DocumentText24}"/>
      <ui:NavigationViewItem Content="FIFO 计算" TargetPageType="{x:Type pages:FifoPage}" Icon="{ui:SymbolIcon Calculator24}"/>

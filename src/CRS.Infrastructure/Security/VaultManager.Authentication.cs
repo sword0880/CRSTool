@@ -109,6 +109,13 @@ public sealed partial class VaultManager
         lock(gate)
         {
             var candidate=Pending();
+            // 错误认证方式不是验证码尝试，不应给 Hello 会话增加手机限流状态。
+            using(var check=candidate.Open())
+            {
+                var state=VaultAuthenticationStore.Read(check,null,envelope!);
+                try {if(state.LoginMethod!="Totp") throw new CrsException("当前保险库只接受 Windows Hello 验证。");}
+                finally {VaultAuthenticationStore.Clear(state);}
+            }
             try {VaultAuthenticationStore.Consume(candidate,envelope!,code,Now()); Promote();}
             catch(CrsException)
             {

@@ -70,7 +70,7 @@ internal static class VaultInteractionChecks
             throw new Exception("日常 Hello 显示了 TOTP 降级入口或首次密码/路径。");
         var helloEntered=0; helloDaily.Ready+=()=>helloEntered++;
         await helloDaily.VerifyWindowsHelloCommand.ExecuteAsync(null);
-        if(helloEntered!=1 || !helloVault.IsUnlocked) throw new Exception("Hello 成功未进入工作区。");
+        if(helloEntered!=1 || !helloVault.IsUnlocked || helloDaily.ReplacePhoneCommand.CanExecute(null)) throw new Exception("Hello 成功未进入工作区或仍启用手机维护。");
         var helloSecurity=new SettingsViewModel(new WorkspaceState(new FakeUseCases(),new Interaction()),helloSettings,helloVault);
         if(helloSecurity.SecuritySettingsAvailable || helloSecurity.SavePhoneVerificationCommand.CanExecute(null)) throw new Exception("Hello 可以关闭手机开关绕过认证。");
         Console.WriteLine("保险库界面验证通过：恢复确认、凭证清理、目录绑定、日常 TOTP/Hello、首次选择与手机开关隔离。");
@@ -80,7 +80,7 @@ internal static class VaultInteractionChecks
         public bool HelloSupported {get;set;}
         public bool UsesWindowsHello {get;private set;}
         public bool CanChooseWindowsHello=>HelloSupported && Authentication==AuthenticationState.PendingEnrollment;
-        public async Task EnrollWindowsHelloAsync(bool saved) {if(!saved) throw new CrsException("请保存恢复密钥。"); UsesWindowsHello=true; await CompleteEnrollmentAsync(true);}
+        public async Task EnrollWindowsHelloAsync(bool saved) {if(!saved) throw new CRS.Domain.CrsException("请保存恢复密钥。"); UsesWindowsHello=true; await CompleteEnrollmentAsync(true);}
         public Task VerifyWindowsHelloAsync()=>CompleteEnrollmentAsync(true);
         public bool IsUnlocked {get;private set;}
         // 假服务只提供容量元数据，不接触真实文件或密钥。

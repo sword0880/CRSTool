@@ -21,6 +21,7 @@ public partial class MainWindow : FluentWindow
         foreach(var settings in OwnedWindows.OfType<SettingsWindow>().ToArray()) settings.AbortForLock();
         shell.Settings?.ClearSecurityInputs();
         shell.Reports.ClearSensitiveInputs(); // 锁定也清空导出密码，不能随页面缓存继续保留。
+        shell.Performance.ClearForLock(); // 绩效与税务同样属于敏感会话，锁定时取消并清理。
         shell.State.UseCases.EndSession(); shell.Import.CancelCommand.Execute(null); shell.History.CancelOperationCommand.Execute(null);
         shell.Import.Token=""; shell.State.Clear(); DataContext=null;
     }
@@ -28,7 +29,7 @@ public partial class MainWindow : FluentWindow
     {
         ["dashboard"] = typeof(DashboardPage), ["import"] = typeof(ImportPage), ["trades"] = typeof(TradesPage),
         ["fifo"] = typeof(FifoPage), ["rates"] = typeof(ExchangeRatesPage), ["tax"] = typeof(TaxCalculationPage),
-        ["review"] = typeof(ReconciliationPage), ["reports"] = typeof(ReportsPage), ["history"] = typeof(HistoryPage)
+        ["review"] = typeof(ReconciliationPage), ["reports"] = typeof(ReportsPage), ["history"] = typeof(HistoryPage), ["performance"] = typeof(PerformancePage)
     };
     public MainWindow(ShellViewModel shell)
     {

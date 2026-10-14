@@ -21,10 +21,10 @@ internal static class DesktopComposition
         LocalStore.ConfigureLogging(settings.LogDirectory, settings.LoggingEnabled, settings.LogLevel,
             settings.LogRetentionFiles, settings.LogFileSizeMb, exactLogDirectory: true);
         var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager);
-        return new(new DesktopWorkflow(operations),operations,settings.DatabaseDirectory,settingsStore,vault);
+        return new(new DesktopWorkflow(operations),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases());
     }
     public static void LogStartupFailure(Exception error) => LogManager.GetCurrentClassLogger().Error("程序启动失败；类别={0}",SensitiveDiagnostics.FailureCategory(error.GetType().Name));
     public static void Shutdown() => LogManager.Shutdown();
 }
 internal sealed record DesktopRuntime(IDesktopUseCases UseCases, IDesktopOperations Operations, string DirectoryPath,
-    IDesktopSettingsService Settings,IVaultService Vault);
+    IDesktopSettingsService Settings,IVaultService Vault,CRS.Application.Performance.IPerformanceUseCases Performance);

@@ -4,10 +4,11 @@
 
 - [计算证据目标契约](CALCULATION_EVIDENCE_SPEC.md)
 - [发布交付计划](RELEASE_PLAN.md)
+- [海外投资收益率统计需求基线](PERFORMANCE_ANALYTICS_SPEC.md)：待开发评审的目标规范。
 - [离线认证规范](SECURITY_AUTH_SPEC.md)
 - [安全设计基线](SECURITY_DESIGN.md)
 - [税务规则验证规范](TAX_RULE_VALIDATION.md)
-- [离线认证与安全整改基线](CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md)：待核对的新方案，包含 Windows Hello 等目标；与现行本机密钥／可选手机登录的差异尚未实施，不据此改变当前行为。
+- [离线认证与安全整改基线](CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md)：目标方案；按用户确认已接入首次明确选择 Hello，其余目标不能视为全部完成，实际边界见 [Hello 当前实现](../implementation/WINDOWS_HELLO.md)。
 
 [返回文档首页](../README.md)
 

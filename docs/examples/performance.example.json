@@ -1,0 +1,20 @@
+{
+  "Version": 1,
+  "Accounts": [{"Id":"demo-ibkr","Broker":"IBKR","Alias":"合成境外账户","BaseCurrency":"USD","TrustedFrom":"2024-12-31","BaseCurrencyConfirmed":true}],
+  "Events": [],
+  "Valuations": [
+    {"Id":"demo-open","AccountId":"demo-ibkr","AsOf":"2024-12-31T23:59:59+00:00","Date":"2024-12-31","Moment":"EndOfDay","Components":[{"Kind":"Cash","Currency":"USD","Amount":0},{"Kind":"Security","Currency":"USD","Amount":null,"Security":"SYNTHETIC","Market":"US","Quantity":100}],"Source":{"DocumentId":"","RowIdentity":"合成期初全部资产"},"Quality":"Estimated"},
+    {"Id":"demo-end","AccountId":"demo-ibkr","AsOf":"2025-12-31T23:59:59+00:00","Date":"2025-12-31","Moment":"EndOfDay","Components":[{"Kind":"Cash","Currency":"USD","Amount":0},{"Kind":"Security","Currency":"USD","Amount":null,"Security":"SYNTHETIC","Market":"US","Quantity":100}],"Source":{"DocumentId":"","RowIdentity":"合成期末全部资产"},"Quality":"Estimated"}
+  ],
+  "Prices": [
+    {"Id":"demo-price-open","Security":"SYNTHETIC","Market":"US","Currency":"USD","Date":"2024-12-31","Price":100,"Source":{"DocumentId":"","RowIdentity":"合成未复权期初价"}},
+    {"Id":"demo-price-end","Security":"SYNTHETIC","Market":"US","Currency":"USD","Date":"2025-12-31","Price":110,"Source":{"DocumentId":"","RowIdentity":"合成未复权期末价"}}
+  ],
+  "Fx": [
+    {"Id":"demo-fx-open","From":"USD","To":"CNY","Date":"2024-12-31","Rate":7,"Source":{"DocumentId":"","RowIdentity":"合成期初估值汇率"}},
+    {"Id":"demo-fx-end","From":"USD","To":"CNY","Date":"2025-12-31","Rate":8,"Source":{"DocumentId":"","RowIdentity":"合成期末估值汇率"}}
+  ],
+  "Coverage": [{"AccountId":"demo-ibkr","From":"2024-12-31","To":"2025-12-31","ExternalFlowsComplete":true,"IncomeComplete":true,"CostsComplete":true,"Source":{"DocumentId":"","RowIdentity":"仅限合成示例完整性，不是业务签认"}}],
+  "Transfers": [],
+  "Revisions": []
+}

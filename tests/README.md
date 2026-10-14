@@ -26,6 +26,8 @@
 
 在仓库根目录运行：
 
+Windows Hello 专项：`dotnet run --project tests/CRS.Tests.Infrastructure -- --hello-only`。端口替身只验证策略与失败路径，真实 SQLCipher、DPAPI、加密备份仍运行。首次选择和日常 Hello 界面门槛纳入 WPF 套件；真实 PIN、指纹/人脸、取消和锁屏中断见 [Hello 验收边界](../docs/implementation/WINDOWS_HELLO.md)。
+
 ```powershell
 dotnet build CRS.sln -c Release -m:1
 ./tests/Verify-Architecture.ps1
@@ -43,7 +45,7 @@ dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --fixture D:
 dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --futu
 ```
 
-WPF 窗口检查会导航九个页面、检查绑定错误、历史 / 复核 / Excel 导出、取消不保存及输入清理。窗口检查还验证折叠菜单、设置窗口保存和最小窗口尺寸下的历史分页栏；传入 --image 的绝对 PNG 路径可输出折叠、设置、概览、导入、税务和历史截图。
+WPF 窗口检查会导航十个页面、检查绑定错误、历史 / 复核 / Excel 导出、取消不保存及输入清理。窗口检查还验证折叠菜单、设置窗口保存和最小窗口尺寸下的历史分页栏；传入 --image 的绝对 PNG 路径可输出折叠、设置、概览、导入、税务和历史截图。
 
 携带 IBKR fixture 的窗口检查还会执行原件摘要校验、冻结口径复算另存、父运行及取消不保存验证；汇率页面检查数值调整和手动输入后读取。
 
@@ -54,3 +56,6 @@ WinForms 项目已删除。当前解决方案包含 WPF 前台、Domain／Applic
 发布验收、合成性能与许可证清单请运行 ./tests/Run-ReleaseAcceptance.ps1 -Smoke，具体门槛见 [发布验收](../docs/validation/RELEASE_ACCEPTANCE.md)。抵免证据链与界面检查已加入 Infrastructure / WPF 验证项目。
 
 新增 CRS.Tests.Security（纯密码学）与保险库集成／交互验证。所有持久化回归现由 TestStores 显式创建加密库，不提供明文测试兼容通道。
+
+
+绩效专项：先编译，再运行 dotnet run --project tests/CRS.Tests.Infrastructure --no-build -- --performance-only；真实输入专项使用 --performance-real-only，从仓库根目录只读 Sample/IBKR 与 Sample/FUTU，仅读取结构并输出计数/问题码。领域与 WPF 套件已包含绩效，场景与缺口见[绩效 P0 验收](../docs/validation/PERFORMANCE_ACCEPTANCE.md)。
