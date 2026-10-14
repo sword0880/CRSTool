@@ -1,5 +1,9 @@
 # CRS 验证项目
 
+插件/ETF开发预览：说明与未完成门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md)。新增验证入口：`dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release`；`dotnet run --project tests/CRS.Tests.PluginHost -c Release -- artifacts/plugin-preview/Plugins`。双插件测试前用 `./tests/Publish-Plugins.ps1 -IncludeDemo` 生成全新发布目录。测试仅用合成研究数据和独立临时库，不把状态恢复测试称为断电验收。
+
+覆盖率与原件导出回归已加入ETF验证：交易日历损坏不跳日、缺口分母、无日历/超界不冒充完整、待审核/拒绝分列、人工日历证据替换、同值拒绝后再提交，以及精确原字节导出、取消/损坏不覆盖目的地、私有目录保护。宿主窗口检查会实际切换所有插件页签并捕获绑定错误。
+
 敏感导出专项：`dotnet run --project tests/CRS.Tests.Infrastructure -c Release -- --sensitive-exports-only`。应用与界面回归同时覆盖本次明文声明、恢复确认及锁定取消；生产界面不开放临时目录明文特许，合成验收明确授权其隔离临时目的地。说明见 [敏感导出](../docs/implementation/SENSITIVE_EXPORT.md)。
 
 2026-10-13 P0 续修：应用 `AccountPeriodChecks`、基础设施 `AccountPeriodFileChecks` 与 `LockInterruptionChecks`、界面 `ImportInteractionChecks` 增加有凭证的生命周期、快照重放、严格凭证清单和长备份锁定回归。中断可单独执行 `dotnet run --project tests/CRS.Tests.Infrastructure -c Release -- --lock-interruption-only`。独立税额记录未提供，人工金额验收仍未通过。
@@ -51,7 +55,18 @@ WPF 窗口检查会导航十个页面、检查绑定错误、历史 / 复核 / E
 
 该窗口流程还会勾选 IBKR 与富途来源任务、确认归属并执行年度汇总，验证另存、清空选择、导航及来源表格；截图包括年度汇总选择和结果。
 
-WinForms 项目已删除。当前解决方案包含 WPF 前台、Domain／Application／Security／Infrastructure 四个后台项目及六个验证项目。
+WinForms 项目已删除。当前解决方案保留 WPF 前台、Domain／Application／Security／Infrastructure 四个后台项目；新增三个插件契约/宿主项目、ETF与演示插件，以及三个插件验证项目，原六个验证项目保留。
+
+插件专项先生成全新的开发预览目录，再运行；Debug同样执行并传入对应Debug发布目录，不能混用不同配置的业务程序集：
+
+```powershell
+./tests/Publish-Plugins.ps1 -OutputDirectory artifacts/etf-recovery-preview -IncludeDemo
+dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build -- artifacts/etf-recovery-preview/Plugins
+dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build
+dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- artifacts/etf-recovery-preview/Plugins
+```
+
+PluginRecovery使用隔离临时目录，只强杀自身创建的子进程；覆盖七个升级中断点、含已提交WAL的快照、真实WPF候选页面、失败回退和新事实禁止回退。测试候选1.0.1与1.0.0采用相同业务DLL和Schema 1，人工构造开发可信索引；这证明恢复接线，不证明真实不同二进制/Schema迁移、生产签名发行或物理断电。不得将临时测试目录作为正式数据源。
 
 发布验收、合成性能与许可证清单请运行 ./tests/Run-ReleaseAcceptance.ps1 -Smoke，具体门槛见 [发布验收](../docs/validation/RELEASE_ACCEPTANCE.md)。抵免证据链与界面检查已加入 Infrastructure / WPF 验证项目。
 

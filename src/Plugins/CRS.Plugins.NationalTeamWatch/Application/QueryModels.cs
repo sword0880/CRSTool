@@ -1,0 +1,21 @@
+namespace CRS.Plugins.NationalTeamWatch.Application;
+/// <summary>只读概览；未知指标保持空值，不用零替代缺失数据。</summary>
+public sealed record EtfSummary(string Market, string Ticker, string Name, string IndexGroup, string Label,
+    DateOnly? AsOf, decimal? Shares, decimal? Change1, decimal? Change5, decimal? Change20, string Status, int CoveredDays);
+/// <summary>事实修订的双时间轴和两份原始证据哈希，用于审计与复算。</summary>
+public sealed record EvidenceRow(string RevisionId, string Market, string Ticker, string TradeDate, string Shares,
+    string State, int Revision, string Hash, string OriginalHash, string SourceUrl, string RetrievedAt, string FirstSeenAt, string? AcceptedAt, string? Supersedes);
+/// <summary>保留日历中的每个日期边界，区分缺失、待审核、拒绝和损坏。</summary>
+public sealed record CoverageDay(DateOnly Date,string State,string? RevisionId)
+{
+    /// <summary>状态代码供测试和审计使用，界面展示对应的中文业务含义。</summary>
+    public string StatusText=>State switch {"Accepted"=>"有效份额", "Missing"=>"缺少份额", "NeedsReview"=>"待人工审核", "Critical"=>"份额证据异常", "CalendarCritical"=>"日历证据异常", "QualityRejected"=>"审核拒绝", _=>"未知"};
+}
+/// <summary>覆盖率只针对已登记日历，不代表交易所完整历史或250日目标已经达到。</summary>
+public sealed record CoverageReport(string Market,string Ticker,DateOnly From,DateOnly To,int RegisteredTradingDays,
+    int AcceptedDays,int MissingDays,int PendingDays,int CriticalDays,int RejectedDays,decimal? CoveragePercent,
+    bool CalendarVerified,bool CalendarRangeCovered,string State,IReadOnlyList<CoverageDay> Days)
+{
+    /// <summary>完整仅指已登记日历口径，不宣称官方全量历史已取得。</summary>
+    public string StatusText=>State switch {"NoCalendar"=>"该区间未登记交易日历", "CalendarCritical"=>"日历证据异常，指标暂停", "CalendarRangeIncomplete"=>"所选区间超出已登记日历边界", "CompleteRegisteredCalendar"=>"已登记日历内完整", _=>"份额覆盖不完整"};
+}

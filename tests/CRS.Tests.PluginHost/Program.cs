@@ -1,0 +1,117 @@
+using System.IO;
+using System.Security.Cryptography;
+using System.Text.Json;
+using System.Windows;
+using CRS.PluginHost;
+// 真实STA/WPF验证：两个包由通用清单加载，测试项目不引用业务插件实现。
+internal static class Program
+{
+ [STAThread] private static void Main(string[] args)
+ {
+  var app=new System.Windows.Application {ShutdownMode=ShutdownMode.OnExplicitShutdown};
+  app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary {Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
+  app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+  app.Startup+=async (_,_)=>
+  {
+   try {await Run(args);app.Shutdown(0);}catch(Exception error){Console.Error.WriteLine(error);app.Shutdown(1);}
+  };app.Run();
+ }
+ private static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
+ private static async Task Run(string[] args)
+ {
+  var root=Path.Combine(Path.GetTempPath(),"CRS-host-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+  await using(var empty=new PluginRuntime(root,Path.Combine(root,"storage"))) {await empty.StartAsync();Check(empty.Pages.Count==0,"Tax-only no-plugin startup");}
+  foreach(var path in new[]{"../escape","C:/absolute","a/../../escape"})
+  {try {PackageVerifier.Resolve(root,path);throw new Exception("Path accepted");}catch(InvalidDataException){Console.WriteLine("PASS path traversal "+path);}}
+  foreach(var stage in Enum.GetValues<UpgradeStage>().Where(x=>x is UpgradeStage.Prepared or UpgradeStage.Snapshotted or UpgradeStage.Migrated or UpgradeStage.Switched))
+  {
+   var folder=Path.Combine(root,stage.ToString());Directory.CreateDirectory(folder);var journal=new UpgradeCoordinator(folder);
+   var previous=new ActiveGeneration("1.0.0","old");var candidate=new ActiveGeneration("2.0.0","new");
+   File.WriteAllText(Path.Combine(folder,"upgrade-journal.json"),JsonSerializer.Serialize(new UpgradeRecord(Guid.NewGuid().ToString("N"),previous,candidate,stage,false)));
+   Check(await journal.RecoverAsync(new Participant(),false,CancellationToken.None)==UpgradeStage.RolledBack && journal.Active()==previous,"Recovery from "+stage);
+  }
+  var coordinator=new UpgradeCoordinator(Path.Combine(root,"upgrade"));var participant=new Participant();
+  await coordinator.PrepareAsync(new("1.0.0","old"),new("2.0.0","new"),participant,CancellationToken.None);
+  coordinator.MarkBeforeNewFactWrite();participant.Fail=true;
+  Check(await coordinator.RecoverAsync(participant,true,CancellationToken.None)==UpgradeStage.RequiresRecovery,"New facts forbid silent rollback");
+  Check(await coordinator.RecoverAsync(participant,false,CancellationToken.None)==UpgradeStage.RequiresRecovery,"Recovery reentry retains unresolved candidates");
+  // 固定核验期间的并发写入时序，防止恢复读取旧标记后静默丢弃新事实。
+  var concurrent=new UpgradeCoordinator(Path.Combine(root,"concurrent-upgrade"));var writing=new Participant();
+  await concurrent.PrepareAsync(new("1.0.0","old"),new("2.0.0","new"),writing,CancellationToken.None);
+  writing.OnVerify=async ()=>{await Task.Yield();concurrent.MarkBeforeNewFactWrite();throw new InvalidDataException();};
+  Check(await concurrent.RecoverAsync(writing,true,CancellationToken.None)==UpgradeStage.RequiresRecovery,"Facts written during verification forbid rollback");
+  if(args.Length==0){Console.WriteLine("Live dual-plugin POC requires a published Plugins directory argument.");return;}
+  var release=Path.GetFullPath(args[0]);await using var runtime=new PluginRuntime(release,Path.Combine(root,"live-storage"));await runtime.StartAsync();
+  foreach(var status in runtime.Statuses) Console.WriteLine($"{status.Id}: {status.State} {status.Failure}");
+  Check(runtime.Statuses.Count==2 && runtime.Statuses.All(x=>x.State==PluginState.Started),"Two real plugins started without business references");
+  Check(runtime.Pages.Count==2 && runtime.Pages.Select(x=>x.Route).Distinct().Count()==2,"Namespaced routes");
+  foreach(var page in runtime.Pages)
+  {
+   for(var iteration=0;iteration<2;iteration++)
+   {
+    var view=page.Contribution.CreateView();var window=new Window {Width=1200,Height=800,Content=view};window.Show();
+    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();
+    Check(view.ActualWidth>0 && view.ActualHeight>0,"WPF XAML/chart layout "+page.Route);
+    if(iteration==0 && FindVisual<System.Windows.Controls.TabControl>(view) is { } tabs)
+    {
+        // 实际切换每个页签，验证新增覆盖率和证据操作的控件资源都能创建。
+        var errors=new BindingErrors();System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(errors);
+        try
+        {
+            for(var tabIndex=0;tabIndex<tabs.Items.Count;tabIndex++)
+            {
+                tabs.SelectedIndex=tabIndex;
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();
+                Check(tabs.SelectedContent is FrameworkElement {ActualHeight:>0},"Plugin tab renders "+((System.Windows.Controls.TabItem)tabs.Items[tabIndex]).Header);
+            }
+            Check(errors.Errors.Count==0,"All plugin tab bindings are valid");tabs.SelectedIndex=0;
+        }
+        finally {System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Remove(errors);}
+    }
+    if(iteration==0)
+    {
+     await Task.Delay(400);window.UpdateLayout();
+     var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)view.ActualWidth,(int)view.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(view);
+     if(page.PluginId=="crs.demo")
+     {
+      var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4];bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);var blue=0;
+      for(var pixel=0;pixel<pixels.Length;pixel+=4)if(pixels[pixel]>150 && pixels[pixel]>pixels[pixel+2]+40 && pixels[pixel+1]>50)blue++;
+      Check(blue>100,"LiveCharts demo line rendered, not only axes");
+     }
+     var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+     var capture=Path.Combine(Environment.CurrentDirectory,"artifacts","plugin-ui");Directory.CreateDirectory(capture);
+     using var file=File.Create(Path.Combine(capture,page.PluginId+".png"));encoder.Save(file);
+    }
+    window.Content=null;window.Close();
+   }
+  }
+  runtime.SetEnabledForNextStart(runtime.Statuses[0].Id,false);
+  await runtime.DisposeAsync();Check(runtime.Pages.Count==0 && runtime.Statuses.All(x=>x.State==PluginState.Stopped),"Stop/dispose and navigation cleanup");
+  await using var restarted=new PluginRuntime(release,Path.Combine(root,"live-storage"));await restarted.StartAsync();Check(restarted.Statuses.Count(x=>x.State==PluginState.Disabled)==1,"Disable on next start");
+  var index=JsonSerializer.Deserialize<TrustedPackage[]>(File.ReadAllText(Path.Combine(release,"trusted-plugins.json")),PackageVerifier.Json)!;
+  var bad=index[0] with {Sha256=new(index[0].Sha256)};bad.Sha256["plugin.json"]=new string('0',64);
+  try{PackageVerifier.Verify(release,bad,new(1,0,0));throw new Exception("Bad hash accepted");}catch(InvalidDataException){Console.WriteLine("PASS bad trusted hash rejected");}
+ }
+ private sealed class Participant:IPluginUpgradeParticipant
+ {
+  public bool Fail {get;set;}
+  public Func<Task>? OnVerify {get;set;}
+  public Task SnapshotAsync(ActiveGeneration previous,CancellationToken cancellationToken)=>Task.CompletedTask;
+  public Task MigrateCandidateAsync(ActiveGeneration candidate,CancellationToken cancellationToken)=>Task.CompletedTask;
+  public Task VerifyCandidateAsync(ActiveGeneration candidate,CancellationToken cancellationToken)=>OnVerify?.Invoke()??(Fail?Task.FromException(new InvalidDataException()):Task.CompletedTask);
+ }
+ // 使用视觉树检查真实WPF控件，不以模型或XAML字符串存在替代界面验收。
+ private static T? FindVisual<T>(DependencyObject parent) where T:DependencyObject
+ {
+    if(parent is T match)return match;
+    for(var index=0;index<System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);index++)
+        if(FindVisual<T>(System.Windows.Media.VisualTreeHelper.GetChild(parent,index)) is { } child)return child;
+    return null;
+ }
+ private sealed class BindingErrors:System.Diagnostics.TraceListener
+ {
+    public List<string> Errors {get;}=[];
+    public override void Write(string? message) {if(!string.IsNullOrWhiteSpace(message))Errors.Add(message);}
+    public override void WriteLine(string? message)=>Write(message);
+ }
+}

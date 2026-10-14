@@ -292,6 +292,21 @@
           "SkiaSharp": "[3.119.4, )"
         }
       },
+      "crs.plugin.abstractions": {
+        "type": "Project"
+      },
+      "crs.plugin.wpf": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Plugin.Abstractions": "[1.0.0, )"
+        }
+      },
+      "crs.pluginhost": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Plugin.Wpf": "[1.0.0, )"
+        }
+      },
       "crs.security": {
         "type": "Project",
         "dependencies": {

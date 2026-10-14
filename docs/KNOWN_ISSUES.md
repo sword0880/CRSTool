@@ -2,6 +2,8 @@
 
 本文件集中保留仍有代码依据的问题，取代过时的分散评审记录。界面完善不等于税额、来源和历史复算已完成业务验收。
 
+国家队ETF插件目前为[离线研究预览](implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md)：M0官方自动通道/许可、5ETF真实样本、250交易日历史及20交易日连续采集尚未通过。候选库、版本指针、启动核验和独立进程强杀恢复已接线；生产可信发行绑定、真实不同代码/Schema升级矩阵及物理断电/磁盘满恢复仍开放。当前不提供自动监控、NAV金额归集或二期股票持仓功能，详见[数据通道POC](DATA_SOURCE_POC.md)。
+
 2026-10-13 的[反方审查](archive/ADVERSARIAL_REVIEW.md)保留审查时的问题依据。后续已接入[分块备份、容量预警和外层读取保护](implementation/BACKUP_CAPACITY.md)，新备份不再受旧 128 MiB 上限约束；[有凭证的账户期间](guides/ACCOUNT_PERIODS.md)和[长任务锁定中断](implementation/LOCK_INTERRUPTION.md)已接入。真实开户凭证核对、独立税额基准、全部持久化表配额和实际硬件锁屏／恢复等仍开放，不代表获得发布批准。用户确认暂时没有独立计算记录，独立金额验收保留未通过。
 
 | 编号 | 当前问题 | 后续验收 |

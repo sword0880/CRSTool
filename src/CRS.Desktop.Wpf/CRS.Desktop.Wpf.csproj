@@ -15,6 +15,7 @@
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" />
     <ProjectReference Include="../CRS.Application/CRS.Application.csproj" />
     <ProjectReference Include="../CRS.Infrastructure/CRS.Infrastructure.csproj" />
+    <ProjectReference Include="../CRS.PluginHost/CRS.PluginHost.csproj" />
     <Using Include="CRS.Domain" />
     <Using Include="CRS.Application" />
     <!-- 配置源归属 WPF 项目，构建与发布时都保留运行目录中的 config 子目录。 -->

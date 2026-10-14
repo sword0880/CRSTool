@@ -243,6 +243,7 @@
         "dependencies": {
           "CRS.Application": "[1.0.0, )",
           "CRS.Infrastructure": "[1.0.0, )",
+          "CRS.PluginHost": "[1.0.0, )",
           "CommunityToolkit.Mvvm": "[8.4.2, )",
           "DataGridExtensions": "[2.9.1, )",
           "LiveChartsCore.SkiaSharpView.WPF": "[2.0.5, )",
@@ -266,6 +267,21 @@
           "QRCoder": "[1.7.0, )",
           "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )",
           "SkiaSharp": "[3.119.4, )"
+        }
+      },
+      "crs.plugin.abstractions": {
+        "type": "Project"
+      },
+      "crs.plugin.wpf": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Plugin.Abstractions": "[1.0.0, )"
+        }
+      },
+      "crs.pluginhost": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Plugin.Wpf": "[1.0.0, )"
         }
       },
       "crs.security": {

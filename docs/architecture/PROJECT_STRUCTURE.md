@@ -1,6 +1,6 @@
 # 项目结构与分层约定
 
-## 当前结构（五个生产项目，含独立 CRS.Security）
+## 当前结构（五个原有生产项目、三个插件宿主项目及两个插件）
 
 ```text
 CRS/
@@ -8,6 +8,12 @@ CRS/
 ├─ Directory.Build.props
 ├─ Directory.Packages.props
 ├─ src/
+│  ├─ CRS.Plugin.Abstractions/     # 纯BCL插件能力与Session契约
+│  ├─ CRS.Plugin.Wpf/              # 可选WPF页面贡献契约
+│  ├─ CRS.PluginHost/              # 官方预装可信加载、调度和生命周期
+│  ├─ Plugins/                    # 业务插件不被宿主静态引用
+│  │  ├─ CRS.Plugins.NationalTeamWatch/ # 离线研究预览，独立市场数据
+│  │  └─ CRS.Plugins.Demo/          # 双插件真实WPF资源POC
 │  ├─ CRS.Domain/
 │  │  ├─ Trades/
 │  │  ├─ FIFO/
@@ -46,6 +52,9 @@ CRS/
 │  ├─ CRS.Tests.Infrastructure/
 │  ├─ CRS.Tests.Wpf/
 │  ├─ CRS.Tests.Verification/
+│  ├─ CRS.Tests.PluginHost/
+│  ├─ CRS.Tests.PluginRecovery/   # 独立升级进程强杀、WAL和候选页面恢复
+│  ├─ CRS.Tests.NationalTeamWatch/
 │  ├─ fixtures/
 │  └─ Verify-Architecture.ps1
 ├─ docs/

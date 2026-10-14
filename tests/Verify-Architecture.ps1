@@ -61,6 +61,29 @@ $solution = Get-Content -Raw (Join-Path $RepositoryRoot 'CRS.sln')
 Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.Desktop.WinForms'))) 'WinForms 项目仍存在。'
 Assert-Boundary (-not ($solution -match 'CRS\.Desktop\.WinForms')) '解决方案仍引用 WinForms 项目。'
 Write-Output 'Domain / Application / Infrastructure / 前台边界、页面、项目引用和包版本检查通过。'
+foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter '*.csproj' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
+    [xml]$project = Get-Content -Raw $projectFile.FullName
+    foreach ($reference in $project.SelectNodes('//ProjectReference')) {
+        if ($projectFile.FullName -notmatch '[\\/]Plugins[\\/]') {
+            Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.') "宿主/税务静态引用业务插件：$($projectFile.Name)"
+        } else {
+            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
+        }
+    }
+}
+[xml]$contract = Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj')
+Assert-Boundary ($contract.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) 'BCL插件契约不得引用实现或WPF。'
+foreach($layer in @('Presentation','Domain')) {
+    foreach($file in Get-ChildItem (Join-Path $RepositoryRoot "src/Plugins/CRS.Plugins.NationalTeamWatch/$layer") -Filter '*.cs' -Recurse) {
+        $source=Get-Content -Raw $file.FullName
+        Assert-Boundary (-not ($source -match 'Microsoft\.Data\.Sqlite|System\.Net\.Http|new\s+MarketRepository|\.Calculate\(')) "插件展示/领域层越界：$($file.Name)"
+    }
+}
+Write-Output '插件契约、宿主与业务插件依赖门禁通过。'
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/Application') -Filter '*.cs' -Recurse) {
+    $source=Get-Content -Raw $file.FullName
+    Assert-Boundary (-not ($source -match 'CRS\.Plugins\.NationalTeamWatch\.Infrastructure|Microsoft\.Data\.Sqlite|new\s+MarketRepository|\bFile\.(Read|Write)')) "插件用例层引用基础设施实现：$($file.Name)"
+}
 # 先完成 Release 构建；以 SDK Roslyn 语法树检查绩效模块的新方法和已评审复杂度增量。
 & dotnet run --project (Join-Path $RepositoryRoot 'tests/CRS.Tests.Domain') -c Release --no-build -- --performance-architecture $RepositoryRoot
 Assert-Boundary ($LASTEXITCODE -eq 0) '绩效复杂度/方法规模门禁失败（请先构建当前源码）。'

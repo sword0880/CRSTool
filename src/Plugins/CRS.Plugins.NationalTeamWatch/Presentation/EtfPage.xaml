@@ -1,0 +1,39 @@
+<UserControl x:Class="CRS.Plugins.NationalTeamWatch.Presentation.EtfPage" Background="#FBFCFD" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF" xmlns:dg="clr-namespace:DataGridExtensions;assembly=DataGridExtensions">
+ <Grid Margin="20"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <StackPanel><TextBlock Text="国家队持仓与ETF观察" FontSize="24" FontWeight="Bold"/><TextBlock Text="一期只展示ETF全市场份额，份额变化不代表中央汇金交易。DataPilot不等于已确认机构持有。" TextWrapping="Wrap" Margin="0,8"/><TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#9A5700"/></StackPanel>
+  <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12"><ui:Button Content="刷新本地数据" Command="{Binding RefreshCommand}"/><ui:Button Content="取消当前操作" Command="{Binding CancelCommand}" Margin="12,0"/></StackPanel>
+  <TabControl Grid.Row="2">
+   <TabItem Header="ETF份额监控"><Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="220"/></Grid.RowDefinitions>
+    <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" dg:DataGridFilter.IsAutoFilterEnabled="True"><DataGrid.Columns>
+     <DataGridTextColumn Header="市场" Binding="{Binding Market}"/><DataGridTextColumn Header="代码" Binding="{Binding Ticker}"/><DataGridTextColumn Header="名称" Binding="{Binding Name}"/><DataGridTextColumn Header="标签" Binding="{Binding Label}"/><DataGridTextColumn Header="截至日" Binding="{Binding AsOf}"/>
+     <DataGridTextColumn Header="总份额（份）" Binding="{Binding Shares,TargetNullValue=无数据,StringFormat=N0}"/><DataGridTextColumn Header="1日变化" Binding="{Binding Change1,TargetNullValue=不完整,StringFormat=N0}"/><DataGridTextColumn Header="5日变化" Binding="{Binding Change5,TargetNullValue=不完整,StringFormat=N0}"/><DataGridTextColumn Header="20日变化" Binding="{Binding Change20,TargetNullValue=不完整,StringFormat=N0}"/><DataGridTextColumn Header="状态" Binding="{Binding Status}"/><DataGridTextColumn Header="已覆盖日数" Binding="{Binding CoveredDays}"/>
+    </DataGrid.Columns></DataGrid>
+    <ui:Button Grid.Row="1" Content="查看所选ETF历史份额" Command="{Binding ShowHistoryCommand}" Margin="0,8" HorizontalAlignment="Left"/>
+    <lvc:CartesianChart Grid.Row="2" Series="{Binding Series}" XAxes="{Binding XAxes}" AnimationsSpeed="0:0:0"/>
+   </Grid></TabItem>
+   <TabItem Header="导入与来源状态"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+    <TextBlock Text="SSE：自动通道未验证；SZSE：自动通道未验证。关闭软件后不执行采集。" TextWrapping="Wrap"/>
+    <TextBlock Text="此版本接受人工核对后的标准化研究CSV，不是交易所原生文件适配器。请保留原始官方文件；先导入覆盖完整日期段的交易日历，再导入份额。不得以工作日或观测日期代替交易日历。" TextWrapping="Wrap" Margin="0,12"/>
+    <TextBlock Text="来源官方页面链接"/><TextBox Text="{Binding SourceUrl,UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>
+    <CheckBox Content="我已核对官方原文件、链接、日期、单位与标准化内容" IsChecked="{Binding ReviewedOfficialFile}" Margin="0,8"/>
+    <StackPanel Orientation="Horizontal"><ui:Button Content="导入交易日历CSV" Command="{Binding ImportCalendarCommand}"/><ui:Button Content="导入份额CSV" Command="{Binding ImportSharesCommand}" Margin="12,0"/></StackPanel>
+    <TextBlock Text="份额表头：market,ticker,trade_date,total_shares,unit&#10;日历表头：market,trade_date&#10;市场为SSE或SZSE；日期yyyy-MM-dd；单位为份或万份；数字不含千位分隔符。" TextWrapping="Wrap" Margin="0,16"/>
+    <TextBlock Text="验证池管理（上限20；新增保持DataPilot，不自动确认机构持有）" FontWeight="Bold"/>
+    <TextBlock Text="市场 / 代码 / 名称 / 指数 / 入池或退出理由" Margin="0,8"/>
+    <TextBox Text="{Binding Market}"/><TextBox Text="{Binding Ticker}" Margin="0,4"/><TextBox Text="{Binding SecurityName}"/><TextBox Text="{Binding IndexGroup}" Margin="0,4"/><TextBox Text="{Binding Reason}"/>
+    <StackPanel Orientation="Horizontal" Margin="0,8"><ui:Button Content="加入验证池" Command="{Binding AddToPoolCommand}"/><ui:Button Content="退出验证池" Command="{Binding RemoveFromPoolCommand}" Margin="12,0"/></StackPanel>
+   </StackPanel></ScrollViewer></TabItem>
+   <!-- 日历边界和质量状态由后台判定，界面不得把缺口填成零。 -->
+   <TabItem Header="覆盖率与缺口"><Grid Margin="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <WrapPanel><TextBlock Text="先在概览选择ETF，再查询区间" VerticalAlignment="Center" Margin="0,0,12,0"/><DatePicker SelectedDate="{Binding CoverageFrom}" Width="140"/><TextBlock Text="至" VerticalAlignment="Center" Margin="8,0"/><DatePicker SelectedDate="{Binding CoverageTo}" Width="140"/><ui:Button Content="查询覆盖率" Command="{Binding ShowCoverageCommand}" Margin="12,0"/></WrapPanel>
+    <TextBlock Grid.Row="1" Text="{Binding CoverageStatus}" TextWrapping="Wrap" Margin="0,12"/>
+    <DataGrid Grid.Row="2" ItemsSource="{Binding CoverageDays}" AutoGenerateColumns="False" IsReadOnly="True"><DataGrid.Columns><DataGridTextColumn Header="交易日" Binding="{Binding Date}"/><DataGridTextColumn Header="状态" Binding="{Binding StatusText}"/><DataGridTextColumn Header="事实修订" Binding="{Binding RevisionId}" Width="*"/></DataGrid.Columns></DataGrid>
+   </Grid></TabItem>
+   <TabItem Header="证据与修订审核"><Grid Margin="8"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="同日冲突与超过20%的相邻日跳变需人工审核。原始证据损坏时停止该数据的指标计算。" TextWrapping="Wrap" Margin="0,8"/>
+    <DataGrid Grid.Row="1" ItemsSource="{Binding Evidence}" SelectedItem="{Binding SelectedEvidence}" IsReadOnly="True" AutoGenerateColumns="True"/>
+    <StackPanel Grid.Row="2" Margin="0,8"><WrapPanel><ui:Button Content="导出官方原文件" Command="{Binding ExportOriginalCommand}"/><ui:Button Content="导出标准化CSV" Command="{Binding ExportNormalizedCommand}" Margin="8,0"/></WrapPanel><CheckBox Content="已核实份额可比，排除未处理的基金折算或合并（此版本不支持折算调整）" IsChecked="{Binding ConfirmedComparable}" Margin="0,4"/><StackPanel Orientation="Horizontal"><TextBlock Text="审核人" VerticalAlignment="Center"/><TextBox Text="{Binding Reviewer}" Width="150" Margin="8,0"/><ui:Button Content="接受所选修订" Command="{Binding ApproveCommand}"/><ui:Button Content="拒绝所选修订" Command="{Binding RejectCommand}" Margin="8,0"/></StackPanel></StackPanel>
+   </Grid></TabItem>
+  </TabControl>
+ </Grid>
+</UserControl>

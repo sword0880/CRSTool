@@ -23,6 +23,7 @@
     </ui:NavigationView.FooterMenuItems>
    </ui:NavigationView>
   </Border>
+  <Border x:Name="PluginSurface" Grid.Row="1" Margin="206,0,0,0" Background="#FBFCFD" Visibility="Collapsed"><ContentControl x:Name="PluginContent"/></Border>
   <Border Grid.Row="2" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Padding="18,10"><DockPanel>
    <ui:Button DockPanel.Dock="Right" Content="取消操作" Command="{Binding Import.CancelCommand}" Appearance="Transparent" Margin="10,0,0,0"/>
    <StackPanel><TextBlock Text="{Binding State.Status}" TextWrapping="Wrap" Foreground="#64748B"/>

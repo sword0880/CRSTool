@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWPF>true</UseWPF><EnableDynamicLoading>true</EnableDynamicLoading></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../../CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj"/><PackageReference Include="WPF-UI"/><PackageReference Include="LiveChartsCore.SkiaSharpView.WPF"/><Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
+</Project>

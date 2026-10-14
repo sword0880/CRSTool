@@ -1,0 +1,1 @@
+{"id":"crs.demo","displayName":"插件资源演示","version":"1.0.0","contractApi":"1.0","minHostVersion":"1.0.0","schemaVersion":1,"entryAssembly":"CRS.Plugins.Demo.dll","entryType":"CRS.Plugins.Demo.DemoEntry","requestedCapabilities":["navigation"],"files":["CRS.Plugins.Demo.dll","CRS.Plugins.Demo.deps.json"]}
