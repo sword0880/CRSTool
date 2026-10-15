@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 故障夹具只用于隔离验收，不进入正式插件发行包。 -->
+  <ItemGroup><ProjectReference Include="../../../src/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" /></ItemGroup>
+</Project>

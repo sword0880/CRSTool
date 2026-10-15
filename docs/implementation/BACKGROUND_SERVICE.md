@@ -2,9 +2,11 @@
 
 更新：2026-10-15。当前实现范围是 [后台设计 §6.2](../CRS_BACKGROUND_SERVICE_DESIGN.md) 的 **Heartbeat 纵向 POC**，不是 ETF 服务化一期全部交付。生产发行未批准。
 
+**Worker v2更新**：[首批整改记录](WORKER_REMEDIATION.md)为当前行为依据。下文29项、旧管道重放缓存及旧发布目录保留为首轮POC历史证据；项目现已更名且IPC、命令持久化、生命周期和分页已更新。
+
 ## 已实现的行为
 
-- `CRS.Background.Service` 是独立的 .NET 10 Windows 可执行程序，使用 Generic Host / AddWindowsService 和 Quartz.NET 4.1.0。宿主扩展锁定为可离线复现的 Microsoft.Extensions.Hosting / WindowsServices 8.0.0，已联合 .NET 10 构建和实际 SCM 验证。服务无 WPF、个人税务 Infrastructure/Security 或 TOTP 依赖。
+- `CRS.Worker.Service` 是独立的 .NET 10 Windows 可执行程序，使用 Generic Host / AddWindowsService 和 Quartz.NET 4.1.0。宿主扩展锁定为可离线复现的 Microsoft.Extensions.Hosting / WindowsServices 8.0.0，已联合 .NET 10 构建和实际 SCM 验证。服务无 WPF、个人税务 Infrastructure/Security 或 TOTP 依赖。
 - 后台纯 BCL 契约、独立插件宿主、Windows IPC 适配分项目维护。`crs.heartbeat` 是真实加载的无界面插件，不静态链接进宿主；UI-only 清单可跳过后台入口。宿主在加载前验证管理员目录中外置信任索引覆盖的完整发行文件；拒绝篡改、路径逃逸、链接和后台依赖 WPF/私人税务/独立 Quartz 实现。此边界约束第一方受信插件，不构成任意第三方代码沙箱。
 - `scheduler-config.db` 由 SQLCipher 加密，是 Cron、时区、启用状态、修订号及退避状态的唯一权威。Quartz 使用 RAMJobStore，启动重建稳定 JobKey，禁止同任务并发，Misfire 为 DoNothing。先保存配置再应用触发器，失败保留 NeedsReconcile，30 秒重建检查或下次启动重试。
 - 服务密钥独立生成，使用机器 DPAPI 封装，结合服务 SID 目录 ACL；封装记录服务账户 SID。更换账户、数据库存在却缺失密钥、旧明文库、错误密钥或外来数据库均拒绝启动，不生成新库替代已有现场。不引用或迁移原桌面明文市场库。

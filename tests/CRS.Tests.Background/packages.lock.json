@@ -299,26 +299,32 @@
           "System.Diagnostics.EventLog": "8.0.0"
         }
       },
-      "crs.background.abstractions": {
+      "crs.worker.abstractions": {
         "type": "Project"
       },
-      "crs.background.ipc": {
+      "crs.worker.fixtureplugin": {
         "type": "Project",
         "dependencies": {
-          "CRS.Background.Abstractions": "[1.0.0, )"
+          "CRS.Worker.Abstractions": "[1.0.0, )"
         }
       },
-      "crs.background.pluginhost": {
+      "crs.worker.ipc": {
         "type": "Project",
         "dependencies": {
-          "CRS.Background.Abstractions": "[1.0.0, )"
+          "CRS.Worker.Abstractions": "[1.0.0, )"
         }
       },
-      "crs.background.service": {
+      "crs.worker.pluginhost": {
         "type": "Project",
         "dependencies": {
-          "CRS.Background.Ipc": "[1.0.0, )",
-          "CRS.Background.PluginHost": "[1.0.0, )",
+          "CRS.Worker.Abstractions": "[1.0.0, )"
+        }
+      },
+      "crs.worker.service": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Worker.Ipc": "[1.0.0, )",
+          "CRS.Worker.PluginHost": "[1.0.0, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
           "Microsoft.Extensions.Hosting": "[8.0.0, )",
           "Microsoft.Extensions.Hosting.WindowsServices": "[8.0.0, )",

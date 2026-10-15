@@ -6,6 +6,7 @@
 - [验证范围与门槛](TEST_SPEC.md)
 - [真实样本进展](REAL_SAMPLE_PROGRESS.md)
 - [P0 修复记录](P0_FIX_PROGRESS.md)
+- [插件与后台任务反方架构审查及 Worker 命名建议](WORKER_ARCHITECTURE_REVIEW.md)
 
 [返回文档首页](../README.md)
 

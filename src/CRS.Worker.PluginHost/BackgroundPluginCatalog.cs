@@ -5,9 +5,9 @@ using System.Runtime.Loader;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using CRS.Background.Abstractions;
+using CRS.Worker.Abstractions;
 
-namespace CRS.Background.PluginHost;
+namespace CRS.Worker.PluginHost;
 
 /// <summary>信任索引位于管理员控制的宿主目录，不能由插件清单自行声明信任。</summary>
 public sealed record TrustedPackage(string Id, string Version, string Directory, Dictionary<string, string> Files);
@@ -16,12 +16,21 @@ public sealed record BackgroundManifest(string Id, string Version, string HostCo
 public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescriptor Descriptor, IBackgroundPluginSession Session);
 
 /// <summary>只加载后台入口。完整包哈希验证后，私有依赖仍逐次校验，禁止链接逃逸。</summary>
-public sealed class BackgroundPluginCatalog : IAsyncDisposable
+public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null) : IAsyncDisposable
 {
     private readonly List<IBackgroundPluginSession> sessions = [];
     private readonly List<AssemblyLoadContext> contexts = [];
     private readonly List<HostedBackgroundJob> jobs = [];
+    private readonly List<BackgroundPluginStatus> statuses = [];
     public IReadOnlyList<HostedBackgroundJob> Jobs => jobs;
+    public IReadOnlyList<BackgroundPluginStatus> Statuses => statuses;
+    /// <summary>宿主校验调度声明失败时隔离整个插件，避免其它插件随之退出。</summary>
+    public void Quarantine(string pluginId, string errorCode)
+    {
+        jobs.RemoveAll(x => x.PluginId == pluginId);
+        statuses.RemoveAll(x => x.PluginId == pluginId);
+        statuses.Add(new(pluginId, "Failed", errorCode));
+    }
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
     public async Task LoadAsync(string root, string trustFile, CancellationToken token)
@@ -36,6 +45,10 @@ public sealed class BackgroundPluginCatalog : IAsyncDisposable
         {
             if (!ValidId(package.Id) || !ids.Add(package.Id) || package.Files.Count is < 1 or > 256)
                 throw new InvalidDataException("插件标识重复或不合法。");
+            IBackgroundPluginSession? session = null;
+            VerifiedContext? context = null;
+            try
+            {
             var directory = Contained(root, package.Directory);
             foreach (var file in EnumerateSafe(directory))
             {
@@ -45,19 +58,24 @@ public sealed class BackgroundPluginCatalog : IAsyncDisposable
             foreach (var (file, hash) in package.Files) Verify(directory, file, hash);
             var manifest = JsonSerializer.Deserialize<BackgroundManifest>(File.ReadAllText(Contained(directory, "plugin.json")), Json)
                 ?? throw new InvalidDataException("插件清单错误。");
-            if (manifest.Id != package.Id || manifest.Version != package.Version || manifest.HostContract != "1.0")
+            if (manifest.Id != package.Id || manifest.Version != package.Version || manifest.HostContract != "2.0")
                 throw new InvalidDataException("插件版本或契约不兼容。");
             if (manifest.BackgroundEntry is not { } entry) continue; // UI-only 发行包不进入后台会话。
-            var context = new VerifiedContext(directory, package.Files);
+            context = new VerifiedContext(directory, package.Files);
             contexts.Add(context);
             RejectDesktopDependencies(Contained(directory, entry.Assembly));
             var assembly = context.LoadFromAssemblyPath(Contained(directory, entry.Assembly));
-            var instance = Activator.CreateInstance(assembly.GetType(entry.Type, throwOnError: true)!) as IBackgroundPluginEntry
-                ?? throw new InvalidDataException("后台入口未实现约定接口。");
-            var session = instance.CreateSession();
+            await InvokeAsync(_ =>
+            {
+                var instance = Activator.CreateInstance(assembly.GetType(entry.Type, throwOnError: true)!) as IBackgroundPluginEntry
+                    ?? throw new InvalidDataException("后台入口未实现约定接口。");
+                session = instance.CreateSession(); return Task.CompletedTask;
+            }, token);
+            if (session is null) throw new InvalidDataException("后台入口未建立会话。");
             sessions.Add(session);
-            await session.StartAsync(token);
-            var descriptors = session.DescribeJobs();
+            await InvokeAsync(cancellation => session.StartAsync(cancellation).AsTask(), token);
+            IReadOnlyList<BackgroundJobDescriptor> descriptors = [];
+            await InvokeAsync(_ => { descriptors = session.DescribeJobs(); return Task.CompletedTask; }, token);
             if (descriptors.Count > 32 || descriptors.Select(x => x.JobId).Distinct().Count() != descriptors.Count)
                 throw new InvalidDataException("任务重复或超过上限。");
             foreach (var descriptor in descriptors)
@@ -65,7 +83,52 @@ public sealed class BackgroundPluginCatalog : IAsyncDisposable
                 if (!ValidId(descriptor.JobId) || descriptor.Name.Length > 100) throw new InvalidDataException("任务标识错误。");
                 jobs.Add(new(package.Id, descriptor, session));
             }
+            statuses.Add(new(package.Id, "Started"));
+            }
+            catch (PluginLifecycleTimeoutException) { throw; }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception error)
+            {
+                // 单个包损坏或初始化失败只隔离该插件，保持其它可信任务可用。
+                jobs.RemoveAll(x => x.PluginId == package.Id);
+                if (session is not null)
+                {
+                    try { await CleanupAsync(session, token); }
+                    catch (PluginLifecycleTimeoutException) { throw; }
+                    catch (Exception) { }
+                    sessions.Remove(session);
+                }
+                if (context is not null) { contexts.Remove(context); context.Unload(); }
+                statuses.Add(new(package.Id, "Failed", error.GetType().Name));
+            }
         }
+    }
+
+    private async Task InvokeAsync(Func<CancellationToken, Task> work, CancellationToken token)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(lifecycleTimeout ?? TimeSpan.FromSeconds(15));
+        var task = Task.Run(() => work(deadline.Token), CancellationToken.None);
+        try { await task.WaitAsync(deadline.Token); }
+        catch (OperationCanceledException) when (!task.IsCompleted)
+        {
+            // 等待超时不代表执行已终止；先给协作取消短暂收尾，再要求宿主终止进程。
+            try { await task.WaitAsync(TimeSpan.FromSeconds(1)); }
+            catch (TimeoutException)
+            {
+                _ = task.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                onUnresponsive?.Invoke(); throw new PluginLifecycleTimeoutException();
+            }
+        }
+    }
+    private async Task CleanupAsync(IBackgroundPluginSession session, CancellationToken token)
+    {
+        Exception? stopFailure = null;
+        try { await InvokeAsync(cancellation => session.StopAsync(cancellation).AsTask(), token); }
+        catch (PluginLifecycleTimeoutException) { throw; }
+        catch (Exception error) { stopFailure = error; }
+        await InvokeAsync(_ => session.DisposeAsync().AsTask(), token);
+        if (stopFailure is not null) throw new InvalidOperationException("后台插件停止失败，已尝试资源释放。", stopFailure);
     }
 
     private static bool ValidId(string id) => Regex.IsMatch(id, "^[a-z0-9][a-z0-9.-]{0,79}$", RegexOptions.CultureInvariant);
@@ -115,15 +178,18 @@ public sealed class BackgroundPluginCatalog : IAsyncDisposable
     }
     public async ValueTask DisposeAsync()
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var timeout = new CancellationTokenSource(lifecycleTimeout ?? TimeSpan.FromSeconds(15));
+        var failures = new List<Exception>();
         foreach (var session in sessions.AsEnumerable().Reverse())
         {
-            try { await session.StopAsync(timeout.Token); }
-            finally { await session.DisposeAsync(); }
+            try { await CleanupAsync(session, timeout.Token); }
+            catch (PluginLifecycleTimeoutException) { throw; }
+            catch (Exception error) { failures.Add(error); }
         }
         sessions.Clear(); jobs.Clear();
         foreach (var context in contexts) context.Unload();
         contexts.Clear();
+        if (failures.Count != 0) throw new AggregateException("后台插件释放存在异常。", failures);
     }
     private sealed class VerifiedContext(string directory, Dictionary<string, string> files) : AssemblyLoadContext(isCollectible: true)
     {
@@ -146,3 +212,6 @@ public sealed class BackgroundPluginCatalog : IAsyncDisposable
         }
     }
 }
+
+/// <summary>插件仍在运行时禁止假装已卸载；实际服务收到此信号会有界终止进程。</summary>
+public sealed class PluginLifecycleTimeoutException : Exception;

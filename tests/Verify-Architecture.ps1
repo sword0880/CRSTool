@@ -67,7 +67,7 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
         if ($projectFile.FullName -notmatch '[\\/]Plugins[\\/]') {
             Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.') "宿主/税务静态引用业务插件：$($projectFile.Name)"
         } else {
-            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Background\.Abstractions/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
+            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Worker\.Abstractions/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
         }
     }
 }
@@ -82,14 +82,14 @@ foreach($layer in @('Presentation','Domain')) {
 Write-Output '插件契约、宿主与业务插件依赖门禁通过。'
 # 后台链路必须可以脱离 WindowsDesktop/WPF 和个人税务程序集发布。
 foreach($name in @('Abstractions','PluginHost','Ipc','Service')){
-    $path=Join-Path $RepositoryRoot "src/CRS.Background.$name/CRS.Background.$name.csproj"
+    $path=Join-Path $RepositoryRoot "src/CRS.Worker.$name/CRS.Worker.$name.csproj"
     [xml]$project=Get-Content -Raw $path
     Assert-Boundary ($null -eq $project.SelectSingleNode('//UseWPF | //UseWindowsForms')) "后台项目引用桌面框架：$name"
     foreach($reference in $project.SelectNodes('//ProjectReference')){
-        Assert-Boundary ($reference.Include -match 'CRS\.Background\.') "后台项目越过服务边界：$name"
+        Assert-Boundary ($reference.Include -match 'CRS\.Worker\.') "后台项目越过服务边界：$name"
     }
 }
-[xml]$backgroundContract=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Background.Abstractions/CRS.Background.Abstractions.csproj')
+[xml]$backgroundContract=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj')
 Assert-Boundary ($backgroundContract.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) '后台契约必须保持纯BCL。'
 Write-Output '后台服务无 WPF/私人税务依赖门禁通过。'
 foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/Application') -Filter '*.cs' -Recurse) {

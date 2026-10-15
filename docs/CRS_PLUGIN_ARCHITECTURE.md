@@ -9,7 +9,7 @@
 
 **正式选择：Windows Service + .NET 10 Generic Host + Quartz.NET + SQLCipher持久化任务定义。** 本决定覆盖v2.1中“首期只在WPF登录后同步，关闭主程序不承诺后台任务”以及“主程序PluginHost负责执行后台作业”的旧描述。GUI与服务各有自己的插件运行时，彼此不通过共享对象、Root DI或WPF程序集调用业务代码；服务无需WPF/TOTP登录即可运行仅处理公开数据的作业。
 
-- **一个产品、两个进程、两个宿主**：`CRS.Desktop.Wpf`承载UI插件；`CRS.Background.Service`作为真正Windows服务承载**无界面**作业插件。共享BCL契约及插件业务Core，不共享运行中的Session/DI容器。
+- **一个产品、两个进程、两个宿主**：`CRS.Desktop.Wpf`承载UI插件；`CRS.Worker.Service`作为真正Windows服务承载**无界面**作业插件。共享BCL契约及插件业务Core，不共享运行中的Session/DI容器。
 - **唯一调度所有者**：Quartz只存在于后台服务中；WPF只经具备Windows身份授权的Named Pipes接口读取状态和发送用户操作指令。插件不得私自启动Quartz或另建常驻调度器。
 - **一套插件，两种可选入口**：`plugin.json`可声明`uiEntry`和`backgroundEntry`，其中任何一个可以缺省。后台入口不得引用`Presentation`/WPF；UI入口不得直接启动后台周期采集。**不要求每个插件都有后台任务**。
 - **安装即服务化目标**：官方安装器可在获得管理员许可后安装并配置`CRSBackgroundService`（建议Delayed Automatic）；服务在Session 0中运行，不显示窗口。禁止默认使用LocalSystem；首选`NT AUTHORITY\LocalService`并限制目录ACL；服务权限/网络访问在POC核实。
@@ -56,13 +56,13 @@
 ```text
 用户会话进程（可随时关闭）                       Session 0 / SCM独立Windows服务
 ┌───────────────────────────┐                  ┌────────────────────────────────┐
-│ CRS.Desktop.Wpf            │                  │ CRS.Background.Service          │
+│ CRS.Desktop.Wpf            │                  │ CRS.Worker.Service          │
 │ 税务、绩效P0、TOTP、UI导航  │                  │ Quartz.NET 内存触发             │
-│ CRS.PluginHost（只管UI）    │←授权Named Pipes→│ CRS.Background.PluginHost       │
+│ CRS.PluginHost（只管UI）    │←授权Named Pipes→│ CRS.Worker.PluginHost       │
 │ NationalTeam.Ui（WPF）      │                  │ NationalTeam.Jobs（无WPF）       │
 └────────────┬──────────────┘                  └──────────────┬─────────────────┘
              │                                               │
-      CRS.Plugin.Wpf                                 CRS.Background.Abstractions
+      CRS.Plugin.Wpf                                 CRS.Worker.Abstractions
              │                                               │
       UI-only插件及视图                             可信后台Job插件、采集Provider
              └────────────共享稳定BCL契约/业务Core────────────┘
@@ -85,10 +85,10 @@ src/
   CRS.Plugin.Abstractions/     # 新增：BCL型契约、数据传输对象、能力抽象
   CRS.Plugin.Wpf/              # 新增：WPF导航/页面贡献小契约
   CRS.PluginHost/              # 新增：UI侧，只处理UI插件和导航
-  CRS.Background.Abstractions/ # 新增：无界面任务入口/任务注册/执行DTO
-  CRS.Background.PluginHost/   # 新增：Service侧插件加载，不依赖WPF
-  CRS.Background.Service/      # 新增：可安装Windows Service + Quartz + IPC宿主
-  CRS.Background.Ipc/          # 新增：Named Pipes跨进程DTO/客户端/权限校验
+  CRS.Worker.Abstractions/ # 新增：无界面任务入口/任务注册/执行DTO
+  CRS.Worker.PluginHost/   # 新增：Service侧插件加载，不依赖WPF
+  CRS.Worker.Service/      # 新增：可安装Windows Service + Quartz + IPC宿主
+  CRS.Worker.Ipc/          # 新增：Named Pipes跨进程DTO/客户端/权限校验
   Plugins/
     CRS.Plugins.NationalTeamWatch/  # 新增：首个业务插件（可发布为一个包多个程序集）
       Core/               # 不依赖WPF；实体、计算、源接口和仓储契约
@@ -248,7 +248,7 @@ Started             --退出/禁用要求---->  Stopping -> Stopped -> Disposed
 
 ## 8. 后台运行、任务管理、资源预算与用户体验（ADR-PLG-003覆盖）
 
-- **后台任务所有权独立于WPF认证生命周期**：已安装的`CRS.Background.Service`由SCM启动，在未登录用户/未开启WPF时运行公开ETF同步。关闭WPF、锁屏、退出TOTP会话**不影响**已授权的公开数据作业；敏感税务数据能力始终不能通过后台服务取得。
+- **后台任务所有权独立于WPF认证生命周期**：已安装的`CRS.Worker.Service`由SCM启动，在未登录用户/未开启WPF时运行公开ETF同步。关闭WPF、锁屏、退出TOTP会话**不影响**已授权的公开数据作业；敏感税务数据能力始终不能通过后台服务取得。
 - **UI任务操作均需授权IPC**：WPF查询运行历史、健康状态、启停作业，不直接读写Service的Quartz数据库，不调用插件作业实现；Named Pipes按Windows SID/本地组与命令白名单授权，不能仅凭客户端传`authenticated=true`。
 - **服务端唯一调度**：Windows SCM负责进程启动/故障恢复；SQLCipher持久化Cron定义，Quartz在当前服务进程内重建触发器、负责Misfire与有界并发；业务层负责交易日缺口扫描、补偿、业务幂等与失效重算。普通失败不无限重试，403/429遵守站点限制。
 - **工作目录**：程序/插件包在`Program Files`，可写调度数据库、市场数据、RawStore、日志与UpgradeJournal在`ProgramData`。禁止Service继续写`%LOCALAPPDATA%`或桌面用户账户目录；Service及普通用户的目录ACL分别配置。

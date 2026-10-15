@@ -1,4 +1,4 @@
-namespace CRS.Background.Abstractions;
+namespace CRS.Worker.Abstractions;
 
 /// <summary>后台插件只声明任务和处理器；调度器与持久计划由服务唯一持有。</summary>
 public interface IBackgroundPluginEntry
@@ -17,10 +17,10 @@ public interface IBackgroundPluginSession : IAsyncDisposable
 
 /// <summary>任务名称是稳定业务标识；禁止将实现类型或委托序列化到数据库。</summary>
 public sealed record BackgroundJobDescriptor(string JobId, string Name, string DefaultCron,
-    string TimeZoneId, bool EnabledByDefault);
+    string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false);
 
 /// <summary>可预期的数据源结果使用分类返回，服务据此执行退避。</summary>
-public sealed record BackgroundJobResult(string Status, string? Checkpoint = null)
+public sealed record BackgroundJobResult(string Status, string? Checkpoint = null, TimeSpan? RetryAfter = null)
 {
     public static BackgroundJobResult Success(string? checkpoint = null) => new("Succeeded", checkpoint);
 }
@@ -34,3 +34,9 @@ public sealed record TaskDefinition(string PluginId, string JobId, string Name, 
 public sealed record ExecutionRecord(string ExecutionId, string PluginId, string JobId,
     DateTimeOffset ScheduledUtc, DateTimeOffset StartedUtc, DateTimeOffset? EndedUtc,
     string Result, string? Checkpoint, int Attempt);
+
+/// <summary>持久命令与某次执行分离；重试请求沿用原标识，不能重新创建业务工作。</summary>
+public sealed record CommandReceipt(Guid RequestId, string State, string Code, string? ExecutionId);
+
+/// <summary>插件故障按实例暴露，不以整个服务重启掩盖单个插件加载失败。</summary>
+public sealed record BackgroundPluginStatus(string PluginId, string State, string? ErrorCode = null);

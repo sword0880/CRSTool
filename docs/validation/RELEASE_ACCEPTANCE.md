@@ -6,6 +6,7 @@
 
 | 范围 | 证据与结果 | 限制 |
 | --- | --- | --- |
+| Worker v2首批整改（2026-10-15） | Debug、Release各56项后台检查、Release全量构建、WPF交互和架构门禁通过；LocalService复用原密钥及历史，新管道和真实窗口通过；见[整改记录](../implementation/WORKER_REMEDIATION.md) | F02—F06首批修复；ETF独占写库迁移、完整升级恢复、生产签名等仍待完成；不改变ReleaseApproved=false |
 | 独立后台心跳 POC（2026-10-15） | LocalService 真实安装、SQLCipher/Quartz/IPC、只读令牌授权、SCM 强杀恢复、卸载保留数据和重装通过；实施与命令见[记录](../implementation/BACKGROUND_SERVICE.md) | ETF 未迁移；无人登录、升级恢复、官网网络、物理断电和生产签名未验收；不改变 ReleaseApproved=false |
 | 最近 P0 续修 | 六组回归、68 个综合场景、架构检查、WPF 冒烟；期间清单、加密往返和 Excel 导出专项通过 | 见 [P0 记录](P0_FIX_PROGRESS.md)；该轮未重新收集覆盖率或性能 |
 | 真实原件 | FUTU 五年度、IBKR 五组合只读导入、SQLCipher 保存与同构建复算通过，原件摘要不变 | 见 [真实样本](REAL_SAMPLE_PROGRESS.md)；不替代独立税额签认 |

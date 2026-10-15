@@ -1,6 +1,6 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
-namespace CRS.Background.Service;
+namespace CRS.Worker.Service;
 
 /// <summary>机器 DPAPI 依赖文件 ACL；开发控制台也必须封闭密钥目录。</summary>
 public static class StorageSecurity

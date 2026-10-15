@@ -12,7 +12,7 @@
 
 ## 0. 新增决策（ADR-NT-003：Windows Service无人值守ETF采集）
 
-1. **实际运行采用两个独立宿主**：`CRS.Desktop.Wpf`只加载`NationalTeam.Ui`；`CRS.Background.Service`只加载`NationalTeam.Jobs + Core/Data`，由SQLCipher持久任务定义并在Quartz RAMJobStore恢复触发器；关闭WPF、锁屏、未登录Windows不阻断公开ETF数据作业。
+1. **实际运行采用两个独立宿主**：`CRS.Desktop.Wpf`只加载`NationalTeam.Ui`；`CRS.Worker.Service`只加载`NationalTeam.Jobs + Core/Data`，由SQLCipher持久任务定义并在Quartz RAMJobStore恢复触发器；关闭WPF、锁屏、未登录Windows不阻断公开ETF数据作业。
 2. **仍是一个业务插件**：稳定插件ID为`crs.national-team`，发布包含`uiEntry`/`backgroundEntry`两个可选入口；**至少分出不依赖WPF的Core/Jobs与WPF Ui程序集**，不能沿用“一期一个含WPF的DLL同时在服务执行”的旧实现。
 3. **Service独占数据写入**：调度/原始证据/ETF数据库在`%ProgramData%\CRS`；WPF经授权Named Pipes请求服务提供只读DTO、任务状态和管理命令，不直接改写Quartz库/ETF事实表。可选独立公开数据SQLCipher密钥由服务账户提供，绝不从个人税务TOTP会话解锁。
 4. **每天自动同步而非登录后启动**：Quartz计划抓取、交易日缺口补采、修订重核；任务时间仍是可调整的假设值，必须按官网实际发布时间验证。Service因系统关机/睡眠漏跑后补齐缺口，不向交易所密集重放历史触发次数。
@@ -72,8 +72,8 @@ CRS.Desktop.Wpf（普通用户进程，UI/TOTP/税务）
                  │
           Named Pipes（授权IPC：查询/控制/进度）
                  │
-CRS.Background.Service（Windows服务账户，无界面）
- └─ CRS.Background.PluginHost（后台宿主）→ NationalTeam.Jobs
+CRS.Worker.Service（Windows服务账户，无界面）
+ └─ CRS.Worker.PluginHost（后台宿主）→ NationalTeam.Jobs
        ├─ Quartz.NET（唯一Scheduler，单实例Quartz RAMJobStore + SQLCipher持久定义）
        ├─ NationalTeam.Core / Data（无WPF依赖）
        └─ SSE/SZSE/官方证据 → ProgramData中的market.db/raw/checkpoint
@@ -89,7 +89,7 @@ UI不直接写Quartz库/market.db，不创建第二套定时任务。
 ```text
 CRS.Desktop.Wpf -> PluginHost(UI) -> Plugin.Wpf + Plugin.Abstractions
 NationalTeam.Ui -> NationalTeam.Core + Plugin.Wpf + Background.Ipc.Client契约
-CRS.Background.Service -> Background.PluginHost + Quartz.NET + Background.Ipc
+CRS.Worker.Service -> Background.PluginHost + Quartz.NET + Background.Ipc
 NationalTeam.Jobs -> NationalTeam.Core/Data + Background.Abstractions
 NationalTeam.Core/Data -> 无WPF的领域模型、官方数据源接口与持久化
 

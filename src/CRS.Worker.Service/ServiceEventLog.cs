@@ -1,5 +1,5 @@
 using System.Text.Json;
-namespace CRS.Background.Service;
+namespace CRS.Worker.Service;
 
 /// <summary>受限目录内保存有界结构化诊断，仅记录固定分类，完整执行信息以加密库为准。</summary>
 public sealed class ServiceEventLog(string dataDirectory)

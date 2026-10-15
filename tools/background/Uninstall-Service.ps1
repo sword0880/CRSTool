@@ -6,7 +6,7 @@ $name='CRSBackgroundService'
 $service=Get-Service -Name $name -ErrorAction SilentlyContinue
 if(-not $service){throw '未找到 CRS 后台服务。'}
 $target=[IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'CRS/Background'))
-$expected='"'+(Join-Path $target 'CRS.Background.Service.exe')+'"'
+$expected='"'+(Join-Path $target 'CRS.Worker.Service.exe')+'"'
 $registered=Get-CimInstance Win32_Service -Filter "Name='$name'"
 if($registered.PathName -ne $expected -or $registered.StartName -ne 'NT AUTHORITY\LocalService'){throw '服务路径或身份与本安装器不一致，拒绝删除。'}
 Stop-Service -Name $name

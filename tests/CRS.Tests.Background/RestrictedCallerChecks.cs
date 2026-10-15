@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
-using CRS.Background.Ipc;
+using CRS.Worker.Ipc;
 using Microsoft.Win32.SafeHandles;
 
 /// <summary>以真实受限线程令牌访问跨进程服务，避免创建测试账户或更改桌面 ACL。</summary>
@@ -25,7 +25,7 @@ internal static class RestrictedCallerChecks
                     var client = new BackgroundPipeClient();
                     var health = await client.QueryAsync("GetHealth");
                     var plan = (await client.QueryAsync("GetJobs")).Jobs!.Single();
-                    var result = await client.SendAsync(new(1, Guid.NewGuid(), "Pause", plan.PluginId, plan.JobId, ExpectedRevision: plan.Revision));
+                    var result = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "Pause", plan.PluginId, plan.JobId, ExpectedRevision: plan.Revision));
                     if (health.Code != "Ok" || result.Code != "Forbidden") throw new InvalidOperationException("只读身份管道授权不正确。");
                     Console.WriteLine("PASS 真实移除管理员组的 Windows 令牌：可读健康和计划，管理命令 Forbidden。");
                 });

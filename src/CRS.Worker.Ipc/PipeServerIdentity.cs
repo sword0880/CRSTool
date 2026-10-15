@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
-namespace CRS.Background.Ipc;
+namespace CRS.Worker.Ipc;
 
 /// <summary>发送管理请求前核对 SCM 实际 PID，避免服务停止时连接同名伪造管道。</summary>
 internal static class PipeServerIdentity

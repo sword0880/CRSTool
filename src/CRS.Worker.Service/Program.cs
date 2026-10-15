@@ -1,10 +1,24 @@
 using System.Security.Cryptography;
-using CRS.Background.Ipc;
-using CRS.Background.PluginHost;
-using CRS.Background.Service;
+using CRS.Worker.Ipc;
+using CRS.Worker.PluginHost;
+using CRS.Worker.Service;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
+// 安装器以应用健康确认启动完成；探测模式只读管道，不占用数据目录租约。
+if (args is ["--health-probe"])
+{
+    try
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        var response = await new BackgroundPipeClient().QueryAsync("GetHealth", deadline.Token);
+        Console.WriteLine(JsonSerializer.Serialize(response)); Environment.ExitCode = response.Code == "Ok" && response.Health?.State == "Running" ? 0 : 3;
+    }
+    catch (Exception error) { Console.Error.WriteLine("CRS_WORKER_PROBE_FAILED:" + error.GetType().Name); Environment.ExitCode = 3; }
+    return;
+}
 
 // 安装模式固定 ProgramData 和管道；控制台隔离参数只能显式启用，避免 SCM 错配两个服务共享库。
 var console = args.Contains("--console", StringComparer.Ordinal);
@@ -16,11 +30,14 @@ string Option(string name, string fallback)
 var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "CRS", "Background");
 var plugins = Path.Combine(AppContext.BaseDirectory, "Plugins");
 var pipe = BackgroundPipeServer.DefaultPipeName;
+var trust = Path.Combine(AppContext.BaseDirectory, "trusted-background-plugins.json");
 if (console)
 {
     data = Path.GetFullPath(Option("--data", data));
     plugins = Path.GetFullPath(Option("--plugins", plugins));
     pipe = Option("--pipe", pipe);
+    // 仅隔离控制台允许选择测试信任索引，正式 SCM 模式始终使用程序目录发行索引。
+    trust = Path.GetFullPath(Option("--trust", trust));
 }
 else if (args.Length != 0) throw new ArgumentException("服务安装模式不接受自定义路径或身份参数。");
 StorageSecurity.Prepare(data, console);
@@ -29,7 +46,7 @@ using var ownership = new FileStream(Path.Combine(data, "owner.lock"), FileMode.
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = [], ContentRootPath = AppContext.BaseDirectory });
 builder.Services.AddWindowsService(options => options.ServiceName = "CRSBackgroundService");
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(30));
-builder.Services.AddSingleton(new ServiceLocations(data, plugins, pipe));
+builder.Services.AddSingleton(new ServiceLocations(data, plugins, pipe, trust));
 builder.Services.AddHostedService<ServiceWorker>();
 try { await builder.Build().RunAsync(); }
 catch (Exception error)
@@ -38,9 +55,9 @@ catch (Exception error)
     Console.Error.WriteLine("CRS_BACKGROUND_FATAL:" + error.GetType().Name); Environment.ExitCode = 1;
 }
 
-namespace CRS.Background.Service
+namespace CRS.Worker.Service
 {
-    public sealed record ServiceLocations(string Data, string Plugins, string Pipe);
+    public sealed record ServiceLocations(string Data, string Plugins, string Pipe, string Trust);
     /// <summary>托管服务只组合无界面组件；数据库和插件在 Quartz 停止后释放。</summary>
     public sealed class ServiceWorker(ServiceLocations locations, ILogger<ServiceWorker> logger, IHostApplicationLifetime lifetime) : BackgroundService
     {
@@ -51,10 +68,10 @@ namespace CRS.Background.Service
             {
                 key = ServiceKey.Open(locations.Data);
                 using var repository = new EncryptedTaskRepository(Path.Combine(locations.Data, "scheduler-config.db"), key);
-                await using var catalog = new BackgroundPluginCatalog();
-                await catalog.LoadAsync(locations.Plugins, Path.Combine(AppContext.BaseDirectory, "trusted-background-plugins.json"), stoppingToken);
+                await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () => Environment.Exit(2));
+                await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 var diagnostics = new ServiceEventLog(locations.Data);
-                var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write);
+                var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication);
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 try

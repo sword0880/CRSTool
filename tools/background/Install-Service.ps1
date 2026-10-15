@@ -8,7 +8,7 @@ $source=[IO.Path]::GetFullPath($PackageDirectory)
 if((Get-Item -LiteralPath $source).Attributes -band [IO.FileAttributes]::ReparsePoint){throw '发行目录不能是重解析点。'}
 $releasePath=Join-Path $source 'release.json'
 $release=Get-Content -Raw -LiteralPath $releasePath | ConvertFrom-Json -AsHashtable
-if($release.format -ne 1 -or $release.product -ne 'CRS.Background.Service'){throw '发行格式不兼容。'}
+if($release.format -ne 1 -or $release.product -ne 'CRS.Worker.Service'){throw '发行格式不兼容。'}
 if(-not $AllowDevelopmentPackage){
     # 生产发行以外部配置的证书指纹验证分离 CMS 签名；不能让包自报受信发布者。
     if(-not $TrustedPublisherThumbprint){throw '正式安装必须指定受信发布者证书指纹；开发验收请显式使用 -AllowDevelopmentPackage。'}
@@ -68,7 +68,7 @@ foreach($relative in $release.files.Keys){
 }
 Copy-Item -LiteralPath $releasePath -Destination $target
 if(-not [Diagnostics.EventLog]::SourceExists($serviceName)){New-EventLog -LogName Application -Source $serviceName}
-$binary='"'+(Join-Path $target 'CRS.Background.Service.exe')+'"'
+$binary='"'+(Join-Path $target 'CRS.Worker.Service.exe')+'"'
 New-Service -Name $serviceName -DisplayName 'CRS Background Service' -BinaryPathName $binary -StartupType Automatic -Credential ([PSCredential]::new('NT AUTHORITY\LocalService',[Security.SecureString]::new())) | Out-Null
 function Invoke-ServiceConfig([string[]]$Arguments){& sc.exe @Arguments;if($LASTEXITCODE -ne 0){throw 'SCM 配置失败，请保留现场诊断。'}}
 Invoke-ServiceConfig @('config',$serviceName,'start=','delayed-auto')
@@ -80,4 +80,11 @@ $serviceSid=([Security.Principal.NTAccount]::new('NT SERVICE',$serviceName)).Tra
 Set-PrivateDirectory $data $serviceSid $false
 Start-Service -Name $serviceName
 (Get-Service -Name $serviceName).WaitForStatus('Running',[TimeSpan]::FromSeconds(30))
-Write-Output 'CRS.Background.Service 已独立安装并启动。请通过后台服务页面确认任务与历史健康状态。'
+$deadline=[DateTime]::UtcNow.AddSeconds(30)
+do{
+    & (Join-Path $target 'CRS.Worker.Service.exe') --health-probe
+    $ready=$LASTEXITCODE -eq 0
+    if(-not $ready){Start-Sleep -Milliseconds 250}
+}while(-not $ready -and [DateTime]::UtcNow -lt $deadline)
+if(-not $ready){throw 'SCM已注册，但应用健康未就绪；保留程序和数据用于诊断，禁止当作安装成功。'}
+Write-Output 'CRS.Worker.Service 已独立安装，插件与加密库健康已确认。'

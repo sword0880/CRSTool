@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text.Json;
 
-namespace CRS.Background.Service;
+namespace CRS.Worker.Service;
 
 /// <summary>独立服务密钥由机器 DPAPI 保护，再以目录 ACL 限定读取者；不依赖桌面用户配置文件。</summary>
 public static class ServiceKey

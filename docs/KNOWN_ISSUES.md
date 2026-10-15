@@ -8,6 +8,8 @@
 
 后台服务后续：ETF Core/Jobs/Ui分离、独占加密市场库、交易日缺口幂等补采、摘要IPC和整插件禁用；服务维护升级Journal/版本切换/禁止回退新事实、运维备份恢复与账户密钥迁移；无人登录/整机重启、睡眠恢复、跨Session授权、LocalService官网网络、断电/磁盘满和生产签名发行验收。当前部署的是开发心跳包，不代表上述门槛关闭。
 
+[Worker v2首批整改](implementation/WORKER_REMEDIATION.md)已处理执行持久化故障关闭、手动命令恢复、生命周期、管道容量和分页；四个项目与管道已改名。F01及F07—F11的业务/运维缺口继续保留，不将首批整改视为全部审查项关闭。
+
 2026-10-13 的[反方审查](archive/ADVERSARIAL_REVIEW.md)保留审查时的问题依据。后续已接入[分块备份、容量预警和外层读取保护](implementation/BACKUP_CAPACITY.md)，新备份不再受旧 128 MiB 上限约束；[有凭证的账户期间](guides/ACCOUNT_PERIODS.md)和[长任务锁定中断](implementation/LOCK_INTERRUPTION.md)已接入。真实开户凭证核对、独立税额基准、全部持久化表配额和实际硬件锁屏／恢复等仍开放，不代表获得发布批准。用户确认暂时没有独立计算记录，独立金额验收保留未通过。
 
 | 编号 | 当前问题 | 后续验收 |

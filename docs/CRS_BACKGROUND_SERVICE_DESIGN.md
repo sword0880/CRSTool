@@ -8,7 +8,7 @@
 
 ## 1. 决策、目标与非目标
 
-**决策**：采用可独立安装的 `CRS.Background.Service` Windows服务，内嵌唯一Quartz Scheduler、任务插件宿主和本机Named Pipes管理端点。**数据库加密遵循现有CRS强制SQLCipher规范：首期使用Quartz RAMJobStore + 独立SQLCipher加密任务定义/检查点；服务启动后重建触发器。只有经过端到端验证的加密Quartz AdoJobStore才可作为后续可选升级。**首次安装服务需管理员权限；服务设置为自动/延迟自动启动。即使没人登录Windows、WPF关闭或TOTP未解锁，也可执行仅处理**公开数据**的计划任务。
+**决策**：采用可独立安装的 `CRS.Worker.Service` Windows服务，内嵌唯一Quartz Scheduler、任务插件宿主和本机Named Pipes管理端点。**数据库加密遵循现有CRS强制SQLCipher规范：首期使用Quartz RAMJobStore + 独立SQLCipher加密任务定义/检查点；服务启动后重建触发器。只有经过端到端验证的加密Quartz AdoJobStore才可作为后续可选升级。**首次安装服务需管理员权限；服务设置为自动/延迟自动启动。即使没人登录Windows、WPF关闭或TOTP未解锁，也可执行仅处理**公开数据**的计划任务。
 
 **一期必须实现**：可靠安装与卸载；单实例；加密持久Cron定义与重启恢复；按交易日扫描漏采与幂等补偿；受信后台插件加载；任务运行历史；错误退避；WPF状态查询/手动触发（经Windows身份授权）；服务升级和数据恢复；不接触个人税务数据库。
 
@@ -19,9 +19,9 @@
 ```text
 Windows Session 1+（用户桌面）                   Windows Session 0（服务，无UI）
 ┌───────────────────────────────┐               ┌────────────────────────────────┐
-│ CRS.Desktop.Wpf                │               │ CRS.Background.Service          │
+│ CRS.Desktop.Wpf                │               │ CRS.Worker.Service          │
 │ 现有税务/绩效/TOTP/导航         │── Named Pipes─>│ .NET Generic Host/SCM生命周期    │
-│ CRS.PluginHost（UI）            │<─授权协议/DTO──│ CRS.Background.PluginHost       │
+│ CRS.PluginHost（UI）            │<─授权协议/DTO──│ CRS.Worker.PluginHost       │
 │ NationalTeam.Ui（WPF）          │               │ Quartz.NET（唯一Scheduler）      │
 └───────────────────────────────┘               │ NationalTeam.Jobs（无WPF）       │
                                                 │ NationalTeam.Core/Data           │
@@ -39,10 +39,10 @@ Windows Session 1+（用户桌面）                   Windows Session 0（服�
 
 | 项目 | 目标框架与责任 | 约束 |
 |---|---|---|
-| `CRS.Background.Abstractions` | `net10.0`：后台插件入口/任务声明、DTO、状态定义 | 不依赖WPF、Quartz实现与税务Domain |
-| `CRS.Background.PluginHost` | `net10.0`：后台入口发现、签名和版本检查、会话生命周期、DI与JobDispatcher | 不静态引用任何业务插件实现 |
-| `CRS.Background.Service` | `net10.0-windows`：Windows服务宿主、Quartz、日志、SQLite JobStore、任务命令执行 | 不引用Presentation/WPF；`AddWindowsService` |
-| `CRS.Background.Ipc` | `net10.0`：协议DTO、Named Pipes客户端/服务端适配、Windows授权 | 可拆为Contracts+Client/Server；不可引入业务依赖 |
+| `CRS.Worker.Abstractions` | `net10.0`：后台插件入口/任务声明、DTO、状态定义 | 不依赖WPF、Quartz实现与税务Domain |
+| `CRS.Worker.PluginHost` | `net10.0`：后台入口发现、签名和版本检查、会话生命周期、DI与JobDispatcher | 不静态引用任何业务插件实现 |
+| `CRS.Worker.Service` | `net10.0-windows`：Windows服务宿主、Quartz、日志、SQLite JobStore、任务命令执行 | 不引用Presentation/WPF；`AddWindowsService` |
+| `CRS.Worker.Ipc` | `net10.0`：协议DTO、Named Pipes客户端/服务端适配、Windows授权 | 可拆为Contracts+Client/Server；不可引入业务依赖 |
 | `CRS.Plugins.NationalTeam.Core` | `net10.0`：ETF/机构模型、时间轴、数据计算 | 桌面UI/服务端复用纯逻辑 |
 | `CRS.Plugins.NationalTeam.Jobs` | `net10.0`：SSE/SZSE采集、质量处理、披露任务、后台入口 | 仅由Service加载；依赖Core/Data，不依赖WPF |
 | `CRS.Plugins.NationalTeam.Ui` | `net10.0-windows`：页面和UI入口 | 仅由Desktop加载；通过IPC读取状态和结果 |
@@ -73,7 +73,7 @@ Windows Session 1+（用户桌面）                   Windows Session 0（服�
 ## 3. 后台插件契约和Quartz的边界
 
 ```csharp
-// CRS.Background.Abstractions：示意契约，具体名称与类型在POC中冻结
+// CRS.Worker.Abstractions：示意契约，具体名称与类型在POC中冻结
 public interface IBackgroundPluginEntry
 {
     IBackgroundPluginSession CreateSession(IBackgroundHostContext context);
@@ -155,7 +155,7 @@ SCM只启动已注册服务，但开发控制台模式、手工双击或误装�
 ```text
 %ProgramFiles%\CRS\
   CRS.Desktop.Wpf.exe
-  Background\CRS.Background.Service.exe
+  Background\CRS.Worker.Service.exe
   Plugins\crs.national-team\1.0.0\{Core,Jobs,Ui,...}
 
 %ProgramData%\CRS\
@@ -193,7 +193,7 @@ SCM只启动已注册服务，但开发控制台模式、手工双击或误装�
 
 ```powershell
 # 在提升权限的PowerShell中运行，示例服务二进制已存在
-sc.exe create CRSBackgroundService binPath= '"C:\Program Files\CRS\Background\CRS.Background.Service.exe"' start= delayed-auto obj= 'NT AUTHORITY\LocalService' DisplayName= 'CRS Background Service'
+sc.exe create CRSBackgroundService binPath= '"C:\Program Files\CRS\Background\CRS.Worker.Service.exe"' start= delayed-auto obj= 'NT AUTHORITY\LocalService' DisplayName= 'CRS Background Service'
 sc.exe description CRSBackgroundService 'CRS plugin background scheduler and public market data monitor'
 sc.exe sidtype CRSBackgroundService unrestricted
 sc.exe failure CRSBackgroundService reset= 86400 actions= restart/60000/restart/300000/none/0

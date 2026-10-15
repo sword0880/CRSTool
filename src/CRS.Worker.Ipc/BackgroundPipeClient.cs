@@ -1,6 +1,6 @@
 using System.IO.Pipes;
 using System.Security.Principal;
-namespace CRS.Background.Ipc;
+namespace CRS.Worker.Ipc;
 
 /// <summary>桌面只通过本机管道访问服务；服务不可用时明确返回，不启动替代调度器。</summary>
 public sealed class BackgroundPipeClient(string pipeName = BackgroundPipeServer.DefaultPipeName)
@@ -9,7 +9,9 @@ public sealed class BackgroundPipeClient(string pipeName = BackgroundPipeServer.
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(12));
-        await using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut,
+        using var identity = WindowsIdentity.GetCurrent();
+        var management = BackgroundPipeServer.IsMutation(request.Command) && new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+        await using var pipe = new NamedPipeClientStream(".", pipeName + (management ? BackgroundPipeServer.ControlSuffix : ""), PipeDirection.InOut,
             PipeOptions.Asynchronous, TokenImpersonationLevel.Impersonation);
         await pipe.ConnectAsync(deadline.Token);
         if (pipeName == BackgroundPipeServer.DefaultPipeName) PipeServerIdentity.Verify(pipe);

@@ -38,6 +38,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{565AA4D7-A
 		docs\DATA_SOURCE_POC.md = docs\DATA_SOURCE_POC.md
 		docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md = docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md
 		docs\implementation\BACKGROUND_SERVICE.md = docs\implementation\BACKGROUND_SERVICE.md
+		docs\implementation\WORKER_REMEDIATION.md = docs\implementation\WORKER_REMEDIATION.md
 		docs\README.md = docs\README.md
 	EndProjectSection
 EndProject
@@ -122,6 +123,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "validation", "validation", 
 		docs\validation\REAL_SAMPLE_PROGRESS.md = docs\validation\REAL_SAMPLE_PROGRESS.md
 		docs\validation\RELEASE_ACCEPTANCE.md = docs\validation\RELEASE_ACCEPTANCE.md
 		docs\validation\TEST_SPEC.md = docs\validation\TEST_SPEC.md
+		docs\validation\WORKER_ARCHITECTURE_REVIEW.md = docs\validation\WORKER_ARCHITECTURE_REVIEW.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Plugin.Abstractions", "src\CRS.Plugin.Abstractions\CRS.Plugin.Abstractions.csproj", "{7032EFBD-CC8C-4A7C-9B9A-F92D6D3247CA}"
@@ -142,17 +144,21 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Tests.NationalTeamWatch
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Tests.PluginRecovery", "tests\CRS.Tests.PluginRecovery\CRS.Tests.PluginRecovery.csproj", "{ADCD8482-C347-4D09-A345-679E2675511F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Background.Abstractions", "src\CRS.Background.Abstractions\CRS.Background.Abstractions.csproj", "{66BCE486-4E55-4968-83BB-04E7D3224D53}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Worker.Abstractions", "src\CRS.Worker.Abstractions\CRS.Worker.Abstractions.csproj", "{66BCE486-4E55-4968-83BB-04E7D3224D53}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Background.PluginHost", "src\CRS.Background.PluginHost\CRS.Background.PluginHost.csproj", "{DFCDC5E3-610D-429A-8EA1-D3FAAF5F309B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Worker.PluginHost", "src\CRS.Worker.PluginHost\CRS.Worker.PluginHost.csproj", "{DFCDC5E3-610D-429A-8EA1-D3FAAF5F309B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Background.Ipc", "src\CRS.Background.Ipc\CRS.Background.Ipc.csproj", "{C965DD4E-AB91-45FC-AD2A-EF5000847770}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Worker.Ipc", "src\CRS.Worker.Ipc\CRS.Worker.Ipc.csproj", "{C965DD4E-AB91-45FC-AD2A-EF5000847770}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Background.Service", "src\CRS.Background.Service\CRS.Background.Service.csproj", "{7F1D12AB-CA34-4964-93A0-3F6FA2D392EF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Worker.Service", "src\CRS.Worker.Service\CRS.Worker.Service.csproj", "{7F1D12AB-CA34-4964-93A0-3F6FA2D392EF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Plugins.Heartbeat", "src\Plugins\CRS.Plugins.Heartbeat\CRS.Plugins.Heartbeat.csproj", "{37B55CCB-683D-4F7E-9CB7-C388FE16A1B6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Tests.Background", "tests\CRS.Tests.Background\CRS.Tests.Background.csproj", "{E83D41BC-5FCF-4470-8E9E-EAFC7CA93533}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Fixtures", "Fixtures", "{F12727AA-ABEF-07AF-E6F0-CD96E3D9A8AF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Worker.FixturePlugin", "tests\Fixtures\CRS.Worker.FixturePlugin\CRS.Worker.FixturePlugin.csproj", "{1CC11097-A6D5-4322-AC50-AB43BB02065C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -464,6 +470,18 @@ Global
 		{E83D41BC-5FCF-4470-8E9E-EAFC7CA93533}.Release|x64.Build.0 = Release|Any CPU
 		{E83D41BC-5FCF-4470-8E9E-EAFC7CA93533}.Release|x86.ActiveCfg = Release|Any CPU
 		{E83D41BC-5FCF-4470-8E9E-EAFC7CA93533}.Release|x86.Build.0 = Release|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Debug|x64.Build.0 = Debug|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Debug|x86.Build.0 = Debug|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Release|x64.ActiveCfg = Release|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Release|x64.Build.0 = Release|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Release|x86.ActiveCfg = Release|Any CPU
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -502,5 +520,7 @@ Global
 		{7F1D12AB-CA34-4964-93A0-3F6FA2D392EF} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{37B55CCB-683D-4F7E-9CB7-C388FE16A1B6} = {58D3A2C3-F96F-5E57-2C6B-ECE59D6A18FC}
 		{E83D41BC-5FCF-4470-8E9E-EAFC7CA93533} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{F12727AA-ABEF-07AF-E6F0-CD96E3D9A8AF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{1CC11097-A6D5-4322-AC50-AB43BB02065C} = {F12727AA-ABEF-07AF-E6F0-CD96E3D9A8AF}
 	EndGlobalSection
 EndGlobal
