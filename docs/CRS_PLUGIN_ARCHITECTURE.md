@@ -256,7 +256,7 @@ Started             --退出/禁用要求---->  Stopping -> Stopped -> Disposed
 - **工作目录**：程序/插件包在`Program Files`，可写调度数据库、市场数据、RawStore、日志与UpgradeJournal在`ProgramData`。禁止Service继续写`%LOCALAPPDATA%`或桌面用户账户目录；Service及普通用户的目录ACL分别配置。
 - **部署模式**：第一期就支持管理员安装/卸载Windows服务。允许`--console`开发诊断，但Console与正式服务不得同时重建并执行同一组SQLCipher任务定义；基于单实例锁和启动检查拒绝双调度。
 - **插件状态拆分**：每个`PluginId`同时记录`UiState`/`BackgroundState`/`PackageVersion`/`DataSchemaVersion`。仅UI故障不能停止正常后台同步；业务插件被管理员禁用才停止其Quartz触发器（有界取消在途作业）；升级须协调服务维护期和数据库版本。
-- 20只ETF范围内Quartz线程池初始建议2～3（**配置值须经实测**），单插件同一日数据采集防重入。停止过程尊重CancellationToken、停止超时并保留Checkpoint；WPF只展示轻量结果DTO，不加载原始HTML/海量证据。
+- 初始验证规模内Quartz线程池初始建议2～3（**后续按实际监控规模实测**），单插件同一日数据采集防重入。20仅指表格约20行视口，不是ETF数量上限。停止过程尊重CancellationToken、停止超时并保留Checkpoint；WPF只展示轻量结果DTO，不加载原始HTML/海量证据。
 
 详细的二进制目录、JobStore、IPC契约、服务账户、安装脚本、升级顺序和测试以[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)为准。
 

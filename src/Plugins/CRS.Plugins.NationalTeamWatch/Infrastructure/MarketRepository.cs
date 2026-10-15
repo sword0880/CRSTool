@@ -34,8 +34,9 @@ public sealed class MarketRepository : IMarketRepository
             CREATE TABLE IF NOT EXISTS watchlist_change(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,active INTEGER NOT NULL,reason TEXT NOT NULL,changed_utc TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS etf_configuration_version(market TEXT,ticker TEXT,revision INTEGER NOT NULL,origin TEXT NOT NULL,PRIMARY KEY(market,ticker),FOREIGN KEY(market,ticker) REFERENCES security_master(market,ticker));
             CREATE TABLE IF NOT EXISTS etf_metadata_change(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,old_name TEXT,old_index TEXT,new_name TEXT NOT NULL,new_index TEXT NOT NULL,changed_utc TEXT NOT NULL);
-            CREATE TRIGGER IF NOT EXISTS watchlist_insert_limit BEFORE INSERT ON watchlist_membership WHEN NEW.active=1 AND (SELECT count(*) FROM watchlist_membership WHERE active=1)>=20 BEGIN SELECT RAISE(ABORT,'ETF pool limit 20'); END;
-            CREATE TRIGGER IF NOT EXISTS watchlist_update_limit BEFORE UPDATE OF active ON watchlist_membership WHEN NEW.active=1 AND OLD.active=0 AND (SELECT count(*) FROM watchlist_membership WHERE active=1)>=20 BEGIN SELECT RAISE(ABORT,'ETF pool limit 20'); END;
+            -- 20指表格约20行的可见区域；移除旧库容量触发器，保留全部ETF配置及历史数据。
+            DROP TRIGGER IF EXISTS watchlist_insert_limit;
+            DROP TRIGGER IF EXISTS watchlist_update_limit;
             CREATE TABLE IF NOT EXISTS source_fetch(fetch_id TEXT PRIMARY KEY,provider TEXT NOT NULL,retrieved_utc TEXT NOT NULL,source_published_utc TEXT,source_url TEXT NOT NULL,sha256 TEXT NOT NULL,original_sha256 TEXT NOT NULL,status TEXT NOT NULL,parser_version TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS trading_day(market TEXT,trade_date TEXT,fetch_id TEXT NOT NULL,PRIMARY KEY(market,trade_date),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             CREATE TABLE IF NOT EXISTS share_observation_revision(revision_id TEXT PRIMARY KEY,market TEXT,ticker TEXT,trade_date TEXT,total_shares TEXT NOT NULL,original_value TEXT NOT NULL,original_unit TEXT NOT NULL,fetch_id TEXT NOT NULL,revision_no INTEGER NOT NULL,accepted_at TEXT,first_seen TEXT NOT NULL,status TEXT NOT NULL,supersedes_id TEXT,UNIQUE(market,ticker,trade_date,revision_no),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
@@ -277,9 +278,8 @@ public sealed class MarketRepository : IMarketRepository
         var oldIndex=Scalar("SELECT index_group FROM security_master WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker));
         // 原实现忽略已存在代码，导致名称和指数无法修改；现在以同一稳定标识更新元数据。
         Execute("INSERT INTO security_master VALUES($m,$t,$name,$index) ON CONFLICT(market,ticker) DO UPDATE SET name=excluded.name,index_group=excluded.index_group",("$m",key.Market),("$t",key.Ticker),("$name",name),("$index",index));
-        // 已存在条目直接UPDATE，避免INSERT前置容量触发器误拒绝满池中的普通名称编辑。
+        // 已存在条目按稳定标识更新，启停只改变采集范围，不删除配置或历史事实。
         var membership=Scalar("SELECT active FROM watchlist_membership WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker));
-        if(active && (membership is null || Convert.ToInt32(membership)==0) && Convert.ToInt32(Scalar("SELECT count(*) FROM watchlist_membership WHERE active=1"))>=20)throw new InvalidDataException("监控池已满20只，请先停用其它ETF。");
         Execute(membership is null?"INSERT INTO watchlist_membership VALUES($m,$t,$active,$reason,'DataPilot',NULL)":"UPDATE watchlist_membership SET active=$active,reason=$reason WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason));
         Execute("INSERT INTO etf_configuration_version VALUES($m,$t,1,'用户配置') ON CONFLICT(market,ticker) DO UPDATE SET revision=revision+1,origin='用户配置'",("$m",key.Market),("$t",key.Ticker));
         var change=Guid.NewGuid().ToString("N");

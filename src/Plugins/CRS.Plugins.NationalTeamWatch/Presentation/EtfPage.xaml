@@ -35,7 +35,7 @@
       <WrapPanel><StackPanel Margin="0,0,12,12"><TextBlock Text="跟踪指数 / 分组" Margin="0,0,0,5"/><TextBox Text="{Binding IndexGroup,UpdateSourceTrigger=PropertyChanged}" Width="210" MaxLength="64"/></StackPanel>
        <StackPanel Margin="0,0,0,12"><TextBlock Text="配置理由 / 备注" Margin="0,0,0,5"/><TextBox Text="{Binding Reason,UpdateSourceTrigger=PropertyChanged}" Width="420" MaxLength="500"/></StackPanel>
       </WrapPanel>
-      <CheckBox Content="启用自动监控（监控池最多20只）" IsChecked="{Binding MonitorEnabled}" Margin="0,0,0,12"/>
+      <CheckBox Content="启用自动监控" IsChecked="{Binding MonitorEnabled}" Margin="0,0,0,12"/>
       <ui:Button Content="保存ETF配置" Command="{Binding SaveConfigurationCommand}" HorizontalAlignment="Left"/>
       <TextBlock Text="市场和代码是固定标识；需要更换代码时请新增标的。名称、分组、备注及监控状态均可修改。" Foreground="#64748B" TextWrapping="Wrap" Margin="0,12,0,0"/>
      </StackPanel>

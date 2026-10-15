@@ -7,7 +7,7 @@
 > 状态：**有条件通过；免费数据通道M0、真实WPF插件POC和升级恢复P0尚未验证**  
 > 技术：C# / .NET 10 / WPF / SQLite(可选SQLCipher)  
 > **总体架构依据：**[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)；**后台技术唯一专项依据：**[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)  
-> 第一阶段：中央汇金及国家队**核心宽基ETF，正式监控池上限20只**；初始链路验证5只。  
+> 第一阶段：中央汇金及国家队**核心宽基ETF，监控数量按用户配置**；初始链路验证5只。20仅指表格约20行的可见空间，更多记录滚动查看，不限制启用数量。
 > 后续：扩展**中央汇金等机构对上市公司的直接持股/增减持披露研究**，不把股票“国家队持仓”误作实时交易。
 
 ---
@@ -26,14 +26,14 @@
 1. 将原 `crs.national-team-etf` 草案标识调整为**尚未发行的新插件ID `crs.national-team`**；发布后此ID必须永久稳定。展示名「国家队持仓与ETF观察」，两个业务页签分别为 `ETF份额监控` 与未来 `机构直接持股`。
 2. **不是两个业务插件**：ETF与股票直接持股研究共享机构目录、公告证据、时间轴、数据质量与来源审核，因此放在同一个有清晰内部子模块的业务插件中；其他将来独立的绩效、行业研究等功能才新建插件。
 3. **宿主与插件解耦**：UI端使用 `ICrsPluginEntry/IPluginSession`；服务端独立使用`IBackgroundPluginEntry/IBackgroundPluginSession`，二者共享领域服务但**不共享Session/DI**。宿主原有税务Domain/Security不得引用ETF插件。
-4. **数量上限是业务约束不是采集清单注释**：正式有效监控池不得超过20只；任何新增需要先核对持仓证据、跟踪指数、已有覆盖及重要性。原开源项目的23只池**不可照抄为默认正式池**。
+4. **可视容量与业务数量分离（2026-10-15用户澄清）**：20只指表格约20行可见空间，超出部分滚动查看；监控数量不受20只限制。新增标的仍核对跟踪指数和来源，机构持有标签需要持仓证据；开源候选不自动成为已确认机构持有或默认启用标的。
 5. 第一期仅实现**官方来源ETF日总份额+质量/历史+份额变化**；取得同日有效官方基金NAV时再提供净申赎估算；持有人持仓证据结构预留，股票持仓二期交付，归因与回测三期。
 6. 数据语义严格分层：**A：已披露机构持仓，B：ETF全市场份额变化，C：疑似政策性资金行为假设**。A/B/C不可互相替代；不得把ETF净申购称为中央汇金买入。
 7. 上交所/深交所公开网页的HTTP接口**不是已承诺的开放API**；须先通过使用许可、真实样本、自动化获取、历史深度、连续性POC。失败降级为官方文件导入，只能称离线研究版本，不得宣称自动监控完成。
 8. 插件启停/升级**重启生效**。一期WPF插件优先通过**默认AssemblyLoadContext**加载并统一UI依赖；只有真实XAML/BAML双插件POC通过才能改用自定义ALC。二进制、数据库和原始证据一致性要由升级日志协调，不把进程内插件当安全或故障隔离边界。
 9. ETF公开数据保存在插件私有SQLite；不读取CRS税务SQLCipher数据库和认证密钥。未来关联账户持仓须经宿主明确授权的只读快照能力接入。
 10. 明确保留`TradeDate / SourcePublishedAt / FirstSeenAt / RetrievedAt / AcceptedAt`信息，采用不可变原始证据与修订链，防止未来回测穿越。
-11. **反过度设计**：监控池≤20只，不实现每个计算窗口的持久化依赖DAG；采用确定性窗口失效重算。首期只落地必要表，股票持仓解析及其业务表在二期迁移。
+11. **反过度设计**：不实现每个计算窗口的持久化依赖DAG；采用确定性窗口失效重算。监控规模按实际配置压测，不从界面行数推导业务上限。首期只落地必要表，股票持仓解析及其业务表在二期迁移。
 12. **当前代码现实**：仓库`CRS.sln`已具有独立Security和原项目内的绩效P0；不得为本插件重复建设或搬迁现有绩效模块。
 
 ### 0.1 概念边界和产品命名
@@ -50,7 +50,7 @@
 | P0 | 原插件DI构建/使用与销毁责任不闭环 | 改为`ICrsPluginEntry → IPluginSession`，私有DI由插件自己管理 |
 | P0 | 插件版本与SQLite升级“原子切换”忽略RawStore/WAL/断电 | 引用宿主`UpgradeJournal`完整恢复规范，加入故障注入测试 |
 | P0 | 当前仓库已有绩效P0，错误假定为待建插件 | 不重复迁移绩效；ETF作为首个**新增**业务插件 |
-| P1 | ≤20ETF仍设计完整metric依赖DAG、多种未来表 | 改为**确定性窗口失效重算**；一期只建必要表，股票持股业务表二期创建 |
+| P1 | 初期ETF研究设计完整metric依赖DAG、多种未来表 | 改为**确定性窗口失效重算**；一期只建必要表，股票持股业务表二期创建 |
 | P1 | 历史数据缺口可能被“上一有效观测日”跳过 | 严格使用上一**相邻交易日**，缺口时标`Incomplete` |
 | P1 | 一期资金汇总对NAV接口的实际可行性描述偏乐观 | 官方NAV未验证前**只交付份额监控**，金额为可选增强，禁止跨市场残缺合计伪装完整 |
 | P1 | 官方HTTP接口许可与可达性的风险 | M0必须明确2026当前合法可持续接口路径，手动版单独命名，不谎称自动监控 |
@@ -167,7 +167,7 @@ public interface IPluginHostContext
 
 ## 3. 监控标的、机构目录与未来扩展
 
-### 3.1 第一阶段仅5只验证，正式池≤20只
+### 3.1 初始5只验证，监控范围可配置
 
 | 代码 | 市场 | 研究对象 | 首期标签 |
 |---|---|---|---|
@@ -182,10 +182,10 @@ public interface IPluginHostContext
 正式池生成规则（人工审查、插件内可维护）：
 
 1. 证据门槛：官方基金定期报告或官方持有人公告确认中央汇金投资/汇金资管等持有；仅媒体摘要作为线索，不直接变成Confirmed。
-2. 优先核心宽基：沪深300、上证50、中证500、中证1000、科创50、创业板等；小众行业/主题默认不进入≤20只核心池，除非符合明确例外。
+2. 优先核心宽基：沪深300、上证50、中证500、中证1000、科创50、创业板等；小众行业/主题由用户明确选择，不按表格行数限制监控范围。
 3. 同类ETF按**确认持有量、流动性和指数代表性**选择；覆盖多个基金公司、沪深市场；在监控池中明确`InclusionReason / ReviewedBy / LastVerifiedReport / ValidFrom/To`。
-4. 20只上限由业务服务与数据库事务校验（例如对有效状态按序列化事务进行计数），**不是WPF列表只显示前20个**。退出监控池后保留历史证据。
-5. 超过20只时按明确优先级替换最弱标的；不暗中扩大容量，不将“23只开源样本”全部称为监控对象。
+4. 20只仅是界面可见区域容量，全部数据保留在数据源，超出部分通过滚轮和滚动条访问；不得在WPF、服务或数据库拒绝第21只。退出监控后保留历史证据。
+5. 候选与启用监控分别管理；用户可启用超过20只，不需要先替换已有标的。采集仍遵守官方限速、超时及取消策略。
 
 ### 3.2 实体模型预留（不要把股东名单写死在代码里）
 
@@ -193,7 +193,7 @@ public interface IPluginHostContext
 - `SecurityMaster`：`Market+Code+SecurityType`，覆盖ETF/股票；中文名称、证券类别、上市状态、上市日期等可版本化。
 - `InstitutionalExposure`：机构—证券的关系，`DirectEquityHolding / EtfUnitHolding / ViaFundUnderlyingExposure / StrategicControl / PublicActionAnnouncement`，不得把ETF成分股穿透视为直接持股。
 - `DisclosureEvidence`：来源、公告ID/URL、报告期末、实际发布时间、首次观察时间、存证哈希、主体名称及可信状态。
-- `WatchlistMembership`：业务池、证券、入池/出池时间、原因、报告依据。ETF上限20只；股票后续单独池规则，不受20只ETF上限误伤。
+- `WatchlistMembership`：业务池、证券、入池/出池时间、原因、报告依据。ETF启用数量不限制20只；股票后续单独池规则。
 
 ### 3.3 开源案例参考与不得复制之处
 
@@ -254,9 +254,9 @@ SSE / SZSE 官方网页或官方可下载文件
           ↓  WPF只读Query模型（数据AsOf/覆盖率/证据级别）
 ```
 
-**20只以内不需要Kafka、微服务、分布式队列或过度抽象的流处理框架**。实际Provider按官网支持的“逐日或区间/分页”能力决定调用方案；建议每次请求只保留一个受控`SourcePayload`在内存中，并立即落RawStore。不要把一年历史所有原始网页`byte[]`组合成单个大`FetchResult`返回；即使只有20只，原始HTML/公告可能很大。
+**首期不引入Kafka、微服务、分布式队列或过度抽象的流处理框架**。实际Provider按官网支持的“逐日或区间/分页”能力决定调用方案；每次请求只保留一个受控`SourcePayload`在内存中，并立即落RawStore。不要把一年历史所有原始网页`byte[]`组合成单个大`FetchResult`返回；原始HTML/公告可能很大，按实际监控规模压测。
 
-### 5.1 C#接口（示意，≤20只无需通用流处理框架）
+### 5.1 C#接口（示意，按来源分页并限制单次负载）
 
 ```csharp
 public enum ExchangeMarket { SSE, SZSE }
@@ -285,7 +285,7 @@ public interface IEtfShareSource
 }
 ```
 
-- 由于最多20只，首期使用**日期段/单页为边界的有界`Task`批次**即可，无需强制`IAsyncEnumerable`和分布式消息/流处理管线。Provider内部按已验证分页协议循环，单次只在内存保留一个有大小限制的响应，立即写入`RawStore`。
+- 首期使用**日期段/单页为边界的有界`Task`批次**，无需强制`IAsyncEnumerable`和分布式消息/流处理管线。Provider内部按已验证分页协议循环，单次只在内存保留一个有大小限制的响应，立即写入`RawStore`；20行视口不构成业务数量限制。
 - 调用方自行分段、推进检查点，并在`Accepted`成功后才标记该ETF/交易日完成；结果集合只携带证据引用。未来若出现海量批量数据，再评估流式接口。
 - 未经验证的交易所URL、`sqlId`、`CATALOGID`及响应字段，不作为公共接口参数或既定能力。
 
@@ -301,7 +301,7 @@ public interface IEtfShareSource
 
 - 同样一批数据重复采集，不新增重复的有效业务修订；但抓取Attempt及必要原始证据依然可审计。
 - 初始5ETF历史目标为**最近250个有效交易日**。完整率、首末可用日、缺口、访问失败/未发布/未上市四种状态分开。
-- 20ETF池日常采集按同源支持的批量/分页运行，不因只跟踪20只而按20倍重复请求全市场页面。
+- ETF日常采集按同源支持的批量/分页运行，不按监控数量重复请求同一份全市场页面。
 - 每个交易日与市场的更新状态独立；跨市场比较默认选择**共同已验证的截止日**；若只能单边更新，给出“单市场最新、全池汇总不可用”而不是把缺失市场当零。
 
 ## 6. 历史数据采集及增量同步
@@ -336,7 +336,7 @@ public interface IEtfShareSource
 
 ### 7.1 物理隔离及数据库版本
 
-- Service拥有的`%ProgramData%\CRS\Plugins\crs.national-team\market.db`存结构化快照/修订/任务Checkpoint；`raw/`按SHA-256内容寻址保存压缩原始响应/官方文档；`backup/`保存升级或人工恢复用一致性快照。SQLite足够支撑20只ETF多年份额，不必引入服务器数据库。
+- Service拥有的`%ProgramData%\CRS\Plugins\crs.national-team\market.db`存结构化快照/修订/任务Checkpoint；`raw/`按SHA-256内容寻址保存压缩原始响应/官方文档；`backup/`保存升级或人工恢复用一致性快照。首期沿用SQLite，按实际监控范围与历史深度验收容量，不从界面行数推导上限。
 - 公开市场数据使用独立SQLCipher（遵循CRS加密规范），禁止在该库写入用户交易、税务计算、凭据等隐私数据；使用**独立服务密钥及DPAPI保护**，不复用税务主密钥；服务密钥由Service身份生成/解封，**与WPF/TOTP登录态无关**；服务账户更换时需密钥迁移预案。
 - DB单写入者串行事务；`source_fetch`先写原始证据引用再解析入库；接受新版本和失效标记在同一事务中完成。迁移操作只针对本插件库，不修改税务Schema。`RawStore`采用内容寻址、临时文件落盘并校验后提交引用；异常恢复校验DB对原始证据文件的引用，孤儿文件延迟清理。
 - **升级**：冻结插件写入，采用SQLite Backup API或`VACUUM INTO`得到一致快照（WAL模式**不可只复制主.db文件**），迁移候选库，写`UpgradeJournal`再切换版本/库引用。故障时按日志重入恢复；新版本若已写入事实，必须保留新数据，不得静默用旧快照覆盖；RawStore文件引用需自洽。
@@ -360,7 +360,7 @@ public interface IEtfShareSource
 |---|---|
 | `institution` | `institution_id, legal_name, category, alias, legal_entity_status`；机构主体，别名归一不可混为同一法人 |
 | `security_master` | `security_id, market, ticker, security_type, valid_from,to`；ETF与股票共享身份模型，支持版本化别名与指数归属 |
-| `watchlist_membership` | `list_id, security_id, from,to, reason, evidence_id, review_status`；ETF有效池≤20，股票池独立 |
+| `watchlist_membership` | `list_id, security_id, from,to, reason, evidence_id, review_status`；按配置启停，不受20行视口容量限制，股票池独立 |
 | `disclosure_evidence` | `id, source_url/document_id, report_as_of, source_published_utc, first_seen_utc, content_hash, review_state`；官方持有证据来源 |
 | `source_fetch` | `fetch_id, provider, request_key, retrieved_utc, source_published_utc(NULL可), status, content_type, sha256, raw_store_ref, parser_version`；原始证据只追加 |
 | `share_observation_revision` | `revision_id, security_id, trade_date, total_shares, original_value/unit, fetch_id, revision_no, accepted_at, first_seen, status, supersedes_id`；只追加份额修订 |
@@ -398,7 +398,7 @@ public interface IEtfShareSource
 
 | 规则 | 触发条件 | 结果 |
 |---|---|---|
-| Q01代码/交易所 | 非当前监控池（一期初始5只、正式池≤20只）或代码不匹配请求 | Reject |
+| Q01代码/交易所 | 非当前用户启用的监控范围（初始5只）或代码不匹配请求 | Reject |
 | Q02交易日 | 日期无效、尚未上市，或未来日期 | Reject/NotApplicable |
 | Q03数值 | 份额为负、空、NaN、溢出、不合法格式 | Reject |
 | Q04单位 | 未知单位或单位与来源规范矛盾 | Quarantine |
@@ -432,7 +432,7 @@ public interface IEtfShareSource
 - `IndexGroup`维护跟踪指数的版本化ID，不依赖基金中文简称匹配。
 - 默认展示：单ETF / 沪深300ETF组 / 上证50ETF组 / 中证500ETF组 / 中证1000ETF组 / 科创50ETF组 / 创业板ETF组（实际是否启用取决于入池ETF）。
 - 同一证券在一个指数归集周期只计一次；不同ETF代表不同基金份额，可以按人民币金额聚合，**但聚合值不代表某特定股东交易**。
-- 由于最多20只，暂不建设复杂因子库和策略DSL，只实现一组可测试、版本化的计算函数。
+- 暂不建设复杂因子库和策略DSL，只实现一组可测试、版本化的计算函数，不以20行界面容量限制监控数量。
 
 ## 10. WPF功能需求与后续直接股票持股研究
 
@@ -441,7 +441,7 @@ public interface IEtfShareSource
 首页导航：「国家队观察」→「ETF监控」，包含：
 
 - **数据源健康**：SSE/SZSE当前可用状态、已核验最新`TradeDate`、首次观察时间、与交易日历差距、失败原因、导入官方文件入口。
-- **20只以内池管理**：当前数量/20、数据验证池与已确认机构持有池两个标签、加入与移除的证据/审批记录。
+- **可配置监控管理**：显示实际启用数量，不显示数量/20；保留数据验证与已确认机构持有标签、加入与移除的证据/审批记录。表格显示约20行，更多通过滚动查看。
 - **ETF总览**：代码、名称、跟踪指数、市场、最新总份额、1/5/20日变化、当日NAV是否齐全、官方数据截至日、状态及完整率。
 - **指数汇总**：沪深300/上证50/中证500/中证1000/科创50等，只有同日有效官方NAV才计算人民币金额代理；否则只展示份额方向及覆盖状态，不做“全池资金合计”。显示`CoveredCount / ExpectedCount / Completeness`，部分数据不当作完整结果。
 - **ETF详情与证据**：历史曲线、跳变提示、份额折算、修订差异、原始证据Hash/采集时间/官方来源链接、输入和公式回放。
@@ -474,7 +474,7 @@ public interface IEtfShareSource
 3. 不能把同一股票A/H股、无限售/限售、配股送转前后不经调整直接比较；分母是总股本还是流通股本必须存`PercentBasis`。
 4. 持股快照来源仅列前十大时，某机构“未列示”应为`NotDisclosed/BelowThreshold/Unknown`之一（按证据），不能设置零持仓。
 5. 每笔持仓快照记载`ReportAsOfDate`和`SourcePublishedAt/FirstSeenAt`，后续回测用信息公布时点而不是报告期末。
-6. 初期股票清单可不限制20只：ETF≤20限制只适用于ETF监控池；股票持仓是事件与公告驱动研究，其范围另设上限。
+6. ETF和股票均不受20行界面容量的业务数量限制；股票持仓是事件与公告驱动研究，其范围另行配置。
 
 ### 10.3 第三期与其他插件关系
 
@@ -488,7 +488,7 @@ public interface IEtfShareSource
 
 | 稳定作业键（示意） | 触发方式 | 实际职责 | 并发/幂等 |
 |---|---|---|---|
-| `crs.national-team:etf-share-daily` | 工作日晚间、按中国交易日校正 | 批量同步≤20只ETF当日份额、记录来源状态 | 同市场同日期单任务；写入按来源哈希和接受修订版本幂等 |
+| `crs.national-team:etf-share-daily` | 工作日晚间、按中国交易日校正 | 同步用户启用的ETF当日份额、记录来源状态 | 同市场同日期单任务；写入按来源哈希和接受修订版本幂等 |
 | `crs.national-team:gap-repair` | 每日上午及服务启动时 | 扫描缺失日、发布延迟，有限补采 | `provider+ETF+tradeDate`检查点，限频/遵守403/429 |
 | `crs.national-team:revision-audit` | 份额新修订被接受后队列化 + 定期复核 | 失效并重算受影响日/5日/20日窗口 | 输入指纹和算法版本，重放结果相同 |
 | `crs.national-team:disclosure-scan` | 每日一次，二期逐步启用 | 中央汇金及国家队机构ETF/股票持仓**公告披露检查** | 以文档哈希与发布日期去重，不宣称实时成交 |
@@ -526,7 +526,7 @@ public interface IEtfShareSource
 | POC-08 | 使用许可/分发复核 | 留存日期、官网声明、自动化限制、个人使用/公开发行的评审结论 |
 | POC-09 | 250交易日真实覆盖 | 5只逐只给出可自动获取的起止日、缺口、完整率；不得伪造或前向填充 |
 | POC-10 | 真实连续性验证 | SSE/SZSE至少各1自动通道连续20交易日验证，记录成功率/发布滞后/失败类型；手动导入不能替代此项 |
-| POC-11 | 20只正式池容量 | 当前有效池≤20，新增第21只自动拒绝并说明更换流程 |
+| POC-11 | 20行视口与完整监控数据 | 启用第21只及更多记录成功，重启保留全部配置；表格约20行，滚动可查看后续记录 |
 | POC-12 | 最新机构确认 | 5个验证标的无需假装全部Confirmed，持有主体需逐一报告证据确认 |
 
 ### 12.2 插件架构
@@ -621,7 +621,7 @@ public interface IEtfShareSource
 | M0 接口与许可POC | `DATA_SOURCE_POC.md`、5ETF样本证据、历史范围报告 | SSE/SZSE各至少一条合法自动数据路径验证，否则只发布离线研究预览 |
 | M1 通用双宿主与Service | `CRS_PLUGIN_ARCHITECTURE.md`、后台专项文档、WPF插件宿主+Windows Service/Quartz+Named Pipes、假插件 | 未登录Windows仍可运行公开数据作业；SQLCipher Cron配置持久且Quartz触发器重建；无第二调度器；真实WPF加载、包验证与权限测试 |
 | M2 ETF数据底座 | SSE/SZSE Source、RawStore、双时间轴、历史回补、确定性窗口重算 | 幂等、断点、可审计，不沿用旧NAV，不把缺口计零 |
-| M3 ETF一期交付 | ≤20池、份额历史图、同步中心、证据下钻；金额归集仅在官方NAV通过后增量启用 | 5只POC通过；容量约束有效；无国家队交易错误归因 |
+| M3 ETF一期交付 | 可配置监控、约20行可滚动表格、份额历史图、同步中心、证据下钻；金额归集仅在官方NAV通过后增量启用 | 5只POC通过；超过20只仍可启用/保存并滚动查看；无国家队交易错误归因 |
 | M4 发布门槛 | 自动采集连续性验证、WPF加载、迁移回滚、税务回归 | 新增POC-09..12与核心PLG/DATA测试通过；手动版不得标自动版 |
 
 **建议一期完成定义（DoD）**（按M0真实结果允许“自动监控版”或“离线研究预览版”分别验收）：
@@ -646,7 +646,7 @@ public interface IEtfShareSource
 - `SRV-003`：Named Pipes只读与管理授权、版本化DTO、WPF状态与控制页面。
 - `SRV-004`：Headless后台插件入口/Session/调度Dispatcher，禁止引用WPF；与UI插件共享Core/Data。
 - `SRV-005`：Service停写、升级维护、Journal一致性恢复和Windows服务账户变更密钥预案。
-- `ETF-002`：最多20只有效池、Institution/Security/DisclosureEvidence统一领域模型、Schema与不可变EvidenceStore。
+- `ETF-002`：可配置有效池、约20行可滚动视口、Institution/Security/DisclosureEvidence统一领域模型、Schema与不可变EvidenceStore。
 - `ETF-003`：SSE数据源适配器及契约测试。
 - `ETF-004`：SZSE数据源适配器及契约测试。
 - `ETF-005`：官方CSV/XLSX导入的兜底Provider（按已确认格式）。

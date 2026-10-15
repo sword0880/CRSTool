@@ -53,9 +53,24 @@ internal static class ExecutionLogViewChecks
                             await log.RefreshCommand.ExecuteAsync(null);
                             if(!log.LogText.Contains("收到 25 条记录") || !log.LogText.Contains("2026-10-15 15:18:00") || !log.LogText.Contains("成功"))throw new Exception("刷新未展示同一记录的实际结果、摘要和北京时间。");
                             if(!log.LogText.Contains("新增已接受1条，重复跳过23条，新增待审核1条"))throw new Exception("日志把收到数量当作新增数量。");
+                            // 长日志验证真实可滚动区域及可见滑块，避免只有一根装饰性的边条。
+                            var stages=Enumerable.Range(1,90).Select(index=>new ExecutionProgressEvent(index,control.Record.StartedUtc.AddSeconds(index),new("RequestStarted",new(2026,10,14),"SSE"))).ToList();
+                            stages.Add(new(91,control.Record.StartedUtc.AddSeconds(91),new("RangeCompleted",Received:25,Added:1,Duplicates:23,Pending:1)));
+                            control.Record=control.Record with{Progress=stages,EndedUtc=control.Record.StartedUtc.AddSeconds(91)};await log.RefreshCommand.ExecuteAsync(null);dialog.UpdateLayout();
+                            var editor=(TextBox)dialog.FindName("LogEditor");editor.ApplyTemplate();
+                            var viewport=(ScrollViewer)editor.Template.FindName("PART_ContentHost",editor);viewport.ApplyTemplate();
+                            var scrollbar=(System.Windows.Controls.Primitives.ScrollBar)viewport.Template.FindName("PART_VerticalScrollBar",viewport);
+                            if(!scrollbar.IsVisible || scrollbar.ActualWidth<12 || viewport.ScrollableHeight<=0)throw new Exception("长日志缺少可见且可用的滚动条。");
+                            editor.ScrollToEnd();dialog.UpdateLayout();if(viewport.VerticalOffset<=0)throw new Exception("日志无法滚动到末尾。");
+                            scrollbar.RaiseEvent(new System.Windows.Controls.Primitives.ScrollEventArgs(System.Windows.Controls.Primitives.ScrollEventType.ThumbPosition,0){RoutedEvent=System.Windows.Controls.Primitives.ScrollBar.ScrollEvent});
+                            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                            dialog.UpdateLayout();if(viewport.VerticalOffset!=0)throw new Exception("拖动滚动条没有改变日志视口。");
+                            editor.ScrollToEnd();dialog.UpdateLayout();
                             dialog.UpdateLayout();Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);
                             var image=new RenderTargetBitmap((int)dialog.ActualWidth,(int)dialog.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(dialog);
                             var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));using(var output=File.Create(screenshot))encoder.Save(output);
+                            dialog.Width=720;dialog.Height=500;dialog.UpdateLayout();
+                            if(editor.ActualHeight<50 || ((FrameworkElement)dialog.FindName("CloseButton")).TranslatePoint(new(0,38),dialog).Y>dialog.ActualHeight)throw new Exception("最小日志窗口挤掉了内容或关闭按钮。");
                             control.Code="UnknownExecution";await log.RefreshCommand.ExecuteAsync(null);
                             if(!log.Status.Contains("清理") || !log.LogText.Contains("收到 25 条记录"))throw new Exception("清理后的记录未保留带提示的快照。");
                             control.Code="UnknownCommand";await log.RefreshCommand.ExecuteAsync(null);

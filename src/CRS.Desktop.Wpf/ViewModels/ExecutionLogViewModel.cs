@@ -19,6 +19,9 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     public string ExecutionId=>record.ExecutionId;
     public string TaskLabel=>record.PluginId+" / "+record.JobId;
     public bool IsRunning=>record.Result=="Running";
+    public string StateLabel=>ResultLabel(record.Result);
+    public string StateBackground=>record.Result=="Succeeded"?"#ECFDF5":IsRunning?"#EFF6FF":"#FFF7ED";
+    public string StateForeground=>record.Result=="Succeeded"?"#15803D":IsRunning?"#2563EB":"#B45309";
     [ObservableProperty] private string progressLabel="";
     [ObservableProperty] private string status="显示打开时的记录，正在查询服务。";
     [ObservableProperty] private string logText="";
@@ -54,6 +57,7 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     private void Render()
     {
         OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(StateLabel));OnPropertyChanged(nameof(StateBackground));OnPropertyChanged(nameof(StateForeground));
         var lines=new List<string>
         {
             $"[{Time(record.ScheduledUtc)}] 计划触发",
@@ -66,7 +70,7 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
             if(progress[0].Sequence>1)lines.Add($"仅返回最近{progress.Count}条阶段；更早阶段未在本次响应中返回。");
             foreach(var item in progress)lines.Add($"[{Time(item.Utc)}] #{item.Sequence} · "+DescribeProgress(item.Detail));
             var last=progress[^1];var seconds=Math.Max(0,(int)(DateTimeOffset.UtcNow-last.Utc).TotalSeconds);
-            ProgressLabel=$"最近阶段：{Time(last.Utc)} · {seconds}秒前 · {DescribeProgress(last.Detail)}";
+            ProgressLabel=IsRunning?$"最近阶段：{Time(last.Utc)} · {(seconds>=60?$"{seconds/60}分钟前":$"{seconds}秒前")} · {DescribeProgress(last.Detail)}":$"最后阶段：{Time(last.Utc)} · {DescribeProgress(last.Detail)}";
         }
         else ProgressLabel=IsRunning?"尚无阶段记录；旧服务仅提供结束摘要。":"此历史没有阶段记录。";
         if(record.EndedUtc is { } ended)lines.Add($"[{Time(ended)}] 记录结束 · {ResultLabel(record.Result)}");

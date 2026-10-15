@@ -19,7 +19,8 @@ internal static class EtfConfigurationUiChecks
             application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
             application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
             using var lifetime=new CancellationTokenSource();
-            var model=new EtfViewModel(new WorkerEtfWorkspace(client),lifetime.Token);var page=new EtfPage(model);
+            var workspace=new WorkerEtfWorkspace(client);
+            var model=new EtfViewModel(workspace,lifetime.Token);var page=new EtfPage(model);
             var window=new Window{Title="ETF配置隔离验证",Content=page,Width=1180,Height=820};
             window.Loaded+=async(_,_)=>
             {
@@ -40,12 +41,22 @@ internal static class EtfConfigurationUiChecks
                     model.Ticker="510903";model.SecurityName="合成UI新增ETF";model.IndexGroup="UI-TEST";model.Reason="合成新增验证";
                     await model.SaveConfigurationCommand.ExecuteAsync(null);
                     if(!model.Configurations.Any(x=>x.Ticker=="510903" && !x.Active))throw new InvalidOperationException("界面新增候选未持久保存。");
-                    model.ConfigurationSearch="";window.UpdateLayout();
-                    ((FrameworkElement)page.FindName("ConfigurationEditor")).BringIntoView();window.UpdateLayout();
+                    // 在隔离服务启用20只后，再经真实界面启用第21只，验证20仅限制视口而非业务数量。
+                    foreach(var entry in model.Configurations.Where(x=>!x.Active).Take(20-model.Configurations.Count(x=>x.Active)).ToArray())
+                        await workspace.SaveConfigurationAsync(new(entry.Market,entry.Ticker),entry.Name,entry.IndexGroup,true,"合成超过视口验证",entry.Revision,default);
+                    await model.RefreshConfigurationCommand.ExecuteAsync(null);
+                    model.SelectedConfiguration=model.Configurations.First(x=>!x.Active);model.MonitorEnabled=true;model.Reason="合成界面启用第21只";
+                    await model.SaveConfigurationCommand.ExecuteAsync(null);
+                    if(model.Rows.Count!=21 || model.ConfigurationCount.Contains("/20"))throw new InvalidOperationException("界面仍将20行视口当作监控上限。");
+                    model.ConfigurationSearch="";tabs.SelectedIndex=0;window.UpdateLayout();
+                    var overview=(DataGrid)page.FindName("OverviewGrid");overview.ScrollIntoView(model.Rows.Last());
+                    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();
+                    var scroll=Find<ScrollViewer>(overview)!;
+                    if(overview.Items.Count!=21 || scroll.ScrollableHeight<=0 || scroll.VerticalOffset<=0)throw new InvalidOperationException("第21只ETF未完整保留或无法通过表格滚动访问。");
                     var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);
                     var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(screenshot);encoder.Save(output);
-                    Console.WriteLine("PASS ETF配置界面：完整目录、搜索、选中预填、修改保存、新增模式及真实服务持久化。");
+                    Console.WriteLine("PASS ETF配置界面：完整目录、搜索、修改、新增、第21只启用及超过视口后的真实滚动。");
                 }
                 catch(Exception error){failure=error;}
                 finally {lifetime.Cancel();window.Close();}

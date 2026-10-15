@@ -26,7 +26,7 @@ internal static class Program
     {
         // 仅通过管道核验实际安装服务的目录，不修改用户监控状态或打开市场库。
         var rows=await new WorkerEtfWorkspace().ConfigurationAsync(default);
-        Check(rows.Count>=24 && rows.Count(x=>x.Active)<=20,"实际LocalService提供完整候选目录且保留监控上限");
+        Check(rows.Count>=24,"实际LocalService提供完整候选目录，不把表格可见行数当作监控上限");
         Console.WriteLine(JsonSerializer.Serialize(new{Candidates=rows.Count,Active=rows.Count(x=>x.Active)}));
     }
     private static async Task OfficialAsync()

@@ -71,8 +71,8 @@ using(var repository=TestMarketData.Open(Path.Combine(root,"data"),raw))
  repository.ImportShares(Fetch("jump evidence"),[new(new("SSE","510300"),dates[2],230,"份")],CancellationToken.None);
  Check(repository.Evidence().Count(x=>x.State=="NeedsReview")==1,"Suspicious doubling is review, not zero flow");
  for(var i=0;i<15;i++)repository.SetMembership(new("SSE",(600000+i).ToString()),"pilot","index",true,"test");
- Reject(()=>repository.SetMembership(new("SSE","600020"),"extra","index",true,"test"),"Database pool capacity 20 enforced");
- Check(repository.Overview().Count==20,"Pool remains 20 after failed transaction");
+ repository.SetMembership(new("SSE","600020"),"extra","index",true,"test");
+ Check(repository.Overview().Count==21,"More than 20 ETFs remain active; row capacity is presentation only");
  repository.Snapshot(Path.Combine(root,"snapshot.db"));Check(File.Exists(Path.Combine(root,"snapshot.db")),"WAL-safe SQLite backup snapshot");
  File.WriteAllText(Path.Combine(root,"raw",candidate.Hash+".raw"),"tampered");
  Check(repository.Points(new("SSE","510300")).Count==1,"DATA-09 tampered raw data excluded");

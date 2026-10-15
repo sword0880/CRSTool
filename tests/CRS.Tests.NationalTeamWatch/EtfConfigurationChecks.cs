@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Data.Sqlite;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 
@@ -41,18 +42,31 @@ internal static class EtfConfigurationChecks
             repository.SaveConfiguration(key,current.Name,current.IndexGroup,false,"稳定命令停用",current.Revision,command);
             repository.SaveConfiguration(key,current.Name,current.IndexGroup,false,"稳定命令停用",current.Revision,command);
             Check(repository.Configuration().Single(x=>x.Ticker==key.Ticker).Revision==current.Revision+1,"业务提交后同一命令重放不再修改修订");
-            var needed=20-repository.Configuration().Count(x=>x.Active);
+            // 20是视口行数；超过20只仍应完整保存、查询、编辑和重启。
+            var needed=25-repository.Configuration().Count(x=>x.Active);
             for(var index=0;index<needed;index++)repository.SaveConfiguration(new("SSE",(590000+index).ToString()),"合成容量ETF","合成分组",true,"容量检查",-1);
-            var overflow=repository.Configuration().Single(x=>x.Ticker=="510310");
-            Reject(()=>repository.SaveConfiguration(new(overflow.Market,overflow.Ticker),"超限不能覆盖名称",overflow.IndexGroup,true,"超限回滚",overflow.Revision),"第21只监控被数据库拒绝");
-            Check(repository.Configuration().Single(x=>x.Ticker==overflow.Ticker)==overflow,"监控超限事务也回滚名称和修订修改");
+            var extra=repository.Configuration().Single(x=>x.Ticker=="510310");
+            repository.SaveConfiguration(new(extra.Market,extra.Ticker),"超过20只仍可启用",extra.IndexGroup,true,"视口不是数量限制",extra.Revision);
+            Check(repository.Configuration().Count(x=>x.Active)==26 && repository.Overview().Count==26,"超过20只监控仍完整保存并进入概览");
             var active=repository.Configuration().First(x=>x.Active);
-            repository.SaveConfiguration(new(active.Market,active.Ticker),"满池仍可编辑名称",active.IndexGroup,true,"普通名称编辑",active.Revision);
-            Check(repository.Configuration().Single(x=>x.Market==active.Market && x.Ticker==active.Ticker).Name=="满池仍可编辑名称","满池时允许修改已启用ETF的名称和备注");
+            repository.SaveConfiguration(new(active.Market,active.Ticker),"超过20只仍可编辑",active.IndexGroup,true,"普通名称编辑",active.Revision);
+            Check(repository.Configuration().Single(x=>x.Market==active.Market && x.Ticker==active.Ticker).Name=="超过20只仍可编辑","超过20只时仍允许修改名称和备注");
+        }
+        // 模拟旧版本遗留的两个容量触发器；新版本打开时必须解除，不能要求删除研究数据。
+        using(var legacy=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(directory,"data","market.db"),Password=Convert.ToHexString(TestMarketData.Key),Pooling=false}.ToString()))
+        {
+            legacy.Open();using var command=legacy.CreateCommand();
+            command.CommandText="""
+                CREATE TRIGGER watchlist_insert_limit BEFORE INSERT ON watchlist_membership WHEN NEW.active=1 AND (SELECT count(*) FROM watchlist_membership WHERE active=1)>=20 BEGIN SELECT RAISE(ABORT,'legacy limit'); END;
+                CREATE TRIGGER watchlist_update_limit BEFORE UPDATE OF active ON watchlist_membership WHEN NEW.active=1 AND OLD.active=0 AND (SELECT count(*) FROM watchlist_membership WHERE active=1)>=20 BEGIN SELECT RAISE(ABORT,'legacy limit'); END;
+                """;command.ExecuteNonQuery();
         }
         using(var reopened=TestMarketData.Open(Path.Combine(directory,"data"),raw))
         {
-            Check(reopened.Configuration().Count(x=>x.Active)==20,"满20只监控时加密库仍可重启打开");
+            Check(reopened.Configuration().Count(x=>x.Active)==26,"26只监控在重启后保留，不被截为20只");
+            var next=reopened.Configuration().First(x=>!x.Active && x.Ticker!="510500");
+            reopened.SaveConfiguration(new(next.Market,next.Ticker),next.Name,next.IndexGroup,true,"验证旧容量约束已解除",next.Revision);
+            Check(reopened.Configuration().Count(x=>x.Active)==27,"已有加密库自动移除旧触发器，仍能继续启用");
             Check(reopened.Configuration().Single(x=>x.Ticker=="510500") is{Name:"合成修改名称",Active:false},"重启不重置名称、分组或停用状态");
         }
     }

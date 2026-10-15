@@ -96,7 +96,7 @@ dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --source
 
 ## ETF可编辑配置
 
-ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数据修改、旧修订拒绝、命令去重、满20只编辑/重启及停用保留事实；`CRS.Tests.WorkerEtf <完整Worker包>` 增加真实服务配置和WPF新增/修改回归。只读核验已安装目录用 `dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --configuration-live`。配置、排队与参考目录边界见[实施记录](../docs/implementation/ETF_CONFIGURATION.md)。
+ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数据修改、旧修订拒绝、命令去重、超过20只启用/编辑/重启、旧触发器移除及停用保留事实；`CRS.Tests.WorkerEtf <完整Worker包>` 增加真实服务配置和WPF新增/修改、第21只启用及滚动回归。20仅指表格视口，不限制监控数量。只读核验已安装目录用 `dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --configuration-live`。配置、排队与参考目录边界见[实施记录](../docs/implementation/ETF_CONFIGURATION.md)。
 
 ## 单次执行日志
 
