@@ -2,7 +2,7 @@
  <Grid Margin="20"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <StackPanel><TextBlock Text="国家队持仓与ETF观察" FontSize="24" FontWeight="Bold"/><TextBlock Text="一期只展示ETF全市场份额，份额变化不代表中央汇金交易。DataPilot不等于已确认机构持有。" TextWrapping="Wrap" Margin="0,8"/><TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#9A5700"/></StackPanel>
   <!-- 联网采集为主入口，不再要求用户先下载文件。 -->
-  <WrapPanel Grid.Row="1" Margin="0,12"><DatePicker SelectedDate="{Binding SyncFrom}" Width="130"/><TextBlock Text="至" VerticalAlignment="Center" Margin="8,0"/><DatePicker SelectedDate="{Binding SyncTo}" Width="130"/><ui:Button Content="联网采集 / 补历史" Command="{Binding SyncHistoryCommand}" Margin="8,0"/><ui:Button Content="刷新本地数据" Command="{Binding RefreshCommand}"/><ui:Button Content="取消当前操作" Command="{Binding CancelCommand}" Margin="8,0"/></WrapPanel>
+  <WrapPanel Grid.Row="1" Margin="0,12"><DatePicker SelectedDate="{Binding SyncFrom}" Width="130"/><TextBlock Text="至" VerticalAlignment="Center" Margin="8,0"/><DatePicker SelectedDate="{Binding SyncTo}" Width="130"/><ui:Button Content="联网采集 / 补历史" Command="{Binding SyncHistoryCommand}" IsEnabled="{Binding CanManage}" Margin="8,0"/><ui:Button Content="刷新服务数据" Command="{Binding RefreshCommand}"/><ui:Button Content="取消当前操作" Command="{Binding CancelCommand}" Margin="8,0"/></WrapPanel>
   <TabControl Grid.Row="2">
    <TabItem Header="ETF份额监控"><Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="220"/></Grid.RowDefinitions>
     <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" dg:DataGridFilter.IsAutoFilterEnabled="True"><DataGrid.Columns>
@@ -12,17 +12,13 @@
     <ui:Button Grid.Row="1" Content="查看所选ETF历史份额" Command="{Binding ShowHistoryCommand}" Margin="0,8" HorizontalAlignment="Left"/>
     <lvc:CartesianChart Grid.Row="2" Series="{Binding Series}" XAxes="{Binding XAxes}" AnimationsSpeed="0:0:0"/>
    </Grid></TabItem>
-   <TabItem Header="导入与来源状态"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+   <TabItem Header="来源与验证池"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
     <TextBlock Text="SSE与SZSE：直接获取官方ETF份额JSON，按各自单位和日期校验并保存原件。来源错误单独提示，不把空数据填零。" TextWrapping="Wrap"/>
-    <TextBlock Text="解锁后自动同步近期数据；北京时间每日23:15由主程序Quartz.NET触发。软件关闭或锁定后暂停。联网补采无需下载文件；失败可重新执行，同值事实不重复。以下手工导入仅作为备用方式。官方返回日期只证明该日有数据，不证明完整交易日历；NAV金额仍不可用。" TextWrapping="Wrap" Margin="0,12"/>
-    <TextBlock Text="来源官方页面链接"/><TextBox Text="{Binding SourceUrl,UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>
-    <CheckBox Content="我已核对官方原文件、链接、日期、单位与标准化内容" IsChecked="{Binding ReviewedOfficialFile}" Margin="0,8"/>
-    <StackPanel Orientation="Horizontal"><ui:Button Content="导入交易日历CSV" Command="{Binding ImportCalendarCommand}"/><ui:Button Content="导入份额CSV" Command="{Binding ImportSharesCommand}" Margin="12,0"/></StackPanel>
-    <TextBlock Text="份额表头：market,ticker,trade_date,total_shares,unit&#10;日历表头：market,trade_date&#10;市场为SSE或SZSE；日期yyyy-MM-dd；单位为份或万份；数字不含千位分隔符。" TextWrapping="Wrap" Margin="0,16"/>
+    <TextBlock Text="后台服务启动后补采近期数据，并在北京时间每日23:15执行。软件关闭或锁定后继续运行。管理员可提交补采；同值事实不重复。本版本不再提供桌面文件导入。官方返回日期只证明该日有数据，不证明完整交易日历；NAV金额仍不可用。" TextWrapping="Wrap" Margin="0,12"/>
     <TextBlock Text="验证池管理（上限20；新增保持DataPilot，不自动确认机构持有）" FontWeight="Bold"/>
     <TextBlock Text="市场 / 代码 / 名称 / 指数 / 入池或退出理由" Margin="0,8"/>
     <TextBox Text="{Binding Market}"/><TextBox Text="{Binding Ticker}" Margin="0,4"/><TextBox Text="{Binding SecurityName}"/><TextBox Text="{Binding IndexGroup}" Margin="0,4"/><TextBox Text="{Binding Reason}"/>
-    <StackPanel Orientation="Horizontal" Margin="0,8"><ui:Button Content="加入验证池" Command="{Binding AddToPoolCommand}"/><ui:Button Content="退出验证池" Command="{Binding RemoveFromPoolCommand}" Margin="12,0"/></StackPanel>
+    <StackPanel Orientation="Horizontal" Margin="0,8"><ui:Button Content="加入验证池" Command="{Binding AddToPoolCommand}" IsEnabled="{Binding CanManage}"/><ui:Button Content="退出验证池" Command="{Binding RemoveFromPoolCommand}" IsEnabled="{Binding CanManage}" Margin="12,0"/></StackPanel>
    </StackPanel></ScrollViewer></TabItem>
    <!-- 日历边界和质量状态由后台判定，界面不得把缺口填成零。 -->
    <TabItem Header="覆盖率与缺口"><Grid Margin="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -33,7 +29,7 @@
    <TabItem Header="证据与修订审核"><Grid Margin="8"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBlock Text="同日冲突与超过20%的相邻日跳变需人工审核。原始证据损坏时停止该数据的指标计算。" TextWrapping="Wrap" Margin="0,8"/>
     <DataGrid Grid.Row="1" ItemsSource="{Binding Evidence}" SelectedItem="{Binding SelectedEvidence}" IsReadOnly="True" AutoGenerateColumns="True"/>
-    <StackPanel Grid.Row="2" Margin="0,8"><WrapPanel><ui:Button Content="导出官方原文件" Command="{Binding ExportOriginalCommand}"/><ui:Button Content="导出标准化CSV" Command="{Binding ExportNormalizedCommand}" Margin="8,0"/></WrapPanel><CheckBox Content="已核实份额可比，排除未处理的基金折算或合并（此版本不支持折算调整）" IsChecked="{Binding ConfirmedComparable}" Margin="0,4"/><StackPanel Orientation="Horizontal"><TextBlock Text="审核人" VerticalAlignment="Center"/><TextBox Text="{Binding Reviewer}" Width="150" Margin="8,0"/><ui:Button Content="接受所选修订" Command="{Binding ApproveCommand}"/><ui:Button Content="拒绝所选修订" Command="{Binding RejectCommand}" Margin="8,0"/></StackPanel></StackPanel>
+    <StackPanel Grid.Row="2" Margin="0,8"><WrapPanel><ui:Button Content="导出官方原文件" Command="{Binding ExportOriginalCommand}"/><ui:Button Content="导出标准化CSV" Command="{Binding ExportNormalizedCommand}" Margin="8,0"/></WrapPanel><CheckBox Content="已核实份额可比，排除未处理的基金折算或合并（此版本不支持折算调整）" IsChecked="{Binding ConfirmedComparable}" Margin="0,4"/><StackPanel Orientation="Horizontal"><TextBlock Text="审核人" VerticalAlignment="Center"/><TextBox Text="{Binding Reviewer}" Width="150" Margin="8,0"/><ui:Button Content="接受所选修订" Command="{Binding ApproveCommand}" IsEnabled="{Binding CanManage}"/><ui:Button Content="拒绝所选修订" Command="{Binding RejectCommand}" IsEnabled="{Binding CanManage}" Margin="8,0"/></StackPanel></StackPanel>
    </Grid></TabItem>
   </TabControl>
  </Grid>

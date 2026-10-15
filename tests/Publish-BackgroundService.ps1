@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$OutputDirectory,[ValidateSet('Debug','Release')][string]$Configuration='Release')
+param([Parameter(Mandatory)][string]$OutputDirectory,[ValidateSet('Debug','Release')][string]$Configuration='Release',[switch]$HeartbeatOnly)
 $ErrorActionPreference='Stop'
 $repository=Split-Path $PSScriptRoot -Parent
 $output=[IO.Path]::GetFullPath($OutputDirectory)
@@ -15,6 +15,16 @@ $manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $package 'plugin.js
 $hashes=@{}
 foreach($file in Get-ChildItem -LiteralPath $package -Recurse -File){$relative=[IO.Path]::GetRelativePath($package,$file.FullName).Replace('\','/');$hashes[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
 @(@{id='crs.heartbeat';version='2.0.0';directory='crs.heartbeat/2.0.0';files=$hashes}) | ConvertTo-Json -Depth 8 -AsArray | Set-Content (Join-Path $output 'trusted-background-plugins.json') -Encoding utf8
+# 只在宿主可靠性隔离套件中显式选择心跳包，实际安装默认包含ETF公开采集入口。
+if(-not $HeartbeatOnly){
+    $etf=Join-Path $output 'Plugins/crs.national-team/2.0.0'
+    & (Join-Path $PSScriptRoot 'Publish-NationalTeamPackage.ps1') -OutputDirectory $etf -Configuration $Configuration
+    $etfHashes=@{}
+    foreach($file in Get-ChildItem -LiteralPath $etf -Recurse -File){$relative=[IO.Path]::GetRelativePath($etf,$file.FullName).Replace('\','/');$etfHashes[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
+    $index=@(Get-Content (Join-Path $output 'trusted-background-plugins.json') -Raw | ConvertFrom-Json -AsHashtable)
+    $index+=@{id='crs.national-team';version='2.0.0';directory='crs.national-team/2.0.0';files=$etfHashes}
+    ConvertTo-Json -InputObject $index -Depth 9 | Set-Content (Join-Path $output 'trusted-background-plugins.json') -Encoding utf8
+}
 # 安装脚本随发行提供；完整索引需在正式发行时由组织证书生成 release.json.p7s。
 Copy-Item -LiteralPath (Join-Path $repository 'tools/background/Install-Service.ps1'),(Join-Path $repository 'tools/background/Uninstall-Service.ps1') -Destination $output
 $files=@{}

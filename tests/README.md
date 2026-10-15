@@ -66,9 +66,9 @@ dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build
 dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- artifacts/etf-recovery-preview/Plugins
 ```
 
-PluginRecovery使用隔离临时目录，只强杀自身创建的子进程；覆盖七个升级中断点、含已提交WAL的快照、真实WPF候选页面、失败回退和新事实禁止回退。测试候选1.0.1与1.0.0采用相同业务DLL和Schema 1，人工构造开发可信索引；这证明恢复接线，不证明真实不同二进制/Schema迁移、生产签名发行或物理断电。不得将临时测试目录作为正式数据源。
+PluginRecovery现验证UI只申请导航、同一双入口清单、UI程序集无Jobs/SQLite引用、实际宿主加载/布局、不创建桌面任务库/市场库、退出清理及拒绝旧调度能力。旧桌面库七中断点测试已随执行归属切换退役；Worker恢复由CRS.Tests.WorkerEtf验证，不继承旧结果作为新服务升级证明。
 
-联网预览使用全新`artifacts/etf-online-current`输出目录。PluginHost包含真实Quartz时钟触发/不重叠/取消，NationalTeamWatch包含两市JSON与自动入库。可选真实联网检查：`dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --official-live`，读取2026-10-13五只ETF公开样本，使用隔离临时库。单日技术验证不替代250日历史或连续采集验收。
+当前双入口包见[ETF Worker迁移](../docs/implementation/ETF_WORKER_MIGRATION.md)。PluginHost保留调度辅助类的隔离时钟回归；实际桌面会话不创建调度器。NationalTeamWatch覆盖纯格式/质量/加密仓储；WorkerEtf覆盖真实独立子进程、命名管道、关闭客户端继续采集、重启恢复及业务去重。`dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --official-live`只读实际安装服务已取得的两市结果，不创建桌面下载器或写库连接；技术验证不替代250日历史或连续20日采集。
 
 发布验收、合成性能与许可证清单请运行 ./tests/Run-ReleaseAcceptance.ps1 -Smoke，具体门槛见 [发布验收](../docs/validation/RELEASE_ACCEPTANCE.md)。抵免证据链与界面检查已加入 Infrastructure / WPF 验证项目。
 
@@ -79,6 +79,17 @@ PluginRecovery使用隔离临时目录，只强杀自身创建的子进程；覆
 
 计划任务专项（2026-10-15）：PluginHost的TaskScheduleChecks使用真实Quartz和独立存储，Wpf的ScheduledTasksInteractionChecks验证计划编辑与结果；窗口冒烟额外打开任务管理和执行记录。运行中日志恢复用现场重建验证，不与升级套件的独立进程强杀混用结论。当前实现及边界见[主程序计划任务](../docs/implementation/SCHEDULED_TASKS.md)。
 
-独立后台专项（2026-10-15，Worker v2）：先用 `Publish-BackgroundService.ps1 -OutputDirectory <不存在的新目录>` 发布，再运行 `dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- <该发行目录>`。56项（原29项及整改27项）涵盖真实Quartz、SQLCipher、Windows管道、存储失败停调度、持久命令强杀恢复、插件超时与隔离、查询和控制独立容量、分页、Schema迁移及重试；Debug须单独发布并使用对应配置。需要正常完整性Windows令牌，不能使用放宽生产ACL的方式兼容低完整性沙箱。测试夹具不随正式插件发布，当前证据与待办见[Worker整改记录](../docs/implementation/WORKER_REMEDIATION.md)。
+独立后台专项（2026-10-15，Worker v2）：先用 `Publish-BackgroundService.ps1 -OutputDirectory <不存在的新目录> -HeartbeatOnly` 发布，再运行 `dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- <该发行目录>`。65项（原29项、整改27项及权限9项）涵盖真实Quartz、SQLCipher、Windows管道、存储失败停调度、持久命令强杀恢复、插件超时与隔离、查询和控制独立容量、分页、Schema迁移及重试；Debug须单独发布并使用对应配置。需要正常完整性Windows令牌，不能使用放宽生产ACL的方式兼容低完整性沙箱。测试夹具不随正式插件发布，当前证据与待办见[Worker整改记录](../docs/implementation/WORKER_REMEDIATION.md)。
 
 实际管理员安装后，可运行 Background 项目的 `--probe` 只读查看健康/计划/历史；`--acl-probe` 用移除管理员组的真实线程令牌验证只读权限。窗口检查：`dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --background-ui artifacts/background-service-ui/window.png`，只查询公开后台任务，不解锁税务库。安装、卸载、开发签名边界和未实现的 ETF 迁移/升级恢复范围见[后台实施记录](../docs/implementation/BACKGROUND_SERVICE.md)。
+
+Worker权限巡检续修新增9项检查，当前Release后台总计65项。需要正常Windows令牌与创建测试符号链接的权限，仅改变隔离目录和测试自有进程。`dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --storage-acl-probe` 只读检查当前已安装服务的数据树，不调整权限；它与隔离套件的结果分开记录，见[第二批整改](../docs/implementation/WORKER_REMEDIATION.md)。
+
+ETF服务化专项：先以默认参数发布完整Worker包，再运行 `dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- artifacts/worker-new`。默认包包含ETF，不用于仅心跳的65项宿主故障套件。完整说明见[迁移记录](../docs/implementation/ETF_WORKER_MIGRATION.md)。
+## 来源策略专项（固定HTTP响应，无真实官网请求）
+
+```powershell
+dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --source-policy
+```
+
+验证持久冷却、来源间隔、Retry-After、临时故障退避、两市超时隔离、正文20秒期限、取消语义和策略库无钥/损坏拒绝，共18项。测试临时目录可设为工作区artifacts下；不代替官网长期覆盖验收。

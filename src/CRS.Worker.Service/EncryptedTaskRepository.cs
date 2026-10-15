@@ -155,6 +155,16 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             return rows;
         }
     }
+    /// <summary>按稳定执行标识查询单条持久记录，不受最近历史分页或新任务插入影响。</summary>
+    public ExecutionRecord? FindExecution(string id)
+    {
+        lock(gate)
+        {
+            using var command=Command("SELECT * FROM execution WHERE id=$id",("$id",id));
+            using var reader=command.ExecuteReader();
+            return reader.Read()?new(reader.GetString(0),reader.GetString(1),reader.GetString(2),DateTimeOffset.Parse(reader.GetString(3),CultureInfo.InvariantCulture),DateTimeOffset.Parse(reader.GetString(4),CultureInfo.InvariantCulture),reader.IsDBNull(5)?null:DateTimeOffset.Parse(reader.GetString(5),CultureInfo.InvariantCulture),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetString(7),reader.GetInt32(8)):null;
+        }
+    }
     public void Audit(string sid, Guid request, string command, string result)
     {
         lock (gate)
@@ -170,6 +180,16 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             using var query = Command("SELECT state,code,execution FROM command_request WHERE request=$r AND sid=$s", ("$r", request.ToString("N")), ("$s", sid));
             using var row = query.ExecuteReader();
             return row.Read() ? new(request, row.GetString(0), row.GetString(1), row.IsDBNull(2) ? null : row.GetString(2)) : null;
+        }
+    }
+    /// <summary>只供执行器读取已接受命令参数，客户端不能借此读取其他调用者的命令。</summary>
+    public BackgroundRequest ReadCommand(Guid request)
+    {
+        lock(gate)
+        {
+            using var query=Command("SELECT payload FROM command_request WHERE request=$r",("$r",request.ToString("N")));
+            return JsonSerializer.Deserialize<BackgroundRequest>((string)(query.ExecuteScalar()??throw new InvalidDataException("执行命令缺失。")))
+                ??throw new InvalidDataException("执行命令损坏。");
         }
     }
     public CommandReceipt AcceptCommand(BackgroundRequest request, string sid)

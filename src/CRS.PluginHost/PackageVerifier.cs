@@ -54,6 +54,8 @@ public static class PackageVerifier
         if(trusted.Directory.Replace('\\','/')!=$"{manifest.Id}/{manifest.Version}") throw new InvalidDataException("Package directory identity mismatch.");
         string[] capabilities = ["navigation", "jobs", "http-public", "storage-private", "logging", "schedules"];
         if (manifest.RequestedCapabilities.Any(x => !capabilities.Contains(x))) throw new InvalidDataException("Unsupported capability.");
+        if(manifest.RequestedCapabilities.Any(x=>x is "jobs" or "schedules" or "http-public" or "storage-private"))
+            throw new InvalidDataException("桌面插件只负责展示，任务、联网及存储能力必须由Worker后台入口拥有。");
         if (!files.Contains(manifest.EntryAssembly) || manifest.Files.Any(x => !files.Contains(x))) throw new InvalidDataException("Manifest files not trusted.");
         foreach (var path in System.IO.Directory.EnumerateFiles(directory, "*.dll"))
         {

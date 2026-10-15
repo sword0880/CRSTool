@@ -15,7 +15,7 @@ if (args.Contains("--readonly-check"))
     var client = new BackgroundPipeClient();
     var health = await client.QueryAsync("GetHealth");
     var jobs = await client.QueryAsync("GetJobs");
-    var plan = jobs.Jobs!.Single();
+    var plan = jobs.Jobs!.First();
     var denied = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "Pause", plan.PluginId, plan.JobId, ExpectedRevision: plan.Revision));
     Environment.ExitCode = health.Code == "Ok" && denied.Code == "Forbidden" ? 0 : 11;
     return;
@@ -23,6 +23,12 @@ if (args.Contains("--readonly-check"))
 if (args.Contains("--acl-probe"))
 {
     await RestrictedCallerChecks.RunAsync(); return;
+}
+// 只读核验当前正式目录，独立于隔离夹具；不会调整已安装服务的权限或密钥。
+if (args.Contains("--storage-acl-probe"))
+{
+    StorageSecurity.Validate(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "CRS", "Background"), false);
+    Console.WriteLine("PASS 当前安装数据树符合正式服务权限策略。"); return;
 }
 if (args.Contains("--probe"))
 {
@@ -125,7 +131,7 @@ using (var child = Launch())
         Check(true, "独立无桌面服务进程启动并提供管理管道");
         using var duplicate = Launch(); await duplicate.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
         Check(duplicate.ExitCode != 0 && !child.HasExited, "同目录第二服务进程拒绝且首实例继续运行");
-        var plan = (await client.QueryAsync("GetJobs")).Jobs!.Single();
+        var plan = (await client.QueryAsync("GetJobs")).Jobs!.First();
         var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "Pause", plan.PluginId, plan.JobId, ExpectedRevision: plan.Revision));
         Check(response.Code == "Ok", "真实管道管理员授权修改计划");
     }
@@ -154,5 +160,6 @@ await using (var rejected = new BackgroundPluginCatalog())
     Check(rejected.Jobs.Count == 0 && rejected.Statuses.Single().State == "Failed", "外部信任索引隔离已篡改后台包");
 }
 await WorkerRemediationChecks.RunAsync(root, package);
+await StorageSecurityChecks.RunAsync(root, package);
 CryptographicOperations.ZeroMemory(key);
 Console.WriteLine($"后台服务验证通过：{passed} 项；隔离现场：{root}");

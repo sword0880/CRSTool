@@ -158,6 +158,17 @@ internal static class WorkerRemediationChecks
                 cursor = response.NextCursor;
             } while (cursor is not null);
             Check(rows.Count == 100 && pages == 10, "分页无遗漏读取全部长检查点历史");
+            // 明确按ID查询，不能仅在首屏十条历史中搜索日志。
+            var oldest=repository.History().Last();
+            var detail=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:oldest.ExecutionId));
+            Check(detail.Code=="Ok" && detail.Execution==oldest,"真实管道按执行标识读取非首屏长检查点日志");
+            Check((await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:oldest.ExecutionId),new("reader",false),default)).Execution==oldest,"普通查询身份可以读取公开执行日志");
+            Check((await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:Guid.NewGuid().ToString("N")))).Code=="UnknownExecution","已清理或不存在的执行明确返回未知记录");
+            Check((await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:"../scheduler.db"))).Code=="InvalidRequest","执行日志端点拒绝路径和非执行标识");
+            var running=repository.Begin(plan,DateTimeOffset.UtcNow);
+            Check((await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:running))).Execution?.Result=="Running","日志查询可读取进行中的持久快照");
+            repository.End(running,plan,BackgroundJobResult.Success("days=8;sourceIssues=0;rows=25"));
+            Check((await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:running))).Execution is {Result:"Succeeded",Checkpoint:"days=8;sourceIssues=0;rows=25"},"同一执行刷新后得到实际结束结果和摘要");
             for (var i = 0; i < 4; i++) { var connection = new NamedPipeClientStream(".", pipe, PipeDirection.InOut, PipeOptions.Asynchronous); await connection.ConnectAsync(1000); slow.Add(connection); }
             var watch = Stopwatch.StartNew(); var paused = await client.SendAsync(Request("Pause", revision: 1));
             Check(paused.Code == "Ok" && watch.Elapsed < TimeSpan.FromSeconds(3), "四个查询慢连接不阻塞管理员暂停");
@@ -248,9 +259,11 @@ internal static class WorkerRemediationChecks
         public string Begin(TaskDefinition p, DateTimeOffset at, Guid? id = null) { Fail("Begin"); return inner.Begin(p, at, id); }
         public void End(string id, TaskDefinition p, BackgroundJobResult r, Guid? request = null) { Fail("End"); inner.End(id, p, r, request); }
         public List<ExecutionRecord> History() => inner.History();
+        public ExecutionRecord? FindExecution(string id)=>inner.FindExecution(id);
         public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? c, int n) => inner.HistoryPage(c, n);
         public void Audit(string s, Guid id, string c, string r) { Fail("Audit"); inner.Audit(s, id, c, r); }
         public CommandReceipt? FindCommand(Guid id, string s) => inner.FindCommand(id, s);
+        public BackgroundRequest ReadCommand(Guid id)=>inner.ReadCommand(id);
         public CommandReceipt AcceptCommand(BackgroundRequest r, string s) => inner.AcceptCommand(r, s);
         public void CompleteCommand(Guid id, string c) => inner.CompleteCommand(id, c);
         public List<(Guid RequestId, string PluginId, string JobId)> PendingRuns() => inner.PendingRuns();

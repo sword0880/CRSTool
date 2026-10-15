@@ -67,7 +67,7 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
         if ($projectFile.FullName -notmatch '[\\/]Plugins[\\/]') {
             Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.') "宿主/税务静态引用业务插件：$($projectFile.Name)"
         } else {
-            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Worker\.Abstractions/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
+            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
         }
     }
 }
@@ -92,6 +92,18 @@ foreach($name in @('Abstractions','PluginHost','Ipc','Service')){
 [xml]$backgroundContract=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj')
 Assert-Boundary ($backgroundContract.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) '后台契约必须保持纯BCL。'
 Write-Output '后台服务无 WPF/私人税务依赖门禁通过。'
+# ETF桌面入口必须只使用管道，后台入口必须保持无界面，主程序会话不能再实例化调度器。
+[xml]$etfUi=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj')
+Assert-Boundary ($etfUi.SelectNodes('//PackageReference').Include -notcontains 'Microsoft.Data.Sqlite.Core') 'ETF桌面引用了市场库连接实现。'
+Assert-Boundary (-not (($etfUi.SelectNodes('//ProjectReference').Include -join ';') -match 'NationalTeam.Jobs')) 'ETF桌面反向引用了采集作业。'
+[xml]$etfJobs=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeam.Jobs/CRS.Plugins.NationalTeam.Jobs.csproj')
+Assert-Boundary ($null -eq $etfJobs.SelectSingleNode('//UseWPF | //UseWindowsForms')) 'ETF作业引用了桌面框架。'
+Assert-Boundary (-not (($etfJobs.SelectNodes('//ProjectReference').Include -join ';') -match 'Plugin.Wpf|Worker.Ipc|NationalTeamWatch/')) 'ETF作业反向引用了桌面实现。'
+$uiEntry=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/NationalTeamPluginEntry.cs')
+Assert-Boundary (-not ($uiEntry -match 'new\s+(MarketRepository|OfficialShareSources)|RegisterAsync|\bEtfWorkspace\(')) 'ETF桌面入口仍有本地采集/写入路径。'
+$uiHost=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.PluginHost/PluginRuntime.cs')
+Assert-Boundary (-not ($uiHost -match 'new\s+QuartzTaskScheduler|scheduler\.Scope')) '桌面插件宿主仍创建第二个调度器。'
+Write-Output 'ETF双入口、唯一任务执行者与桌面无写库依赖门禁通过。'
 foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/Application') -Filter '*.cs' -Recurse) {
     $source=Get-Content -Raw $file.FullName
     Assert-Boundary (-not ($source -match 'CRS\.Plugins\.NationalTeamWatch\.Infrastructure|Microsoft\.Data\.Sqlite|new\s+MarketRepository|\bFile\.(Read|Write)')) "插件用例层引用基础设施实现：$($file.Name)"

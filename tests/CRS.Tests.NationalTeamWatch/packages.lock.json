@@ -196,16 +196,38 @@
           "CRS.Plugin.Abstractions": "[1.0.0, )"
         }
       },
+      "crs.plugins.nationalteam.core": {
+        "type": "Project"
+      },
+      "crs.plugins.nationalteam.jobs": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Plugin.Abstractions": "[1.0.0, )",
+          "CRS.Plugins.NationalTeam.Core": "[2.0.0, )",
+          "CRS.Worker.Abstractions": "[2.0.0, )",
+          "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
+          "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )"
+        }
+      },
       "crs.plugins.nationalteamwatch": {
         "type": "Project",
         "dependencies": {
           "CRS.Plugin.Wpf": "[1.0.0, )",
+          "CRS.Plugins.NationalTeam.Core": "[2.0.0, )",
+          "CRS.Worker.Ipc": "[2.0.0, )",
           "CommunityToolkit.Mvvm": "[8.4.2, )",
           "DataGridExtensions": "[2.9.1, )",
           "LiveChartsCore.SkiaSharpView.WPF": "[2.0.5, )",
-          "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
-          "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )",
           "WPF-UI": "[4.3.0, )"
+        }
+      },
+      "crs.worker.abstractions": {
+        "type": "Project"
+      },
+      "crs.worker.ipc": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Worker.Abstractions": "[2.0.0, )"
         }
       },
       "CommunityToolkit.Mvvm": {

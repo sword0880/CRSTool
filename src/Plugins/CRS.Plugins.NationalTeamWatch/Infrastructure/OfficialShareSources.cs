@@ -16,7 +16,9 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
         async Task Capture(string name,Func<Task<SourceDay>> fetch)
         {
             try{pages.AddRange((await fetch()).Pages);}
-            catch(OperationCanceledException){throw;}
+            // 只有调用方取消才终止整批；单个来源的网络超时不能吞掉另一交易所的数据。
+            catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
+            catch(OperationCanceledException){issues.Add(name+"：官方来源响应超时。");}
             catch(Exception error){issues.Add(name+"："+error.Message);}
         }
         if(pool.Any(x=>x.Market=="SSE"))await Capture("SSE",()=>new SseOfficialShareSource(http,raw).FetchAsync(day,token));

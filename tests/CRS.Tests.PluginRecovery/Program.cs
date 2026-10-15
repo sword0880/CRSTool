@@ -1,175 +1,63 @@
-using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Windows;
 using CRS.PluginHost;
-using CRS.Plugins.NationalTeamWatch.Infrastructure;
-using CRS.Plugins.NationalTeamWatch.Domain;
+using CRS.Worker.Ipc;
+using CRS.Plugins.NationalTeamWatch;
 
-/// <summary>升级恢复验证使用独立进程和独立公开数据库，不读取用户保险库。</summary>
+/// <summary>新架构只核验UI包和服务查询；旧桌面数据库升级场景由Worker恢复验证替代。</summary>
 internal static class Program
 {
     [STAThread] private static void Main(string[] args)
     {
-        if(args.Length==1 && args[0] is "--sse-live" or "--official-live")
-        {try{LiveSse().GetAwaiter().GetResult();}catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;}
-        if(args.Length>0 && args[0]=="--worker")
-        {try{Worker(args).GetAwaiter().GetResult();}catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;}
-        var app=new System.Windows.Application {ShutdownMode=ShutdownMode.OnExplicitShutdown};
-        app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary {Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
+        if(args is ["--official-live"])
+        {try{OfficialAsync().GetAwaiter().GetResult();}catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;}
+        var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+        app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
-        app.Startup+=async (_,_)=>{try{await Run(args);app.Shutdown(0);}catch(Exception error){Console.Error.WriteLine(error);app.Shutdown(1);}};app.Run();
+        app.Startup+=async(_,_)=>{try{await RunAsync(args);app.Shutdown(0);}catch(Exception error){Console.Error.WriteLine(error);app.Shutdown(1);}};
+        app.Run();
     }
-    private static void Check(bool value,string message){if(!value)throw new Exception(message);Console.WriteLine("PASS "+message);}
-    private static async Task LiveSse()
+    private static void Check(bool condition,string message){if(!condition)throw new InvalidOperationException(message);Console.WriteLine("PASS UI只读："+message);}
+    private static async Task OfficialAsync()
     {
-        // 明确选择的公开源真实技术核验，隔离目录不读取用户数据库。
-        var root=Path.Combine(Path.GetTempPath(),"CRS-sse-live",Guid.NewGuid().ToString("N"));var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
-        using var gateway=new PublicHttpGateway();var source=new OfficialShareSources(gateway,raw);
-        var pool=new[]{new EtfKey("SSE","510050"),new("SSE","510300"),new("SSE","588000"),new("SZSE","159919"),new("SZSE","159915")};
-        var day=new DateOnly(2026,10,13);var fetched=await source.FetchAsync(day,pool,CancellationToken.None);
-        Check(fetched.Issues?.Count==0,"两市官方接口均成功返回真实份额");
-        using var repository=new MarketRepository(Path.Combine(root,"data"),raw);
-        foreach(var page in fetched.Pages)
-        {
-            var hash=raw.Save(page.Content);var fetch=repository.RecordFetch(hash,page.Uri.AbsoluteUri,hash,page.Market=="SZSE"?"OfficialSzseEtfJson":"OfficialSseEtfJson",page.Market=="SZSE"?"szse-etf-json-v1":"sse-etf-json-v1");
-            repository.ImportShares(fetch,page.Rows.Where(x=>pool.Contains(x.Key)).ToList(),CancellationToken.None,requireCalendar:false);
-        }
-        Check(pool.All(key=>repository.Points(key).Count==1),"实际宿主HTTP网关自动下载并保存两市五只ETF真实份额");
-        Check(repository.Points(new("SSE","510300")).Single().Shares==24897187700m,"公开样本510300份额单位转换与官方页面一致");
-        var empty=await source.FetchAsync(new(2026,10,11),pool,CancellationToken.None);
-        Check(empty.Issues?.Count==0 && empty.Pages.All(x=>x.Rows.Count==0),"两市真实空日期响应不填零或补造日历");
-        Console.WriteLine("公开源核验日期2026-10-13，隔离目录："+root);
+        // 真实官网事实必须来自已安装的服务，验收工具不创建桌面下载器或写库连接。
+        var reader=new WorkerEtfWorkspace();var rows=await reader.OverviewAsync(default);var evidence=await reader.EvidenceAsync(default);
+        Check(rows.Count>=5 && evidence.Any(x=>x.Market=="SSE") && evidence.Any(x=>x.Market=="SZSE"),"真实LocalService已联网采集两市公开ETF事实");
+        Console.WriteLine(JsonSerializer.Serialize(new{Pool=rows.Count,Revisions=evidence.Count,Markets=evidence.Select(x=>x.Market).Distinct(),Dates=evidence.Select(x=>x.TradeDate).Distinct(),Status=reader.NetworkStatus}));
     }
-    private static async Task Worker(string[] args)
+    private static async Task RunAsync(string[] args)
     {
-        var release=args[1];var storage=args[2];var step=args[3];
-        if(step=="new-fact")
+        if(args.Length!=1)throw new ArgumentException("需要Publish-Plugins生成的Plugins目录。");
+        var release=Path.GetFullPath(args[0]);var root=Path.Combine(Path.GetTempPath(),"CRS-UiOnly",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+        var index=JsonSerializer.Deserialize<TrustedPackage[]>(File.ReadAllText(Path.Combine(release,"trusted-plugins.json")),PackageVerifier.Json)!;
+        var package=index.Single(x=>x.Directory.StartsWith("crs.national-team/",StringComparison.Ordinal));
+        var manifest=PackageVerifier.Verify(release,package,new(1,0,0));
+        Check(manifest.RequestedCapabilities.SequenceEqual(new[]{"navigation"}),"ETF桌面只申请导航能力");
+        var json=JsonDocument.Parse(File.ReadAllText(PackageVerifier.Resolve(Path.Combine(release,package.Directory),"plugin.json")));
+        Check(json.RootElement.GetProperty("backgroundEntry").GetProperty("assembly").GetString()=="CRS.Plugins.NationalTeam.Jobs.dll","同一份清单同时绑定UI与无界面入口");
+        var references=typeof(NationalTeamPluginEntry).Assembly.GetReferencedAssemblies();
+        Check(!references.Any(x=>x.Name is "Microsoft.Data.Sqlite" or "CRS.Plugins.NationalTeam.Jobs"),"UI程序集不引用采集或市场库实现");
+        var storage=Path.Combine(root,"storage");
+        await using(var runtime=new PluginRuntime(release,storage))
         {
-            var layout=new PluginStorageLayout(storage,"crs.national-team");using var lease=layout.AcquireLease();
-            var active=layout.Coordinator.Active()!;var paths=layout.Paths(active.PackageVersion,active.DbGeneration,CancellationToken.None);
-            var raw=new RawEvidenceStore(paths.Raw,paths.BeforeWrite);using var repository=new MarketRepository(paths.Data,raw,paths.BeforeWrite);
-            var hash=raw.Save(Encoding.UTF8.GetBytes("候选进程新增的合成证据"));var fetch=repository.RecordFetch(hash,"https://www.sse.com.cn/");
-            repository.ImportShares(fetch,[new(new("SSE","510300"),new(2026,9,3),102,"份")],CancellationToken.None);
-            // 通知父进程后保持连接，让强杀发生在存在已提交WAL和新事实的场景。
-            Console.WriteLine("FACT|"+hash);Console.Out.Flush();Thread.Sleep(Timeout.Infinite);return;
+            await runtime.StartAsync();Check(runtime.Statuses.All(x=>x.State==PluginState.Started),"实际UI宿主加载双入口包中的页面入口");
+            Check(!Directory.EnumerateFiles(storage,"*.db",SearchOption.AllDirectories).Any(),"UI会话启动不创建任何桌面任务库或市场库");
+            var page=runtime.Pages.Single(x=>x.PluginId=="crs.national-team").Contribution.CreateView();
+            var window=new Window{Content=page,Width=1100,Height=760,ShowInTaskbar=false};
+            try{window.Show();await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();Check(page.ActualWidth>0 && page.ActualHeight>0,"服务查询页面完成真实WPF布局");}
+            finally{window.Content=null;window.Close();}
+            await runtime.DisposeAsync();Check(runtime.Pages.Count==0,"退出UI只释放展示会话");
         }
-        await new PluginUpgradeService(release,storage,point=>
-        {
-            if(point!=step)return;
-            Console.WriteLine("CHECKPOINT|"+point);Console.Out.Flush();Thread.Sleep(Timeout.Infinite);
-        }).PrepareAsync("crs.national-team","1.0.1");
-    }
-    private static async Task<string> KillAt(string release,string storage,string step)
-    {
-        var start=new ProcessStartInfo("dotnet") {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
-        foreach(var argument in new[]{typeof(Program).Assembly.Location,"--worker",release,storage,step})start.ArgumentList.Add(argument);
-        using var process=Process.Start(start)??throw new InvalidOperationException("无法启动隔离升级进程。");
-        var errors=process.StandardError.ReadToEndAsync();
-        try
-        {
-            var line=await process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(40));
-            if(line is null)throw new InvalidOperationException("升级子进程提前退出："+await errors);
-            Check(line.StartsWith(step=="new-fact"?"FACT|":"CHECKPOINT|",StringComparison.Ordinal),"独立进程到达断点 "+step);
-            // 仅结束本测试创建的子进程，不触碰用户应用或任何系统服务。
-            process.Kill(true);await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));return line;
-        }
-        finally {if(!process.HasExited){process.Kill(true);await process.WaitForExitAsync();}}
-    }
-    private static void Seed(string storage)
-    {
-        var layout=new PluginStorageLayout(storage,"crs.national-team");var raw=new RawEvidenceStore(layout.Raw);
-        using var repository=new MarketRepository(layout.DataRoot,raw);
-        var hash=raw.Save(Encoding.UTF8.GetBytes("升级前官方原件合成样例"));var fetch=repository.RecordFetch(hash,"https://www.sse.com.cn/");
-        repository.ImportCalendar(fetch,Enumerable.Range(1,3).Select(day=>("SSE",new DateOnly(2026,9,day))).ToList(),CancellationToken.None);
-        repository.ImportShares(repository.RecordFetch(hash,"https://www.sse.com.cn/"),[new(new("SSE","510300"),new(2026,9,1),100,"份"),new(new("SSE","510300"),new(2026,9,2),101,"份")],CancellationToken.None);
-    }
-    private static async Task VerifyPage(HostedPage page,CancellationToken token)
-    {
-        System.Windows.Application.Current.Dispatcher.VerifyAccess();token.ThrowIfCancellationRequested();
-        var view=page.Contribution.CreateView();var window=new Window {Content=view,Width=1200,Height=800,ShowActivated=false,ShowInTaskbar=false,Opacity=0};
-        try{window.Show();await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();Check(view.ActualHeight>0,"候选真实WPF页面加载");}
-        finally{window.Content=null;window.Close();}
-    }
-    private static async Task Run(string[] args)
-    {
-        if(args.Length!=1)throw new ArgumentException("请传入含ETF插件的发布Plugins目录。");
-        var root=Path.Combine(Path.GetTempPath(),"CRS-recovery-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
-        // 使用真实导出与宿主目录契约，确保新任务文件不被公开证据导出覆盖。
-        var exportLayout=new PluginStorageLayout(Path.Combine(root,"export-safety"),"crs.national-team");var guarded=exportLayout.Paths("1.0.0","legacy",CancellationToken.None);
-        var exportRaw=new RawEvidenceStore(guarded.Raw);var exportHash=exportRaw.Save(Encoding.UTF8.GetBytes("合成公开证据"));
-        Directory.CreateDirectory(exportLayout.ScheduledTasksDirectory);var taskFile=Path.Combine(exportLayout.ScheduledTasksDirectory,"tasks.json");File.WriteAllText(taskFile,"task-canary");
-        var refused=false;try{await exportRaw.ExportVerifiedAsync(exportHash,taskFile,guarded.ProtectedDirectories,CancellationToken.None);}catch(InvalidDataException){refused=true;}
-        Check(refused && File.ReadAllText(taskFile)=="task-canary","证据导出不能覆盖主程序计划任务元数据");
-        var release=Path.Combine(root,"release");PrepareCatalog(Path.GetFullPath(args[0]),release);
-        // 保持源连接打开，验证快照确实包含尚未归并到主文件的已提交WAL。
-        var walStorage=Path.Combine(root,"wal-snapshot");Seed(walStorage);var walLayout=new PluginStorageLayout(walStorage,"crs.national-team");
-        using(var source=new MarketRepository(walLayout.DataRoot,new RawEvidenceStore(walLayout.Raw)))
-        {
-            var raw=new RawEvidenceStore(walLayout.Raw);var hash=raw.Save(Encoding.UTF8.GetBytes("WAL快照的合成新增证据"));
-            source.ImportShares(source.RecordFetch(hash,"https://www.sse.com.cn/"),[new(new("SSE","510300"),new(2026,9,3),103,"份")],CancellationToken.None);
-            Check(File.Exists(walLayout.Database("legacy")+"-wal"),"快照源含未关闭的WAL");
-            var paths=walLayout.Paths("1.0.0","legacy",CancellationToken.None);var snapshot=Path.Combine(walLayout.Backup,"wal.db");
-            await new MarketStorageMaintenance(paths).SnapshotAsync(walLayout.Database("legacy"),snapshot,CancellationToken.None);
-            var snapshotData=Path.Combine(root,"wal-copy");Directory.CreateDirectory(snapshotData);File.Copy(snapshot,Path.Combine(snapshotData,"market.db"));
-            using var copied=new MarketRepository(snapshotData,raw);Check(copied.Points(new("SSE","510300")).Count==3,"Backup快照包含已提交的WAL事实");
-        }
-        foreach(var step in new[]{"Prepared","SnapshotWritten","Snapshotted","CandidateMigrated","Migrated","SwitchRecorded","PointerSwitched"})
-        {
-            var storage=Path.Combine(root,step);Seed(storage);await KillAt(release,storage,step);
-            var layout=new PluginStorageLayout(storage,"crs.national-team");
-            await using(var runtime=new PluginRuntime(release,storage,validatePage:VerifyPage))
-            {
-                await runtime.StartAsync();Check(runtime.Statuses.Single().State==PluginState.Started,"强杀后宿主正常启动 "+step);
-                Check(layout.Coordinator.Read()!.Stage==(step=="PointerSwitched"?UpgradeStage.Committed:UpgradeStage.RolledBack),"恢复到明确版本状态 "+step);
-            }
-            using var old=new MarketRepository(layout.DataRoot,new RawEvidenceStore(layout.Raw));Check(old.Points(new("SSE","510300")).Count==2,"旧库事实保留 "+step);
-        }
-        // 页面失败或缺少真实页面核验都不能被当作升级成功，旧库仍可再次启动。
-        foreach(var failure in new[]{"page-failure","missing-validator"})
-        {
-            var storage=Path.Combine(root,failure);Seed(storage);await new PluginUpgradeService(release,storage).PrepareAsync("crs.national-team","1.0.1");
-            Func<HostedPage,CancellationToken,Task>? validator=failure=="page-failure"?(_,_)=>Task.FromException(new InvalidDataException("模拟页面加载失败")):null;
-            await using(var runtime=new PluginRuntime(release,storage,validatePage:validator))
-            {await runtime.StartAsync();Check(runtime.Statuses.Single().State==PluginState.Failed,"候选页面检查失败被阻止 "+failure);}
-            var layout=new PluginStorageLayout(storage,"crs.national-team");Check(layout.Coordinator.Read()!.Stage==UpgradeStage.RolledBack,"无新事实时回退指针 "+failure);
-            await using var restarted=new PluginRuntime(release,storage,validatePage:VerifyPage);await restarted.StartAsync();
-            Check(restarted.Statuses.Single().State==PluginState.Started && layout.Coordinator.Active()!.PackageVersion=="1.0.0","回退后旧版重新启动 "+failure);
-        }
-        var withFacts=Path.Combine(root,"with-facts");Seed(withFacts);
-        await new PluginUpgradeService(release,withFacts).PrepareAsync("crs.national-team","1.0.1");
-        var fact=await KillAt(release,withFacts,"new-fact");var factLayout=new PluginStorageLayout(withFacts,"crs.national-team");
-        File.WriteAllText(Path.Combine(factLayout.Raw,fact.Split('|')[1]+".raw"),"tampered");
-        await using(var failed=new PluginRuntime(release,withFacts,validatePage:VerifyPage))
-        {await failed.StartAsync();Check(failed.Statuses.Single().State==PluginState.Failed,"新事实证据损坏时停止候选启动");}
-        Check(factLayout.Coordinator.Read()!.Stage==UpgradeStage.RequiresRecovery && factLayout.Coordinator.Active()!.PackageVersion=="1.0.1","新事实存在时禁止自动回退旧库");
-        Check(File.Exists(factLayout.Database("legacy")) && File.Exists(factLayout.Database(factLayout.Coordinator.Active()!.DbGeneration)),"新旧库和原件现场全部保留");
-        using(var lease=factLayout.AcquireLease())
-        {
-            try{using var duplicate=factLayout.AcquireLease();throw new Exception("第二写入租约被接受");}catch(IOException){Console.WriteLine("PASS 同一插件拒绝第二写入租约");}
-        }
-        Console.WriteLine("插件独立进程恢复验证通过；临时目录："+root);
-    }
-    private static void PrepareCatalog(string source,string destination)
-    {
-        var index=JsonSerializer.Deserialize<TrustedPackage[]>(File.ReadAllText(Path.Combine(source,"trusted-plugins.json")),PackageVerifier.Json)!;
-        var original=index.Single(x=>x.Directory.StartsWith("crs.national-team/",StringComparison.Ordinal));var packages=new List<TrustedPackage>();
-        foreach(var version in new[]{"1.0.0","1.0.1"})
-        {
-            var directory=Path.Combine(destination,"crs.national-team",version);Directory.CreateDirectory(directory);
-            foreach(var file in original.Sha256.Keys)
-            {
-                var target=PackageVerifier.Resolve(directory,file);Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(PackageVerifier.Resolve(Path.Combine(source,original.Directory),file),target);
-            }
-            var manifestPath=Path.Combine(directory,"plugin.json");var manifest=JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath),PackageVerifier.Json)!;
-            File.WriteAllText(manifestPath,JsonSerializer.Serialize(manifest with{Version=version},PackageVerifier.Json));
-            var hashes=Directory.EnumerateFiles(directory,"*",SearchOption.AllDirectories).ToDictionary(path=>Path.GetRelativePath(directory,path).Replace('\\','/'),path=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))));
-            packages.Add(new("crs.national-team/"+version,hashes));
-        }
-        // 只在隔离测试目录构造开发可信索引，不修改真实发行包或用户版本指针。
-        File.WriteAllText(Path.Combine(destination,"trusted-plugins.json"),JsonSerializer.Serialize(packages,PackageVerifier.Json));
+        // 用有效哈希包装带旧调度能力的清单，确保拒绝来自能力边界而非篡改检测。
+        var rejectedRoot=Path.Combine(root,"rejected");var destination=Path.Combine(rejectedRoot,package.Directory);Directory.CreateDirectory(destination);
+        foreach(var file in Directory.EnumerateFiles(Path.Combine(release,package.Directory),"*",SearchOption.AllDirectories))
+        {var target=Path.Combine(destination,Path.GetRelativePath(Path.Combine(release,package.Directory),file));Directory.CreateDirectory(Path.GetDirectoryName(target)!);File.Copy(file,target);}
+        File.WriteAllText(Path.Combine(destination,"plugin.json"),JsonSerializer.Serialize(manifest with{RequestedCapabilities=["navigation","schedules"]},PackageVerifier.Json));
+        var hashes=new Dictionary<string,string>(package.Sha256){["plugin.json"]=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(destination,"plugin.json"))))};
+        var denied=false;try{PackageVerifier.Verify(rejectedRoot,package with{Sha256=hashes},new(1,0,0));}catch(InvalidDataException){denied=true;}
+        Check(denied,"拥有有效哈希的旧桌面调度能力也被拒绝");
+        Console.WriteLine("UI只读与双入口验证完成；Worker强杀恢复、持久命令和业务去重由CRS.Tests.WorkerEtf验证。");
     }
 }

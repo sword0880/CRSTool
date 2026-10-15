@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWPF>true</UseWPF></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/CRS.Worker.Service/CRS.Worker.Service.csproj" />
+    <ProjectReference Include="../../src/Plugins/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj" />
+    <ProjectReference Include="../fixtures/CRS.Worker.EtfFixture/CRS.Worker.EtfFixture.csproj" />
+  </ItemGroup>
+</Project>

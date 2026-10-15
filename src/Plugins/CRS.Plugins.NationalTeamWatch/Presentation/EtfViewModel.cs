@@ -8,8 +8,9 @@ using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 /// <summary>仅管理界面状态和交互命令，数据判断与存储交由应用用例。</summary>
-public partial class EtfViewModel(EtfWorkspace workspace, CancellationToken lifetime) : ObservableObject
+public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lifetime) : ObservableObject
 {
+    public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EtfSummary> Rows { get; }=[];
     public ObservableCollection<EvidenceRow> Evidence { get; }=[];
     public ObservableCollection<CoverageDay> CoverageDays { get; }=[];
@@ -18,8 +19,6 @@ public partial class EtfViewModel(EtfWorkspace workspace, CancellationToken life
     [ObservableProperty] private string coverageStatus="选择ETF和日期区间，查询已登记交易日历口径的覆盖率。";
     [ObservableProperty] private EtfSummary? selected;
     [ObservableProperty] private EvidenceRow? selectedEvidence;
-    [ObservableProperty] private string sourceUrl="https://www.sse.com.cn/market/funddata/volumn/etfvolumn/";
-    [ObservableProperty] private bool reviewedOfficialFile;
     [ObservableProperty] private string reviewer="";
     [ObservableProperty] private bool confirmedComparable;
     [ObservableProperty] private string status="正在加载研究数据；NAV金额不可用。";
@@ -55,7 +54,7 @@ public partial class EtfViewModel(EtfWorkspace workspace, CancellationToken life
         // 自动任务同时响应宿主调度取消和插件会话取消，手动命令继续支持界面取消。
         Busy=true; operation=CancellationTokenSource.CreateLinkedTokenSource(lifetime,cancellationToken);
         try {await work(operation.Token);}
-        catch(OperationCanceledException) {Status="操作已取消，已提交证据保留。";}
+        catch(OperationCanceledException) {Status="已停止等待；服务已接受的任务可能继续运行，请在任务管理中查询或取消。";}
         catch(Exception error) {Status=error is InvalidDataException?error.Message:"操作失败；类别："+error.GetType().Name;}
         finally {operation.Dispose();operation=null;Busy=false;}
     }
@@ -83,17 +82,6 @@ public partial class EtfViewModel(EtfWorkspace workspace, CancellationToken life
         finally{if(!token.IsCancellationRequested)await RefreshAsync(token);}
     },cancellationToken);
     [RelayCommand] private void Cancel()=>operation?.Cancel();
-    [RelayCommand] private Task ImportShares()=>Import(false);
-    [RelayCommand] private Task ImportCalendar()=>Import(true);
-    private Task Import(bool calendar)=>ExecuteAsync(async token=>
-    {
-        if(!ReviewedOfficialFile) throw new InvalidDataException("请先核对来源链接、原始官方文件及标准化CSV，勾选确认后导入。该操作不会认证数据来源。");
-        var dialog=new Microsoft.Win32.OpenFileDialog {Filter="标准化研究CSV（UTF-8）|*.csv",CheckFileExists=true};
-        if(dialog.ShowDialog()!=true) return;
-        var original=new Microsoft.Win32.OpenFileDialog {Title="选择对应官方原始文件（作为证据留存）",Filter="官方原始文件|*.csv;*.xlsx;*.xls;*.pdf;*.html;*.htm;*.json;*.txt|所有文件|*.*",CheckFileExists=true};
-        if(original.ShowDialog()!=true) return;
-        await workspace.ImportAsync(dialog.FileName,original.FileName,SourceUrl,calendar,token);await RefreshAsync(token);
-    });
     [RelayCommand] private Task ShowHistory()=>ExecuteAsync(async token=>
     {
         if(Selected is null) return;

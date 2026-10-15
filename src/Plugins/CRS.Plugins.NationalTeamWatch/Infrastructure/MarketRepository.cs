@@ -11,18 +11,22 @@ public sealed class MarketRepository : IMarketRepository
     private readonly SqliteConnection db;
     private readonly RawEvidenceStore raw;
     private readonly Action? beforeWrite;
-    public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null)
+    public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? encryptionKey=null)
     {
+        if(encryptionKey is not {Length:32})throw new InvalidDataException("市场库必须提供独立的32字节加密密钥。");
         this.beforeWrite=beforeWrite;
         raw = rawStore; Directory.CreateDirectory(dataPath);
         // 共用宿主锁定的原生提供器版本，但不共用税务连接或加密密钥。
         SQLitePCL.Batteries_V2.Init();
-        db = new(new SqliteConnectionStringBuilder { DataSource = Path.Combine(dataPath, "market.db"), Pooling = false }.ToString()); db.Open();
+        db = new(new SqliteConnectionStringBuilder { DataSource = Path.Combine(dataPath, "market.db"), Password=Convert.ToHexString(encryptionKey),Pooling = false }.ToString()); db.Open();
         Execute("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
         var version = Convert.ToInt32(Scalar("PRAGMA user_version;"));
-        if (version > 1) { db.Dispose(); throw new InvalidDataException("Research schema is newer than this plugin."); }
+        // 测试阶段直接使用Worker专用格式，不把旧桌面库或旧测试格式当作当前数据。
+        if (version is not (0 or 2)) { db.Dispose(); throw new InvalidDataException("市场研究库格式不兼容，请清理旧测试库后重新采集。"); }
         Execute("""
             CREATE TABLE IF NOT EXISTS plugin_schema_migration(schema_version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL, plugin_package_version TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS worker_business_command(request TEXT PRIMARY KEY,operation TEXT NOT NULL,completed_utc TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS worker_sync_cursor(id INTEGER PRIMARY KEY CHECK(id=1),checked_through TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS security_master(market TEXT, ticker TEXT, name TEXT NOT NULL, index_group TEXT NOT NULL, PRIMARY KEY(market,ticker));
             CREATE TABLE IF NOT EXISTS institution(institution_id TEXT PRIMARY KEY, legal_name TEXT NOT NULL UNIQUE);
             CREATE TABLE IF NOT EXISTS disclosure_evidence(id TEXT PRIMARY KEY, source_url TEXT NOT NULL, content_hash TEXT NOT NULL, report_as_of TEXT, source_published_utc TEXT, first_seen_utc TEXT NOT NULL, review_state TEXT NOT NULL);
@@ -39,11 +43,17 @@ public sealed class MarketRepository : IMarketRepository
             INSERT OR IGNORE INTO institution VALUES('huijin-investment','中央汇金投资有限责任公司'),('huijin-asset','中央汇金资产管理有限责任公司');
             INSERT OR IGNORE INTO security_master VALUES('SSE','510300','华泰柏瑞沪深300ETF','CSI300'),('SSE','510050','华夏上证50ETF','SSE50'),('SSE','588000','华夏科创50ETF','STAR50'),('SZSE','159919','嘉实沪深300ETF','CSI300'),('SZSE','159915','易方达创业板ETF','ChiNext');
             INSERT OR IGNORE INTO watchlist_membership SELECT market,ticker,1,'初始数据链路验证','DataPilot',NULL FROM security_master;
-            PRAGMA user_version=1;
+            PRAGMA user_version=2;
             """);
-        Execute("INSERT OR IGNORE INTO plugin_schema_migration VALUES(1,$now,'1.0.0')", ("$now", Now));
+        Execute("INSERT OR IGNORE INTO plugin_schema_migration VALUES(2,$now,'2.0.0')", ("$now", Now));
     }
     private static string Now => DateTimeOffset.UtcNow.ToString("O");
+    /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
+    public DateOnly? ReadSyncCursor()=>Scalar("SELECT checked_through FROM worker_sync_cursor WHERE id=1") is string value?DateOnly.ParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture):null;
+    public void RecordSyncCursor(DateOnly day)
+    {
+        beforeWrite?.Invoke();Execute("INSERT INTO worker_sync_cursor VALUES(1,$d) ON CONFLICT(id) DO UPDATE SET checked_through=max(checked_through,excluded.checked_through)",("$d",day.ToString("yyyy-MM-dd")));
+    }
     private SqliteCommand Command(string sql, params (string, object?)[] args)
     { var command = db.CreateCommand(); command.CommandText = sql; foreach (var (key,value) in args) command.Parameters.AddWithValue(key,value??DBNull.Value); return command; }
     private void Execute(string sql, params (string, object?)[] args) { using var command = Command(sql,args); command.ExecuteNonQuery(); }
@@ -113,9 +123,10 @@ public sealed class MarketRepository : IMarketRepository
         Execute("INSERT INTO sync_checkpoint VALUES($fetch,'Validated',$count)",("$fetch",fetchId),("$count",accepted)); cancellation.ThrowIfCancellationRequested();transaction.Commit(); return accepted;
     }
     private void SetCurrent(EtfKey key,string date,string id) => Execute("INSERT INTO share_accepted_current VALUES($m,$t,$d,$id) ON CONFLICT(market,ticker,trade_date) DO UPDATE SET revision_id=excluded.revision_id",("$m",key.Market),("$t",key.Ticker),("$d",date),("$id",id));
-    public void Review(string revisionId, bool accept, string reviewer, bool comparableConfirmed = false)
+    public void Review(string revisionId, bool accept, string reviewer, bool comparableConfirmed = false,Guid? commandId=null)
     {
         beforeWrite?.Invoke();
+        if(Committed(commandId))return;
         if(string.IsNullOrWhiteSpace(reviewer)) throw new InvalidDataException("审核人不能为空。");
         if(accept && !comparableConfirmed)throw new InvalidDataException("接受前必须核实份额可比，排除未处理的基金折算或合并。");
         var row = Evidence().Single(x=>x.RevisionId==revisionId && x.State=="NeedsReview");
@@ -130,7 +141,7 @@ public sealed class MarketRepository : IMarketRepository
             Execute("UPDATE share_observation_revision SET status='Superseded' WHERE market=$m AND ticker=$t AND trade_date=$d AND status='NeedsReview'",("$m",row.Market),("$t",row.Ticker),("$d",row.TradeDate));
             SetCurrent(new(row.Market,row.Ticker),row.TradeDate,revisionId);
         }
-        transaction.Commit();
+        RecordCommand(commandId,"review");transaction.Commit();
     }
     public List<EvidenceRow> Evidence()
     {
@@ -227,18 +238,23 @@ public sealed class MarketRepository : IMarketRepository
         return new(key.Market,key.Ticker,from,to,rows.Count,accepted,rows.Count(x=>x.State=="Missing"),rows.Count(x=>x.State=="NeedsReview"),
             rows.Count(x=>x.State is "Critical" or "CalendarCritical"),rows.Count(x=>x.State=="QualityRejected"),calendarValid && rows.Count>0?decimal.Round(accepted*100m/rows.Count,2):null,calendarValid,boundary,state,rows);
     }
-    public void SetMembership(EtfKey key,string name,string index,bool active,string reason)
+    public void SetMembership(EtfKey key,string name,string index,bool active,string reason,Guid? commandId=null)
     {
         beforeWrite?.Invoke();
+        if(Committed(commandId))return;
         if(key.Market is not ("SSE" or "SZSE") || key.Ticker.Length!=6 || !key.Ticker.All(char.IsAsciiDigit) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(reason)) throw new InvalidDataException("证券、名称与理由不能为空或格式不正确。");
         using var transaction=db.BeginTransaction();
         Execute("INSERT OR IGNORE INTO security_master VALUES($m,$t,$name,$index)",("$m",key.Market),("$t",key.Ticker),("$name",name),("$index",index));
         Execute("INSERT INTO watchlist_membership VALUES($m,$t,$active,$reason,'DataPilot',NULL) ON CONFLICT(market,ticker) DO UPDATE SET active=excluded.active,reason=excluded.reason",("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason));
-        Execute("INSERT INTO watchlist_change VALUES($id,$m,$t,$active,$reason,$now)",("$id",Guid.NewGuid().ToString("N")),("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason),("$now",Now)); transaction.Commit();
+        Execute("INSERT INTO watchlist_change VALUES($id,$m,$t,$active,$reason,$now)",("$id",Guid.NewGuid().ToString("N")),("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason),("$now",Now));RecordCommand(commandId,"watchlist");transaction.Commit();
     }
+    /// <summary>业务事实与稳定命令标识同事务，调度器重放已提交命令时不再写第二次。</summary>
+    private bool Committed(Guid? id)=>id is { } value && Convert.ToInt64(Scalar("SELECT count(*) FROM worker_business_command WHERE request=$r",("$r",value.ToString("N"))))>0;
+    private void RecordCommand(Guid? id,string operation)
+    {if(id is { } value)Execute("INSERT INTO worker_business_command VALUES($r,$o,$now)",("$r",value.ToString("N")),("$o",operation),("$now",Now));}
     public void Snapshot(string target)
     {
-        using var destination=new SqliteConnection(new SqliteConnectionStringBuilder {DataSource=target,Pooling=false}.ToString()); destination.Open(); db.BackupDatabase(destination);
+        using var destination=new SqliteConnection(new SqliteConnectionStringBuilder {DataSource=target,Password=new SqliteConnectionStringBuilder(db.ConnectionString).Password,Pooling=false}.ToString()); destination.Open(); db.BackupDatabase(destination);
         using var check=destination.CreateCommand(); check.CommandText="PRAGMA integrity_check;";
         if(check.ExecuteScalar() as string!="ok") throw new InvalidDataException("Snapshot integrity failure.");
     }

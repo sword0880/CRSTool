@@ -1,7 +1,8 @@
 {
- "id":"crs.national-team", "displayName":"国家队持仓与ETF观察", "version":"1.0.0", "contractApi":"1.0",
- "minHostVersion":"1.0.0", "schemaVersion":1,
+ "id":"crs.national-team", "displayName":"国家队持仓与ETF观察", "version":"2.0.0", "contractApi":"1.0", "hostContract":"2.0",
+ "minHostVersion":"1.0.0", "schemaVersion":2,
  "entryAssembly":"CRS.Plugins.NationalTeamWatch.dll", "entryType":"CRS.Plugins.NationalTeamWatch.NationalTeamPluginEntry",
- "requestedCapabilities":["navigation","jobs","http-public","schedules","storage-private","logging"],
+ "backgroundEntry":{"assembly":"CRS.Plugins.NationalTeam.Jobs.dll","type":"CRS.Plugins.NationalTeam.Jobs.NationalTeamBackgroundEntry"},
+ "requestedCapabilities":["navigation"],
  "files":["CRS.Plugins.NationalTeamWatch.dll","CRS.Plugins.NationalTeamWatch.deps.json"]
 }

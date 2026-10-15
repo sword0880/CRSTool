@@ -1,5 +1,7 @@
 # CRS 插件化总体架构设计（宿主级规范）
 
+> 当前实施以[ETF Worker迁移](implementation/ETF_WORKER_MIGRATION.md)为准：桌面入口仅申请navigation，jobs/schedules/http-public/storage-private由后台责任承接，旧桌面能力声明在加载前拒绝。本文后续保留的早期单宿主契约示例不构成当前回退路径。
+
 > 版本：**v2.2 / 后台Windows Service架构决策**｜日期：2026-10-15｜状态：**有条件通过，须完成P0验证**  
 > 技术基线：C# / .NET 10 / WPF；Windows 10 19041+；本地优先  
 > 适用：**今后新增且边界独立的业务能力优先插件化**；现有税务及已落地绩效功能不强制搬迁  

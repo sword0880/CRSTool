@@ -24,7 +24,7 @@ internal static class RestrictedCallerChecks
                     if (new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator)) throw new InvalidOperationException("测试令牌仍具有管理员角色。");
                     var client = new BackgroundPipeClient();
                     var health = await client.QueryAsync("GetHealth");
-                    var plan = (await client.QueryAsync("GetJobs")).Jobs!.Single();
+                    var plan = (await client.QueryAsync("GetJobs")).Jobs!.First();
                     var result = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "Pause", plan.PluginId, plan.JobId, ExpectedRevision: plan.Revision));
                     if (health.Code != "Ok" || result.Code != "Forbidden") throw new InvalidOperationException("只读身份管道授权不正确。");
                     Console.WriteLine("PASS 真实移除管理员组的 Windows 令牌：可读健康和计划，管理命令 Forbidden。");

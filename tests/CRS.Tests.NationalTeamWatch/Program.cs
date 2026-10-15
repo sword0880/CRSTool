@@ -30,7 +30,7 @@ Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate.
 Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json.Replace("123.45","-1")),onlineDate,1),"Official response negative shares rejected");
 Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate,2),"Official response wrong page rejected");
 var onlineRoot=Path.Combine(root,"online");var onlineRaw=new RawEvidenceStore(Path.Combine(onlineRoot,"raw"));
-await using(var onlineWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>new MarketRepository(Path.Combine(onlineRoot,"data"),onlineRaw),onlineRaw))
+await using(var onlineWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(onlineRoot,"data"),onlineRaw),onlineRaw))
 {
  await onlineWorkspace.InitializeAsync(CancellationToken.None);
  onlineWorkspace.SetOfficialSource(new SseOfficialShareSource(new FixtureHttp(json),onlineRaw));
@@ -44,7 +44,7 @@ try{await new SseOfficialShareSource(new FixtureHttp(json,403)).FetchAsync(onlin
 try{await new SseOfficialShareSource(new FixtureHttp(json.Replace("\"total\":1","\"total\":2"))).FetchAsync(onlineDate,CancellationToken.None);throw new Exception("Truncated page accepted");}catch(InvalidDataException){Console.WriteLine("PASS Truncated official pagination rejected");}
 // 宿主取消必须传递到界面调度出的采集任务，不能只取消Quartz外层等待。
 var cancelRaw=new RawEvidenceStore(Path.Combine(root,"cancel-raw"));var blockingSource=new BlockingOfficialSource();
-await using(var cancelWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>new MarketRepository(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
+await using(var cancelWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
 {
  await cancelWorkspace.InitializeAsync(CancellationToken.None);cancelWorkspace.SetOfficialSource(blockingSource);
  var cancelModel=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(cancelWorkspace,CancellationToken.None);using var hostCancel=new CancellationTokenSource();
@@ -52,7 +52,7 @@ await using(var cancelWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>new 
  Check(!cancelModel.Busy && cancelModel.Status.Contains("取消"),"Host scheduler cancellation reaches active plugin network operation");
 }
 var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
-using(var repository=new MarketRepository(Path.Combine(root,"data"),raw))
+using(var repository=TestMarketData.Open(Path.Combine(root,"data"),raw))
 {
  string Fetch(string body)=>repository.RecordFetch(raw.Save(Encoding.UTF8.GetBytes(body)),"https://www.sse.com.cn/market/funddata/volumn/etfvolumn/");
  repository.ImportCalendar(Fetch("calendar evidence"),dates.Select(x=>("SSE",x)).ToList(),CancellationToken.None);
@@ -80,7 +80,7 @@ using(var repository=new MarketRepository(Path.Combine(root,"data"),raw))
 Console.WriteLine("ETF deterministic/offline integration checks passed.");
 // 使用分日历证据的合成数据复现“中间日损坏后被跳过”的问题；这些日期不是实际交易所日历。
 var qualityRoot=Path.Combine(root,"coverage");var qualityRaw=new RawEvidenceStore(Path.Combine(qualityRoot,"raw"));
-using(var repository=new MarketRepository(Path.Combine(qualityRoot,"data"),qualityRaw))
+using(var repository=TestMarketData.Open(Path.Combine(qualityRoot,"data"),qualityRaw))
 {
  string Fetch(string text)=>repository.RecordFetch(qualityRaw.Save(Encoding.UTF8.GetBytes(text)),"https://www.sse.com.cn/market/funddata/volumn/etfvolumn/");
  var key=new EtfKey("SSE","510300");var four=dates.Take(4).ToArray();
@@ -179,7 +179,9 @@ sealed class DelayedCoverageRepository:IMarketRepository
  public void MarkFailed(string fetchId)=>throw new NotSupportedException();
  public void ImportCalendar(string fetchId,IReadOnlyList<(string Market,DateOnly Date)> days,CancellationToken cancellation)=>throw new NotSupportedException();
  public int ImportShares(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation,bool requireCalendar=true)=>throw new NotSupportedException();
- public void Review(string revisionId,bool accept,string reviewer,bool comparableConfirmed=false)=>throw new NotSupportedException();
- public void SetMembership(EtfKey key,string name,string index,bool active,string reason)=>throw new NotSupportedException();
+ public DateOnly? ReadSyncCursor()=>throw new NotSupportedException();
+ public void RecordSyncCursor(DateOnly day)=>throw new NotSupportedException();
+ public void Review(string revisionId,bool accept,string reviewer,bool comparableConfirmed=false,Guid? commandId=null)=>throw new NotSupportedException();
+ public void SetMembership(EtfKey key,string name,string index,bool active,string reason,Guid? commandId=null)=>throw new NotSupportedException();
  public void Dispose()=>Release.Dispose();
 }

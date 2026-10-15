@@ -17,7 +17,7 @@ public interface IBackgroundPluginSession : IAsyncDisposable
 
 /// <summary>任务名称是稳定业务标识；禁止将实现类型或委托序列化到数据库。</summary>
 public sealed record BackgroundJobDescriptor(string JobId, string Name, string DefaultCron,
-    string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false);
+    string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false,bool ManualOnly=false);
 
 /// <summary>可预期的数据源结果使用分类返回，服务据此执行退避。</summary>
 public sealed record BackgroundJobResult(string Status, string? Checkpoint = null, TimeSpan? RetryAfter = null)
@@ -40,3 +40,25 @@ public sealed record CommandReceipt(Guid RequestId, string State, string Code, s
 
 /// <summary>插件故障按实例暴露，不以整个服务重启掩盖单个插件加载失败。</summary>
 public sealed record BackgroundPluginStatus(string PluginId, string State, string? ErrorCode = null);
+
+/// <summary>需要存储的可信插件由宿主注入私有目录和派生密钥，不传入税务认证或宿主根容器。</summary>
+public interface IContextualBackgroundPluginEntry : IBackgroundPluginEntry
+{
+    IBackgroundPluginSession CreateSession(IBackgroundHostContext context);
+}
+public interface IBackgroundHostContext
+{
+    string PluginId { get; }
+    string DataDirectory { get; }
+    byte[] OpenDataKey();
+}
+/// <summary>写参数由服务持久命令恢复；普通定时执行使用空参数。</summary>
+public interface IParameterizedBackgroundSession
+{
+    Task<BackgroundJobResult> ExecuteAsync(string jobId,string? payload,CancellationToken token,Guid? commandId=null);
+}
+/// <summary>只读业务查询返回有界 JSON，不接受文件路径或执行任意方法。</summary>
+public interface IBackgroundQuerySession
+{
+    Task<string> QueryAsync(string payload,CancellationToken token);
+}

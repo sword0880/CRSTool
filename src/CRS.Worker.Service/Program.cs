@@ -46,7 +46,7 @@ using var ownership = new FileStream(Path.Combine(data, "owner.lock"), FileMode.
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = [], ContentRootPath = AppContext.BaseDirectory });
 builder.Services.AddWindowsService(options => options.ServiceName = "CRSBackgroundService");
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(30));
-builder.Services.AddSingleton(new ServiceLocations(data, plugins, pipe, trust));
+builder.Services.AddSingleton(new ServiceLocations(data, plugins, pipe, trust, console));
 builder.Services.AddHostedService<ServiceWorker>();
 try { await builder.Build().RunAsync(); }
 catch (Exception error)
@@ -57,7 +57,7 @@ catch (Exception error)
 
 namespace CRS.Worker.Service
 {
-    public sealed record ServiceLocations(string Data, string Plugins, string Pipe, string Trust);
+    public sealed record ServiceLocations(string Data, string Plugins, string Pipe, string Trust, bool Console);
     /// <summary>托管服务只组合无界面组件；数据库和插件在 Quartz 停止后释放。</summary>
     public sealed class ServiceWorker(ServiceLocations locations, ILogger<ServiceWorker> logger, IHostApplicationLifetime lifetime) : BackgroundService
     {
@@ -67,8 +67,10 @@ namespace CRS.Worker.Service
             try
             {
                 key = ServiceKey.Open(locations.Data);
+                StorageSecurity.Validate(locations.Data, locations.Console); // 新建密钥也须满足数据树权限策略。
                 using var repository = new EncryptedTaskRepository(Path.Combine(locations.Data, "scheduler-config.db"), key);
-                await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () => Environment.Exit(2));
+                await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () => Environment.Exit(2),
+                    hostContext:id=>new WorkerPluginContext(id,locations.Data,key));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 var diagnostics = new ServiceEventLog(locations.Data);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication);
@@ -84,6 +86,7 @@ namespace CRS.Worker.Service
                     while (await interval.WaitForNextTickAsync(stoppingToken))
                     {
                         if (pipeTask.IsCompleted) await pipeTask; // 管道监听异常必须进入 SCM 失败恢复，不能假装健康。
+                        StorageSecurity.Validate(locations.Data, locations.Console); // 发现运行中 ACL 漂移就进入停止清理，不继续调度。
                         await runtime.ReconcileAsync(stoppingToken);
                     }
                 }

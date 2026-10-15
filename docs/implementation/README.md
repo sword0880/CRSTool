@@ -7,6 +7,7 @@
 - [主程序计划任务与执行记录](SCHEDULED_TASKS.md)
 - [独立后台 Windows Service 心跳 POC 与安装](BACKGROUND_SERVICE.md)
 - [Worker v2 首批架构整改](WORKER_REMEDIATION.md)
+- [ETF任务迁入Worker与统一任务中心](ETF_WORKER_MIGRATION.md)
 - [备份容量与读取保护](BACKUP_CAPACITY.md)
 - [快照校验](CANONICAL_VALIDATION.md)
 - [FIFO 计算](CAPITAL_GAIN_FIFO_SPEC.md)

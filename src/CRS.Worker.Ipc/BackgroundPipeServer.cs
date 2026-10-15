@@ -13,7 +13,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly object rateGate = new();
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetCommand"];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetExecution", "GetCommand", "QueryPlugin"];
     private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun"];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)
@@ -78,7 +78,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         if (request.ProtocolVersion != WorkerProtocol.Version) return "ProtocolMismatch";
         if (request.RequestId == Guid.Empty || request.Command is null || request.Command.Length > 40) return "InvalidRequest";
         if (!Reads.Contains(request.Command) && !Writes.Contains(request.Command)) return "UnknownCommand";
-        if (request.PluginId?.Length > 80 || request.JobId?.Length > 80 || request.Cron?.Length > 120 || request.TimeZoneId?.Length > 100 || request.Cursor?.Length > 200 || request.PageSize is < 1 or > 10) return "InvalidRequest";
+        if (request.PluginId?.Length > 80 || request.JobId?.Length > 80 || request.Cron?.Length > 120 || request.TimeZoneId?.Length > 100 || request.Cursor?.Length > 200 || request.Payload?.Length>4096 || request.ExecutionId?.Length>32 || request.PageSize is < 1 or > 10) return "InvalidRequest";
         if (Writes.Contains(request.Command) && (!caller.CanManage || !management)) return "Forbidden";
         return null;
     }

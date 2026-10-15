@@ -21,6 +21,14 @@ internal static class Program
  {
   var root=Path.Combine(Path.GetTempPath(),"CRS-host-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
   await using(var empty=new PluginRuntime(root,Path.Combine(root,"storage"))) {await empty.StartAsync();Check(empty.Pages.Count==0,"Tax-only no-plugin startup");}
+  // 用同名目录阻止临时配置文件创建，保存失败必须保留原来的内存设置。
+  var blockedStorage=Path.Combine(root,"blocked-settings");Directory.CreateDirectory(Path.Combine(blockedStorage,"disabled.json.tmp"));
+  await using(var blocked=new PluginRuntime(root,blockedStorage))
+  {
+   try {blocked.SetEnabledForNextStart("fixture.plugin",false);throw new Exception("保存失败未上报");}
+   catch(Exception error) when(error is IOException or UnauthorizedAccessException) { }
+   Check(blocked.IsEnabledForNextStart("fixture.plugin"),"Failed enablement write preserves next-start state");
+  }
   foreach(var path in new[]{"../escape","C:/absolute","a/../../escape"})
   {try {PackageVerifier.Resolve(root,path);throw new Exception("Path accepted");}catch(InvalidDataException){Console.WriteLine("PASS path traversal "+path);}}
   foreach(var stage in Enum.GetValues<UpgradeStage>().Where(x=>x is UpgradeStage.Prepared or UpgradeStage.Snapshotted or UpgradeStage.Migrated or UpgradeStage.Switched))
@@ -58,6 +66,7 @@ internal static class Program
   var release=Path.GetFullPath(args[0]);await using var runtime=new PluginRuntime(release,Path.Combine(root,"live-storage"));await runtime.StartAsync();
   foreach(var status in runtime.Statuses) Console.WriteLine($"{status.Id}: {status.State} {status.Failure}");
   Check(runtime.Statuses.Count==2 && runtime.Statuses.All(x=>x.State==PluginState.Started),"Two real plugins started without business references");
+  Check(runtime.Statuses.All(x=>Version.TryParse(x.Version,out _) && File.Exists(Path.Combine(release,x.Id,x.Version!,"plugin.json"))),"Reported versions identify the actual trusted package directories");
   Check(runtime.Pages.Count==2 && runtime.Pages.Select(x=>x.Route).Distinct().Count()==2,"Namespaced routes");
   foreach(var page in runtime.Pages)
   {

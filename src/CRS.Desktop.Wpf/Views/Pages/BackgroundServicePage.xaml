@@ -3,8 +3,8 @@
  <Grid Margin="24">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <StackPanel>
-   <TextBlock Text="独立后台服务" FontSize="24"/>
-   <TextBlock Text="公开任务由 Windows 服务运行；此页通过本机授权管道查询和管理。" Margin="0,8" TextWrapping="Wrap"/>
+   <TextBlock Text="任务中心" FontSize="24"/>
+   <TextBlock Text="统一查看公开任务的计划与执行记录；任务由独立后台服务执行，关闭或锁定桌面后继续运行。修改计划与手动执行需要管理员权限。" Margin="0,8" TextWrapping="Wrap"/>
    <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/><TextBlock Text="{Binding SnapshotTime}" Margin="0,4,0,12"/>
   </StackPanel>
   <WrapPanel Grid.Row="1" Margin="0,0,0,12">
@@ -28,9 +28,11 @@
    <TabItem Header="服务计划"><DataGrid ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/><DataGridCheckBoxColumn Header="待重建" Binding="{Binding NeedsReconcile}"/></DataGrid.Columns>
    </DataGrid></TabItem>
-   <TabItem Header="最近执行"><DataGrid ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+   <TabItem Header="最近执行"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <DockPanel Margin="0,8,0,10"><Button DockPanel.Dock="Right" Content="查看日志" Click="OnViewLog" ToolTip="查看选中执行的运行日志" Padding="10,4"/><TextBlock Text="双击执行记录查看运行日志" Foreground="#64748B" VerticalAlignment="Center"/></DockPanel>
+    <DataGrid x:Name="HistoryGrid" Grid.Row="1" ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MouseDoubleClick="OnHistoryDoubleClick" PreviewKeyDown="OnHistoryKeyDown" SelectionMode="Single">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="开始 UTC" Binding="{Binding StartedUtc}"/><DataGridTextColumn Header="结束 UTC" Binding="{Binding EndedUtc}"/><DataGridTextColumn Header="结果" Binding="{Binding Result}"/><DataGridTextColumn Header="尝试" Binding="{Binding Attempt}"/></DataGrid.Columns>
-   </DataGrid></TabItem>
+   </DataGrid></Grid></TabItem>
   </TabControl>
  </Grid>
 </UserControl>

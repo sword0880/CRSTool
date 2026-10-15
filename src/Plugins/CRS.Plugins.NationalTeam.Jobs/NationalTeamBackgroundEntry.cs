@@ -1,0 +1,162 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+using CRS.Plugin.Abstractions;
+using CRS.Worker.Abstractions;
+using CRS.Plugins.NationalTeamWatch.Application;
+using CRS.Plugins.NationalTeamWatch.Domain;
+using CRS.Plugins.NationalTeamWatch.Infrastructure;
+namespace CRS.Plugins.NationalTeam.Jobs;
+
+/// <summary>独立 Worker 入口；未注入私有存储上下文时拒绝创建临时或明文库。</summary>
+public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
+{
+    public IBackgroundPluginSession CreateSession()=>throw new InvalidOperationException("需要服务存储上下文。");
+    public IBackgroundPluginSession CreateSession(IBackgroundHostContext context)=>new NationalTeamBackgroundSession(context);
+}
+
+/// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
+public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null):IBackgroundPluginSession,
+    IParameterizedBackgroundSession,IBackgroundQuerySession
+{
+    private readonly SemaphoreSlim serial=new(1);
+    private readonly SemaphoreSlim queries=new(1);
+    private IPluginHttpGateway? http=gateway;
+    private readonly Dictionary<string,(DateTimeOffset Until,string Request,string[] Rows,string? Metadata)> snapshots=[];
+    private readonly Dictionary<string,(DateTimeOffset Until,string Hash,byte[] Bytes)> exports=[];
+    private EtfWorkspace? workspace;
+    private byte[]? key;
+    private RawEvidenceStore? raw;
+    private string rawPath="";
+
+    /// <summary>默认仅自动采集，审核和池变更只接受管理员的持久手动命令。</summary>
+    public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>[
+        new("official-share-sync","官方ETF份额同步","0 15 23 * * ?","China Standard Time",true,true),
+        new("review","ETF修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("watchlist","ETF验证池变更（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true)];
+
+    /// <summary>初始化只打开服务私有加密库；联网在 Quartz 作业中执行，不阻塞服务启动。</summary>
+    public async ValueTask StartAsync(CancellationToken token)
+    {
+        if(workspace is not null)throw new InvalidOperationException("会话已经启动。");
+        Directory.CreateDirectory(context.DataDirectory);rawPath=Path.Combine(context.DataDirectory,"raw");
+        key=context.OpenDataKey();raw=new(rawPath);
+        // 策略库使用同一插件专用密钥和受限目录，缺失密钥或损坏时不能退回内存策略。
+        http??=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(context.DataDirectory,"data"),key));
+        var adapter=new WorkerContext(context.DataDirectory,http);
+        workspace=new(adapter,()=>new MarketRepository(Path.Combine(context.DataDirectory,"data"),raw,encryptionKey:key),raw);
+        workspace.SetOfficialSource(new OfficialShareSources(http,raw));await workspace.InitializeAsync(token);
+    }
+    public Task<BackgroundJobResult> ExecuteAsync(string jobId,CancellationToken token)=>ExecuteAsync(jobId,null,token);
+
+    /// <summary>所有写操作经宿主持久命令与插件串行门槛进入；客户端取消等待不撤销已接受命令。</summary>
+    public async Task<BackgroundJobResult> ExecuteAsync(string jobId,string? payload,CancellationToken token,Guid? commandId=null)
+    {
+        await serial.WaitAsync(token);
+        try
+        {
+            var request=payload is null?new EtfRequest("sync"):Parse(payload);
+            switch(jobId)
+            {
+                case "official-share-sync" when request.Operation=="sync":
+                    var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+                    var report=request.From is null && request.To is null?await workspace!.SyncRecentAsync(token):
+                        await workspace!.SyncAsync(request.From??today.AddDays(-7),request.To??today,token);
+                    return new(report.SourceIssues>0 || report.HasMore?"RetryDeferred":report.ReceivedRows==0?"NotPublished":"Succeeded",
+                        $"days={report.QueriedDays};sourceIssues={report.SourceIssues};rows={report.ReceivedRows}",report.SourceIssues==0 && report.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
+                case "review" when request.Operation=="review":
+                    await workspace!.ReviewAsync(request.Revision??"",request.Accept,request.Reviewer??"",request.Comparable,token,commandId);break;
+                case "watchlist" when request.Operation=="watchlist":
+                    await workspace!.MembershipAsync(Key(request),request.Name??"",request.Index??"",request.Active,request.Reason??"",token,commandId);break;
+                default:throw new InvalidDataException("任务与业务参数不匹配。");
+            }
+            return BackgroundJobResult.Success();
+        }
+        finally{serial.Release();}
+    }
+
+    /// <summary>只读白名单不含审核、采集、文件写入或任意文件路径，普通用户只能读取公开研究结果。</summary>
+    public async Task<string> QueryAsync(string payload,CancellationToken token)
+    {
+        // 网络采集等待期间仍可查询已提交事实；数据库访问由 workspace 自身串行化。
+        var request=Parse(payload);await queries.WaitAsync(token);
+        try
+        {
+            foreach(var id in snapshots.Where(x=>x.Value.Until<DateTimeOffset.UtcNow).Select(x=>x.Key).ToArray())snapshots.Remove(id);
+            foreach(var id in exports.Where(x=>x.Value.Until<DateTimeOffset.UtcNow).Select(x=>x.Key).ToArray())exports.Remove(id);
+            if(request.Operation=="status")return JsonSerializer.Serialize(workspace!.NetworkStatus);
+            if(request.Operation=="export")return await ExportAsync(request,token);
+            var canonical=JsonSerializer.Serialize(request with{Offset=0,Snapshot=null});
+            if(request.Snapshot is { } existing)
+            {
+                if(!snapshots.TryGetValue(existing,out var cached) || cached.Request!=canonical)throw new ArgumentException("查询快照已过期或参数改变，请刷新。");
+                return Page(existing,cached.Rows,cached.Metadata,request);
+            }
+            string? metadata=null;
+            string[] rows;
+            switch(request.Operation)
+            {
+                case "overview":rows=(await workspace!.OverviewAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "evidence":rows=(await workspace!.EvidenceAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "points":rows=(await workspace!.PointsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "coverage":
+                    if(request.From is null || request.To is null || request.To<request.From || request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new ArgumentException("覆盖区间超限。");
+                    var coverage=await workspace!.CoverageAsync(Key(request),request.From.Value,request.To.Value,token);
+                    metadata=JsonSerializer.Serialize(coverage with{Days=[]});rows=coverage.Days.Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                default:throw new ArgumentException("不支持此公开查询。");
+            }
+            if(rows.Length>10000 || rows.Sum(x=>x.Length)>2*1024*1024 || snapshots.Count>=8)throw new ArgumentException("查询快照额度已满，请稍后刷新。");
+            var snapshot=Guid.NewGuid().ToString("N");snapshots.Add(snapshot,(DateTimeOffset.UtcNow.AddMinutes(10),canonical,rows,metadata));
+            return Page(snapshot,rows,metadata,request);
+        }
+        finally{queries.Release();}
+    }
+
+    /// <summary>分页每次至多十行，沿用同一份数据快照，读完后释放服务端缓存。</summary>
+    private string Page(string snapshot,string[] rows,string? metadata,EtfRequest request)
+    {
+        if(request.Offset<0 || request.Offset>rows.Length || request.Count is <1 or >10)throw new ArgumentException("分页参数不正确。");
+        var next=request.Offset+request.Count<rows.Length?request.Offset+request.Count:(int?)null;
+        var result=JsonSerializer.Serialize(new EtfQueryPage("["+string.Join(',',rows.Skip(request.Offset).Take(request.Count))+"]",snapshot,next,metadata));
+        if(next is null)snapshots.Remove(snapshot);return result;
+    }
+
+    /// <summary>只导出登记过且哈希完好的原件；短期字节快照避免分块期间文件变化。</summary>
+    private async Task<string> ExportAsync(EtfRequest request,CancellationToken token)
+    {
+        var id=(request.Revision??"")+":"+request.Original;
+        if(!exports.TryGetValue(id,out var cached))
+        {
+            if(exports.Count>=2)throw new ArgumentException("导出额度已满。");
+            var row=(await workspace!.EvidenceAsync(token)).SingleOrDefault(x=>x.RevisionId==request.Revision)
+                ??throw new ArgumentException("证据不存在。");
+            if(row.State=="Critical")throw new InvalidDataException("证据损坏。");
+            var hash=request.Original?row.OriginalHash:row.Hash;
+            var bytes=await raw!.ReadImportFileAsync(Path.Combine(rawPath,hash+".raw"),token);
+            if(Convert.ToHexString(SHA256.HashData(bytes))!=hash)throw new InvalidDataException("证据哈希不匹配。");
+            cached=(DateTimeOffset.UtcNow.AddMinutes(5),hash,bytes);exports[id]=cached;
+        }
+        if(request.Offset<0 || request.Offset>cached.Bytes.Length)throw new ArgumentException("证据偏移错误。");
+        var chunk=cached.Bytes.Skip(request.Offset).Take(16384).ToArray();
+        return JsonSerializer.Serialize(new EvidenceChunk(cached.Hash,cached.Bytes.Length,request.Offset,chunk));
+    }
+    /// <summary>JSON只允许有限长度，业务操作另在白名单中验证。</summary>
+    private static EtfRequest Parse(string payload)=>payload.Length<=4096?JsonSerializer.Deserialize<EtfRequest>(payload)
+        ??throw new ArgumentException("业务参数为空。"):throw new ArgumentException("业务参数过长。");
+    private static EtfKey Key(EtfRequest request)=>new(request.Market??"",request.Ticker??"");
+    public ValueTask StopAsync(CancellationToken token)=>ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync()
+    {
+        if(workspace is not null)await workspace.DisposeAsync();workspace=null;
+        if(key is not null)CryptographicOperations.ZeroMemory(key);key=null;(http as IDisposable)?.Dispose();serial.Dispose();queries.Dispose();snapshots.Clear();exports.Clear();
+    }
+
+    /// <summary>复用既有采集用例的最小适配，不暴露桌面调度器和税务服务。</summary>
+    private sealed class WorkerContext(string root,IPluginHttpGateway http):IPluginHostContext,IPluginDataPaths,IPluginJobScheduler,IPluginDiagnostics
+    {
+        public string PluginId=>"crs.national-team";
+        public IPluginJobScheduler Jobs=>this;public IPluginDataPaths DataPaths=>this;public IPluginHttpGateway Http=>http;public IPluginDiagnostics Diagnostics=>this;
+        public string Data=>Path.Combine(root,"data");public string Raw=>Path.Combine(root,"raw");public string Log=>Path.Combine(root,"log");public string Backup=>Path.Combine(root,"backup");
+        public Task RunAsync(string job,Func<CancellationToken,Task> work,CancellationToken token)=>work(token);
+        public void Report(string code,string message){ /* 公开任务结果由 Worker 执行记录统一保存。 */ }
+    }
+}

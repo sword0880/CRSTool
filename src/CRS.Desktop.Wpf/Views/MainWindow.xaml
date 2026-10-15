@@ -6,24 +6,44 @@
    <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="True" IsBackButtonVisible="Collapsed" IsPaneOpen="True">
     <ui:NavigationView.MenuItems>
      <ui:NavigationViewItem Content="概览" TargetPageType="{x:Type pages:DashboardPage}" Icon="{ui:SymbolIcon Grid24}"/>
-     <ui:NavigationViewItem Content="投资绩效" TargetPageType="{x:Type pages:PerformancePage}" Icon="{ui:SymbolIcon Money24}"/>
-     <ui:NavigationViewItem Content="数据导入" TargetPageType="{x:Type pages:ImportPage}" Icon="{ui:SymbolIcon ArrowUpload24}"/>
-     <ui:NavigationViewItem Content="交易记录" TargetPageType="{x:Type pages:TradesPage}" Icon="{ui:SymbolIcon DocumentText24}"/>
-     <ui:NavigationViewItem Content="FIFO 计算" TargetPageType="{x:Type pages:FifoPage}" Icon="{ui:SymbolIcon Calculator24}"/>
-     <ui:NavigationViewItem Content="汇率管理" TargetPageType="{x:Type pages:ExchangeRatesPage}" Icon="{ui:SymbolIcon Money24}"/>
-     <ui:NavigationViewItem Content="税务核算" TargetPageType="{x:Type pages:TaxCalculationPage}" Icon="{ui:SymbolIcon Calculator24}"/>
-     <ui:NavigationViewItem Content="核对与复核" TargetPageType="{x:Type pages:ReconciliationPage}" Icon="{ui:SymbolIcon ClipboardTask24}"/>
-     <ui:NavigationViewItem Content="报表导出" TargetPageType="{x:Type pages:ReportsPage}" Icon="{ui:SymbolIcon DocumentTable24}"/>
+     <!-- 分类只组织导航，不持有业务状态；默认展开一组，控制菜单首屏高度。 -->
+     <ui:NavigationViewItem x:Name="InvestmentGroup" Content="投资与数据" Icon="{ui:SymbolIcon Money24}" IsExpanded="True" Click="OnNavigationGroupClick" ToolTip="投资与数据">
+      <ui:NavigationViewItem.MenuItems>
+       <ui:NavigationViewItem Content="投资绩效" TargetPageType="{x:Type pages:PerformancePage}" Icon="{ui:SymbolIcon Money24}"/>
+       <ui:NavigationViewItem Content="数据导入" TargetPageType="{x:Type pages:ImportPage}" Icon="{ui:SymbolIcon ArrowUpload24}"/>
+       <ui:NavigationViewItem Content="交易记录" TargetPageType="{x:Type pages:TradesPage}" Icon="{ui:SymbolIcon DocumentText24}"/>
+      </ui:NavigationViewItem.MenuItems>
+     </ui:NavigationViewItem>
+     <ui:NavigationViewItem x:Name="TaxGroup" Content="税务与报表" Icon="{ui:SymbolIcon Calculator24}" Click="OnNavigationGroupClick" ToolTip="税务与报表">
+      <ui:NavigationViewItem.MenuItems>
+       <ui:NavigationViewItem Content="FIFO 计算" TargetPageType="{x:Type pages:FifoPage}" Icon="{ui:SymbolIcon Calculator24}"/>
+       <ui:NavigationViewItem Content="汇率管理" TargetPageType="{x:Type pages:ExchangeRatesPage}" Icon="{ui:SymbolIcon Money24}"/>
+       <ui:NavigationViewItem Content="税务核算" TargetPageType="{x:Type pages:TaxCalculationPage}" Icon="{ui:SymbolIcon Calculator24}"/>
+       <ui:NavigationViewItem Content="核对与复核" TargetPageType="{x:Type pages:ReconciliationPage}" Icon="{ui:SymbolIcon ClipboardTask24}"/>
+       <ui:NavigationViewItem Content="报表导出" TargetPageType="{x:Type pages:ReportsPage}" Icon="{ui:SymbolIcon DocumentTable24}"/>
+      </ui:NavigationViewItem.MenuItems>
+     </ui:NavigationViewItem>
+     <ui:NavigationViewItem x:Name="TasksGroup" Content="任务与服务" Icon="{ui:SymbolIcon CalendarClock24}" Click="OnNavigationGroupClick" ToolTip="任务与服务">
+      <ui:NavigationViewItem.MenuItems>
+       <ui:NavigationViewItem Content="导入历史" TargetPageType="{x:Type pages:HistoryPage}" Icon="{ui:SymbolIcon History24}"/>
+      </ui:NavigationViewItem.MenuItems>
+     </ui:NavigationViewItem>
+     <ui:NavigationViewItem x:Name="ExtensionsGroup" Content="插件与扩展" Icon="{ui:SymbolIcon Apps24}" Click="OnNavigationGroupClick" ToolTip="插件与扩展"/>
     </ui:NavigationView.MenuItems>
     <ui:NavigationView.FooterMenuItems>
-     <ui:NavigationViewItem Content="历史任务" TargetPageType="{x:Type pages:HistoryPage}" Icon="{ui:SymbolIcon History24}"/>
      <ui:NavigationViewItem Content="设置" Icon="{ui:SymbolIcon Settings24}" Click="OnSettings" IsEnabled="{Binding State.IsIdle}" ToolTip="设置" AutomationProperties.Name="打开统一设置"/>
      <!-- 数据库与备份统一从设置进入；主动锁定不能被后台忙碌状态挡住。 -->
      <ui:NavigationViewItem Content="锁定" Icon="{ui:SymbolIcon LockClosed24}" Click="OnLock"/>
     </ui:NavigationView.FooterMenuItems>
    </ui:NavigationView>
   </Border>
-  <Border x:Name="PluginSurface" Grid.Row="1" Margin="206,0,0,0" Background="#FBFCFD" Visibility="Collapsed"><ContentControl x:Name="PluginContent"/></Border>
+  <!-- 扩展页面跟随侧栏实时伸缩，不能保留打开页面时的旧偏移。 -->
+  <Border x:Name="PluginSurface" Grid.Row="1" Background="#FBFCFD" Visibility="Collapsed">
+   <Border.Style><Style TargetType="Border"><Setter Property="Margin" Value="56,0,0,0"/><Style.Triggers>
+    <DataTrigger Binding="{Binding IsPaneOpen,ElementName=Navigation}" Value="True"><Setter Property="Margin" Value="206,0,0,0"/></DataTrigger>
+   </Style.Triggers></Style></Border.Style>
+   <ContentControl x:Name="PluginContent"/>
+  </Border>
   <Border Grid.Row="2" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Padding="18,10"><DockPanel>
    <ui:Button DockPanel.Dock="Right" Content="取消操作" Command="{Binding Import.CancelCommand}" Appearance="Transparent" Margin="10,0,0,0"/>
    <StackPanel><TextBlock Text="{Binding State.Status}" TextWrapping="Wrap" Foreground="#64748B"/>

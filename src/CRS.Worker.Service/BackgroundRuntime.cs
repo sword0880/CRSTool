@@ -123,7 +123,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         try
         {
             var response = await HandleCoreAsync(request, caller, token);
-            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetCommand"))
+            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetExecution" or "GetCommand" or "QueryPlugin"))
                 repository.Audit(caller.Sid, request.RequestId, request.Command, response.Code);
             return response;
         }
@@ -143,10 +143,19 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, DateTimeOffset.UtcNow, Environment.ProcessId), Plugins: catalog.Statuses.ToArray());
         }
         if (fault is not null) return Reply(fault);
+        if(request.Command=="QueryPlugin")
+        {
+            if(request.PluginId is null || request.Payload is null || request.Payload.Length>4096)return Reply("InvalidRequest");
+            try{return new(WorkerProtocol.Version,request.RequestId,"Ok",Payload:await catalog.QueryAsync(request.PluginId,request.Payload,token));}
+            catch(ArgumentException){return Reply("UnknownQuery");}
+            catch(System.Text.Json.JsonException){return Reply("InvalidRequest");}
+            catch(InvalidDataException){return Reply("InvalidRequest");}
+        }
         if (request.PageSize is < 1 or > 10) return Reply("InvalidRequest");
         if (request.Command == "GetJobs")
         {
-            var plans = repository.Plans().Where(x => request.Cursor is null || string.CompareOrdinal(x.PluginId + ":" + x.JobId, request.Cursor) > 0).Take(request.PageSize + 1).ToArray();
+            var plans = repository.Plans().Where(x=>!catalog.Jobs.Any(job=>job.PluginId==x.PluginId && job.Descriptor.JobId==x.JobId && job.Descriptor.ManualOnly))
+                .Where(x => request.Cursor is null || string.CompareOrdinal(x.PluginId + ":" + x.JobId, request.Cursor) > 0).Take(request.PageSize + 1).ToArray();
             var page = plans.Take(request.PageSize).ToArray();
             return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: page, NextCursor: plans.Length > page.Length ? page[^1].PluginId + ":" + page[^1].JobId : null);
         }
@@ -154,6 +163,12 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         {
             try { var page = repository.HistoryPage(request.Cursor, request.PageSize); return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor); }
             catch (ArgumentException) { return Reply("InvalidRequest"); }
+        }
+        if(request.Command=="GetExecution")
+        {
+            if(!Guid.TryParseExact(request.ExecutionId,"N",out var id))return Reply("InvalidRequest");
+            var record=repository.FindExecution(id.ToString("N"));
+            return new(WorkerProtocol.Version,request.RequestId,record is null?"UnknownExecution":"Ok",Execution:record);
         }
         if (request.Command == "GetCommand")
         {
@@ -165,6 +180,10 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         if (request.Command is not ("RunNow" or "Pause" or "Resume" or "ChangeSchedule" or "CancelRun")) return Reply("UnknownCommand");
         var plan = repository.Plans().SingleOrDefault(x => x.PluginId == request.PluginId && x.JobId == request.JobId);
         if (plan is null || !HasHandler(plan)) return Reply("JobUnavailable");
+        if(request.Command is "Resume" or "ChangeSchedule" && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId && x.Descriptor.JobId==plan.JobId).Descriptor.ManualOnly)
+            return Reply("ManualOnly");
+        if(request.Command=="RunNow" && request.Payload is null && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId && x.Descriptor.JobId==plan.JobId).Descriptor.ManualOnly)
+            return Reply("ParametersRequired");
         var accepted = false;
         try
         {
@@ -221,7 +240,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
     private async Task ExecuteSerializedAsync(IJobExecutionContext context, CancellationToken cancellationToken)
     {
         var key = context.JobDetail.Key;
-        TaskDefinition? plan = null; CancellationTokenSource? source = null; string? execution = null; Guid? request = null;
+        TaskDefinition? plan = null; CancellationTokenSource? source = null; string? execution = null; Guid? request = null;string? payload=null;
         await gate.WaitAsync(stopping.Token);
         try
         {
@@ -238,6 +257,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             if (plan.NotBefore > DateTimeOffset.UtcNow) return;
             source = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, cancellationToken);
             source.CancelAfter(executionTimeout ?? TimeSpan.FromMinutes(15));
+            if(request is { } requestId)payload=repository.ReadCommand(requestId).Payload;
             execution = repository.Begin(plan, context.ScheduledFireTimeUtc ?? DateTimeOffset.UtcNow, request);
             running.Add(key, source);
         }
@@ -246,7 +266,9 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         if (execution is null || source is null || plan is null) return;
         BackgroundJobResult result;
         var handler = catalog.Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
-        var work = Task.Run(() => handler.Session.ExecuteAsync(plan.JobId, source.Token), CancellationToken.None);
+        // 参数来自已提交的持久命令，强杀恢复后继续使用同一业务操作。
+        var work = Task.Run(() => handler.Session is IParameterizedBackgroundSession parameterized
+            ?parameterized.ExecuteAsync(plan.JobId,payload,source.Token,request):handler.Session.ExecuteAsync(plan.JobId,source.Token), CancellationToken.None);
         try { result = await work.WaitAsync(source.Token); }
         catch (OperationCanceledException)
         {
@@ -262,7 +284,8 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             catch (Exception) { }
             result = new("Cancelled");
         }
-        catch (Exception) { result = new("Failed"); }
+        // 仅记录异常类型，不能把插件异常消息中的凭据、地址参数或本机路径写入公开日志。
+        catch (Exception error) { result = new("Failed","error="+error.GetType().Name[..Math.Min(error.GetType().Name.Length,128)]); }
         if (result.Status is not ("Succeeded" or "NotPublished" or "AccessBlocked" or "SourceSchemaChanged" or "RetryDeferred" or "Failed" or "Cancelled") || result.Checkpoint?.Length > 1024) result = new("Failed");
         await gate.WaitAsync(CancellationToken.None);
         try

@@ -9,10 +9,15 @@ $definitions = @(@{Id='crs.national-team';Project='CRS.Plugins.NationalTeamWatch
 if ($IncludeDemo) { $definitions += @{Id='crs.demo';Project='CRS.Plugins.Demo'} }
 $index = @()
 foreach ($definition in $definitions) {
-    $relative = "$($definition.Id)/1.0.0"
+    $version=if($definition.Id -eq 'crs.national-team'){'2.0.0'}else{'1.0.0'}
+    $relative = "$($definition.Id)/$version"
     $package = Join-Path $destination "Plugins/$relative"
     if (Test-Path -LiteralPath $package) { throw "Use a new output directory; immutable package already exists: $package" }
-    dotnet publish "$repo/src/Plugins/$($definition.Project)/$($definition.Project).csproj" -c $Configuration --no-restore -m:1 -o $package
+    if($definition.Id -eq 'crs.national-team'){
+        & (Join-Path $PSScriptRoot 'Publish-NationalTeamPackage.ps1') -OutputDirectory $package -Configuration $Configuration
+    }else{
+        dotnet publish "$repo/src/Plugins/$($definition.Project)/$($definition.Project).csproj" -c $Configuration --no-restore -m:1 -o $package
+    }
     if ($LASTEXITCODE -ne 0) { throw 'Plugin publish failed' }
     # 预览针对Windows x64；生成可信文件索引前删除其他平台的原生资源。
     # 保留可移植依赖描述，运行时只解析当前平台需要的原生文件。

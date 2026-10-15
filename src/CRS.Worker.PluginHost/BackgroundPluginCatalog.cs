@@ -16,7 +16,8 @@ public sealed record BackgroundManifest(string Id, string Version, string HostCo
 public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescriptor Descriptor, IBackgroundPluginSession Session);
 
 /// <summary>只加载后台入口。完整包哈希验证后，私有依赖仍逐次校验，禁止链接逃逸。</summary>
-public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null) : IAsyncDisposable
+public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null,
+    Func<string,IBackgroundHostContext>? hostContext = null) : IAsyncDisposable
 {
     private readonly List<IBackgroundPluginSession> sessions = [];
     private readonly List<AssemblyLoadContext> contexts = [];
@@ -24,6 +25,15 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     private readonly List<BackgroundPluginStatus> statuses = [];
     public IReadOnlyList<HostedBackgroundJob> Jobs => jobs;
     public IReadOnlyList<BackgroundPluginStatus> Statuses => statuses;
+    /// <summary>查询仅分派到已成功启动的插件，并沿用有界生命周期等待策略。</summary>
+    public async Task<string> QueryAsync(string plugin,string payload,CancellationToken token)
+    {
+        var session=jobs.FirstOrDefault(x=>x.PluginId==plugin)?.Session as IBackgroundQuerySession
+            ??throw new ArgumentException("插件不支持查询。");
+        string result="";await InvokeAsync(async cancellation=>result=await session.QueryAsync(payload,cancellation),token);
+        if(System.Text.Encoding.UTF8.GetByteCount(result)>48000)throw new InvalidDataException("业务查询响应超限。");
+        return result;
+    }
     /// <summary>宿主校验调度声明失败时隔离整个插件，避免其它插件随之退出。</summary>
     public void Quarantine(string pluginId, string errorCode)
     {
@@ -69,7 +79,9 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             {
                 var instance = Activator.CreateInstance(assembly.GetType(entry.Type, throwOnError: true)!) as IBackgroundPluginEntry
                     ?? throw new InvalidDataException("后台入口未实现约定接口。");
-                session = instance.CreateSession(); return Task.CompletedTask;
+                session = instance is IContextualBackgroundPluginEntry contextual
+                    ? contextual.CreateSession(hostContext?.Invoke(package.Id) ?? throw new InvalidDataException("缺少后台存储上下文。"))
+                    : instance.CreateSession(); return Task.CompletedTask;
             }, token);
             if (session is null) throw new InvalidDataException("后台入口未建立会话。");
             sessions.Add(session);
@@ -193,6 +205,13 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     }
     private sealed class VerifiedContext(string directory, Dictionary<string, string> files) : AssemblyLoadContext(isCollectible: true)
     {
+        /// <summary>原生依赖也必须来自已核验包；不从任意当前目录解析插件提供的库。</summary>
+        protected override IntPtr LoadUnmanagedDll(string name)
+        {
+            var relative=$"runtimes/win-x64/native/{name}.dll";
+            if(!files.TryGetValue(relative,out var hash))return IntPtr.Zero;
+            Verify(directory,relative,hash);return LoadUnmanagedDllFromPath(Contained(directory,relative));
+        }
         protected override Assembly? Load(AssemblyName name)
         {
             if (name.Name == typeof(IBackgroundPluginEntry).Assembly.GetName().Name) return typeof(IBackgroundPluginEntry).Assembly;

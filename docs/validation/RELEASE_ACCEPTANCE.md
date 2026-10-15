@@ -6,6 +6,10 @@
 
 | 范围 | 证据与结果 | 限制 |
 | --- | --- | --- |
+| ETF来源可靠性（2026-10-15增量） | Debug/Release构建0警告/0错误；来源策略18项、最终包服务化19项、ETF格式/质量/覆盖率及双入口UI只读回归通过；双宿主包52文件哈希一致 | 来源策略重建验证不等于物理断电；结构变化分类、任意历史缺口、跨插件公平预算及长期官网验收仍开放；见[实施记录](../implementation/ETF_WORKER_MIGRATION.md) |
+| ETF迁入Worker（2026-10-15） | Debug/Release全量构建0警告/0错误；后台65项、ETF服务化19项、既有ETF与WPF交互、双入口UI只读及通用插件回归通过；真实LocalService联网取得两市五只ETF共25条事实；52文件双宿主包逐项哈希一致，窗口冒烟通过 | 全新Schema 2测试库，无旧库迁移；完整交易日历、250日/连续20日、整机恢复、服务升级/密钥恢复与生产签名仍开放；见[当前实施](../implementation/ETF_WORKER_MIGRATION.md) |
+| Worker权限巡检与分组导航（2026-10-15） | Release后台65项检查通过，真实隔离宿主发现ACL漂移后故障退出且密钥不变；当前安装目录只读检查通过；桌面构建、十页窗口冒烟、截图核对和架构门禁通过 | 安装程序未替换；F09恢复封装与F01任务所有权迁移仍未完成；见[实施记录](../implementation/WORKER_REMEDIATION.md) |
+| 加密安全依赖修复（2026-10-15） | 集中固定System.Security.Cryptography.Xml及Pkcs为10.0.13，同步三个锁文件；开启NuGetAudit的还原、Release全量构建（0警告/0错误）、68项综合回归通过；包含间接依赖的全解决方案漏洞扫描未报告已知漏洞 | 修复[Xml高危公告](https://github.com/advisories/GHSA-7hqp-7c5m-4vq6)及[Pkcs公告](https://github.com/advisories/GHSA-2fmv-rv2c-59x7)；扫描结论限于本次NuGet数据，不代表发布包已完成安全审查 |
 | Worker v2首批整改（2026-10-15） | Debug、Release各56项后台检查、Release全量构建、WPF交互和架构门禁通过；LocalService复用原密钥及历史，新管道和真实窗口通过；见[整改记录](../implementation/WORKER_REMEDIATION.md) | F02—F06首批修复；ETF独占写库迁移、完整升级恢复、生产签名等仍待完成；不改变ReleaseApproved=false |
 | 独立后台心跳 POC（2026-10-15） | LocalService 真实安装、SQLCipher/Quartz/IPC、只读令牌授权、SCM 强杀恢复、卸载保留数据和重装通过；实施与命令见[记录](../implementation/BACKGROUND_SERVICE.md) | ETF 未迁移；无人登录、升级恢复、官网网络、物理断电和生产签名未验收；不改变 ReleaseApproved=false |
 | 最近 P0 续修 | 六组回归、68 个综合场景、架构检查、WPF 冒烟；期间清单、加密往返和 Excel 导出专项通过 | 见 [P0 记录](P0_FIX_PROGRESS.md)；该轮未重新收集覆盖率或性能 |

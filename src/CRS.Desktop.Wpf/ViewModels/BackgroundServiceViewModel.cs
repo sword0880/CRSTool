@@ -16,6 +16,8 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     private string? jobsCursor;
     public ObservableCollection<TaskDefinition> Jobs { get; } = [];
     public ObservableCollection<ExecutionRecord> History { get; } = [];
+    /// <summary>日志始终绑定某次执行，查询管道与主页面共用同一服务和会话取消令牌。</summary>
+    public ExecutionLogViewModel CreateExecutionLog(ExecutionRecord record)=>new(record,client,lifetime);
     [ObservableProperty] private string status = "正在查询独立后台服务。";
     [ObservableProperty] private string snapshotTime = "尚未取得状态快照";
     [ObservableProperty] private TaskDefinition? selected;

@@ -9,6 +9,8 @@ public sealed class PluginStatus(string id,string name)
 {
     public string Id {get;}=id;
     public string Name {get;}=name;
+    /// <summary>通过核验后选中的包版本；未通过清单核验时不伪造版本。</summary>
+    public string? Version {get;internal set;}
     public PluginState State {get;internal set;}
     public string? Error {get;internal set;}
     public string? RecoveryMessage {get;internal set;}
@@ -26,8 +28,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
     private readonly HashSet<string> disabled=ReadDisabled(storageRoot);
     private readonly HashSet<string> effectiveDisabled=disabledAtStartup is null?ReadDisabled(storageRoot):new(disabledAtStartup);
     private readonly CancellationTokenSource runtimeLifetime=new();
-    private readonly QuartzTaskScheduler scheduler=new(storageRoot);
-    public QuartzTaskScheduler Schedules=>scheduler;
+    // 桌面插件会话不再创建调度器；公开后台任务统一注册到 Worker。
     private Task? startup;
     private bool stopped,cancelled;
     public static IReadOnlySet<string> ReadStartupEnablement(string root)=>ReadDisabled(root);
@@ -38,10 +39,15 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
     }
     public void SetEnabledForNextStart(string id,bool enabled)
     {
-        if(enabled)disabled.Remove(id);else disabled.Add(id);
+        // 配置落盘成功后再更新内存，失败时管理页重新打开也不能显示虚假的待生效状态。
+        var updated=new HashSet<string>(disabled);
+        if(enabled)updated.Remove(id);else updated.Add(id);
         Directory.CreateDirectory(storageRoot);var path=Path.Combine(storageRoot,"disabled.json");
-        File.WriteAllText(path+".tmp",JsonSerializer.Serialize(disabled));File.Move(path+".tmp",path,true);
+        File.WriteAllText(path+".tmp",JsonSerializer.Serialize(updated));File.Move(path+".tmp",path,true);
+        disabled.Clear();disabled.UnionWith(updated);
     }
+    /// <summary>读取下次启动配置，界面不得把待生效设置当成本次会话状态。</summary>
+    public bool IsEnabledForNextStart(string id)=>!disabled.Contains(id);
     public Task StartAsync(CancellationToken cancellationToken=default)
     {
         if(startup is not null || stopped)throw new InvalidOperationException("宿主会话不能重复启动。");
@@ -63,7 +69,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
     }
     private async Task StartPluginAsync(List<(TrustedPackage Package,PluginManifest Manifest)> versions,CancellationToken token)
     {
-        var first=versions[0].Manifest;var status=new PluginStatus(first.Id,first.DisplayName);Statuses.Add(status);
+        var first=versions[0].Manifest;var status=new PluginStatus(first.Id,first.DisplayName){Version=versions.Count==1?first.Version:null};Statuses.Add(status);
         IDisposable? lease=null;VerifiedPluginLoad? load=null;IPluginSession? session=null;CancellationTokenSource? lifetime=null;PublicHttpGateway? http=null;
         var layout=new PluginStorageLayout(storageRoot,first.Id);var coordinator=layout.Coordinator;var candidateStarting=false;
         try
@@ -88,6 +94,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
                 ?versions.Count==1?versions[0]:throw new InvalidDataException("多个预装版本必须有明确的当前版本指针。")
                 :versions.SingleOrDefault(x=>x.Manifest.Version==active.PackageVersion);
             if(selected.Manifest is null)throw new InvalidDataException("当前版本不在可信发行清单中。");
+            status.Version=selected.Manifest.Version;
             var generation=active?.DbGeneration??"legacy";
             if(active is not null && !File.Exists(layout.Database(generation)))throw new InvalidDataException("当前数据库代次缺失，拒绝创建空库替代。");
             // 在前一个插件加载后重新检查共享程序集，防止预检遗漏延迟出现的冲突。
@@ -101,7 +108,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
                 participant=new(layout,maintenanceEntry.CreateStorageMaintenance(paths),selected.Manifest.SchemaVersion);
                 await participant.VerifyCandidateAsync(active!,token);
             }
-            session=load.Entry.CreateSession(new PluginContext(first.Id,new PluginJobs(lifetime.Token),paths,http,new Diagnostics((code,_)=>status.Error=code),selected.Manifest.RequestedCapabilities,scheduler.Scope(first.Id,lifetime.Token)));
+            session=load.Entry.CreateSession(new PluginContext(first.Id,new PluginJobs(lifetime.Token),paths,http,new Diagnostics((code,_)=>status.Error=code),selected.Manifest.RequestedCapabilities,new WorkerOwnedSchedules()));
             await session.StartAsync(lifetime.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(15),token);token.ThrowIfCancellationRequested();
             if(session is IPluginWpfSession wpf)
             {
@@ -147,7 +154,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
         public Task MigrateCandidateAsync(ActiveGeneration value,CancellationToken token)=>throw new NotSupportedException();
         public Task VerifyCandidateAsync(ActiveGeneration value,CancellationToken token)=>throw new NotSupportedException();
     }
-    public void Cancel(){if(cancelled)return;cancelled=true;runtimeLifetime.Cancel();scheduler.Cancel();Pages.Clear();foreach(var item in sessions)item.Lifetime.Cancel();}
+    public void Cancel(){if(cancelled)return;cancelled=true;runtimeLifetime.Cancel();Pages.Clear();foreach(var item in sessions)item.Lifetime.Cancel();}
     public async ValueTask DisposeAsync()
     {
         if(stopped)return;stopped=true;Cancel();if(startup is not null){try{await startup;}catch(Exception){ /* 启动失败仍继续清理。 */ }}
@@ -163,6 +170,12 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
             catch(Exception error){item.Status.State=PluginState.Failed;item.Status.Error=error.GetType().Name;}
             finally{item.Http.Dispose();item.Lifetime.Dispose();item.Load.Dispose();item.Lease.Dispose();}
         }
-        sessions.Clear();await scheduler.DisposeAsync();runtimeLifetime.Dispose();
+        sessions.Clear();runtimeLifetime.Dispose();
+    }
+    /// <summary>旧桌面调度契约明确拒绝，不能在后台服务不可用时回退为第二个调度器。</summary>
+    private sealed class WorkerOwnedSchedules:IPluginScheduleGateway
+    {
+        public Task RegisterAsync(string id,string cron,string zone,Func<CancellationToken,Task> work,CancellationToken token,TimeSpan? delay=null,string? name=null)
+            =>throw new NotSupportedException("公开计划任务由 Worker 唯一执行。");
     }
 }

@@ -12,6 +12,7 @@ public static class ServiceKey
     public static byte[] Open(string directory)
     {
         var path = Path.Combine(directory, "service-key.dpapi");
+        StorageSecurity.RejectLinks(path); // 不能通过密钥文件链接读取保护目录以外的机器密钥。
         var sid = WindowsIdentity.GetCurrent().User!.Value;
         if (File.Exists(path))
         {

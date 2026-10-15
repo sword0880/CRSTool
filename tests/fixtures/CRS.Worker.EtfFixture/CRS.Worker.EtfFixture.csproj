@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 合成 HTTP 仅存在于测试包，不进入正式 ETF 发行。 -->
+  <ItemGroup><ProjectReference Include="../../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/CRS.Plugins.NationalTeam.Jobs.csproj" /></ItemGroup>
+</Project>

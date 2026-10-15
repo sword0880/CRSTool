@@ -3,7 +3,7 @@ using CRS.Plugin.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>插件应用用例：串行访问私有仓储，在后台执行导入、查询与证据核验。</summary>
-public sealed class EtfWorkspace : IAsyncDisposable
+public sealed class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
 {
     private readonly IPluginHostContext context;
     private readonly SemaphoreSlim gate=new(1);
@@ -12,7 +12,7 @@ public sealed class EtfWorkspace : IAsyncDisposable
     private IMarketRepository? repository;
     private IOfficialShareSource? officialSource;
     private readonly SemaphoreSlim syncGate=new(1);
-    public string NetworkStatus {get;private set;}="等待自动采集；软件关闭或锁定后暂停。";
+    public string NetworkStatus {get;private set;}="等待后台服务采集；关闭或锁定桌面不影响任务运行。";
     public void SetOfficialSource(IOfficialShareSource source)=>officialSource=source;
     public EtfWorkspace(IPluginHostContext context,Func<IMarketRepository> repositoryFactory,IRawEvidenceStore raw) {this.context=context;this.repositoryFactory=repositoryFactory;this.raw=raw;}
     public Task InitializeAsync(CancellationToken token)=>RunAsync(()=> { repository=repositoryFactory(); return true; },token);
@@ -24,19 +24,25 @@ public sealed class EtfWorkspace : IAsyncDisposable
     }
     public Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>RunAsync(()=>repository!.Overview(),token);
     /// <summary>串行下载官方份额；按日期提交，取消后保留已完成日，重试使用原件哈希与事实幂等。</summary>
-    public Task<SyncReport> SyncRecentAsync(CancellationToken token)
+    public async Task<SyncReport> SyncRecentAsync(CancellationToken token)
     {
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
-        return SyncAsync(today.AddDays(-7),today,token);
+        // 游标表示已查询日，不代表完整交易日历；重叠七天允许来源迟发修订被再次发现。
+        var cursor=await RunAsync(()=>repository!.ReadSyncCursor(),token);
+        var from=(cursor??today).AddDays(-7);var to=from.AddDays(29)<today?from.AddDays(29):today;
+        var report=await SyncAsync(from,to,token,true);
+        return report with{HasMore=to<today};
     }
-    public async Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)
+    public Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)=>SyncAsync(from,to,token,false);
+    /// <summary>自动补采逐日提交查询游标；来源故障日阻断游标前进，但保留其它已提交事实。</summary>
+    private async Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token,bool trackProgress)
     {
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
         if(from>to || to>today || to.DayNumber-from.DayNumber>400)throw new InvalidDataException("采集区间必须不超过400个自然日，不能包含未来日期。");
         if(officialSource is null)throw new InvalidOperationException("官方采集适配器没有注册。");
         // 手动补历史与计划任务不重叠，避免同一来源突发请求。
         if(!await syncGate.WaitAsync(0,token))throw new InvalidDataException("已有联网采集运行中，请等待或取消当前操作。");
-        var completed=0;var issues=new HashSet<string>();
+        var completed=0;var receivedRows=0;var issues=new HashSet<string>();var contiguous=true;
         try
         {
             for(var day=from;day<=to;day=day.AddDays(1))
@@ -44,6 +50,8 @@ public sealed class EtfWorkspace : IAsyncDisposable
                 token.ThrowIfCancellationRequested();NetworkStatus=$"两市正在获取 {day:yyyy-MM-dd}；已完成{completed}个查询日。";
                 var poolKeys=await RunAsync(()=>repository!.Overview().Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
                 var result=await officialSource.FetchAsync(day,poolKeys,token).ConfigureAwait(false);
+                if(result.Issues?.Count>0)contiguous=false;
+                receivedRows+=result.Pages.Sum(page=>page.Rows.Count(row=>poolKeys.Contains(row.Key)));
                 foreach(var issue in result.Issues??[])issues.Add(issue);
                 await RunAsync(()=>
                 {
@@ -61,12 +69,13 @@ public sealed class EtfWorkspace : IAsyncDisposable
                         }
                         catch{repository.MarkFailed(fetch);throw;}
                     }
+                    if(trackProgress && contiguous)repository.RecordSyncCursor(day);
                     return true;
                 },token).ConfigureAwait(false);
                 completed++;
             }
             NetworkStatus=$"两市联网采集完成（{completed}个查询日）；{(issues.Count==0?"本次没有来源错误":string.Join("；",issues.Take(3)))}；完整交易日历与NAV金额仍待核验。";
-            return new(completed,issues.Count);
+            return new(completed,issues.Count,receivedRows);
         }
         catch(OperationCanceledException){NetworkStatus=$"采集已取消，已完成{completed}日保留。";throw;}
         catch(Exception error){NetworkStatus=$"采集停止，已完成{completed}日保留；{error.Message}";throw;}
@@ -107,7 +116,10 @@ public sealed class EtfWorkspace : IAsyncDisposable
             },cancellation).ConfigureAwait(false);
         },token).ConfigureAwait(false);
     }
-    public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token)=>RunAsync(()=> {repository!.Review(id,accept,reviewer,comparableConfirmed);return true;},token);
-    public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>RunAsync(()=> {repository!.SetMembership(key,name,index,active,reason);return true;},token);
+    public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token)=>ReviewAsync(id,accept,reviewer,comparableConfirmed,token,null);
+    public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>MembershipAsync(key,name,index,active,reason,token,null);
+    /// <summary>稳定命令标识随业务事务提交，防止调度记录提交前强杀导致重复审核或池变更。</summary>
+    public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token,Guid? commandId)=>RunAsync(()=> {repository!.Review(id,accept,reviewer,comparableConfirmed,commandId);return true;},token);
+    public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token,Guid? commandId)=>RunAsync(()=> {repository!.SetMembership(key,name,index,active,reason,commandId);return true;},token);
     public async ValueTask DisposeAsync() {await gate.WaitAsync().ConfigureAwait(false);try {repository?.Dispose();repository=null;}finally {gate.Release();} }
 }

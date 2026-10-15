@@ -1,5 +1,7 @@
 # CRS「国家队持仓与ETF观察」插件——第一期设计及后续股票扩展规划
 
+> 2026-10-15实施更新：[ETF公开任务已迁入Worker](implementation/ETF_WORKER_MIGRATION.md)，桌面关闭后继续采集。测试阶段采用全新Schema 2加密市场库，不迁移旧桌面研究数据；交易日历与长期覆盖目标仍按本文门槛独立验收。
+
 > 文件：`NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md`  
 > **更新日期：2026-10-15；版本：v2.2（Windows Service后台运行专项同步）**  
 > 状态：**有条件通过；免费数据通道M0、真实WPF插件POC和升级恢复P0尚未验证**  

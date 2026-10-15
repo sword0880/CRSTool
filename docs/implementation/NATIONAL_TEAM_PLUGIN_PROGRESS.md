@@ -1,5 +1,7 @@
 # 国家队ETF插件实施记录
 
+> 2026-10-15更新：当前为[Worker独立采集与只读UI](ETF_WORKER_MIGRATION.md)。下文单程序集、桌面Quartz、锁定后暂停和旧库升级内容保留为先前阶段记录，不代表当前执行归属。新测试环境不迁移旧研究数据。
+
 依据：[ETF一期设计](../NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)、[通用插件架构](../CRS_PLUGIN_ARCHITECTURE.md)。
 
 当前交付是**联网研究预览开发版**，自动下载和Quartz.NET调度已经接线，尚未达到M4正式发行门槛。早期离线阶段保留在下方历史记录；当前来源核验见 [数据通道POC](../DATA_SOURCE_POC.md)。

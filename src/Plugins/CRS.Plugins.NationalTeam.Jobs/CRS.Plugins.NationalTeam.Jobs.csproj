@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 服务端实现不得引用 UI；旧源码按责任链接，避免复制业务算法。 -->
+  <PropertyGroup><Version>2.0.0</Version></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CRS.Plugins.NationalTeam.Core/CRS.Plugins.NationalTeam.Core.csproj" />
+    <ProjectReference Include="../../CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" />
+    <ProjectReference Include="../../CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj" />
+    <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/EtfWorkspace.cs" Link="Application/EtfWorkspace.cs" />
+    <Compile Include="../CRS.Plugins.NationalTeamWatch/Infrastructure/*.cs" Link="Infrastructure/%(Filename)%(Extension)" />
+    <!-- 桌面旧库升级维护不随后台业务实现发行。 -->
+    <Compile Remove="../CRS.Plugins.NationalTeamWatch/Infrastructure/MarketStorageMaintenance.cs" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" /><PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
+  </ItemGroup>
+</Project>
