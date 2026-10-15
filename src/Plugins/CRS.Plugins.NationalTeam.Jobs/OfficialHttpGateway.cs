@@ -86,7 +86,8 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
         {
             using var request=new HttpRequestMessage(HttpMethod.Get,uri);
             // 官方公开页面对应的Referer，不携带Cookie、账号或验证码。
-            request.Headers.Referrer=new Uri(uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)?"https://www.sse.com.cn/market/funddata/volumn/etfvolumn/":"https://fund.szse.cn/marketdata/etf/");
+            var activity=uri.Query.Contains("COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C",StringComparison.Ordinal) || uri.Query.Contains("scsj_gprdgk_after",StringComparison.Ordinal);
+            request.Headers.Referrer=new Uri(uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)?activity?"https://www.sse.com.cn/market/stockdata/overview/day/":"https://www.sse.com.cn/market/funddata/volumn/etfvolumn/":activity?"https://www.szse.cn/market/stock/situation/daily/index.html":"https://fund.szse.cn/marketdata/etf/");
             return await transport.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token).ConfigureAwait(false);
         }
         if(directHosts.Contains(uri.Host))return await Send(directClient).ConfigureAwait(false);

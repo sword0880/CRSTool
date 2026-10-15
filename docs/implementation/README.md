@@ -4,6 +4,7 @@
 
 - [金额与未知值展示](AMOUNT_PRESENTATION.md)
 - [国家队ETF插件联网预览与Quartz.NET](NATIONAL_TEAM_PLUGIN_PROGRESS.md)
+- [ETF自动图表、全池汇总与市场温度](ETF_CHARTS_AND_MARKET_ACTIVITY.md)
 - [主程序计划任务与执行记录](SCHEDULED_TASKS.md)
 - [独立后台 Windows Service 心跳 POC 与安装](BACKGROUND_SERVICE.md)
 - [Worker v2 首批架构整改](WORKER_REMEDIATION.md)

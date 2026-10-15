@@ -6,14 +6,25 @@
   <!-- 联网采集为主入口，不再要求用户先下载文件。 -->
   <WrapPanel Grid.Row="1" Margin="0,12"><DatePicker SelectedDate="{Binding SyncFrom}" Width="130"/><TextBlock Text="至" VerticalAlignment="Center" Margin="8,0"/><DatePicker SelectedDate="{Binding SyncTo}" Width="130"/><ui:Button Content="联网采集 / 补历史" Command="{Binding SyncHistoryCommand}" IsEnabled="{Binding CanManage}" Margin="8,0"/><ui:Button Content="刷新服务数据" Command="{Binding RefreshCommand}"/><ui:Button Content="取消当前操作" Command="{Binding CancelCommand}" Margin="8,0"/></WrapPanel>
   <TabControl Grid.Row="2">
-   <TabItem Header="ETF份额监控"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="220"/></Grid.RowDefinitions>
+   <TabItem Header="ETF份额监控"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <!-- 640像素配合32像素行高可显示约18条记录，更多记录继续在表格内滚动。 -->
-    <DataGrid x:Name="OverviewGrid" Height="640" RowHeight="32" ColumnHeaderHeight="36" PreviewMouseWheel="OnTableMouseWheel" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" dg:DataGridFilter.IsAutoFilterEnabled="True"><DataGrid.Columns>
+    <DataGrid x:Name="OverviewGrid" Height="640" RowHeight="32" ColumnHeaderHeight="36" PreviewMouseWheel="OnTableMouseWheel" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" SelectionMode="Single" SelectionUnit="FullRow" AutoGenerateColumns="False" IsReadOnly="True" dg:DataGridFilter.IsAutoFilterEnabled="True"><DataGrid.Columns>
      <DataGridTextColumn Header="市场" Binding="{Binding Market}"/><DataGridTextColumn Header="代码" Binding="{Binding Ticker}"/><DataGridTextColumn Header="名称" Binding="{Binding Name}"/><DataGridTextColumn Header="指数分组" Binding="{Binding IndexGroup}"/><DataGridTextColumn Header="标签" Binding="{Binding Label}"/><DataGridTextColumn Header="截至日" Binding="{Binding AsOf}"/>
      <DataGridTextColumn Header="总份额（份）" Binding="{Binding Shares,TargetNullValue=无数据,StringFormat=N0}"/><DataGridTextColumn Header="1日变化" Binding="{Binding Change1,TargetNullValue=不完整,StringFormat=N0}"/><DataGridTextColumn Header="5日变化" Binding="{Binding Change5,TargetNullValue=不完整,StringFormat=N0}"/><DataGridTextColumn Header="20日变化" Binding="{Binding Change20,TargetNullValue=不完整,StringFormat=N0}"/><DataGridTextColumn Header="状态" Binding="{Binding Status}"/><DataGridTextColumn Header="已覆盖日数" Binding="{Binding CoveredDays}"/>
     </DataGrid.Columns></DataGrid>
-    <ui:Button Grid.Row="1" Content="查看所选ETF历史份额" Command="{Binding ShowHistoryCommand}" Margin="0,8" HorizontalAlignment="Left"/>
-    <lvc:CartesianChart Grid.Row="2" Series="{Binding Series}" XAxes="{Binding XAxes}" AnimationsSpeed="0:0:0"/>
+    <StackPanel Grid.Row="1" Margin="0,8"><WrapPanel><CheckBox Content="全部监控ETF汇总" IsChecked="{Binding AllEtfs}" VerticalAlignment="Center" ToolTip="汇总当前所有启用监控的ETF，不受表格筛选影响"/><ui:Button Content="刷新图表" Command="{Binding ShowHistoryCommand}" Margin="16,0"/></WrapPanel><TextBlock Text="{Binding ChartStatus}" TextWrapping="Wrap" Margin="0,8"/></StackPanel>
+    <Border x:Name="ComparisonPanel" Grid.Row="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12">
+     <StackPanel>
+      <WrapPanel><TextBlock Text="ETF份额与市场成交额" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/><ui:Button Content="重置缩放" Command="{Binding ResetComparisonZoomCommand}" Margin="16,0,8,0"/><ui:Button Content="刷新成交额" Command="{Binding RefreshMarketActivityCommand}"/><ui:Button Content="采集上方日期区间的成交额" Command="{Binding SyncMarketActivityCommand}" IsEnabled="{Binding CanManage}" Margin="8,0"/></WrapPanel>
+      <TextBlock Text="{Binding ComparisonReadout}" TextWrapping="Wrap" MinHeight="42" Margin="0,10,0,0" AutomationProperties.Name="同日ETF与成交额读数"/>
+      <TextBlock Text="监控ETF总份额（亿份）" Foreground="#2563EB" FontWeight="SemiBold"/>
+      <lvc:CartesianChart x:Name="ShareChart" Height="400" Series="{Binding Series}" XAxes="{Binding XAxes}" YAxes="{Binding ShareYAxes}" Sections="{Binding ShareSections}" DrawMargin="{Binding ComparisonMargin}" ZoomMode="X" TooltipPosition="Hidden" MouseMove="OnComparisonMouseMove" MouseLeave="OnComparisonMouseLeave" AnimationsSpeed="0:0:0"/>
+      <TextBlock Text="沪深股票成交额（亿元）" Foreground="#475569" FontWeight="SemiBold" Margin="0,8,0,0"/>
+      <lvc:CartesianChart x:Name="AmountChart" Height="170" Series="{Binding MarketAmountSeries}" XAxes="{Binding MarketAmountAxes}" YAxes="{Binding AmountYAxes}" Sections="{Binding AmountSections}" DrawMargin="{Binding ComparisonMargin}" ZoomMode="X" TooltipPosition="Hidden" MouseMove="OnComparisonMouseMove" MouseLeave="OnComparisonMouseLeave" AnimationsSpeed="0:0:0"/>
+      <TextBlock Text="{Binding MarketActivityStatus}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8"/>
+      <TextBlock Text="成交额采用沪深股票口径，含B股、深市存托凭证，不含北交所、基金、债券及回购。上图是监控ETF份额，不能直接认定国家队买卖；缺失数据留空。" TextWrapping="Wrap" Foreground="#64748B" FontSize="12"/>
+     </StackPanel>
+    </Border>
    </Grid></TabItem>
    <TabItem Header="ETF配置与来源"><StackPanel Margin="12">
     <TextBlock Text="ETF目录与监控配置" FontSize="20" FontWeight="SemiBold"/>

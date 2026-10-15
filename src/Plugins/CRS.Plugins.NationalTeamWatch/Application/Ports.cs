@@ -11,7 +11,12 @@ public interface IRawEvidenceStore
 public interface IMarketRepository : IDisposable
 {
     List<EtfSummary> Overview();
+    List<MarketActivityPoint> MarketActivity()=>throw new NotSupportedException();
+    void SaveMarketActivity(string market,DateOnly day,MarketActivitySource? source)=>throw new NotSupportedException();
+    DateOnly? ReadMarketActivityCursor()=>null;
+    void RecordMarketActivityCursor(DateOnly day)=>throw new NotSupportedException();
     List<EvidenceRow> Evidence();
+    List<EtfHistoryPoint> History(EtfKey? key)=>throw new NotSupportedException();
     List<SharePoint> Points(EtfKey key);
     CoverageReport Coverage(EtfKey key,DateOnly from,DateOnly to);
     DateOnly? ReadSyncCursor();

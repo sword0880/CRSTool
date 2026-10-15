@@ -30,11 +30,16 @@ public sealed class Entry:IContextualBackgroundPluginEntry
             // 仅测试可控的网络等待，验证阶段可查询且配置按插件写入门槛排队。
             while(File.Exists(Path.Combine(root,"http-hold.fixture")))await Task.Delay(25,token);
             var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
-            var day=query.GetValueOrDefault("STAT_DATE")??query["txtStart"];
+            var day=query.GetValueOrDefault("SEARCH_DATE")??query.GetValueOrDefault("txtQueryDate")??query.GetValueOrDefault("STAT_DATE")??query["txtStart"];
             var amount=1000+DateOnly.Parse(day).DayNumber;
             if(File.Exists(Path.Combine(root,"changed.fixture")))amount+=100;
             object value;
-            if(uri.Host=="query.sse.com.cn")value=new{actionErrors=Array.Empty<string>(),pageHelp=new{pageNo=1,pageCount=1,total=3},
+            if(query.GetValueOrDefault("sqlId")=="COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C")
+                value=new{sqlId="COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C",actionErrors=Array.Empty<string>(),result=new[]{new{TRADE_DATE=day.Replace("-",""),PRODUCT_CODE="17",TRADE_AMT="7804.23",TRADE_VOL="484.13"}}};
+            else if(query.GetValueOrDefault("CATALOGID")=="scsj_gprdgk_after")
+                value=new[]{new{metadata=new{catalogid="scsj_gprdgk_after",tabkey="tab1",cols=new{gp="深市合计"},conditions=new[]{new{name="txtQueryDate",defaultValue=day}}},
+                    data=new[]{new{zbmc="成交金额（亿元）",gp="8,976.31"},new{zbmc="成交量（亿）",gp="562.44"}},error=(string?)null}};
+            else if(uri.Host=="query.sse.com.cn")value=new{actionErrors=Array.Empty<string>(),pageHelp=new{pageNo=1,pageCount=1,total=3},
                 result=new[]{"510300","510050","588000"}.Select(code=>new{STAT_DATE=day,SEC_CODE=code,TOT_VOL=amount.ToString()}).ToArray()};
             else value=new[]{new{metadata=new{catalogid="fund_jjgm",cols=new{current_size="基金规模<br>(万份)"},recordcount=1,pagecount=1,pageno=1},
                 data=new[]{new{size_date=day,fund_code=query["txtDm"],current_size=amount.ToString()}},error=(string?)null}};

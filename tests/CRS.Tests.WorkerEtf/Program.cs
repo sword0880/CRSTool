@@ -11,6 +11,7 @@ using Microsoft.Data.Sqlite;
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
 if(args is ["--source-policy"]){await SourcePolicyChecks.RunAsync();return;}
+var chartOnly=args is ["--chart-ui",_];if(chartOnly)args=[args[1]];
 if(args is ["--client",var childPipe])
 {var reader=new WorkerEtfWorkspace(new(childPipe));if((await reader.OverviewAsync(default)).Count<5)Environment.ExitCode=2;return;}
 if(args.Length!=1)throw new ArgumentException("需要本轮完整 Worker 发行目录。");
@@ -47,8 +48,19 @@ using(var service=Start())
     try
     {
         var health=await Query("GetHealth");Check(health.Health?.State=="Running","真实独立服务加载ETF后台入口");
+        if(chartOnly)
+        {
+            await Until(async()=>(await ui.OverviewAsync(default)).All(x=>x.Shares>0) && (await ui.MarketActivityAsync(default)).Count(x=>x.State=="Complete")>=21);
+            EtfConfigurationUiChecks.Run(client,Path.Combine(Environment.CurrentDirectory,"artifacts","etf-configuration-ui","configuration.png"));return;
+        }
         await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.Result=="Succeeded"));
         Check((await ui.OverviewAsync(default)).Count==5 && (await ui.OverviewAsync(default)).All(x=>x.Shares>0),"启动后自动采集两市五只ETF并经管道查询");
+        await Until(async()=>(await ui.MarketActivityAsync(default)).Any(x=>x.State=="Complete"));
+        Check((await ui.MarketActivityAsync(default)).Where(x=>x.State=="Complete").All(x=>x.AmountYuan==1678054000000m && x.VolumeShares==104657000000m),"独立成交任务自动采集两市并通过真实管道返回统一单位总额");
+        var basketHistory=await ui.HistoryAsync(null,default);
+        Check(basketHistory.Count>0 && basketHistory.All(x=>x.Total==5 && x.Covered==5 && x.Shares>0 && x.DeltaShares is null),"全部ETF历史经真实分页返回同日总和，无日历不计算净变化");
+        var singleHistory=await ui.HistoryAsync(new("SSE","510300"),default);
+        Check(singleHistory.Count==basketHistory.Count && singleHistory.All(x=>x.Total==1 && x.Covered==1 && x.Shares>0),"单只ETF历史使用独立口径");
         var first=(await Query("GetHistory")).History!.First(x=>x.PluginId=="crs.national-team" && x.Result=="Succeeded");
         var firstLog=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:first.ExecutionId));
         Check(firstLog.Execution?.Progress is{Count:>0} stages && stages.Any(x=>x.Detail.Stage=="SourceParsed") && stages.Any(x=>x.Detail.Stage=="DayCommitted") && stages[^1].Detail.Stage=="RangeCompleted","真实管道提供来源解析、事实提交及区间汇总阶段");
@@ -66,6 +78,7 @@ using(var service=Start())
         Check((await Send(Request("Resume","review",revision:1))).Code=="ManualOnly","审核入口不能被启用为无参数定时任务");
         await ui.MembershipAsync(new("SSE","510900"),"合成池成员","TEST",true,"服务化测试",default);
         Check((await ui.OverviewAsync(default)).Count==6,"桌面验证池变更由服务持久执行");
+        Check((await ui.HistoryAsync(null,default)).All(x=>x.Total==6 && x.Covered==5 && x.Shares is null && x.DeltaShares is null),"新增无数据成员后汇总留空，不沿用旧篮子或填零");
         var evidence=await ui.EvidenceAsync(default);Check(evidence.Count==40 && evidence.Select(x=>x.RevisionId).Distinct().Count()==40,"多页证据快照完整且无重复");
         var output=Path.Combine(root,"original.json");await ui.ExportEvidenceAsync(evidence[0].RevisionId,true,output,default);
         Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output)))==evidence[0].OriginalHash,"原始证据分块导出并验证完整哈希");

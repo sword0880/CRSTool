@@ -4,6 +4,8 @@
   <ItemGroup>
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Domain/*.cs" Link="Domain/%(Filename)%(Extension)" />
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/QueryModels.cs" Link="Application/QueryModels.cs" />
+    <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/EtfHistory.cs" Link="Application/EtfHistory.cs" />
+    <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/MarketActivity.cs" Link="Application/MarketActivity.cs" />
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/Ports.cs" Link="Application/Ports.cs" />
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/OnlineSources.cs" Link="Application/OnlineSources.cs" />
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/ImportFormat.cs" Link="Application/ImportFormat.cs" />

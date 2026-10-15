@@ -53,9 +53,31 @@ internal static class EtfConfigurationUiChecks
                     await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();
                     var scroll=Find<ScrollViewer>(overview)!;
                     if(overview.Items.Count!=21 || scroll.ScrollableHeight<=0 || scroll.VerticalOffset<=0)throw new InvalidOperationException("第21只ETF未完整保留或无法通过表格滚动访问。");
+                    overview.SelectedItem=model.Rows.First(x=>x.Ticker=="510300");await model.HistoryLoadTask;
+                    if(model.Series.Length!=1 || !model.ChartStatus.Contains("510300"))throw new InvalidOperationException("真实表格选择没有自动加载历史。");
+                    model.AllEtfs=true;await model.HistoryLoadTask;
+                    if(model.Series.Length!=1 || !model.ChartStatus.Contains("全部监控ETF") || !model.ChartStatus.Contains("不可计算"))throw new InvalidOperationException("真实后台汇总或缺口提示失败。");
+                    ((ScrollViewer)page.FindName("PageScroll")).ScrollToEnd();
+                    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();
                     var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);
                     var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(screenshot);encoder.Save(output);
+                    overview.SelectedItem=model.Rows.First(x=>x.Ticker=="510300");await model.HistoryLoadTask;
+                    await model.RefreshMarketActivityCommand.ExecuteAsync(null);
+                    if(model.MarketAmountSeries.Length!=1 || model.MarketAmountSeries[0] is not LiveChartsCore.SkiaSharpView.ColumnSeries<LiveChartsCore.Defaults.ObservableValue> || !model.MarketActivityStatus.Contains("最近完整日期"))throw new InvalidOperationException("成交额未改为单色柱状图。");
+                    ((FrameworkElement)page.FindName("ComparisonPanel")).BringIntoView();
+                    await Task.Delay(1000);
+                    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();
+                    var shareChart=(LiveChartsCore.SkiaSharpView.WPF.CartesianChart)page.FindName("ShareChart");
+                    var amountChart=(LiveChartsCore.SkiaSharpView.WPF.CartesianChart)page.FindName("AmountChart");
+                    if(model.AmountYAxes[0].MinLimit!=0)throw new InvalidOperationException("成交额柱状图必须从零起算。");
+                    var shareX=shareChart.ScalePixelsToData(new LiveChartsCore.Drawing.LvcPointD(250,50)).X;
+                    var amountX=amountChart.ScalePixelsToData(new LiveChartsCore.Drawing.LvcPointD(250,50)).X;
+                    if(Math.Abs(shareX-amountX)>0.001 || !model.XAxes[0].Labels!.SequenceEqual(model.MarketAmountAxes[0].Labels!))throw new InvalidOperationException("上下图实际绘图区或日期没有对齐。");
+                    model.HoverComparisonAt(model.XAxes[0].Labels!.Count-1);
+                    await Task.Delay(500);
+                    var marketBitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);marketBitmap.Render(window);
+                    var marketEncoder=new PngBitmapEncoder();marketEncoder.Frames.Add(BitmapFrame.Create(marketBitmap));using var marketOutput=File.Create(Path.Combine(Path.GetDirectoryName(screenshot)!,"etf-market-comparison.png"));marketEncoder.Save(marketOutput);
                     Console.WriteLine("PASS ETF配置界面：完整目录、搜索、修改、新增、第21只启用及超过视口后的真实滚动。");
                 }
                 catch(Exception error){failure=error;}

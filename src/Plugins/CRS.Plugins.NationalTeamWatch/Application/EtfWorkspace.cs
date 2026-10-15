@@ -3,7 +3,7 @@ using CRS.Plugin.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>插件应用用例：串行访问私有仓储，在后台执行导入、查询与证据核验。</summary>
-public sealed class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
+public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
 {
     private readonly IPluginHostContext context;
     private readonly SemaphoreSlim gate=new(1);
@@ -98,6 +98,7 @@ public sealed class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         finally{syncGate.Release();}
     }
     public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>RunAsync(()=>repository!.Evidence(),token);
+    public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>RunAsync(()=>repository!.History(key),token);
     public Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.Points(key),token);
     /// <summary>在后台查询日历口径内的覆盖状态，不以份额记录本身推断交易日。</summary>
     public Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>RunAsync(()=>repository!.Coverage(key,from,to),token);

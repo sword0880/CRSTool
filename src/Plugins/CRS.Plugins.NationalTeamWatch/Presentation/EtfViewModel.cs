@@ -39,6 +39,11 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     [ObservableProperty] private DateTime? syncFrom=MarketToday.AddDays(-35);
     [ObservableProperty] private DateTime? syncTo=MarketToday;
     [ObservableProperty] private ISeries[] series=[];
+    [ObservableProperty] private bool allEtfs=true;
+    [ObservableProperty] private string chartStatus="选择ETF即可自动加载图表，也可切换全部监控ETF汇总。";
+    public Task HistoryLoadTask {get;private set;}=Task.CompletedTask;
+    private int chartVersion;
+    private bool refreshingRows;
     [ObservableProperty] private LiveChartsCore.SkiaSharpView.Axis[] xAxes=[];
     [ObservableProperty] private string market="SSE";
     [ObservableProperty] private string ticker="";
@@ -65,7 +70,19 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     partial void OnSelectedChanged(EtfSummary? value)
     {
         // 切换证券后立即清掉旧图表和覆盖率，避免把旧证券的数据展示到新选择上。
-        Series=[];XAxes=[];InvalidateCoverage();
+        InvalidateCoverage();
+        if(refreshingRows)return;
+        // 点击具体ETF时回到单只模式；快速切换由独立版本号保护，不受其它操作Busy阻挡。
+        if(value is not null && AllEtfs)AllEtfs=false;
+        else if(!refreshingRows)HistoryLoadTask=LoadHistoryAsync();
+    }
+    partial void OnAllEtfsChanged(bool value)
+    {
+        if(value && !refreshingRows)
+        {
+            refreshingRows=true;Selected=null;refreshingRows=false;
+        }
+        if(!refreshingRows)HistoryLoadTask=LoadHistoryAsync();
     }
     partial void OnCoverageFromChanged(DateTime? value)=>InvalidateCoverage();
     partial void OnCoverageToChanged(DateTime? value)=>InvalidateCoverage();
@@ -87,8 +104,14 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     public async Task RefreshAsync(CancellationToken token)
     {
         var rows=await workspace.OverviewAsync(token);var evidence=await workspace.EvidenceAsync(token);await RefreshConfigurationAsync(token); token.ThrowIfCancellationRequested();
-        Selected=null;SelectedEvidence=null;Series=[];XAxes=[];InvalidateCoverage();CoverageStatus="本地数据已刷新，请重新选择ETF查询覆盖率。";
+        var selectedKey=Selected is {} current?new EtfKey(current.Market,current.Ticker):null;
+        refreshingRows=true;
+        Selected=null;SelectedEvidence=null;InvalidateCoverage();CoverageStatus="本地数据已刷新，请重新查询ETF覆盖率。";
         Rows.Clear();foreach(var row in rows) Rows.Add(row); Evidence.Clear();foreach(var row in evidence) Evidence.Add(row);
+        Selected=rows.FirstOrDefault(x=>x.Market==selectedKey?.Market && x.Ticker==selectedKey.Ticker);
+        refreshingRows=false;
+        HistoryLoadTask=LoadHistoryAsync();await HistoryLoadTask;
+        await LoadMarketActivityAsync(token);
         Status=$"当前监控 {Rows.Count} 只 · {workspace.NetworkStatus}";
     }
     /// <summary>编辑配置只刷新目录与概览，避免每次保存都重新下载全部历史证据。</summary>
@@ -115,7 +138,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
         Status="正在保存ETF配置；如后台正在采集，将等待当前采集完成。可在任务中心查看执行记录。";
         await workspace.SaveConfigurationAsync(key,SecurityName,IndexGroup,MonitorEnabled,Reason,revision,token);
         ConfigurationSearch="";await RefreshConfigurationAsync(token,key);
-        var rows=await workspace.OverviewAsync(token);Selected=null;Rows.Clear();foreach(var row in rows)Rows.Add(row);
+        await RefreshAsync(token);
         Status=$"ETF配置已保存 · 监控中 {Rows.Count} 只；后台自动采集已启用的标的，停用保留已有历史。";
     });
     /// <summary>后台采集结束后的展示刷新不覆盖用户正在进行的交互。</summary>
@@ -135,16 +158,30 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
         finally{if(!token.IsCancellationRequested)await RefreshAsync(token);}
     },cancellationToken);
     [RelayCommand] private void Cancel()=>operation?.Cancel();
-    [RelayCommand] private Task ShowHistory()=>ExecuteAsync(async token=>
+    [RelayCommand] private Task ShowHistory()=>HistoryLoadTask=LoadHistoryAsync();
+    private async Task LoadHistoryAsync()
     {
-        if(Selected is null) return;
-        var requestedVersion=selectionVersion;
-        var points=await workspace.PointsAsync(new(Selected.Market,Selected.Ticker),token);token.ThrowIfCancellationRequested();
-        if(requestedVersion!=selectionVersion)return;
-        Series=[new LineSeries<decimal> {Name="ETF全市场总份额（份）",Values=points.Select(x=>x.Shares).ToArray(),GeometrySize=3,Fill=null,LineSmoothness=0,
-            Stroke=new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColors.DodgerBlue){StrokeThickness=2},GeometryFill=new LiveChartsCore.SkiaSharpView.Painting.SolidColorPaint(SkiaSharp.SKColors.DodgerBlue)}];
-        XAxes=[new() {Labels=points.Select(x=>x.Date.ToString("yyyy-MM-dd")).ToArray()}];
-    });
+        var version=++chartVersion;
+        historyPoints=[];hasHistory=false;RebuildComparison();
+        if(lifetime.IsCancellationRequested)return;
+        if(!AllEtfs && Selected is null){ChartStatus="选择ETF即可自动加载图表。";return;}
+        var title=AllEtfs?"全部监控ETF（固定当前篮子）":$"{Selected!.Ticker} {Selected.Name}";
+        var key=AllEtfs?null:new EtfKey(Selected!.Market,Selected.Ticker);
+        ChartStatus=title+" · 正在加载…";
+        try
+        {
+            var points=await workspace.HistoryAsync(key,lifetime);
+            if(version!=chartVersion || lifetime.IsCancellationRequested)return;
+            historyPoints=points;hasHistory=true;RebuildComparison();
+            var latest=points.LastOrDefault();
+            ChartStatus=title+(latest is null?" · 暂无历史数据":$" · 截至 {latest.Date:yyyy-MM-dd} · 有效 {latest.Covered}/{latest.Total} 只 · 净变化 {(latest.DeltaShares is {} delta?delta.ToString("+#,##0;-#,##0;0"):"不可计算")}")+"。正值为份额净增加，负值为净减少；缺份额或日历时留空。份额相加不代表资金金额或国家队实际买卖。";
+        }
+        catch(OperationCanceledException) when(lifetime.IsCancellationRequested) { }
+        catch(Exception error)
+        {
+            if(version==chartVersion)ChartStatus="图表加载失败："+(error is InvalidDataException?error.Message:"请确认后台服务已更新且可连接（"+error.GetType().Name+"）。");
+        }
+    }
     /// <summary>界面只展示后台覆盖判定；250日是一期目标，不能把尚未登记的日历当成已覆盖。</summary>
     [RelayCommand] private Task ShowCoverage()=>ExecuteAsync(async token=>
     {

@@ -52,8 +52,11 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
         NetworkStatus=await QueryAsync<string>(new("status"),token);return result.Rows;
     }
     public async Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>(await ReadPagesAsync<EvidenceRow>(new("evidence"),token)).Rows;
+    public async Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>(await ReadPagesAsync<MarketActivityPoint>(new("market-activity"),token)).Rows;
+    public Task SyncMarketActivityAsync(DateOnly from,DateOnly to,CancellationToken token)=>RunAsync("market-activity-sync",new("market-sync",From:from,To:to),token);
     public async Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>(await ReadPagesAsync<EtfConfiguration>(new("configuration"),token)).Rows;
     public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>RunAsync("watchlist",new("watchlist",key.Market,key.Ticker,Name:name,Index:index,Active:active,Reason:reason,ConfigurationRevision:expectedRevision),token);
+    public async Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>(await ReadPagesAsync<EtfHistoryPoint>(new("history",key?.Market,key?.Ticker),token)).Rows;
     public async Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<SharePoint>(new("points",key.Market,key.Ticker),token)).Rows;
     public async Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)
     {

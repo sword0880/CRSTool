@@ -7,6 +7,18 @@ namespace CRS.Plugins.NationalTeamWatch.Presentation;
 public partial class EtfPage : UserControl
 {
     public EtfPage(EtfViewModel viewModel) {InitializeComponent();DataContext=viewModel;}
+    private void OnComparisonMouseMove(object sender,MouseEventArgs e)
+    {
+        if(sender is not LiveChartsCore.SkiaSharpView.WPF.CartesianChart chart || DataContext is not EtfViewModel model)return;
+        var point=e.GetPosition(chart);
+        if(point.X<model.ComparisonMargin.Left || point.X>chart.ActualWidth-model.ComparisonMargin.Right){model.ClearComparisonHover();return;}
+        var data=chart.ScalePixelsToData(new LiveChartsCore.Drawing.LvcPointD(point.X,point.Y));
+        model.HoverComparisonAt(data.X);
+    }
+    private void OnComparisonMouseLeave(object sender,MouseEventArgs e)
+    {
+        if(DataContext is EtfViewModel model)model.ClearComparisonHover();
+    }
     private void OnEditConfiguration(object sender,RoutedEventArgs e)=>ConfigurationEditor.BringIntoView();
     private void OnConfigurationDoubleClick(object sender,MouseButtonEventArgs e)
     {

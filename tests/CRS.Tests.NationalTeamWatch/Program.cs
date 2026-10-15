@@ -4,6 +4,8 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
+if(args is ["--market-live"]){await MarketActivityChecks.RunLive(Path.Combine(Environment.CurrentDirectory,"artifacts","market-activity-live",Guid.NewGuid().ToString("N")));return;}
+await EtfChartChecks.Run();
 Check(EtfMetrics.Normalize(2489718.77m,"万份")==24897187700m,"DATA-01 decimal units");
 Reject(()=>EtfMetrics.Normalize(1,"亿元"),"Unknown unit rejected");
 var dates=Enumerable.Range(0,25).Select(x=>new DateOnly(2026,9,1).AddDays(x)).ToArray();
@@ -13,9 +15,19 @@ Check(EtfMetrics.Calculate(dates[5],1,dates,points.Where(x=>x.Date!=dates[4]).To
 var missingNav=points.Select(x=>x.Date==dates[5]?x with{Nav=null}:x).ToArray();
 Check(EtfMetrics.Calculate(dates[5],1,dates,missingNav) is {DeltaShares:1,EstimatedFlow:null},"Missing NAV preserves shares only");
 Check(EtfMetrics.Calculate(dates[20],20,dates,points).Fingerprint==EtfMetrics.Calculate(dates[20],20,dates,points).Fingerprint,"Reproducible input fingerprint");
+var basket=new[]{new EtfHistoryInput(new("SSE","510300"),dates,points),new EtfHistoryInput(new("SZSE","159919"),dates,points.Select(x=>x with{Shares=x.Shares*2}).ToArray())};
+var totals=EtfHistory.Calculate(basket);
+Check(totals[1] is {Shares:303,DeltaShares:3,Covered:2,Total:2},"All ETF same-date totals and daily net change");
+var gap=EtfHistory.Calculate([basket[0],basket[1] with{Points=basket[1].Points.Where(x=>x.Date!=dates[1]).ToArray()}]);
+Check(gap[1] is {Shares:null,DeltaShares:null,Covered:1} && gap[2].DeltaShares is null,"Missing member never becomes zero or a multi-day daily change");
+Check(EtfHistory.Calculate([basket[0],basket[1] with{Calendar=[]}])[1] is {Shares:303,DeltaShares:null},"Missing calendar preserves total but withholds flow");
+var differentCalendar=EtfHistory.Calculate([basket[0],basket[1] with{Calendar=dates.Where(x=>x!=dates[1]).ToArray()}]);
+Check(differentCalendar[2].DeltaShares is null,"Different market predecessor dates cannot be summed");
+Check(EtfHistory.Calculate([]).Count==0,"Empty monitored basket stays empty");
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,亿元"),"CSV unknown unit rejected");
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,份\nSSE,510300,2026-09-01,2,份"),"Duplicate file rows rejected");
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+MarketActivityChecks.Run(root);
 EtfConfigurationChecks.Run(root);
 // 合成官方响应验证字段、单位、日期及完整分页；不把联网能返回200当作解析验收。
 var onlineDate=new DateOnly(2026,9,1);

@@ -6,7 +6,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>公开研究数据仓储；追加修订并保留来源，不接触私人税务库。</summary>
-public sealed class MarketRepository : IMarketRepository
+public sealed partial class MarketRepository : IMarketRepository
 {
     private readonly SqliteConnection db;
     private readonly RawEvidenceStore raw;
@@ -27,6 +27,9 @@ public sealed class MarketRepository : IMarketRepository
             CREATE TABLE IF NOT EXISTS plugin_schema_migration(schema_version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL, plugin_package_version TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS worker_business_command(request TEXT PRIMARY KEY,operation TEXT NOT NULL,completed_utc TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS worker_sync_cursor(id INTEGER PRIMARY KEY CHECK(id=1),checked_through TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS market_activity_cursor(id INTEGER PRIMARY KEY CHECK(id=1),checked_through TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS market_activity_attempt(market TEXT,trade_date TEXT,state TEXT NOT NULL,PRIMARY KEY(market,trade_date));
+            CREATE TABLE IF NOT EXISTS market_activity_observation(market TEXT,trade_date TEXT,amount_yuan TEXT NOT NULL,volume_shares TEXT NOT NULL,fetch_id TEXT NOT NULL,PRIMARY KEY(market,trade_date,fetch_id),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             CREATE TABLE IF NOT EXISTS security_master(market TEXT, ticker TEXT, name TEXT NOT NULL, index_group TEXT NOT NULL, PRIMARY KEY(market,ticker));
             CREATE TABLE IF NOT EXISTS institution(institution_id TEXT PRIMARY KEY, legal_name TEXT NOT NULL UNIQUE);
             CREATE TABLE IF NOT EXISTS disclosure_evidence(id TEXT PRIMARY KEY, source_url TEXT NOT NULL, content_hash TEXT NOT NULL, report_as_of TEXT, source_published_utc TEXT, first_seen_utc TEXT NOT NULL, review_state TEXT NOT NULL);
@@ -185,6 +188,16 @@ public sealed class MarketRepository : IMarketRepository
         using var reader=command.ExecuteReader();var days=new List<(DateOnly,bool)>();
         while(reader.Read())days.Add((DateOnly.ParseExact(reader.GetString(0),"yyyy-MM-dd",CultureInfo.InvariantCulture),reader.GetInt32(1)==1));
         return days;
+    }
+    public List<EtfHistoryPoint> History(EtfKey? key)
+    {
+        ValidateEvidence();
+        var keys=key is null?Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToArray():[key];
+        return EtfHistory.Calculate(keys.Select(k=>
+        {
+            var calendar=ReadCalendar(k.Market);
+            return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Select(x=>x.Date).ToArray():[],ReadPoints(k));
+        }).ToArray());
     }
     public List<SharePoint> Points(EtfKey key)
     {

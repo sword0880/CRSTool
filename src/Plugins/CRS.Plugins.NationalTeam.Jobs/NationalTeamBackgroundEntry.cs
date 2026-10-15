@@ -45,6 +45,7 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
     /// <summary>默认仅自动采集，审核和池变更只接受管理员的持久手动命令。</summary>
     public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>[
         new("official-share-sync","官方ETF份额同步","0 15 23 * * ?","China Standard Time",true,true),
+        new("market-activity-sync","沪深股票成交统计同步","0 30 23 * * ?","China Standard Time",true,true),
         new("review","ETF修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("watchlist","ETF验证池变更（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true)];
 
@@ -60,6 +61,7 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
         var adapter=new WorkerContext(context.DataDirectory,http);
         workspace=new(adapter,()=>new MarketRepository(Path.Combine(context.DataDirectory,"data"),raw,encryptionKey:key),raw);
         workspace.SetProgressSink(ReportAsync);workspace.SetOfficialSource(new OfficialShareSources(http,raw,ReportAsync));await workspace.InitializeAsync(token);
+        workspace.SetMarketActivitySource(new OfficialMarketActivitySource(http));
     }
     public Task<BackgroundJobResult> ExecuteAsync(string jobId,CancellationToken token)=>ExecuteAsync(jobId,null,token);
 
@@ -73,6 +75,16 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
             var request=payload is null?new EtfRequest("sync"):Parse(payload);
             switch(jobId)
             {
+                case "market-activity-sync" when request.Operation is "sync" or "market-sync":
+                    var activity=request.From is null && request.To is null?await workspace!.SyncRecentMarketActivityAsync(token):null;
+                    if(activity is null)
+                    {
+                        if(request.From is null || request.To is null)throw new InvalidDataException("请填写完整成交统计日期区间。");
+                        await workspace!.SyncMarketActivityAsync(request.From.Value,request.To.Value,token);
+                        return BackgroundJobResult.Success("marketActivity=Completed");
+                    }
+                    return new(activity.SourceIssues>0 || activity.HasMore?"RetryDeferred":activity.ReceivedRows==0?"NotPublished":"Succeeded",
+                        $"days={activity.QueriedDays};sourceIssues={activity.SourceIssues};rows={activity.ReceivedRows}",activity.SourceIssues==0 && activity.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
                 case "official-share-sync" when request.Operation=="sync":
                     if(!(await workspace!.ConfigurationAsync(token)).Any(x=>x.Active))return BackgroundJobResult.Success("monitoring=NoActiveEtfs");
                     var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
@@ -122,6 +134,10 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
                 case "overview":rows=(await workspace!.OverviewAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "configuration":rows=(await workspace!.ConfigurationAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "evidence":rows=(await workspace!.EvidenceAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "history":
+                    if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
+                    rows=(await workspace!.HistoryAsync(request.Market is null?null:Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "market-activity":rows=(await workspace!.MarketActivityAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "points":rows=(await workspace!.PointsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "coverage":
                     if(request.From is null || request.To is null || request.To<request.From || request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new ArgumentException("覆盖区间超限。");

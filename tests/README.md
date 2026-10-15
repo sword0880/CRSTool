@@ -96,6 +96,8 @@ dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --source
 
 ## ETF可编辑配置
 
+ETF自动图表与市场温度：`CRS.Tests.NationalTeamWatch` 新增选择并发、全池同日汇总、缺口/日历、官方成交格式/单位、均值/冲突/损坏检查；可加 `--market-live` 只读核验2026-10-13官网单日并写工作区隔离证据。`CRS.Tests.WorkerEtf <完整Worker包>` 覆盖独立市场任务和真实管道，`--chart-ui <完整Worker包>` 仅跑隔离服务与图表窗口检查（包含LiveCharts延迟绘制等待）。范围与发布目录见[实现说明](../docs/implementation/ETF_CHARTS_AND_MARKET_ACTIVITY.md)。
+
 ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数据修改、旧修订拒绝、命令去重、超过20只启用/编辑/重启、旧触发器移除及停用保留事实；`CRS.Tests.WorkerEtf <完整Worker包>` 增加真实服务配置和WPF新增/修改、第21只启用及滚动回归。20仅指表格视口，不限制监控数量。只读核验已安装目录用 `dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --configuration-live`。配置、排队与参考目录边界见[实施记录](../docs/implementation/ETF_CONFIGURATION.md)。
 
 ## 单次执行日志

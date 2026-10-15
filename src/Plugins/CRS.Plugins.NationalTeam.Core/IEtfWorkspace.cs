@@ -11,6 +11,9 @@ public interface IEtfWorkspace
     Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token);
     Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token);
     Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token);
+    Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>throw new NotSupportedException("市场温度需要更新后台服务。");
+    Task SyncMarketActivityAsync(DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
+    Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>throw new NotSupportedException("历史汇总需要更新后台服务。");
     Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token);
     Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token);
     Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token);
