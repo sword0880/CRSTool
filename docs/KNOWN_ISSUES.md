@@ -4,7 +4,9 @@
 
 国家队ETF插件目前为[联网研究预览](implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md)：两市五只初始ETF官方份额真实下载/解析/隔离入库已验证，解锁后自动同步、区间补采及主程序Quartz.NET驱动已接线。关闭或锁定后暂停。完整交易日历、250交易日历史、20交易日连续采集及许可/生产发行门槛仍开放；不提供NAV金额归集或二期股票持仓。候选库与强杀恢复已接线，不等于不同代码/Schema及断电/磁盘满验收。详见[数据通道POC](DATA_SOURCE_POC.md)。
 
-主程序[计划任务管理](implementation/SCHEDULED_TASKS.md)已支持持久计划、启停、立即执行/取消与最近500条执行记录；首次同步也由Quartz管理，暂停后不会绕过设置。仍是会话内运行，没有关闭软件后的常驻服务。任务记录中断恢复使用现场重建测试，真实断电/磁盘满及系统唤醒仍未验收。
+主程序[计划任务管理](implementation/SCHEDULED_TASKS.md)已支持持久计划、启停、立即执行/取消与最近500条执行记录；首次同步也由Quartz管理，暂停后不会绕过设置。ETF目前仍是会话内运行。另已实现[独立后台服务心跳POC](implementation/BACKGROUND_SERVICE.md)，实际LocalService安装、加密Cron、IPC、强杀恢复和卸载保留数据已验证；尚未将ETF作业迁入服务。
+
+后台服务后续：ETF Core/Jobs/Ui分离、独占加密市场库、交易日缺口幂等补采、摘要IPC和整插件禁用；服务维护升级Journal/版本切换/禁止回退新事实、运维备份恢复与账户密钥迁移；无人登录/整机重启、睡眠恢复、跨Session授权、LocalService官网网络、断电/磁盘满和生产签名发行验收。当前部署的是开发心跳包，不代表上述门槛关闭。
 
 2026-10-13 的[反方审查](archive/ADVERSARIAL_REVIEW.md)保留审查时的问题依据。后续已接入[分块备份、容量预警和外层读取保护](implementation/BACKUP_CAPACITY.md)，新备份不再受旧 128 MiB 上限约束；[有凭证的账户期间](guides/ACCOUNT_PERIODS.md)和[长任务锁定中断](implementation/LOCK_INTERRUPTION.md)已接入。真实开户凭证核对、独立税额基准、全部持久化表配额和实际硬件锁屏／恢复等仍开放，不代表获得发布批准。用户确认暂时没有独立计算记录，独立金额验收保留未通过。
 

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 独立进程、加密库及真实 Windows 管道验证不依赖桌面框架。 -->
+  <PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/CRS.Background.Service/CRS.Background.Service.csproj" /></ItemGroup>
+</Project>

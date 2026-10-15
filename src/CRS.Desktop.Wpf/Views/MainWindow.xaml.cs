@@ -11,6 +11,7 @@ public partial class MainWindow : FluentWindow
     private CRS.PluginHost.PluginRuntime? plugins;
     private readonly CancellationTokenSource taskPageLifetime=new();
     private ScheduledTasksViewModel? taskPageModel;
+    private BackgroundServiceViewModel? backgroundServiceModel;
     private Task? pluginStartup;
     private readonly List<NavigationViewItem> pluginItems = [];
     private static readonly Dictionary<string,IReadOnlySet<string>> startupEnablement=[];
@@ -45,6 +46,16 @@ public partial class MainWindow : FluentWindow
         Loaded += (_, _) => Navigate("dashboard"); Closing += OnClosing;
         foreach(var item in Navigation.MenuItems.OfType<NavigationViewItem>()) item.Click+=(_,_)=>HidePlugin();
         foreach(var item in Navigation.FooterMenuItems.OfType<NavigationViewItem>().Where(x=>x.TargetPageType is not null)) item.Click+=(_,_)=>HidePlugin();
+        // 独立服务入口不依赖桌面插件成功加载；服务缺失也不影响税务和绩效页面。
+        var backgroundServiceItem=new NavigationViewItem {Content="后台服务"};
+        backgroundServiceItem.Click+=async (_,_)=>
+        {
+            backgroundServiceModel??=new(taskPageLifetime.Token);
+            PluginContent.Content=new BackgroundServicePage(backgroundServiceModel);
+            PluginSurface.Margin=new(Navigation.IsPaneOpen?206:56,0,0,0);PluginSurface.Visibility=System.Windows.Visibility.Visible;
+            await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
+        };
+        Navigation.MenuItems.Add(backgroundServiceItem);
         Loaded+=(_,_)=>{pluginStartup=StartPluginsAsync();};
         Closed+=async (_,_)=> {forceClose=true;taskPageLifetime.Cancel();PluginContent.Content=null;foreach(var item in pluginItems) Navigation.MenuItems.Remove(item);if(plugins is not null)await plugins.DisposeAsync();};
     }

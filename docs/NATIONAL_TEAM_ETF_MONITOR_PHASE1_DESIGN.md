@@ -1,20 +1,29 @@
 # CRS「国家队持仓与ETF观察」插件——第一期设计及后续股票扩展规划
 
 > 文件：`NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md`  
-> **更新日期：2026-10-14；版本：v2.1（第二轮反方架构评审，已同步宿主v2.1）**  
+> **更新日期：2026-10-15；版本：v2.2（Windows Service后台运行专项同步）**  
 > 状态：**有条件通过；免费数据通道M0、真实WPF插件POC和升级恢复P0尚未验证**  
 > 技术：C# / .NET 10 / WPF / SQLite(可选SQLCipher)  
-> **总体架构唯一依据：**[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)  
+> **总体架构依据：**[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)；**后台技术唯一专项依据：**[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)  
 > 第一阶段：中央汇金及国家队**核心宽基ETF，正式监控池上限20只**；初始链路验证5只。  
 > 后续：扩展**中央汇金等机构对上市公司的直接持股/增减持披露研究**，不把股票“国家队持仓”误作实时交易。
 
 ---
 
-## 0. 修改结论与冻结决策（ADR-NT-002）
+## 0. 新增决策（ADR-NT-003：Windows Service无人值守ETF采集）
+
+1. **实际运行采用两个独立宿主**：`CRS.Desktop.Wpf`只加载`NationalTeam.Ui`；`CRS.Background.Service`只加载`NationalTeam.Jobs + Core/Data`，由SQLCipher持久任务定义并在Quartz RAMJobStore恢复触发器；关闭WPF、锁屏、未登录Windows不阻断公开ETF数据作业。
+2. **仍是一个业务插件**：稳定插件ID为`crs.national-team`，发布包含`uiEntry`/`backgroundEntry`两个可选入口；**至少分出不依赖WPF的Core/Jobs与WPF Ui程序集**，不能沿用“一期一个含WPF的DLL同时在服务执行”的旧实现。
+3. **Service独占数据写入**：调度/原始证据/ETF数据库在`%ProgramData%\CRS`；WPF经授权Named Pipes请求服务提供只读DTO、任务状态和管理命令，不直接改写Quartz库/ETF事实表。可选独立公开数据SQLCipher密钥由服务账户提供，绝不从个人税务TOTP会话解锁。
+4. **每天自动同步而非登录后启动**：Quartz计划抓取、交易日缺口补采、修订重核；任务时间仍是可调整的假设值，必须按官网实际发布时间验证。Service因系统关机/睡眠漏跑后补齐缺口，不向交易所密集重放历史触发次数。
+5. **后台插件暂停、升级独立于UI生命周期**：服务维护时暂停触发→有界取消/等待→Checkpoint持久化→一致性备份/迁移→切换包与数据→验证服务启动；若只有UI启动失败，不影响已稳定执行的ETF作业。
+6. **本章优先于后续v2.1旧示例**；宿主SDK、Named Pipes权限、SQLite单实例Quartz JobStore及安装卸载验收详见上述两份宿主文档。
+
+## 0.1 历史修改结论与冻结决策（ADR-NT-002）
 
 1. 将原 `crs.national-team-etf` 草案标识调整为**尚未发行的新插件ID `crs.national-team`**；发布后此ID必须永久稳定。展示名「国家队持仓与ETF观察」，两个业务页签分别为 `ETF份额监控` 与未来 `机构直接持股`。
 2. **不是两个业务插件**：ETF与股票直接持股研究共享机构目录、公告证据、时间轴、数据质量与来源审核，因此放在同一个有清晰内部子模块的业务插件中；其他将来独立的绩效、行业研究等功能才新建插件。
-3. **宿主与插件解耦**：只允许官方可信插件使用统一 `CRS.Plugin.Abstractions` / `CRS.Plugin.Wpf` 契约；插件入口负责创建和释放自己的`IPluginSession`及私有DI容器，宿主仅提供生命周期调度与能力接口。宿主原有税务Domain/Security不得引用ETF插件。
+3. **宿主与插件解耦**：UI端使用 `ICrsPluginEntry/IPluginSession`；服务端独立使用`IBackgroundPluginEntry/IBackgroundPluginSession`，二者共享领域服务但**不共享Session/DI**。宿主原有税务Domain/Security不得引用ETF插件。
 4. **数量上限是业务约束不是采集清单注释**：正式有效监控池不得超过20只；任何新增需要先核对持仓证据、跟踪指数、已有覆盖及重要性。原开源项目的23只池**不可照抄为默认正式池**。
 5. 第一期仅实现**官方来源ETF日总份额+质量/历史+份额变化**；取得同日有效官方基金NAV时再提供净申赎估算；持有人持仓证据结构预留，股票持仓二期交付，归因与回测三期。
 6. 数据语义严格分层：**A：已披露机构持仓，B：ETF全市场份额变化，C：疑似政策性资金行为假设**。A/B/C不可互相替代；不得把ETF净申购称为中央汇金买入。
@@ -29,7 +38,7 @@
 
 **国家队**不是一个拥有统一可见交易账户的法人主体。首期重点研究：中央汇金投资、中央汇金资产管理及有独立公告证据确认的相关持有主体；其他机构需要扩展机构目录并逐个审核。上市公司股东表中的长期战略直接持股、ETF基金份额持仓、股票二级市场增持公告以及ETF持仓所间接覆盖的成分股，是**四个不同概念**。系统不把它们加总为“今日国家队买入”。
 
-**不做**：账户操作/交易、抓取需要绕过登录验证码的通道、收费API强制依赖、神秘资金精确买卖推断、投资指令自动执行、实时全天候背景运行保证。
+**不做**：账户操作/交易、抓取需要绕过登录验证码的通道、收费API强制依赖、神秘资金精确买卖推断、投资指令自动执行。Windows Service作为无人值守进程常驻，但关机/睡眠/网络或网站故障期间**不承诺实时采集**，恢复后按缺口补偿。
 
 ### 0.2 第二轮反方评审（v2.1）发现的关键缺陷
 
@@ -55,45 +64,38 @@
 
 ## 2. 插件架构——实施级边界和代码结构
 
-### 2.1 部署拓扑（插件与宿主不可反向引用）
+### 2.1 部署拓扑（同一插件双入口、双进程）
 
 ```text
-CRS.Desktop.Wpf：登录+应用外壳+现有税务功能+插件管理
-       │
-       └── CRS.PluginHost：安装校验/加载/生命周期/任务协调/导航桥接
-             ├── CRS.Plugin.Abstractions [net10.0；无税务与WPF实现]
-             ├── CRS.Plugin.Wpf          [net10.0-windows；小型WPF贡献契约]
-             └── Plugins/crs.national-team/<version>/
-                   ├── plugin.json + 带签名/可信哈希的发行清单
-                   ├── CRS.Plugins.NationalTeamWatch.dll
-                   ├── *.deps.json + 已锁定版本的共享UI依赖/独立私有依赖
-                   └── 本插件WPF资源
+CRS.Desktop.Wpf（普通用户进程，UI/TOTP/税务）
+ └─ CRS.PluginHost（UI宿主）→ NationalTeam.Ui（WPF视图/只读查询客户端）
+                 │
+          Named Pipes（授权IPC：查询/控制/进度）
+                 │
+CRS.Background.Service（Windows服务账户，无界面）
+ └─ CRS.Background.PluginHost（后台宿主）→ NationalTeam.Jobs
+       ├─ Quartz.NET（唯一Scheduler，单实例Quartz RAMJobStore + SQLCipher持久定义）
+       ├─ NationalTeam.Core / Data（无WPF依赖）
+       └─ SSE/SZSE/官方证据 → ProgramData中的market.db/raw/checkpoint
 
-插件进程内逻辑分层（首期一个业务DLL）：
-  Presentation (WPF/MVVM)
-        ↓ 调用
-  Application (UseCase/Sync/Quality/Metric/Query)
-        ↓ 依赖接口
-  Domain (Etf/Institution/Security/Disclosure/Evidence)
-        ↑ Infrastructure实现仓储与Provider
-  Infrastructure (SSE/SZSE/OfficialImport/OfficialDisclosure/SQLite)
-
-独立本地目录：%LOCALAPPDATA%/CRS/plugins/crs.national-team/{data,raw,log,backup}
-（仅为推荐路径，必须由宿主Storage Capability提供，不在插件硬编码）
+不可越界：Service不加载NationalTeam.Ui，不打开税务库、不使用TOTP；
+UI不直接写Quartz库/market.db，不创建第二套定时任务。
 ```
+
+**第一期物理发布至少Core/Jobs与Ui分离**，二者由同一个`plugin.json`发行和管理。后台服务独立于WPF运行；在服务未安装/未启动时，ETF页面可展示缓存状态与明确的“后台服务不可用”，不能暗中启动WPF自有Quartz降级造成双调度。后台宿主的权威协议见[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)。
 
 ### 2.2 依赖约束
 
 ```text
-Desktop -> PluginHost -> Plugin.Abstractions
-PluginHost -> Plugin.Wpf -> Plugin.Abstractions
-NationalTeamWatch -> Plugin.Abstractions + Plugin.Wpf
-NationalTeamWatch -> 其私有基础设施包（封装于发行包内）
+CRS.Desktop.Wpf -> PluginHost(UI) -> Plugin.Wpf + Plugin.Abstractions
+NationalTeam.Ui -> NationalTeam.Core + Plugin.Wpf + Background.Ipc.Client契约
+CRS.Background.Service -> Background.PluginHost + Quartz.NET + Background.Ipc
+NationalTeam.Jobs -> NationalTeam.Core/Data + Background.Abstractions
+NationalTeam.Core/Data -> 无WPF的领域模型、官方数据源接口与持久化
 
-绝对禁止：TaxDomain / Security -> NationalTeamWatch
-绝对禁止：NationalTeamWatch -> Desktop / PluginHost / 税务 Infrastructure
-绝对禁止：新业务插件 -> 其他插件的实现DLL / 私有DB
-绝对禁止：宿主根DI通过硬编码名字调用NationalTeamWatch的具体类型
+禁止：NationalTeam.Jobs/Core/Data -> WPF、Desktop、税务Security、TOTP库
+禁止：UI -> Quartz、后台任务实现DLL、直接更改后台事实表/JobStore
+禁止：宿主和其他插件静态ProjectReference到NationalTeam插件实现
 ```
 
 ### 2.3 插件契约与私有DI（以宿主v2.1为准）
@@ -112,20 +114,18 @@ public interface IPluginSession : IAsyncDisposable
 public interface IPluginHostContext
 {
     string PluginId { get; }
-    IPluginJobScheduler Jobs { get; }
-    IPluginDataPaths DataPaths { get; }
-    IPluginHttpGateway Http { get; }
+    IPluginBackgroundClient Background { get; } // 只读和授权命令的IPC客户端
     IPluginDiagnostics Diagnostics { get; }
 }
 ```
 
 - 插件入口从manifest发现，`CreateSession`**在插件实现内部**构建自己的DI容器/应用服务，不修改宿主根容器，也不让宿主负责构建/访问插件`IServiceProvider`。
-- `StartAsync`注册唯一后台任务；Session可选实现`CRS.Plugin.Wpf`的`IPluginWpfSession.GetPages()`，宿主在启动成功后通过导航注册令牌挂载页面，停止时由宿主移除导航、插件停止任务；`DisposeAsync`由Session释放数据库连接、服务容器和UI资源。生命周期要支持重复停止和异常恢复。
+- `StartAsync`仅注册UI路由、订阅和查询端点；**后台任务由单独的`IBackgroundPluginSession`在Service中注册**；Session可选实现`CRS.Plugin.Wpf`的`IPluginWpfSession.GetPages()`，宿主在启动成功后通过导航注册令牌挂载页面，停止时由宿主移除导航、取消UI订阅；后台任务不受UI关闭影响；`DisposeAsync`由Session释放数据库连接、服务容器和UI资源。生命周期要支持重复停止和异常恢复。
 - WPF UI贡献采用`CRS.Plugin.Wpf`中的`IPluginWpfSession`与`PluginPageContribution`桥接接口，界面只能由Dispatcher线程创建/销毁，路由采用`PluginId + RouteKey`；应测试真实WPF-UI主题、LiveCharts和二插件同时加载。
 - **首期默认在`AssemblyLoadContext.Default`加载可信官方WPF插件**，宿主与插件锁定统一的WPF/UI/DI依赖版本；不承诺可加载两份冲突版本的相同程序集。只有自定义ALC路径的真实WPF资源测试通过后才可替换默认方案，参见<https://github.com/dotnet/wpf/issues/1700>。
 - 插件是与宿主同权限的受信代码，`Http/DataPaths`只是API契约，**不是网络/文件权限沙箱**。本期禁用/升级重启生效，不支持第三方任意DLL安装。
 
-### 2.4 插件包样例（未发行，不代表现有仓库已安装）
+### 2.4 插件包样例（双入口，尚未发行）
 
 ```json
 {
@@ -135,14 +135,19 @@ public interface IPluginHostContext
   "contractApi": "1.0",
   "minHostVersion": "1.0.0",
   "schemaVersion": 1,
-  "entryAssembly": "CRS.Plugins.NationalTeamWatch.dll",
-  "entryType": "CRS.Plugins.NationalTeamWatch.NationalTeamPluginEntry",
-  "requestedCapabilities": ["navigation", "jobs", "http-public", "storage-private", "logging"],
-  "files": ["CRS.Plugins.NationalTeamWatch.dll", "CRS.Plugins.NationalTeamWatch.deps.json"]
+  "uiEntry": {
+    "assembly": "CRS.Plugins.NationalTeam.Ui.dll",
+    "type": "Crs.Plugins.NationalTeam.Ui.NationalTeamUiEntry"
+  },
+  "backgroundEntry": {
+    "assembly": "CRS.Plugins.NationalTeam.Jobs.dll",
+    "type": "Crs.Plugins.NationalTeam.Jobs.NationalTeamBackgroundEntry"
+  },
+  "requestedCapabilities": ["navigation", "background-jobs", "http-public", "storage-public", "logging"]
 }
 ```
 
-一期采用**随CRS官方发行包预装**的可信插件，由已验证的主程序发行链绑定插件清单和完整性哈希；不开放任意ZIP安装。单纯靠JSON自己声明`publisher`或`sha256`不构成安全验证。升级使用`UpgradeJournal`、`staging`、数据库一致性快照和副本迁移，并校验证据文件引用；中途崩溃必须能恢复到可判断的状态，新版本已写入新事实后禁止静默覆盖。后续外部独立安装的签名、撤销及升级渠道另立规范。
+**清单字段是目标协议示意，不是已有代码**。插件包同时包含BCL业务Core/Jobs与WPF Ui，服务只加载`backgroundEntry`，桌面只加载`uiEntry`；不能用服务进程反射加载WPF插件。首期仅官方随包受信发行，清单与文件哈希必须由外部可信发布链绑定；单纯JSON自报哈希不构成信任。升级由Service维护期与宿主`UpgradeJournal`共同协调，并核验Quartz JobStore、市场DB和RawStore引用完整性。后续外部插件包签名验证/撤销另立规范。
 
 ### 2.5 WPF导航结构
 
@@ -311,8 +316,8 @@ public interface IEtfShareSource
 
 ### 6.2 每日更新和补偿机制
 
-- 软件启动且登录/解锁后：自动检查过去`30`个**有效交易日**的缺口，优先填补未完成日期。
-- 可选日内尝试：**北京时间23:30**尝试当日份额；次日**08:30**再核对上一交易日。时间仅为项目建议，不是交易所保证发布时点；需以POC实测调整。若CRS未运行，任务不执行，启动后自动补偿。
+- **Service独立启动时**：自动检查过去`30`个**有效交易日**的缺口，优先填补未完成日期；GUI是否登录不影响公开数据任务。
+- 建议Quartz每日触发：**北京时间23:30**尝试当日份额；次日**08:30**再核对上一交易日。时间仅为方案假设，不是交易所保证发布时点；需以M0实测调整。若电脑关机/睡眠或Service未运行，**下次Service启动先扫描交易日缺口**后补偿；不能补偿时标注具体原因。
 - 对最近5个交易日执行有限度修订复核；每周对过去30个交易日进行一次抽样复核；人工可触发指定日期重核。
 - `403 / 429`：立即降低访问频率或停止；禁止通过切换IP、伪造访问凭证绕过；支持手动官方导入兜底。
 - `200`但响应为空或JSON结构变化：**不能当作0份额**；保留证据并标记`ParseError`/`NotPublished`，触发格式变更告警。
@@ -329,8 +334,8 @@ public interface IEtfShareSource
 
 ### 7.1 物理隔离及数据库版本
 
-- 插件私有`market.db`存结构化快照/修订/任务状态；`raw/`按SHA-256内容寻址保存压缩原始响应/官方文档；`backup/`保存升级或人工恢复用一致性快照。SQLite足够支撑20只ETF多年份额，不必引入服务器数据库。
-- 公开市场数据可以单独普通SQLite；禁止在该库写入用户交易、税务计算、凭据等隐私数据。若总体加密规范要求SQLCipher，则使用**独立插件密钥及DPAPI保护**，不复用税务主密钥；离线补采条件要与登录态一致。
+- Service拥有的`%ProgramData%\CRS\Plugins\crs.national-team\market.db`存结构化快照/修订/任务Checkpoint；`raw/`按SHA-256内容寻址保存压缩原始响应/官方文档；`backup/`保存升级或人工恢复用一致性快照。SQLite足够支撑20只ETF多年份额，不必引入服务器数据库。
+- 公开市场数据使用独立SQLCipher（遵循CRS加密规范），禁止在该库写入用户交易、税务计算、凭据等隐私数据；使用**独立服务密钥及DPAPI保护**，不复用税务主密钥；服务密钥由Service身份生成/解封，**与WPF/TOTP登录态无关**；服务账户更换时需密钥迁移预案。
 - DB单写入者串行事务；`source_fetch`先写原始证据引用再解析入库；接受新版本和失效标记在同一事务中完成。迁移操作只针对本插件库，不修改税务Schema。`RawStore`采用内容寻址、临时文件落盘并校验后提交引用；异常恢复校验DB对原始证据文件的引用，孤儿文件延迟清理。
 - **升级**：冻结插件写入，采用SQLite Backup API或`VACUUM INTO`得到一致快照（WAL模式**不可只复制主.db文件**），迁移候选库，写`UpgradeJournal`再切换版本/库引用。故障时按日志重入恢复；新版本若已写入事实，必须保留新数据，不得静默用旧快照覆盖；RawStore文件引用需自洽。
 
@@ -362,7 +367,7 @@ public interface IEtfShareSource
 | `nav_revision` | `security_id, nav_date, nav, fetch_id, first_seen, version, status`；独立的同日NAV数据 |
 | `metric_revision` | `metric_id, security_id, trade_date, window_days, input_fingerprint, algorithm_version, result, state, calculated_at`；存可重建的输入指纹，允许查询当时有效数据版本 |
 | `metric_dependency`（后置） | **一期不建依赖DAG表**：份额/NAV修订按`TradeDate`和最大窗口20交易日确定性失效与重算；未来算法无法按窗口追溯时再建立关系表 |
-| `sync_job/checkpoint` | `provider, list_id, range/page/date, status, last_attempt, retry_count, version`；不以下载成功代替数据Accepted |
+| `sync_checkpoint` | `provider, list_id, range/page/date, status, last_attempt, retry_count, version`；业务补采状态，**唯一Cron定义存在Service的SQLCipher scheduler-config.db，Quartz RAM触发器启动重建**；不要重复维护可写Cron权威配置；不以下载成功代替Accepted |
 | `quality_issue` | `rule_id, rule_version, target_id, severity, status, evidence_id, reviewer, decision_time`；人工审核留痕 |
 | `institution_security_holding`（二期） | `institution_id, security_id, holding_type, shares_class, shares_count, percent_basis, report_as_of, evidence_id, first_seen`；已披露持仓快照，不是每日交易流水 |
 | `holding_change_event`（二期） | `from_snapshot_id, to_snapshot_id, raw_delta, adjusted_delta, corporate_action_ref, state`；只在可比口径且公告已知时生成 |
@@ -475,14 +480,33 @@ public interface IEtfShareSource
 - 如未来投资绩效插件需要联动股票/ETF，优先由宿主受控只读查询接口提供研究指标快照；**不得将`NationalTeamWatch`的DB直接给绩效插件读取**。
 - 国家队观察插件不是投资总账，不应存储用户券商账户、交易明细或税务结果。
 
-## 11. 任务执行、安全与插件独立升级
+## 11. Windows Service后台任务、安全与插件升级（ADR-NT-003）
 
-- 宿主`IPluginJobScheduler`统一管理`crs.national-team:ShareSync`、`SourceVerify`、`RevisionAudit`；只允许每个键有一个运行实例，明确UTC/BJT/市场日期和运行状态。
-- MVP在CRS运行且认证达到规定状态后执行，关闭时不再采集；重新启动先查缺口。未来需要无人值守时，可选独立的**无账户权限**公开数据采集Agent，不能借用TOTP登录绕过授权。
-- ETF插件按宿主`Http/DataPaths/Diagnostics/Jobs/Navigation`能力进行受信代码规范管理；禁止调用税务SQLCipher库及认证密钥。**同进程能力API不是操作系统强制隔离**，须经官方包可信性校验、静态依赖审查及安全代码评审；真正隔离以后须另进程。
-- WPF UI路由、后台作业、DB连接在宿主退出与插件故障时清理；可预期异常被捕获并报告，不承诺同进程OOM/原生崩溃仍保持宿主可用。
-- 一期插件随官方CRS发行包预装，**不开放任意ZIP安装**。插件版本与数据库Schema迁移通过`staging -> frozen -> snapshot -> candidate migrate -> UpgradeJournal -> restart switch -> verify`；需对WAL快照、证据文件引用和每个崩溃切换点验证，不静默丢失新版本写入。禁用不删除数据。
-- ETF组件业务层不直接引用任何其他新业务插件；公共合同、运行时行为与未来模块扩展规则统一见`CRS_PLUGIN_ARCHITECTURE.md`。
+### 11.1 服务端独占的业务作业
+
+| 稳定作业键（示意） | 触发方式 | 实际职责 | 并发/幂等 |
+|---|---|---|---|
+| `crs.national-team:etf-share-daily` | 工作日晚间、按中国交易日校正 | 批量同步≤20只ETF当日份额、记录来源状态 | 同市场同日期单任务；写入按来源哈希和接受修订版本幂等 |
+| `crs.national-team:gap-repair` | 每日上午及服务启动时 | 扫描缺失日、发布延迟，有限补采 | `provider+ETF+tradeDate`检查点，限频/遵守403/429 |
+| `crs.national-team:revision-audit` | 份额新修订被接受后队列化 + 定期复核 | 失效并重算受影响日/5日/20日窗口 | 输入指纹和算法版本，重放结果相同 |
+| `crs.national-team:disclosure-scan` | 每日一次，二期逐步启用 | 中央汇金及国家队机构ETF/股票持仓**公告披露检查** | 以文档哈希与发布日期去重，不宣称实时成交 |
+
+- Quartz `JobKey`用稳定`PluginId:JobId`，运行时`JobDataMap`仅保存字符串型稳定业务ID，具体实现由Service的通用`PluginJobDispatcher`路由；SQLCipher加密调度库保存Cron及启用状态，服务启动时重建Job，不能把CLR类型序列化为持久配置。
+- **Quartz首期RAMJobStore + SQLCipher加密TaskDefinition**：重启恢复Trigger，禁止第二套Cron权威源；如果以后改为SQLite AdoJobStore，必须先验证SQLCipher每连接密钥与整个JobStore加密，不允许无审批的明文SQLite。后台真实流水记录存Service审计或插件事实库。
+- SCM负责服务开机启动/失败恢复；Quartz负责任务触发/误点火处理；业务Checkpoint负责已完成事实和补偿。**至少一次执行+业务幂等**，不承诺Exactly Once。
+- `Quartz`误点火后不逐次补跑数月触发；重启后通过交易日历计算缺口并执行限频补偿。数据`NotPublished`/`AccessBlocked`/`ParseError`按分类退避；403/429不绕过。
+
+### 11.2 UI/服务通信与安全
+
+- WPF经授权Named Pipes读取状态/汇总DTO、手动触发、暂停/恢复。服务进程运行在Session 0，**禁止任何WPF依赖、MessageBox、用户交互对话框**。
+- 首期Service以`LocalService`为优先候选身份；安装时配置ProgramData数据目录和Pipe ACL，并在真实设备验证官方数据网站、代理、TLS、用户网络环境的可达性。Windows管理员/经授权本地操作组可变更调度；只读状态可授予受控桌面身份。不能相信IPC请求里的`IsLoggedIn`或TOTP标志。
+- 公开数据与私有税务数据库分属两个安全域。Service永不访问个人税务SQLCipher、个人投资明细和TOTP秘密。**延续CRS数据库强制加密约束**：market.db和调度配置库都使用独立SQLCipher密钥（不得复用个人税务密钥）；不支持以明文SQLite作为兼容回退。
+
+### 11.3 升级/禁用/未安装表现
+
+- WPF退出**不**停止后台作业。管理员禁用插件→Service停止新触发，并按有界取消等待在途作业，保存Checkpoint；UI入口禁用仅影响页面，不等价于业务插件停用。
+- 后台插件升级必须进入维护状态，由升级器协调Service停写、SQLite一致备份、候选迁移、包版本切换、重启健康检查、Journal提交或受控恢复；新事实写入后不得静默用旧库覆盖。
+- Service没有安装、被停止、ACL/密钥异常时，WPF显示明确`ServiceUnavailable/PermissionDenied/StorageLocked`，允许查看此前缓存但**不私自启动第二个Quartz实例**。
 
 ## 12. 验收测试计划
 
@@ -508,19 +532,19 @@ public interface IEtfShareSource
 | ID | 测试 | 通过标准 |
 |---|---|---|
 | PLG-01 | 未安装插件 | CRS启动、登录、税务计算、报告不受影响 |
-| PLG-02 | 正常安装并重启 | 自动出现监控菜单及独立数据页 |
-| PLG-03 | 用户禁用并重启 | 菜单消失、任务不运行、插件数据保留 |
+| PLG-02 | 管理员安装Service与官方插件并重启 | WPF出现监控菜单，服务有后台入口与持久Job；两端健康状态可查 |
+| PLG-03 | 管理员禁用后台插件，用户退出WPF | Service停止后续触发/有界取消在途任务，独立UI状态按配置处理，数据保留 |
 | PLG-04 | 损坏/不兼容DLL | 宿主拒绝加载并告警，CRS保持运行 |
 | PLG-05 | 签名/哈希不符 | 拒绝安装/执行，无动态代码执行 |
 | PLG-06 | 插件升级迁移失败 | 回滚包版本，独立库备份可恢复，不破坏税务DB |
 | PLG-07 | Default上下文依赖冲突 | 检测同名不同版本依赖并**拒载/提示**；不假设能在Default中并行隔离 |
-| PLG-08 | 生命周期 | 程序关闭、任务取消、连接清理，不出现残留后台任务 |
+| PLG-08 | 双宿主生命周期 | 退出WPF**不取消Service任务**；Service停止时取消作业、连接清理和Checkpoint落盘 |
 | PLG-09 | 安全边界 | API/SDK不暴露税务库连接、TOTP种子或主密钥；安全审查承认进程内插件非沙箱 |
 | PLG-10 | 根DI隔离 | 插件仅修改私有ServiceCollection，不得覆盖宿主认证、日志与税务实例 |
 | PLG-11 | 主程序零静态引用 | Desktop/TaxDomain不得ProjectReference业务插件；仅从发布目录按清单加载 |
 | PLG-12 | WPF真实资源加载 | 验证XAML/BAML、资源字典、MVVM/图表及页面销毁；不能只通过控制台假插件 |
 | PLG-13 | 升级Journal与一致性恢复 | 切换前/中/后强杀、WAL存在、原始证据引用、已有新写入场景均恢复到明确状态，不丢失证据 |
-| PLG-14 | 新增第二演示插件 | 无需修改税务Domain和主导航业务switch，能注册独立页面/任务，真实WPF-UI/图表可同时工作 |
+| PLG-14 | 新增第二演示插件 | 无需修改税务Domain和业务switch，UI与Service均可独立注册且不交叉加载WPF |
 
 ### 12.3 历史采集与数据质量
 
@@ -535,7 +559,7 @@ public interface IEtfShareSource
 | DATA-07 | 份额折算 | 不把折算机械解释为赎回；需公告调整后方可计算 |
 | DATA-08 | NAV未发布 | 仍显示份额变动，净申赎估算为不可用 |
 | DATA-09 | 原始哈希被篡改 | QA Critical且不参与计算 |
-| DATA-10 | 软件隔日或休假后启动 | 补采缺失交易日，不要求软件未启动时执行 |
+| DATA-10 | Service离线数日再启动（无需开启WPF） | 扫描并限频补采缺失交易日；关机、睡眠不算已执行 |
 | DATA-11 | 交易所单位/字段改变 | ParseError并告警，不静默复用旧字段 |
 | DATA-12 | 数据库连接异常 | 事务回滚，旧有效快照可读，税务功能不受影响 |
 | DATA-13 | 多版本复算 | 相同输入修订+算法版本得到完全一致结果 |
@@ -554,7 +578,7 @@ public interface IEtfShareSource
 | UI-01 | 信息标注 | 无“国家队已买入XX亿元”等未经证实表达 |
 | UI-02 | 原始证据下钻 | 任一日份额可追溯至来源、查询/抓取时间、原始字节及哈希 |
 | UI-03 | 指标窗口不完整 | 5/20日指标显示Incomplete，不用缺失值拼接 |
-| UI-04 | 资源占用 | 5只ETF、1年历史回补期间UI保持可操作，停止功能有效 |
+| UI-04 | 资源占用 | 5只ETF、1年历史回补期间Service独立执行，UI保持可操作，授权暂停/取消有效 |
 | UI-05 | 错误恢复 | 网络恢复后可以重试；访问禁止时不能无止境循环 |
 
 ### 12.5 机构股票持仓二期预置验收（一期只写fixture/Schema契约）
@@ -585,7 +609,7 @@ public interface IEtfShareSource
 - **Unit**：单位转换、decimal、日期、指标计算、折算、规则引擎、版本选择；不依赖网络。
 - **Contract**：保存匿名化官方样本与脱敏HTTP fixture，解析器字段契约及版本回归。
 - **Integration**：临时SQLite、迁移、原子提交、并发去重、修订及回算；网络端用MockHttpMessageHandler。
-- **PluginHost**：安装/启用/禁用/升级/依赖冲突/签名错误/启动故障测试。
+- **PluginHost / Windows Service**：UI双插件加载、Service headless入口、安装/启停/升级/依赖冲突/签名错误/IPC授权、重启后Quartz持久化与单实例测试。
 - **Live Smoke（手工或受控CI）**：仅在被允许的情况下低频查询官方公开源；不能让公网波动成为所有PR单测必须通过的条件。
 
 ## 13. 里程碑与发布门槛（数据POC与插件宿主并行验证）
@@ -593,7 +617,7 @@ public interface IEtfShareSource
 | 里程碑 | 交付物 | 关键验收门槛 |
 |---|---|---|
 | M0 接口与许可POC | `DATA_SOURCE_POC.md`、5ETF样本证据、历史范围报告 | SSE/SZSE各至少一条合法自动数据路径验证，否则只发布离线研究预览 |
-| M1 通用插件宿主 | `CRS_PLUGIN_ARCHITECTURE.md`、Abstractions、Plugin.Wpf、PluginHost、**假WPF演示插件** | 与ETF业务解耦；根DI隔离、真实WPF页面载入、可信包、版本检查 |
+| M1 通用双宿主与Service | `CRS_PLUGIN_ARCHITECTURE.md`、后台专项文档、WPF插件宿主+Windows Service/Quartz+Named Pipes、假插件 | 未登录Windows仍可运行公开数据作业；SQLCipher Cron配置持久且Quartz触发器重建；无第二调度器；真实WPF加载、包验证与权限测试 |
 | M2 ETF数据底座 | SSE/SZSE Source、RawStore、双时间轴、历史回补、确定性窗口重算 | 幂等、断点、可审计，不沿用旧NAV，不把缺口计零 |
 | M3 ETF一期交付 | ≤20池、份额历史图、同步中心、证据下钻；金额归集仅在官方NAV通过后增量启用 | 5只POC通过；容量约束有效；无国家队交易错误归因 |
 | M4 发布门槛 | 自动采集连续性验证、WPF加载、迁移回滚、税务回归 | 新增POC-09..12与核心PLG/DATA测试通过；手动版不得标自动版 |
@@ -615,6 +639,11 @@ public interface IEtfShareSource
 - `PLG-003`：插件私有数据目录、WAL安全快照、候选库迁移、UpgradeJournal强杀恢复、RawStore引用核对与启停管理。
 - `PLG-004`：真实WPF假插件验证资源和导航，再用第二假插件验证通用性/依赖冲突拒载。
 - `PLG-005`：在宿主层整理通用插件约束与CI架构依赖检查。
+- `SRV-001`：Windows Service发布/安装/卸载、LocalService身份、ProgramData/ACL与服务恢复。
+- `SRV-002`：Quartz RAMJobStore+SQLCipher调度定义，单实例互斥、稳态/误点火/重启补偿（备选加密AdoJobStore需独立POC）。
+- `SRV-003`：Named Pipes只读与管理授权、版本化DTO、WPF状态与控制页面。
+- `SRV-004`：Headless后台插件入口/Session/调度Dispatcher，禁止引用WPF；与UI插件共享Core/Data。
+- `SRV-005`：Service停写、升级维护、Journal一致性恢复和Windows服务账户变更密钥预案。
 - `ETF-002`：最多20只有效池、Institution/Security/DisclosureEvidence统一领域模型、Schema与不可变EvidenceStore。
 - `ETF-003`：SSE数据源适配器及契约测试。
 - `ETF-004`：SZSE数据源适配器及契约测试。
@@ -639,16 +668,26 @@ public interface IEtfShareSource
 | ETF份额折算 | 假信号 | 公司行为证据 + 调整因子 + 重新计算 |
 | 历史公开数据修正 | 旧信号失真 | 不可变修订 + 原始证据 + 计算版本 |
 | 插件恶意/失控 | 可能波及整个CRS进程 | 仅第一方签名包；未来不可信插件必须进程隔离 |
-| 插件WPF生命周期泄漏 | 崩溃/卡顿/更新失败 | 第一期禁用与更新重启生效；集中释放任务 |
+| 插件WPF生命周期泄漏 | 界面卡顿/更新失败 | UI资源与后台任务分开；UI退出不停止Service |
 | 私有数据与市场数据混用 | 安全隐私风险 | 独立库、独立路径，不向插件暴露个人数据访问能力 |
 | 错误归因国家队交易 | 投资判断误导 | A/B/C明确证据分层，第一期只发表ETF份额事实 |
 | 股票战略持股与交易混淆 | 虚假增持信号 | `DirectEquityHolding / StrategicControl / PublicActionAnnouncement`分开 |
 | 插件框架过度设计 | 维护成本增加 | 仅首期能力集、一个业务DLL，公共业务能力真实需求出现后再抽取 |
-| DB Schema升级只回滚DLL | 插件不能打开库甚至丢数据 | 新版本迁移副本预检，代码+数据成对回退，不能静默覆盖新写入 |
+| DB Schema升级只回滚DLL | 插件不能打开库甚至丢数据 | Service维护期、候选库预检，代码+数据成对恢复，不能静默覆盖新写入 |
+| LocalService网络/文件ACL不适配 | 官网采集失败或存储不可写 | 服务账户真实环境POC、ProgramData ACL、Windows事件日志 |
+| 多Service实例重建相同Quartz计划 | 冲突/重复触发 | SCM单服务+进程单实例锁；调试模式拒绝并发；不启用Quartz集群 |
+| WPF与服务IPC越权 | 普通用户调整所有任务 | 命名管道DACL、Windows SID/组、命令白名单、审计 |
+| WPF更新但Service版本旧 | 协议不兼容、UI显示错误 | DTO协议版本协商，提示升级，允许只读降级 |
 
 ---
 
 ## 参考与核实记录
+
+- [Windows Service .NET Worker 官方实现](https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service)
+- [Quartz Hosted Services Integration](https://www.quartz-scheduler.net/documentation/quartz-4.x/packages/hosted-services-integration.html)
+- [Quartz持久化SQLite单实例与限制](https://www.quartz-scheduler.net/documentation/quartz-4.x/tutorial/job-stores.html)
+- [Windows Named Pipe访问控制](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights)
+
 
 1. CRS项目README（仓库架构、WPF与安全）：<https://github.com/sword0880/CRSTool>
 2. 上交所ETF规模（2026-10-13页面数据、清算后口径）：<https://www.sse.com.cn/market/funddata/volumn/etfvolumn/>
@@ -665,7 +704,3 @@ public interface IEtfShareSource
 13. CRS通用插件宿主规范（本项目配套文件）：[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)
 
 > 核实声明：本轮还核实了CRS公开`CRS.sln`、`CRS.Desktop.Wpf.csproj`、`docs/architecture/PROJECT_STRUCTURE.md`和既有绩效规格。交易所公开页面不等于稳定正式API；**仍未验证当前两市内部数据接口可持续合法调用**，也未执行本地WPF/插件编译测试。所有HTTP参数、历史范围、发布许可与实际软件兼容性，均以M0/A-0现场POC为准。
-
-## 2026-10-14用户补充的研发实施口径
-
-主要使用方式调整为插件自动联网获取官方数据，用户无需每次下载。已验证的两市源可进入开发预览并如实标记已验证技术范围；人工导入仅是备用。完整M0许可、250交易日及20交易日持续性门槛继续保留，不能将单日联网成功称一期正式交付。主程序按Quartz.NET统一驱动后续计划任务，插件仅贡献具名工作和计划，不自行持有全局Quartz调度器。当前联网实现和来源证据见DATA_SOURCE_POC.md及implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md。

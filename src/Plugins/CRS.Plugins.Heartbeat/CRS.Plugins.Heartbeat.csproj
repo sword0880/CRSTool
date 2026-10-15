@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 心跳是可独立验证的后台插件，不包含任何 WPF 资源。 -->
+  <ItemGroup><ProjectReference Include="../../CRS.Background.Abstractions/CRS.Background.Abstractions.csproj" /></ItemGroup>
+</Project>

@@ -78,3 +78,7 @@ PluginRecovery使用隔离临时目录，只强杀自身创建的子进程；覆
 绩效专项：先编译，再运行 dotnet run --project tests/CRS.Tests.Infrastructure --no-build -- --performance-only；真实输入专项使用 --performance-real-only，从仓库根目录只读 Sample/IBKR 与 Sample/FUTU，仅读取结构并输出计数/问题码。领域与 WPF 套件已包含绩效，场景与缺口见[绩效 P0 验收](../docs/validation/PERFORMANCE_ACCEPTANCE.md)。
 
 计划任务专项（2026-10-15）：PluginHost的TaskScheduleChecks使用真实Quartz和独立存储，Wpf的ScheduledTasksInteractionChecks验证计划编辑与结果；窗口冒烟额外打开任务管理和执行记录。运行中日志恢复用现场重建验证，不与升级套件的独立进程强杀混用结论。当前实现及边界见[主程序计划任务](../docs/implementation/SCHEDULED_TASKS.md)。
+
+独立后台专项（2026-10-15）：先用 `Publish-BackgroundService.ps1 -OutputDirectory <不存在的新目录>` 发布，再运行 `dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- <该发行目录>`。29 项涵盖真实 Quartz、SQLCipher、Windows 管道和测试自身子进程的强杀/租约/恢复；需要正常完整性 Windows 令牌，不能使用放宽生产 ACL 的方式兼容低完整性沙箱。
+
+实际管理员安装后，可运行 Background 项目的 `--probe` 只读查看健康/计划/历史；`--acl-probe` 用移除管理员组的真实线程令牌验证只读权限。窗口检查：`dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --background-ui artifacts/background-service-ui/window.png`，只查询公开后台任务，不解锁税务库。安装、卸载、开发签名边界和未实现的 ETF 迁移/升级恢复范围见[后台实施记录](../docs/implementation/BACKGROUND_SERVICE.md)。

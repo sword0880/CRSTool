@@ -1,0 +1,33 @@
+<UserControl x:Class="CRS.DesktopClient.Views.Pages.BackgroundServicePage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <Grid Margin="24">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <StackPanel>
+   <TextBlock Text="独立后台服务" FontSize="24"/>
+   <TextBlock Text="公开任务由 Windows 服务运行；此页通过本机授权管道查询和管理。" Margin="0,8" TextWrapping="Wrap"/>
+   <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/><TextBlock Text="{Binding SnapshotTime}" Margin="0,4,0,12"/>
+  </StackPanel>
+  <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+   <Button Content="刷新状态" Command="{Binding RefreshCommand}" Margin="0,0,8,0"/>
+   <Button Content="立即执行" Command="{Binding RunNowCommand}" Margin="0,0,8,0"/>
+   <Button Content="暂停" Command="{Binding PauseCommand}" Margin="0,0,8,0"/>
+   <Button Content="恢复" Command="{Binding ResumeCommand}" Margin="0,0,8,0"/>
+   <Button Content="取消执行" Command="{Binding CancelRunCommand}"/>
+  </WrapPanel>
+  <WrapPanel Grid.Row="2" Margin="0,0,0,12">
+   <TextBlock Text="Cron" VerticalAlignment="Center" Margin="0,0,8,0"/>
+   <TextBox Text="{Binding Cron,UpdateSourceTrigger=PropertyChanged}" Width="180" Margin="0,0,12,0" AutomationProperties.Name="后台任务 Cron"/>
+   <TextBlock Text="时区" VerticalAlignment="Center" Margin="0,0,8,0"/>
+   <TextBox Text="{Binding TimeZoneId,UpdateSourceTrigger=PropertyChanged}" Width="190" Margin="0,0,12,0" AutomationProperties.Name="后台任务时区"/>
+   <Button Content="保存计划" Command="{Binding SaveCommand}"/>
+  </WrapPanel>
+  <TabControl Grid.Row="3">
+   <TabItem Header="服务计划"><DataGrid ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+    <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/><DataGridCheckBoxColumn Header="待重建" Binding="{Binding NeedsReconcile}"/></DataGrid.Columns>
+   </DataGrid></TabItem>
+   <TabItem Header="最近执行"><DataGrid ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+    <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="开始 UTC" Binding="{Binding StartedUtc}"/><DataGridTextColumn Header="结束 UTC" Binding="{Binding EndedUtc}"/><DataGridTextColumn Header="结果" Binding="{Binding Result}"/><DataGridTextColumn Header="尝试" Binding="{Binding Attempt}"/></DataGrid.Columns>
+   </DataGrid></TabItem>
+  </TabControl>
+ </Grid>
+</UserControl>

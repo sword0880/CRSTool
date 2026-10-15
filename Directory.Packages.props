@@ -1,5 +1,8 @@
 <Project>
   <ItemGroup>
+    <!-- 服务宿主使用当前离线缓存中可复现的扩展版本；与 .NET 10 联合构建验证。 -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
     <!-- 主程序集中拥有计划任务驱动，插件契约不引用Quartz。 -->
     <PackageVersion Include="Quartz" Version="4.1.0" />
     <PackageVersion Include="WPF-UI" Version="4.3.0" />

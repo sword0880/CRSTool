@@ -1,11 +1,12 @@
 # 当前发布验收
 
-更新：2026-10-13。**ReleaseApproved=false**。自动回归和真实样本技术验证已通过；独立金额签认、实际设备恢复及发布包审查仍未完成。本文维护当前门槛与执行入口，历史测量见 [验收轮次归档](../archive/RELEASE_ACCEPTANCE_HISTORY.md)。
+更新：2026-10-15。**ReleaseApproved=false**。自动回归和真实样本技术验证已通过；独立金额签认、实际设备恢复及发布包审查仍未完成。本文维护当前门槛与执行入口，历史测量见 [验收轮次归档](../archive/RELEASE_ACCEPTANCE_HISTORY.md)。
 
 ## 当前证据
 
 | 范围 | 证据与结果 | 限制 |
 | --- | --- | --- |
+| 独立后台心跳 POC（2026-10-15） | LocalService 真实安装、SQLCipher/Quartz/IPC、只读令牌授权、SCM 强杀恢复、卸载保留数据和重装通过；实施与命令见[记录](../implementation/BACKGROUND_SERVICE.md) | ETF 未迁移；无人登录、升级恢复、官网网络、物理断电和生产签名未验收；不改变 ReleaseApproved=false |
 | 最近 P0 续修 | 六组回归、68 个综合场景、架构检查、WPF 冒烟；期间清单、加密往返和 Excel 导出专项通过 | 见 [P0 记录](P0_FIX_PROGRESS.md)；该轮未重新收集覆盖率或性能 |
 | 真实原件 | FUTU 五年度、IBKR 五组合只读导入、SQLCipher 保存与同构建复算通过，原件摘要不变 | 见 [真实样本](REAL_SAMPLE_PROGRESS.md)；不替代独立税额签认 |
 | 完整资源保护轮次 | artifacts/resource-protection-acceptance；实际覆盖率 3839／4329（88.68%） | 这是该轮构建的数字，不是后续新增代码覆盖率；性能复用原测量 |

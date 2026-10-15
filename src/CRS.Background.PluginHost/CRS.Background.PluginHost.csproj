@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 宿主只依赖契约，业务程序集经完整包校验后动态加载。 -->
+  <ItemGroup><ProjectReference Include="../CRS.Background.Abstractions/CRS.Background.Abstractions.csproj" /></ItemGroup>
+</Project>

@@ -356,10 +356,20 @@
           "CRS.Domain": "[1.0.0, )"
         }
       },
+      "crs.background.abstractions": {
+        "type": "Project"
+      },
+      "crs.background.ipc": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Background.Abstractions": "[1.0.0, )"
+        }
+      },
       "crs.desktop.wpf": {
         "type": "Project",
         "dependencies": {
           "CRS.Application": "[1.0.0, )",
+          "CRS.Background.Ipc": "[1.0.0, )",
           "CRS.Infrastructure": "[1.0.0, )",
           "CRS.PluginHost": "[1.0.0, )",
           "CommunityToolkit.Mvvm": "[8.4.2, )",

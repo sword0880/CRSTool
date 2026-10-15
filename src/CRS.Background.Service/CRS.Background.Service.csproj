@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 独立服务不引用 WindowsDesktop；保留发行包文件以支持受信插件加载。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework><OutputType>Exe</OutputType>
+    <PublishSingleFile>false</PublishSingleFile><PublishTrimmed>false</PublishTrimmed><PublishAot>false</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CRS.Background.PluginHost/CRS.Background.PluginHost.csproj" />
+    <ProjectReference Include="../CRS.Background.Ipc/CRS.Background.Ipc.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="Quartz" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+</Project>

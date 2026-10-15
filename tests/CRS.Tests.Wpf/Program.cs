@@ -3,6 +3,8 @@ using CRS.Application.Abstractions;
 using CRS.Domain;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
+// 独立窗口验收只查询公开后台任务，不创建或解锁个人保险库。
+if(args.Contains("--background-ui")){BackgroundServiceViewChecks.Run(args.Last());return;}
 var cases=new FakeUseCases();
 var shell=new ShellViewModel(cases,new SilentInteraction());
 await shell.State.DisplayAsync(cases.Result);

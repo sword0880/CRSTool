@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Windows 管道授权独立于业务插件与桌面登录状态。 -->
+  <PropertyGroup><TargetFramework>net10.0-windows</TargetFramework></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../CRS.Background.Abstractions/CRS.Background.Abstractions.csproj" /></ItemGroup>
+</Project>

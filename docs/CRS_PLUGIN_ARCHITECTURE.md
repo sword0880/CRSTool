@@ -1,11 +1,26 @@
 # CRS 插件化总体架构设计（宿主级规范）
 
-> 版本：**v2.1 / 反方架构评审修订**｜日期：2026-10-14｜状态：**有条件通过，须完成P0验证**  
+> 版本：**v2.2 / 后台Windows Service架构决策**｜日期：2026-10-15｜状态：**有条件通过，须完成P0验证**  
 > 技术基线：C# / .NET 10 / WPF；Windows 10 19041+；本地优先  
 > 适用：**今后新增且边界独立的业务能力优先插件化**；现有税务及已落地绩效功能不强制搬迁  
-> 配套文档：[NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md](./NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)
+> 配套文档：[NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md](./NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)；**后台实现唯一专项规范：**[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)
 
-## 0. 反方评审结论与强制整改（ADR-PLG-002）
+## 0. 已冻结的新架构决策（ADR-PLG-003 / 2026-10-15）
+
+**正式选择：Windows Service + .NET 10 Generic Host + Quartz.NET + SQLCipher持久化任务定义。** 本决定覆盖v2.1中“首期只在WPF登录后同步，关闭主程序不承诺后台任务”以及“主程序PluginHost负责执行后台作业”的旧描述。GUI与服务各有自己的插件运行时，彼此不通过共享对象、Root DI或WPF程序集调用业务代码；服务无需WPF/TOTP登录即可运行仅处理公开数据的作业。
+
+- **一个产品、两个进程、两个宿主**：`CRS.Desktop.Wpf`承载UI插件；`CRS.Background.Service`作为真正Windows服务承载**无界面**作业插件。共享BCL契约及插件业务Core，不共享运行中的Session/DI容器。
+- **唯一调度所有者**：Quartz只存在于后台服务中；WPF只经具备Windows身份授权的Named Pipes接口读取状态和发送用户操作指令。插件不得私自启动Quartz或另建常驻调度器。
+- **一套插件，两种可选入口**：`plugin.json`可声明`uiEntry`和`backgroundEntry`，其中任何一个可以缺省。后台入口不得引用`Presentation`/WPF；UI入口不得直接启动后台周期采集。**不要求每个插件都有后台任务**。
+- **安装即服务化目标**：官方安装器可在获得管理员许可后安装并配置`CRSBackgroundService`（建议Delayed Automatic）；服务在Session 0中运行，不显示窗口。禁止默认使用LocalSystem；首选`NT AUTHORITY\LocalService`并限制目录ACL；服务权限/网络访问在POC核实。
+- **物理部署与密钥边界**：签名可执行文件和插件包在`%ProgramFiles%\CRS`（普通用户只读），SQLCipher调度配置库、ETF市场数据与证据在`%ProgramData%\CRS`，税务SQLCipher库及TOTP秘密不向Service开放。市场数据库及调度配置库按现有CRS规范强制SQLCipher，并采用**由服务账户创建与解封**的独立密钥，不借用WPF登录态。
+- **加密持久配置、单实例运行**：第一期Quartz `RAMJobStore` + 独立SQLCipher加密`TaskDefinition`（启动重建Quartz触发器）；非加密SQLite调度库**不符合既有CRS加密要求**。Quartz `AdoJobStore + SQLite/SQLCipher`仅在每连接加密、WAL与服务账户密钥POC通过后作为可选升级；禁止多机SQLite集群。服务重启后的漏跑修复以交易日缺口扫描为准。
+- **升级为双宿主协调**：插件升级/禁用先停用Quartz触发、使正在运行的作业有界退出，停止服务或进入维护期，再迁移候选库与切换版本；WPF可独立退出。重启后同时验证后台入口和UI入口，失败按升级Journal恢复，不能静默回退新写入的数据。
+- **部署约束**：服务安装/卸载由拥有管理员权限的安装器或管理员手动执行；普通WPF用户不能借助IPC获得Windows服务管理权限。控制指令按调用者Windows SID/组和最小命令权限授权，不以“GUI已经通过TOTP”作为服务可验证的身份凭据。
+
+> 服务端口、Windows服务账户、`ProgramData` ACL、Quartz配置、Named Pipes授权、任务语义、安装更新与验收以独立专项文档为准。本章节是宿主层最高优先级的架构裁决；下文未涉及本裁决的v2.1规则继续有效。
+
+## 0.1 反方评审结论与强制整改（ADR-PLG-002）
 
 **裁决：采用“可信第一方、重启生效、业务逻辑隔离、尽量薄的宿主”，但不批准直接按照上一版的“自定义ALC + WPF + 私有DI容器”示例开工。** 原设计方向合理，存在以下实施级缺口。
 
@@ -36,36 +51,27 @@
 
 正式改造前仍需检查最新代码的`App`/Composition、NavigationView、发布方式、目录/数据库配置与既有架构门禁；由开发实施生成`CURRENT_ARCHITECTURE_BASELINE.md`，列出实际文件位置和最小修改清单。不得重命名现有项目来迁就本设计。
 
-## 2. 两层架构：稳定宿主 + 可选业务插件
+## 2. 双运行宿主 + 稳定插件契约（Windows Service目标拓扑）
 
 ```text
-                                  ┌────────────────────────────────┐
-                                  │ CRS.Desktop.Wpf（现有程序）      │
-                                  │ 认证 / 税务 / 已落地绩效P0 / UI   │
-                                  │ 插件入口 / 插件状态 / 导航挂载点  │
-                                  └──────────────┬─────────────────┘
-                                                 │ 只依赖宿主契约
-                                  ┌──────────────▼─────────────────┐
-                                  │ CRS.PluginHost                 │
-                                  │ 清单发现/版本检查/启动/停止      │
-                                  │ 导航桥接/作业调度/升级恢复        │
-                                  └──────────────┬─────────────────┘
-                                                 │ 受控能力契约
-                          ┌──────────────────────▼──────────────────────┐
-                          │ CRS.Plugin.Abstractions（net10.0）           │
-                          │ CRS.Plugin.Wpf（net10.0-windows...）         │
-                          └──────────────────────┬──────────────────────┘
-                                                 │
-                        ┌────────────────────────┴──────────────────┐
-                        │                                           │
-              ┌─────────▼──────────┐                    ┌──────────▼─────────┐
-              │ NationalTeamWatch  │                    │ 未来行业研究等插件 │
-              │ ETF≤20 / 未来持股  │                    │ 独立领域与数据     │
-              │ 公共市场SQLite      │                    │ 视具体隐私需求     │
-              └────────────────────┘                    └────────────────────┘
+用户会话进程（可随时关闭）                       Session 0 / SCM独立Windows服务
+┌───────────────────────────┐                  ┌────────────────────────────────┐
+│ CRS.Desktop.Wpf            │                  │ CRS.Background.Service          │
+│ 税务、绩效P0、TOTP、UI导航  │                  │ Quartz.NET 内存触发             │
+│ CRS.PluginHost（只管UI）    │←授权Named Pipes→│ CRS.Background.PluginHost       │
+│ NationalTeam.Ui（WPF）      │                  │ NationalTeam.Jobs（无WPF）       │
+└────────────┬──────────────┘                  └──────────────┬─────────────────┘
+             │                                               │
+      CRS.Plugin.Wpf                                 CRS.Background.Abstractions
+             │                                               │
+      UI-only插件及视图                             可信后台Job插件、采集Provider
+             └────────────共享稳定BCL契约/业务Core────────────┘
 
-              私人税务SQLCipher、认证材料不在任何研究插件的对外契约中
+主进程与Service是不同进程：不能共享Session、DI根容器、内存对象或数据库写连接。
+个人税务SQLCipher/TOTP不在Service对外契约；公开研究数据在ProgramData。
 ```
+
+**这是两个进程运行时、一个业务插件包的架构**。同一插件可以只带UI、只带后台、或两个入口。两个宿主按同一官方受信清单校验和加载各自可执行的组件。Quartz只存在于Service中。完整服务设计见[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)。
 
 ### 2.1 项目与文件结构（目标增量，不破坏当前项目）
 
@@ -78,31 +84,45 @@ src/
   CRS.Desktop.Wpf/             # 原有，增插件导航插槽与宿主启动适配
   CRS.Plugin.Abstractions/     # 新增：BCL型契约、数据传输对象、能力抽象
   CRS.Plugin.Wpf/              # 新增：WPF导航/页面贡献小契约
-  CRS.PluginHost/              # 新增：只认识manifest+契约
+  CRS.PluginHost/              # 新增：UI侧，只处理UI插件和导航
+  CRS.Background.Abstractions/ # 新增：无界面任务入口/任务注册/执行DTO
+  CRS.Background.PluginHost/   # 新增：Service侧插件加载，不依赖WPF
+  CRS.Background.Service/      # 新增：可安装Windows Service + Quartz + IPC宿主
+  CRS.Background.Ipc/          # 新增：Named Pipes跨进程DTO/客户端/权限校验
   Plugins/
-    CRS.Plugins.NationalTeamWatch/  # 新增：首个业务插件
-      Domain/ Application/ Infrastructure/ Presentation/
+    CRS.Plugins.NationalTeamWatch/  # 新增：首个业务插件（可发布为一个包多个程序集）
+      Core/               # 不依赖WPF；实体、计算、源接口和仓储契约
+      Data/               # 后台采集Provider和持久化
+      Ui/                 # WPF页面及UI插件入口，Desktop进程加载
+      Jobs/               # 无界面作业及后台插件入口，Service进程加载
 tests/
   CRS.Tests.PluginHost/
   CRS.Tests.PluginWpf/
+  CRS.Tests.BackgroundService/
+  CRS.Tests.BackgroundIpc/
   CRS.Tests.NationalTeamWatch/
 docs/
   CRS_PLUGIN_ARCHITECTURE.md
   NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md
+  CRS_BACKGROUND_SERVICE_DESIGN.md
 ```
 
-**第一期一个业务DLL + 逻辑文件夹分层即可**。`PluginHost`/契约拆为独立项目是为了编译依赖；Domain/Application等是否拆DLL由真实复用决定。插件发行包应单独生成，宿主源码不能对业务插件使用`ProjectReference`或硬编码类型名。
+**修订：ETF插件在双进程方案下至少需要一个不依赖WPF的Core/Jobs组件及一个WPF UI组件**，不再要求首期只有一个业务DLL；业务Domain/Application/Data可按复杂度并入Core/Jobs程序集。一个插件是**一个发行包和一个稳定PluginId**，不等于必须是一个DLL。两个宿主只能按签名manifest动态发现入口，均不得对业务插件使用`ProjectReference`或业务类型名硬编码。
 
 ### 2.2 依赖门禁
 
 ```text
-Desktop -> PluginHost -> Plugin.Abstractions
-PluginHost -> Plugin.Wpf -> Plugin.Abstractions
-NationalTeamWatch -> Plugin.Abstractions + Plugin.Wpf
+Desktop -> PluginHost(UI) -> Plugin.Abstractions + Plugin.Wpf
+Background.Service -> Background.PluginHost -> Background.Abstractions + Plugin.Abstractions
+Background.Service -> Background.Ipc
+NationalTeam.Ui -> Plugin.Wpf + NationalTeam.Core
+NationalTeam.Jobs -> Background.Abstractions + NationalTeam.Core/Data
+NationalTeam.Core/Data -> BCL/相关公共DTO（严禁WPF）
 
 禁止：税务Domain/Security -> 任何PluginHost或业务插件
 禁止：业务插件 -> CRS.Desktop.Wpf/CRS.PluginHost/税务Infrastructure
-禁止：业务插件A -> 业务插件B实现DLL或B私有数据库
+禁止：Background.Service/Jobs/Core/Data -> WPF程序集、CRS.Security、用户税务SQLCipher数据库
+禁止：Desktop/UI -> Quartz调度实现；业务插件A -> 业务插件B实现DLL或B私有数据库
 禁止：宿主对插件业务ID编写特殊逻辑switch（通用清单/启停状态除外）
 ```
 
@@ -128,16 +148,15 @@ public interface IPluginSession : IAsyncDisposable
 public interface IPluginHostContext
 {
     string PluginId { get; }
-    IPluginJobScheduler Jobs { get; }
-    IPluginDataPaths DataPaths { get; }
-    IPluginHttpGateway Http { get; }
+    // UI侧提供查询IPC客户端；后台调度器/官方HTTP网关仅属于Service宿主。
+    IPluginBackgroundClient Background { get; }
     IPluginDiagnostics Diagnostics { get; }
 }
 ```
 
 - `ICrsPluginEntry`是由manifest声明并经校验的**单个入口类型**，必须实现无副作用构造/显式工厂；宿主从manifest和可信包定位，不静态引用业务DLL。
 - `CreateSession`由插件**自己**创建私有容器（若使用DI）、处理自己的依赖注入和数据库对象，并返回Session。宿主既不提供根`IServiceProvider`，也不负责构建插件私有DI，因此不会出现“创建了ServiceProvider但插件无法拿到”的矛盾。
-- `StartAsync`只注册宿主授予的作业；宿主启动成功后从可选`IPluginWpfSession`取得页面贡献并注册路由。`StopAsync`先取消作业、等待有界停止，宿主撤销导航注册；`DisposeAsync`释放插件拥有的容器和资源。状态由宿主维护`Discovered→Verified→Loaded→Started→Stopping→Stopped/Failed`。
+- UI侧`StartAsync`只初始化页面/查询能力，**不得注册或启动周期作业**；作业注册由后台服务的`IBackgroundPluginEntry`负责。宿主启动成功后从可选`IPluginWpfSession`取得页面贡献并注册路由。`StopAsync`先撤销UI订阅，宿主撤销导航注册；**作业生命周期由Service维护，与WPF退出无关**；`DisposeAsync`释放插件拥有的容器和资源。状态由宿主维护`Discovered→Verified→Loaded→Started→Stopping→Stopped/Failed`。
 - Session不可缓存来自宿主的长生命周期UI引用；所有导航贡献、任务句柄使用`IDisposable/IAsyncDisposable`注册令牌，并在退出前反注册。Stop失败只能隔离**后续调度与UI贡献**，不能保证强杀同进程恶意线程。
 - 插件的私有容器可以选用`Microsoft.Extensions.DependencyInjection`，但**该依赖只存在插件实现层**。如选用，与宿主共用版本需统一锁定；不把`IServiceCollection`写入跨ALC的公共入口接口。
 
@@ -160,9 +179,9 @@ public sealed record PluginPageContribution(
 | 能力 | 第一版用途 | 边界 |
 |---|---|---|
 | `Navigation`（WPF单独契约） | 宿主读取Session页面贡献、注册路由、返回失效令牌 | UI只在Dispatcher线程创建，路由自动加插件ID前缀 |
-| `Jobs` | 任务互斥、取消、有限重试、恢复检查点 | 不允许插件私自建第二套常驻调度引擎 |
-| `Http` | 官方公开数据的预设站点访问、限频、超时 | 仅规范可信插件；普通进程内代码理论上仍可自行联网 |
-| `DataPaths` | 应用数据目录、缓存与磁盘占用诊断 | 只是路径配置，**不是Windows文件权限隔离** |
+| `Jobs`（后台宿主能力） | Quartz统一调度、任务互斥、取消、重试与检查点 | UI宿主没有Quartz；Service仅调度无WPF的可信任务 |
+| `Http`（后台宿主） | 官方公开数据预设站点访问、限频、超时 | 仅服务端可信采集插件使用；同进程服务代码仍非强制网络沙箱 |
+| `DataPaths`（后台宿主） | Service的ProgramData工作目录、缓存与配额 | Service和普通用户目录设置ACL；同一服务内插件仍非沙箱 |
 | `Diagnostics` | 插件日志、错误分类、健康状态 | 不写个人交易、种子、凭据及税务信息 |
 | `PortfolioRead` | 未来插件按用户授权访问有限快照 | **一期无此能力**；敏感明细不得无授权复制到公开库 |
 
@@ -217,22 +236,27 @@ Started             --退出/禁用要求---->  Stopping -> Stopped -> Disposed
 
 ### 6.2 不要在一期做的事
 
-不做自动下载安装任意插件、不做在线市场、自动卸载热替换、资源动态强隔离、全局消息总线或多进程RPC。需为以后扩展预留协议版本即可，不提前实现。
+不做自动下载安装任意插件、不做在线市场、自动卸载热替换、资源动态强隔离、全局消息总线或**远程分布式RPC**。本机WPF与Windows Service之间的受控Named Pipes IPC已被ADR-PLG-003确定为一期必需，不能再后置。
 
 ## 7. 数据所有权与个人安全边界
 
-- ETF/官方公告/历史份额/研究缓存属于`crs.national-team`插件，写入独立公开数据SQLite。税务SQLCipher及TOTP材料属于既有核心，插件契约不暴露底层数据库路径、密钥及宿主根服务。
+- ETF/官方公告/历史份额/研究缓存属于`crs.national-team`插件，写入独立SQLCipher加密市场库。税务SQLCipher及TOTP材料属于既有核心，插件契约不暴露底层数据库路径、密钥及宿主根服务。
 - `DataPaths`只是逻辑约定，不构成隔离：插件与主程序同Windows用户进程仍可能访问相同权限文件。风险控制依赖**只发布审计过的可信第一方DLL + 签名/哈希/源代码审查**，真实攻击隔离以后只能通过进程权限实现。
 - 插件与未来绩效等业务交换研究快照：只允许宿主代理的**版本化DTO查询**，明确数据所有者、授予者、范围、时间、撤销方法；首期不建事件总线和共享交易表。
-- 现有绩效P0已经使用原有领域与个人加密库，**不得**为了新框架将其敏感数据移入ETF普通SQLite；如后续迁移为插件，需单独制定敏感数据能力、安全迁移与并存策略。
+- 现有绩效P0已经使用原有领域与个人加密库，**不得**为了新框架将其敏感数据移入ETF公共市场库；如后续迁移为插件，需单独制定敏感数据能力、安全迁移与并存策略。
 - 日志/诊断默认仅公开证券、数据源状态、算法版本、异常摘要；私有证券账户信息不得落到市场数据日志。
 
-## 8. 启动调度、资源预算、用户体验
+## 8. 后台运行、任务管理、资源预算与用户体验（ADR-PLG-003覆盖）
 
-- 插件任务在主程序运行且认证状态满足既有策略后启动；锁屏/登出立即停止访问敏感能力，公开ETF任务是否继续由统一配置决定，但**不能绕过认证加载个人数据**。首期默认登录后同步，关闭主程序不承诺后台监控。
-- `Jobs`由宿主调度唯一`PluginId:JobId`，含取消Token、串行互斥、执行时间与检查点；业务插件负责编排，不直接添加宿主级全局Quartz任务。
-- UI与数据层通过轻量只读DTO连接，后台I/O不在UI线程执行，数据缺失/旧数据必须显示`AsOfDate/SourceStatus`；Stop时取消待显示的请求。
-- CPU、内存、日志及原始证据大小先基准测试确定报警阈值；不对20只ETF提前引入复杂限流平台、分布式消息系统。
+- **后台任务所有权独立于WPF认证生命周期**：已安装的`CRS.Background.Service`由SCM启动，在未登录用户/未开启WPF时运行公开ETF同步。关闭WPF、锁屏、退出TOTP会话**不影响**已授权的公开数据作业；敏感税务数据能力始终不能通过后台服务取得。
+- **UI任务操作均需授权IPC**：WPF查询运行历史、健康状态、启停作业，不直接读写Service的Quartz数据库，不调用插件作业实现；Named Pipes按Windows SID/本地组与命令白名单授权，不能仅凭客户端传`authenticated=true`。
+- **服务端唯一调度**：Windows SCM负责进程启动/故障恢复；SQLCipher持久化Cron定义，Quartz在当前服务进程内重建触发器、负责Misfire与有界并发；业务层负责交易日缺口扫描、补偿、业务幂等与失效重算。普通失败不无限重试，403/429遵守站点限制。
+- **工作目录**：程序/插件包在`Program Files`，可写调度数据库、市场数据、RawStore、日志与UpgradeJournal在`ProgramData`。禁止Service继续写`%LOCALAPPDATA%`或桌面用户账户目录；Service及普通用户的目录ACL分别配置。
+- **部署模式**：第一期就支持管理员安装/卸载Windows服务。允许`--console`开发诊断，但Console与正式服务不得同时重建并执行同一组SQLCipher任务定义；基于单实例锁和启动检查拒绝双调度。
+- **插件状态拆分**：每个`PluginId`同时记录`UiState`/`BackgroundState`/`PackageVersion`/`DataSchemaVersion`。仅UI故障不能停止正常后台同步；业务插件被管理员禁用才停止其Quartz触发器（有界取消在途作业）；升级须协调服务维护期和数据库版本。
+- 20只ETF范围内Quartz线程池初始建议2～3（**配置值须经实测**），单插件同一日数据采集防重入。停止过程尊重CancellationToken、停止超时并保留Checkpoint；WPF只展示轻量结果DTO，不加载原始HTML/海量证据。
+
+详细的二进制目录、JobStore、IPC契约、服务账户、安装脚本、升级顺序和测试以[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)为准。
 
 ## 9. 里程碑与通过条件
 
@@ -240,13 +264,17 @@ Started             --退出/禁用要求---->  Stopping -> Stopped -> Disposed
 |---|---|---|
 | A-0 对账 | 从真实项目读取`.sln`/依赖图/WPF路由/现有绩效P0 | 形成“已有/新增/不改”清单 |
 | A-1 插件WPF垂直切片 | 一个官方插件+第二简单插件+导航+Session私有DI | Default上下文加载XAML/图表正常、可取消、禁用需重启 |
+| A-1B 后台服务纵向切片 | Windows Service安装启动、SQLCipher持久Cron与Quartz内存触发器重建、Named Pipes读状态和授权手动触发 | 无WPF/未登录运行、服务账户ACL、无双实例、Cron/Misfire与单进程日志 |
 | A-2 可信发行与恢复 | manifest校验、版本/契约拒载、UpgradeJournal、DB副本迁移 | 每个升级断点强杀后可自动识别与恢复 |
-| A-3 宿主能力与回归 | Jobs、HTTP规范、数据目录、诊断；隔离审查 | 无插件可独立运行税务与绩效P0，真实数据不泄漏 |
+| A-3 宿主能力与回归 | Service Jobs、HTTP规范、ProgramData、IPC、诊断；隔离审查 | 无插件可独立运行税务与绩效P0；服务未安装时WPF可正常使用，后台状态准确报告 |
 | A-4 ETF业务接入 | 详见ETF专项M0～M4 | 与交易所数据POC相互独立验收 |
 
-**测试矩阵**（每项在Debug与已发布Release至少各跑一次关键路径）：无插件启动、两个插件同时加载、不同DLL依赖版本冲突拒载、坏签名、生命周期异常、重复开始/停止、WPF资源多次导航、后台关闭竞争、长期无网、SQLCipher核心数据不变、DB迁移前/中/后强杀、WAL快照、缺原始证据拒发可复算指标、旧插件+新库不兼容拒载、两份数据有新写入时停止回滚。
+**测试矩阵**（每项在Debug与已发布Release至少各跑一次关键路径）：无插件启动、两个插件同时加载、不同DLL依赖版本冲突拒载、坏签名、生命周期异常、重复开始/停止、WPF资源多次导航、WPF关闭后继续同步、服务停止与升级竞态、任务重启防重入、长期无网、SQLCipher核心数据不变、DB迁移前/中/后强杀、WAL快照、缺原始证据拒发可复算指标、旧插件+新库不兼容拒载、两份数据有新写入时停止回滚。
 
-## 10. 本次反方评审修改记录
+## 10. v2.2架构增量及此前反方评审修改记录
+
+**2026-10-15 ADR-PLG-003**：正式采用Windows Service + Quartz.NET单实例，SQLCipher持久化调度配置；拆分UI插件入口与Headless作业入口、移除WPF持有Scheduler的旧约束；引入Named Pipes、服务账户与ProgramData隔离、服务生命周期/升级协调和服务安装验收。v2.1内容以本版ADR优先，绝不把“启动WPF后才同步”当成目标架构。
+
 
 1. 已核验**现有CRS项目名、WPF目标框架与已接入绩效P0**，从“假设现有绩效是未来模块”改为“现有不重复建设”。
 2. WPF业务插件**默认Default加载上下文**，不再将`AssemblyLoadContext`隔离视为可无条件依赖；补真实WPF双插件POC。
@@ -265,15 +293,9 @@ Started             --退出/禁用要求---->  Stopping -> Stopped -> Disposed
 - [WPF XAML与ALC兼容性问题](https://github.com/dotnet/wpf/issues/1700)
 - [SQLite Online Backup API](https://www.sqlite.org/backup.html)
 - [SQLite WAL文件与一致性](https://www.sqlite.org/wal.html)
+- [微软：.NET Worker Service作为Windows服务](https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service)
+- [Quartz.NET：Hosted Services集成](https://www.quartz-scheduler.net/documentation/quartz-4.x/packages/hosted-services-integration.html)
+- [Quartz.NET：持久化JobStore/SQLite限制](https://www.quartz-scheduler.net/documentation/quartz-4.x/tutorial/job-stores.html)
+- [Microsoft：Windows Named Pipe安全权限](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights)
 
 > 本次校验仅涉及上述**公开仓库文件**，未执行本地编译、端到端WPF/插件POC、交易所真实接口测试或连续20个交易日采集；实施时以当前主分支实际版本重新校验。文档是架构决策，不是“已通过验收”的报告。
-
-## 2026-10-14用户补充：联网获取与主程序计划任务
-
-插件必须自行联网获取官方研究数据，不能将逐次手工下载作为主要流程。源专属请求和解析通过实际官方网页/脚本/元数据核验后实现，手动导入保留为备用；单日技术验证不构成许可、历史深度及连续性全部通过。
-
-主程序后续计划任务采用Quartz.NET，当前锁定4.1.0并在PluginHost实现统一驱动。插件只通过可选BCL的IPluginScheduleContext/IPluginScheduleGateway注册具名任务、Cron与时区，不引用Quartz或访问全局调度器。当前会话RAMJobStore、固定计划和取消已接线；可编辑持久计划、任务执行历史、通用任务管理页及关闭软件后运行的宿主工作进程属于后续主程序范围。不得将会话计划宣称为系统常驻任务。
-
-## 2026-10-15计划管理实施
-
-可编辑持久计划、启停、立即执行、取消、运行记录和WPF管理入口已接线。首次同步也由Quartz驱动，回调仅来自当前官方插件注册；元数据文件不能恢复任意类型。RAMJobStore配合独立计划/记录仓储，非Quartz ADO任务库。当前关闭或锁定仍暂停，尚无常驻服务；详情见implementation/SCHEDULED_TASKS.md。
