@@ -33,7 +33,16 @@ public sealed record TaskDefinition(string PluginId, string JobId, string Name, 
 /// <summary>历史只包含结果分类，不持久化可能含凭据的异常消息或堆栈。</summary>
 public sealed record ExecutionRecord(string ExecutionId, string PluginId, string JobId,
     DateTimeOffset ScheduledUtc, DateTimeOffset StartedUtc, DateTimeOffset? EndedUtc,
-    string Result, string? Checkpoint, int Attempt);
+    string Result, string? Checkpoint, int Attempt, IReadOnlyList<ExecutionProgressEvent>? Progress=null);
+
+/// <summary>仅传递白名单阶段及公开标量，不记录URL参数、响应正文或异常消息。</summary>
+public sealed record BackgroundProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null);
+public sealed record ExecutionProgressEvent(long Sequence,DateTimeOffset Utc,BackgroundProgress Detail);
+/// <summary>可选进度端口；宿主为每次执行创建回调并立即持久化，旧插件仍按原接口运行。</summary>
+public interface IProgressBackgroundSession
+{
+    Task<BackgroundJobResult> ExecuteWithProgressAsync(string jobId,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null);
+}
 
 /// <summary>持久命令与某次执行分离；重试请求沿用原标识，不能重新创建业务工作。</summary>
 public sealed record CommandReceipt(Guid RequestId, string State, string Code, string? ExecutionId);

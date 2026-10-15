@@ -88,6 +88,22 @@ internal static class Program
                 Check(tabs.SelectedContent is FrameworkElement {ActualHeight:>0},"Plugin tab renders "+((System.Windows.Controls.TabItem)tabs.Items[tabIndex]).Header);
             }
             Check(errors.Errors.Count==0,"All plugin tab bindings are valid");tabs.SelectedIndex=0;
+            // ETF表格须保持约18行容量，整页可下滚；滚轮到表格边界后不能被内部滚动区截住。
+            window.UpdateLayout();
+            if(view.FindName("OverviewGrid") is System.Windows.Controls.DataGrid overview && view.FindName("PageScroll") is System.Windows.Controls.ScrollViewer pageScroll)
+            {
+                var capacity=(overview.ActualHeight-overview.ColumnHeaderHeight-20)/overview.RowHeight;
+                Check(capacity>=15 && capacity<=20 && pageScroll.ScrollableHeight>0,"ETF table accommodates 15-20 rows and whole page scrolls");
+                var tableScroll=FindVisual<System.Windows.Controls.ScrollViewer>(overview)!;
+                tableScroll.ScrollToBottom();pageScroll.ScrollToTop();window.UpdateLayout();
+                overview.RaiseEvent(new System.Windows.Input.MouseWheelEventArgs(System.Windows.Input.Mouse.PrimaryDevice,Environment.TickCount,-120){RoutedEvent=System.Windows.Input.Mouse.PreviewMouseWheelEvent});
+                window.UpdateLayout();Check(pageScroll.VerticalOffset>0,"ETF table wheel continues scrolling the page at its boundary");
+                pageScroll.ScrollToBottom();window.UpdateLayout();
+                var chart=FindVisual<LiveChartsCore.SkiaSharpView.WPF.CartesianChart>(view)!;
+                var chartBottom=chart.TranslatePoint(new Point(0,chart.ActualHeight),view).Y;
+                Check(chartBottom<=view.ActualHeight+1 && chartBottom>0,"ETF chart becomes visible after page scroll");
+                pageScroll.ScrollToTop();window.UpdateLayout();
+            }
         }
         finally {System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Remove(errors);}
     }

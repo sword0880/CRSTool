@@ -24,6 +24,10 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     [ObservableProperty] private string cron = "0 * * * * ?";
     [ObservableProperty] private string timeZoneId = "China Standard Time";
     [ObservableProperty] private bool busy;
+    [ObservableProperty] private bool etfHistoryOnly=true;
+    public bool CanChangeHistory=>!Busy;
+    partial void OnBusyChanged(bool value)=>OnPropertyChanged(nameof(CanChangeHistory));
+    partial void OnEtfHistoryOnlyChanged(bool value){historyCursor=null;History.Clear();Status="历史范围已切换，请点击刷新状态。";}
     partial void OnSelectedChanged(TaskDefinition? value)
     {
         if (value is not null) { Cron = value.Cron; TimeZoneId = value.TimeZoneId; }
@@ -37,7 +41,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         healthState = health.Health?.State ?? "Unknown";
         if (healthState is "StorageFault" or "UnresponsivePlugin") return;
         var plans = await client.QueryAsync("GetJobs", lifetime);
-        var history = await client.QueryAsync("GetHistory", lifetime);
+        var history = await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHistory",PluginId:EtfHistoryOnly?"crs.national-team":null),lifetime);
         lifetime.ThrowIfCancellationRequested();
         if (health.Code != "Ok" || plans.Code != "Ok" || history.Code != "Ok") throw new InvalidOperationException("服务协议不兼容。");
         historyCursor = history.NextCursor;
@@ -60,7 +64,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     private Task MoreHistoryAsync() => WithStatusAsync(async () =>
     {
         if (historyCursor is null) { Status = "没有更多执行记录。"; return; }
-        var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetHistory", Cursor: historyCursor), lifetime);
+        var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetHistory", PluginId:EtfHistoryOnly?"crs.national-team":null,Cursor: historyCursor), lifetime);
         if (response.Code != "Ok") { Status = "历史读取失败：" + response.Code; return; }
         foreach (var row in response.History ?? []) if (!History.Any(x => x.ExecutionId == row.ExecutionId)) History.Add(row);
         historyCursor = response.NextCursor; Status = historyCursor is null ? "已读取全部可用历史。" : "已加载下一页历史。";

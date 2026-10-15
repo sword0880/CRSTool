@@ -41,6 +41,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             Execute("""
                 CREATE TABLE IF NOT EXISTS task(plugin TEXT NOT NULL,job TEXT NOT NULL,name TEXT NOT NULL,cron TEXT NOT NULL,zone TEXT NOT NULL,enabled INTEGER NOT NULL,revision INTEGER NOT NULL,reconcile INTEGER NOT NULL,not_before TEXT,failures INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(plugin,job));
                 CREATE TABLE IF NOT EXISTS execution(id TEXT PRIMARY KEY,plugin TEXT NOT NULL,job TEXT NOT NULL,scheduled TEXT NOT NULL,started TEXT NOT NULL,ended TEXT,result TEXT NOT NULL,checkpoint TEXT,attempt INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS execution_progress(execution TEXT NOT NULL,sequence INTEGER NOT NULL,utc TEXT NOT NULL,detail TEXT NOT NULL,PRIMARY KEY(execution,sequence),FOREIGN KEY(execution) REFERENCES execution(id) ON DELETE CASCADE);
                 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,utc TEXT NOT NULL,sid TEXT NOT NULL,request TEXT NOT NULL,command TEXT NOT NULL,result TEXT NOT NULL);
                 DROP INDEX IF EXISTS audit_request;
                 CREATE TABLE IF NOT EXISTS command_request(request TEXT PRIMARY KEY,sid TEXT NOT NULL,command TEXT NOT NULL,payload TEXT NOT NULL,plugin TEXT,job TEXT,state TEXT NOT NULL,code TEXT NOT NULL,execution TEXT,created TEXT NOT NULL);
@@ -141,7 +142,8 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             if (result.RetryAfter is { } retry) seconds = Math.Clamp(retry.TotalSeconds, failed ? seconds : 30, 86400);
             Execute("UPDATE task SET failures=$f,not_before=$n WHERE plugin=$p AND job=$j", ("$f", failed ? Math.Min(plan.Failures + 1, 100) : result.Status == "Succeeded" ? 0 : plan.Failures), ("$n", deferred ? DateTimeOffset.UtcNow.AddSeconds(seconds).ToString("O") : null), ("$p", plan.PluginId), ("$j", plan.JobId));
             if (requestId is { } request) CompleteCommand(request, result.Status);
-            Execute("DELETE FROM execution WHERE result<>'Running' AND id NOT IN (SELECT id FROM execution ORDER BY started DESC LIMIT 500)");
+            // 高频诊断心跳单独保留100条，不能消耗500条业务历史额度；运行中执行不参与清理。
+            Execute("DELETE FROM execution WHERE result<>'Running' AND ((plugin='crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin='crs.heartbeat' ORDER BY started DESC LIMIT 100)) OR (plugin<>'crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin<>'crs.heartbeat' ORDER BY started DESC LIMIT 500)))");
             tx.Commit();
         }
     }
@@ -162,7 +164,28 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
         {
             using var command=Command("SELECT * FROM execution WHERE id=$id",("$id",id));
             using var reader=command.ExecuteReader();
-            return reader.Read()?new(reader.GetString(0),reader.GetString(1),reader.GetString(2),DateTimeOffset.Parse(reader.GetString(3),CultureInfo.InvariantCulture),DateTimeOffset.Parse(reader.GetString(4),CultureInfo.InvariantCulture),reader.IsDBNull(5)?null:DateTimeOffset.Parse(reader.GetString(5),CultureInfo.InvariantCulture),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetString(7),reader.GetInt32(8)):null;
+            ExecutionRecord? record=reader.Read()?new(reader.GetString(0),reader.GetString(1),reader.GetString(2),DateTimeOffset.Parse(reader.GetString(3),CultureInfo.InvariantCulture),DateTimeOffset.Parse(reader.GetString(4),CultureInfo.InvariantCulture),reader.IsDBNull(5)?null:DateTimeOffset.Parse(reader.GetString(5),CultureInfo.InvariantCulture),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetString(7),reader.GetInt32(8)):null;
+            reader.Close();if(record is null)return null;
+            // 单条IPC只取最近128阶段，控制消息大小；序号可明确提示更早日志未在本页返回。
+            using var stages=Command("SELECT sequence,utc,detail FROM execution_progress WHERE execution=$id ORDER BY sequence DESC LIMIT 128",("$id",id));
+            using var values=stages.ExecuteReader();var events=new List<ExecutionProgressEvent>();
+            while(values.Read())events.Add(new(values.GetInt64(0),DateTimeOffset.Parse(values.GetString(1),CultureInfo.InvariantCulture),JsonSerializer.Deserialize<BackgroundProgress>(values.GetString(2))!));
+            events.Reverse();return events.Count==0?record:record with{Progress=events};
+        }
+    }
+    /// <summary>写入正在执行的阶段并保留最近512条；时间和顺序由宿主生成，强杀后仍可读取。</summary>
+    public void AppendProgress(string id,BackgroundProgress progress)
+    {
+        if(progress.Stage is not ("RangeStarted" or "DayStarted" or "SourceStarted" or "SourceParsed" or "SourceFailed" or "RequestStarted" or "ResponseReceived" or "RequestFailed" or "RequestTimedOut" or "RateWait" or "Cooldown" or "DayCommitted" or "RangeCompleted")
+            || progress.Market is not (null or "SSE" or "SZSE") || progress.Received<0 || progress.Added<0 || progress.Duplicates<0 || progress.Pending<0 || progress.HttpStatus is <100 or >599)throw new ArgumentException("进度格式无效。");
+        lock(gate)
+        {
+            using var transaction=db.BeginTransaction();
+            using var active=Command("SELECT count(*) FROM execution WHERE id=$id AND result='Running'",("$id",id));
+            if(Convert.ToInt64(active.ExecuteScalar())==0)return;
+            Execute("INSERT INTO execution_progress SELECT $id,coalesce(max(sequence),0)+1,$utc,$detail FROM execution_progress WHERE execution=$id",("$id",id),("$utc",Now),("$detail",JsonSerializer.Serialize(progress)));
+            Execute("DELETE FROM execution_progress WHERE execution=$id AND sequence<=(SELECT max(sequence)-512 FROM execution_progress WHERE execution=$id)",("$id",id));
+            transaction.Commit();
         }
     }
     public void Audit(string sid, Guid request, string command, string result)
@@ -233,12 +256,12 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
     {
         lock (gate) Execute("UPDATE command_request SET state='Completed',code='Cancelled' WHERE plugin=$p AND job=$j AND command='RunNow' AND state='Pending'", ("$p", plugin), ("$j", job));
     }
-    public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize)
+    public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null)
     {
         if (pageSize is < 1 or > 10 || (cursor is not null && (!long.TryParse(cursor, out var sequence) || sequence <= 0))) throw new ArgumentException("历史分页参数无效。");
         lock (gate)
         {
-            using var query = Command("SELECT rowid,* FROM execution WHERE rowid<$before ORDER BY rowid DESC LIMIT $limit", ("$before", cursor is null ? long.MaxValue : long.Parse(cursor, CultureInfo.InvariantCulture)), ("$limit", pageSize + 1));
+            using var query = Command("SELECT rowid,* FROM execution WHERE rowid<$before AND ($plugin IS NULL OR plugin=$plugin) ORDER BY rowid DESC LIMIT $limit", ("$before", cursor is null ? long.MaxValue : long.Parse(cursor, CultureInfo.InvariantCulture)), ("$limit", pageSize + 1),("$plugin",plugin));
             using var reader = query.ExecuteReader(); var rows = new List<ExecutionRecord>(); string? last = null; var more = false;
             while (reader.Read())
             {

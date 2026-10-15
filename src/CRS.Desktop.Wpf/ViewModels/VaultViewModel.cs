@@ -45,6 +45,10 @@ public partial class VaultViewModel(IVaultService vault,IDesktopSettingsService 
     private readonly bool maintenanceWindow=vault.IsUnlocked;
     public string PageHeading=>maintenanceWindow?"数据库与备份管理":"身份验证";
     public string PageDescription=>maintenanceWindow?"管理当前加密数据库的备份、恢复、主密码和手机绑定。":"使用已设置的手机验证或 Windows Hello 解锁";
+    // 相同提示仅显示一次；错误与操作结果仍在验证区下方独立展示。
+    public bool ShowStatus=>!string.IsNullOrWhiteSpace(Status) && Status!=AuthenticationHint;
+    partial void OnStatusChanged(string value)=>OnPropertyChanged(nameof(ShowStatus));
+    partial void OnAuthenticationHintChanged(string value)=>OnPropertyChanged(nameof(ShowStatus));
     public bool ShowMaintenance=>maintenanceWindow || IsNewVault || DirectoryState is VaultState.Invalid or VaultState.PlaintextRejected;
     public bool ShowEnrollmentPanel=>vault.Authentication==AuthenticationState.PendingEnrollment;
     [ObservableProperty] private bool windowsHelloAvailable;

@@ -1,4 +1,13 @@
 namespace CRS.Plugins.NationalTeamWatch.Application;
+
+/// <summary>公开采集阶段，不含原件、凭据、任意异常消息或完整请求URL。</summary>
+public sealed record EtfProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null);
+public sealed record ShareImportOutcome(int Added,int Duplicates,int Pending);
+/// <summary>候选目录与实际监控分开，停用条目仍可查询和编辑，不删除历史事实。</summary>
+public sealed record EtfConfiguration(string Market,string Ticker,string Name,string IndexGroup,bool Active,string Reason,string Origin,long Revision)
+{
+    public string StateText=>Active?"监控中":"未监控";
+}
 /// <summary>只读概览；未知指标保持空值，不用零替代缺失数据。</summary>
 public sealed record EtfSummary(string Market, string Ticker, string Name, string IndexGroup, string Label,
     DateOnly? AsOf, decimal? Shares, decimal? Change1, decimal? Change5, decimal? Change20, string Status, int CoveredDays);

@@ -15,7 +15,7 @@ internal static class BackgroundServiceViewChecks
         var thread = new Thread(() =>
         {
             var application = new System.Windows.Application();
-            var model = new BackgroundServiceViewModel(CancellationToken.None, pipe is null ? null : new CRS.Worker.Ipc.BackgroundPipeClient(pipe));
+            var model = new BackgroundServiceViewModel(CancellationToken.None, pipe is null ? null : new CRS.Worker.Ipc.BackgroundPipeClient(pipe)){EtfHistoryOnly=false};
             var page = new BackgroundServicePage(model);
             var window = new Window { Title = "CRS 独立后台服务验收", Content = page, Width = 1200, Height = 800, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             window.Loaded += async (_, _) =>

@@ -161,7 +161,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         }
         if (request.Command == "GetHistory")
         {
-            try { var page = repository.HistoryPage(request.Cursor, request.PageSize); return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor); }
+            try { var page = repository.HistoryPage(request.Cursor, request.PageSize,request.PluginId); return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor); }
             catch (ArgumentException) { return Reply("InvalidRequest"); }
         }
         if(request.Command=="GetExecution")
@@ -267,7 +267,9 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         BackgroundJobResult result;
         var handler = catalog.Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
         // 参数来自已提交的持久命令，强杀恢复后继续使用同一业务操作。
-        var work = Task.Run(() => handler.Session is IParameterizedBackgroundSession parameterized
+        var work = Task.Run(() => handler.Session is IProgressBackgroundSession progress
+            ?progress.ExecuteWithProgressAsync(plan.JobId,payload,detail=>SaveProgressAsync(execution,detail,source.Token),source.Token,request)
+            :handler.Session is IParameterizedBackgroundSession parameterized
             ?parameterized.ExecuteAsync(plan.JobId,payload,source.Token,request):handler.Session.ExecuteAsync(plan.JobId,source.Token), CancellationToken.None);
         try { result = await work.WaitAsync(source.Token); }
         catch (OperationCanceledException)
@@ -286,7 +288,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         }
         // 仅记录异常类型，不能把插件异常消息中的凭据、地址参数或本机路径写入公开日志。
         catch (Exception error) { result = new("Failed","error="+error.GetType().Name[..Math.Min(error.GetType().Name.Length,128)]); }
-        if (result.Status is not ("Succeeded" or "NotPublished" or "AccessBlocked" or "SourceSchemaChanged" or "RetryDeferred" or "Failed" or "Cancelled") || result.Checkpoint?.Length > 1024) result = new("Failed");
+        if (result.Status is not ("Succeeded" or "NotPublished" or "AccessBlocked" or "SourceSchemaChanged" or "RetryDeferred" or "Rejected" or "Failed" or "Cancelled") || result.Checkpoint?.Length > 1024) result = new("Failed");
         await gate.WaitAsync(CancellationToken.None);
         try
         {
@@ -298,6 +300,14 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         }
         catch (Exception error) when (StorageError(error)) { await TripFaultAsync("StorageFault"); }
         finally { running.Remove(key); source.Dispose(); gate.Release(); }
+    }
+    /// <summary>阶段记录与控制查询共享短数据库门槛，落盘失败立即停止采集，避免产生虚假进度。</summary>
+    private async Task SaveProgressAsync(string execution,BackgroundProgress progress,CancellationToken token)
+    {
+        await gate.WaitAsync(token);
+        try{repository.AppendProgress(execution,progress);}
+        catch(Exception error) when(StorageError(error)){await TripFaultAsync("StorageFault");throw;}
+        finally{gate.Release();}
     }
     public async Task EnterMaintenanceAsync(CancellationToken token)
     {

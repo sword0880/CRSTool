@@ -53,6 +53,9 @@ internal static class NavigationSurfaceSmokeChecks
         if (page.Rows.Count < 2 || page.Rows.Any(row => row.Version == "未确定") || builtIn.IsVisible)
             throw new InvalidOperationException("插件表格缺少实际版本或仍显示旧页面。");
         var row = page.Rows[0]; var state = row.StateLabel; var action = row.ActionLabel;
+        // 保持选中行再截图，覆盖用户反馈的深色选中背景与文字不清晰场景。
+        var table = (System.Windows.Controls.DataGrid)page.FindName("PluginTable");
+        table.SelectedItem = row; table.Focus();
         row.ToggleCommand.Execute(null);
         if (row.StateLabel != state || row.ActionLabel == action || !row.NextLabel.Contains("重启后生效"))
             throw new InvalidOperationException("启停图标没有准确显示待生效状态。");

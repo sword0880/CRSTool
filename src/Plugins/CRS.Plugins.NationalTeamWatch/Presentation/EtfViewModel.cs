@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.ComponentModel;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CRS.Plugins.NationalTeamWatch.Application;
@@ -12,6 +14,17 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
 {
     public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EtfSummary> Rows { get; }=[];
+    public ObservableCollection<EtfConfiguration> Configurations {get;}=[];
+    private ICollectionView? configurationView;
+    public ICollectionView ConfigurationView=>configurationView??=CreateConfigurationView();
+    public string ConfigurationCount=>$"监控中 {Configurations.Count(x=>x.Active)}/20 · 目录共 {Configurations.Count} 只";
+    public string ConfigurationTitle=>SelectedConfiguration is null?"新增ETF":"修改ETF";
+    public bool IsNewConfiguration=>SelectedConfiguration is null;
+    public bool CanEditConfiguration=>CanManage && !Busy;
+    public IReadOnlyList<string> Markets {get;}=["SSE","SZSE"];
+    [ObservableProperty] private EtfConfiguration? selectedConfiguration;
+    [ObservableProperty] private string configurationSearch="";
+    [ObservableProperty] private bool monitorEnabled;
     public ObservableCollection<EvidenceRow> Evidence { get; }=[];
     public ObservableCollection<CoverageDay> CoverageDays { get; }=[];
     [ObservableProperty] private DateTime? coverageFrom=MarketToday.AddYears(-1);
@@ -36,6 +49,19 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     private int selectionVersion;
     // 研究日期以北京时间为准，不依赖电脑的本地时区。
     private static DateTime MarketToday=>TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").Date;
+    private ICollectionView CreateConfigurationView()
+    {
+        var view=CollectionViewSource.GetDefaultView(Configurations);
+        view.Filter=item=>item is EtfConfiguration row && (string.IsNullOrWhiteSpace(ConfigurationSearch) || $"{row.Market} {row.Ticker} {row.Name} {row.IndexGroup}".Contains(ConfigurationSearch.Trim(),StringComparison.OrdinalIgnoreCase));
+        return view;
+    }
+    partial void OnConfigurationSearchChanged(string value)=>ConfigurationView.Refresh();
+    partial void OnBusyChanged(bool value)=>OnPropertyChanged(nameof(CanEditConfiguration));
+    partial void OnSelectedConfigurationChanged(EtfConfiguration? value)
+    {
+        if(value is not null){Market=value.Market;Ticker=value.Ticker;SecurityName=value.Name;IndexGroup=value.IndexGroup;Reason=value.Reason;MonitorEnabled=value.Active;}
+        OnPropertyChanged(nameof(ConfigurationTitle));OnPropertyChanged(nameof(IsNewConfiguration));
+    }
     partial void OnSelectedChanged(EtfSummary? value)
     {
         // 切换证券后立即清掉旧图表和覆盖率，避免把旧证券的数据展示到新选择上。
@@ -60,11 +86,39 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     }
     public async Task RefreshAsync(CancellationToken token)
     {
-        var rows=await workspace.OverviewAsync(token);var evidence=await workspace.EvidenceAsync(token); token.ThrowIfCancellationRequested();
+        var rows=await workspace.OverviewAsync(token);var evidence=await workspace.EvidenceAsync(token);await RefreshConfigurationAsync(token); token.ThrowIfCancellationRequested();
         Selected=null;SelectedEvidence=null;Series=[];XAxes=[];InvalidateCoverage();CoverageStatus="本地数据已刷新，请重新选择ETF查询覆盖率。";
         Rows.Clear();foreach(var row in rows) Rows.Add(row); Evidence.Clear();foreach(var row in evidence) Evidence.Add(row);
         Status=$"当前验证池 {Rows.Count}/20 · {workspace.NetworkStatus}";
     }
+    /// <summary>编辑配置只刷新目录与概览，避免每次保存都重新下载全部历史证据。</summary>
+    private async Task RefreshConfigurationAsync(CancellationToken token,EtfKey? select=null)
+    {
+        select??=SelectedConfiguration is { } current?new(current.Market,current.Ticker):null;
+        var entries=await workspace.ConfigurationAsync(token);token.ThrowIfCancellationRequested();
+        SelectedConfiguration=null;Configurations.Clear();foreach(var row in entries)Configurations.Add(row);
+        SelectedConfiguration=Configurations.SingleOrDefault(x=>x.Market==select?.Market && x.Ticker==select.Ticker);
+        OnPropertyChanged(nameof(ConfigurationCount));
+    }
+    [RelayCommand] private void NewConfiguration()
+    {
+        SelectedConfiguration=null;ConfigurationSearch="";Market="SSE";Ticker="";SecurityName="";IndexGroup="";Reason="";MonitorEnabled=false;
+    }
+    [RelayCommand] private Task RefreshConfiguration()=>ExecuteAsync(token=>RefreshConfigurationAsync(token));
+    [RelayCommand] private Task SaveConfiguration()=>ExecuteAsync(async token=>
+    {
+        if(!CanManage)throw new InvalidDataException("保存配置需要管理员权限。");
+        if(Market is not ("SSE" or "SZSE") || Ticker.Length!=6 || !Ticker.All(char.IsAsciiDigit) || string.IsNullOrWhiteSpace(SecurityName) || string.IsNullOrWhiteSpace(IndexGroup) || string.IsNullOrWhiteSpace(Reason))throw new InvalidDataException("请填写市场、6位代码、名称、指数分组和配置理由。");
+        if(IsNewConfiguration && Configurations.Any(x=>x.Market==Market && x.Ticker==Ticker))throw new InvalidDataException("该市场和代码已在目录中，请选择该行后修改。");
+        if(MonitorEnabled && Configurations.Count(x=>x.Active && (x.Market!=Market || x.Ticker!=Ticker))>=20)throw new InvalidDataException("监控池已满20只，请先停用其它ETF。");
+        var key=new EtfKey(Market,Ticker);var revision=SelectedConfiguration?.Revision?? -1;
+        // 宿主保证插件写任务串行；长采集期间向用户说明保存可能排队。
+        Status="正在保存ETF配置；如后台正在采集，将等待当前采集完成。可在任务中心查看执行记录。";
+        await workspace.SaveConfigurationAsync(key,SecurityName,IndexGroup,MonitorEnabled,Reason,revision,token);
+        ConfigurationSearch="";await RefreshConfigurationAsync(token,key);
+        var rows=await workspace.OverviewAsync(token);Selected=null;Rows.Clear();foreach(var row in rows)Rows.Add(row);
+        Status=$"ETF配置已保存 · 监控中 {Rows.Count}/20；后台自动采集已启用的标的，停用保留已有历史。";
+    });
     /// <summary>后台采集结束后的展示刷新不覆盖用户正在进行的交互。</summary>
     public Task RefreshFromScheduleAsync(CancellationToken token)=>Busy?Task.CompletedTask:RefreshAsync(token);
     [RelayCommand] private Task Refresh()=>ExecuteAsync(RefreshAsync);

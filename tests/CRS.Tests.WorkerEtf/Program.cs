@@ -49,6 +49,9 @@ using(var service=Start())
         var health=await Query("GetHealth");Check(health.Health?.State=="Running","真实独立服务加载ETF后台入口");
         await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.Result=="Succeeded"));
         Check((await ui.OverviewAsync(default)).Count==5 && (await ui.OverviewAsync(default)).All(x=>x.Shares>0),"启动后自动采集两市五只ETF并经管道查询");
+        var first=(await Query("GetHistory")).History!.First(x=>x.PluginId=="crs.national-team" && x.Result=="Succeeded");
+        var firstLog=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:first.ExecutionId));
+        Check(firstLog.Execution?.Progress is{Count:>0} stages && stages.Any(x=>x.Detail.Stage=="SourceParsed") && stages.Any(x=>x.Detail.Stage=="DayCommitted") && stages[^1].Detail.Stage=="RangeCompleted","真实管道提供来源解析、事实提交及区间汇总阶段");
         var assemblies=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:"fixture-assemblies"));
         var loaded=JsonSerializer.Deserialize<string[]>(assemblies.Payload!)!;
         Check(!loaded.Any(x=>x.StartsWith("Presentation",StringComparison.Ordinal)||x is "CRS.Plugins.NationalTeamWatch" or "CRS.Infrastructure" or "CRS.Security"),"服务不加载WPF、UI插件或私人税务程序集");
@@ -110,5 +113,47 @@ try
     Check(query.ExecuteScalar() is string,"自动补采查询游标持久保存在独立加密市场库");
 }
 finally{CryptographicOperations.ZeroMemory(master);if(marketKey is not null)CryptographicOperations.ZeroMemory(marketKey);}
+// 原有恢复/去重验收完成后，再在同一隔离服务验证可编辑配置，不改动用户监控池。
+using(var service=Start())
+{
+    var hold=Path.Combine(data,"plugins","crs.national-team","http-hold.fixture");
+    try
+    {
+        await Query("GetHealth");var configurations=await ui.ConfigurationAsync(default);
+        Check(configurations.Count>=24 && configurations.Any(x=>x.Ticker=="510500" && !x.Active),"服务分页返回参考候选及停用ETF，不自动加入监控池");
+        var existing=configurations.Single(x=>x.Ticker=="510900");
+        File.WriteAllText(hold,"synthetic network hold");
+        await Send(Request("RunNow"));
+        await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.JobId=="official-share-sync" && x.Result=="Running"));
+        var activeRun=(await Query("GetHistory")).History!.First(x=>x.JobId=="official-share-sync" && x.Result=="Running");
+        // Running由宿主先提交，来源阶段随后写入；等待实际阶段，不能把这两个时刻当作原子动作。
+        await Until(async()=>(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:activeRun.ExecutionId))).Execution?.Progress?.Any(x=>x.Detail.Stage=="SourceStarted")==true);
+        Check(true,"网络尚未返回时可读取来源开始与最近进展");
+        var editing=ui.SaveConfigurationAsync(new(existing.Market,existing.Ticker),"合成后台编辑名称","CONFIG",false,"采集期间修改",existing.Revision,default);
+        // 宿主按插件串行写入；网络等待期间应保留命令，不能绕开统一写入门槛。
+        await Task.Delay(1500);
+        Check(!editing.IsCompleted,"采集期间配置命令排队，不绕过插件写入门槛");
+        File.Delete(hold);
+        if(await Task.WhenAny(editing,Task.Delay(20000))!=editing)throw new TimeoutException("采集结束后配置保存仍未完成。");
+        await editing;
+        Check((await ui.ConfigurationAsync(default)).Single(x=>x.Ticker==existing.Ticker) is{Name:"合成后台编辑名称",Active:false},"采集结束后排队配置正确保存名称、指数和监控状态");
+        var rejected=false;try{await ui.SaveConfigurationAsync(new(existing.Market,existing.Ticker),"旧窗口覆盖","OLD",true,"旧修订测试",existing.Revision,default);}catch(InvalidDataException){rejected=true;}
+        Check(rejected,"管道配置写入拒绝旧修订");
+        await ui.SaveConfigurationAsync(new("SSE","510902"),"合成新增配置","CONFIG",false,"自定义候选测试",-1,default);
+        Check((await ui.ConfigurationAsync(default)).Any(x=>x.Ticker=="510902" && !x.Active),"配置拒绝不触发故障退避，下一次合法新增可立即完成");
+        EtfConfigurationUiChecks.Run(client,Path.Combine(Environment.CurrentDirectory,"artifacts","etf-configuration-ui","configuration.png"));
+        foreach(var row in (await ui.ConfigurationAsync(default)).Where(x=>x.Active))
+            await ui.SaveConfigurationAsync(new(row.Market,row.Ticker),row.Name,row.IndexGroup,false,"空监控池验证",row.Revision,default);
+        File.WriteAllText(hold,"must not access HTTP");
+        var emptyRun=await Send(Request("RunNow"));
+        await Until(async()=>
+        {
+            var receipt=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:emptyRun.RequestId));
+            return receipt.Receipt?.State=="Completed";
+        });
+        Check((await Query("GetHistory")).History!.Any(x=>x.Checkpoint=="monitoring=NoActiveEtfs" && x.Result=="Succeeded"),"全部停用时不请求网络，也不记录为采集故障");
+    }
+    finally{if(File.Exists(hold))File.Delete(hold);if(!service.HasExited)service.Kill();await service.WaitForExitAsync();}
+}
 Console.WriteLine($"ETF服务化通过：{passed}项；全部为隔离合成来源，不代表官网长期验收。现场：{root}");
 

@@ -1,8 +1,24 @@
-<Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="身份验证" Width="660" Height="720" MinWidth="560" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#FBFCFD">
- <Window.Resources><BooleanToVisibilityConverter x:Key="ShowWhenTrue"/></Window.Resources>
- <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="26" IsEnabled="{Binding IsIdle}">
-  <TextBlock Text="{Binding PageHeading}" FontSize="24" FontWeight="SemiBold"/>
-  <TextBlock Text="{Binding PageDescription}" Foreground="#64748B" Margin="0,8,0,20" TextWrapping="Wrap"/>
+<Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="身份验证" Width="620" Height="740" MinWidth="540" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#F3F6FC" Foreground="#0F172A">
+ <Window.Resources>
+  <BooleanToVisibilityConverter x:Key="ShowWhenTrue"/>
+  <!-- 窗口内统一输入与按钮样式，保留原生密码控件和既有认证命令。 -->
+  <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="MinHeight" Value="42"/><Setter Property="Padding" Value="12,9"/><Setter Property="FontSize" Value="14"/></Style>
+  <Style TargetType="PasswordBox" BasedOn="{StaticResource {x:Type PasswordBox}}"><Setter Property="MinHeight" Value="44"/><Setter Property="Padding" Value="12,9"/><Setter Property="FontSize" Value="16"/><Setter Property="AutomationProperties.Name" Value="密码或验证凭证"/></Style>
+  <Style TargetType="Button">
+   <Setter Property="MinHeight" Value="40"/><Setter Property="Padding" Value="16,9"/><Setter Property="FontSize" Value="14"/><Setter Property="Background" Value="#F8FAFC"/><Setter Property="Foreground" Value="#334155"/><Setter Property="BorderBrush" Value="#DCE4EF"/><Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/></Border>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#60A5FA"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PrimaryAction" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="#2563EB"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="#2563EB"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="MinHeight" Value="44"/></Style>
+ </Window.Resources>
+ <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="32,28" MaxWidth="500" HorizontalAlignment="Center" IsEnabled="{Binding IsIdle}">
+  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,22"><ui:SymbolIcon Symbol="LockClosed24" Foreground="#2563EB" FontSize="16"/><TextBlock Text="CRS · 安全访问" Foreground="#64748B" FontWeight="SemiBold" Margin="8,0,0,0"/></StackPanel>
+  <Border Background="White" BorderBrush="#E0E7F1" BorderThickness="1" CornerRadius="18" Padding="28">
+  <StackPanel>
+  <Border Width="56" Height="56" Background="#EFF6FF" CornerRadius="16" HorizontalAlignment="Left" Margin="0,0,0,18"><ui:SymbolIcon Symbol="LockClosed24" Foreground="#2563EB" FontSize="27"/></Border>
+  <TextBlock Text="{Binding PageHeading}" FontSize="28" FontWeight="SemiBold"/>
+  <TextBlock Text="{Binding PageDescription}" Foreground="#64748B" Margin="0,8,0,22" TextWrapping="Wrap" LineHeight="22"/>
   <!-- 日常手机验证不展示数据库路径；首次创建和用户主动选择位置时才展开。 -->
   <StackPanel x:Name="DirectoryPanel" Visibility="{Binding ShowDirectoryEntry,Converter={StaticResource ShowWhenTrue}}">
    <TextBlock Text="保险库目录（新建必须是空目录）"/><TextBox Text="{Binding Directory, UpdateSourceTrigger=PropertyChanged}" Margin="0,6"/>
@@ -12,22 +28,22 @@
    <TextBlock Text="{Binding PasswordEntryLabel}" TextWrapping="Wrap"/><PasswordBox x:Name="PasswordInput" PasswordChanged="OnPassword" Margin="0,6"/>
    <TextBlock Text="主密码用于保护数据库资料和换电脑恢复，请离线妥善保存。" TextWrapping="Wrap" Foreground="#64748B"/>
   </StackPanel>
-  <WrapPanel Margin="0,8"><Button Content="首次创建并加密" Command="{Binding CreateCommand}" Visibility="{Binding IsNewVault,Converter={StaticResource ShowWhenTrue}}" Margin="0,0,8,0"/><Button Content="{Binding UnlockLabel}" Command="{Binding UnlockCommand}" Visibility="{Binding IsExistingVault,Converter={StaticResource ShowWhenTrue}}" Margin="0,0,8,0"/><Button Content="进入工作区" Command="{Binding ContinueCommand}"/></WrapPanel>
-  <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#334155" Margin="0,8"/>
+  <Button Content="首次创建并加密" Style="{StaticResource PrimaryAction}" Command="{Binding CreateCommand}" Visibility="{Binding IsNewVault,Converter={StaticResource ShowWhenTrue}}" Margin="0,12,0,8"/>
   <!-- 首次扫码只显示内存素材，不提供二维码保存或复制按钮。 -->
-  <Border Background="#EFF6FF" CornerRadius="10" Padding="14" Margin="0,10"><StackPanel>
-   <TextBlock Text="身份验证" FontWeight="SemiBold" FontSize="16"/>
-   <TextBlock Text="{Binding AuthenticationHint}" TextWrapping="Wrap" Margin="0,6"/>
+  <Border Background="#F8FAFC" BorderBrush="#E8EDF5" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,16"><StackPanel>
+   <TextBlock Text="{Binding AuthenticationHint}" Foreground="#475569" TextWrapping="Wrap" LineHeight="22" Margin="0,0,0,8"/>
    <!-- 只有首次未绑定状态出现替代方式；验证器故障不会自动降级。 -->
    <StackPanel Visibility="{Binding ShowHelloChoice,Converter={StaticResource ShowWhenTrue}}" Margin="0,6,0,12">
     <TextBlock Text="默认使用下方 TOTP。首次没有验证器时，请先保存下方数据库恢复密钥，再明确选择 Windows Hello（PIN、指纹或人脸）。" TextWrapping="Wrap"/>
     <Button Content="首次没有验证器：选择 Windows Hello" Command="{Binding ChooseWindowsHelloCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
    </StackPanel>
-   <Button Content="Windows Hello 验证 / 重新启用本机登录" Command="{Binding VerifyWindowsHelloCommand}" Visibility="{Binding ShowHelloVerification,Converter={StaticResource ShowWhenTrue}}" HorizontalAlignment="Left" Margin="0,8"/>
+   <Button Content="使用 Windows Hello 验证" Style="{StaticResource PrimaryAction}" Command="{Binding VerifyWindowsHelloCommand}" Visibility="{Binding ShowHelloVerification,Converter={StaticResource ShowWhenTrue}}" Margin="0,8"/>
    <StackPanel Visibility="{Binding ShowTotp,Converter={StaticResource ShowWhenTrue}}">
    <Image Source="{Binding EnrollmentQr}" Width="210" MaxHeight="210" Stretch="Uniform" HorizontalAlignment="Center"/>
-   <DockPanel Margin="0,8"><Button DockPanel.Dock="Right" Content="验证六位代码" Command="{Binding VerifyCodeCommand}" Margin="8,0,0,0"/><PasswordBox x:Name="CodeInput" PasswordChanged="OnCode" MaxLength="6"/></DockPanel>
-   <TextBlock Text="同一验证码只能使用一次；刚绑定或解锁后，请等下一组代码再操作。" Foreground="#64748B" TextWrapping="Wrap"/>
+   <TextBlock Text="手机验证码" FontWeight="SemiBold" Margin="0,8,0,8"/>
+   <PasswordBox x:Name="CodeInput" PasswordChanged="OnCode" MaxLength="6" FontSize="24" Height="54" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" AutomationProperties.Name="六位手机验证码" ToolTip="请输入验证器中的六位代码"/>
+   <Button Content="验证并解锁" Style="{StaticResource PrimaryAction}" Command="{Binding VerifyCodeCommand}" Margin="0,14,0,12"/>
+   <TextBlock Text="请打开手机验证器，输入当前六位代码。同一代码只能使用一次。" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" LineHeight="19"/>
    <StackPanel Visibility="{Binding HasMfaRecoveryCodes,Converter={StaticResource ShowWhenTrue}}">
     <TextBox Text="{Binding MfaRecoveryCodes,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,8"/>
     <CheckBox Content="我已离线保存八条手机恢复码" IsChecked="{Binding MfaRecoverySaved}"/>
@@ -35,6 +51,17 @@
    <Button Content="重新显示绑定二维码" Command="{Binding BeginEnrollmentCommand}" Visibility="{Binding ShowEnrollmentPanel,Converter={StaticResource ShowWhenTrue}}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
    </StackPanel>
   </StackPanel></Border>
+  <!-- 反馈保留在验证区下方；准备与进入命令继续沿用原有权限及可执行条件。 -->
+  <Border Background="#EFF6FF" CornerRadius="8" Padding="12,10" Margin="0,0,0,14" Visibility="{Binding ShowStatus,Converter={StaticResource ShowWhenTrue}}"><TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#475569" LineHeight="20"/></Border>
+  <!-- 已经准备好的日常验证不再重复显示准备按钮；可进入时才显示工作区入口。 -->
+  <WrapPanel Visibility="{Binding IsExistingVault,Converter={StaticResource ShowWhenTrue}}">
+   <Button Content="{Binding UnlockLabel}" Command="{Binding UnlockCommand}" Margin="0,0,8,8"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers>
+    <DataTrigger Binding="{Binding ShowTotp}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+    <DataTrigger Binding="{Binding ShowHelloVerification}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+    <DataTrigger Binding="{Binding ShowPasswordEntry}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+   </Style.Triggers></Style></Button.Style></Button>
+  </WrapPanel>
+  <Button Content="进入工作区" Command="{Binding ContinueCommand}" Margin="0,0,0,8"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryAction}"><Style.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></Button.Style></Button>
   <!-- 恢复密钥只在创建时显示，离开向导必须确认已离线保存。 -->
   <StackPanel Visibility="{Binding HasDatabaseRecovery,Converter={StaticResource ShowWhenTrue}}">
    <TextBlock Text="新建恢复密钥（仅本次显示，请离线保存）"/><TextBox Text="{Binding RecoveryKey, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,6"/>
@@ -65,5 +92,7 @@
   </StackPanel></Expander>
   <TextBlock Text="旧明文库不会迁移或删除。原始报表、Excel 和结转导出仍需自行妥善管理。" Visibility="{Binding ShowMaintenance,Converter={StaticResource ShowWhenTrue}}" TextWrapping="Wrap" Foreground="#64748B"/>
   <Button Content="锁定保险库" Visibility="{Binding IsUnlocked,Converter={StaticResource ShowWhenTrue}}" Command="{Binding LockCommand}" HorizontalAlignment="Left" Margin="0,14"/>
+  </StackPanel></Border>
+  <TextBlock Text="境外证券投资所得税辅助计算工具" HorizontalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,20,0,0"/>
  </StackPanel></ScrollViewer>
 </Window>

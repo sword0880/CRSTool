@@ -16,7 +16,7 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
 public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null):IBackgroundPluginSession,
-    IParameterizedBackgroundSession,IBackgroundQuerySession
+    IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession
 {
     private readonly SemaphoreSlim serial=new(1);
     private readonly SemaphoreSlim queries=new(1);
@@ -27,6 +27,20 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
     private byte[]? key;
     private RawEvidenceStore? raw;
     private string rawPath="";
+    private Func<BackgroundProgress,Task>? progress;
+    private DateOnly? progressDate;
+    /// <summary>每次任务独立绑定宿主进度，结束后移除，不能将下一次采集归到旧执行。</summary>
+    public async Task<BackgroundJobResult> ExecuteWithProgressAsync(string jobId,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)
+    {
+        progress=report;progressDate=null;
+        try{return await ExecuteAsync(jobId,payload,token,commandId);}
+        finally{progress=null;progressDate=null;}
+    }
+    private Task ReportAsync(EtfProgress value)
+    {
+        if(value.Date is { } date)progressDate=date;
+        return progress?.Invoke(new(value.Stage,value.Date??progressDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until))??Task.CompletedTask;
+    }
 
     /// <summary>默认仅自动采集，审核和池变更只接受管理员的持久手动命令。</summary>
     public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>[
@@ -42,15 +56,17 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
         key=context.OpenDataKey();raw=new(rawPath);
         // 策略库使用同一插件专用密钥和受限目录，缺失密钥或损坏时不能退回内存策略。
         http??=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(context.DataDirectory,"data"),key));
+        if(http is OfficialHttpGateway official)official.Progress=ReportAsync;
         var adapter=new WorkerContext(context.DataDirectory,http);
         workspace=new(adapter,()=>new MarketRepository(Path.Combine(context.DataDirectory,"data"),raw,encryptionKey:key),raw);
-        workspace.SetOfficialSource(new OfficialShareSources(http,raw));await workspace.InitializeAsync(token);
+        workspace.SetProgressSink(ReportAsync);workspace.SetOfficialSource(new OfficialShareSources(http,raw,ReportAsync));await workspace.InitializeAsync(token);
     }
     public Task<BackgroundJobResult> ExecuteAsync(string jobId,CancellationToken token)=>ExecuteAsync(jobId,null,token);
 
     /// <summary>所有写操作经宿主持久命令与插件串行门槛进入；客户端取消等待不撤销已接受命令。</summary>
     public async Task<BackgroundJobResult> ExecuteAsync(string jobId,string? payload,CancellationToken token,Guid? commandId=null)
     {
+        // 与宿主保持同一插件写任务串行，避免采集、配置和审核交错提交。
         await serial.WaitAsync(token);
         try
         {
@@ -58,6 +74,7 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
             switch(jobId)
             {
                 case "official-share-sync" when request.Operation=="sync":
+                    if(!(await workspace!.ConfigurationAsync(token)).Any(x=>x.Active))return BackgroundJobResult.Success("monitoring=NoActiveEtfs");
                     var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
                     var report=request.From is null && request.To is null?await workspace!.SyncRecentAsync(token):
                         await workspace!.SyncAsync(request.From??today.AddDays(-7),request.To??today,token);
@@ -66,7 +83,14 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
                 case "review" when request.Operation=="review":
                     await workspace!.ReviewAsync(request.Revision??"",request.Accept,request.Reviewer??"",request.Comparable,token,commandId);break;
                 case "watchlist" when request.Operation=="watchlist":
-                    await workspace!.MembershipAsync(Key(request),request.Name??"",request.Index??"",request.Active,request.Reason??"",token,commandId);break;
+                    if(request.ConfigurationRevision is { } revision)
+                    {
+                        // 用户输入/并发冲突不等于采集故障，不能让下一次正常配置请求进入故障退避。
+                        try{await workspace!.SaveConfigurationAsync(Key(request),request.Name??"",request.Index??"",request.Active,request.Reason??"",revision,token,commandId);}
+                        catch(InvalidDataException){return new("Rejected","configuration=InvalidOrStale");}
+                    }
+                    else await workspace!.MembershipAsync(Key(request),request.Name??"",request.Index??"",request.Active,request.Reason??"",token,commandId);
+                    break;
                 default:throw new InvalidDataException("任务与业务参数不匹配。");
             }
             return BackgroundJobResult.Success();
@@ -96,6 +120,7 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
             switch(request.Operation)
             {
                 case "overview":rows=(await workspace!.OverviewAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "configuration":rows=(await workspace!.ConfigurationAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "evidence":rows=(await workspace!.EvidenceAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "points":rows=(await workspace!.PointsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "coverage":

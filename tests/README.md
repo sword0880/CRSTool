@@ -93,3 +93,13 @@ dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --source
 ```
 
 验证持久冷却、来源间隔、Retry-After、临时故障退避、两市超时隔离、正文20秒期限、取消语义和策略库无钥/损坏拒绝，共18项。测试临时目录可设为工作区artifacts下；不代替官网长期覆盖验收。
+
+## ETF可编辑配置
+
+ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数据修改、旧修订拒绝、命令去重、满20只编辑/重启及停用保留事实；`CRS.Tests.WorkerEtf <完整Worker包>` 增加真实服务配置和WPF新增/修改回归。只读核验已安装目录用 `dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --configuration-live`。配置、排队与参考目录边界见[实施记录](../docs/implementation/ETF_CONFIGURATION.md)。
+
+## 单次执行日志
+
+阶段增量使用 `artifacts/worker-progress-heartbeat-v3` 跑后台故障套件、`artifacts/worker-etf-progress-v3` 跑ETF服务化套件；后者包含运行期间的来源阶段查询。新增仓储阶段8项覆盖持久化、截断、重启、过滤及501次心跳后保留业务历史，故障注入覆盖进度落盘失败；来源策略增加HTTP429及冷却阶段验证，窗口专项增加3秒自动刷新、最近进展和真实写入数量分类。`--etf-progress-probe` 只读查看实际安装的最近ETF执行，详细保留策略见[执行日志实现](../docs/implementation/WORKER_EXECUTION_LOGS.md)。
+
+`dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --execution-log-ui artifacts/execution-log-ui/log.png` 使用合成管道验证实际行双击、模态窗口、刷新、北京时间、记录清理与会话取消。已安装服务只读查询可用 `dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --execution-probe`，不触发新任务。服务的7项新增日志检查并入原65项回归，共72项，仍需显式HeartbeatOnly隔离包。边界见[执行日志实现](../docs/implementation/WORKER_EXECUTION_LOGS.md)。

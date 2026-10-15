@@ -4,6 +4,7 @@ using CRS.Domain;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
 // 独立窗口验收只查询公开后台任务，不创建或解锁个人保险库。
+if(args is ["--execution-log-ui",var logScreenshot]){ExecutionLogViewChecks.Run(logScreenshot);return;}
 if(args.Contains("--background-ui")){var index=Array.IndexOf(args,"--background-ui");BackgroundServiceViewChecks.Run(args[index+1],args.ElementAtOrDefault(index+2));return;}
 var cases=new FakeUseCases();
 var shell=new ShellViewModel(cases,new SilentInteraction());

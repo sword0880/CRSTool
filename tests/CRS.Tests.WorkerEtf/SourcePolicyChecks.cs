@@ -26,8 +26,15 @@ internal static class SourcePolicyChecks
             return Task.FromResult(response);
         });
         var sse = new Uri("https://query.sse.com.cn/test");
+        var progress=new List<CRS.Plugins.NationalTeamWatch.Application.EtfProgress>();
         using (var gateway = new OfficialHttpGateway(new(root, key), handler))
+        {
+            gateway.Progress=value=>{progress.Add(value);return Task.CompletedTask;};
             Check((await gateway.GetAsync(sse, default)).StatusCode == 429, "拒绝响应保留原始状态供来源登记");
+            Check(progress.Any(x=>x.Stage=="RequestStarted") && progress.Any(x=>x.Stage=="ResponseReceived" && x.HttpStatus==429) && progress.Any(x=>x.Stage=="Cooldown" && x.Until>DateTimeOffset.UtcNow),"阶段报告请求、HTTP429和冷却截止，不写原始响应");
+            var cooldownRejected=false;try{await gateway.GetAsync(sse,default);}catch(InvalidOperationException){cooldownRejected=true;}
+            Check(cooldownRejected && progress[^1].Stage=="Cooldown" && progress.Count(x=>x.Stage=="RequestStarted")==1,"冷却请求明确记录等待且不再发起HTTP");
+        }
         using (var policy = new SourceRequestPolicy(root, key))
         {
             Check(policy.Read("www.sse.com.cn").Blocked > DateTimeOffset.UtcNow.AddHours(47), "重建策略后保留Retry-After，且同交易所域名共用阻断");

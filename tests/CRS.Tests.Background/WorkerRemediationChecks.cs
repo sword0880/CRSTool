@@ -50,6 +50,16 @@ internal static class WorkerRemediationChecks
             await ConcurrencyAsync(root, catalog, key);
             Migration(root, key, catalog.Jobs[0].Descriptor);
             await RetryAsync(root, key, catalog);
+            var badJob=Package(root,("crs.fixture","BadJobEntry"));
+            await using(var failingCatalog=new BackgroundPluginCatalog())
+            {
+                await failingCatalog.LoadAsync(badJob.Root,badJob.Trust,default);
+                using var failingRepository=new EncryptedTaskRepository(Path.Combine(root,"public-error.db"),key);
+                await using var failingRuntime=new BackgroundRuntime(failingRepository,failingCatalog);await failingRuntime.StartAsync(default);
+                await failingRuntime.HandleAsync(Request("RunNow"),Admin,default);
+                await UntilAsync(()=>Task.FromResult(failingRepository.History().Any(x=>x.Result=="Failed")));
+                Check(failingRepository.History().Single().Checkpoint=="error=InvalidOperationException","异常日志只持久化分类，不保存插件消息中的敏感标记");
+            }
             await UnresponsiveAsync(root, key);
             var invalidSchedule = Package(root, ("crs.bad-plan", "BadScheduleEntry"), ("crs.good", "GoodEntry"));
             await using (var mixed = new BackgroundPluginCatalog())
@@ -123,7 +133,7 @@ internal static class WorkerRemediationChecks
     }
     private static async Task FaultsAsync(string root, BackgroundPluginCatalog catalog, byte[] key)
     {
-        foreach (var operation in new[] { "Begin", "End", "Audit" })
+        foreach (var operation in new[] { "Begin", "End", "Audit", "Progress" })
         {
             using var repository = new EncryptedTaskRepository(Path.Combine(root, "fault-" + operation + ".db"), key);
             var failing = new FaultRepository(repository) { Failure = operation };
@@ -250,6 +260,7 @@ internal static class WorkerRemediationChecks
     }
     private sealed class FaultRepository(ITaskRepository inner) : ITaskRepository
     {
+        public void AppendProgress(string id,BackgroundProgress progress){Fail("Progress");inner.AppendProgress(id,progress);}
         public string? Failure { get; set; }
         private void Fail(string operation) { if (Failure == operation) throw new IOException("隔离持久化边界故障"); }
         public void RegisterDefault(string p, BackgroundJobDescriptor d) => inner.RegisterDefault(p, d);
@@ -260,7 +271,7 @@ internal static class WorkerRemediationChecks
         public void End(string id, TaskDefinition p, BackgroundJobResult r, Guid? request = null) { Fail("End"); inner.End(id, p, r, request); }
         public List<ExecutionRecord> History() => inner.History();
         public ExecutionRecord? FindExecution(string id)=>inner.FindExecution(id);
-        public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? c, int n) => inner.HistoryPage(c, n);
+        public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? c, int n,string? plugin=null) => inner.HistoryPage(c, n,plugin);
         public void Audit(string s, Guid id, string c, string r) { Fail("Audit"); inner.Audit(s, id, c, r); }
         public CommandReceipt? FindCommand(Guid id, string s) => inner.FindCommand(id, s);
         public BackgroundRequest ReadCommand(Guid id)=>inner.ReadCommand(id);

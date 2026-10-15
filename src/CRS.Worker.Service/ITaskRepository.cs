@@ -13,7 +13,8 @@ public interface ITaskRepository
     void End(string id, TaskDefinition plan, BackgroundJobResult result, Guid? requestId = null);
     List<ExecutionRecord> History();
     ExecutionRecord? FindExecution(string id);
-    (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize);
+    void AppendProgress(string id,BackgroundProgress progress);
+    (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null);
     void Audit(string sid, Guid request, string command, string result);
     CommandReceipt? FindCommand(Guid request, string sid);
     BackgroundRequest ReadCommand(Guid request);

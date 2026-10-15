@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using CRS.Plugin.Abstractions;
+using CRS.Plugins.NationalTeamWatch.Application;
 namespace CRS.Plugins.NationalTeam.Jobs;
 /// <summary>公开来源限域、限速和大小保护；不跟随重定向，不绕过403或429。</summary>
 public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
@@ -10,6 +11,8 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
     private readonly SourceRequestPolicy policy;
     private readonly HashSet<string> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim gate = new(1);
+    public Func<EtfProgress,Task>? Progress {get;set;}
+    private Task ReportAsync(string stage,Uri uri,int? status=null,DateTimeOffset? until=null)=>Progress?.Invoke(new(stage,Market:uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)?"SSE":"SZSE",HttpStatus:status,Until:until))??Task.CompletedTask;
     /// <summary>测试可注入固定响应；正式入口只使用禁重定向的默认传输。</summary>
     public OfficialHttpGateway(SourceRequestPolicy policy, HttpMessageHandler? transport = null)
     {
@@ -25,11 +28,12 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
         try
         {
             var state = policy.Read(uri.Host);
-            if (state.Blocked > DateTimeOffset.UtcNow) throw new InvalidOperationException($"来源冷却中，最早重试时间{state.Blocked:O}。");
+            if (state.Blocked > DateTimeOffset.UtcNow) {await ReportAsync("Cooldown",uri,until:state.Blocked);throw new InvalidOperationException($"来源冷却中，最早重试时间{state.Blocked:O}。");}
             var wait = state.Next - DateTimeOffset.UtcNow;
-            if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
+            if (wait > TimeSpan.Zero) {await ReportAsync("RateWait",uri,until:state.Next);await Task.Delay(wait, cancellationToken).ConfigureAwait(false);}
             cancellationToken.ThrowIfCancellationRequested();
             policy.Reserve(uri.Host, DateTimeOffset.UtcNow);
+            await ReportAsync("RequestStarted",uri);
             // 头部和正文共用20秒期限；HttpClient的ResponseHeadersRead本身不约束正文读取。
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(TimeSpan.FromSeconds(20));
@@ -37,6 +41,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
             {
                 using var response = await SendAsync(uri,deadline.Token).ConfigureAwait(false);
                 var status = (int)response.StatusCode;
+                await ReportAsync("ResponseReceived",uri,status);
                 if (status is 403 or 429 or >= 500)
                 {
                     var retry = response.Headers.RetryAfter;
@@ -47,6 +52,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
                         until = delta > DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now.Add(delta);
                     }
                     policy.Failure(uri.Host, DateTimeOffset.UtcNow, status, until);
+                    await ReportAsync("Cooldown",uri,status,policy.Read(uri.Host).Blocked);
                 }
                 if (response.Content.Headers.ContentLength > 8 * 1024 * 1024) throw new InvalidDataException("Response too large.");
                 await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
@@ -62,11 +68,13 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 policy.Failure(uri.Host, DateTimeOffset.UtcNow, 0);
+                await ReportAsync("RequestTimedOut",uri,until:policy.Read(uri.Host).Blocked);
                 throw new TimeoutException("官方来源响应超时，已进入持久退避。");
             }
             catch (HttpRequestException)
             {
                 policy.Failure(uri.Host, DateTimeOffset.UtcNow, 0);
+                await ReportAsync("RequestFailed",uri,until:policy.Read(uri.Host).Blocked);
                 throw new HttpRequestException("官方来源连接失败，已进入持久退避。");
             }
         }

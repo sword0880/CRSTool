@@ -8,13 +8,14 @@ public sealed class Entry:IContextualBackgroundPluginEntry
 {
     public IBackgroundPluginSession CreateSession()=>throw new InvalidOperationException();
     public IBackgroundPluginSession CreateSession(IBackgroundHostContext context)=>new Session(context);
-    private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession
+    private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession
     {
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory));
         public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs();
         public ValueTask StartAsync(CancellationToken token)=>inner.StartAsync(token);
         public Task<BackgroundJobResult> ExecuteAsync(string id,CancellationToken token)=>inner.ExecuteAsync(id,token);
         public Task<BackgroundJobResult> ExecuteAsync(string id,string? payload,CancellationToken token,Guid? commandId=null)=>inner.ExecuteAsync(id,payload,token,commandId);
+        public Task<BackgroundJobResult> ExecuteWithProgressAsync(string id,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)=>inner.ExecuteWithProgressAsync(id,payload,report,token,commandId);
         public ValueTask StopAsync(CancellationToken token)=>inner.StopAsync(token);
         public ValueTask DisposeAsync()=>inner.DisposeAsync();
         public Task<string> QueryAsync(string payload,CancellationToken token)=>payload=="fixture-assemblies"
@@ -23,9 +24,11 @@ public sealed class Entry:IContextualBackgroundPluginEntry
     /// <summary>按请求日期生成标注为测试的公开格式字节，不连接互联网。</summary>
     private sealed class Gateway(string root):IPluginHttpGateway
     {
-        public Task<PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)
+        public async Task<PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
+            // 仅测试可控的网络等待，验证阶段可查询且配置按插件写入门槛排队。
+            while(File.Exists(Path.Combine(root,"http-hold.fixture")))await Task.Delay(25,token);
             var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
             var day=query.GetValueOrDefault("STAT_DATE")??query["txtStart"];
             var amount=1000+DateOnly.Parse(day).DayNumber;
@@ -35,7 +38,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                 result=new[]{"510300","510050","588000"}.Select(code=>new{STAT_DATE=day,SEC_CODE=code,TOT_VOL=amount.ToString()}).ToArray()};
             else value=new[]{new{metadata=new{catalogid="fund_jjgm",cols=new{current_size="基金规模<br>(万份)"},recordcount=1,pagecount=1,pageno=1},
                 data=new[]{new{size_date=day,fund_code=query["txtDm"],current_size=amount.ToString()}},error=(string?)null}};
-            return Task.FromResult(new PublicHttpResponse(200,JsonSerializer.SerializeToUtf8Bytes(value),"application/json"));
+            return new PublicHttpResponse(200,JsonSerializer.SerializeToUtf8Bytes(value),"application/json");
         }
     }
 }

@@ -11,6 +11,8 @@ internal static class Program
 {
     [STAThread] private static void Main(string[] args)
     {
+        if(args is ["--configuration-live"])
+        {try{ConfigurationAsync().GetAwaiter().GetResult();}catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;}
         if(args is ["--official-live"])
         {try{OfficialAsync().GetAwaiter().GetResult();}catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;}
         var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
@@ -20,6 +22,13 @@ internal static class Program
         app.Run();
     }
     private static void Check(bool condition,string message){if(!condition)throw new InvalidOperationException(message);Console.WriteLine("PASS UI只读："+message);}
+    private static async Task ConfigurationAsync()
+    {
+        // 仅通过管道核验实际安装服务的目录，不修改用户监控状态或打开市场库。
+        var rows=await new WorkerEtfWorkspace().ConfigurationAsync(default);
+        Check(rows.Count>=24 && rows.Count(x=>x.Active)<=20,"实际LocalService提供完整候选目录且保留监控上限");
+        Console.WriteLine(JsonSerializer.Serialize(new{Candidates=rows.Count,Active=rows.Count(x=>x.Active)}));
+    }
     private static async Task OfficialAsync()
     {
         // 真实官网事实必须来自已安装的服务，验收工具不创建桌面下载器或写库连接。

@@ -52,6 +52,8 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
         NetworkStatus=await QueryAsync<string>(new("status"),token);return result.Rows;
     }
     public async Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>(await ReadPagesAsync<EvidenceRow>(new("evidence"),token)).Rows;
+    public async Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>(await ReadPagesAsync<EtfConfiguration>(new("configuration"),token)).Rows;
+    public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>RunAsync("watchlist",new("watchlist",key.Market,key.Ticker,Name:name,Index:index,Active:active,Reason:reason,ConfigurationRevision:expectedRevision),token);
     public async Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<SharePoint>(new("points",key.Market,key.Ticker),token)).Rows;
     public async Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)
     {
@@ -76,6 +78,7 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
             if(reply.Code!="Ok" || reply.Receipt is null)throw new InvalidDataException("无法确认后台任务，请保留原参数重试。");
         }
         uncertain=null;
+        if(reply.Receipt.Code=="Rejected")throw new InvalidDataException("配置未保存：输入不符合要求或已被其它窗口修改，请刷新目录后重新选择并重试。");
         if(reply.Receipt.Code!="Succeeded")throw new InvalidDataException("后台任务结果："+reply.Receipt.Code+"；已提交事实保留，详情见执行记录。");
     }
     public async Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)

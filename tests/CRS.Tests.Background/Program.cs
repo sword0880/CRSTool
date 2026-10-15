@@ -9,6 +9,15 @@ using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 
 // 验收工具只操作自己创建的隔离目录和进程；--probe 可只读检查实际安装的服务。
+if(args.Contains("--execution-probe") || args.Contains("--etf-progress-probe"))
+{
+    // 仅查询既有公开执行，不创建任务、触发采集或打开服务数据库。
+    var client=new BackgroundPipeClient();
+    var history=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHistory",PluginId:args.Contains("--etf-progress-probe")?"crs.national-team":null));var row=history.History?.FirstOrDefault()??throw new InvalidOperationException("尚无执行记录。");
+    var detail=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:row.ExecutionId));
+    if(detail.Code!="Ok" || detail.Execution?.ExecutionId!=row.ExecutionId)throw new InvalidOperationException("实际服务日志查询失败。");
+    Console.WriteLine(JsonSerializer.Serialize(detail));return;
+}
 if (args.Contains("--readonly-check"))
 {
     if (new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator)) { Environment.ExitCode = 10; return; }
@@ -44,6 +53,7 @@ int passed = 0;
 void Check(bool value, string name) { if (!value) throw new Exception(name); passed++; Console.WriteLine("PASS " + name); }
 void Reject(Action work, string name) { try { work(); } catch (Exception) { Check(true, name); return; } throw new Exception("未拒绝：" + name); }
 var key = RandomNumberGenerator.GetBytes(32);
+ExecutionProgressChecks.Run(root,key);
 var database = Path.Combine(root, "scheduler.db");
 var descriptor = new BackgroundJobDescriptor("heartbeat", "心跳", "0 0 0 * * ?", "China Standard Time", true);
 using (var repository = new EncryptedTaskRepository(database, key))

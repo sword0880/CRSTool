@@ -4,7 +4,8 @@
   <ui:TitleBar Title="运行日志" ShowClose="True" ShowMaximize="True" ShowMinimize="False" ForceShutdown="False"/>
   <StackPanel Grid.Row="1" Margin="24,12,24,16"><TextBlock Text="{Binding TaskLabel}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
    <TextBlock Text="{Binding ExecutionId,StringFormat=执行 ID：{0}}" Foreground="#64748B" Margin="0,8,0,4"/>
-   <TextBlock Text="所有时间均为北京时间（UTC+08:00）" Foreground="#64748B"/></StackPanel>
+   <TextBlock Text="所有时间均为北京时间（UTC+08:00）；运行期间每3秒自动刷新" Foreground="#64748B"/>
+   <TextBlock Text="{Binding ProgressLabel}" Foreground="#2563EB" TextWrapping="Wrap" Margin="0,8,0,0"/></StackPanel>
   <!-- 文本可选中复制，刷新只查询该执行，不触发新任务。 -->
   <TextBox Grid.Row="2" Margin="24,0" Text="{Binding LogText,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="16" FontFamily="Consolas, Microsoft YaHei" AutomationProperties.Name="本次任务运行日志"/>
   <DockPanel Grid.Row="3" Margin="24,16,24,20"><Button DockPanel.Dock="Right" Content="关闭" Click="OnClose" Margin="8,0,0,0" Padding="14,6"/><Button DockPanel.Dock="Right" Content="刷新日志" Command="{Binding RefreshCommand}" Padding="14,6"/>

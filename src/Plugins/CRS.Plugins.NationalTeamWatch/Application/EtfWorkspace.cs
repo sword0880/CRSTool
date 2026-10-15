@@ -12,6 +12,9 @@ public sealed class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     private IMarketRepository? repository;
     private IOfficialShareSource? officialSource;
     private readonly SemaphoreSlim syncGate=new(1);
+    private Func<EtfProgress,Task>? progress;
+    public void SetProgressSink(Func<EtfProgress,Task>? sink)=>progress=sink;
+    private Task ReportAsync(EtfProgress value)=>progress?.Invoke(value)??Task.CompletedTask;
     public string NetworkStatus {get;private set;}="等待后台服务采集；关闭或锁定桌面不影响任务运行。";
     public void SetOfficialSource(IOfficialShareSource source)=>officialSource=source;
     public EtfWorkspace(IPluginHostContext context,Func<IMarketRepository> repositoryFactory,IRawEvidenceStore raw) {this.context=context;this.repositoryFactory=repositoryFactory;this.raw=raw;}
@@ -23,6 +26,10 @@ public sealed class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         try { return await Task.Run(work,token).ConfigureAwait(false); } finally {gate.Release();}
     }
     public Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>RunAsync(()=>repository!.Overview(),token);
+    public Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>RunAsync(()=>repository!.Configuration(),token);
+    public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>SaveConfigurationAsync(key,name,index,active,reason,expectedRevision,token,null);
+    /// <summary>配置变更同样经过服务单写门槛和稳定命令去重。</summary>
+    public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.SaveConfiguration(key,name,index,active,reason,expectedRevision,commandId);return true;},token);
     /// <summary>串行下载官方份额；按日期提交，取消后保留已完成日，重试使用原件哈希与事实幂等。</summary>
     public async Task<SyncReport> SyncRecentAsync(CancellationToken token)
     {
@@ -42,19 +49,23 @@ public sealed class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         if(officialSource is null)throw new InvalidOperationException("官方采集适配器没有注册。");
         // 手动补历史与计划任务不重叠，避免同一来源突发请求。
         if(!await syncGate.WaitAsync(0,token))throw new InvalidDataException("已有联网采集运行中，请等待或取消当前操作。");
-        var completed=0;var receivedRows=0;var issues=new HashSet<string>();var contiguous=true;
+        var completed=0;var receivedRows=0;var issues=new HashSet<string>();var contiguous=true;int totalAdded=0,totalDuplicates=0,totalPending=0;
         try
         {
+            await ReportAsync(new("RangeStarted",from));
             for(var day=from;day<=to;day=day.AddDays(1))
             {
                 token.ThrowIfCancellationRequested();NetworkStatus=$"两市正在获取 {day:yyyy-MM-dd}；已完成{completed}个查询日。";
+                await ReportAsync(new("DayStarted",day));
                 var poolKeys=await RunAsync(()=>repository!.Overview().Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
+                if(poolKeys.Count==0){NetworkStatus="当前没有启用监控的ETF，已停止本次采集；已提交事实保留。";return new(completed,issues.Count,receivedRows);}
                 var result=await officialSource.FetchAsync(day,poolKeys,token).ConfigureAwait(false);
                 if(result.Issues?.Count>0)contiguous=false;
                 receivedRows+=result.Pages.Sum(page=>page.Rows.Count(row=>poolKeys.Contains(row.Key)));
                 foreach(var issue in result.Issues??[])issues.Add(issue);
-                await RunAsync(()=>
+                var outcome=await RunAsync(()=>
                 {
+                    int added=0,duplicates=0,pending=0;
                     var pool=repository!.Overview().Select(x=>new EtfKey(x.Market,x.Ticker)).ToHashSet();
                     foreach(var page in result.Pages)
                     {
@@ -65,16 +76,21 @@ public sealed class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
                         try
                         {
                             // 官方日期可以保存份额事实，但不能据此补造完整交易日历或填零。
-                            repository.ImportShares(fetch,rows,token,requireCalendar:false);
+                            var imported=repository.ImportSharesDetailed(fetch,rows,token,requireCalendar:false);
+                            added+=imported.Added;duplicates+=imported.Duplicates;pending+=imported.Pending;
                         }
                         catch{repository.MarkFailed(fetch);throw;}
                     }
                     if(trackProgress && contiguous)repository.RecordSyncCursor(day);
-                    return true;
+                    return new ShareImportOutcome(added,duplicates,pending);
                 },token).ConfigureAwait(false);
+                // 只有事实提交完成后才报告成功计数，取消或回滚不能产生已写入假象。
+                totalAdded+=outcome.Added;totalDuplicates+=outcome.Duplicates;totalPending+=outcome.Pending;
+                await ReportAsync(new("DayCommitted",day,Received:result.Pages.Sum(page=>page.Rows.Count(row=>poolKeys.Contains(row.Key))),Added:outcome.Added,Duplicates:outcome.Duplicates,Pending:outcome.Pending));
                 completed++;
             }
             NetworkStatus=$"两市联网采集完成（{completed}个查询日）；{(issues.Count==0?"本次没有来源错误":string.Join("；",issues.Take(3)))}；完整交易日历与NAV金额仍待核验。";
+            await ReportAsync(new("RangeCompleted",to,Received:receivedRows,Added:totalAdded,Duplicates:totalDuplicates,Pending:totalPending));
             return new(completed,issues.Count,receivedRows);
         }
         catch(OperationCanceledException){NetworkStatus=$"采集已取消，已完成{completed}日保留。";throw;}

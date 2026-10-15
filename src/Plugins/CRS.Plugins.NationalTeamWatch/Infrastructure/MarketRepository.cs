@@ -32,6 +32,8 @@ public sealed class MarketRepository : IMarketRepository
             CREATE TABLE IF NOT EXISTS disclosure_evidence(id TEXT PRIMARY KEY, source_url TEXT NOT NULL, content_hash TEXT NOT NULL, report_as_of TEXT, source_published_utc TEXT, first_seen_utc TEXT NOT NULL, review_state TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS watchlist_membership(market TEXT,ticker TEXT,active INTEGER NOT NULL,reason TEXT NOT NULL,review_status TEXT NOT NULL,evidence_id TEXT,PRIMARY KEY(market,ticker),FOREIGN KEY(market,ticker) REFERENCES security_master(market,ticker));
             CREATE TABLE IF NOT EXISTS watchlist_change(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,active INTEGER NOT NULL,reason TEXT NOT NULL,changed_utc TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS etf_configuration_version(market TEXT,ticker TEXT,revision INTEGER NOT NULL,origin TEXT NOT NULL,PRIMARY KEY(market,ticker),FOREIGN KEY(market,ticker) REFERENCES security_master(market,ticker));
+            CREATE TABLE IF NOT EXISTS etf_metadata_change(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,old_name TEXT,old_index TEXT,new_name TEXT NOT NULL,new_index TEXT NOT NULL,changed_utc TEXT NOT NULL);
             CREATE TRIGGER IF NOT EXISTS watchlist_insert_limit BEFORE INSERT ON watchlist_membership WHEN NEW.active=1 AND (SELECT count(*) FROM watchlist_membership WHERE active=1)>=20 BEGIN SELECT RAISE(ABORT,'ETF pool limit 20'); END;
             CREATE TRIGGER IF NOT EXISTS watchlist_update_limit BEFORE UPDATE OF active ON watchlist_membership WHEN NEW.active=1 AND OLD.active=0 AND (SELECT count(*) FROM watchlist_membership WHERE active=1)>=20 BEGIN SELECT RAISE(ABORT,'ETF pool limit 20'); END;
             CREATE TABLE IF NOT EXISTS source_fetch(fetch_id TEXT PRIMARY KEY,provider TEXT NOT NULL,retrieved_utc TEXT NOT NULL,source_published_utc TEXT,source_url TEXT NOT NULL,sha256 TEXT NOT NULL,original_sha256 TEXT NOT NULL,status TEXT NOT NULL,parser_version TEXT NOT NULL);
@@ -42,10 +44,20 @@ public sealed class MarketRepository : IMarketRepository
             CREATE TABLE IF NOT EXISTS sync_checkpoint(fetch_id TEXT PRIMARY KEY,status TEXT NOT NULL,accepted_count INTEGER NOT NULL);
             INSERT OR IGNORE INTO institution VALUES('huijin-investment','中央汇金投资有限责任公司'),('huijin-asset','中央汇金资产管理有限责任公司');
             INSERT OR IGNORE INTO security_master VALUES('SSE','510300','华泰柏瑞沪深300ETF','CSI300'),('SSE','510050','华夏上证50ETF','SSE50'),('SSE','588000','华夏科创50ETF','STAR50'),('SZSE','159919','嘉实沪深300ETF','CSI300'),('SZSE','159915','易方达创业板ETF','ChiNext');
-            INSERT OR IGNORE INTO watchlist_membership SELECT market,ticker,1,'初始数据链路验证','DataPilot',NULL FROM security_master;
+            INSERT OR IGNORE INTO watchlist_membership SELECT s.market,s.ticker,1,'初始数据链路验证','DataPilot',NULL FROM security_master s WHERE NOT EXISTS(SELECT 1 FROM watchlist_membership w WHERE w.market=s.market AND w.ticker=s.ticker);
             PRAGMA user_version=2;
             """);
         Execute("INSERT OR IGNORE INTO plugin_schema_migration VALUES(2,$now,'2.0.0')", ("$now", Now));
+        // 候选只补充目录，不激活监控、不覆盖用户修改，不改变已保存的份额和审核证据。
+        using var seed=db.BeginTransaction();
+        Execute("INSERT OR IGNORE INTO etf_configuration_version SELECT market,ticker,0,'原有配置' FROM security_master");
+        foreach(var item in ReferenceEtfDirectory.Entries)
+        {
+            Execute("INSERT OR IGNORE INTO security_master VALUES($m,$t,$name,$index)",("$m",item.Market),("$t",item.Ticker),("$name",item.Name),("$index",item.Index));
+            Execute("INSERT OR IGNORE INTO watchlist_membership VALUES($m,$t,0,'参考目录候选，名称和指数待核验','DataPilot',NULL)",("$m",item.Market),("$t",item.Ticker));
+            Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,'参考目录（待核验）')",("$m",item.Market),("$t",item.Ticker));
+        }
+        seed.Commit();
     }
     private static string Now => DateTimeOffset.UtcNow.ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
@@ -91,11 +103,14 @@ public sealed class MarketRepository : IMarketRepository
         Execute("UPDATE source_fetch SET status='Accepted' WHERE fetch_id=$fetch",("$fetch",fetchId)); cancellation.ThrowIfCancellationRequested();transaction.Commit();
     }
     public int ImportShares(string fetchId, IReadOnlyList<ImportRow> rows, CancellationToken cancellation,bool requireCalendar=true)
+        =>ImportSharesDetailed(fetchId,rows,cancellation,requireCalendar).Added;
+    /// <summary>统计已提交的新增、重复和待审核；不把收到的来源行数冒充新增事实。</summary>
+    public ShareImportOutcome ImportSharesDetailed(string fetchId, IReadOnlyList<ImportRow> rows, CancellationToken cancellation,bool requireCalendar=true)
     {
         beforeWrite?.Invoke();
         // 只有标明官方JSON适配器来源的事实可以先保存；日历未核验时指标仍不可计算。
         if(!requireCalendar && Scalar("SELECT provider FROM source_fetch WHERE fetch_id=$id",("$id",fetchId)) as string is not ("OfficialSseEtfJson" or "OfficialSzseEtfJson"))throw new InvalidDataException("缺少官方适配器来源，不能跳过交易日历校验。");
-        using var transaction = db.BeginTransaction(); int accepted = 0;
+        using var transaction = db.BeginTransaction(); int accepted = 0;int duplicates=0;int pending=0;
         foreach (var row in rows.OrderBy(x=>x.Date))
         {
             cancellation.ThrowIfCancellationRequested(); var date = row.Date.ToString("yyyy-MM-dd");
@@ -106,13 +121,14 @@ public sealed class MarketRepository : IMarketRepository
             var value = Decimal(EtfMetrics.Normalize(row.Original,row.Unit));
             var latest = Scalar("SELECT total_shares FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d ORDER BY revision_no DESC LIMIT 1",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var latestStatus=Scalar("SELECT status FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d ORDER BY revision_no DESC LIMIT 1",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
-            if (latest==value && latestStatus!="Rejected") continue;
+            if (latest==value && latestStatus!="Rejected") {duplicates++;continue;}
             var previous = Scalar("SELECT c.revision_id FROM share_accepted_current c WHERE market=$m AND ticker=$t AND trade_date=$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var number = Convert.ToInt32(Scalar("SELECT coalesce(max(revision_no),0)+1 FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)));
             // 质量预警可与最近已知事实比较，不能用这个日期集合代替指标的完整交易日历。
             var before = Scalar("SELECT r.total_shares FROM share_accepted_current c JOIN share_observation_revision r ON r.revision_id=c.revision_id WHERE c.market=$m AND c.ticker=$t AND c.trade_date=(SELECT max(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date<$d)",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var jump = before is not null && decimal.Parse(before,CultureInfo.InvariantCulture)>0 && Math.Abs(EtfMetrics.Normalize(row.Original,row.Unit)/decimal.Parse(before,CultureInfo.InvariantCulture)-1)>0.2m;
             var review = previous is not null || jump || latest is not null;
+            if(review)pending++;
             var id = Guid.NewGuid().ToString("N"); var now=Now;
             Execute("INSERT INTO share_observation_revision VALUES($id,$m,$t,$d,$v,$original,$unit,$fetch,$number,$accepted,$now,$status,$previous)",
                 ("$id",id),("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date),("$v",value),("$original",Decimal(row.Original)),("$unit",row.Unit),("$fetch",fetchId),("$number",number),("$accepted",review?null:now),("$now",now),("$status",review?"NeedsReview":"Accepted"),("$previous",previous));
@@ -120,7 +136,7 @@ public sealed class MarketRepository : IMarketRepository
             else { SetCurrent(row.Key,date,id); accepted++; }
         }
         Execute("UPDATE source_fetch SET status='Parsed' WHERE fetch_id=$fetch",("$fetch",fetchId));
-        Execute("INSERT INTO sync_checkpoint VALUES($fetch,'Validated',$count)",("$fetch",fetchId),("$count",accepted)); cancellation.ThrowIfCancellationRequested();transaction.Commit(); return accepted;
+        Execute("INSERT INTO sync_checkpoint VALUES($fetch,'Validated',$count)",("$fetch",fetchId),("$count",accepted)); cancellation.ThrowIfCancellationRequested();transaction.Commit(); return new(accepted,duplicates,pending);
     }
     private void SetCurrent(EtfKey key,string date,string id) => Execute("INSERT INTO share_accepted_current VALUES($m,$t,$d,$id) ON CONFLICT(market,ticker,trade_date) DO UPDATE SET revision_id=excluded.revision_id",("$m",key.Market),("$t",key.Ticker),("$d",date),("$id",id));
     public void Review(string revisionId, bool accept, string reviewer, bool comparableConfirmed = false,Guid? commandId=null)
@@ -238,15 +254,38 @@ public sealed class MarketRepository : IMarketRepository
         return new(key.Market,key.Ticker,from,to,rows.Count,accepted,rows.Count(x=>x.State=="Missing"),rows.Count(x=>x.State=="NeedsReview"),
             rows.Count(x=>x.State is "Critical" or "CalendarCritical"),rows.Count(x=>x.State=="QualityRejected"),calendarValid && rows.Count>0?decimal.Round(accepted*100m/rows.Count,2):null,calendarValid,boundary,state,rows);
     }
-    public void SetMembership(EtfKey key,string name,string index,bool active,string reason,Guid? commandId=null)
+    /// <summary>完整目录含未启用条目，停用后仍能编辑和恢复；修订号保护多个窗口的并发修改。</summary>
+    public List<EtfConfiguration> Configuration()
+    {
+        using var command=Command("SELECT s.market,s.ticker,s.name,s.index_group,w.active,w.reason,v.origin,v.revision FROM security_master s JOIN watchlist_membership w USING(market,ticker) JOIN etf_configuration_version v USING(market,ticker) ORDER BY w.active DESC,s.index_group,s.market,s.ticker");
+        using var reader=command.ExecuteReader();var rows=new List<EtfConfiguration>();
+        while(reader.Read())rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetInt32(4)!=0,reader.GetString(5),reader.GetString(6),reader.GetInt64(7)));
+        return rows;
+    }
+    public void SetMembership(EtfKey key,string name,string index,bool active,string reason,Guid? commandId=null)=>SaveMembership(key,name,index,active,reason,null,commandId);
+    public void SaveConfiguration(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,Guid? commandId=null)=>SaveMembership(key,name,index,active,reason,expectedRevision,commandId);
+    private void SaveMembership(EtfKey key,string name,string index,bool active,string reason,long? expectedRevision,Guid? commandId)
     {
         beforeWrite?.Invoke();
         if(Committed(commandId))return;
-        if(key.Market is not ("SSE" or "SZSE") || key.Ticker.Length!=6 || !key.Ticker.All(char.IsAsciiDigit) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(reason)) throw new InvalidDataException("证券、名称与理由不能为空或格式不正确。");
+        name=name.Trim();index=index.Trim();reason=reason.Trim();
+        if(key.Market is not ("SSE" or "SZSE") || key.Ticker.Length!=6 || !key.Ticker.All(char.IsAsciiDigit) || string.IsNullOrWhiteSpace(name) || name.Length>100 || string.IsNullOrWhiteSpace(index) || index.Length>64 || string.IsNullOrWhiteSpace(reason) || reason.Length>500) throw new InvalidDataException("市场或代码格式错误，名称、指数分组及配置理由不能为空或超过长度限制。");
         using var transaction=db.BeginTransaction();
-        Execute("INSERT OR IGNORE INTO security_master VALUES($m,$t,$name,$index)",("$m",key.Market),("$t",key.Ticker),("$name",name),("$index",index));
-        Execute("INSERT INTO watchlist_membership VALUES($m,$t,$active,$reason,'DataPilot',NULL) ON CONFLICT(market,ticker) DO UPDATE SET active=excluded.active,reason=excluded.reason",("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason));
-        Execute("INSERT INTO watchlist_change VALUES($id,$m,$t,$active,$reason,$now)",("$id",Guid.NewGuid().ToString("N")),("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason),("$now",Now));RecordCommand(commandId,"watchlist");transaction.Commit();
+        var version=Scalar("SELECT revision FROM etf_configuration_version WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker));
+        if(expectedRevision is { } expected && (expected< -1 || expected== -1 && version is not null || expected>=0 && (version is null || Convert.ToInt64(version)!=expected)))throw new InvalidDataException("配置已存在或被其它窗口修改，请刷新后重新选择。");
+        var oldName=Scalar("SELECT name FROM security_master WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker));
+        var oldIndex=Scalar("SELECT index_group FROM security_master WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker));
+        // 原实现忽略已存在代码，导致名称和指数无法修改；现在以同一稳定标识更新元数据。
+        Execute("INSERT INTO security_master VALUES($m,$t,$name,$index) ON CONFLICT(market,ticker) DO UPDATE SET name=excluded.name,index_group=excluded.index_group",("$m",key.Market),("$t",key.Ticker),("$name",name),("$index",index));
+        // 已存在条目直接UPDATE，避免INSERT前置容量触发器误拒绝满池中的普通名称编辑。
+        var membership=Scalar("SELECT active FROM watchlist_membership WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker));
+        if(active && (membership is null || Convert.ToInt32(membership)==0) && Convert.ToInt32(Scalar("SELECT count(*) FROM watchlist_membership WHERE active=1"))>=20)throw new InvalidDataException("监控池已满20只，请先停用其它ETF。");
+        Execute(membership is null?"INSERT INTO watchlist_membership VALUES($m,$t,$active,$reason,'DataPilot',NULL)":"UPDATE watchlist_membership SET active=$active,reason=$reason WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason));
+        Execute("INSERT INTO etf_configuration_version VALUES($m,$t,1,'用户配置') ON CONFLICT(market,ticker) DO UPDATE SET revision=revision+1,origin='用户配置'",("$m",key.Market),("$t",key.Ticker));
+        var change=Guid.NewGuid().ToString("N");
+        Execute("INSERT INTO watchlist_change VALUES($id,$m,$t,$active,$reason,$now)",("$id",change),("$m",key.Market),("$t",key.Ticker),("$active",active?1:0),("$reason",reason),("$now",Now));
+        Execute("INSERT INTO etf_metadata_change VALUES($id,$m,$t,$oldName,$oldIndex,$name,$index,$now)",("$id",change),("$m",key.Market),("$t",key.Ticker),("$oldName",oldName),("$oldIndex",oldIndex),("$name",name),("$index",index),("$now",Now));
+        RecordCommand(commandId,"watchlist");transaction.Commit();
     }
     /// <summary>业务事实与稳定命令标识同事务，调度器重放已提交命令时不再写第二次。</summary>
     private bool Committed(Guid? id)=>id is { } value && Convert.ToInt64(Scalar("SELECT count(*) FROM worker_business_command WHERE request=$r",("$r",value.ToString("N"))))>0;

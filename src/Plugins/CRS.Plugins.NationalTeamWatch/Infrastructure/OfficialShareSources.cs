@@ -7,7 +7,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>两市场分别采集和报告故障，一个来源异常不抹去另一个来源已经验证的数据。</summary>
-public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceStore raw):IOfficialShareSource
+public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceStore raw,Func<EtfProgress,Task>? progress=null):IOfficialShareSource
 {
     public Task<SourceDay> FetchAsync(DateOnly day,CancellationToken token)=>throw new InvalidOperationException("两市采集需要明确的有效证券池。");
     public async Task<SourceDay> FetchAsync(DateOnly day,IReadOnlyList<EtfKey> pool,CancellationToken token)
@@ -15,11 +15,16 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
         var pages=new List<SourcePage>();var issues=new List<string>();
         async Task Capture(string name,Func<Task<SourceDay>> fetch)
         {
-            try{pages.AddRange((await fetch()).Pages);}
+            var market=name.StartsWith("SSE",StringComparison.Ordinal)?"SSE":"SZSE";
+            if(progress is not null)await progress(new("SourceStarted",day,market));
+            SourceDay? result=null;
+            try{result=await fetch();pages.AddRange(result.Pages);}
             // 只有调用方取消才终止整批；单个来源的网络超时不能吞掉另一交易所的数据。
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
             catch(OperationCanceledException){issues.Add(name+"：官方来源响应超时。");}
             catch(Exception error){issues.Add(name+"："+error.Message);}
+            // 日志只保留阶段与公开数量，不持久化来源异常消息。
+            if(progress is not null)await progress(new(result is null?"SourceFailed":"SourceParsed",day,market,Received:result?.Pages.Sum(x=>x.Rows.Count)??0));
         }
         if(pool.Any(x=>x.Market=="SSE"))await Capture("SSE",()=>new SseOfficialShareSource(http,raw).FetchAsync(day,token));
         foreach(var key in pool.Where(x=>x.Market=="SZSE"))await Capture("SZSE "+key.Ticker,()=>new SzseOfficialShareSource(http,raw,key.Ticker).FetchAsync(day,token));

@@ -16,6 +16,7 @@ Check(EtfMetrics.Calculate(dates[20],20,dates,points).Fingerprint==EtfMetrics.Ca
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,亿元"),"CSV unknown unit rejected");
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,份\nSSE,510300,2026-09-01,2,份"),"Duplicate file rows rejected");
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+EtfConfigurationChecks.Run(root);
 // 合成官方响应验证字段、单位、日期及完整分页；不把联网能返回200当作解析验收。
 var onlineDate=new DateOnly(2026,9,1);
 var json="""{"actionErrors":[],"pageHelp":{"pageNo":1,"pageCount":1,"total":1},"result":[{"STAT_DATE":"2026-09-01","SEC_CODE":"510300","TOT_VOL":"123.45"}]}""";
@@ -165,6 +166,7 @@ sealed class BlockingOfficialSource:IOfficialShareSource
 // 仓储在返回结果前等待测试放行，使界面输入变化和后台查询返回的顺序可重复。
 sealed class DelayedCoverageRepository:IMarketRepository
 {
+ public ShareImportOutcome ImportSharesDetailed(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation,bool requireCalendar=true)=>throw new NotSupportedException();
  public TaskCompletionSource Entered {get;}=new(TaskCreationOptions.RunContinuationsAsynchronously);
  public ManualResetEventSlim Release {get;}=new();
  public CoverageReport Coverage(EtfKey key,DateOnly from,DateOnly to)
@@ -183,5 +185,7 @@ sealed class DelayedCoverageRepository:IMarketRepository
  public void RecordSyncCursor(DateOnly day)=>throw new NotSupportedException();
  public void Review(string revisionId,bool accept,string reviewer,bool comparableConfirmed=false,Guid? commandId=null)=>throw new NotSupportedException();
  public void SetMembership(EtfKey key,string name,string index,bool active,string reason,Guid? commandId=null)=>throw new NotSupportedException();
+ public List<EtfConfiguration> Configuration()=>[];
+ public void SaveConfiguration(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,Guid? commandId=null)=>throw new NotSupportedException();
  public void Dispose()=>Release.Dispose();
 }
