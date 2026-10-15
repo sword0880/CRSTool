@@ -29,7 +29,18 @@
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/><DataGridCheckBoxColumn Header="待重建" Binding="{Binding NeedsReconcile}"/></DataGrid.Columns>
    </DataGrid></TabItem>
    <TabItem Header="最近执行"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-    <DockPanel Margin="0,8,0,10"><Button DockPanel.Dock="Right" Content="查看日志" Click="OnViewLog" ToolTip="查看选中执行的运行日志" Padding="10,4"/><CheckBox DockPanel.Dock="Right" Content="只看ETF任务" IsChecked="{Binding EtfHistoryOnly}" IsEnabled="{Binding CanChangeHistory}" Margin="12,0" VerticalAlignment="Center"/><TextBlock Text="双击查看阶段日志，运行期间自动刷新" Foreground="#64748B" VerticalAlignment="Center"/></DockPanel>
+    <!-- 筛选在服务端分页前执行，空白表示全部。 -->
+    <StackPanel Margin="0,8,0,10">
+     <WrapPanel IsEnabled="{Binding CanChangeHistory}">
+      <TextBlock Text="插件" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <ComboBox Width="220" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryPlugins}" Text="{Binding HistoryPlugin,UpdateSourceTrigger=PropertyChanged}" ToolTip="留空显示全部插件，或输入插件编号" Margin="0,0,16,8"/>
+      <TextBlock Text="任务" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <ComboBox Width="240" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryJobs}" Text="{Binding HistoryJob,UpdateSourceTrigger=PropertyChanged}" ToolTip="留空显示全部任务，或输入任务编号" Margin="0,0,12,8"/>
+      <Button Content="应用筛选" Command="{Binding FilterHistoryCommand}" Margin="0,0,12,8"/>
+      <Button Content="查看日志" Click="OnViewLog" ToolTip="查看选中执行的运行日志" Margin="0,0,0,8"/>
+     </WrapPanel>
+     <TextBlock Text="留空表示全部；双击执行记录查看阶段日志，运行期间自动刷新。" Foreground="#64748B"/>
+    </StackPanel>
     <DataGrid x:Name="HistoryGrid" Grid.Row="1" ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MouseDoubleClick="OnHistoryDoubleClick" PreviewKeyDown="OnHistoryKeyDown" SelectionMode="Single">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="开始 UTC" Binding="{Binding StartedUtc}"/><DataGridTextColumn Header="结束 UTC" Binding="{Binding EndedUtc}"/><DataGridTextColumn Header="结果" Binding="{Binding Result}"/><DataGridTextColumn Header="尝试" Binding="{Binding Attempt}"/></DataGrid.Columns>
    </DataGrid></Grid></TabItem>

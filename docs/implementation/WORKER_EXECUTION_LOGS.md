@@ -16,7 +16,7 @@
 
 加密调度库Schema 2内增量创建 `execution_progress`，按执行ID/序号索引，宿主生成时间和顺序，阶段只接受固定白名单与标量。每次执行保留最近512条，`GetExecution`响应返回最近128条，避免超过IPC消息上限；首条序号大于1时窗口明确说明更早阶段未在本次响应返回。这是有界阶段日志，不是无限量完整调试流水。业务执行保留最近500条、诊断心跳单独保留最近100条，运行中执行不清理，防止心跳耗尽业务历史额度；记录清理时阶段随外键级联清理。阶段持久化失败进入StorageFault并取消采集，不悄悄改成仅内存日志。
 
-日志窗口在Running时每3秒只读刷新，展示最后阶段时间及距今秒数，完成后停止轮询；关闭、锁定或取消父会话后停止。无法查询时保留上次快照并明确提示。没有新阶段只说明没有新的已保存进展，不能直接判定死锁。任务中心“只看ETF任务”默认勾选，服务端过滤后分页，心跳不会把ETF挤出首屏；切换范围后点击刷新状态，取消勾选可查询全部任务。
+日志窗口在Running时每3秒只读刷新，展示最后阶段时间及距今秒数，完成后停止轮询；关闭、锁定或取消父会话后停止。无法查询时保留上次快照并明确提示。没有新阶段只说明没有新的已保存进展，不能直接判定死锁。任务中心支持插件编号、任务编号独立或组合筛选，默认插件为crs.national-team；留空表示全部，点击“应用筛选”重置分页。下拉建议来自计划及已读历史，也可输入尚未加载的手工任务编号。服务端SQL先按插件和任务过滤再分页，“更多历史”沿用已应用条件；编辑尚未应用的输入不会改变当前分页范围。
 
 旧服务/旧执行没有阶段时仍展示原摘要，不能补造历史过程。扩展为IPC v2的可选字段，未改变原有命令权限、调度所有权或来源限速。实际使用需同步更新Worker和桌面。
 
@@ -63,3 +63,15 @@ dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --execution-lo
 本轮后台回归为29项基础＋34项整改＋9项权限，共72项；最终完整包ETF服务化19项通过。Release构建0警告/0错误，架构门禁通过。窗口截图为 `artifacts/execution-log-ui/log.png`，已核对实际绘制。
 
 最终服务包为 `artifacts/worker-execution-log-reviewed`，桌面包为 `artifacts/desktop-execution-log-reviewed`；双宿主插件包52文件哈希一致。2026-10-15 15:35本机LocalService已更新，两个插件健康、数据树权限正常，原有数据和DPAPI密钥保持不变。后台隔离回归必须使用单独的 `artifacts/worker-execution-log-tests` 心跳包，不用官网联网混入故障套件。
+
+
+## 日志设置与实际位置
+
+桌面设置仅控制 `%LOCALAPPDATA%/CRS/logs/crs.log`（目录可配置），保存后立即更新NLog；降低级别只放行已有事件，不自动触发采集或补写历史。服务不读取登录用户settings.json。
+
+任务详细阶段及执行结果集中保存在 `C:/ProgramData/CRS/Background/scheduler-config.db` 加密调度库，通过任务中心/IPC按执行ID读取，未按插件复制为文本。服务结构化诊断为 `C:/ProgramData/CRS/Background/logs/service-yyyyMMdd.jsonl`，固定分类、每天5MiB和14文件保留，与桌面日志级别独立。插件数据私有目录为 `C:/ProgramData/CRS/Background/plugins/<插件编号>`，ETF数据库位于其data子目录；程序安装包 `C:/Program Files/CRS/Background/Plugins` 不用于写运行日志。
+
+
+2026-10-15日志设置与筛选验证：Release全解决方案0警告/0错误；即时日志设置专项验证同一记录器的级别、目录、关闭和轮转。后台29基础＋38整改＋9权限＋11阶段仓储，共87项通过，覆盖真实管道组合筛选、空结果和分页。WPF实际窗口通过筛选、更多历史、清空范围及两个输入可见性检查，截图 `artifacts/log-filter-ui/background.png`；服务刚启动时首次窗口查询未取得快照，健康确认后复验通过。插件宿主、架构门禁、diff检查通过。Debug独立桌面发布及插件索引验证通过，Debug/Release的F5插件已同步。
+
+本机服务更新为 `artifacts/worker-log-filter`，21:24:57（北京时间）启动、PID45092；保留数据及DPAPI密钥，摘要一致且正式数据树ACL检查通过。桌面发行 `artifacts/desktop-log-filter`，独立Debug发行 `artifacts/desktop-log-filter-debug`。新组合筛选使用只读 `GetFilteredHistory` 命令，旧服务明确拒绝，避免忽略任务条件；旧 `GetHistory` 入口保留。当前桌面会话须重新启动加载新代码，此后日志设置保存立即生效。

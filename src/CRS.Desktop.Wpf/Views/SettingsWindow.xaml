@@ -28,7 +28,8 @@
    <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
    <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
    <TextBlock Text="已有加密库需验证后访问；新目录进入首次创建或恢复向导，不会自动建库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,16"/>
-   <TextBlock Text="日志" FontSize="20" FontWeight="SemiBold"/>
+   <TextBlock Text="桌面日志" FontSize="20" FontWeight="SemiBold"/>
+   <TextBlock Text="保存后立即生效，仅控制桌面日志。插件任务的阶段记录请到任务中心查看；降低级别不会自动生成任务记录。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,0"/>
    <CheckBox Content="启用日志" IsChecked="{Binding LoggingEnabled}" Margin="0,12,0,4"/>
    <TextBlock Text="日志目录" Style="{StaticResource InputLabel}"/>
    <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseLogsCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding LogDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>

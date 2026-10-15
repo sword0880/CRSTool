@@ -123,7 +123,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         try
         {
             var response = await HandleCoreAsync(request, caller, token);
-            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetExecution" or "GetCommand" or "QueryPlugin"))
+            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetFilteredHistory" or "GetExecution" or "GetCommand" or "QueryPlugin"))
                 repository.Audit(caller.Sid, request.RequestId, request.Command, response.Code);
             return response;
         }
@@ -159,9 +159,10 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             var page = plans.Take(request.PageSize).ToArray();
             return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: page, NextCursor: plans.Length > page.Length ? page[^1].PluginId + ":" + page[^1].JobId : null);
         }
-        if (request.Command == "GetHistory")
+        // 新查询命令让旧服务明确返回不支持，避免忽略任务筛选后展示混合结果。
+        if (request.Command is "GetHistory" or "GetFilteredHistory")
         {
-            try { var page = repository.HistoryPage(request.Cursor, request.PageSize,request.PluginId); return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor); }
+            try { var page = repository.HistoryPage(request.Cursor, request.PageSize,request.PluginId,request.JobId); return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor); }
             catch (ArgumentException) { return Reply("InvalidRequest"); }
         }
         if(request.Command=="GetExecution")

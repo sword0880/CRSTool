@@ -55,7 +55,7 @@ public partial class SettingsViewModel : ObservableObject
         finally {DocumentPassword="";DocumentPasswordConfirmation="";DocumentInputsCleared?.Invoke();}
     }
     public event Action? SecurityInputsCleared;
-    [ObservableProperty] private string message = "目录和日志设置保存后下次启动生效；更换目录不会移动原数据库。";
+    [ObservableProperty] private string message = "桌面日志保存后立即生效；数据库目录下次启动生效，原数据库不会移动。";
     public string[] LogLevels { get; } = ["Debug", "Info", "Warn", "Error"];
 
     public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null)
@@ -75,7 +75,7 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(SecuritySettingsAvailable)); ClearSecurityInputs();
         OnPropertyChanged(nameof(ShowPhoneCode));
         if(SecuritySettingsAvailable)DocumentPasswordMessage=vault!.DocumentEncryptionPassword.Length>0?"已配置统一文档加密密码。留空保持当前密码；旧文件仍使用其原密码。":"尚未配置文档加密密码，请在此统一设置。";
-        Message = "目录和日志设置保存后下次启动生效；更换目录不会移动原数据库。";
+        Message = "桌面日志保存后立即生效；数据库目录下次启动生效，原数据库不会移动。";
     }
     private bool CanSave() => State.IsIdle;
     private bool CanSavePhone()=>State.IsIdle && SecuritySettingsAvailable;
@@ -130,10 +130,10 @@ public partial class SettingsViewModel : ObservableObject
         if(HasLoginMethodChanges)
         {
             if(!await SaveVerificationAsync())
-            {Message="目录和日志设置已保存；验证方式未修改，请重新选择并完成验证。";return;}
-            Message="设置已保存，验证方式立即生效；目录和日志设置下次启动生效。";
+            {Message="桌面日志已生效；数据库目录已保存；验证方式未修改，请重新选择并完成验证。";return;}
+            Message="设置已保存，验证方式和桌面日志立即生效；数据库目录下次启动生效。";
         }
-        else Message="目录和日志设置已保存，下次启动生效。当前验证方式保持不变。";
+        else Message="桌面日志已立即生效；数据库目录下次启动生效。当前验证方式保持不变。";
         State.Status=Message;
     }
 }

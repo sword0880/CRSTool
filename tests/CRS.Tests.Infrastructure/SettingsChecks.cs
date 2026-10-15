@@ -31,6 +31,24 @@ internal static class SettingsChecks
                 using var reader = new StreamReader(stream); return reader.ReadToEnd();
             }));
             if (!log.Contains("VISIBLE_WARNING") || log.Contains("SUPPRESSED_INFO")) throw new Exception("日志目录或级别未生效。");
+            // 使用同一个记录器，只保存设置，验证无需重启即可切换级别、目录和开关。
+            var live = chosen with { LogDirectory = Path.Combine(temporaryRoot,"live-logs"), LogLevel = "Debug" };
+            await store.SaveAsync(live);
+            logger.Debug("LIVE_DEBUG"); LogManager.Flush();
+            string ReadLiveLog()
+            {
+                // 活动日志由NLog持续持有，验收读取需允许并行写入和轮转。
+                using var input=new FileStream(Path.Combine(live.LogDirectory,"crs.log"),FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
+                using var reader=new StreamReader(input);return reader.ReadToEnd();
+            }
+            if (!ReadLiveLog().Contains("LIVE_DEBUG")) throw new Exception("保存后日志级别或目录未立即生效。");
+            await store.SaveAsync(live with { LogLevel = "Error" });
+            logger.Warn("LIVE_SUPPRESSED"); logger.Error("LIVE_ERROR"); LogManager.Flush();
+            var liveText=ReadLiveLog();
+            if(liveText.Contains("LIVE_SUPPRESSED") || !liveText.Contains("LIVE_ERROR")) throw new Exception("已有记录器未刷新日志级别。");
+            await store.SaveAsync(live with { LoggingEnabled = false });
+            logger.Error("DISABLED_ERROR"); LogManager.Flush();
+            if(ReadLiveLog().Contains("DISABLED_ERROR")) throw new Exception("保存后关闭日志未立即生效。");
             LocalStore.ConfigureLogging(chosen.LogDirectory, true, "Warn", 2, 1, true);
             var largeEntry = new string('x', 650000);
             for (var index = 0; index < 6; index++) logger.Warn(largeEntry);

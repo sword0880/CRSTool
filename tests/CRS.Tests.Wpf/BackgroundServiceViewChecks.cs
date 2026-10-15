@@ -15,15 +15,29 @@ internal static class BackgroundServiceViewChecks
         var thread = new Thread(() =>
         {
             var application = new System.Windows.Application();
-            var model = new BackgroundServiceViewModel(CancellationToken.None, pipe is null ? null : new CRS.Worker.Ipc.BackgroundPipeClient(pipe)){EtfHistoryOnly=false};
+            var model = new BackgroundServiceViewModel(CancellationToken.None, pipe is null ? null : new CRS.Worker.Ipc.BackgroundPipeClient(pipe)){HistoryPlugin=""};
             var page = new BackgroundServicePage(model);
             var window = new Window { Title = "CRS 独立后台服务验收", Content = page, Width = 1200, Height = 800, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             window.Loaded += async (_, _) =>
             {
                 try
                 {
-                    await model.RefreshCommand.ExecuteAsync(null);
+                    // 显式应用空白范围，再验证组合筛选和零匹配不会沿用旧行。
+                    await model.FilterHistoryCommand.ExecuteAsync(null);
+                    if(model.History.Count==0) throw new InvalidOperationException("首次历史查询失败："+model.Status);
+                    var sample=model.History.First();
+                    model.HistoryPlugin=sample.PluginId; model.HistoryJob=sample.JobId;
+                    await model.FilterHistoryCommand.ExecuteAsync(null);
+                    if(model.History.Count==0 || model.History.Any(x=>x.PluginId!=sample.PluginId || x.JobId!=sample.JobId)) throw new InvalidOperationException("组合筛选未生效。");
+                    await model.MoreHistoryCommand.ExecuteAsync(null);
+                    if(model.History.Any(x=>x.PluginId!=sample.PluginId || x.JobId!=sample.JobId)) throw new InvalidOperationException("翻页丢失筛选条件。");
+                    model.HistoryJob="no-such-job"; await model.FilterHistoryCommand.ExecuteAsync(null);
+                    if(model.History.Count!=0) throw new InvalidOperationException("零匹配仍显示旧历史。");
+                    model.HistoryPlugin=""; model.HistoryJob=""; await model.FilterHistoryCommand.ExecuteAsync(null);
+                    // 展示实际新增的筛选页，避免截图只覆盖默认服务计划页。
+                    Descendants(page).OfType<TabControl>().Single().SelectedIndex=1;
                     window.UpdateLayout();
+                    if(Descendants(page).OfType<ComboBox>().Count(x=>x.IsVisible && x.IsEditable)!=2) throw new InvalidOperationException("插件及任务筛选输入不可见。");
                     if (model.Jobs.Count < 1 || model.History.Count == 0 || model.Status.Contains("不可用")) throw new InvalidOperationException("后台服务 DTO 未正确绑定到窗口。");
                     var labels = new HashSet<string> { "刷新状态", "立即执行", "暂停", "恢复", "取消执行", "保存计划", "更多历史", "更多计划", "确认上次请求" };
                     var buttons = Descendants(page).OfType<Button>().Where(x => x.Content is string label && labels.Contains(label)).ToArray();

@@ -256,12 +256,13 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
     {
         lock (gate) Execute("UPDATE command_request SET state='Completed',code='Cancelled' WHERE plugin=$p AND job=$j AND command='RunNow' AND state='Pending'", ("$p", plugin), ("$j", job));
     }
-    public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null)
+    // 插件及任务条件先于游标分页，查询值全部参数化。
+    public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null,string? job=null)
     {
         if (pageSize is < 1 or > 10 || (cursor is not null && (!long.TryParse(cursor, out var sequence) || sequence <= 0))) throw new ArgumentException("历史分页参数无效。");
         lock (gate)
         {
-            using var query = Command("SELECT rowid,* FROM execution WHERE rowid<$before AND ($plugin IS NULL OR plugin=$plugin) ORDER BY rowid DESC LIMIT $limit", ("$before", cursor is null ? long.MaxValue : long.Parse(cursor, CultureInfo.InvariantCulture)), ("$limit", pageSize + 1),("$plugin",plugin));
+            using var query = Command("SELECT rowid,* FROM execution WHERE rowid<$before AND ($plugin IS NULL OR plugin=$plugin) AND ($job IS NULL OR job=$job) ORDER BY rowid DESC LIMIT $limit", ("$before", cursor is null ? long.MaxValue : long.Parse(cursor, CultureInfo.InvariantCulture)), ("$limit", pageSize + 1),("$plugin",plugin),("$job",job));
             using var reader = query.ExecuteReader(); var rows = new List<ExecutionRecord>(); string? last = null; var more = false;
             while (reader.Read())
             {

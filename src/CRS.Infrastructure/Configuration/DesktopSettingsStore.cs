@@ -30,6 +30,10 @@ public sealed class DesktopSettingsStore(string? localDataRoot = null) : IDeskto
         {
             File.WriteAllText(temporary, JsonSerializer.Serialize(validated, new JsonSerializerOptions { WriteIndented = true }));
             File.Move(temporary, SettingsPath, true);
+            // 保存成功后重新配置现有记录器，日志开关、级别、目录和轮转立即生效。
+            LocalStore.ConfigureLogging(validated.LogDirectory, validated.LoggingEnabled, validated.LogLevel,
+                validated.LogRetentionFiles, validated.LogFileSizeMb, exactLogDirectory: true);
+            NLog.LogManager.GetLogger("DesktopSettings").Info("桌面日志设置已应用。");
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     });

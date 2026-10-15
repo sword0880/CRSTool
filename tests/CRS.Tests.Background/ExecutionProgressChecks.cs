@@ -26,6 +26,17 @@ internal static class ExecutionProgressChecks
             for(var i=0;i<501;i++){var beat=repository.Begin(heartbeat,DateTimeOffset.UtcNow);repository.End(beat,heartbeat,BackgroundJobResult.Success());}
             Check(repository.HistoryPage(null,10,"crs.national-team").Rows is{Count:2} rows && rows.Any(x=>x.ExecutionId==id),"ETF历史不被较新的心跳挤出");
             Check(repository.FindExecution(completed)?.Result=="Succeeded","超过500次心跳后，已完成ETF历史仍保留");
+            // 混合任务和插件验证筛选先于分页，不会漏掉被其他任务挤到后面的记录。
+            repository.RegisterDefault("crs.national-team",new("review","审核","0 0 0 * * ?","China Standard Time",true));
+            var review=repository.Plans().Single(x=>x.JobId=="review");
+            for(var i=0;i<12;i++){var run=repository.Begin(review,DateTimeOffset.UtcNow);repository.End(run,review,BackgroundJobResult.Success());}
+            var first=repository.HistoryPage(null,10,"crs.national-team","review");
+            var second=repository.HistoryPage(first.NextCursor,10,"crs.national-team","review");
+            Check(first.Rows.Count==10 && second.Rows.Count==2 && second.NextCursor is null
+                && !first.Rows.Select(x=>x.ExecutionId).Intersect(second.Rows.Select(x=>x.ExecutionId)).Any(),"插件和任务组合筛选稳定分页且不重复");
+            Check(repository.HistoryPage(null,10,"crs.national-team","sync").Rows.Count==2,"同插件的其他任务不会污染筛选");
+            Check(repository.HistoryPage(null,10,null,"review").Rows.Count==10
+                && repository.HistoryPage(null,10,"crs.heartbeat","review").Rows.Count==0,"支持单独任务筛选及无匹配组合");
         }
         using(var repository=new EncryptedTaskRepository(path,key))
         {

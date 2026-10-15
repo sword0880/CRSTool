@@ -14,7 +14,7 @@ public interface ITaskRepository
     List<ExecutionRecord> History();
     ExecutionRecord? FindExecution(string id);
     void AppendProgress(string id,BackgroundProgress progress);
-    (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null);
+    (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null,string? job=null);
     void Audit(string sid, Guid request, string command, string result);
     CommandReceipt? FindCommand(Guid request, string sid);
     BackgroundRequest ReadCommand(Guid request);

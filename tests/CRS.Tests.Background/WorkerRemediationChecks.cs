@@ -168,6 +168,11 @@ internal static class WorkerRemediationChecks
                 cursor = response.NextCursor;
             } while (cursor is not null);
             Check(rows.Count == 100 && pages == 10, "分页无遗漏读取全部长检查点历史");
+            // 新只读命令必须把组合筛选送到仓储，旧服务会明确拒绝而不是忽略任务条件。
+            var filtered=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:plan.PluginId,JobId:plan.JobId));
+            Check(filtered.Code=="Ok" && filtered.History?.Count==10 && filtered.History.All(x=>x.PluginId==plan.PluginId && x.JobId==plan.JobId),"真实管道支持插件及任务组合筛选");
+            var empty=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",JobId:"no-such-job"));
+            Check(empty.Code=="Ok" && empty.History?.Count==0,"真实管道任务筛选无匹配返回空页");
             // 明确按ID查询，不能仅在首屏十条历史中搜索日志。
             var oldest=repository.History().Last();
             var detail=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:oldest.ExecutionId));
@@ -271,7 +276,7 @@ internal static class WorkerRemediationChecks
         public void End(string id, TaskDefinition p, BackgroundJobResult r, Guid? request = null) { Fail("End"); inner.End(id, p, r, request); }
         public List<ExecutionRecord> History() => inner.History();
         public ExecutionRecord? FindExecution(string id)=>inner.FindExecution(id);
-        public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? c, int n,string? plugin=null) => inner.HistoryPage(c, n,plugin);
+        public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? c, int n,string? plugin=null,string? job=null) => inner.HistoryPage(c, n,plugin,job);
         public void Audit(string s, Guid id, string c, string r) { Fail("Audit"); inner.Audit(s, id, c, r); }
         public CommandReceipt? FindCommand(Guid id, string s) => inner.FindCommand(id, s);
         public BackgroundRequest ReadCommand(Guid id)=>inner.ReadCommand(id);
