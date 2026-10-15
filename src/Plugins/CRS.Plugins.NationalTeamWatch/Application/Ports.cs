@@ -14,10 +14,10 @@ public interface IMarketRepository : IDisposable
     List<EvidenceRow> Evidence();
     List<SharePoint> Points(EtfKey key);
     CoverageReport Coverage(EtfKey key,DateOnly from,DateOnly to);
-    string RecordFetch(string hash,string sourceUrl,string? originalHash=null);
+    string RecordFetch(string hash,string sourceUrl,string? originalHash=null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1");
     void MarkFailed(string fetchId);
     void ImportCalendar(string fetchId,IReadOnlyList<(string Market,DateOnly Date)> days,CancellationToken cancellation);
-    int ImportShares(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation);
+    int ImportShares(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation,bool requireCalendar=true);
     void Review(string revisionId,bool accept,string reviewer,bool comparableConfirmed=false);
     void SetMembership(EtfKey key,string name,string index,bool active,string reason);
 }

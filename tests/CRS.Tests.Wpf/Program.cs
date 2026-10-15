@@ -34,6 +34,7 @@ await EncryptedReportsInteractionChecks.RunAsync();
 await CanonicalViewChecks.RunAsync();
 await TaxAmountViewChecks.RunAsync();
 await PerformanceInteractionChecks.RunAsync();
+await ScheduledTasksInteractionChecks.RunAsync();
 
 sealed class SilentInteraction : IUserInteraction
 {

@@ -9,6 +9,9 @@ public partial class MainWindow : FluentWindow
 {
     private bool forceClose;
     private CRS.PluginHost.PluginRuntime? plugins;
+    private readonly CancellationTokenSource taskPageLifetime=new();
+    private ScheduledTasksViewModel? taskPageModel;
+    private Task? pluginStartup;
     private readonly List<NavigationViewItem> pluginItems = [];
     private static readonly Dictionary<string,IReadOnlySet<string>> startupEnablement=[];
     public event Action? SecurityRequested;
@@ -18,6 +21,7 @@ public partial class MainWindow : FluentWindow
     public void PrepareLock()
     {
         forceClose=true;
+        taskPageLifetime.Cancel();
         plugins?.Cancel(); PluginContent.Content=null; PluginSurface.Visibility=System.Windows.Visibility.Collapsed;
         // 换手机限制会话与系统锁屏可能先后触发，已清理窗口应允许重复关闭。
         if(DataContext is not ShellViewModel shell) return;
@@ -41,8 +45,8 @@ public partial class MainWindow : FluentWindow
         Loaded += (_, _) => Navigate("dashboard"); Closing += OnClosing;
         foreach(var item in Navigation.MenuItems.OfType<NavigationViewItem>()) item.Click+=(_,_)=>HidePlugin();
         foreach(var item in Navigation.FooterMenuItems.OfType<NavigationViewItem>().Where(x=>x.TargetPageType is not null)) item.Click+=(_,_)=>HidePlugin();
-        Loaded+=async (_,_)=>await StartPluginsAsync();
-        Closed+=async (_,_)=> {forceClose=true;PluginContent.Content=null;foreach(var item in pluginItems) Navigation.MenuItems.Remove(item);if(plugins is not null)await plugins.DisposeAsync();};
+        Loaded+=(_,_)=>{pluginStartup=StartPluginsAsync();};
+        Closed+=async (_,_)=> {forceClose=true;taskPageLifetime.Cancel();PluginContent.Content=null;foreach(var item in pluginItems) Navigation.MenuItems.Remove(item);if(plugins is not null)await plugins.DisposeAsync();};
     }
     private void HidePlugin() {PluginContent.Content=null;PluginSurface.Visibility=System.Windows.Visibility.Collapsed;}
     private async Task StartPluginsAsync()
@@ -69,6 +73,8 @@ public partial class MainWindow : FluentWindow
             }
             var management=new NavigationViewItem {Content="插件管理（重启生效）"};
             management.Click+=(_,_)=>ShowPluginManagement();pluginItems.Add(management);Navigation.MenuItems.Add(management);
+            var tasks=new NavigationViewItem {Content="计划任务"};
+            tasks.Click+=async (_,_)=>await NavigateScheduledTasksAsync();pluginItems.Add(tasks);Navigation.MenuItems.Add(tasks);
         }
         catch(Exception error) {System.Windows.MessageBox.Show(this,"插件宿主不可用，现有工作区可继续使用；类别："+error.GetType().Name,"插件状态");}
     }
@@ -87,6 +93,20 @@ public partial class MainWindow : FluentWindow
             row.Children.Add(button);panel.Children.Add(row);
         }
         PluginContent.Content=panel;PluginSurface.Margin=new(Navigation.IsPaneOpen?206:56,0,0,0);PluginSurface.Visibility=System.Windows.Visibility.Visible;
+    }
+    public async Task NavigateScheduledTasksAsync()
+    {
+        if(pluginStartup is not null)await pluginStartup;
+        if(plugins is null || forceClose)return;
+        try
+        {
+            taskPageModel??=new(plugins.Schedules,taskPageLifetime.Token);
+            await taskPageModel.LoadAsync(taskPageLifetime.Token);
+            if(forceClose)return;
+            PluginContent.Content=new ScheduledTasksPage(taskPageModel);PluginSurface.Margin=new(Navigation.IsPaneOpen?206:56,0,0,0);PluginSurface.Visibility=System.Windows.Visibility.Visible;
+        }
+        catch(OperationCanceledException){ /* 锁定或关闭后不回写页面。 */ }
+        catch(Exception error){if(!forceClose)System.Windows.MessageBox.Show(this,"计划任务暂不可用；类别："+error.GetType().Name,"计划任务");}
     }
     /// <summary>候选升级实际载入页面和资源后才确认，不展示探测窗口或税务内容。</summary>
     private async Task ValidatePluginPageAsync(CRS.PluginHost.HostedPage page,CancellationToken token)

@@ -52,7 +52,7 @@ public static class PackageVerifier
         if (manifest.RuntimeTarget!="net10.0-windows10.0.19041.0" || !Version.TryParse(manifest.MinOsVersion,out var minimumOs) || Environment.OSVersion.Version<minimumOs
             || (manifest.MaxHostVersion is not null && (!Version.TryParse(manifest.MaxHostVersion,out var maximum) || hostVersion>maximum))) throw new InvalidDataException("Incompatible runtime/OS/host.");
         if(trusted.Directory.Replace('\\','/')!=$"{manifest.Id}/{manifest.Version}") throw new InvalidDataException("Package directory identity mismatch.");
-        string[] capabilities = ["navigation", "jobs", "http-public", "storage-private", "logging"];
+        string[] capabilities = ["navigation", "jobs", "http-public", "storage-private", "logging", "schedules"];
         if (manifest.RequestedCapabilities.Any(x => !capabilities.Contains(x))) throw new InvalidDataException("Unsupported capability.");
         if (!files.Contains(manifest.EntryAssembly) || manifest.Files.Any(x => !files.Contains(x))) throw new InvalidDataException("Manifest files not trusted.");
         foreach (var path in System.IO.Directory.EnumerateFiles(directory, "*.dll"))

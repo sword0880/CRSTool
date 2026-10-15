@@ -172,6 +172,13 @@ internal static class SmokeCheck
                     Capture(window, file);
                 }
             }
+            // 实际打开任务管理并切换记录页，验证资源、模型绑定和最小窗口布局。
+            await window.NavigateScheduledTasksAsync();await Task.Delay(200);window.UpdateLayout();
+            var taskPage=FindVisual<Views.Pages.ScheduledTasksPage>(window)??throw new InvalidOperationException("计划任务页未加载。");
+            var taskTabs=FindVisual<System.Windows.Controls.TabControl>(taskPage)!;taskTabs.SelectedIndex=1;window.UpdateLayout();
+            if(taskPage.ActualHeight<=0 || FindVisual<System.Windows.Controls.DataGrid>(taskPage) is null)throw new InvalidOperationException("计划任务执行记录未布局。");
+            taskTabs.SelectedIndex=0;window.UpdateLayout();Console.Error.WriteLine("smoke: scheduled tasks and execution history rendered");
+            if(imagePath is not null)Capture(window,VariantPath(imagePath,"scheduled-tasks"));
             if (bindingErrors.Errors.Count > 0) throw new InvalidOperationException("绑定错误：" + string.Join("\n", bindingErrors.Errors));
             var useCases = shell.State.UseCases;
             await useCases.SaveReviewAsync(result.SnapshotId, "合成复核", "合成来源，不含真实账户。");

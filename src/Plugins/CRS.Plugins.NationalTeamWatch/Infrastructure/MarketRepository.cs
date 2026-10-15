@@ -49,7 +49,7 @@ public sealed class MarketRepository : IMarketRepository
     private void Execute(string sql, params (string, object?)[] args) { using var command = Command(sql,args); command.ExecuteNonQuery(); }
     private object? Scalar(string sql, params (string, object?)[] args) { using var command = Command(sql,args); return command.ExecuteScalar(); }
     private static string Decimal(decimal value) => value.ToString(CultureInfo.InvariantCulture);
-    public string RecordFetch(string hash, string sourceUrl, string? originalHash = null)
+    public string RecordFetch(string hash, string sourceUrl, string? originalHash = null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1")
     {
         beforeWrite?.Invoke();
         if (!Uri.TryCreate(sourceUrl,UriKind.Absolute,out var uri) || uri.Scheme!="https" || uri.UserInfo.Length!=0 || !uri.IsDefaultPort
@@ -59,7 +59,8 @@ public sealed class MarketRepository : IMarketRepository
         originalHash ??= hash;
         if (!raw.Verify(originalHash)) throw new InvalidDataException("Original official file evidence is missing or damaged.");
         var id = Guid.NewGuid().ToString("N");
-        Execute("INSERT INTO source_fetch VALUES($id,'ReviewedNormalizedManualImport',$now,NULL,$url,$hash,$original,'RawSaved','normalized-csv-v1')",("$id",id),("$now",Now),("$url",sourceUrl),("$hash",hash),("$original",originalHash));
+        // 自动响应与人工标准化来源分别登记，历史原件和解析器版本可以追溯。
+        Execute("INSERT INTO source_fetch VALUES($id,$provider,$now,NULL,$url,$hash,$original,'RawSaved',$parser)",("$id",id),("$provider",provider),("$parser",parserVersion),("$now",Now),("$url",sourceUrl),("$hash",hash),("$original",originalHash));
         return id;
     }
     public void MarkFailed(string fetchId) {beforeWrite?.Invoke();Execute("UPDATE source_fetch SET status='ParseFailed' WHERE fetch_id=$id",("$id",fetchId));}
@@ -79,16 +80,18 @@ public sealed class MarketRepository : IMarketRepository
         }
         Execute("UPDATE source_fetch SET status='Accepted' WHERE fetch_id=$fetch",("$fetch",fetchId)); cancellation.ThrowIfCancellationRequested();transaction.Commit();
     }
-    public int ImportShares(string fetchId, IReadOnlyList<ImportRow> rows, CancellationToken cancellation)
+    public int ImportShares(string fetchId, IReadOnlyList<ImportRow> rows, CancellationToken cancellation,bool requireCalendar=true)
     {
         beforeWrite?.Invoke();
+        // 只有标明官方JSON适配器来源的事实可以先保存；日历未核验时指标仍不可计算。
+        if(!requireCalendar && Scalar("SELECT provider FROM source_fetch WHERE fetch_id=$id",("$id",fetchId)) as string is not ("OfficialSseEtfJson" or "OfficialSzseEtfJson"))throw new InvalidDataException("缺少官方适配器来源，不能跳过交易日历校验。");
         using var transaction = db.BeginTransaction(); int accepted = 0;
         foreach (var row in rows.OrderBy(x=>x.Date))
         {
             cancellation.ThrowIfCancellationRequested(); var date = row.Date.ToString("yyyy-MM-dd");
             var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
             if (row.Date>today || Convert.ToInt32(Scalar("SELECT count(*) FROM watchlist_membership WHERE market=$m AND ticker=$t AND active=1",("$m",row.Key.Market),("$t",row.Key.Ticker)))!=1
-                || Convert.ToInt32(Scalar("SELECT count(*) FROM trading_day WHERE market=$m AND trade_date=$d",("$m",row.Key.Market),("$d",date)))!=1)
+                || requireCalendar && Convert.ToInt32(Scalar("SELECT count(*) FROM trading_day WHERE market=$m AND trade_date=$d",("$m",row.Key.Market),("$d",date)))!=1)
                 throw new InvalidDataException("证券不在有效池、日期不在已核对交易日历内，或日期在未来。");
             var value = Decimal(EtfMetrics.Normalize(row.Original,row.Unit));
             var latest = Scalar("SELECT total_shares FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d ORDER BY revision_no DESC LIMIT 1",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
@@ -96,7 +99,8 @@ public sealed class MarketRepository : IMarketRepository
             if (latest==value && latestStatus!="Rejected") continue;
             var previous = Scalar("SELECT c.revision_id FROM share_accepted_current c WHERE market=$m AND ticker=$t AND trade_date=$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var number = Convert.ToInt32(Scalar("SELECT coalesce(max(revision_no),0)+1 FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)));
-            var before = Scalar("SELECT r.total_shares FROM share_accepted_current c JOIN share_observation_revision r ON r.revision_id=c.revision_id WHERE c.market=$m AND c.ticker=$t AND c.trade_date=(SELECT max(trade_date) FROM trading_day WHERE market=$m AND trade_date<$d)",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
+            // 质量预警可与最近已知事实比较，不能用这个日期集合代替指标的完整交易日历。
+            var before = Scalar("SELECT r.total_shares FROM share_accepted_current c JOIN share_observation_revision r ON r.revision_id=c.revision_id WHERE c.market=$m AND c.ticker=$t AND c.trade_date=(SELECT max(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date<$d)",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var jump = before is not null && decimal.Parse(before,CultureInfo.InvariantCulture)>0 && Math.Abs(EtfMetrics.Normalize(row.Original,row.Unit)/decimal.Parse(before,CultureInfo.InvariantCulture)-1)>0.2m;
             var review = previous is not null || jump || latest is not null;
             var id = Guid.NewGuid().ToString("N"); var now=Now;

@@ -665,3 +665,7 @@ public interface IEtfShareSource
 13. CRS通用插件宿主规范（本项目配套文件）：[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)
 
 > 核实声明：本轮还核实了CRS公开`CRS.sln`、`CRS.Desktop.Wpf.csproj`、`docs/architecture/PROJECT_STRUCTURE.md`和既有绩效规格。交易所公开页面不等于稳定正式API；**仍未验证当前两市内部数据接口可持续合法调用**，也未执行本地WPF/插件编译测试。所有HTTP参数、历史范围、发布许可与实际软件兼容性，均以M0/A-0现场POC为准。
+
+## 2026-10-14用户补充的研发实施口径
+
+主要使用方式调整为插件自动联网获取官方数据，用户无需每次下载。已验证的两市源可进入开发预览并如实标记已验证技术范围；人工导入仅是备用。完整M0许可、250交易日及20交易日持续性门槛继续保留，不能将单日联网成功称一期正式交付。主程序按Quartz.NET统一驱动后续计划任务，插件仅贡献具名工作和计划，不自行持有全局Quartz调度器。当前联网实现和来源证据见DATA_SOURCE_POC.md及implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md。

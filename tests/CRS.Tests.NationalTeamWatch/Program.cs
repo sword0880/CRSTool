@@ -16,6 +16,41 @@ Check(EtfMetrics.Calculate(dates[20],20,dates,points).Fingerprint==EtfMetrics.Ca
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,亿元"),"CSV unknown unit rejected");
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,份\nSSE,510300,2026-09-01,2,份"),"Duplicate file rows rejected");
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+// 合成官方响应验证字段、单位、日期及完整分页；不把联网能返回200当作解析验收。
+var onlineDate=new DateOnly(2026,9,1);
+var json="""{"actionErrors":[],"pageHelp":{"pageNo":1,"pageCount":1,"total":1},"result":[{"STAT_DATE":"2026-09-01","SEC_CODE":"510300","TOT_VOL":"123.45"}]}""";
+var onlineParsed=SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate,1);
+var szseJson="""[{"metadata":{"catalogid":"fund_jjgm","cols":{"current_size":"基金规模<br>(万份)"},"recordcount":1,"pagecount":1,"pageno":1},"data":[{"size_date":"2026-09-01","fund_code":"159919","current_size":"684,831.66"}],"error":null}]""";
+Check(SzseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(szseJson),"159919",onlineDate,1).Rows.Single().Original==684831.66m,"SZSE official history parses dated ten-thousand shares and thousands separators");
+Reject(()=>SzseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(szseJson.Replace("万份","亿元")),"159919",onlineDate,1),"SZSE amount column cannot masquerade as shares");
+Reject(()=>SzseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(szseJson),"159915",onlineDate,1),"SZSE mismatched code rejected");
+Reject(()=>SzseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(szseJson.Replace("684,831.66","68,4831.66")),"159919",onlineDate,1),"SZSE malformed grouping rejected");
+Check(onlineParsed.Rows.Single().Original==123.45m && onlineParsed.Rows.Single().Unit=="万份","Official JSON shares use declared ten-thousand unit");
+Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate.AddDays(1),1),"Official response wrong date rejected");
+Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json.Replace("123.45","-1")),onlineDate,1),"Official response negative shares rejected");
+Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate,2),"Official response wrong page rejected");
+var onlineRoot=Path.Combine(root,"online");var onlineRaw=new RawEvidenceStore(Path.Combine(onlineRoot,"raw"));
+await using(var onlineWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>new MarketRepository(Path.Combine(onlineRoot,"data"),onlineRaw),onlineRaw))
+{
+ await onlineWorkspace.InitializeAsync(CancellationToken.None);
+ onlineWorkspace.SetOfficialSource(new SseOfficialShareSource(new FixtureHttp(json),onlineRaw));
+ await onlineWorkspace.SyncAsync(onlineDate,onlineDate,CancellationToken.None);
+ await onlineWorkspace.SyncAsync(onlineDate,onlineDate,CancellationToken.None);
+ Check((await onlineWorkspace.PointsAsync(new("SSE","510300"),CancellationToken.None)).Single().Shares==1234500m,"Automatic download imports official shares without manual files and stays idempotent");
+ Check((await onlineWorkspace.CoverageAsync(new("SSE","510300"),onlineDate,onlineDate,CancellationToken.None)).RegisteredTradingDays==0,"Automatic shares do not fabricate verified trading calendar");
+ Check((await onlineWorkspace.EvidenceAsync(CancellationToken.None)).Single().OriginalHash!= (await onlineWorkspace.EvidenceAsync(CancellationToken.None)).Single().Hash,"Automatic source retains original JSON and normalized evidence separately");
+}
+try{await new SseOfficialShareSource(new FixtureHttp(json,403)).FetchAsync(onlineDate,CancellationToken.None);throw new Exception("403 accepted");}catch(InvalidDataException){Console.WriteLine("PASS Official HTTP403 stops collection without fake facts");}
+try{await new SseOfficialShareSource(new FixtureHttp(json.Replace("\"total\":1","\"total\":2"))).FetchAsync(onlineDate,CancellationToken.None);throw new Exception("Truncated page accepted");}catch(InvalidDataException){Console.WriteLine("PASS Truncated official pagination rejected");}
+// 宿主取消必须传递到界面调度出的采集任务，不能只取消Quartz外层等待。
+var cancelRaw=new RawEvidenceStore(Path.Combine(root,"cancel-raw"));var blockingSource=new BlockingOfficialSource();
+await using(var cancelWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>new MarketRepository(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
+{
+ await cancelWorkspace.InitializeAsync(CancellationToken.None);cancelWorkspace.SetOfficialSource(blockingSource);
+ var cancelModel=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(cancelWorkspace,CancellationToken.None);using var hostCancel=new CancellationTokenSource();
+ var work=cancelModel.SyncLatestAsync(hostCancel.Token);await blockingSource.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));hostCancel.Cancel();await work.WaitAsync(TimeSpan.FromSeconds(5));
+ Check(!cancelModel.Busy && cancelModel.Status.Contains("取消"),"Host scheduler cancellation reaches active plugin network operation");
+}
 var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
 using(var repository=new MarketRepository(Path.Combine(root,"data"),raw))
 {
@@ -116,6 +151,17 @@ sealed class QueryOnlyContext:CRS.Plugin.Abstractions.IPluginHostContext
  public CRS.Plugin.Abstractions.IPluginHttpGateway Http=>throw new NotSupportedException();
  public CRS.Plugin.Abstractions.IPluginDiagnostics Diagnostics=>throw new NotSupportedException();
 }
+// 测试只返回固定字节，不向真实交易所发请求或使用用户网络凭据。
+sealed class FixtureHttp(string content,int status=200):CRS.Plugin.Abstractions.IPluginHttpGateway
+{
+ public Task<CRS.Plugin.Abstractions.PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)=>Task.FromResult(new CRS.Plugin.Abstractions.PublicHttpResponse(status,Encoding.UTF8.GetBytes(content),"application/json"));
+}
+sealed class BlockingOfficialSource:IOfficialShareSource
+{
+ public TaskCompletionSource Entered {get;}=new(TaskCreationOptions.RunContinuationsAsynchronously);
+ public async Task<SourceDay> FetchAsync(DateOnly day,CancellationToken token)
+ {Entered.TrySetResult();await Task.Delay(Timeout.InfiniteTimeSpan,token);return new(day,[]);}
+}
 // 仓储在返回结果前等待测试放行，使界面输入变化和后台查询返回的顺序可重复。
 sealed class DelayedCoverageRepository:IMarketRepository
 {
@@ -129,10 +175,10 @@ sealed class DelayedCoverageRepository:IMarketRepository
  public List<EtfSummary> Overview()=>throw new NotSupportedException();
  public List<EvidenceRow> Evidence()=>throw new NotSupportedException();
  public List<SharePoint> Points(EtfKey key)=>throw new NotSupportedException();
- public string RecordFetch(string hash,string sourceUrl,string? originalHash=null)=>throw new NotSupportedException();
+ public string RecordFetch(string hash,string sourceUrl,string? originalHash=null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1")=>throw new NotSupportedException();
  public void MarkFailed(string fetchId)=>throw new NotSupportedException();
  public void ImportCalendar(string fetchId,IReadOnlyList<(string Market,DateOnly Date)> days,CancellationToken cancellation)=>throw new NotSupportedException();
- public int ImportShares(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation)=>throw new NotSupportedException();
+ public int ImportShares(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation,bool requireCalendar=true)=>throw new NotSupportedException();
  public void Review(string revisionId,bool accept,string reviewer,bool comparableConfirmed=false)=>throw new NotSupportedException();
  public void SetMembership(EtfKey key,string name,string index,bool active,string reason)=>throw new NotSupportedException();
  public void Dispose()=>Release.Dispose();

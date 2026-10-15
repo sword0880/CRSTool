@@ -3,7 +3,8 @@
 描述当前代码行为、格式、限额与失败边界。测试命令和证据统一在 [验证与验收](../validation/README.md)，未完成项统一在 [当前待办](../KNOWN_ISSUES.md)。
 
 - [金额与未知值展示](AMOUNT_PRESENTATION.md)
-- [国家队ETF插件离线预览](NATIONAL_TEAM_PLUGIN_PROGRESS.md)
+- [国家队ETF插件联网预览与Quartz.NET](NATIONAL_TEAM_PLUGIN_PROGRESS.md)
+- [主程序计划任务与执行记录](SCHEDULED_TASKS.md)
 - [备份容量与读取保护](BACKUP_CAPACITY.md)
 - [快照校验](CANONICAL_VALIDATION.md)
 - [FIFO 计算](CAPITAL_GAIN_FIFO_SPEC.md)

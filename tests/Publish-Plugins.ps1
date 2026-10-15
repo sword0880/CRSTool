@@ -35,4 +35,4 @@ foreach ($definition in $definitions) {
 }
 # 此脚本只用于开发包装；生产必须把宿主所有的索引绑定到经过验证的发行链。
 ConvertTo-Json -InputObject @($index) -Depth 8 | Set-Content -LiteralPath (Join-Path $destination 'Plugins/trusted-plugins.json') -Encoding utf8
-Write-Output "Offline preview package: $destination"
+Write-Output "Development preview package: $destination"

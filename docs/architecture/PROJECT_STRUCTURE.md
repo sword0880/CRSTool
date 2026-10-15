@@ -10,9 +10,9 @@ CRS/
 ├─ src/
 │  ├─ CRS.Plugin.Abstractions/     # 纯BCL插件能力与Session契约
 │  ├─ CRS.Plugin.Wpf/              # 可选WPF页面贡献契约
-│  ├─ CRS.PluginHost/              # 官方预装可信加载、调度和生命周期
+│  ├─ CRS.PluginHost/              # 官方可信加载、Quartz计划/记录、生命周期
 │  ├─ Plugins/                    # 业务插件不被宿主静态引用
-│  │  ├─ CRS.Plugins.NationalTeamWatch/ # 离线研究预览，独立市场数据
+│  │  ├─ CRS.Plugins.NationalTeamWatch/ # 两市官方联网份额，独立市场数据
 │  │  └─ CRS.Plugins.Demo/          # 双插件真实WPF资源POC
 │  ├─ CRS.Domain/
 │  │  ├─ Trades/

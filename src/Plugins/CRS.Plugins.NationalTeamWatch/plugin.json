@@ -2,6 +2,6 @@
  "id":"crs.national-team", "displayName":"国家队持仓与ETF观察", "version":"1.0.0", "contractApi":"1.0",
  "minHostVersion":"1.0.0", "schemaVersion":1,
  "entryAssembly":"CRS.Plugins.NationalTeamWatch.dll", "entryType":"CRS.Plugins.NationalTeamWatch.NationalTeamPluginEntry",
- "requestedCapabilities":["navigation","jobs","storage-private","logging"],
+ "requestedCapabilities":["navigation","jobs","http-public","schedules","storage-private","logging"],
  "files":["CRS.Plugins.NationalTeamWatch.dll","CRS.Plugins.NationalTeamWatch.deps.json"]
 }

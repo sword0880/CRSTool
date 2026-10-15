@@ -13,6 +13,8 @@ internal static class Program
 {
     [STAThread] private static void Main(string[] args)
     {
+        if(args.Length==1 && args[0] is "--sse-live" or "--official-live")
+        {try{LiveSse().GetAwaiter().GetResult();}catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;}
         if(args.Length>0 && args[0]=="--worker")
         {try{Worker(args).GetAwaiter().GetResult();}catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;}
         var app=new System.Windows.Application {ShutdownMode=ShutdownMode.OnExplicitShutdown};
@@ -21,6 +23,26 @@ internal static class Program
         app.Startup+=async (_,_)=>{try{await Run(args);app.Shutdown(0);}catch(Exception error){Console.Error.WriteLine(error);app.Shutdown(1);}};app.Run();
     }
     private static void Check(bool value,string message){if(!value)throw new Exception(message);Console.WriteLine("PASS "+message);}
+    private static async Task LiveSse()
+    {
+        // 明确选择的公开源真实技术核验，隔离目录不读取用户数据库。
+        var root=Path.Combine(Path.GetTempPath(),"CRS-sse-live",Guid.NewGuid().ToString("N"));var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
+        using var gateway=new PublicHttpGateway();var source=new OfficialShareSources(gateway,raw);
+        var pool=new[]{new EtfKey("SSE","510050"),new("SSE","510300"),new("SSE","588000"),new("SZSE","159919"),new("SZSE","159915")};
+        var day=new DateOnly(2026,10,13);var fetched=await source.FetchAsync(day,pool,CancellationToken.None);
+        Check(fetched.Issues?.Count==0,"两市官方接口均成功返回真实份额");
+        using var repository=new MarketRepository(Path.Combine(root,"data"),raw);
+        foreach(var page in fetched.Pages)
+        {
+            var hash=raw.Save(page.Content);var fetch=repository.RecordFetch(hash,page.Uri.AbsoluteUri,hash,page.Market=="SZSE"?"OfficialSzseEtfJson":"OfficialSseEtfJson",page.Market=="SZSE"?"szse-etf-json-v1":"sse-etf-json-v1");
+            repository.ImportShares(fetch,page.Rows.Where(x=>pool.Contains(x.Key)).ToList(),CancellationToken.None,requireCalendar:false);
+        }
+        Check(pool.All(key=>repository.Points(key).Count==1),"实际宿主HTTP网关自动下载并保存两市五只ETF真实份额");
+        Check(repository.Points(new("SSE","510300")).Single().Shares==24897187700m,"公开样本510300份额单位转换与官方页面一致");
+        var empty=await source.FetchAsync(new(2026,10,11),pool,CancellationToken.None);
+        Check(empty.Issues?.Count==0 && empty.Pages.All(x=>x.Rows.Count==0),"两市真实空日期响应不填零或补造日历");
+        Console.WriteLine("公开源核验日期2026-10-13，隔离目录："+root);
+    }
     private static async Task Worker(string[] args)
     {
         var release=args[1];var storage=args[2];var step=args[3];
@@ -75,6 +97,12 @@ internal static class Program
     {
         if(args.Length!=1)throw new ArgumentException("请传入含ETF插件的发布Plugins目录。");
         var root=Path.Combine(Path.GetTempPath(),"CRS-recovery-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+        // 使用真实导出与宿主目录契约，确保新任务文件不被公开证据导出覆盖。
+        var exportLayout=new PluginStorageLayout(Path.Combine(root,"export-safety"),"crs.national-team");var guarded=exportLayout.Paths("1.0.0","legacy",CancellationToken.None);
+        var exportRaw=new RawEvidenceStore(guarded.Raw);var exportHash=exportRaw.Save(Encoding.UTF8.GetBytes("合成公开证据"));
+        Directory.CreateDirectory(exportLayout.ScheduledTasksDirectory);var taskFile=Path.Combine(exportLayout.ScheduledTasksDirectory,"tasks.json");File.WriteAllText(taskFile,"task-canary");
+        var refused=false;try{await exportRaw.ExportVerifiedAsync(exportHash,taskFile,guarded.ProtectedDirectories,CancellationToken.None);}catch(InvalidDataException){refused=true;}
+        Check(refused && File.ReadAllText(taskFile)=="task-canary","证据导出不能覆盖主程序计划任务元数据");
         var release=Path.Combine(root,"release");PrepareCatalog(Path.GetFullPath(args[0]),release);
         // 保持源连接打开，验证快照确实包含尚未归并到主文件的已提交WAL。
         var walStorage=Path.Combine(root,"wal-snapshot");Seed(walStorage);var walLayout=new PluginStorageLayout(walStorage,"crs.national-team");

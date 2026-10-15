@@ -22,8 +22,10 @@ public partial class EtfViewModel(EtfWorkspace workspace, CancellationToken life
     [ObservableProperty] private bool reviewedOfficialFile;
     [ObservableProperty] private string reviewer="";
     [ObservableProperty] private bool confirmedComparable;
-    [ObservableProperty] private string status="离线研究预览 · 自动采集通道未通过M0验证 · 无官方NAV金额估算";
+    [ObservableProperty] private string status="正在加载研究数据；NAV金额不可用。";
     [ObservableProperty] private bool busy;
+    [ObservableProperty] private DateTime? syncFrom=MarketToday.AddDays(-35);
+    [ObservableProperty] private DateTime? syncTo=MarketToday;
     [ObservableProperty] private ISeries[] series=[];
     [ObservableProperty] private LiveChartsCore.SkiaSharpView.Axis[] xAxes=[];
     [ObservableProperty] private string market="SSE";
@@ -47,10 +49,11 @@ public partial class EtfViewModel(EtfWorkspace workspace, CancellationToken life
         // 输入在后台查询期间也可能改变，用版本号拒绝旧请求回写到新选择。
         selectionVersion++;CoverageDays.Clear();CoverageStatus="选择ETF和日期区间后查询；刷新数据后需要重新查询。";
     }
-    private async Task ExecuteAsync(Func<CancellationToken,Task> work)
+    private async Task ExecuteAsync(Func<CancellationToken,Task> work,CancellationToken cancellationToken=default)
     {
         if(Busy || lifetime.IsCancellationRequested) return;
-        Busy=true; operation=CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+        // 自动任务同时响应宿主调度取消和插件会话取消，手动命令继续支持界面取消。
+        Busy=true; operation=CancellationTokenSource.CreateLinkedTokenSource(lifetime,cancellationToken);
         try {await work(operation.Token);}
         catch(OperationCanceledException) {Status="操作已取消，已提交证据保留。";}
         catch(Exception error) {Status=error is InvalidDataException?error.Message:"操作失败；类别："+error.GetType().Name;}
@@ -61,9 +64,24 @@ public partial class EtfViewModel(EtfWorkspace workspace, CancellationToken life
         var rows=await workspace.OverviewAsync(token);var evidence=await workspace.EvidenceAsync(token); token.ThrowIfCancellationRequested();
         Selected=null;SelectedEvidence=null;Series=[];XAxes=[];InvalidateCoverage();CoverageStatus="本地数据已刷新，请重新选择ETF查询覆盖率。";
         Rows.Clear();foreach(var row in rows) Rows.Add(row); Evidence.Clear();foreach(var row in evidence) Evidence.Add(row);
-        Status=$"离线研究预览 · 当前验证池 {Rows.Count}/20 · SSE/SZSE自动通道待验证 · 金额不可用";
+        Status=$"当前验证池 {Rows.Count}/20 · {workspace.NetworkStatus}";
     }
+    /// <summary>后台采集结束后的展示刷新不覆盖用户正在进行的交互。</summary>
+    public Task RefreshFromScheduleAsync(CancellationToken token)=>Busy?Task.CompletedTask:RefreshAsync(token);
     [RelayCommand] private Task Refresh()=>ExecuteAsync(RefreshAsync);
+    /// <summary>区间和命令属于界面交互；下载、解析与日历登记由后台用例执行。</summary>
+    [RelayCommand] private Task SyncHistory()=>ExecuteAsync(async token=>
+    {
+        if(SyncFrom is null || SyncTo is null)throw new InvalidDataException("请设置采集日期区间。");
+        await workspace.SyncAsync(DateOnly.FromDateTime(SyncFrom.Value),DateOnly.FromDateTime(SyncTo.Value),token);
+        await RefreshAsync(token);
+    });
+    public Task SyncLatestAsync(CancellationToken cancellationToken)=>ExecuteAsync(async token=>
+    {
+        var today=DateOnly.FromDateTime(MarketToday);
+        try{await workspace.SyncAsync(today.AddDays(-7),today,token);}
+        finally{if(!token.IsCancellationRequested)await RefreshAsync(token);}
+    },cancellationToken);
     [RelayCommand] private void Cancel()=>operation?.Cancel();
     [RelayCommand] private Task ImportShares()=>Import(false);
     [RelayCommand] private Task ImportCalendar()=>Import(true);

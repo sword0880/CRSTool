@@ -68,9 +68,13 @@ dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- art
 
 PluginRecovery使用隔离临时目录，只强杀自身创建的子进程；覆盖七个升级中断点、含已提交WAL的快照、真实WPF候选页面、失败回退和新事实禁止回退。测试候选1.0.1与1.0.0采用相同业务DLL和Schema 1，人工构造开发可信索引；这证明恢复接线，不证明真实不同二进制/Schema迁移、生产签名发行或物理断电。不得将临时测试目录作为正式数据源。
 
+联网预览使用全新`artifacts/etf-online-current`输出目录。PluginHost包含真实Quartz时钟触发/不重叠/取消，NationalTeamWatch包含两市JSON与自动入库。可选真实联网检查：`dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --official-live`，读取2026-10-13五只ETF公开样本，使用隔离临时库。单日技术验证不替代250日历史或连续采集验收。
+
 发布验收、合成性能与许可证清单请运行 ./tests/Run-ReleaseAcceptance.ps1 -Smoke，具体门槛见 [发布验收](../docs/validation/RELEASE_ACCEPTANCE.md)。抵免证据链与界面检查已加入 Infrastructure / WPF 验证项目。
 
 新增 CRS.Tests.Security（纯密码学）与保险库集成／交互验证。所有持久化回归现由 TestStores 显式创建加密库，不提供明文测试兼容通道。
 
 
 绩效专项：先编译，再运行 dotnet run --project tests/CRS.Tests.Infrastructure --no-build -- --performance-only；真实输入专项使用 --performance-real-only，从仓库根目录只读 Sample/IBKR 与 Sample/FUTU，仅读取结构并输出计数/问题码。领域与 WPF 套件已包含绩效，场景与缺口见[绩效 P0 验收](../docs/validation/PERFORMANCE_ACCEPTANCE.md)。
+
+计划任务专项（2026-10-15）：PluginHost的TaskScheduleChecks使用真实Quartz和独立存储，Wpf的ScheduledTasksInteractionChecks验证计划编辑与结果；窗口冒烟额外打开任务管理和执行记录。运行中日志恢复用现场重建验证，不与升级套件的独立进程强杀混用结论。当前实现及边界见[主程序计划任务](../docs/implementation/SCHEDULED_TASKS.md)。

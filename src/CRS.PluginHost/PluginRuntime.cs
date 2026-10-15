@@ -26,6 +26,8 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
     private readonly HashSet<string> disabled=ReadDisabled(storageRoot);
     private readonly HashSet<string> effectiveDisabled=disabledAtStartup is null?ReadDisabled(storageRoot):new(disabledAtStartup);
     private readonly CancellationTokenSource runtimeLifetime=new();
+    private readonly QuartzTaskScheduler scheduler=new(storageRoot);
+    public QuartzTaskScheduler Schedules=>scheduler;
     private Task? startup;
     private bool stopped,cancelled;
     public static IReadOnlySet<string> ReadStartupEnablement(string root)=>ReadDisabled(root);
@@ -99,7 +101,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
                 participant=new(layout,maintenanceEntry.CreateStorageMaintenance(paths),selected.Manifest.SchemaVersion);
                 await participant.VerifyCandidateAsync(active!,token);
             }
-            session=load.Entry.CreateSession(new PluginContext(first.Id,new PluginJobs(lifetime.Token),paths,http,new Diagnostics((code,_)=>status.Error=code),selected.Manifest.RequestedCapabilities));
+            session=load.Entry.CreateSession(new PluginContext(first.Id,new PluginJobs(lifetime.Token),paths,http,new Diagnostics((code,_)=>status.Error=code),selected.Manifest.RequestedCapabilities,scheduler.Scope(first.Id,lifetime.Token)));
             await session.StartAsync(lifetime.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(15),token);token.ThrowIfCancellationRequested();
             if(session is IPluginWpfSession wpf)
             {
@@ -145,7 +147,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
         public Task MigrateCandidateAsync(ActiveGeneration value,CancellationToken token)=>throw new NotSupportedException();
         public Task VerifyCandidateAsync(ActiveGeneration value,CancellationToken token)=>throw new NotSupportedException();
     }
-    public void Cancel(){if(cancelled)return;cancelled=true;runtimeLifetime.Cancel();Pages.Clear();foreach(var item in sessions)item.Lifetime.Cancel();}
+    public void Cancel(){if(cancelled)return;cancelled=true;runtimeLifetime.Cancel();scheduler.Cancel();Pages.Clear();foreach(var item in sessions)item.Lifetime.Cancel();}
     public async ValueTask DisposeAsync()
     {
         if(stopped)return;stopped=true;Cancel();if(startup is not null){try{await startup;}catch(Exception){ /* 启动失败仍继续清理。 */ }}
@@ -161,6 +163,6 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
             catch(Exception error){item.Status.State=PluginState.Failed;item.Status.Error=error.GetType().Name;}
             finally{item.Http.Dispose();item.Lifetime.Dispose();item.Load.Dispose();item.Lease.Dispose();}
         }
-        sessions.Clear();runtimeLifetime.Dispose();
+        sessions.Clear();await scheduler.DisposeAsync();runtimeLifetime.Dispose();
     }
 }
