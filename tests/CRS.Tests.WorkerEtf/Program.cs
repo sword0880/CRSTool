@@ -11,6 +11,64 @@ using Microsoft.Data.Sqlite;
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
 if(args is ["--source-policy"]){await SourcePolicyChecks.RunAsync();return;}
+if(args is ["--enable-reference-live"])
+{
+    var live=new WorkerEtfWorkspace();
+    var keys=CRS.Plugins.NationalTeamWatch.Domain.ReferenceEtfDirectory.Entries.Select(x=>(x.Market,x.Ticker)).Append(("SSE","588000")).ToHashSet();
+    foreach(var row in (await live.ConfigurationAsync(default)).Where(x=>keys.Contains((x.Market,x.Ticker)) && !x.Active))
+    {
+        Console.WriteLine("正在启用观察候选 "+row.Ticker);
+        await live.SaveConfigurationAsync(new(row.Market,row.Ticker),row.Name,row.IndexGroup,true,"用户要求全部内置观察项目加入监控；不代表机构持仓已确认",row.Revision,default);
+    }
+    var enabled=(await live.ConfigurationAsync(default)).Where(x=>keys.Contains((x.Market,x.Ticker))).ToArray();
+    if(enabled.Length!=24 || enabled.Any(x=>!x.Active))throw new InvalidOperationException("观察清单未全部启用。");
+    Console.WriteLine("PASS 实际观察目录24只全部启用；用户自定义条目不变。");return;
+}
+if(args is ["--backfill-live",var fromText,var toText])
+{
+    var from=DateOnly.ParseExact(fromText,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
+    var to=DateOnly.ParseExact(toText,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
+    var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+    if(from>to || to>today || to.DayNumber-from.DayNumber>400)throw new ArgumentException("补采区间无效。");
+    var live=new BackgroundPipeClient();
+    foreach(var job in new[]{"official-share-sync","market-activity-sync"})
+    {
+        var deadline=DateTimeOffset.UtcNow.AddMinutes(2);
+        while(true)
+        {
+            var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team",job,Payload:JsonSerializer.Serialize(new EtfRequest("sync",From:from,To:to)));
+            var response=await live.SendAsync(request);
+            if(response.Code is "AlreadyRunning" or "RateLimited" && DateTimeOffset.UtcNow<deadline)
+            {Console.WriteLine(job+"：等待当前采集/限流后提交指定历史区间。");await Task.Delay(5000);continue;}
+            Console.WriteLine(JsonSerializer.Serialize(new{Job=job,From=from,To=to,RequestId=request.RequestId,response.Code,response.Receipt}));
+            if(response.Code is not ("Accepted" or "Succeeded" or "RetryDeferred"))Environment.ExitCode=1;
+            break;
+        }
+    }
+    return;
+}
+if(args is ["--installed-chart-ui"]){EtfConfigurationUiChecks.RunInstalled();return;}
+if(args is ["--installed-chart-probe"])
+{
+    var installedClient=new BackgroundPipeClient();
+    foreach(var query in new[]{new EtfRequest("overview"),new EtfRequest("history","SSE","510300"),new EtfRequest("history"),new EtfRequest("market-activity")})
+    {
+        var response=await installedClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:JsonSerializer.Serialize(query)));
+        Console.WriteLine($"{query.Operation}:{query.Ticker??"all"}={response.Code}");
+        if(response.Code!="Ok")Environment.ExitCode=1;
+    }
+    if(Environment.ExitCode==0)
+    {
+        var reader=new WorkerEtfWorkspace(installedClient);var overview=await reader.OverviewAsync(default);
+        foreach(var row in overview)
+        {
+            var points=await reader.HistoryAsync(new(row.Market,row.Ticker),default);
+            Console.WriteLine($"PASS 已安装服务ETF历史 {row.Market}:{row.Ticker} rows={points.Count};from={points.FirstOrDefault()?.Date};to={points.LastOrDefault()?.Date}");
+        }
+        Console.WriteLine($"PASS 已安装服务全池 rows={(await reader.HistoryAsync(null,default)).Count};成交额 rows={(await reader.MarketActivityAsync(default)).Count}");
+    }
+    return;
+}
 var chartOnly=args is ["--chart-ui",_];if(chartOnly)args=[args[1]];
 if(args is ["--client",var childPipe])
 {var reader=new WorkerEtfWorkspace(new(childPipe));if((await reader.OverviewAsync(default)).Count<5)Environment.ExitCode=2;return;}

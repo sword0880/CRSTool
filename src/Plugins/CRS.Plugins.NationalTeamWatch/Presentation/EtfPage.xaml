@@ -28,7 +28,7 @@
    </Grid></TabItem>
    <TabItem Header="ETF配置与来源"><StackPanel Margin="12">
     <TextBlock Text="ETF目录与监控配置" FontSize="20" FontWeight="SemiBold"/>
-    <TextBlock Text="候选可自行新增、修改和停用；只有勾选监控并保存的ETF参与后台采集，停用保留历史数据。参考目录不代表已确认机构持有。采集期间保存会排队，执行情况可在任务中心查看。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8"/>
+    <TextBlock Text="内置24个观察项目默认全部监控，也可自行新增、修改和停用；停用保留历史数据。参考目录不代表已确认机构持有。采集期间保存会排队，执行情况可在任务中心查看。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8"/>
     <WrapPanel Margin="0,8,0,12"><TextBlock Text="搜索" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBox Text="{Binding ConfigurationSearch,UpdateSourceTrigger=PropertyChanged}" Width="240" ToolTip="搜索代码、名称、市场或指数分组" AutomationProperties.Name="搜索ETF配置"/>
      <ui:Button Content="刷新目录" Command="{Binding RefreshConfigurationCommand}" Margin="12,0,8,0"/><ui:Button Content="新增ETF" Command="{Binding NewConfigurationCommand}" Click="OnEditConfiguration" IsEnabled="{Binding CanEditConfiguration}"/>
      <ui:Button Content="编辑所选" Click="OnEditConfiguration" Margin="8,0"/><TextBlock Text="{Binding ConfigurationCount}" VerticalAlignment="Center" Margin="8,0"/>

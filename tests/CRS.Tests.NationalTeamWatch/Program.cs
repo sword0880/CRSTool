@@ -28,6 +28,7 @@ Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,份\nSSE,510300,2026-09-01,2,份"),"Duplicate file rows rejected");
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
 MarketActivityChecks.Run(root);
+await HistoryRangeChecks.Run(root);
 EtfConfigurationChecks.Run(root);
 // 合成官方响应验证字段、单位、日期及完整分页；不把联网能返回200当作解析验收。
 var onlineDate=new DateOnly(2026,9,1);
@@ -84,7 +85,7 @@ using(var repository=TestMarketData.Open(Path.Combine(root,"data"),raw))
  Check(repository.Evidence().Count(x=>x.State=="NeedsReview")==1,"Suspicious doubling is review, not zero flow");
  for(var i=0;i<15;i++)repository.SetMembership(new("SSE",(600000+i).ToString()),"pilot","index",true,"test");
  repository.SetMembership(new("SSE","600020"),"extra","index",true,"test");
- Check(repository.Overview().Count==21,"More than 20 ETFs remain active; row capacity is presentation only");
+ Check(repository.Overview().Count==40,"All 24 default ETFs plus 16 test ETFs remain active; row capacity is presentation only");
  repository.Snapshot(Path.Combine(root,"snapshot.db"));Check(File.Exists(Path.Combine(root,"snapshot.db")),"WAL-safe SQLite backup snapshot");
  File.WriteAllText(Path.Combine(root,"raw",candidate.Hash+".raw"),"tampered");
  Check(repository.Points(new("SSE","510300")).Count==1,"DATA-09 tampered raw data excluded");

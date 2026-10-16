@@ -12,7 +12,23 @@ public sealed class Entry:IContextualBackgroundPluginEntry
     {
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory));
         public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs();
-        public ValueTask StartAsync(CancellationToken token)=>inner.StartAsync(token);
+        public async ValueTask StartAsync(CancellationToken token)
+        {
+            // 此故障/去重夹具固定五只合成来源；生产默认全目录由仓储配置专项单独验证。
+            var path=Path.Combine(context.DataDirectory,"data","market.db");
+            if(!File.Exists(path))
+            {
+                var key=context.OpenDataKey();
+                try
+                {
+                    using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),encryptionKey:key)){ }
+                    using var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=path,Password=Convert.ToHexString(key),Pooling=false}.ToString());
+                    db.Open();using var command=db.CreateCommand();command.CommandText="UPDATE watchlist_membership SET active=0 WHERE ticker NOT IN ('510300','510050','588000','159919','159915')";command.ExecuteNonQuery();
+                }
+                finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(key);}
+            }
+            await inner.StartAsync(token);
+        }
         public Task<BackgroundJobResult> ExecuteAsync(string id,CancellationToken token)=>inner.ExecuteAsync(id,token);
         public Task<BackgroundJobResult> ExecuteAsync(string id,string? payload,CancellationToken token,Guid? commandId=null)=>inner.ExecuteAsync(id,payload,token,commandId);
         public Task<BackgroundJobResult> ExecuteWithProgressAsync(string id,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)=>inner.ExecuteWithProgressAsync(id,payload,report,token,commandId);
@@ -41,8 +57,12 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                     data=new[]{new{zbmc="成交金额（亿元）",gp="8,976.31"},new{zbmc="成交量（亿）",gp="562.44"}},error=(string?)null}};
             else if(uri.Host=="query.sse.com.cn")value=new{actionErrors=Array.Empty<string>(),pageHelp=new{pageNo=1,pageCount=1,total=3},
                 result=new[]{"510300","510050","588000"}.Select(code=>new{STAT_DATE=day,SEC_CODE=code,TOT_VOL=amount.ToString()}).ToArray()};
-            else value=new[]{new{metadata=new{catalogid="fund_jjgm",cols=new{current_size="基金规模<br>(万份)"},recordcount=1,pagecount=1,pageno=1},
-                data=new[]{new{size_date=day,fund_code=query["txtDm"],current_size=amount.ToString()}},error=(string?)null}};
+            else
+            {
+                var from=DateOnly.Parse(query["txtStart"]);var to=DateOnly.Parse(query["txtEnd"]);
+                var rows=Enumerable.Range(0,to.DayNumber-from.DayNumber+1).Select(i=>from.AddDays(i)).Select(date=>new{size_date=date.ToString("yyyy-MM-dd"),fund_code=query["txtDm"],current_size=(1000+date.DayNumber+(File.Exists(Path.Combine(root,"changed.fixture"))?100:0)).ToString()}).ToArray();
+                value=new[]{new{metadata=new{catalogid="fund_jjgm",cols=new{current_size="基金规模<br>(万份)"},recordcount=rows.Length,pagecount=1,pageno=1},data=rows,error=(string?)null}};
+            }
             return new PublicHttpResponse(200,JsonSerializer.SerializeToUtf8Bytes(value),"application/json");
         }
     }

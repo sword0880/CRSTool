@@ -14,7 +14,7 @@ internal static class EtfConfigurationChecks
         using(var repository=TestMarketData.Open(Path.Combine(directory,"data"),raw))
         {
             var configurations=repository.Configuration();
-            Check(configurations.Count==24 && configurations.Count(x=>x.Active)==5,"23个参考代码与初始池合并为24个候选，仅原5只监控");
+            Check(configurations.Count==24 && configurations.All(x=>x.Active),"23个参考代码与初始池合并为24个观察项目，默认全部监控");
             var key=new EtfKey("SSE","510500");var candidate=configurations.Single(x=>x.Ticker==key.Ticker);
             repository.SaveConfiguration(key,"合成修改名称","合成分组",false,"合成配置编辑",candidate.Revision);
             var edited=repository.Configuration().Single(x=>x.Ticker==key.Ticker);
@@ -43,6 +43,8 @@ internal static class EtfConfigurationChecks
             repository.SaveConfiguration(key,current.Name,current.IndexGroup,false,"稳定命令停用",current.Revision,command);
             Check(repository.Configuration().Single(x=>x.Ticker==key.Ticker).Revision==current.Revision+1,"业务提交后同一命令重放不再修改修订");
             // 20是视口行数；超过20只仍应完整保存、查询、编辑和重启。
+            var later=repository.Configuration().Single(x=>x.Ticker=="510310");
+            repository.SaveConfiguration(new(later.Market,later.Ticker),later.Name,later.IndexGroup,false,"合成后续启用检查",later.Revision);
             var needed=25-repository.Configuration().Count(x=>x.Active);
             for(var index=0;index<needed;index++)repository.SaveConfiguration(new("SSE",(590000+index).ToString()),"合成容量ETF","合成分组",true,"容量检查",-1);
             var extra=repository.Configuration().Single(x=>x.Ticker=="510310");

@@ -7,6 +7,7 @@ public sealed record SourceDay(DateOnly Date,IReadOnlyList<SourcePage> Pages,IRe
 public sealed record SyncReport(int QueriedDays,int SourceIssues,int ReceivedRows=0,bool HasMore=false);
 public interface IOfficialShareSource
 {
+    Task PrepareRangeAsync(DateOnly from,DateOnly to,CancellationToken token)=>Task.CompletedTask;
     Task<SourceDay> FetchAsync(DateOnly day,CancellationToken cancellationToken);
     Task<SourceDay> FetchAsync(DateOnly day,IReadOnlyList<EtfKey> pool,CancellationToken cancellationToken)=>FetchAsync(day,cancellationToken);
 }

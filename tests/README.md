@@ -96,6 +96,10 @@ dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --source
 
 ## ETF可编辑配置
 
+2026-10-16：生产新库默认启用24只内置观察候选，手动停用状态在重启后保留。新增`HistoryRangeChecks`覆盖深市区间分页、逐日切分、跨页重复/截断/超界拒绝及每轮缓存清理，减少全清单历史补采请求；服务故障夹具显式限制为5只合成来源。实际启用已有目录使用`CRS.Tests.WorkerEtf --enable-reference-live`，明确提交历史采集用`--backfill-live 2026-09-01 2026-10-16`，均会修改正式服务状态。
+
+实际安装的ETF图表只读核验：`dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --installed-chart-probe`检查单只/全池历史和成交额真实返回码，`--installed-chart-ui`逐只选择实际ETF并截取上下图窗口；两者不保存配置、不触发采集。2026-10-16复现旧服务`UnknownQuery`并完成配套后台更新后的验证见[修复记录](../docs/implementation/ETF_CHARTS_AND_MARKET_ACTIVITY.md)。
+
 ETF自动图表与市场温度：`CRS.Tests.NationalTeamWatch` 新增选择并发、全池同日汇总、缺口/日历、官方成交格式/单位、均值/冲突/损坏检查；可加 `--market-live` 只读核验2026-10-13官网单日并写工作区隔离证据。`CRS.Tests.WorkerEtf <完整Worker包>` 覆盖独立市场任务和真实管道，`--chart-ui <完整Worker包>` 仅跑隔离服务与图表窗口检查（包含LiveCharts延迟绘制等待）。范围与发布目录见[实现说明](../docs/implementation/ETF_CHARTS_AND_MARKET_ACTIVITY.md)。
 
 ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数据修改、旧修订拒绝、命令去重、超过20只启用/编辑/重启、旧触发器移除及停用保留事实；`CRS.Tests.WorkerEtf <完整Worker包>` 增加真实服务配置和WPF新增/修改、第21只启用及滚动回归。20仅指表格视口，不限制监控数量。只读核验已安装目录用 `dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --configuration-live`。配置、排队与参考目录边界见[实施记录](../docs/implementation/ETF_CONFIGURATION.md)。

@@ -53,6 +53,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         try
         {
             await ReportAsync(new("RangeStarted",from));
+            await officialSource.PrepareRangeAsync(from,to,token);
             for(var day=from;day<=to;day=day.AddDays(1))
             {
                 token.ThrowIfCancellationRequested();NetworkStatus=$"两市正在获取 {day:yyyy-MM-dd}；已完成{completed}个查询日。";

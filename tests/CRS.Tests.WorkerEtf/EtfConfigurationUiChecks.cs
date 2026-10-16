@@ -10,6 +10,47 @@ using CRS.Worker.Ipc;
 /// <summary>配置界面通过测试服务真实管道新增和修改，所有写入均属于隔离测试目录。</summary>
 internal static class EtfConfigurationUiChecks
 {
+    /// <summary>实际安装环境只查询、选择ETF和绘图，不保存配置、不触发采集。</summary>
+    internal static void RunInstalled()
+    {
+        Exception? failure=null;
+        var thread=new Thread(()=>
+        {
+            var application=new System.Windows.Application();
+            application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
+            application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+            using var lifetime=new CancellationTokenSource();
+            var model=new EtfViewModel(new WorkerEtfWorkspace(),lifetime.Token);var page=new EtfPage(model);
+            var window=new Window{Title="ETF实际服务只读检查",Content=page,Width=1180,Height=820,ShowInTaskbar=false};
+            window.Loaded+=async(_,_)=>
+            {
+                try
+                {
+                    await model.RefreshCommand.ExecuteAsync(null);
+                    if(model.Rows.Count==0 || model.ChartStatus.Contains("失败") || model.MarketActivityStatus.Contains("失败"))throw new InvalidOperationException("实际服务初始化查询失败："+model.ChartStatus+"；"+model.MarketActivityStatus);
+                    var grid=(DataGrid)page.FindName("OverviewGrid");
+                    foreach(var row in model.Rows)
+                    {
+                        grid.SelectedItem=row;await model.HistoryLoadTask;
+                        if(model.ChartStatus.Contains("失败") || model.Series.Length!=1)throw new InvalidOperationException("实际ETF选择查询失败："+model.ChartStatus);
+                        Console.WriteLine("PASS 实际WPF选择ETF "+row.Ticker+"："+model.ChartStatus.Split('。')[0]);
+                    }
+                    model.AllEtfs=true;await model.HistoryLoadTask;
+                    if(model.ChartStatus.Contains("失败"))throw new InvalidOperationException(model.ChartStatus);
+                    ((FrameworkElement)page.FindName("ComparisonPanel")).BringIntoView();await Task.Delay(1000);window.UpdateLayout();
+                    var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
+                    var directory=Path.Combine(Environment.CurrentDirectory,"artifacts","etf-installed-ui");Directory.CreateDirectory(directory);
+                    var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(Path.Combine(directory,"comparison.png"));encoder.Save(output);
+                    Console.WriteLine("PASS 实际WPF全部ETF汇总及成交额查询，不修改配置。");
+                }
+                catch(Exception error){failure=error;}
+                finally{lifetime.Cancel();window.Close();}
+            };
+            application.Run(window);
+        });
+        thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();
+        if(failure is not null)throw new InvalidOperationException("实际ETF图表检查失败。",failure);
+    }
     internal static void Run(BackgroundPipeClient client,string screenshot)
     {
         Exception? failure=null;

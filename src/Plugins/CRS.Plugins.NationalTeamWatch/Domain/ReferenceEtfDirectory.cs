@@ -1,6 +1,6 @@
 namespace CRS.Plugins.NationalTeamWatch.Domain;
 
-/// <summary>公开参考项目的标的事实快照，仅作为待核验候选，不作为机构持仓证据或自动监控清单。</summary>
+/// <summary>公开参考项目的观察清单，默认加入监控；仅作为待核验候选，不作为机构持仓证据。</summary>
 public static class ReferenceEtfDirectory
 {
     public const string Source="https://github.com/wwww1998/national-team-etf-flow/blob/main/refresh.py";

@@ -52,13 +52,13 @@ public sealed partial class MarketRepository : IMarketRepository
             PRAGMA user_version=2;
             """);
         Execute("INSERT OR IGNORE INTO plugin_schema_migration VALUES(2,$now,'2.0.0')", ("$now", Now));
-        // 候选只补充目录，不激活监控、不覆盖用户修改，不改变已保存的份额和审核证据。
+        // 内置观察候选默认全部监控；已有用户停用/修改仍由明确配置命令控制，不在重启时覆盖。
         using var seed=db.BeginTransaction();
         Execute("INSERT OR IGNORE INTO etf_configuration_version SELECT market,ticker,0,'原有配置' FROM security_master");
         foreach(var item in ReferenceEtfDirectory.Entries)
         {
             Execute("INSERT OR IGNORE INTO security_master VALUES($m,$t,$name,$index)",("$m",item.Market),("$t",item.Ticker),("$name",item.Name),("$index",item.Index));
-            Execute("INSERT OR IGNORE INTO watchlist_membership VALUES($m,$t,0,'参考目录候选，名称和指数待核验','DataPilot',NULL)",("$m",item.Market),("$t",item.Ticker));
+            Execute("INSERT OR IGNORE INTO watchlist_membership VALUES($m,$t,1,'默认观察候选，名称和指数待核验','DataPilot',NULL)",("$m",item.Market),("$t",item.Ticker));
             Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,'参考目录（待核验）')",("$m",item.Market),("$t",item.Ticker));
         }
         seed.Commit();
