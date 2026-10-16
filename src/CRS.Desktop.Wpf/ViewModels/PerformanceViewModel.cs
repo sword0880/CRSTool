@@ -41,20 +41,9 @@ public partial class PerformanceViewModel : ObservableObject
     [RelayCommand] private void RevealAccount(PerformanceAccountSelection? account)
     {if(!closed && account is not null && Accounts.Contains(account))AccountDetails=privacy.Details(account.Account);}
     public bool OnlineUpdatesAllowed=>!closed && useCases?.OnlineUpdatesAllowed==true;
-    public bool IsOffline=>!OnlineUpdatesAllowed;
-    public string NetworkStatus=>OnlineUpdatesAllowed?"已授权：本次解锁可按需更新指数及汇率。":"仅离线：计算和对比只使用已保存资料。";
-    private bool CanDownloadBenchmark()=>CanCalculate() && OnlineUpdatesAllowed;
-    [RelayCommand(CanExecute=nameof(CanRun))] private void AuthorizeOnlineUpdates()
-    {
-        if(!CanRun() || OnlineUpdatesAllowed)return;
-        var authorized=state.Interaction.ConfirmPerformanceOnlineUpdates();
-        if(!closed && useCases?.SetOnlineUpdatesAllowed(authorized)!=true && authorized)state.Status="当前会话未提供在线行情能力，保持仅离线。";
-        NotifyNetworkMode();
-    }
-    [RelayCommand] private void UseOffline()
-    {useCases?.SetOnlineUpdatesAllowed(false);NotifyNetworkMode();}
+    public string NetworkStatus=>OnlineUpdatesAllowed?"联网对比：获取指数历史行情及对比用汇率，仅发送指数、期间和币种。":"在线行情服务不可用，请检查连接后重试。";
     private void NotifyNetworkMode()
-    {OnPropertyChanged(nameof(OnlineUpdatesAllowed));OnPropertyChanged(nameof(IsOffline));OnPropertyChanged(nameof(NetworkStatus));DownloadBenchmarkCommand.NotifyCanExecuteChanged();}
+    {OnPropertyChanged(nameof(OnlineUpdatesAllowed));OnPropertyChanged(nameof(NetworkStatus));}
     [ObservableProperty] private bool hasNetAssetsPoints;
     [ObservableProperty] private bool hasComparisonPoints;
     public bool NoNetAssetsPoints=>!HasNetAssetsPoints;
@@ -65,14 +54,14 @@ public partial class PerformanceViewModel : ObservableObject
     [ObservableProperty] private string comparisonStatus="尚未计算，请点击“更新曲线”。";
     [ObservableProperty] private ChartPresentation netAssetsChart=ChartPresentation.Empty;
     [ObservableProperty] private ChartPresentation comparisonChart=ChartPresentation.Empty;
-    [ObservableProperty] private string curveExplanation="默认仅离线，使用已保存资料；如需获取指数行情，请选择允许在线更新并授权。缺少资料时保留空白。";
-    public string[] Benchmarks {get;}=["SPX","HSI","IXIC"];
-    [ObservableProperty] private string benchmark="SPX";
-    partial void OnBenchmarkChanged(string value) {ComparisonChart=ChartPresentation.Empty;HasComparisonPoints=false;ComparisonStatus="指数已切换，请点击“更新曲线”；缺少报价时可点击“联网更新并重算”。";CurveExplanation=ComparisonStatus;}
-    private bool CanRefreshCurve()=>CanExport() || CanCalculate();
+    [ObservableProperty] private string curveExplanation="联网获取基准指数及对比用汇率，与组合累计 TWR 按同币种、同起点对比；缺少估值证据时不生成收益率。";
+    public string[] Benchmarks {get;}=["SSE","SPX","HSI","IXIC"];
+    [ObservableProperty] private string benchmark="SSE";
+    partial void OnBenchmarkChanged(string value) {parameterRevision++;ComparisonChart=ChartPresentation.Empty;HasComparisonPoints=false;ComparisonStatus="指数已切换，请点击“更新曲线”联网获取并重新计算。";CurveExplanation=ComparisonStatus;}
+    private bool CanRefreshCurve()=>CanCalculate();
     [RelayCommand(CanExecute=nameof(CanRefreshCurve))]
     private async Task RefreshCurveAsync()
-    {if(run is null)await CalculateAsync();else await Run(UpdateCurve);}
+    {await CalculateAsync();}
     private async Task UpdateCurve(CancellationToken token)
     {
         var expectedRun=run;var expectedBenchmark=Benchmark;var revision=parameterRevision;
@@ -86,12 +75,9 @@ public partial class PerformanceViewModel : ObservableObject
         var reasons=run.Result.Issues.Where(i=>i.Code is "FX_MISSING" or "INITIAL_NAV_MISSING" || i.Code.Contains("VALUATION",StringComparison.Ordinal)).Select(i=>i.Explanation).Distinct().Take(2);
         NetAssetsStatus=navCount==0?"没有可计算的净资产点。请检查“资金流与异常检查”中的净值及估值日汇率问题。 "+string.Join(" ",reasons)
             :navCount==1?"目前只有 1 个有效净值点，只能显示单点；至少 2 个不同日期的完整估值才能画折线。":$"已显示 {navCount} 个净资产点。";
-        ComparisonStatus=$"组合净值 {unitCount} 个有效点，指数 {indexCount} 个有效点。"+(unitCount<2?" 组合 TWR 需要完整期初、期末净值及资金流证据。":"")+(indexCount<2?" 指数需要所选期间的报价和对比用汇率；可点击“联网更新并重算”。":"");
+        ComparisonStatus=$"组合净值 {unitCount} 个有效点，指数 {indexCount} 个有效点。"+(unitCount<2?" 组合 TWR 需要完整期初、期末净值及资金流证据。":"")+(indexCount<2?" 指数需要所选期间的报价和对比用汇率；请点击“更新曲线”重试。":"");
         CurveExplanation=curve.Explanation+(curve.Points.Any(p=>p.BenchmarkValue.HasValue)?"":" 当前缺少所选指数的同日起点报价或报告币种汇率。")+(curve.Points.Count(p=>p.NetAssets.HasValue)<2?" 当前不足两个完整净值点，无法连接净值曲线。":"");
     }
-    [RelayCommand(CanExecute=nameof(CanDownloadBenchmark))]
-    private async Task DownloadBenchmarkAsync(){forceMarketRefresh=true;try {await CalculateAsync();}finally{forceMarketRefresh=false;}}
-    private bool forceMarketRefresh;
     public ObservableCollection<PerformanceAccountSelection> Accounts {get;}=[];
     public ObservableCollection<PerformanceMetricDisplay> Metrics {get;}=[];
     public ObservableCollection<PerformanceIssue> Issues {get;}=[];
@@ -156,7 +142,7 @@ public partial class PerformanceViewModel : ObservableObject
     public WorkspaceState State=>state;
     public PerformanceViewModel(WorkspaceState state,IPerformanceUseCases? useCases)
     {
-        this.state=state;this.useCases=useCases;
+        this.state=state;this.useCases=useCases;useCases?.SetOnlineUpdatesAllowed(true);
         state.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(state.IsBusy))RefreshCommands();};
     }
     private bool CanRun()=>state.IsIdle && Available && !closed;
@@ -166,7 +152,7 @@ public partial class PerformanceViewModel : ObservableObject
     private bool CanRevise()=>CanRun() && SelectedEvent is not null && RevisionReason.Trim().Length>0;
     private bool CanTransfer()=>CanRun() && TransferOut is not null && TransferIn is not null && TransferReason.Trim().Length>0;
     private void RefreshCommands()
-    {AuthorizeOnlineUpdatesCommand.NotifyCanExecuteChanged();RefreshCurveCommand.NotifyCanExecuteChanged();DownloadBenchmarkCommand.NotifyCanExecuteChanged();RefreshCommand.NotifyCanExecuteChanged();CalculateCommand.NotifyCanExecuteChanged();SavePortfolioCommand.NotifyCanExecuteChanged();ExportCommand.NotifyCanExecuteChanged();ExportEncryptedCommand.NotifyCanExecuteChanged();OpenHistoryCommand.NotifyCanExecuteChanged();ReplayHistoryCommand.NotifyCanExecuteChanged();ReviseCommand.NotifyCanExecuteChanged();MatchTransferCommand.NotifyCanExecuteChanged();AddAccountCommand.NotifyCanExecuteChanged();RenameAccountCommand.NotifyCanExecuteChanged();AddNavCommand.NotifyCanExecuteChanged();ConfirmCoverageCommand.NotifyCanExecuteChanged();ImportManualCommand.NotifyCanExecuteChanged();AddEventCommand.NotifyCanExecuteChanged();ReviseSourceCommand.NotifyCanExecuteChanged();}
+    {RefreshCurveCommand.NotifyCanExecuteChanged();RefreshCommand.NotifyCanExecuteChanged();CalculateCommand.NotifyCanExecuteChanged();SavePortfolioCommand.NotifyCanExecuteChanged();ExportCommand.NotifyCanExecuteChanged();ExportEncryptedCommand.NotifyCanExecuteChanged();OpenHistoryCommand.NotifyCanExecuteChanged();ReplayHistoryCommand.NotifyCanExecuteChanged();ReviseCommand.NotifyCanExecuteChanged();MatchTransferCommand.NotifyCanExecuteChanged();AddAccountCommand.NotifyCanExecuteChanged();RenameAccountCommand.NotifyCanExecuteChanged();AddNavCommand.NotifyCanExecuteChanged();ConfirmCoverageCommand.NotifyCanExecuteChanged();ImportManualCommand.NotifyCanExecuteChanged();AddEventCommand.NotifyCanExecuteChanged();ReviseSourceCommand.NotifyCanExecuteChanged();}
     private void Invalidate()
         =>InvalidateResult(true);
     private void InvalidateResult(bool parametersChanged)
@@ -233,14 +219,19 @@ public partial class PerformanceViewModel : ObservableObject
     {
         var request=new PerformanceRequest(Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToArray(),DateOnly.FromDateTime(From),DateOnly.FromDateTime(To),Currency,(ReturnMethod)MethodIndex,FallbackDays,SinceInception:Period=="成立以来");
         var revision=parameterRevision;
-        string marketMessage="";
-        if(OnlineUpdatesAllowed)
-            try {await useCases!.FetchBenchmarkAsync(Benchmark,request,token,forceMarketRefresh);} catch(CrsException error) {marketMessage=error.Message;}
+        InvalidateResult(false);
+        if(!OnlineUpdatesAllowed)throw new CrsException("在线行情服务不可用，无法更新绩效对比。");
+        try {await useCases!.FetchBenchmarkAsync(Benchmark,request,token,force:true);}
+        catch(CrsException error)
+        {
+            if(!closed && parameterRevision==revision)NetAssetsStatus=ComparisonStatus=CurveExplanation="联网更新失败："+error.Message+" 请重试。";
+            throw;
+        }
         token.ThrowIfCancellationRequested();if(closed || parameterRevision!=revision)return;
         var result=await useCases!.CalculateAsync(request,token);await Reload(token);
         token.ThrowIfCancellationRequested();
         if(closed || parameterRevision!=revision || result.InputHash!=inputSnapshotId)return;
-        Display(result);await UpdateCurve(token);if(run==result)CurveExplanation+=" "+marketMessage;
+        Display(result);await UpdateCurve(token);
     });
     private void Display(PerformanceRun value)
     {
@@ -303,7 +294,7 @@ public partial class PerformanceViewModel : ObservableObject
     public void ClearForLock()
     {
         // 选择项与补录表单也持有敏感引用，不能只清空列表和密码。
-        closed=true;UseOffline();privacy=new([],[]);AccountDetails="";parameterRevision++;inputSnapshotId="";operation?.Cancel();ManualJson="";ManualSource="";AccountAlias="";RevisionReason="";TransferReason="";SourceReason="";
+        closed=true;useCases?.SetOnlineUpdatesAllowed(false);NotifyNetworkMode();privacy=new([],[]);AccountDetails="";parameterRevision++;inputSnapshotId="";operation?.Cancel();ManualJson="";ManualSource="";AccountAlias="";RevisionReason="";TransferReason="";SourceReason="";
         SelectedHistory=null;SelectedEvent=null;TransferOut=null;TransferIn=null;ManualAccount=null;SelectedPortfolio=null;SelectedSource=null;
         SecuritiesValue=CashValue=Receivable=Liability=Payable=EventAmount=EventQuantity=EventFee=EventWithholding=0;EventSecurity="";EventMarket="";
         Accounts.Clear();Events.Clear();Metrics.Clear();Issues.Clear();History.Clear();Portfolios.Clear();Sources.Clear();AccountResults.Clear();Exposure.Clear();workspace=null;run=null;NetAssetsChart=ChartPresentation.Empty;ComparisonChart=ChartPresentation.Empty;HasNetAssetsPoints=false;HasComparisonPoints=false;NetAssetsStatus=ComparisonStatus=CurveExplanation="数据已锁定。";Summary="保险库已锁定，绩效资料已清理。";RefreshCommands();

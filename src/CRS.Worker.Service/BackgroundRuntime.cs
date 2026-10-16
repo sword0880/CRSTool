@@ -14,6 +14,9 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
 {
     private readonly SemaphoreSlim gate = new(1);
     private readonly CancellationTokenSource stopping = new();
+    private readonly CancellationTokenSource queryStopping = new();
+    private readonly HashSet<TaskCompletionSource> activeQueries = [];
+    private readonly HashSet<string> queryingPlugins = new(StringComparer.Ordinal);
     private readonly Dictionary<JobKey, CancellationTokenSource> running = [];
     private readonly Dictionary<JobKey, string> queued = [];
     private readonly Dictionary<string, SemaphoreSlim> pluginWriters = [];
@@ -119,6 +122,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
     }
     public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request, BackgroundCaller caller, CancellationToken token)
     {
+        if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, token);
         await gate.WaitAsync(token);
         try
         {
@@ -134,6 +138,41 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         }
         finally { gate.Release(); }
     }
+    /// <summary>只在准入和退出时持全局锁；插件查询独立限额，维护时取消并排空后才允许释放会话。</summary>
+    private async Task<BackgroundResponse> QueryPluginAsync(BackgroundRequest request, CancellationToken token)
+    {
+        BackgroundResponse Reply(string code, string? payload = null) => new(WorkerProtocol.Version, request.RequestId, code, Payload: payload);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await gate.WaitAsync(token);
+        try
+        {
+            if (fault is not null) return Reply(fault);
+            if (maintenance) return Reply("Maintenance");
+            if (request.PluginId is null || request.Payload is null || request.Payload.Length > 4096) return Reply("InvalidRequest");
+            // 不允许一个慢插件在宿主内积累无界等待；其它插件和管理命令使用各自路径。
+            if (!queryingPlugins.Add(request.PluginId)) return Reply("PluginBusy");
+            activeQueries.Add(completed);
+        }
+        finally { gate.Release(); }
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, queryStopping.Token);
+        try { return Reply("Ok", await catalog.QueryAsync(request.PluginId, request.Payload, cancellation.Token)); }
+        catch (ArgumentException) { return Reply("UnknownQuery"); }
+        catch (System.Text.Json.JsonException) { return Reply("InvalidRequest"); }
+        catch (InvalidDataException) { return Reply("InvalidRequest"); }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+        catch (PluginLifecycleTimeoutException) { throw; } // 不合作插件必须继续走宿主进程终止策略。
+        catch (Exception error)
+        {
+            diagnostics?.Invoke("PluginQueryFailed", request.PluginId, error.GetType().Name);
+            return Reply("PluginQueryFailed");
+        }
+        finally
+        {
+            await gate.WaitAsync(CancellationToken.None);
+            try { queryingPlugins.Remove(request.PluginId); activeQueries.Remove(completed); completed.SetResult(); }
+            finally { gate.Release(); }
+        }
+    }
     private async Task<BackgroundResponse> HandleCoreAsync(BackgroundRequest request, BackgroundCaller caller, CancellationToken token)
     {
         BackgroundResponse Reply(string code, CommandReceipt? receipt = null) => new(WorkerProtocol.Version, request.RequestId, code, Receipt: receipt);
@@ -143,14 +182,6 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, DateTimeOffset.UtcNow, Environment.ProcessId), Plugins: catalog.Statuses.ToArray());
         }
         if (fault is not null) return Reply(fault);
-        if(request.Command=="QueryPlugin")
-        {
-            if(request.PluginId is null || request.Payload is null || request.Payload.Length>4096)return Reply("InvalidRequest");
-            try{return new(WorkerProtocol.Version,request.RequestId,"Ok",Payload:await catalog.QueryAsync(request.PluginId,request.Payload,token));}
-            catch(ArgumentException){return Reply("UnknownQuery");}
-            catch(System.Text.Json.JsonException){return Reply("InvalidRequest");}
-            catch(InvalidDataException){return Reply("InvalidRequest");}
-        }
         if (request.PageSize is < 1 or > 10) return Reply("InvalidRequest");
         if (request.Command == "GetJobs")
         {
@@ -312,21 +343,25 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
     }
     public async Task EnterMaintenanceAsync(CancellationToken token)
     {
+        Task[] queries;
         await gate.WaitAsync(token);
         try
         {
             maintenance = true;
-            if (scheduler is null) return;
-            await scheduler.Standby(token); queued.Clear();
+            queries = activeQueries.Select(x => x.Task).ToArray();
+            if (scheduler is not null && scheduler.Status != SchedulerStatus.Shutdown) await scheduler.Standby(token);
+            queued.Clear();
             foreach (var source in running.Values) source.Cancel();
         }
         finally { gate.Release(); }
-        await scheduler!.Shutdown(waitForJobsToComplete: true, token);
+        queryStopping.Cancel(); // 插件取消回调不能在全局锁内执行。
+        await Task.WhenAll(queries).WaitAsync(token);
+        if (scheduler is not null && scheduler.Status != SchedulerStatus.Shutdown) await scheduler.Shutdown(waitForJobsToComplete: true, token);
     }
     public async ValueTask DisposeAsync()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await EnterMaintenanceAsync(deadline.Token);
-        stopping.Cancel(); stopping.Dispose(); foreach (var writer in pluginWriters.Values) writer.Dispose(); gate.Dispose();
+        stopping.Cancel(); stopping.Dispose(); queryStopping.Dispose(); foreach (var writer in pluginWriters.Values) writer.Dispose(); gate.Dispose();
     }
 }
 

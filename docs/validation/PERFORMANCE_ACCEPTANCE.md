@@ -1,5 +1,11 @@
 # 绩效 P0 验收记录
 
+> 2026-10-16 范围调整：绩效统一为联网操作，取消离线入口及离线失败回退。每次更新均获取 SSE 上证指数 / SPX 标普500 / HSI 恒生 / IXIC 纳斯达克综合及对比用汇率；默认 SSE。网络失败不发布旧行情重算结果。证券流水共用导入、完整性门槛、冻结历史及加密证据保留。下文早期离线 P0 记录为历史验收背景，当前行为以此调整及 [实现说明](../implementation/PERFORMANCE_P0.md) 为准。
+
+2026-10-16 本次验证：WPF 与 Infrastructure Release 构建零警告零错误；WPF 交互、Domain 32 项冻结回归及组件、架构/复杂度门禁、绩效 Infrastructure 集成通过。新增合成测试覆盖上证代码/原币/跨币种汇率、每次更新强制联网、网络失败清空旧结果及锁定撤销访问。Infrastructure 集成使用仓库内隔离临时目录。未完成真实行情服务在线可用性和真实账户金额验收。
+
+
+
 2026-10-14。实现与操作见[绩效 P0](../implementation/PERFORMANCE_P0.md)，需求见[绩效规范](../specifications/PERFORMANCE_ANALYTICS_SPEC.md)。本记录不改变全局 ReleaseApproved=false。
 
 ## 自动场景追踪

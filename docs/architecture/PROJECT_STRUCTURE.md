@@ -1,6 +1,8 @@
 # 项目结构与分层约定
 
-## 当前结构（五个原有生产项目、三个插件宿主项目及两个插件）
+> 状态：补充说明。完整项目清单、后台进程与密钥边界以 [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) 为当前唯一架构入口。下列目录树仅展开税务与桌面细节，不是完整解决方案清单。
+
+## 税务与桌面目录细节
 
 ```text
 CRS/
@@ -10,7 +12,7 @@ CRS/
 ├─ src/
 │  ├─ CRS.Plugin.Abstractions/     # 纯BCL插件能力与Session契约
 │  ├─ CRS.Plugin.Wpf/              # 可选WPF页面贡献契约
-│  ├─ CRS.PluginHost/              # 官方可信加载、Quartz计划/记录、生命周期
+│  ├─ CRS.PluginHost/              # 桌面可信加载、页面和生命周期；唯一Quartz在Worker
 │  ├─ Plugins/                    # 业务插件不被宿主静态引用
 │  │  ├─ CRS.Plugins.NationalTeamWatch/ # 两市官方联网份额，独立市场数据
 │  │  └─ CRS.Plugins.Demo/          # 双插件真实WPF资源POC

@@ -17,17 +17,10 @@
    <Button Content="更多计划" Command="{Binding MoreJobsCommand}" Margin="8,0,0,0"/>
    <Button Content="确认上次请求" Command="{Binding ConfirmPendingCommand}" Margin="8,0,0,0"/>
   </WrapPanel>
-  <WrapPanel Grid.Row="2" Margin="0,0,0,12">
-   <TextBlock Text="Cron" VerticalAlignment="Center" Margin="0,0,8,0"/>
-   <TextBox Text="{Binding Cron,UpdateSourceTrigger=PropertyChanged}" Width="180" Margin="0,0,12,0" AutomationProperties.Name="后台任务 Cron"/>
-   <TextBlock Text="时区" VerticalAlignment="Center" Margin="0,0,8,0"/>
-   <TextBox Text="{Binding TimeZoneId,UpdateSourceTrigger=PropertyChanged}" Width="190" Margin="0,0,12,0" AutomationProperties.Name="后台任务时区"/>
-   <Button Content="保存计划" Command="{Binding SaveCommand}"/>
-  </WrapPanel>
-  <TabControl Grid.Row="3">
-   <TabItem Header="服务计划"><DataGrid ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+  <TabControl Grid.Row="2" Grid.RowSpan="2">
+   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron 与时区。" Foreground="#64748B" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/><DataGridCheckBoxColumn Header="待重建" Binding="{Binding NeedsReconcile}"/></DataGrid.Columns>
-   </DataGrid></TabItem>
+   </DataGrid></Grid></TabItem>
    <TabItem Header="最近执行"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <!-- 筛选在服务端分页前执行，空白表示全部。 -->
     <StackPanel Margin="0,8,0,10">

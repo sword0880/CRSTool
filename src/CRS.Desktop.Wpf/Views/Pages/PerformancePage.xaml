@@ -3,7 +3,7 @@
  <!-- 内部网格受导航可用高度约束；导航服务会重置 Page.Height。 -->
  <!-- 导航还会重置最外层内容高度，约束放在内部网格以免被覆盖。 -->
  <Grid><Grid Margin="24,20,28,20" x:Name="ViewportGrid" Height="0"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <StackPanel><DockPanel><WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center"><RadioButton x:Name="OfflineMode" Content="仅离线" GroupName="PerformanceNetwork" IsChecked="{Binding IsOffline,Mode=OneWay}" Command="{Binding UseOfflineCommand}" Margin="0,0,16,0"/><RadioButton x:Name="OnlineMode" Content="允许在线更新" GroupName="PerformanceNetwork" IsChecked="{Binding OnlineUpdatesAllowed,Mode=OneWay}" Command="{Binding AuthorizeOnlineUpdatesCommand}"/></WrapPanel><TextBlock Text="海外投资绩效中心" Style="{StaticResource PageTitle}"/></DockPanel>
+  <StackPanel><TextBlock Text="投资绩效与基准对比" Style="{StaticResource PageTitle}"/>
    <TextBlock Text="{Binding NetworkStatus}" Style="{StaticResource Subtitle}" TextWrapping="Wrap"/>
   </StackPanel>
   <!-- 核心操作固定在顶部，导入与计算无需滚到页面底部。 -->
@@ -12,7 +12,7 @@
    <ComboBox Width="112" ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}" Margin="0,0,8,0"/>
    <DatePicker SelectedDateFormat="Short" Width="128" SelectedDate="{Binding From}" Margin="0,0,6,0"/><TextBlock Text="→" VerticalAlignment="Center" Margin="0,0,6,0"/><DatePicker SelectedDateFormat="Short" Width="128" SelectedDate="{Binding To}" Margin="0,0,8,0"/>
    <ComboBox Width="78" ItemsSource="{Binding Currencies}" SelectedItem="{Binding Currency}" Margin="0,0,8,0"/>
-   <Button x:Name="CalculateButton" Content="更新 / 重算" Command="{Binding CalculateCommand}" Margin="0,0,8,0"/>
+   <Button x:Name="CalculateButton" Content="联网更新 / 重算" Command="{Binding CalculateCommand}" Margin="0,0,8,0"/>
    <Button Content="刷新资料" Command="{Binding RefreshCommand}"/>
   </WrapPanel>
   <Border Grid.Row="2" Style="{StaticResource Card}" Background="#EFF6FF" Margin="0,0,0,12"><TextBlock Text="{Binding Summary}" TextWrapping="Wrap"/></Border>
@@ -34,7 +34,7 @@
    </Grid></TabItem>
    <!-- 原币组成与来源独立呈现，未知值不填零。 -->
    <TabItem Header="净值曲线与指数"><Grid Margin="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <WrapPanel IsEnabled="{Binding State.IsIdle}" Margin="0,0,0,8"><TextBlock Text="对比指数" VerticalAlignment="Center"/><ComboBox Width="110" ItemsSource="{Binding Benchmarks}" SelectedItem="{Binding Benchmark}" Margin="8,0"/><Button Content="更新曲线" Command="{Binding RefreshCurveCommand}"/><Button Content="联网更新并重算" Command="{Binding DownloadBenchmarkCommand}" Margin="12,0"/><TextBlock Text="SPX 标普500 / HSI 恒生 / IXIC 纳斯达克综合" VerticalAlignment="Center" TextWrapping="Wrap"/></WrapPanel>
+    <WrapPanel IsEnabled="{Binding State.IsIdle}" Margin="0,0,0,8"><TextBlock Text="对比指数" VerticalAlignment="Center"/><ComboBox Width="110" ItemsSource="{Binding Benchmarks}" SelectedItem="{Binding Benchmark}" Margin="8,0"/><Button Content="更新曲线" Command="{Binding RefreshCurveCommand}"/><TextBlock Text="SSE 上证指数 / SPX 标普500 / HSI 恒生 / IXIC 纳斯达克综合" VerticalAlignment="Center" TextWrapping="Wrap"/></WrapPanel>
     <TabControl Grid.Row="1">
      <TabItem Header="净资产（报告币种）"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock Text="{Binding NetAssetsStatus}" TextWrapping="Wrap" Margin="12,8"/><Border Visibility="{Binding NoNetAssetsPoints,Converter={StaticResource BooleanVisibility}}" Padding="20" Background="#EFF6FF" Margin="12"><StackPanel><TextBlock Text="暂无净资产折线" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="{Binding NetAssetsStatus}" TextWrapping="Wrap" Margin="0,8"/><Button Content="更新曲线 / 重新计算" Command="{Binding RefreshCurveCommand}" HorizontalAlignment="Left"/></StackPanel></Border><lvc:CartesianChart Visibility="{Binding HasNetAssetsPoints,Converter={StaticResource BooleanVisibility}}" Height="320" Series="{Binding NetAssetsChart.Series}" XAxes="{Binding NetAssetsChart.XAxes}" YAxes="{Binding NetAssetsChart.YAxes}" LegendPosition="Top" AnimationsSpeed="0:0:0"/></StackPanel></ScrollViewer></TabItem>
      <TabItem Header="净值与指数对比（起点 100）"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock Text="{Binding ComparisonStatus}" TextWrapping="Wrap" Margin="12,8"/><Border Visibility="{Binding NoComparisonPoints,Converter={StaticResource BooleanVisibility}}" Padding="20" Background="#EFF6FF" Margin="12"><StackPanel><TextBlock Text="暂无对比曲线" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="{Binding ComparisonStatus}" TextWrapping="Wrap" Margin="0,8"/><Button Content="更新曲线 / 重新计算" Command="{Binding RefreshCurveCommand}" HorizontalAlignment="Left"/></StackPanel></Border><lvc:CartesianChart Visibility="{Binding HasComparisonPoints,Converter={StaticResource BooleanVisibility}}" Height="320" Series="{Binding ComparisonChart.Series}" XAxes="{Binding ComparisonChart.XAxes}" YAxes="{Binding ComparisonChart.YAxes}" LegendPosition="Top" AnimationsSpeed="0:0:0"/></StackPanel></ScrollViewer></TabItem>

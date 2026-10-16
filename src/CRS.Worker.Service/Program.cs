@@ -66,6 +66,9 @@ namespace CRS.Worker.Service
             byte[]? key = null;
             try
             {
+                // 在Generic Host已接入SCM后核验较大的快照，仍先于密钥、迁移及插件打开。
+                // 未解决状态非零停止；候选先持久标记风险，不能凭未观察到写入自动回退。
+                new WorkerUpgradeJournal(locations.Data).BeforeStorageOpen(AppContext.BaseDirectory);
                 key = ServiceKey.Open(locations.Data);
                 StorageSecurity.Validate(locations.Data, locations.Console); // 新建密钥也须满足数据树权限策略。
                 using var repository = new EncryptedTaskRepository(Path.Combine(locations.Data, "scheduler-config.db"), key);
@@ -79,6 +82,7 @@ namespace CRS.Worker.Service
                 try
                 {
                     await runtime.StartAsync(stoppingToken);
+                    new WorkerUpgradeJournal(locations.Data).MarkHealthy(AppContext.BaseDirectory);
                     diagnostics.Write("Started", "service", "Running");
                     pipeTask = new BackgroundPipeServer(runtime, locations.Pipe).RunAsync(listeners.Token);
                     logger.LogInformation("CRS 后台服务已启动，加载 {Count} 个后台任务。", catalog.Jobs.Count);

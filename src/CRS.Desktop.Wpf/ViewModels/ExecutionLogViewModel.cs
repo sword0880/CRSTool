@@ -25,6 +25,17 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string progressLabel="";
     [ObservableProperty] private string status="显示打开时的记录，正在查询服务。";
     [ObservableProperty] private string logText="";
+    [ObservableProperty] private string search="";
+    [ObservableProperty] private bool onlyIssues;
+    public string FullLogText {get;private set;}="";
+    private readonly List<(string Text,bool Issue)> displayLines=[];
+    partial void OnSearchChanged(string value)=>ApplyFilter();
+    partial void OnOnlyIssuesChanged(bool value)=>ApplyFilter();
+    private void ApplyFilter()
+    {
+        var matches=displayLines.Where(x=>(!OnlyIssues||x.Issue) && (string.IsNullOrWhiteSpace(Search)||x.Text.Contains(Search.Trim(),StringComparison.OrdinalIgnoreCase))).Select(x=>x.Text).ToArray();
+        LogText=matches.Length==0?"没有符合条件的日志。":string.Join(Environment.NewLine,matches);
+    }
 
     public ExecutionLogViewModel(ExecutionRecord initial,BackgroundPipeClient client,CancellationToken parentLifetime)
     {
@@ -77,7 +88,17 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
         if(!string.IsNullOrWhiteSpace(record.Checkpoint))lines.Add("执行摘要："+Describe(record.Checkpoint));
         else lines.Add(record.Result=="Running"?"本次执行尚未保存结束摘要，可点击刷新查看。":"本条历史未保存详细执行摘要。");
         lines.Add("");lines.Add("仅显示后台服务已保存的执行信息；未记录的逐步调试日志无法补查。");
-        LogText=string.Join(Environment.NewLine,lines);
+        FullLogText=string.Join(Environment.NewLine,lines);
+        displayLines.Clear();
+        var issueSequences=record.Progress?.Where(x=>x.Detail.Stage is "SourceFailed" or "RequestTimedOut" or "RequestFailed" or "RateWait" or "Cooldown").Select(x=>x.Sequence).ToHashSet() ?? [];
+        foreach(var line in lines)
+        {
+            var marker=line.IndexOf("] #",StringComparison.Ordinal);
+            var end=marker<0?-1:line.IndexOf(" · ",marker,StringComparison.Ordinal);
+            var issue=marker>=0 && end>marker && long.TryParse(line[(marker+3)..end],out var sequence) && issueSequences.Contains(sequence);
+            displayLines.Add((line,issue || (line.StartsWith("当前结果：",StringComparison.Ordinal) && record.Result is not ("Running" or "Succeeded"))));
+        }
+        ApplyFilter();
     }
     /// <summary>按结构化白名单翻译进度，始终区分来源行数与真实提交数量。</summary>
     private static string DescribeProgress(BackgroundProgress value)

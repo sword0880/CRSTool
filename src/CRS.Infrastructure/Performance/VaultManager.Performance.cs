@@ -16,7 +16,7 @@ public sealed partial class VaultManager
             });
         }
     }
-    /// <summary>绑定真实会话；online 仅决定是否提供行情适配器，实际请求仍需会话内显式授权，默认仅离线。</summary>
+    /// <summary>绑定真实会话；online 决定是否提供行情适配器，绩效页面启用在线访问，锁定后取消。</summary>
     public IPerformanceUseCases CreatePerformanceUseCases(bool online=true)
     {
         lock(gate)

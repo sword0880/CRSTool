@@ -111,6 +111,10 @@ internal static class PerformanceChecks
         using var http=new HttpClient(new MarketHandler());var provider=new YahooPerformanceMarketData(http);
         var document=await provider.FetchAsync("SPX",new(2025,1,2),new(2025,1,3),"CNY",default);
         if(document.Data.Prices.Count(p=>p.Market=="INDEX")!=2 || document.Data.Prices.Count(p=>p.Market=="INDEX_FX")!=2 || document.Data.Fx.Length!=0 || document.Hash!=PerformanceCodec.Hash(document.Raw))throw new Exception("联网指数和汇率未冻结来源，或混入组合汇率。");
+        var shanghai=await provider.FetchAsync("SSE",new(2025,1,2),new(2025,1,3),"CNY",default);
+        if(shanghai.Data.Prices.Length!=2 || shanghai.Data.Prices.Any(p=>p.Security!="SSE" || p.Currency!="CNY" || p.Market!="INDEX") || !Encoding.UTF8.GetString(shanghai.Raw).Contains("000001.SS"))throw new Exception("上证指数代码、人民币报价或免换汇处理不正确。");
+        var shanghaiUsd=await provider.FetchAsync("SSE",new(2025,1,2),new(2025,1,3),"USD",default);
+        if(shanghaiUsd.Data.Prices.Count(p=>p.Market=="INDEX_FX" && p.Security=="CNYUSD" && p.Currency=="USD")!=2)throw new Exception("上证指数美元对比未请求人民币兑美元汇率。");
         using var summerHttp=new HttpClient(new MarketHandler(true));var summer=await new YahooPerformanceMarketData(summerHttp).FetchAsync("SPX",new(2025,6,2),new(2025,6,3),"USD",default);
         if(summer.Data.Prices.Min(p=>p.Date)!=new DateOnly(2025,6,2))throw new Exception("行情未按市场时区确定交易日期。");
     }

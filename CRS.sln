@@ -49,6 +49,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "architecture", "architectur
 		docs\architecture\CRS开发规范.md = docs\architecture\CRS开发规范.md
 		docs\architecture\PRD.md = docs\architecture\PRD.md
 		docs\architecture\PROJECT_STRUCTURE.md = docs\architecture\PROJECT_STRUCTURE.md
+		docs\architecture\CURRENT_ARCHITECTURE.md = docs\architecture\CURRENT_ARCHITECTURE.md
 		docs\architecture\README.md = docs\architecture\README.md
 		docs\architecture\SAD.md = docs\architecture\SAD.md
 	EndProjectSection
@@ -89,6 +90,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "implementation", "implementation", "{EA2851F9-C9D6-4587-A32F-D4B84E3C18F3}"
 	ProjectSection(SolutionItems) = preProject
 		docs\implementation\AMOUNT_PRESENTATION.md = docs\implementation\AMOUNT_PRESENTATION.md
+		docs\implementation\ARCH_REMEDIATION_20261016.md = docs\implementation\ARCH_REMEDIATION_20261016.md
 		docs\implementation\BACKUP_CAPACITY.md = docs\implementation\BACKUP_CAPACITY.md
 		docs\implementation\CANONICAL_VALIDATION.md = docs\implementation\CANONICAL_VALIDATION.md
 		docs\implementation\CAPITAL_GAIN_FIFO_SPEC.md = docs\implementation\CAPITAL_GAIN_FIFO_SPEC.md

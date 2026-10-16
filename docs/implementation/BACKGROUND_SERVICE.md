@@ -73,3 +73,25 @@ Windows 管道授权测试需正常完整性 Windows 令牌；低完整性执行
 仓储提供并验证了 SQLCipher Backup API 一致快照，但**尚无运维级自动备份/恢复命令、维护升级 Journal、版本切换及禁止回退新事实的完整服务流程**。账户更换当前明确拒绝，不支持自动迁移；跨机恢复也未验收。无人登录/整机重启、睡眠恢复、不同 Session 授权、LocalService 官网网络与代理、磁盘满/物理断电、生产签名发行均未关闭验收。
 
 API 依据：[微软 Windows Service](https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service)、[显式 Named Pipe ACL](https://learn.microsoft.com/en-us/dotnet/api/system.io.pipes.namedpipeserverstreamacl.create?view=net-10.0)。实现以已锁定包编译和上述实测结果为准。
+
+## 2026-10-16 任务中心交互
+
+服务计划页移除常驻 Cron/时区编辑栏。双击实际计划行或按 Enter 打开独立编辑窗口，编辑副本固定任务身份和打开时的修订号；取消不写入，保存仍走 ChangeSchedule 管道及服务端管理员、Quartz 表达式、时区与并发修订校验。无权限或计划冲突时窗口保留输入。主页面空白和表头双击不应打开编辑窗口；会话取消关闭窗口。
+
+执行日志采用 18px 常显滚动条、最小 40px 滑块；支持正文滚轮、PageUp/PageDown、Ctrl+Home/End、开头及回到最新。向上阅读暂停跟随，刷新保留视口和选区；在底部继续跟随。执行 ID 折叠，正文增加关键词搜索、异常/等待阶段筛选和复制完整日志，筛选不改变服务端历史查询及已保存内容。
+
+后续可在独立计划编辑窗口加入可视化 Cron 生成器，参考用户提供的 https://xiongyingqi.com/cron-online/，保留手动编辑入口。生成规则需与后台 Quartz 校验一致，不能直接假定外部生成器的方言、时区或最近执行时间与服务相同。本次仅完成手动编辑窗口，未嵌入外部网页或生成器。
+
+验收入口：CRS.Tests.Wpf --execution-log-ui <截图路径>，使用隔离模拟管道，覆盖权限拒绝、冲突保留、固定任务/修订号保存、长日志滚动与刷新位置、异常筛选和搜索零匹配；不修改实际服务计划。
+
+滚动修正：使用 WPF Track 的最小滑块资源计算（VerticalScrollBarButtonHeightKey=80，对应最小40px），避免只设置 Thumb.MinHeight 导致末尾裁切。滚动条交给 ScrollViewer 原生命令驱动，Scroll 回调只更新跟随状态；不得再次用尚未同步的 NewValue 覆盖视口。参考：https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/how-to-customize-the-thumb-size-on-a-scrollbar 与 https://source.dot.net/PresentationFramework/System/Windows/Controls/Primitives/ScrollBar.cs.html 。验收发送完整 DragStarted/DragDelta/DragCompleted 事件链并检查实际视口位移，不再用手动 Scroll 事件冒充滑块拖动。
+
+## 2026-10-16 可视化 Cron 生成器
+
+独立计划编辑窗口新增频率选择：秒间隔、分钟间隔、每小时、每天、每周多选及每月指定日期。常用六字段表达式仅在精确等价时还原为选项；复杂规则/七字段表达式保留原文并进入手动模式。生成模式下表达式只读，切换到手动模式可编辑高级规则。
+
+表达式生成、还原、Quartz校验和未来5次触发时间计算集中在 CRS.PluginHost/CronEditor.cs，WPF只负责输入与展示；不创建调度器、不直接保存或执行任务。与现有后台服务同版本 Quartz（4.1.0）。预览按填写的时区计算并显示偏移量，默认沿用计划自身时区；不是任务实际执行承诺。无效表达式/时区或未选择星期时禁用保存并清空旧预览，不能回退保存上次有效表达式。服务端权限和修订校验继续保留。
+
+秒/分钟步长是每分钟/小时重置的Cron字段步进，界面说明该语义；每月29至31日缺失月份跳过，周选项不自动处理节假日。未来无匹配时间的有效表达式明确提示，不伪造日期。参考 Quartz Cron 文档：https://www.quartz-scheduler.net/documentation/quartz-4.x/tutorial/crontriggers.html 。用户提供的网址作为功能参考，本地实现不依赖外部网页。
+
+验证：CRS.Tests.Wpf --cron 覆盖六类频率生成还原、星期、月末/闰月、时区及高级/非法规则；--execution-log-ui 同时验证真实窗口绑定、星期多选、清空星期后禁用保存、复杂表达式保留及原有计划编辑/日志回归。截图包含 .generator.png。

@@ -9,6 +9,17 @@ using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 
 // 验收工具只操作自己创建的隔离目录和进程；--probe 可只读检查实际安装的服务。
+if(args is ["--upgrade-guard-probe", var guardData, var guardProgram])
+{
+    new WorkerUpgradeJournal(Path.GetFullPath(guardData)).BeforeStorageOpen(Path.GetFullPath(guardProgram));
+    Console.WriteLine("PASS 升级互操作：PowerShell日志与快照通过C#启动门禁。");return;
+}
+if(args is ["--upgrade-only", var upgradePackage])
+{
+    var upgradeRoot=Path.Combine(Path.GetTempPath(),"CRS.Worker.Upgrade.Tests",Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(upgradeRoot);
+    await WorkerUpgradeChecks.RunAsync(upgradeRoot,Path.GetFullPath(upgradePackage));return;
+}
 if(args.Contains("--execution-probe") || args.Contains("--etf-progress-probe"))
 {
     // 仅查询既有公开执行，不创建任务、触发采集或打开服务数据库。
@@ -170,6 +181,7 @@ await using (var rejected = new BackgroundPluginCatalog())
     Check(rejected.Jobs.Count == 0 && rejected.Statuses.Single().State == "Failed", "外部信任索引隔离已篡改后台包");
 }
 await WorkerRemediationChecks.RunAsync(root, package);
+await WorkerUpgradeChecks.RunAsync(root, package);
 await StorageSecurityChecks.RunAsync(root, package);
 CryptographicOperations.ZeroMemory(key);
 Console.WriteLine($"后台服务验证通过：{passed} 项；隔离现场：{root}");

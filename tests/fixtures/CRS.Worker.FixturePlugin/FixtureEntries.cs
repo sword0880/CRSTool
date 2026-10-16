@@ -10,8 +10,19 @@ public sealed class BadStopEntry : IBackgroundPluginEntry { public IBackgroundPl
 public sealed class BadScheduleEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadSchedule"); }
 public sealed class HangingStartEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingStart"); }
 public sealed class HangingJobEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingJob"); }
-internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressBackgroundSession
+internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressBackgroundSession,IBackgroundQuerySession
 {
+    public async Task<string> QueryAsync(string payload, CancellationToken token)
+    {
+        if (payload == "fail") throw new IOException("synthetic-secret-not-for-public-log");
+        if (payload.StartsWith("slow:") || payload.StartsWith("cancel:"))
+        {
+            // 独立文件让验收等待真实进入插件，避免把线程调度延迟误作持锁证据。
+            File.WriteAllText(payload[(payload.IndexOf(':') + 1)..], "entered");
+            await Task.Delay(payload.StartsWith("slow:") ? TimeSpan.FromSeconds(15) : Timeout.InfiniteTimeSpan, token);
+        }
+        return "fixture-query-ok";
+    }
     private int concurrent;
     private int maximum;
     public async Task<BackgroundJobResult> ExecuteWithProgressAsync(string jobId,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)

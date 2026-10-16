@@ -18,6 +18,15 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     public ObservableCollection<ExecutionRecord> History { get; } = [];
     /// <summary>日志始终绑定某次执行，查询管道与主页面共用同一服务和会话取消令牌。</summary>
     public ExecutionLogViewModel CreateExecutionLog(ExecutionRecord record)=>new(record,client,lifetime);
+    public CancellationToken Lifetime=>lifetime;
+    private bool scheduleSaved;
+    public async Task<(bool Saved,string Message)> SaveScheduleAsync(TaskDefinition plan,string expression,string zone)
+    {
+        scheduleSaved=false;
+        if(Busy)return (false,"正在处理其它请求，请稍后保存。");
+        await MutateAsync("ChangeSchedule",new(WorkerProtocol.Version,Guid.NewGuid(),"ChangeSchedule",plan.PluginId,plan.JobId,expression,zone,plan.Revision));
+        return (scheduleSaved,Status);
+    }
     [ObservableProperty] private string status = "正在查询独立后台服务。";
     [ObservableProperty] private string snapshotTime = "尚未取得状态快照";
     [ObservableProperty] private TaskDefinition? selected;
@@ -99,14 +108,15 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     private Task SaveAsync() => MutateAsync("ChangeSchedule");
     [RelayCommand]
     private Task CancelRunAsync() => MutateAsync("CancelRun");
-    private Task MutateAsync(string command) => WithStatusAsync(async () =>
+    private Task MutateAsync(string command,BackgroundRequest? explicitRequest=null) => WithStatusAsync(async () =>
     {
-        if (Selected is null) return;
+        if (Selected is null && explicitRequest is null) return;
         if (uncertainRequest is not null) { Status = "上次请求尚未确认，请先使用“确认上次请求”核对，避免误执行其它操作。"; return; }
         // 响应不确定时沿用同一个请求，防止重复点击产生另一次独立执行。
-        uncertainRequest ??= new(WorkerProtocol.Version, Guid.NewGuid(), command, Selected.PluginId, Selected.JobId, Cron, TimeZoneId, Selected.Revision);
+        uncertainRequest = explicitRequest ?? new(WorkerProtocol.Version, Guid.NewGuid(), command, Selected!.PluginId, Selected.JobId, Cron, TimeZoneId, Selected.Revision);
         var response = await client.SendAsync(uncertainRequest, lifetime);
         uncertainRequest = null;
+        scheduleSaved=command=="ChangeSchedule" && response.Code is "Ok" or "AcceptedNeedsReconcile";
         await LoadAsync();
         Status = response.Code switch
         {

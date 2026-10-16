@@ -1,6 +1,7 @@
 param([string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot))
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'Verify-ProjectGraph.ps1') -RepositoryRoot $RepositoryRoot
 # 用编译项目和源码验证依赖方向；只检查业务源码，忽略构建缓存。
 function Assert-Boundary([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 $domain = Join-Path $RepositoryRoot 'src/CRS.Domain'

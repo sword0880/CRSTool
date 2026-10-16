@@ -1,5 +1,6 @@
 using CRS.Application;
 using CRS.Application.Performance;
+using CRS.Domain;
 using CRS.Domain.Performance;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
@@ -11,20 +12,19 @@ internal static class PerformanceInteractionChecks
     {
         var cases=new Cases();var interaction=new Interaction();var shell=new ShellViewModel(new FakeUseCases(),interaction,performance:cases,documentPassword:()=>"Synthetic-Encrypted-Password");var vm=shell.Performance;
         await vm.RefreshCommand.ExecuteAsync(null);vm.Currency="USD";vm.From=new(2024,12,31);vm.To=new(2025,12,31);
-        if(!vm.IsOffline || vm.OnlineUpdatesAllowed || vm.DownloadBenchmarkCommand.CanExecute(null) || vm.Accounts.Single().Alias.Contains("12345678") || !vm.Accounts.Single().Alias.Contains("5678") || vm.HasAccountDetails)throw new Exception("账户默认展示或默认离线不正确。");
+        if(!vm.OnlineUpdatesAllowed || vm.Benchmark!="SSE" || !vm.Benchmarks.Contains("SPX") || vm.Accounts.Single().Alias.Contains("12345678") || !vm.Accounts.Single().Alias.Contains("5678") || vm.HasAccountDetails)throw new Exception("账户默认展示或联网基准不正确。");
         vm.RevealAccountCommand.Execute(vm.Accounts.Single());if(!vm.AccountDetails.Contains("12345678"))throw new Exception("无法主动查看完整账号。");
         vm.HideAccountDetailsCommand.Execute(null);if(vm.HasAccountDetails)throw new Exception("完整账号未收起。");
-        vm.AuthorizeOnlineUpdatesCommand.Execute(null);if(vm.OnlineUpdatesAllowed)throw new Exception("取消联网授权仍进入在线模式。");
         await vm.CalculateCommand.ExecuteAsync(null);
-        if(cases.MarketRequests!=0)throw new Exception("离线重算仍触发指数查询。");
-        interaction.OnlineConsent=true;vm.AuthorizeOnlineUpdatesCommand.Execute(null);
-        if(!vm.OnlineUpdatesAllowed || !vm.DownloadBenchmarkCommand.CanExecute(null))throw new Exception("允许联网授权未生效。");
-        await vm.DownloadBenchmarkCommand.ExecuteAsync(null);if(cases.MarketRequests!=1)throw new Exception("授权后不能更新行情。");
-        vm.UseOfflineCommand.Execute(null);await vm.CalculateCommand.ExecuteAsync(null);
-        if(cases.MarketRequests!=1 || !vm.IsOffline)throw new Exception("切回离线后仍查询行情。");
+        if(cases.MarketRequests!=1 || !cases.Forced || cases.LastBenchmark!="SSE")throw new Exception("重算未在线更新上证指数。");
+        await vm.RefreshCurveCommand.ExecuteAsync(null);
+        if(cases.MarketRequests!=2)throw new Exception("更新曲线绕过了联网请求。");
         if(vm.History.Any(h=>h.Scope.Contains("12345678")) || vm.Summary.Contains("12345678") || vm.AccountResults.Any(a=>a.AccountAlias.Contains("12345678")))throw new Exception("历史或汇总泄露完整账号。");
         if(!vm.Metrics.Any(m=>m.Value=="不可计算") || !vm.ExportCommand.CanExecute(null) || cases.Request?.AccountIds.Single()!="A")throw new Exception("绩效缺项或边界展示错误。");
         if(!vm.HasNetAssetsPoints || !vm.HasComparisonPoints)throw new Exception("有效曲线点未显示。");
+        cases.FailMarket=true;await vm.CalculateCommand.ExecuteAsync(null);
+        if(vm.HasComparisonPoints || vm.ExportCommand.CanExecute(null) || vm.Metrics.Count!=0 || !vm.ComparisonStatus.Contains("联网更新失败"))throw new Exception("联网失败仍沿用旧结果。");
+        cases.FailMarket=false;await vm.CalculateCommand.ExecuteAsync(null);
         var summary=vm.Summary;await vm.RefreshCommand.ExecuteAsync(null);
         if(!vm.ExportCommand.CanExecute(null) || !vm.HasNetAssetsPoints || vm.Summary!=summary)throw new Exception("重新进入页面或刷新同一资料清空了刚计算的曲线。");
         vm.Currency="CNY";
@@ -69,7 +69,7 @@ internal static class PerformanceInteractionChecks
         await vm.ExportEncryptedCommand.ExecuteAsync(null);if(cases.Password!="Synthetic-Encrypted-Password")throw new Exception("加密导出密码传递/清理失败。");
         cases.Wait=true;var calculation=vm.CalculateCommand.ExecuteAsync(null);if(!shell.State.IsBusy)throw new Exception("未进入忙碌状态。");vm.CancelCommand.Execute(null);await calculation;
         if(shell.State.IsBusy || !shell.State.Status.Contains("取消"))throw new Exception("绩效取消没有恢复状态。");
-        vm.AuthorizeOnlineUpdatesCommand.Execute(null);vm.RevealAccountCommand.Execute(vm.Accounts.Single());vm.ManualJson="synthetic-private";vm.ClearForLock();
+        vm.RevealAccountCommand.Execute(vm.Accounts.Single());vm.ManualJson="synthetic-private";vm.ClearForLock();
         if(vm.HasAccountDetails || vm.OnlineUpdatesAllowed || cases.OnlineUpdatesAllowed)throw new Exception("锁定未撤销授权/清理主动查看信息。");
         if(vm.Accounts.Count!=0 || vm.History.Count!=0 || vm.Metrics.Count!=0 || vm.Events.Count!=0 || vm.Exposure.Count!=0 || vm.ManualJson!="" || vm.RefreshCommand.CanExecute(null))throw new Exception("锁定未清理敏感状态或仍可刷新。");
         Console.WriteLine("绩效界面通过：账户选择、缺项展示、税务隔离、参数失效、历史冻结、跨页忙碌、导出确认/密码清理、取消与锁定清理。");
@@ -77,12 +77,10 @@ internal static class PerformanceInteractionChecks
     private sealed class Interaction:IUserInteraction
     {
         public bool Consent;
-        public bool OnlineConsent;
-        public bool ConfirmPerformanceOnlineUpdates()=>OnlineConsent;
         public bool ConfirmPlaintextExport()=>Consent;
         public string[] PickFiles(string filter,bool multiple)=>[];
         public string? SaveFile(string filter,string name)=>"synthetic-output";
-        public void ShowError(string message)=>throw new Exception(message);
+        public void ShowError(string message){if(!message.Contains("synthetic network failure"))throw new Exception(message);}
         public void OpenFolder(string path){}
     }
     private sealed class Cases:IPerformanceUseCases
@@ -91,9 +89,9 @@ internal static class PerformanceInteractionChecks
         private readonly PerformanceRun run=new("0123456789abcdef",null,DateTimeOffset.UtcNow,"synthetic",new(),new("Performance.v1",new(["A"],new(2024,12,31),new(2025,12,31),"USD"),[new("Twr","TWR",null,"比例",PerformanceQuality.InsufficientData,"缺净值")],[],[],[new("合成账户","IBKR",null,null,null,null,null,null,"USD")],[],new(2024,12,31)));
         public PerformanceRequest? Request;public bool Wait;public int Exports;public SensitiveExportConsent? Consent;public string Password="";
         public bool OnlineUpdatesAllowed {get;private set;}
-        public int MarketRequests;
+        public int MarketRequests;public bool FailMarket;public bool Forced;public string LastBenchmark="";
         public bool SetOnlineUpdatesAllowed(bool authorized)=>OnlineUpdatesAllowed=authorized;
-        public Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false){MarketRequests++;return Task.FromResult(false);}
+        public Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false){if(FailMarket)throw new CrsException("synthetic network failure");MarketRequests++;Forced=force;LastBenchmark=symbol;return Task.FromResult(false);}
         public TaskCompletionSource? CalculationGate,CurveGate,LoadGate;
         public async Task<PerformanceCurve> CurveAsync(string id,string benchmark,CancellationToken cancellation=default)
         {if(CurveGate is not null)await CurveGate.Task;return new PerformanceCurve([new(new(2024,12,31),100,null,100),new(new(2025,12,31),110,null,112)],benchmark,"合成曲线");}

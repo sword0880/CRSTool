@@ -48,6 +48,7 @@ internal static class WorkerRemediationChecks
             await LifecycleAsync(root);
             await PendingRecoveryAsync(root, package, servicePackage);
             await ConcurrencyAsync(root, catalog, key);
+            await QueryIsolationAsync(root, key);
             Migration(root, key, catalog.Jobs[0].Descriptor);
             await RetryAsync(root, key, catalog);
             var badJob=Package(root,("crs.fixture","BadJobEntry"));
@@ -215,6 +216,44 @@ internal static class WorkerRemediationChecks
         var cleanup = new BackgroundPluginCatalog(); await cleanup.LoadAsync(badStop.Root, badStop.Trust, default);
         try { await cleanup.DisposeAsync(); throw new InvalidOperationException("停止故障未汇总。"); }
         catch (AggregateException error) { Check(error.InnerExceptions.Count == 1 && cleanup.Jobs.Count == 0, "逐插件清理继续完成并汇总停止异常"); }
+    }
+    private static async Task QueryIsolationAsync(string root, byte[] key)
+    {
+        var package = Package(root, ("crs.slow", "GoodEntry"), ("crs.fast", "GoodEntry"));
+        await using var catalog = new BackgroundPluginCatalog(TimeSpan.FromSeconds(25));
+        await catalog.LoadAsync(package.Root, package.Trust, default);
+        using var repository = new EncryptedTaskRepository(Path.Combine(root, "query-isolation.db"), key);
+        await using var runtime = new BackgroundRuntime(repository, catalog);
+        await runtime.StartAsync(default);
+        BackgroundRequest Query(string plugin, string payload) => Request("QueryPlugin", plugin) with { Payload = payload };
+        var entered = Path.Combine(root, "slow-query-entered");
+        var slow = runtime.HandleAsync(Query("crs.slow", "slow:" + entered), Admin, default);
+        await UntilAsync(() => Task.FromResult(File.Exists(entered)));
+        var watch = Stopwatch.StartNew();
+        var health = await runtime.HandleAsync(Request("GetHealth"), Admin, default).WaitAsync(TimeSpan.FromSeconds(2));
+        var pause = await runtime.HandleAsync(Request("Pause", "crs.fast", revision: 1), Admin, default).WaitAsync(TimeSpan.FromSeconds(2));
+        var fast = await runtime.HandleAsync(Query("crs.fast", "ok"), Admin, default).WaitAsync(TimeSpan.FromSeconds(2));
+        Check(health.Code == "Ok" && pause.Code == "Ok" && fast.Code == "Ok" && !slow.IsCompleted && watch.Elapsed < TimeSpan.FromSeconds(2),
+            "15秒插件查询期间健康、暂停及另一插件查询在2秒内完成");
+        Check((await runtime.HandleAsync(Query("crs.slow", "ok"), Admin, default)).Code == "PluginBusy", "同插件查询有界准入，无全局等待队列");
+        Check((await slow).Code == "Ok", "慢查询正常结束并释放插件额度");
+        Check((await runtime.HandleAsync(Query("crs.slow", "fail"), Admin, default)).Code == "PluginQueryFailed"
+            && (await runtime.HandleAsync(Request("GetHealth"), Admin, default)).Health?.State == "Running", "查询异常局限于插件，宿主仓储不误报故障");
+        using var cancellation = new CancellationTokenSource();
+        var cancelEntered = Path.Combine(root, "cancel-query-entered");
+        var cancelled = runtime.HandleAsync(Query("crs.slow", "cancel:" + cancelEntered), Admin, cancellation.Token);
+        await UntilAsync(() => Task.FromResult(File.Exists(cancelEntered)));
+        cancellation.Cancel();
+        try { await cancelled; throw new InvalidOperationException("查询未取消。"); }
+        catch (OperationCanceledException) { Check(true, "调用方取消传递至插件"); }
+        Check((await runtime.HandleAsync(Query("crs.slow", "ok"), Admin, default)).Code == "Ok", "取消及异常均释放准入额度");
+        var stopEntered = Path.Combine(root, "stop-query-entered");
+        var stopping = runtime.HandleAsync(Query("crs.slow", "cancel:" + stopEntered), Admin, default);
+        await UntilAsync(() => Task.FromResult(File.Exists(stopEntered)));
+        await runtime.EnterMaintenanceAsync(default).WaitAsync(TimeSpan.FromSeconds(3));
+        try { await stopping; throw new InvalidOperationException("维护未取消查询。"); }
+        catch (OperationCanceledException) { Check(true, "维护取消并排空查询，释放会话前无在途访问"); }
+        Check((await runtime.HandleAsync(Query("crs.fast", "ok"), Admin, default)).Code == "Maintenance", "维护后拒绝新查询");
     }
     private static async Task ConcurrencyAsync(string root, BackgroundPluginCatalog catalog, byte[] key)
     {

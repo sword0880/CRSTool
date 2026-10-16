@@ -1,4 +1,4 @@
-# CRS C# 开发与迁移规范
+# CRS C# 开发规范
 
 ## 1. 产品与支持范围
 
@@ -49,6 +49,8 @@ NPOI 读取交易及收入 XLSX，PdfPig 读取已支持的文本收入 PDF。�
 导航与页面职责分离，共享忙碌门槛；输入变更清除旧结果、图表和导出资格。后台取消后提交前再次检查；前台只格式化金额。历史交易缺完整快照时提示重新导入，不虚构明细。人工依据不自动解除问题。
 
 ## 11. 开发入口
+
+改造前先核对源码、项目文件及 [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)，再参考历史提案。新增/删除项目必须同步当前项目清单并通过 `tests/Verify-ProjectGraph.ps1` 的清单和循环依赖检查；后台入口不得放回WPF，宿主不得静态引用业务插件。
 
 在根目录打开 CRS.sln，启动 CRS.Desktop.Wpf。命令、验证项目及窗口检查见 [tests/README](../../tests/README.md)。当前源代码路径和未完成项见 [文档索引](../README.md)。
 

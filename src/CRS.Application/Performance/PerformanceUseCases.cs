@@ -17,7 +17,7 @@ public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFile
         var from=request.SinceInception?PerformanceCalculator.Calculate(current.Data,request,linked.Token).EffectiveFrom:request.From;
         var to=request.To;var currency=request.Currency;
         var prices=current.Data.Prices.Where(p=>p.Security==symbol && p.Market=="INDEX").ToArray();
-        var native=symbol=="HSI"?"HKD":"USD";
+        var native=PerformanceBenchmarks.Get(symbol).Currency;
         var hasFx=native==currency || current.Data.Prices.Any(p=>p.Market=="INDEX_FX" && p.Security==native+currency && p.Id.StartsWith("Yahoo:FX:"+symbol+":",StringComparison.Ordinal));
         if(!force && hasFx && prices.Any(p=>p.Date<=from && p.Date>=from.AddDays(-7)) && prices.Any(p=>p.Date<=to && p.Date>=to.AddDays(-7)))return false;
         var document=await market.FetchAsync(symbol,from,to,currency,linked.Token);

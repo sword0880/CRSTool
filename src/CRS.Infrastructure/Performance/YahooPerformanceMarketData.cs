@@ -10,7 +10,7 @@ internal sealed class YahooPerformanceMarketData(HttpClient? suppliedClient=null
 {
     public async Task<PerformanceDocument> FetchAsync(string symbol,DateOnly from,DateOnly to,string currency,CancellationToken cancellation)
     {
-        var ticker=symbol switch{"SPX"=>"^GSPC","HSI"=>"^HSI","IXIC"=>"^IXIC",_=>throw new CrsException("不支持此对比指数。")};
+        var benchmark=PerformanceBenchmarks.Get(symbol);var ticker=benchmark.Ticker;
         if(from>=to || from.Year<2000 || to.Year>2100 || currency is not ("CNY" or "USD" or "HKD"))throw new CrsException("指数行情期间或报告币种无效。");
         using var owned=suppliedClient is null?new HttpClient(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(25)}:null;
         var client=suppliedClient??owned!;
@@ -38,7 +38,7 @@ internal sealed class YahooPerformanceMarketData(HttpClient? suppliedClient=null
         }
         try
         {
-            var quotes=await Request(ticker);var native=symbol=="HSI"?"HKD":"USD";
+            var quotes=await Request(ticker);var native=benchmark.Currency;
             var fx=native==currency?Array.Empty<(DateOnly Date,decimal Close)>():await Request(native+currency+"=X");
             if(quotes.Length==0)throw new CrsException("指数行情服务未返回有效历史报价。");
             var raw=JsonSerializer.SerializeToUtf8Bytes(new{Provider="Yahoo Finance",Symbol=symbol,From=from,To=to,Responses=responses});var hash=PerformanceCodec.Hash(raw);

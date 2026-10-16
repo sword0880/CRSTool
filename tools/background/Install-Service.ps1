@@ -5,38 +5,18 @@ $ErrorActionPreference='Stop'
 $serviceName='CRSBackgroundService'
 if(Get-Service -Name $serviceName -ErrorAction SilentlyContinue){throw '服务已存在。此安装器拒绝覆盖升级，请先按维护流程备份并停止旧版本。'}
 $source=[IO.Path]::GetFullPath($PackageDirectory)
-if((Get-Item -LiteralPath $source).Attributes -band [IO.FileAttributes]::ReparsePoint){throw '发行目录不能是重解析点。'}
+Import-Module (Join-Path $PSScriptRoot 'WorkerMaintenance.psm1') -Force
 $releasePath=Join-Path $source 'release.json'
-$release=Get-Content -Raw -LiteralPath $releasePath | ConvertFrom-Json -AsHashtable
-if($release.format -ne 1 -or $release.product -ne 'CRS.Worker.Service'){throw '发行格式不兼容。'}
-if(-not $AllowDevelopmentPackage){
-    # 生产发行以外部配置的证书指纹验证分离 CMS 签名；不能让包自报受信发布者。
-    if(-not $TrustedPublisherThumbprint){throw '正式安装必须指定受信发布者证书指纹；开发验收请显式使用 -AllowDevelopmentPackage。'}
-    Add-Type -AssemblyName System.Security.Cryptography.Pkcs
-    $content=[Security.Cryptography.Pkcs.ContentInfo]::new([IO.File]::ReadAllBytes($releasePath))
-    $cms=[Security.Cryptography.Pkcs.SignedCms]::new($content,$true)
-    $cms.Decode([IO.File]::ReadAllBytes((Join-Path $source 'release.json.p7s')))
-    $cms.CheckSignature($false)
-    if($cms.SignerInfos.Count -ne 1 -or $cms.SignerInfos[0].Certificate.Thumbprint -ne $TrustedPublisherThumbprint){throw '发行签名发布者不受信。'}
-}
-foreach($relative in $release.files.Keys){
-    $file=[IO.Path]::GetFullPath((Join-Path $source $relative))
-    if([IO.Path]::IsPathRooted($relative) -or -not $file.StartsWith($source+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw '发行文件路径越界。'}
-    $current=$file
-    while($current -and $current.StartsWith($source,[StringComparison]::OrdinalIgnoreCase)){
-        if((Get-Item -LiteralPath $current).Attributes -band [IO.FileAttributes]::ReparsePoint){throw '发行文件不可包含链接。'}
-        $current=Split-Path $current -Parent
-    }
-    if((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $release.files[$relative]){throw "发行完整性失败：$relative"}
-}
-foreach($file in Get-ChildItem -LiteralPath $source -File -Recurse){
-    $relative=[IO.Path]::GetRelativePath($source,$file.FullName).Replace('\','/')
-    if($relative -notin @('release.json','release.json.p7s') -and -not $release.files.ContainsKey($relative)){throw "发行包含未登记文件：$relative"}
-}
+$release=Test-WorkerPackage $source $TrustedPublisherThumbprint -Development:$AllowDevelopmentPackage
 $runtimes=& dotnet --list-runtimes
 if(-not ($runtimes -match '^Microsoft.NETCore.App 10\.')){throw '请先安装 .NET 10 x64 运行时。'}
 $target=Join-Path $env:ProgramFiles 'CRS/Background'
 $data=Join-Path $env:ProgramData 'CRS/Background'
+$maintenance=Read-WorkerUpgrade $data
+if($maintenance){
+    $expectedRelease=if($maintenance.Stage -eq 'RolledBack'){$maintenance.PreviousReleaseHash}else{$maintenance.CandidateReleaseHash}
+    if($maintenance.Stage -notin @('Committed','RolledBack') -or (Get-FileHash -LiteralPath $releasePath).Hash -ne $expectedRelease){throw '已有Worker维护日志，只允许相同已确认发行重装；版本变化必须走升级/恢复入口。'}
+}
 if(Test-Path -LiteralPath $target){throw '程序目标目录已存在，拒绝混合不同发行文件。'}
 # 数据目录可以来自保留数据的卸载；旧密钥不会被安装器更换。
 foreach($path in @((Join-Path $env:ProgramFiles 'CRS'),(Join-Path $env:ProgramData 'CRS'),$data)){
@@ -67,6 +47,7 @@ foreach($relative in $release.files.Keys){
     if((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $release.files[$relative]){throw '复制后发行验证失败。'}
 }
 Copy-Item -LiteralPath $releasePath -Destination $target
+if(Test-Path -LiteralPath (Join-Path $source 'release.json.p7s')){Copy-Item -LiteralPath (Join-Path $source 'release.json.p7s') -Destination $target}
 if(-not [Diagnostics.EventLog]::SourceExists($serviceName)){New-EventLog -LogName Application -Source $serviceName}
 $binary='"'+(Join-Path $target 'CRS.Worker.Service.exe')+'"'
 New-Service -Name $serviceName -DisplayName 'CRS Background Service' -BinaryPathName $binary -StartupType Automatic -Credential ([PSCredential]::new('NT AUTHORITY\LocalService',[Security.SecureString]::new())) | Out-Null

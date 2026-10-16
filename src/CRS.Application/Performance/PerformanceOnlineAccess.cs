@@ -1,6 +1,6 @@
 namespace CRS.Application.Performance;
 
-/// <summary>会话内显式授权；撤销会取消已经开始的行情请求，默认不允许联网。</summary>
+/// <summary>会话内行情访问生命周期；关闭会话会取消已经开始的行情请求。</summary>
 internal sealed class PerformanceOnlineAccess
 {
     private readonly object gate=new();
@@ -20,7 +20,7 @@ internal sealed class PerformanceOnlineAccess
     {
         lock(gate)
         {
-            if(authorization is null)throw new CrsException("当前为仅离线模式，请先选择允许在线更新并授权。");
+            if(authorization is null)throw new CrsException("当前会话未启用在线行情服务。");
             return CancellationTokenSource.CreateLinkedTokenSource(session,request,authorization.Token);
         }
     }

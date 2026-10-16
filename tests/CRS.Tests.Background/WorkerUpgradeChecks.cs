@@ -1,0 +1,140 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json;
+using CRS.Worker.Abstractions;
+using CRS.Worker.Ipc;
+using CRS.Worker.Service;
+
+/// <summary>真实SQLCipher、DPAPI与独立Worker启动验证；不会控制已安装服务。</summary>
+internal static class WorkerUpgradeChecks
+{
+    private static int passed;
+    private static void Check(bool value, string name)
+    { if (!value) throw new InvalidOperationException(name); passed++; Console.WriteLine("PASS 升级：" + name); }
+    private static void Save(string data, WorkerUpgradeRecord record)
+    {
+        Directory.CreateDirectory(Path.Combine(data, "maintenance"));
+        File.WriteAllBytes(Path.Combine(data, "maintenance", "upgrade.json"), JsonSerializer.SerializeToUtf8Bytes(record));
+    }
+    private static void Reject(Action action, string name)
+    {
+        try { action(); }
+        catch (Exception error) when (error is InvalidOperationException or InvalidDataException or IOException)
+        { Check(true, name); return; }
+        throw new InvalidOperationException("未拒绝：" + name);
+    }
+    private static WorkerUpgradeRecord Seed(string data, string program)
+    {
+        StorageSecurity.Prepare(data, true);
+        var key = ServiceKey.Open(data);
+        try
+        {
+            using var repository = new EncryptedTaskRepository(Path.Combine(data, "scheduler-config.db"), key);
+            repository.RegisterDefault("crs.heartbeat", new BackgroundJobDescriptor("heartbeat", "升级前心跳", "0 0 0 1 1 ?", "China Standard Time", false));
+            var plan = repository.Plans().Single();
+            var execution = repository.Begin(plan, DateTimeOffset.UtcNow);
+            repository.End(execution, plan, BackgroundJobResult.Success("before-upgrade"));
+        }
+        finally { CryptographicOperations.ZeroMemory(key); }
+        Directory.CreateDirectory(Path.Combine(data, "plugins", "crs.synthetic", "raw"));
+        File.WriteAllText(Path.Combine(data, "plugins", "crs.synthetic", "raw", "evidence.raw"), "synthetic-human-review-evidence");
+        var record = new WorkerUpgradeRecord(1, Guid.NewGuid().ToString("N"), new string('A', 64),
+            WorkerUpgradeJournal.ReleaseHash(program), "2.0.0", "2.0.0", "Prepared", false, DateTimeOffset.UtcNow);
+        var files = Directory.GetFiles(data, "*", SearchOption.AllDirectories);
+        var snapshotRoot = Path.Combine(data, "maintenance", record.Id);
+        var snapshot = Path.Combine(snapshotRoot, "snapshot");
+        var hashes = new Dictionary<string, string>();
+        foreach (var file in files)
+        {
+            var relative = Path.GetRelativePath(data, file).Replace('\\', '/');
+            var target = Path.Combine(snapshot, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!); File.Copy(file, target);
+            hashes[relative] = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file)));
+        }
+        var manifest = Path.Combine(snapshotRoot, "snapshot.json");
+        File.WriteAllBytes(manifest, JsonSerializer.SerializeToUtf8Bytes(new { Format = 1, ReleaseHash = record.PreviousReleaseHash, Files = hashes }));
+        record = record with { BackupManifestHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest))) };
+        Save(data, record); return record;
+    }
+    public static async Task RunAsync(string root, string program)
+    {
+        var data = Path.Combine(root, "upgrade-state");
+        var record = Seed(data, program); var journal = new WorkerUpgradeJournal(data);
+        var database = Path.Combine(data, "scheduler-config.db"); var keyPath = Path.Combine(data, "service-key.dpapi");
+        var dbHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(database)));
+        var keyHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(keyPath)));
+        foreach (var stage in new[] { "Prepared", "BackedUp", "Staged", "RollingBack", "NeedsManualRepair", "Starting", "Healthy" })
+        {
+            Save(data, record with { Stage = stage, NewFactsPossible = stage is "Starting" or "Healthy" });
+            Reject(() => journal.BeforeStorageOpen(program), stage + "重启拒绝自动打开数据");
+        }
+        Check(dbHash == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(database)))
+            && keyHash == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(keyPath))), "所有未解决阶段均保留原数据库和机器密钥");
+        Save(data, record with { Stage = "Switched", CandidateReleaseHash = new string('B', 64) });
+        Reject(() => journal.BeforeStorageOpen(program), "错误发行指纹拒绝打开数据");
+        var evidence = Path.Combine(data, "maintenance", record.Id, "snapshot", "plugins", "crs.synthetic", "raw", "evidence.raw");
+        var original = File.ReadAllBytes(evidence); File.AppendAllText(evidence, "tamper");
+        Save(data, record with { Stage = "Switched" });
+        Reject(() => journal.BeforeStorageOpen(program), "备份原件被篡改时拒绝候选启动");
+        File.WriteAllBytes(evidence, original);
+        journal.BeforeStorageOpen(program);
+        Check(journal.Read() is { Stage: "Starting", NewFactsPossible: true }, "打开密钥和数据库之前先持久标记新事实风险");
+        Reject(() => journal.BeforeStorageOpen(program), "首次打开后强杀不能靠SCM重启清除风险");
+        journal.MarkHealthy(program);
+        Check(journal.Read() is { Stage: "Healthy", NewFactsPossible: true }, "应用就绪不自动提交维护事务");
+        Save(data, journal.Read()! with { Stage = "Committed" });
+        journal.BeforeStorageOpen(program);
+        Check(journal.Read()!.Stage == "Committed", "显式确认的同发行正常重启");
+        Save(data, record with { Stage = "RolledBack", NewFactsPossible = true });
+        Reject(() => journal.Read(), "日志不能把有新事实的代次标成已回退");
+        var previous = Path.Combine(root, "previous-release"); Directory.CreateDirectory(previous);
+        File.Copy(Path.Combine(program, "release.json"), Path.Combine(previous, "release.json"));
+        Save(data, record with { Stage = "RolledBack", PreviousReleaseHash = WorkerUpgradeJournal.ReleaseHash(previous) });
+        journal.BeforeStorageOpen(previous);
+        Check(journal.Read()!.Stage == "RolledBack", "无新事实且原发行相符才允许回退启动");
+        await ProcessStagesAsync(root, program);
+        Console.WriteLine($"Worker升级启动专项通过：{passed}项。");
+    }
+    private static Process Launch(string program, string data, string pipe)
+    {
+        var info = new ProcessStartInfo(Path.Combine(program, "CRS.Worker.Service.exe"))
+            { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        foreach (var argument in new[] { "--console", "--data", data, "--plugins", Path.Combine(program, "Plugins"), "--pipe", pipe }) info.ArgumentList.Add(argument);
+        var process = Process.Start(info)!;
+        process.OutputDataReceived += (_, _) => { }; process.ErrorDataReceived += (_, _) => { };
+        process.BeginOutputReadLine(); process.BeginErrorReadLine(); return process;
+    }
+    private static async Task ProcessStagesAsync(string root, string program)
+    {
+        var data = Path.Combine(root, "upgrade-process"); var record = Seed(data, program);
+        var pipe = "CRS.Worker.Upgrade." + Guid.NewGuid().ToString("N");
+        using (var blocked = Launch(program, data, pipe))
+        {
+            try { await blocked.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20)); Check(blocked.ExitCode != 0, "独立服务进程在Prepared阶段拒绝启动"); }
+            finally { if (!blocked.HasExited) { blocked.Kill(); await blocked.WaitForExitAsync(); } }
+        }
+        Save(data, record with { Stage = "Switched" });
+        var client = new BackgroundPipeClient(pipe);
+        using (var candidate = Launch(program, data, pipe))
+        {
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                var health = await client.QueryAsync("GetHealth", deadline.Token);
+                Check(health.Health?.State == "Running" && new WorkerUpgradeJournal(data).Read() is { Stage: "Healthy", NewFactsPossible: true }, "真实Worker健康端点出现前风险与就绪阶段已持久化");
+                var history = await client.QueryAsync("GetHistory");
+                Check(history.History!.Any(x => x.Checkpoint == "before-upgrade"), "候选启动保留旧执行事实");
+            }
+            finally { if (!candidate.HasExited) { candidate.Kill(); await candidate.WaitForExitAsync(); } }
+        }
+        using (var interrupted = Launch(program, data, pipe))
+        {
+            try { await interrupted.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20)); Check(interrupted.ExitCode != 0, "健康后尚未Commit的真实强杀重启进入维护"); }
+            finally { if (!interrupted.HasExited) { interrupted.Kill(); await interrupted.WaitForExitAsync(); } }
+        }
+        Save(data, new WorkerUpgradeJournal(data).Read()! with { Stage = "Committed" });
+        using var confirmed = Launch(program, data, pipe);
+        try { Check((await client.QueryAsync("GetHealth")).Health?.State == "Running", "确认候选后真实进程恢复正常启动"); }
+        finally { if (!confirmed.HasExited) { confirmed.Kill(); await confirmed.WaitForExitAsync(); } }
+    }
+}
