@@ -8,7 +8,10 @@ namespace CRS.Worker.Ipc;
 public sealed record BackgroundRequest(int ProtocolVersion, Guid RequestId, string Command,
     string? PluginId = null, string? JobId = null, string? Cron = null, string? TimeZoneId = null,
     long? ExpectedRevision = null, string? Cursor = null, int PageSize = 10, Guid? RelatedRequestId = null,string? Payload=null,string? ExecutionId=null);
-public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, DateTimeOffset ObservedUtc, int ProcessId);
+public sealed record BackgroundPluginScheduling(string PluginId, int MaxConcurrency, int Running, int Waiting);
+public sealed record BackgroundScheduling(int MaxConcurrency, int Running, int Waiting, int MaxPendingPerPlugin, long CoalescedTriggers,
+    long CapacityDeferredTriggers, int PendingManualCommands = 0, IReadOnlyList<BackgroundPluginScheduling>? Plugins = null);
+public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, DateTimeOffset ObservedUtc, int ProcessId, BackgroundScheduling? Scheduling = null);
 public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, string Code,
     BackgroundHealth? Health = null, IReadOnlyList<TaskDefinition>? Jobs = null,
     IReadOnlyList<ExecutionRecord>? History = null, string? NextCursor = null,

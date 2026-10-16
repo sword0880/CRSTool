@@ -22,7 +22,7 @@ internal static class WorkerRemediationChecks
         var end = DateTimeOffset.UtcNow.AddSeconds(12);
         while (!await condition()) { if (DateTimeOffset.UtcNow > end) throw new TimeoutException("整改验收等待超时。"); await Task.Delay(25); }
     }
-    private static (string Root, string Trust) Package(string root, params (string Id, string Entry)[] plugins)
+    internal static (string Root, string Trust) Package(string root, params (string Id, string Entry)[] plugins)
     {
         var directory = Path.Combine(root, "fixture-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
         var index = new List<TrustedPackage>();

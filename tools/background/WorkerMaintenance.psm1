@@ -153,7 +153,7 @@ function Get-WorkerUpgradePaths([string]$Program, [hashtable]$Record) {
     return @{ Active=(Get-WorkerChild $parent $leaf); Stage=(Get-WorkerChild $parent ($leaf+'.stage-'+$id));
         Previous=(Get-WorkerChild $parent ($leaf+'.previous-'+$id)); Failed=(Get-WorkerChild $parent ($leaf+'.failed-'+$id)) }
 }
-function Switch-WorkerPackage([string]$Data, [string]$Program, [hashtable]$Record) {
+function Switch-WorkerPackage([string]$Data, [string]$Program, [hashtable]$Record, [scriptblock]$Checkpoint=$null) {
     $paths = Get-WorkerUpgradePaths $Program $Record
     if ($Record.Stage -ne 'Staged') { throw '候选尚未完成备份与暂存。' }
     Test-WorkerSnapshot $Data $Record
@@ -161,18 +161,31 @@ function Switch-WorkerPackage([string]$Data, [string]$Program, [hashtable]$Recor
         (Get-FileHash -LiteralPath (Get-WorkerChild $paths.Stage 'release.json')).Hash -ne $Record.CandidateReleaseHash -or
         (Test-Path -LiteralPath $paths.Previous)) { throw '切换前程序代次不一致。' }
     [IO.Directory]::Move($paths.Active,$paths.Previous)
+    if($Checkpoint){$null=& $Checkpoint 'PreviousMoved'}
     [IO.Directory]::Move($paths.Stage,$paths.Active)
+    if($Checkpoint){$null=& $Checkpoint 'CandidateMoved'}
     Set-WorkerUpgradeStage $Data $Record 'Switched'
 }
-function Restore-WorkerPrevious([string]$Data, [string]$Program, [hashtable]$Record) {
+function Restore-WorkerPrevious([string]$Data, [string]$Program, [hashtable]$Record, [scriptblock]$Checkpoint=$null) {
     if ($Record.NewFactsPossible) { throw '候选可能已写入新事实，禁止回退或覆盖旧数据库。' }
     $paths = Get-WorkerUpgradePaths $Program $Record
+    # 回退改名中断后Failed目录可能已存在；核对指纹后继续，不覆盖或删除任何代次。
+    if(Test-Path -LiteralPath $paths.Failed){
+        if((Get-FileHash -LiteralPath (Get-WorkerChild $paths.Failed 'release.json')).Hash -ne $Record.CandidateReleaseHash){throw '失败候选代次不一致，保留现场。'}
+    }
     if (Test-Path -LiteralPath $paths.Previous) {
-        if ((Get-FileHash -LiteralPath (Get-WorkerChild $paths.Previous 'release.json')).Hash -ne $Record.PreviousReleaseHash -or
-            (Test-Path -LiteralPath $paths.Failed)) { throw '旧程序代次不一致或恢复现场已存在。' }
+        if ((Get-FileHash -LiteralPath (Get-WorkerChild $paths.Previous 'release.json')).Hash -ne $Record.PreviousReleaseHash) { throw '旧程序代次不一致。' }
+        if(Test-Path -LiteralPath $paths.Active){
+            if((Get-FileHash -LiteralPath (Get-WorkerChild $paths.Active 'release.json')).Hash -ne $Record.CandidateReleaseHash -or
+                (Test-Path -LiteralPath $paths.Failed)){throw '活动代次不一致或候选位置冲突，保留现场。'}
+        }
         Set-WorkerUpgradeStage $Data $Record 'RollingBack'
-        if (Test-Path -LiteralPath $paths.Active) { [IO.Directory]::Move($paths.Active,$paths.Failed) }
+        if (Test-Path -LiteralPath $paths.Active) {
+            [IO.Directory]::Move($paths.Active,$paths.Failed)
+            if($Checkpoint){$null=& $Checkpoint 'RollbackCandidateMoved'}
+        }
         [IO.Directory]::Move($paths.Previous,$paths.Active)
+        if($Checkpoint){$null=& $Checkpoint 'RollbackPreviousMoved'}
     }
     if ((Get-FileHash -LiteralPath (Get-WorkerChild $paths.Active 'release.json')).Hash -ne $Record.PreviousReleaseHash) { throw '恢复后的程序不是原代次。' }
     # 只恢复程序，不复制旧库：停止服务后的数据从未被候选打开；不覆盖任何现有事实。

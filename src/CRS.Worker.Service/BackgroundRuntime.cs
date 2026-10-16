@@ -8,10 +8,11 @@ using Quartz;
 namespace CRS.Worker.Service;
 
 /// <summary>加密仓储是唯一权威；内存触发器、命令恢复和开始执行按同一门闩排序。</summary>
-public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPluginCatalog catalog,
+public sealed partial class BackgroundRuntime(ITaskRepository repository, BackgroundPluginCatalog catalog,
     Action<string, string, string>? diagnostics = null, Action? onUnresponsive = null,
-    TimeSpan? executionTimeout = null) : IBackgroundControl, IAsyncDisposable
+    TimeSpan? executionTimeout = null, WorkerExecutionSettings? executionSettings = null) : IBackgroundControl, IAsyncDisposable
 {
+    private readonly WorkerExecutionSettings settings = (executionSettings ?? new()).Validate();
     private readonly SemaphoreSlim gate = new(1);
     private readonly CancellationTokenSource stopping = new();
     private readonly CancellationTokenSource queryStopping = new();
@@ -44,7 +45,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
     public async Task StartAsync(CancellationToken token)
     {
         scheduler = await QuartzSchedulerBuilder.Create().UseProperties(new NameValueCollection
-            { { "quartz.scheduler.instanceName", "CRS.Worker." + Guid.NewGuid().ToString("N") }, { "quartz.threadPool.maxConcurrency", "4" } }).BuildScheduler(token);
+            { { "quartz.scheduler.instanceName", "CRS.Worker." + Guid.NewGuid().ToString("N") }, { "quartz.threadPool.maxConcurrency", settings.EffectiveMaxConcurrency.ToString(System.Globalization.CultureInfo.InvariantCulture) } }).BuildScheduler(token);
         scheduler.Context.Add("crs.worker.runtime", this);
         foreach (var group in catalog.Jobs.GroupBy(x => x.PluginId).Select(x => x.ToArray()).ToArray())
         {
@@ -54,7 +55,13 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             foreach (var job in group)
             {
             repository.RegisterDefault(job.PluginId, job.Descriptor);
-            if (!pluginWriters.ContainsKey(job.PluginId)) pluginWriters.Add(job.PluginId, new(1));
+            if (!pluginWriters.ContainsKey(job.PluginId))
+            {
+                var limit = Math.Min(job.MaximumConcurrency, Math.Max(1, settings.EffectiveMaxConcurrency / 2));
+                pluginWriters.Add(job.PluginId, new(limit, limit));
+                pluginLimits.Add(job.PluginId, limit);
+                waitingOrder.Add(job.PluginId, new());
+            }
             await scheduler.AddJob(JobBuilder.Create<PluginJobDispatcher>().WithIdentity(job.Descriptor.JobId, job.PluginId).StoreDurably().Build(), cancellationToken: token);
             }
         }
@@ -116,6 +123,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             if (maintenance || fault is not null) return;
             foreach (var plan in repository.Plans().Where(x => x.NeedsReconcile && HasHandler(x))) await ApplyAsync(plan, token);
             await RestorePendingAsync(token);
+            foreach (var plugin in pluginWriters.Keys) await WakeWaitingAsync(plugin, token);
         }
         catch (Exception error) when (StorageError(error)) { await TripFaultAsync("StorageFault"); }
         finally { gate.Release(); }
@@ -179,7 +187,8 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         if (request.Command == "GetHealth")
         {
             var state = fault ?? (maintenance ? "Maintenance" : catalog.Statuses.Any(x => x.State == "Failed") || repository.Plans().Any(x => x.NeedsReconcile || !HasHandler(x)) ? "Degraded" : "Running");
-            return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, DateTimeOffset.UtcNow, Environment.ProcessId), Plugins: catalog.Statuses.ToArray());
+            return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, DateTimeOffset.UtcNow, Environment.ProcessId,
+                SchedulingSnapshot()), Plugins: catalog.Statuses.ToArray());
         }
         if (fault is not null) return Reply(fault);
         if (request.PageSize is < 1 or > 10) return Reply("InvalidRequest");
@@ -219,6 +228,9 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
         var accepted = false;
         try
         {
+            if (request.Command == "RunNow" && repository.FindCommand(request.RequestId, caller.Sid) is null
+                && !running.ContainsKey(Key(plan)) && repository.PendingRuns().Count(x => x.PluginId == plan.PluginId) >= settings.MaxPendingPerPlugin)
+                return Reply("PluginBusy"); // 超配额的新命令不落盘，不制造无界待执行积压。
             var receipt = repository.AcceptCommand(request, caller.Sid); accepted = true;
             if (receipt.State != "Pending") return Reply(receipt.Code, receipt);
             var code = "Ok";
@@ -258,20 +270,15 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
     private async Task CancelAsync(JobKey key, CancellationToken token)
     {
         repository.CancelPending(key.Group, key.Name); queued.Remove(key);
+        RemoveWaiting(key);
         await scheduler!.UnscheduleJob(TriggerKey(key, "manual"), token);
+        await scheduler.UnscheduleJob(TriggerKey(key, "ready"), token);
         if (running.TryGetValue(key, out var source)) source.Cancel();
+        await WakeWaitingAsync(key.Group, token);
     }
-    internal async Task DispatchAsync(IJobExecutionContext context, CancellationToken cancellationToken)
+    private async Task ExecuteSerializedAsync(DispatchInvocation invocation, CancellationToken cancellationToken)
     {
-        var key = context.JobDetail.Key;
-        // 同一插件会话的多个 Job 共用一个写入门槛；不同插件可独立运行。
-        var writer = pluginWriters[key.Group]; await writer.WaitAsync(stopping.Token);
-        try { await ExecuteSerializedAsync(context, cancellationToken); }
-        finally { writer.Release(); }
-    }
-    private async Task ExecuteSerializedAsync(IJobExecutionContext context, CancellationToken cancellationToken)
-    {
-        var key = context.JobDetail.Key;
+        var key = invocation.Key;
         TaskDefinition? plan = null; CancellationTokenSource? source = null; string? execution = null; Guid? request = null;string? payload=null;
         await gate.WaitAsync(stopping.Token);
         try
@@ -279,18 +286,18 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             if (maintenance || fault is not null || running.ContainsKey(key)) return;
             plan = repository.Plans().SingleOrDefault(x => x.PluginId == key.Group && x.JobId == key.Name);
             if (plan is null || !HasHandler(plan)) return;
-            var manual = context.MergedJobDataMap.GetString("manual");
+            var manual = invocation.Manual;
             if (manual is not null)
             {
                 if (!queued.TryGetValue(key, out var nonce) || nonce != manual) return;
-                queued.Remove(key); request = Guid.ParseExact(context.MergedJobDataMap.GetString("request")!, "N");
+                queued.Remove(key); request = Guid.ParseExact(invocation.Request!, "N");
             }
-            else if (!plan.Enabled || context.MergedJobDataMap.GetString("revision") != plan.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture)) return;
+            else if (!plan.Enabled || invocation.Revision != plan.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture)) return;
             if (plan.NotBefore > DateTimeOffset.UtcNow) return;
             source = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, cancellationToken);
             source.CancelAfter(executionTimeout ?? TimeSpan.FromMinutes(15));
             if(request is { } requestId)payload=repository.ReadCommand(requestId).Payload;
-            execution = repository.Begin(plan, context.ScheduledFireTimeUtc ?? DateTimeOffset.UtcNow, request);
+            execution = repository.Begin(plan, invocation.ScheduledUtc, request);
             running.Add(key, source);
         }
         catch (Exception error) when (StorageError(error)) { source?.Dispose(); await TripFaultAsync("StorageFault"); return; }
@@ -351,6 +358,7 @@ public sealed class BackgroundRuntime(ITaskRepository repository, BackgroundPlug
             queries = activeQueries.Select(x => x.Task).ToArray();
             if (scheduler is not null && scheduler.Status != SchedulerStatus.Shutdown) await scheduler.Standby(token);
             queued.Clear();
+            waiting.Clear(); foreach (var order in waitingOrder.Values) order.Clear(); wakeTickets.Clear();
             foreach (var source in running.Values) source.Cancel();
         }
         finally { gate.Release(); }

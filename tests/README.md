@@ -113,3 +113,18 @@ ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数�
 阶段增量使用 `artifacts/worker-progress-heartbeat-v3` 跑后台故障套件、`artifacts/worker-etf-progress-v3` 跑ETF服务化套件；后者包含运行期间的来源阶段查询。新增仓储阶段8项覆盖持久化、截断、重启、过滤及501次心跳后保留业务历史，故障注入覆盖进度落盘失败；来源策略增加HTTP429及冷却阶段验证，窗口专项增加3秒自动刷新、最近进展和真实写入数量分类。`--etf-progress-probe` 只读查看实际安装的最近ETF执行，详细保留策略见[执行日志实现](../docs/implementation/WORKER_EXECUTION_LOGS.md)。
 
 `dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --execution-log-ui artifacts/execution-log-ui/log.png` 使用合成管道验证实际行双击、模态窗口、刷新、北京时间、记录清理与会话取消。已安装服务只读查询可用 `dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --execution-probe`，不触发新任务。服务的7项新增日志检查并入原65项回归，共72项，仍需显式HeartbeatOnly隔离包。边界见[执行日志实现](../docs/implementation/WORKER_EXECUTION_LOGS.md)。
+
+## 2026-10-16并发及维护增量
+
+先完整Release构建，再生成新的HeartbeatOnly包。完整Background套件包含查询隔离、升级启动、权限、阶段日志及调度检查；当前数量及最终日志见[本轮整改记录](../docs/implementation/ARCH_REMEDIATION_20261016.md)，前文65/72项为历史批次。
+
+```powershell
+# 22项真实Quartz调度检查：不需要已安装服务，不请求真实来源。
+dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --scheduling-only
+# 23项隔离文件维护检查及C#启动互操作。
+./tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop
+# 管理员专用：唯一命名的LocalService测试服务，复用生产事务模块。
+./tests/Test-WorkerScmUpgrade.ps1 -PackageDirectory artifacts/worker-new-heartbeat
+```
+
+SCM检查需要管理员令牌、创建服务和私有ACL权限，只创建`CRSWorkerUpgradeTest<GUID>`测试服务并在finally移除注册，保留隔离证据；不升级或停止正式服务。测试发行使用同一构建的两份版本清单，不能替代真实插件Schema兼容矩阵。受限环境完整管道/ACL回归须在获准的正常Windows令牌下执行，不放宽生产ACL。并发配置、会话安全并行声明及健康等待指标见[当前架构](../docs/architecture/CURRENT_ARCHITECTURE.md)。

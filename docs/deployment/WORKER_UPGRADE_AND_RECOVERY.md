@@ -6,7 +6,7 @@
 
 `tools/background/Install-Service.ps1`只安装到不存在的程序目录，并拒绝覆盖已有服务。正式包使用外部指定的发布者指纹验证release.json的CMS分离签名，再验证所有登记文件；开发模式必须显式指定AllowDevelopmentPackage。卸载保留数据不等于支持任意二进制重装或回退。
 
-已接入的升级入口为`tools/background/Upgrade-Service.ps1`，恢复入口为`Recover-Service.ps1`，共享`WorkerMaintenance.psm1`。三者随新发行包提供；维护入口需要PowerShell7和管理员，固定服务名称、ProgramFiles程序路径、ProgramData数据路径及LocalService身份，不能自定义正式目标目录。正式维护使用外部指定发布者验证CMS，开发包必须显式豁免；生产版本须递增，候选还必须声明maintenanceFormat=1及允许的upgradeFromVersions。安装、升级与恢复共用发行包验证，拒绝越界/链接/备用数据流、重复目标、未登记文件及哈希变化。
+已接入的升级入口为`tools/background/Upgrade-Service.ps1`，恢复入口为`Recover-Service.ps1`，共享`WorkerUpgradeTransaction.psm1`和`WorkerMaintenance.psm1`。入口与模块随新发行包提供；维护入口需要PowerShell7和管理员，固定服务名称、ProgramFiles程序路径、ProgramData数据路径及LocalService身份，不能自定义正式目标目录。正式维护使用外部指定发布者验证CMS，开发包必须显式豁免；生产版本须递增，候选还必须声明maintenanceFormat=1及允许的upgradeFromVersions。安装、升级与恢复共用发行包验证，拒绝越界/链接/备用数据流、重复目标、未登记文件及哈希变化。
 
 实际顺序：独占maintenance.lock → 持久Prepared → 禁用SCM自动启动 → 停止服务 → 独占owner.lock → 整棵数据快照及逐文件SHA256核验 → 同级目录暂存并复核包 → 原程序改名保留、候选移入固定活动目录 → Switched → 恢复延迟自动启动并启动候选 → Worker先核验原件/库/密钥备份哈希，再持久Starting/NewFactsPossible=true → 打开密钥/数据库和插件 → Healthy → 管理脚本验证应用健康并显式Committed。
 
@@ -22,9 +22,13 @@
 ./Recover-Service.ps1 -Action RetryCandidate -TrustedPublisherThumbprint '<已核验发布者指纹>'
 # 仅NewFactsPossible=false时允许，核验原发行后只恢复程序，绝不覆盖现有数据库。
 ./Recover-Service.ps1 -Action RestorePrevious -TrustedPublisherThumbprint '<已核验发布者指纹>'
+# 已Committed或RolledBack，但启动失败：重新校验已确认发行并恢复服务启动。
+./Recover-Service.ps1 -Action ResumeConfirmed -TrustedPublisherThumbprint '<已核验发布者指纹>'
 ```
 
 开发验收可显式用`-AllowDevelopmentPackage`代替生产签名参数。任何失败保持禁用/维护状态并保留现场，不自动覆盖旧库。RetryCandidate能处理第一次目录改名后活动目录暂时不存在的情况；仍不能修复任意业务Schema或替换为另一份候选发行。需要兼容回迁、增量导出或修复包时保持NeedsManualRepair。
+
+RestorePrevious在候选移往failed之后或旧程序移回活动目录之后中断，均可核验目录指纹后重试；模糊目录组合必须拒绝。ResumeConfirmed仅用于结束事务，完整包和发行指纹必须与日志一致，不能借此启动另一发行或覆盖数据库。SCM操作还核验实际服务程序路径、LocalService身份及需要时的自动启动方式。
 
 未解决事务不能卸载或以重装绕过。已结束事务允许卸载保留数据，但重装必须使用日志记录的相同已确认发行指纹；换版本必须走升级入口。新安装保留CMS签名文件，后续维护才能重新校验同一发行来源。
 
@@ -67,4 +71,4 @@
 - 错误恢复凭据、篡改包、缺文件、未知Schema、非空目标和目录链接均拒绝且原库不变。
 - 在干净Windows主机、不同DPAPI状态及实际LocalService/SID下恢复，查询原有事实与审核证据，再验证调度。
 
-已完成隔离文件事务、真实SQLCipher/DPAPI及测试自有Worker进程的阶段阻断/强杀检查。真实SCM升级/重装生命周期、全部插件库迁移、硬断电/磁盘满和生产签名成功路径尚未完成，ARCH-002仍未关闭；ARCH-005跨机恢复包和干净机器演练也未完成。
+已完成隔离文件事务、真实SQLCipher/DPAPI及测试自有Worker进程的阶段阻断/强杀检查。`tests/Test-WorkerScmUpgrade.ps1`另外用唯一命名LocalService测试服务复用生产事务模块，10项检查覆盖切换失败恢复、成功提交、新心跳事实后拒绝回退、RetryCandidate、ResumeConfirmed和篡改指纹拒绝；测试服务已移除，正式服务状态/路径/进程未改变。两份测试发行来自同一构建，仅版本清单不同，不能当作真实旧新Schema升级证据。安装/卸载/重装全生命周期、全部真实插件库迁移、硬断电/磁盘满和生产签名成功路径尚未完成，ARCH-002仍未关闭；ARCH-005跨机恢复包和干净机器演练也未完成。

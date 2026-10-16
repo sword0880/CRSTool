@@ -76,7 +76,8 @@ namespace CRS.Worker.Service
                     hostContext:id=>new WorkerPluginContext(id,locations.Data,key));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 var diagnostics = new ServiceEventLog(locations.Data);
-                var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication);
+                var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
+                    executionSettings: WorkerExecutionSettings.Read(locations.Data));
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 try

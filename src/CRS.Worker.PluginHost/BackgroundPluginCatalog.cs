@@ -13,7 +13,7 @@ namespace CRS.Worker.PluginHost;
 public sealed record TrustedPackage(string Id, string Version, string Directory, Dictionary<string, string> Files);
 public sealed record BackgroundEntry(string Assembly, string Type);
 public sealed record BackgroundManifest(string Id, string Version, string HostContract, BackgroundEntry? BackgroundEntry);
-public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescriptor Descriptor, IBackgroundPluginSession Session);
+public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescriptor Descriptor, IBackgroundPluginSession Session, int MaximumConcurrency = 1);
 
 /// <summary>只加载后台入口。完整包哈希验证后，私有依赖仍逐次校验，禁止链接逃逸。</summary>
 public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null,
@@ -88,12 +88,15 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             await InvokeAsync(cancellation => session.StartAsync(cancellation).AsTask(), token);
             IReadOnlyList<BackgroundJobDescriptor> descriptors = [];
             await InvokeAsync(_ => { descriptors = session.DescribeJobs(); return Task.CompletedTask; }, token);
+            var maximumConcurrency = 1;
+            await InvokeAsync(_ => { maximumConcurrency = (session as IConcurrentBackgroundSession)?.MaximumConcurrentExecutions ?? 1; return Task.CompletedTask; }, token);
+            if (maximumConcurrency is < 1 or > 32) throw new InvalidDataException("插件并发声明超出上限。");
             if (descriptors.Count > 32 || descriptors.Select(x => x.JobId).Distinct().Count() != descriptors.Count)
                 throw new InvalidDataException("任务重复或超过上限。");
             foreach (var descriptor in descriptors)
             {
                 if (!ValidId(descriptor.JobId) || descriptor.Name.Length > 100) throw new InvalidDataException("任务标识错误。");
-                jobs.Add(new(package.Id, descriptor, session));
+                jobs.Add(new(package.Id, descriptor, session, maximumConcurrency));
             }
             statuses.Add(new(package.Id, "Started"));
             }

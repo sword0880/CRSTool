@@ -73,4 +73,20 @@ Copy-WorkerPackage $candidate $crashPaths.Stage $crashProgram
 Set-WorkerUpgradeStage $data $crashRecord 'Staged'
 Restore-WorkerPrevious $data $crashProgram $crashRecord
 Check ((Test-Path -LiteralPath $crashPaths.Active) -and (Read-WorkerUpgrade $data).Stage -eq 'RolledBack') '第一次目录改名后崩溃可恢复原程序，数据保持原地'
+foreach($point in @('RollbackCandidateMoved','RollbackPreviousMoved')){
+    $rollbackProgram=Join-Path $root $point;Package $rollbackProgram '2.0.0'
+    $rollbackRecord=$record.Clone();$rollbackRecord.Id=[Guid]::NewGuid().ToString('N');$rollbackRecord.Stage='Switched'
+    $rollbackRecord.PreviousReleaseHash=(Get-FileHash (Join-Path $rollbackProgram 'release.json')).Hash
+    $rollbackPaths=Get-WorkerUpgradePaths $rollbackProgram $rollbackRecord
+    [IO.Directory]::Move($rollbackPaths.Active,$rollbackPaths.Previous)
+    Copy-WorkerPackage $candidate $rollbackPaths.Active $rollbackPaths.Previous
+    Set-WorkerUpgradeStage $data $rollbackRecord 'Switched'
+    $hit=@{Value=$false}
+    $interrupt={param($stage) if($stage -eq $point){$hit.Value=$true;throw 'synthetic-rollback-interruption'}}.GetNewClosure()
+    Reject {Restore-WorkerPrevious $data $rollbackProgram $rollbackRecord $interrupt} "$point 故障保留恢复现场"
+    Check $hit.Value "$point 确认在目标改名之后中断"
+    Restore-WorkerPrevious $data $rollbackProgram (Read-WorkerUpgrade $data)
+    Check ((Read-WorkerUpgrade $data).Stage -eq 'RolledBack' -and (Test-Path -LiteralPath $rollbackPaths.Failed)) "$point 重试恢复原程序且保留失败候选"
+    Check ((Get-FileHash (Join-Path $data 'scheduler-config.db')).Hash -eq $originalDb) "$point 重试不覆盖数据库"
+}
 Write-Output "Worker维护文件事务通过：$($script:passed)项；全部使用隔离合成文件，未操作SCM。"

@@ -26,7 +26,7 @@ if(-not $HeartbeatOnly){
     ConvertTo-Json -InputObject $index -Depth 9 | Set-Content (Join-Path $output 'trusted-background-plugins.json') -Encoding utf8
 }
 # 安装脚本随发行提供；完整索引需在正式发行时由组织证书生成 release.json.p7s。
-Copy-Item -LiteralPath (Join-Path $repository 'tools/background/Install-Service.ps1'),(Join-Path $repository 'tools/background/Uninstall-Service.ps1'),(Join-Path $repository 'tools/background/Upgrade-Service.ps1'),(Join-Path $repository 'tools/background/Recover-Service.ps1'),(Join-Path $repository 'tools/background/WorkerMaintenance.psm1') -Destination $output
+Copy-Item -LiteralPath (Join-Path $repository 'tools/background/Install-Service.ps1'),(Join-Path $repository 'tools/background/Uninstall-Service.ps1'),(Join-Path $repository 'tools/background/Upgrade-Service.ps1'),(Join-Path $repository 'tools/background/Recover-Service.ps1'),(Join-Path $repository 'tools/background/WorkerMaintenance.psm1'),(Join-Path $repository 'tools/background/WorkerUpgradeTransaction.psm1') -Destination $output
 $files=@{}
 foreach($file in Get-ChildItem -LiteralPath $output -Recurse -File){$relative=[IO.Path]::GetRelativePath($output,$file.FullName).Replace('\','/');$files[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
 @{format=1;product='CRS.Worker.Service';version='2.0.0';development=$true;maintenanceFormat=1;upgradeFromVersions=@('2.0.0');files=$files} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $output 'release.json') -Encoding utf8

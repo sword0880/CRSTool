@@ -15,6 +15,12 @@ public interface IBackgroundPluginSession : IAsyncDisposable
     ValueTask StopAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>仅在会话的任务、连接和进度回调都可并发时显式声明；旧插件默认串行。</summary>
+public interface IConcurrentBackgroundSession
+{
+    int MaximumConcurrentExecutions { get; }
+}
+
 /// <summary>任务名称是稳定业务标识；禁止将实现类型或委托序列化到数据库。</summary>
 public sealed record BackgroundJobDescriptor(string JobId, string Name, string DefaultCron,
     string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false,bool ManualOnly=false);

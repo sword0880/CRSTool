@@ -10,11 +10,16 @@ public sealed class BadStopEntry : IBackgroundPluginEntry { public IBackgroundPl
 public sealed class BadScheduleEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadSchedule"); }
 public sealed class HangingStartEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingStart"); }
 public sealed class HangingJobEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingJob"); }
-internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressBackgroundSession,IBackgroundQuerySession
+public sealed class FloodEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Flood"); }
+public sealed class ParallelEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Parallel"); }
+public sealed class InvalidConcurrencyEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("InvalidConcurrency"); }
+internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressBackgroundSession,IBackgroundQuerySession,IConcurrentBackgroundSession
 {
+    public int MaximumConcurrentExecutions => mode == "Parallel" ? 2 : mode == "InvalidConcurrency" ? 33 : 1;
     public async Task<string> QueryAsync(string payload, CancellationToken token)
     {
         if (payload == "fail") throw new IOException("synthetic-secret-not-for-public-log");
+        if (payload == "state") return System.Text.Json.JsonSerializer.Serialize(new { Concurrent = Volatile.Read(ref concurrent), Maximum = Volatile.Read(ref maximum) });
         if (payload.StartsWith("slow:") || payload.StartsWith("cancel:"))
         {
             // 独立文件让验收等待真实进入插件，避免把线程调度延迟误作持锁证据。
@@ -30,8 +35,9 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
         await report(new("DayStarted",new(2026,10,14),"SSE"));
         return await ExecuteAsync(jobId,token);
     }
-    public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() =>
-        [new("one", "夹具一", mode == "BadSchedule" ? "bad-cron" : "0 0 0 1 1 ?", "China Standard Time", false), new("two", "夹具二", "0 0 0 1 1 ?", "China Standard Time", false)];
+    public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() => mode == "Flood"
+        ? Enumerable.Range(1,12).Select(i => new BackgroundJobDescriptor(i == 1 ? "one" : i == 2 ? "two" : "job"+i, "积压夹具"+i, "0 0 0 1 1 ?", "China Standard Time", false)).ToArray()
+        : [new("one", "夹具一", mode == "BadSchedule" ? "bad-cron" : "0 0 0 1 1 ?", "China Standard Time", false), new("two", "夹具二", "0 0 0 1 1 ?", "China Standard Time", false)];
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         if (mode == "BadStart") throw new InvalidOperationException("仅测试初始化故障");
@@ -39,12 +45,14 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
     }
     public async Task<BackgroundJobResult> ExecuteAsync(string jobId, CancellationToken cancellationToken)
     {
-        var current = Interlocked.Increment(ref concurrent); maximum = Math.Max(maximum, current);
+        var current = Interlocked.Increment(ref concurrent);
+        int observed;
+        do { observed = Volatile.Read(ref maximum); } while (current > observed && Interlocked.CompareExchange(ref maximum, current, observed) != observed);
         try
         {
             if(mode=="BadJob")throw new InvalidOperationException("synthetic-secret-not-for-public-log");
             var hold = Environment.GetEnvironmentVariable("CRS_WORKER_TEST_HOLD");
-            if (jobId == "one" && hold is not null)
+            if ((jobId == "one" || mode == "Parallel") && hold is not null)
                 while (File.Exists(hold)) await Task.Delay(25, mode == "HangingJob" ? CancellationToken.None : cancellationToken);
             await Task.Delay(150, cancellationToken);
             return BackgroundJobResult.Success("maximum=" + maximum);

@@ -9,6 +9,41 @@ using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 
 // 验收工具只操作自己创建的隔离目录和进程；--probe 可只读检查实际安装的服务。
+if(args is ["--isolated-fact-create",var factPipe])
+{
+    var client=new BackgroundPipeClient(factPipe);
+    var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.heartbeat","heartbeat");
+    using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+    var accepted=await client.SendAsync(request,deadline.Token);
+    if(accepted.Code!="Accepted")throw new InvalidOperationException("隔离事实创建未被接受。");
+    while(true)
+    {
+        var response=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId),deadline.Token);
+        if(response.Receipt?.State=="Completed")
+        {
+            if(response.Receipt.Code!="Succeeded" || response.Receipt.ExecutionId is null)throw new InvalidOperationException("隔离事实未成功提交。");
+            Console.WriteLine(response.Receipt.ExecutionId);return;
+        }
+        await Task.Delay(50,deadline.Token);
+    }
+}
+if(args is ["--isolated-fact-read",var readFactPipe,var factId])
+{
+    var response=await new BackgroundPipeClient(readFactPipe).SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:factId));
+    if(response.Execution?.ExecutionId!=factId || response.Execution.Result!="Succeeded")throw new InvalidOperationException("隔离事实未保留。");
+    return;
+}
+if(args is ["--isolated-health-probe",var isolatedPipe])
+{
+    try
+    {
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var reply=await new BackgroundPipeClient(isolatedPipe).QueryAsync("GetHealth",deadline.Token);
+        Environment.ExitCode=reply.Health?.State=="Running"?0:3;
+    }
+    catch(Exception){Environment.ExitCode=3;}
+    return;
+}
 if(args is ["--upgrade-guard-probe", var guardData, var guardProgram])
 {
     new WorkerUpgradeJournal(Path.GetFullPath(guardData)).BeforeStorageOpen(Path.GetFullPath(guardProgram));
@@ -19,6 +54,11 @@ if(args is ["--upgrade-only", var upgradePackage])
     var upgradeRoot=Path.Combine(Path.GetTempPath(),"CRS.Worker.Upgrade.Tests",Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(upgradeRoot);
     await WorkerUpgradeChecks.RunAsync(upgradeRoot,Path.GetFullPath(upgradePackage));return;
+}
+if(args is ["--scheduling-only"])
+{
+    var schedulingRoot=Path.Combine(Path.GetTempPath(),"CRS.Worker.Scheduling.Tests",Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(schedulingRoot);await WorkerSchedulingChecks.RunAsync(schedulingRoot);return;
 }
 if(args.Contains("--execution-probe") || args.Contains("--etf-progress-probe"))
 {
@@ -181,6 +221,7 @@ await using (var rejected = new BackgroundPluginCatalog())
     Check(rejected.Jobs.Count == 0 && rejected.Statuses.Single().State == "Failed", "外部信任索引隔离已篡改后台包");
 }
 await WorkerRemediationChecks.RunAsync(root, package);
+await WorkerSchedulingChecks.RunAsync(root);
 await WorkerUpgradeChecks.RunAsync(root, package);
 await StorageSecurityChecks.RunAsync(root, package);
 CryptographicOperations.ZeroMemory(key);
