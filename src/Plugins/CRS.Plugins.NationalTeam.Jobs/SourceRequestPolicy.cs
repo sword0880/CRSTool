@@ -36,8 +36,8 @@ public sealed class SourceRequestPolicy : IDisposable
     // 上交所多个公开域名共用额度，避免切换域名绕过拒绝；深交所使用独立额度。
     private static string Source(string host) => host switch
     {
-        "www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" => "SSE",
-        "www.szse.cn" => "SZSE",
+        "www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" => "SSE",
+        "www.szse.cn" or "disc.static.szse.cn" => "SZSE",
         _ => throw new ArgumentException("不支持的来源。")
     };
 

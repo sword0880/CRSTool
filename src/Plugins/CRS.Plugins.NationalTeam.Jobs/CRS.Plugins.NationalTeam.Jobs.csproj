@@ -7,6 +7,7 @@
     <ProjectReference Include="../../CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj" />
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/EtfWorkspace.cs" Link="Application/EtfWorkspace.cs" />
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/MarketActivityWorkspace.cs" Link="Application/MarketActivityWorkspace.cs" />
+    <Compile Include="../CRS.Plugins.NationalTeamWatch/Application/EquityWorkspace.cs" Link="Application/EquityWorkspace.cs" />
     <Compile Include="../CRS.Plugins.NationalTeamWatch/Infrastructure/*.cs" Link="Infrastructure/%(Filename)%(Extension)" />
     <!-- 桌面旧库升级维护不随后台业务实现发行。 -->
     <Compile Remove="../CRS.Plugins.NationalTeamWatch/Infrastructure/MarketStorageMaintenance.cs" />

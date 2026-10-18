@@ -8,6 +8,7 @@ public interface IMarketActivitySource
 }
 public sealed record MarketActivityPoint(DateOnly Date,decimal? AmountYuan,decimal? VolumeShares,string State,
     decimal? Mean5=null,decimal? Mean20=null,decimal? ActivityRatio=null);
+public sealed record MarketActivityRevision(string Id,string Market,DateOnly Date,decimal AmountYuan,decimal VolumeShares,string State,string SourceUrl,string RetrievedAt);
 
 /// <summary>比较前N条完整收盘记录，不冒充已核验连续交易日；已知故障或单市场缺口重置窗口。</summary>
 public static class MarketActivityMetrics
@@ -19,7 +20,7 @@ public static class MarketActivityMetrics
         {
             if(point.State!="Complete" || point.AmountYuan is null || point.VolumeShares is null)
             {
-                if(point.State!="NoData")previous.Clear();
+                if(point.State is not ("NoData" or "Closed"))previous.Clear();
                 result.Add(point with{Mean5=null,Mean20=null,ActivityRatio=null});continue;
             }
             decimal? Mean(int count)=>previous.Count>=count?previous.TakeLast(count).Average():null;

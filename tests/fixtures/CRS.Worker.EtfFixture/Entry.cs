@@ -11,7 +11,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
     private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession
     {
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory));
-        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs();
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
         public async ValueTask StartAsync(CancellationToken token)
         {
             // 此故障/去重夹具固定五只合成来源；生产默认全目录由仓储配置专项单独验证。

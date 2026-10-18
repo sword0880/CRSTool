@@ -15,6 +15,16 @@ public interface IMarketRepository : IDisposable
     void SaveMarketActivity(string market,DateOnly day,MarketActivitySource? source)=>throw new NotSupportedException();
     DateOnly? ReadMarketActivityCursor()=>null;
     void RecordMarketActivityCursor(DateOnly day)=>throw new NotSupportedException();
+    List<MarketActivityRevision> MarketActivityRevisions()=>throw new NotSupportedException();
+    void ReviewMarketActivity(string id,bool accept,string reviewer,Guid? commandId=null)=>throw new NotSupportedException();
+    void RegisterReviewedCalendar(string market,int year,byte[] content,Uri uri)=>throw new NotSupportedException();
+    bool? IsReviewedTradingDay(string market,DateOnly day)=>null;
+    List<EquityWatch> EquityWatchlist()=>throw new NotSupportedException();
+    void SaveEquityWatch(EquityWatch watch,Guid? commandId=null)=>throw new NotSupportedException();
+    void SaveEquityDisclosure(string market,string ticker,Uri uri,byte[] bytes)=>throw new NotSupportedException();
+    List<EquityHoldingRow> EquityHoldings(string? search,string? institution,string? nature,bool favorites)=>throw new NotSupportedException();
+    List<EquityDisclosure> EquityDisclosures(EtfKey key)=>throw new NotSupportedException();
+    void ReviewEquity(EquityReview review,byte[] document,Guid? commandId=null)=>throw new NotSupportedException();
     List<EvidenceRow> Evidence();
     List<EtfHistoryPoint> History(EtfKey? key)=>throw new NotSupportedException();
     List<SharePoint> Points(EtfKey key);

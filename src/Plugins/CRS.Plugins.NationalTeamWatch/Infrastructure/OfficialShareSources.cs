@@ -49,7 +49,7 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
         }
         if(pool.Any(x=>x.Market=="SSE"))await Capture("SSE",()=>new SseOfficialShareSource(http,raw).FetchAsync(day,token));
         foreach(var key in pool.Where(x=>x.Market=="SZSE"))await Capture("SZSE "+key.Ticker,()=>FetchSzseAsync(key,day,token));
-        if(pages.Count==0)throw new InvalidDataException(string.Join("；",issues.DefaultIfEmpty("有效池为空，没有采集来源。")));
+        if(pages.Count==0 && issues.Count==0)throw new InvalidDataException("有效池为空，没有采集来源。");
         return new(day,pages,issues);
     }
 }

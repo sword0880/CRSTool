@@ -11,13 +11,15 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
 {
     private readonly CancellationTokenSource lifetime=new();
     private EtfViewModel? model;
+    private EquityViewModel? equity;
     public async ValueTask StartAsync(CancellationToken token)
     {
         model=new(new WorkerEtfWorkspace(),lifetime.Token);
+        equity=new(new WorkerEtfWorkspace(),lifetime.Token);
         // 未安装服务时页面仍可打开并说明连接状态，不启动本地替代采集器。
         await model.RefreshCommand.ExecuteAsync(null);
     }
-    public IReadOnlyList<PluginPageContribution> GetPages()=>[new("etf-monitor","国家队观察 · ETF份额",()=>new EtfPage(model!))];
+    public IReadOnlyList<PluginPageContribution> GetPages()=>[new("etf-monitor","国家队观察 · ETF份额",()=>new EtfPage(model!)),new("direct-equity","国家队观察 · 直接持股",()=>new EquityPage(equity!))];
     public ValueTask StopAsync(CancellationToken token){lifetime.Cancel();return ValueTask.CompletedTask;}
-    public ValueTask DisposeAsync(){lifetime.Cancel();lifetime.Dispose();model=null;return ValueTask.CompletedTask;}
+    public ValueTask DisposeAsync(){lifetime.Cancel();lifetime.Dispose();model=null;equity=null;return ValueTask.CompletedTask;}
 }

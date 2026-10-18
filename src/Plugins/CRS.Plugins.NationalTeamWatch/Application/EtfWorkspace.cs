@@ -19,6 +19,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     public void SetOfficialSource(IOfficialShareSource source)=>officialSource=source;
     public EtfWorkspace(IPluginHostContext context,Func<IMarketRepository> repositoryFactory,IRawEvidenceStore raw) {this.context=context;this.repositoryFactory=repositoryFactory;this.raw=raw;}
     public Task InitializeAsync(CancellationToken token)=>RunAsync(()=> { repository=repositoryFactory(); return true; },token);
+    public Task RegisterCalendarAsync(string market,int year,byte[] bytes,Uri uri,CancellationToken token)=>RunAsync(()=>{repository!.RegisterReviewedCalendar(market,year,bytes,uri);return true;},token);
     private async Task<T> RunAsync<T>(Func<T> work,CancellationToken token)
     {
         // 单写入者门槛也用于查询，避免同一SQLite连接被界面命令并发使用。
@@ -58,10 +59,18 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
             {
                 token.ThrowIfCancellationRequested();NetworkStatus=$"两市正在获取 {day:yyyy-MM-dd}；已完成{completed}个查询日。";
                 await ReportAsync(new("DayStarted",day));
-                var poolKeys=await RunAsync(()=>repository!.Overview().Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
-                if(poolKeys.Count==0){NetworkStatus="当前没有启用监控的ETF，已停止本次采集；已提交事实保留。";return new(completed,issues.Count,receivedRows);}
+                var activeKeys=await RunAsync(()=>repository!.Overview().Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
+                if(activeKeys.Count==0){NetworkStatus="当前没有启用监控的ETF，已停止本次采集；已提交事实保留。";return new(completed,issues.Count,receivedRows);}
+                var poolKeys=await RunAsync(()=>activeKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)!=false).ToList(),token);
+                if(poolKeys.Count==0)
+                {
+                    if(trackProgress&&contiguous)await RunAsync(()=>{repository!.RecordSyncCursor(day);return true;},token);
+                    completed++;await ReportAsync(new("DayCommitted",day));continue;
+                }
                 var result=await officialSource.FetchAsync(day,poolKeys,token).ConfigureAwait(false);
                 if(result.Issues?.Count>0)contiguous=false;
+                var missing=await RunAsync(()=>poolKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)==true&&!result.Pages.Any(p=>p.Rows.Any(r=>r.Key==key&&r.Date==day))).ToArray(),token);
+                if(missing.Length>0){contiguous=false;foreach(var key in missing)issues.Add($"{key.Market}:{key.Ticker}:{day:yyyy-MM-dd}:NotPublished");}
                 receivedRows+=result.Pages.Sum(page=>page.Rows.Count(row=>poolKeys.Contains(row.Key)));
                 foreach(var issue in result.Issues??[])issues.Add(issue);
                 var outcome=await RunAsync(()=>

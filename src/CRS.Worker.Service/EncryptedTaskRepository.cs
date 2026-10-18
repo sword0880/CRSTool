@@ -141,7 +141,12 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             if (!failed) seconds = 300;
             if (result.RetryAfter is { } retry) seconds = Math.Clamp(retry.TotalSeconds, failed ? seconds : 30, 86400);
             Execute("UPDATE task SET failures=$f,not_before=$n WHERE plugin=$p AND job=$j", ("$f", failed ? Math.Min(plan.Failures + 1, 100) : result.Status == "Succeeded" ? 0 : plan.Failures), ("$n", deferred ? DateTimeOffset.UtcNow.AddSeconds(seconds).ToString("O") : null), ("$p", plan.PluginId), ("$j", plan.JobId));
-            if (requestId is { } request) CompleteCommand(request, result.Status);
+            // 延后重试仍是同一持久命令；保留原参数，不能退化为无参数的自动任务。
+            if (requestId is { } request)
+            {
+                if(result.Status=="RetryDeferred")Execute("UPDATE command_request SET state='Pending',code='RetryDeferred',execution=NULL WHERE request=$r",("$r",request.ToString("N")));
+                else CompleteCommand(request, result.Status);
+            }
             // 高频诊断心跳单独保留100条，不能消耗500条业务历史额度；运行中执行不参与清理。
             Execute("DELETE FROM execution WHERE result<>'Running' AND ((plugin='crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin='crs.heartbeat' ORDER BY started DESC LIMIT 100)) OR (plugin<>'crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin<>'crs.heartbeat' ORDER BY started DESC LIMIT 500)))");
             tx.Commit();

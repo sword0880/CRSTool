@@ -5,6 +5,9 @@ public sealed partial class EtfWorkspace
     private IMarketActivitySource? activitySource;
     public void SetMarketActivitySource(IMarketActivitySource source)=>activitySource=source;
     public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>RunAsync(()=>repository!.MarketActivity(),token);
+    public Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>RunAsync(()=>repository!.MarketActivityRevisions(),token);
+    public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token)=>ReviewMarketActivityAsync(id,accept,reviewer,token,null);
+    public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.ReviewMarketActivity(id,accept,reviewer,commandId);return true;},token);
     public async Task<SyncReport> SyncRecentMarketActivityAsync(CancellationToken token)
     {
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
@@ -18,6 +21,7 @@ public sealed partial class EtfWorkspace
         var result=await SyncMarketActivityRangeAsync(from,to,token,false);
         if(result.SourceIssues>0)throw new InvalidDataException("部分市场成交统计未取得，两市不完整日期不生成总额。请在任务中心查看并重试。");
     }
+    public Task<SyncReport> SyncMarketActivityReportAsync(DateOnly from,DateOnly to,CancellationToken token)=>SyncMarketActivityRangeAsync(from,to,token,false);
     private async Task<SyncReport> SyncMarketActivityRangeAsync(DateOnly from,DateOnly to,CancellationToken token,bool track)
     {
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
@@ -29,12 +33,14 @@ public sealed partial class EtfWorkspace
             token.ThrowIfCancellationRequested();await ReportAsync(new("DayStarted",day));
             foreach(var market in new[]{"SSE","SZSE"})
             {
+                var trading=await RunAsync(()=>repository!.IsReviewedTradingDay(market,day),token);
+                if(trading==false){await RunAsync(()=>{repository!.SaveMarketActivity(market,day,null);return true;},token);continue;}
                 await ReportAsync(new("SourceStarted",day,market));MarketActivitySource? source=null;
                 try {source=await activitySource.FetchAsync(market,day,token);}
                 catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
                 catch(Exception){issues++;contiguous=false;await ReportAsync(new("SourceFailed",day,market));}
                 await RunAsync(()=>{repository!.SaveMarketActivity(market,day,source);return true;},token);
-                if(source is not null){if(source.Observation is not null)received++;await ReportAsync(new("SourceParsed",day,market,Received:source.Observation is null?0:1));}
+                if(source is not null){if(source.Observation is not null)received++;else if(trading==true){issues++;contiguous=false;}await ReportAsync(new("SourceParsed",day,market,Received:source.Observation is null?0:1));}
             }
             if(track && contiguous)await RunAsync(()=>{repository!.RecordMarketActivityCursor(day);return true;},token);
             days++;await ReportAsync(new("DayCommitted",day));

@@ -53,7 +53,9 @@ internal static class Program
         {
             await runtime.StartAsync();Check(runtime.Statuses.All(x=>x.State==PluginState.Started),"实际UI宿主加载双入口包中的页面入口");
             Check(!Directory.EnumerateFiles(storage,"*.db",SearchOption.AllDirectories).Any(),"UI会话启动不创建任何桌面任务库或市场库");
-            var page=runtime.Pages.Single(x=>x.PluginId=="crs.national-team").Contribution.CreateView();
+            var nationalPages=runtime.Pages.Where(x=>x.PluginId=="crs.national-team").ToArray();
+            Check(nationalPages.Length==2,"ETF及直接持股页面由同一插件提供");
+            var page=nationalPages.Single(x=>x.Contribution.RouteKey=="etf-monitor").Contribution.CreateView();
             var window=new Window{Content=page,Width=1100,Height=760,ShowInTaskbar=false};
             try{window.Show();await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();Check(page.ActualWidth>0 && page.ActualHeight>0,"服务查询页面完成真实WPF布局");}
             finally{window.Content=null;window.Close();}

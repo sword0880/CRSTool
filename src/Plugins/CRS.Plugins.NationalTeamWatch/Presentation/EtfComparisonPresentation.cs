@@ -31,10 +31,13 @@ public partial class EtfViewModel
     {
         foreach(var axis in XAxes.Concat(MarketAmountAxes))axis.PropertyChanged-=OnComparisonAxisChanged;
         historyByDate=historyPoints.ToDictionary(x=>x.Date);activityByDate=activityPoints.ToDictionary(x=>x.Date);
-        comparisonDates=historyPoints.Select(x=>x.Date).Concat(activityPoints.Where(x=>x.State!="NoData").Select(x=>x.Date)).Distinct().Order().ToArray();
+        comparisonDates=historyPoints.Select(x=>x.Date).Concat(activityPoints.Where(x=>x.State is not ("NoData" or "Closed")).Select(x=>x.Date)).Distinct().Order().ToArray();
         ObservableValue Value(decimal? value)=>new(value is {} number?(double)number:null);
-        Series=hasHistory?[new LineSeries<ObservableValue>{Name="监控ETF总份额（份）",Values=comparisonDates.Select(d=>Value(historyByDate.GetValueOrDefault(d)?.Shares)).ToArray(),
-            GeometrySize=3,LineSmoothness=0,Stroke=new SolidColorPaint(SKColors.DodgerBlue,2),Fill=new SolidColorPaint(SKColors.DodgerBlue.WithAlpha(28))}]:[];
+        // 折线只提交有效观测点，X仍使用共享日期索引；跨缺日连线但不生成该日数值。
+        var shareValues=comparisonDates.Select((date,index)=>(Index:index,Shares:historyByDate.GetValueOrDefault(date)?.Shares))
+            .Where(x=>x.Shares.HasValue).Select(x=>new ObservablePoint(x.Index,(double)x.Shares!.Value)).ToArray();
+        Series=hasHistory?[new LineSeries<ObservablePoint>{Name="监控ETF总份额（份）",Values=shareValues,
+            EnableNullSplitting=false,GeometrySize=3,LineSmoothness=0,Stroke=new SolidColorPaint(SKColors.DodgerBlue,2),Fill=new SolidColorPaint(SKColors.DodgerBlue.WithAlpha(28))}]:[];
         MarketAmountSeries=activityPoints.Count>0?[new ColumnSeries<ObservableValue>{Name="沪深股票成交额（亿元）",Values=comparisonDates.Select(d=>Value(activityByDate.GetValueOrDefault(d)?.AmountYuan/100000000m)).ToArray(),
             Fill=new SolidColorPaint(new SKColor(100,139,180)),Stroke=null}]:[];
         Axis Axis(bool visible)=>new(){Labels=comparisonDates.Select(x=>x.ToString("yyyy-MM-dd")).ToArray(),MinLimit=-0.5,MaxLimit=Math.Max(0.5,comparisonDates.Length-0.5),MinStep=1,IsVisible=visible};

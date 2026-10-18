@@ -13,6 +13,7 @@ public sealed class HangingJobEntry : IBackgroundPluginEntry { public IBackgroun
 public sealed class FloodEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Flood"); }
 public sealed class ParallelEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Parallel"); }
 public sealed class InvalidConcurrencyEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("InvalidConcurrency"); }
+public sealed class DeferredEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Deferred"); }
 internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressBackgroundSession,IBackgroundQuerySession,IConcurrentBackgroundSession
 {
     public int MaximumConcurrentExecutions => mode == "Parallel" ? 2 : mode == "InvalidConcurrency" ? 33 : 1;
@@ -33,9 +34,15 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
     public async Task<BackgroundJobResult> ExecuteWithProgressAsync(string jobId,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)
     {
         await report(new("DayStarted",new(2026,10,14),"SSE"));
+        if(mode=="Deferred")
+        {
+            if(payload!="synthetic-historical-range"||commandId is null)return new("Failed","originalPayload=Missing");
+            var hold=Environment.GetEnvironmentVariable("CRS_WORKER_TEST_DEFER");
+            return hold is not null&&File.Exists(hold)?new("RetryDeferred","originalPayload=Preserved",TimeSpan.FromSeconds(30)):BackgroundJobResult.Success("originalPayload=Preserved");
+        }
         return await ExecuteAsync(jobId,token);
     }
-    public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() => mode == "Flood"
+    public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() => mode=="Deferred"?[new("one","延后重试夹具","0 0 0 1 1 ?","China Standard Time",false,false,true)]:mode == "Flood"
         ? Enumerable.Range(1,12).Select(i => new BackgroundJobDescriptor(i == 1 ? "one" : i == 2 ? "two" : "job"+i, "积压夹具"+i, "0 0 0 1 1 ?", "China Standard Time", false)).ToArray()
         : [new("one", "夹具一", mode == "BadSchedule" ? "bad-cron" : "0 0 0 1 1 ?", "China Standard Time", false), new("two", "夹具二", "0 0 0 1 1 ?", "China Standard Time", false)];
     public async ValueTask StartAsync(CancellationToken cancellationToken)

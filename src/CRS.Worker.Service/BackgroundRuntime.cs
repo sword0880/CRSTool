@@ -95,6 +95,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     private async Task ScheduleRetryAsync(TaskDefinition plan, CancellationToken token)
     {
         await scheduler!.UnscheduleJob(TriggerKey(Key(plan), "retry"), token);
+        if(repository.PendingRuns().Any(x=>x.PluginId==plan.PluginId && x.JobId==plan.JobId))return;
         if (plan.Enabled && plan.NotBefore is { } retry)
             await scheduler.ScheduleJob(AutomaticTrigger(plan, "retry").StartAt(retry > DateTimeOffset.UtcNow ? retry : DateTimeOffset.UtcNow).Build(), cancellationToken: token);
     }
@@ -292,7 +293,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                 if (!queued.TryGetValue(key, out var nonce) || nonce != manual) return;
                 queued.Remove(key); request = Guid.ParseExact(invocation.Request!, "N");
             }
-            else if (!plan.Enabled || invocation.Revision != plan.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture)) return;
+            else if (!plan.Enabled || invocation.Revision != plan.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                || repository.PendingRuns().Any(x=>x.PluginId==plan.PluginId&&x.JobId==plan.JobId)) return;
             if (plan.NotBefore > DateTimeOffset.UtcNow) return;
             source = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, cancellationToken);
             source.CancelAfter(executionTimeout ?? TimeSpan.FromMinutes(15));
@@ -339,6 +341,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         }
         catch (Exception error) when (StorageError(error)) { await TripFaultAsync("StorageFault"); }
         finally { running.Remove(key); source.Dispose(); gate.Release(); }
+        if(request is not null && result.Status=="RetryDeferred")await ReconcileAsync(CancellationToken.None);
     }
     /// <summary>阶段记录与控制查询共享短数据库门槛，落盘失败立即停止采集，避免产生虚假进度。</summary>
     private async Task SaveProgressAsync(string execution,BackgroundProgress progress,CancellationToken token)

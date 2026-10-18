@@ -45,6 +45,7 @@ public sealed partial class MarketRepository : IMarketRepository
             CREATE TABLE IF NOT EXISTS share_observation_revision(revision_id TEXT PRIMARY KEY,market TEXT,ticker TEXT,trade_date TEXT,total_shares TEXT NOT NULL,original_value TEXT NOT NULL,original_unit TEXT NOT NULL,fetch_id TEXT NOT NULL,revision_no INTEGER NOT NULL,accepted_at TEXT,first_seen TEXT NOT NULL,status TEXT NOT NULL,supersedes_id TEXT,UNIQUE(market,ticker,trade_date,revision_no),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             CREATE TABLE IF NOT EXISTS share_accepted_current(market TEXT,ticker TEXT,trade_date TEXT,revision_id TEXT NOT NULL,PRIMARY KEY(market,ticker,trade_date),FOREIGN KEY(revision_id) REFERENCES share_observation_revision(revision_id));
             CREATE TABLE IF NOT EXISTS quality_issue(id TEXT PRIMARY KEY,rule_id TEXT NOT NULL,rule_version TEXT NOT NULL,target_id TEXT NOT NULL,severity TEXT NOT NULL,status TEXT NOT NULL,evidence_id TEXT NOT NULL,reviewer TEXT,decision_time TEXT);
+            CREATE TABLE IF NOT EXISTS evidence_integrity_event(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL,event TEXT NOT NULL,checked_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS sync_checkpoint(fetch_id TEXT PRIMARY KEY,status TEXT NOT NULL,accepted_count INTEGER NOT NULL);
             INSERT OR IGNORE INTO institution VALUES('huijin-investment','中央汇金投资有限责任公司'),('huijin-asset','中央汇金资产管理有限责任公司');
             INSERT OR IGNORE INTO security_master VALUES('SSE','510300','华泰柏瑞沪深300ETF','CSI300'),('SSE','510050','华夏上证50ETF','SSE50'),('SSE','588000','华夏科创50ETF','STAR50'),('SZSE','159919','嘉实沪深300ETF','CSI300'),('SZSE','159915','易方达创业板ETF','ChiNext');
@@ -61,7 +62,7 @@ public sealed partial class MarketRepository : IMarketRepository
             Execute("INSERT OR IGNORE INTO watchlist_membership VALUES($m,$t,1,'默认观察候选，名称和指数待核验','DataPilot',NULL)",("$m",item.Market),("$t",item.Ticker));
             Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,'参考目录（待核验）')",("$m",item.Market),("$t",item.Ticker));
         }
-        seed.Commit();
+        seed.Commit();InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();
     }
     private static string Now => DateTimeOffset.UtcNow.ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
@@ -125,12 +126,17 @@ public sealed partial class MarketRepository : IMarketRepository
             var value = Decimal(EtfMetrics.Normalize(row.Original,row.Unit));
             var latest = Scalar("SELECT total_shares FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d ORDER BY revision_no DESC LIMIT 1",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var latestStatus=Scalar("SELECT status FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d ORDER BY revision_no DESC LIMIT 1",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
-            if (latest==value && latestStatus!="Rejected") {duplicates++;continue;}
+            var latestHealthy=Convert.ToInt32(Scalar("SELECT count(*) FROM share_observation_revision r JOIN source_fetch f USING(fetch_id) WHERE r.market=$m AND r.ticker=$t AND r.trade_date=$d AND r.revision_no=(SELECT max(revision_no) FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d) AND NOT EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open')",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)))==1;
+            if (latest==value && latestStatus!="Rejected" && latestHealthy) {duplicates++;continue;}
             var previous = Scalar("SELECT c.revision_id FROM share_accepted_current c WHERE market=$m AND ticker=$t AND trade_date=$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var number = Convert.ToInt32(Scalar("SELECT coalesce(max(revision_no),0)+1 FROM share_observation_revision WHERE market=$m AND ticker=$t AND trade_date=$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)));
             // 质量预警可与最近已知事实比较，不能用这个日期集合代替指标的完整交易日历。
             var before = Scalar("SELECT r.total_shares FROM share_accepted_current c JOIN share_observation_revision r ON r.revision_id=c.revision_id WHERE c.market=$m AND c.ticker=$t AND c.trade_date=(SELECT max(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date<$d)",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
-            var jump = before is not null && decimal.Parse(before,CultureInfo.InvariantCulture)>0 && Math.Abs(EtfMetrics.Normalize(row.Original,row.Unit)/decimal.Parse(before,CultureInfo.InvariantCulture)-1)>0.2m;
+            var after = Scalar("SELECT r.total_shares FROM share_accepted_current c JOIN share_observation_revision r ON r.revision_id=c.revision_id WHERE c.market=$m AND c.ticker=$t AND c.trade_date=(SELECT min(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date>$d)",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
+            var current=EtfMetrics.Normalize(row.Original,row.Unit);
+            static bool Jump(decimal previousValue,decimal nextValue)=>previousValue==0?nextValue!=0:Math.Abs(nextValue/previousValue-1)>0.2m;
+            var jump = before is not null && Jump(decimal.Parse(before,CultureInfo.InvariantCulture),current)
+                || after is not null && Jump(current,decimal.Parse(after,CultureInfo.InvariantCulture));
             var review = previous is not null || jump || latest is not null;
             if(review)pending++;
             var id = Guid.NewGuid().ToString("N"); var now=Now;
@@ -196,7 +202,8 @@ public sealed partial class MarketRepository : IMarketRepository
         return EtfHistory.Calculate(keys.Select(k=>
         {
             var calendar=ReadCalendar(k.Market);
-            return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Select(x=>x.Date).ToArray():[],ReadPoints(k));
+            var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+            return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Where(x=>x.Date<=today).Select(x=>x.Date).ToArray():[],ReadPoints(k));
         }).ToArray());
     }
     public List<SharePoint> Points(EtfKey key)
@@ -216,14 +223,22 @@ public sealed partial class MarketRepository : IMarketRepository
     private void ValidateEvidence()
     {
         // 核验缓存只在本次查询内有效；重复抓取共用哈希只读取一次，下次刷新重新检查。
-        var bad=new List<string>();
+        var bad=new List<string>();var good=new List<string>();
         var verified=new Dictionary<string,bool>(StringComparer.Ordinal);
         bool Verify(string hash)
         {if(!verified.TryGetValue(hash,out var valid))verified[hash]=valid=raw.Verify(hash);return valid;}
         using(var command=Command("SELECT fetch_id,sha256,original_sha256 FROM source_fetch"))
-        using(var reader=command.ExecuteReader()) while(reader.Read()) if(!Verify(reader.GetString(1)) || !Verify(reader.GetString(2))) bad.Add(reader.GetString(0));
+        using(var reader=command.ExecuteReader()) while(reader.Read())
+            if(!Verify(reader.GetString(1)) || !Verify(reader.GetString(2))) bad.Add(reader.GetString(0));else good.Add(reader.GetString(0));
         if(bad.Count>0)beforeWrite?.Invoke();
-        foreach(var id in bad) Execute("INSERT OR IGNORE INTO quality_issue VALUES($issue,'Q15','1',$id,'Critical','Open',$id,NULL,NULL)",("$issue","raw-"+id),("$id",id));
+        foreach(var id in bad)
+        {
+            if(Scalar("SELECT status FROM quality_issue WHERE id=$id",("$id","raw-"+id)) as string!="Open")Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'Damaged',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));
+            Execute("INSERT INTO quality_issue VALUES($issue,'Q15','1',$id,'Critical','Open',$id,NULL,NULL) ON CONFLICT(id) DO UPDATE SET status='Open',reviewer=NULL,decision_time=NULL",("$issue","raw-"+id),("$id",id));
+        }
+        // 仅原始和标准化字节都恢复到原哈希时解除阻断，保留异常记录及恢复时间。
+        foreach(var id in good.Where(id=>Convert.ToInt32(Scalar("SELECT count(*) FROM quality_issue WHERE id=$id AND status='Open'",("$id","raw-"+id)))>0))
+        {beforeWrite?.Invoke();Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'RestoredOriginalHash',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));Execute("UPDATE quality_issue SET status='Resolved',reviewer='SHA256-reverified',decision_time=$now WHERE id=$id",("$now",Now),("$id","raw-"+id));}
     }
     public List<EtfSummary> Overview()
     {
@@ -263,7 +278,8 @@ public sealed partial class MarketRepository : IMarketRepository
             rows.Add(new(day.Date,dayState,point?.RevisionId??revisions?.FirstOrDefault()?.RevisionId));
         }
         var accepted=rows.Count(x=>x.State=="Accepted");var calendarValid=calendar.Count>0 && calendar.All(x=>x.Valid);
-        var boundary=calendar.Count>0 && calendar[0].Date<=from && calendar[^1].Date>=to;
+        var boundary=calendar.Count>0 && calendar[0].Date<=from && calendar[^1].Date>=to
+            || Enumerable.Range(from.DayNumber,to.DayNumber-from.DayNumber+1).All(d=>IsReviewedTradingDay(key.Market,DateOnly.FromDayNumber(d)).HasValue);
         var state=range.Count==0?"NoCalendar":!calendarValid?"CalendarCritical":!boundary?"CalendarRangeIncomplete":accepted==rows.Count?"CompleteRegisteredCalendar":"Incomplete";
         return new(key.Market,key.Ticker,from,to,rows.Count,accepted,rows.Count(x=>x.State=="Missing"),rows.Count(x=>x.State=="NeedsReview"),
             rows.Count(x=>x.State is "Critical" or "CalendarCritical"),rows.Count(x=>x.State=="QualityRejected"),calendarValid && rows.Count>0?decimal.Round(accepted*100m/rows.Count,2):null,calendarValid,boundary,state,rows);

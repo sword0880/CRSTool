@@ -22,9 +22,33 @@ internal static class WorkerSchedulingChecks
     public static async Task RunAsync(string root)
     {
         var key = RandomNumberGenerator.GetBytes(32);
-        try { Settings(root); await Isolation(root, key); await Parallel(root, key); }
+        try { Settings(root); await Isolation(root, key); await Parallel(root, key); await DeferredCommand(root,key); }
         finally { CryptographicOperations.ZeroMemory(key); }
         Console.WriteLine($"Worker公平调度通过：{passed}项。");
+    }
+    private static async Task DeferredCommand(string root,byte[] key)
+    {
+        var package=WorkerRemediationChecks.Package(root,("crs.deferred","DeferredEntry"));var path=Path.Combine(root,"deferred-command.db");var hold=Path.Combine(root,"defer.fixture");File.WriteAllText(hold,"synthetic");
+        var old=Environment.GetEnvironmentVariable("CRS_WORKER_TEST_DEFER");Environment.SetEnvironmentVariable("CRS_WORKER_TEST_DEFER",hold);
+        var request=Request("RunNow","crs.deferred") with{Payload="synthetic-historical-range"};
+        try
+        {
+            await using(var catalog=new BackgroundPluginCatalog())
+            {
+                await catalog.LoadAsync(package.Root,package.Trust,default);using var repository=new EncryptedTaskRepository(path,key);await using var runtime=new BackgroundRuntime(repository,catalog);await runtime.StartAsync(default);
+                await runtime.HandleAsync(request,Admin,default);
+                await Until(()=>Task.FromResult(repository.FindCommand(request.RequestId,Admin.Sid) is{State:"Pending",Code:"RetryDeferred"}));
+                Check(repository.PendingRuns().Single().RequestId==request.RequestId,"延后重试保留同一持久命令及原参数");
+            }
+            File.Delete(hold);
+            await using(var catalog=new BackgroundPluginCatalog())
+            {
+                await catalog.LoadAsync(package.Root,package.Trust,default);using var repository=new EncryptedTaskRepository(path,key);await using var runtime=new BackgroundRuntime(repository,catalog);await runtime.StartAsync(default);
+                await Until(()=>Task.FromResult(repository.FindCommand(request.RequestId,Admin.Sid) is{State:"Completed",Code:"Succeeded"}),40);
+                Check(repository.History().Any(x=>x.Result=="Succeeded"&&x.Checkpoint=="originalPayload=Preserved"),"服务重建后仍用原历史参数执行手动专用任务");
+            }
+        }
+        finally{Environment.SetEnvironmentVariable("CRS_WORKER_TEST_DEFER",old);}
     }
     private static void Settings(string root)
     {

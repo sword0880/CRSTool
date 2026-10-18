@@ -174,7 +174,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
             if(version!=chartVersion || lifetime.IsCancellationRequested)return;
             historyPoints=points;hasHistory=true;RebuildComparison();
             var latest=points.LastOrDefault();
-            ChartStatus=title+(latest is null?" · 暂无历史数据":$" · 截至 {latest.Date:yyyy-MM-dd} · 有效 {latest.Covered}/{latest.Total} 只 · 净变化 {(latest.DeltaShares is {} delta?delta.ToString("+#,##0;-#,##0;0"):"不可计算")}")+"。正值为份额净增加，负值为净减少；缺份额或日历时留空。份额相加不代表资金金额或国家队实际买卖。";
+            ChartStatus=title+(latest is null?" · 暂无历史数据":$" · 截至 {latest.Date:yyyy-MM-dd} · 有效 {latest.Covered}/{latest.Total} 只 · 净变化 {(latest.DeltaShares is {} delta?delta.ToString("+#,##0;-#,##0;0"):"不可计算")}")+"。正值为份额净增加，负值为净减少；折线连接有效观测点，空缺日期不补值；缺份额或日历时净变化不可计算。份额相加不代表资金金额或国家队实际买卖。";
         }
         catch(OperationCanceledException) when(lifetime.IsCancellationRequested) { }
         catch(Exception error)

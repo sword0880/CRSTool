@@ -23,7 +23,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
     public async Task<PublicHttpResponse> GetAsync(Uri uri, CancellationToken cancellationToken)
     {
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0
-            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "www.szse.cn")) throw new InvalidOperationException("Public source not allowed.");
+            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")) throw new InvalidOperationException("Public source not allowed.");
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -88,6 +88,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IDisposable
             // 官方公开页面对应的Referer，不携带Cookie、账号或验证码。
             var activity=uri.Query.Contains("COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C",StringComparison.Ordinal) || uri.Query.Contains("scsj_gprdgk_after",StringComparison.Ordinal);
             request.Headers.Referrer=new Uri(uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)?activity?"https://www.sse.com.cn/market/stockdata/overview/day/":"https://www.sse.com.cn/market/funddata/volumn/etfvolumn/":activity?"https://www.szse.cn/market/stock/situation/daily/index.html":"https://fund.szse.cn/marketdata/etf/");
+            if(uri.Query.Contains("COMMON_SSE_PL_XBRL_TOP10SHAREHOLDERS",StringComparison.Ordinal))request.Headers.Referrer=new("https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml");
             return await transport.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token).ConfigureAwait(false);
         }
         if(directHosts.Contains(uri.Host))return await Send(directClient).ConfigureAwait(false);

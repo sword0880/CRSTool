@@ -17,8 +17,8 @@ internal static class EtfChartChecks
         if(!model.ChartStatus.StartsWith("510050") || model.Series.Length!=1)throw new Exception("旧图表覆盖新选择。");
         model.Busy=false;await model.RefreshMarketActivityCommand.ExecuteAsync(null);
         if(!model.XAxes[0].Labels!.SequenceEqual(model.MarketAmountAxes[0].Labels!) || model.XAxes[0].Labels!.Count!=3)throw new Exception("上下图日期未对齐。");
-        var shares=((LiveChartsCore.SkiaSharpView.LineSeries<LiveChartsCore.Defaults.ObservableValue>)model.Series[0]).Values!.ToArray();
-        if(shares[0].Value is not null || shares[1].Value is not null || shares[2].Value!=200)throw new Exception("缺失ETF日期被错位或填零。");
+        var shares=((LiveChartsCore.SkiaSharpView.LineSeries<LiveChartsCore.Defaults.ObservablePoint>)model.Series[0]).Values!.ToArray();
+        if(shares.Length!=1 || shares[0].X!=2 || shares[0].Y!=200)throw new Exception("缺失ETF日期被错位或填零。");
         model.XAxes[0].MinLimit=0.25;model.XAxes[0].MaxLimit=1.75;
         if(model.MarketAmountAxes[0].MinLimit!=0.25 || model.MarketAmountAxes[0].MaxLimit!=1.75)throw new Exception("上图缩放没有同步下图。");
         model.MarketAmountAxes[0].MinLimit=0.5;if(model.XAxes[0].MinLimit!=0.5)throw new Exception("下图缩放没有同步上图。");
@@ -29,6 +29,13 @@ internal static class EtfChartChecks
         if(workspace.Requests[^1].Key is not null)throw new Exception("汇总仍限定单只ETF。");
         workspace.Requests[^1].Reply.SetResult([new(new(2026,10,13),null,null,1,2)]);await all;
         if(!model.ChartStatus.Contains("有效 1/2") || !model.ChartStatus.Contains("不可计算"))throw new Exception("汇总缺口提示错误。");
+        if(((LiveChartsCore.SkiaSharpView.LineSeries<LiveChartsCore.Defaults.ObservablePoint>)model.Series[0]).Values!.Any())throw new Exception("全缺失曲线生成了数值。");
+        model.Selected=Row("510050");var gap=model.HistoryLoadTask;
+        workspace.Requests[^1].Reply.SetResult([new(new(2026,10,11),100,null,2,2),new(new(2026,10,12),null,null,1,2),new(new(2026,10,13),200,null,2,2)]);await gap;
+        shares=((LiveChartsCore.SkiaSharpView.LineSeries<LiveChartsCore.Defaults.ObservablePoint>)model.Series[0]).Values!.ToArray();
+        if(shares.Length!=2 || shares[0].X!=0 || shares[1].X!=2 || shares[1].Y!=200)throw new Exception("跨缺日连线丢失原日期索引。");
+        model.HoverComparisonAt(1);
+        if(!model.ComparisonReadout.Contains("总份额 无有效数据") || !model.ComparisonReadout.Contains("净增减 不可计算") || !model.ComparisonReadout.Contains("2.00 亿元"))throw new Exception("跨缺日连线伪造同日读数或导致成交额错位。");
         model.Selected=Row("510300");var single=model.HistoryLoadTask;
         workspace.Requests[^1].Reply.SetResult([]);await single;
         if(model.AllEtfs || !model.ChartStatus.Contains("暂无历史"))throw new Exception("点击ETF没有恢复单只模式。");
@@ -36,6 +43,50 @@ internal static class EtfChartChecks
         workspace.Requests[^1].Reply.SetResult([new(new(2026,10,13),300,20,2,2)]);await pending;
         if(model.Series.Length!=0)throw new Exception("会话取消后图表仍回写。");
         Console.WriteLine("PASS ETF自动图表：忙碌点击、快速切换、汇总、缺口、回到单只及会话取消。");
+    }
+    public static void RunGapUi()
+    {
+        Exception? failure=null;
+        var thread=new Thread(()=>
+        {
+            var app=new System.Windows.Application();
+            var workspace=new ChartWorkspace();using var lifetime=new CancellationTokenSource();
+            var model=new EtfViewModel(workspace,lifetime.Token);
+            var chart=new LiveChartsCore.SkiaSharpView.WPF.CartesianChart{Width=900,Height=400,AnimationsSpeed=TimeSpan.Zero,Background=System.Windows.Media.Brushes.White};
+            var window=new System.Windows.Window{Content=chart,SizeToContent=System.Windows.SizeToContent.WidthAndHeight,ShowInTaskbar=false};
+            window.Loaded+=async(_,_)=>
+            {
+                try
+                {
+                    var load=model.ShowHistoryCommand.ExecuteAsync(null);
+                    workspace.Requests[^1].Reply.SetResult([new(new(2026,10,11),100,null,2,2),new(new(2026,10,12),null,null,1,2),new(new(2026,10,13),200,null,2,2)]);
+                    await load;await model.RefreshMarketActivityCommand.ExecuteAsync(null);
+                    chart.Series=model.Series;chart.XAxes=model.XAxes;
+                    chart.YAxes=[new LiveChartsCore.SkiaSharpView.Axis{MinLimit=50,MaxLimit=250}];
+                    await Task.Delay(1200);window.UpdateLayout();
+                    var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap(900,400,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(chart);
+                    var center=chart.ScaleDataToPixels(new LiveChartsCore.Drawing.LvcPointD(1,150));
+                    var pixels=new byte[900*400*4];bitmap.CopyPixels(pixels,900*4,0);
+                    var blue=false;
+                    for(var y=(int)center.Y-4;y<=(int)center.Y+4;y++)for(var x=(int)center.X-4;x<=(int)center.X+4;x++)
+                    {
+                        if(x<0 || x>=900 || y<0 || y>=400)continue;
+                        var offset=(y*900+x)*4;
+                        if(pixels[offset]>200 && pixels[offset+1]>60 && pixels[offset+1]<200 && pixels[offset+2]<90)blue=true;
+                    }
+                    var directory=Path.Combine(Environment.CurrentDirectory,"artifacts","etf-gap-20261017");Directory.CreateDirectory(directory);
+                    var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                    using(var file=File.Create(Path.Combine(directory,"gap-connected.png")))encoder.Save(file);
+                    if(!blue)throw new Exception("真实WPF渲染未跨过中间缺日连接有效观测点。");
+                    Console.WriteLine("PASS 真实WPF像素验证：缺日中点有连线；截图为合成数据。");
+                }
+                catch(Exception error){failure=error;}
+                finally{window.Close();}
+            };
+            app.Run(window);
+        });
+        thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();
+        if(failure is not null)throw new InvalidOperationException("缺日连线渲染检查失败。",failure);
     }
     private sealed class ChartWorkspace:IEtfWorkspace
     {
