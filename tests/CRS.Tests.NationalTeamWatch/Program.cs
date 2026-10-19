@@ -7,6 +7,8 @@ static void Reject(Action action,string name) {try{action();}catch(Exception){Co
 if(args is ["--market-live"]){await MarketActivityChecks.RunLive(Path.Combine(Environment.CurrentDirectory,"artifacts","market-activity-live",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--chart-gap-ui"]){EtfChartChecks.RunGapUi();return;}
 if(args is ["--equity-ui"]){EquityUiChecks.Run();return;}
+if(args is ["--p0-live-audit"]){await P0LiveAcceptanceChecks.Run();return;}
+if(args is ["--p0-equity-case"]){await P0LiveAcceptanceChecks.EquityCase();return;}
 if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
 await EtfChartChecks.Run();
@@ -31,6 +33,8 @@ Check(EtfHistory.Calculate([]).Count==0,"Empty monitored basket stays empty");
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,亿元"),"CSV unknown unit rejected");
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,份\nSSE,510300,2026-09-01,2,份"),"Duplicate file rows rejected");
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+await P0RemediationChecks.Run(root);
+await GapRecoveryChecks.Run(root);
 MarketActivityChecks.Run(root);
 DirectEquityChecks.Run(root);
 EquityReportChecks.Run(root);

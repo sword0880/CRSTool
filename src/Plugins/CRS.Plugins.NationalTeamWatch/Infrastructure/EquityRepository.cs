@@ -146,7 +146,10 @@ public sealed partial class MarketRepository
                 ?(State:"NotComparable",Delta:(decimal?)null)
                 :DirectEquityComparison.Compare(before?.Shares,value?.Shares,Comparable(current)&&prior is not null&&Comparable(prior),prior?.State=="Accepted");
             var state=current.State=="Critical"?"Critical":accountNature is null||identity=="主体待核验"?"NeedsReview":comparison.State;
-            yield return new(current.Id,watch.Market,watch.Ticker,watch.Name,identity,account,state=="Critical"?null:value?.Shares,state=="Critical"?null:value?.Percent,current.ReportAsOf,current.Published,current.SourceDate,state,state is "Critical" or "NeedsReview"?null:comparison.Delta,accountNature??"Unknown",watch.Favorite,current.DocumentUrl??current.SourceUrl,prior?.ReportAsOf);
+            // 页码属于逐账户核验；不能继承该披露最后一个审核账户的证据位置。
+            var evidencePage=Scalar("SELECT page FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY reviewed_at DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
+            var evidenceHash=Scalar("SELECT document_hash FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY reviewed_at DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
+            yield return new(current.Id,watch.Market,watch.Ticker,watch.Name,identity,account,state=="Critical"?null:value?.Shares,state=="Critical"?null:value?.Percent,current.ReportAsOf,current.Published,current.SourceDate,state,state is "Critical" or "NeedsReview"?null:comparison.Delta,accountNature??"Unknown",watch.Favorite,current.DocumentUrl??current.SourceUrl,prior?.ReportAsOf,evidencePage,evidenceHash);
         }
     }
 }

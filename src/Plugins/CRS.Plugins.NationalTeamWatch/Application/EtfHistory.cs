@@ -2,7 +2,11 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
 public sealed record EtfHistoryInput(EtfKey Key,IReadOnlyList<DateOnly> Calendar,IReadOnlyList<SharePoint> Points);
-public sealed record EtfHistoryPoint(DateOnly Date,decimal? Shares,decimal? DeltaShares,int Covered,int Total);
+public sealed record EtfHistoryPoint(DateOnly Date,decimal? Shares,decimal? DeltaShares,int Covered,int Total)
+{
+    public EvidenceLevel EvidenceLevel=>EvidenceLevel.MarketObservation;
+    public string Basis=>EvidenceSemantics.EtfBasis;
+}
 
 /// <summary>固定当前监控篮子逐日汇总；不跨缺口、不将缺失填零、不归因机构交易。</summary>
 public static class EtfHistory

@@ -90,6 +90,10 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
         var metadata=JsonSerializer.Deserialize<CoverageReport>(result.Metadata??"")??throw new InvalidDataException("覆盖率口径缺失。");
         return metadata with{Days=result.Rows};
     }
+    public async Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)
+        =>(await ReadPagesAsync<CollectionAttempt>(new("collection-attempts",key.Market,key.Ticker,from,to),token)).Rows;
+    public async Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)
+        =>(await ReadPagesAsync<EtfAcceptance>(new("acceptance",To:through),token)).Rows;
     /// <summary>写操作先持久接受；响应丢失后沿用原ID、原参数，禁止新操作冒充重试。</summary>
     private async Task RunAsync(string job,EtfRequest value,CancellationToken token)
     {

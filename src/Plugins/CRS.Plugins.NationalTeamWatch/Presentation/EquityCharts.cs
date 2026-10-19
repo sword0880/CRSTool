@@ -40,7 +40,7 @@ public partial class EquityViewModel
     [ObservableProperty] private EquityHoldingRow? selectedEvent;
     [ObservableProperty] private string chartStatus="选择持仓查看报告期图表。";
     public string EventReadout=>SelectedEvent is {} row
-        ?$"截止 {row.ReportAsOf:yyyy-MM-dd} · 公告 {row.Published:yyyy-MM-dd} · 比较起点 {(row.ComparisonFrom is {} from?from.ToString("yyyy-MM-dd"):"无前期")} · {row.StatusText} · {row.NatureText}"
+        ?$"{row.EvidenceText} · 截止 {row.ReportAsOf:yyyy-MM-dd} · 公告 {row.Published:yyyy-MM-dd} · 比较起点 {(row.ComparisonFrom is {} from?from.ToString("yyyy-MM-dd"):"无前期")} · {row.StatusText} · {row.NatureText} · {row.Basis}"
         :"选择图中数据或报告记录查看时点与原文。";
     private EquityHoldingRow[] chartRows=[];
     private bool syncingEquityAxes;
@@ -124,7 +124,7 @@ public partial class EquityViewModel
     {
         if(point?.X is not {} x||x<0||x>=chartRows.Length)return "无有效记录";
         var row=chartRows[(int)x];var value=delta?row.Delta:HoldingPercent?row.Percent:row.Shares;
-        return $"{row.Account}\n截止 {row.ReportAsOf:yyyy-MM-dd} · 公告 {row.Published:yyyy-MM-dd}\n{(delta?"净增减":"持仓")} {value:N4}{(!delta&&HoldingPercent?"%":"股")} · {row.StatusText}";
+        return $"{row.Account} · {row.EvidenceText}\n截止 {row.ReportAsOf:yyyy-MM-dd} · 公告 {row.Published:yyyy-MM-dd}\n{(delta?"报告期差额":"持仓")} {value:N4}{(!delta&&HoldingPercent?"%":"股")} · {row.StatusText}\n{row.Basis}";
     }
     [RelayCommand] private void SelectEquityPoint(ChartPoint? point)
     {

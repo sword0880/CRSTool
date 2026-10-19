@@ -1,7 +1,11 @@
 namespace CRS.Plugins.NationalTeamWatch.Domain;
 public sealed record EtfKey(string Market, string Ticker);
 public sealed record SharePoint(DateOnly Date, decimal Shares, decimal? Nav, string RevisionId);
-public sealed record Metric(decimal? DeltaShares, decimal? EstimatedFlow, string State, string Fingerprint);
+public sealed record Metric(decimal? DeltaShares, decimal? EstimatedFlow, string State, string Fingerprint)
+{
+    public EvidenceLevel EvidenceLevel=>EvidenceLevel.MarketObservation;
+    public string Basis=>EvidenceSemantics.EtfBasis;
+}
 /// <summary>份额变化与可选同日NAV估算；不用于归因某个机构的真实交易。</summary>
 public static class EtfMetrics
 {

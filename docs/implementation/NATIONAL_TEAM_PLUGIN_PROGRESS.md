@@ -1,5 +1,7 @@
 # 国家队ETF插件实施记录
 
+> 2026-10-19 P0 整改：[ETF 与股票持仓整改记录](ETF_EQUITY_P0_REMEDIATION_20261019.md)。已完成证据语义、逐日采集尝试及股票快照文案/原文定位的第一批代码整改；170 条回归、WPF 窗口和架构门禁通过。250 日、连续 20 个交易日、真实 PDF 股东表及来源许可仍未验收，尚未部署本轮代码，P0 未整体关闭。
+
 > 2026-10-15更新：当前为[Worker独立采集与只读UI](ETF_WORKER_MIGRATION.md)。下文单程序集、桌面Quartz、锁定后暂停和旧库升级内容保留为先前阶段记录，不代表当前执行归属。新测试环境不迁移旧研究数据。
 
 依据：[ETF一期设计](../NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)、[通用插件架构](../CRS_PLUGIN_ARCHITECTURE.md)。

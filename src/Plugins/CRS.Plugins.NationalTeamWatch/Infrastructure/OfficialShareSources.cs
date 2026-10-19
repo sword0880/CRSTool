@@ -11,9 +11,10 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
 {
     private DateOnly? rangeFrom,rangeTo;
     private readonly Dictionary<string,SourceDay?> szseRanges=[];
+    private readonly Dictionary<string,Exception> szseFailures=[];
     public Task PrepareRangeAsync(DateOnly from,DateOnly to,CancellationToken token)
     {
-        token.ThrowIfCancellationRequested();rangeFrom=from;rangeTo=to;szseRanges.Clear();return Task.CompletedTask;
+        token.ThrowIfCancellationRequested();rangeFrom=from;rangeTo=to;szseRanges.Clear();szseFailures.Clear();return Task.CompletedTask;
     }
     private async Task<SourceDay> FetchSzseAsync(EtfKey key,DateOnly day,CancellationToken token)
     {
@@ -24,16 +25,16 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
         {
             try {szseRanges[key.Ticker]=cached=await source.FetchRangeAsync(from,to,token);}
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-            catch(Exception){szseRanges[key.Ticker]=null;}
+            catch(Exception error){szseRanges[key.Ticker]=null;szseFailures[key.Ticker]=error;}
         }
-        if(cached is null)throw new InvalidDataException("深市历史区间采集未完成，等待重试。");
+        if(cached is null)throw szseFailures[key.Ticker];
         // 原件仍为完整官方页，每日提交只选当日行；页失败或截断时整只区间不进入缓存。
         return new(day,cached.Pages.Select(p=>p with{Rows=p.Rows.Where(r=>r.Date==day).ToArray()}).ToArray());
     }
     public Task<SourceDay> FetchAsync(DateOnly day,CancellationToken token)=>throw new InvalidOperationException("两市采集需要明确的有效证券池。");
     public async Task<SourceDay> FetchAsync(DateOnly day,IReadOnlyList<EtfKey> pool,CancellationToken token)
     {
-        var pages=new List<SourcePage>();var issues=new List<string>();
+        var pages=new List<SourcePage>();var issues=new List<string>();var failures=new List<SourceFailure>();
         async Task Capture(string name,Func<Task<SourceDay>> fetch)
         {
             var market=name.StartsWith("SSE",StringComparison.Ordinal)?"SSE":"SZSE";
@@ -42,15 +43,15 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
             try{result=await fetch();pages.AddRange(result.Pages);}
             // 只有调用方取消才终止整批；单个来源的网络超时不能吞掉另一交易所的数据。
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-            catch(OperationCanceledException){issues.Add(name+"：官方来源响应超时。");}
-            catch(Exception error){issues.Add(name+"："+error.Message);}
+            catch(OperationCanceledException){issues.Add(name+"：官方来源响应超时。");failures.Add(new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","Timeout"));}
+            catch(Exception error){issues.Add(name+"："+error.Message);failures.Add(error.Data[OfficialResponse.FailureKey] as SourceFailure??new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","SourceRequestFailed"));}
             // 日志只保留阶段与公开数量，不持久化来源异常消息。
             if(progress is not null)await progress(new(result is null?"SourceFailed":"SourceParsed",day,market,Received:result?.Pages.Sum(x=>x.Rows.Count)??0));
         }
         if(pool.Any(x=>x.Market=="SSE"))await Capture("SSE",()=>new SseOfficialShareSource(http,raw).FetchAsync(day,token));
         foreach(var key in pool.Where(x=>x.Market=="SZSE"))await Capture("SZSE "+key.Ticker,()=>FetchSzseAsync(key,day,token));
         if(pages.Count==0 && issues.Count==0)throw new InvalidDataException("有效池为空，没有采集来源。");
-        return new(day,pages,issues);
+        return new(day,pages,issues,failures);
     }
 }
 /// <summary>使用深交所官方列表内规模链接的历史报表，严格核对日期和万份表头。</summary>
@@ -93,23 +94,22 @@ public sealed class SzseOfficialShareSource(IPluginHttpGateway http,IRawEvidence
         for(var page=1;page<=count;page++)
         {
             var uri=new Uri(Request(ticker,from,page).AbsoluteUri.Replace($"txtEnd={from:yyyy-MM-dd}",$"txtEnd={to:yyyy-MM-dd}",StringComparison.Ordinal));
-            var response=await http.GetAsync(uri,token);token.ThrowIfCancellationRequested();raw?.Save(response.Content);
-            if(response.StatusCode!=200)throw new InvalidDataException($"深市历史份额请求HTTP {response.StatusCode}。");
-            var parsed=ParseRange(response.Content,ticker,from,to,page);
-            if(total is not null && (total!=parsed.Total || count!=parsed.PageCount))throw new InvalidDataException("深市历史分页口径改变。");
+            var response=await http.GetAsync(uri,token);token.ThrowIfCancellationRequested();
+            var parsed=OfficialResponse.Parse("SZSE",ticker,uri,response.Content,response.StatusCode,"szse-etf-json-v1",raw,()=>ParseRange(response.Content,ticker,from,to,page));
+            var sourcePage=new SourcePage(uri,response.Content,parsed.Rows,"SZSE");
+            if(total is not null && (total!=parsed.Total || count!=parsed.PageCount))throw OfficialResponse.InvalidPage("SZSE",ticker,sourcePage,"szse-etf-json-v1",raw,"深市历史分页口径改变。");
             total=parsed.Total;count=parsed.PageCount;
-            if(parsed.Rows.Any(row=>!dates.Add(row.Date)))throw new InvalidDataException("深市历史跨页重复。");
-            pages.Add(new(uri,response.Content,parsed.Rows,"SZSE"));
+            if(parsed.Rows.Any(row=>!dates.Add(row.Date)))throw OfficialResponse.InvalidPage("SZSE",ticker,sourcePage,"szse-etf-json-v1",raw,"深市历史跨页重复。");
+            pages.Add(sourcePage);
         }
-        if(dates.Count!=(total??0))throw new InvalidDataException("深市历史分页截断。");
+        if(dates.Count!=(total??0))throw OfficialResponse.InvalidPage("SZSE",ticker,pages[^1],"szse-etf-json-v1",raw,"深市历史分页截断。");
         return new(from,pages);
     }
     public async Task<SourceDay> FetchAsync(DateOnly day,CancellationToken token)
     {
-        var uri=Request(ticker,day,1);var response=await http.GetAsync(uri,token);token.ThrowIfCancellationRequested();raw?.Save(response.Content);
-        if(response.StatusCode!=200)throw new InvalidDataException($"官方份额请求HTTP {response.StatusCode}，没有生成虚假数据。");
-        var result=Parse(response.Content,ticker,day,1);
-        if(result.PageCount>1 || result.Rows.Count!=result.Total)throw new InvalidDataException("深交所报表分页截断。");
+        var uri=Request(ticker,day,1);var response=await http.GetAsync(uri,token);token.ThrowIfCancellationRequested();
+        var result=OfficialResponse.Parse("SZSE",ticker,uri,response.Content,response.StatusCode,"szse-etf-json-v1",raw,()=>Parse(response.Content,ticker,day,1));
+        if(result.PageCount>1 || result.Rows.Count!=result.Total)throw OfficialResponse.InvalidPage("SZSE",ticker,new(uri,response.Content,result.Rows,"SZSE"),"szse-etf-json-v1",raw,"深交所报表分页截断。");
         return new(day,[new(uri,response.Content,result.Rows,"SZSE")]);
     }
 }

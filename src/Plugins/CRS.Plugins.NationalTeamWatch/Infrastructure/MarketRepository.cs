@@ -41,6 +41,10 @@ public sealed partial class MarketRepository : IMarketRepository
             DROP TRIGGER IF EXISTS watchlist_insert_limit;
             DROP TRIGGER IF EXISTS watchlist_update_limit;
             CREATE TABLE IF NOT EXISTS source_fetch(fetch_id TEXT PRIMARY KEY,provider TEXT NOT NULL,retrieved_utc TEXT NOT NULL,source_published_utc TEXT,source_url TEXT NOT NULL,sha256 TEXT NOT NULL,original_sha256 TEXT NOT NULL,status TEXT NOT NULL,parser_version TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS etf_collection_attempt(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,trade_date TEXT NOT NULL,started_at TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS ix_etf_collection_day ON etf_collection_attempt(market,ticker,trade_date);
+            CREATE TABLE IF NOT EXISTS etf_collection_transition(sequence INTEGER PRIMARY KEY AUTOINCREMENT,attempt_id TEXT NOT NULL REFERENCES etf_collection_attempt(id),state TEXT NOT NULL,reason TEXT NOT NULL,fetch_id TEXT REFERENCES source_fetch(fetch_id),updated_at TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS ix_etf_collection_transition ON etf_collection_transition(attempt_id,sequence);
             CREATE TABLE IF NOT EXISTS trading_day(market TEXT,trade_date TEXT,fetch_id TEXT NOT NULL,PRIMARY KEY(market,trade_date),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             CREATE TABLE IF NOT EXISTS share_observation_revision(revision_id TEXT PRIMARY KEY,market TEXT,ticker TEXT,trade_date TEXT,total_shares TEXT NOT NULL,original_value TEXT NOT NULL,original_unit TEXT NOT NULL,fetch_id TEXT NOT NULL,revision_no INTEGER NOT NULL,accepted_at TEXT,first_seen TEXT NOT NULL,status TEXT NOT NULL,supersedes_id TEXT,UNIQUE(market,ticker,trade_date,revision_no),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             CREATE TABLE IF NOT EXISTS share_accepted_current(market TEXT,ticker TEXT,trade_date TEXT,revision_id TEXT NOT NULL,PRIMARY KEY(market,ticker,trade_date),FOREIGN KEY(revision_id) REFERENCES share_observation_revision(revision_id));
@@ -266,6 +270,8 @@ public sealed partial class MarketRepository : IMarketRepository
         var points=ReadPoints(key).ToDictionary(x=>x.Date);
         var evidence=ReadEvidence().Where(x=>x.Market==key.Market && x.Ticker==key.Ticker).GroupBy(x=>DateOnly.ParseExact(x.TradeDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)).ToDictionary(x=>x.Key,x=>x.ToList());
         var rows=new List<CoverageDay>();
+        var allAttempts=CollectionAttempts(key,from,to);
+        var attempts=allAttempts.GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.First());
         foreach(var day in range)
         {
             evidence.TryGetValue(day.Date,out var revisions);
@@ -275,7 +281,8 @@ public sealed partial class MarketRepository : IMarketRepository
                 :point is not null?"Accepted"
                 :revisions?.Any(x=>x.State=="Critical")==true?"Critical"
                 :revisions?.FirstOrDefault()?.State=="Rejected"?"QualityRejected":"Missing";
-            rows.Add(new(day.Date,dayState,point?.RevisionId??revisions?.FirstOrDefault()?.RevisionId));
+            attempts.TryGetValue(day.Date,out var attempt);
+            rows.Add(new(day.Date,dayState,point?.RevisionId??revisions?.FirstOrDefault()?.RevisionId,attempt));
         }
         var accepted=rows.Count(x=>x.State=="Accepted");var calendarValid=calendar.Count>0 && calendar.All(x=>x.Valid);
         var boundary=calendar.Count>0 && calendar[0].Date<=from && calendar[^1].Date>=to

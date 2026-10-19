@@ -18,6 +18,8 @@ public interface IEtfWorkspace
     Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>throw new NotSupportedException("历史汇总需要更新后台服务。");
     Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token);
     Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token);
+    Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>Task.FromResult(new List<CollectionAttempt>());
+    Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)=>throw new NotSupportedException("采集验收需要更新后台服务。");
     Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token);
     Task ExportEvidenceAsync(string revisionId,bool original,string destination,CancellationToken token);
     Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token);

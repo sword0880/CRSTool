@@ -112,12 +112,13 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     var calendarYear=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").Year;
                     var calendarIssues=0;
                     foreach(var market in new[]{"SSE","SZSE"})
+                    foreach(var year in new[]{calendarYear-1,calendarYear})
                     {
                         try
                         {
-                            var uri=ReviewedExchangeCalendar.Source(market,calendarYear);var response=await http!.GetAsync(uri,token);
+                            var uri=ReviewedExchangeCalendar.Source(market,year);var response=await http!.GetAsync(uri,token);
                             if(response.StatusCode!=200){calendarIssues++;continue;}
-                            await workspace!.RegisterCalendarAsync(market,calendarYear,response.Content,uri,token);
+                            await workspace!.RegisterCalendarAsync(market,year,response.Content,uri,token);
                         }
                         catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
                         catch(Exception error) when(error is InvalidDataException or HttpRequestException or TimeoutException or InvalidOperationException){calendarIssues++;}
@@ -140,7 +141,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     var report=request.From is null && request.To is null?await workspace!.SyncRecentAsync(token):
                         await workspace!.SyncAsync(request.From??today.AddDays(-7),request.To??today,token);
                     return new(report.SourceIssues>0 || report.HasMore?"RetryDeferred":report.ReceivedRows==0?"NotPublished":"Succeeded",
-                        $"days={report.QueriedDays};sourceIssues={report.SourceIssues};rows={report.ReceivedRows}",report.SourceIssues==0 && report.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
+                        $"days={report.QueriedDays};sourceIssues={report.SourceIssues};rows={report.ReceivedRows}",report.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
                 case "review" when request.Operation=="review":
                     await workspace!.ReviewAsync(request.Revision??"",request.Accept,request.Reviewer??"",request.Comparable,token,commandId);break;
                 case "watchlist" when request.Operation=="watchlist":
@@ -194,6 +195,12 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "market-activity":rows=(await workspace!.MarketActivityAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "activity-revisions":rows=(await workspace!.MarketActivityRevisionsAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "points":rows=(await workspace!.PointsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "collection-attempts":
+                    if(request.From is null||request.To is null||request.To<request.From||request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new InvalidDataException("采集查询区间必须不超过400个自然日。");
+                    rows=(await workspace!.CollectionAttemptsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "acceptance":
+                    if(request.To is null)throw new InvalidDataException("验收需要截至日期。");
+                    rows=(await workspace!.AcceptanceAsync(request.To.Value,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "coverage":
                     if(request.From is null || request.To is null || request.To<request.From || request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new ArgumentException("覆盖区间超限。");
                     var coverage=await workspace!.CoverageAsync(Key(request),request.From.Value,request.To.Value,token);

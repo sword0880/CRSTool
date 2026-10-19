@@ -27,6 +27,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     [ObservableProperty] private bool monitorEnabled;
     public ObservableCollection<EvidenceRow> Evidence { get; }=[];
     public ObservableCollection<CoverageDay> CoverageDays { get; }=[];
+    public ObservableCollection<CollectionAttempt> CollectionAttempts { get; }=[];
     [ObservableProperty] private DateTime? coverageFrom=MarketToday.AddYears(-1);
     [ObservableProperty] private DateTime? coverageTo=MarketToday;
     [ObservableProperty] private string coverageStatus="选择ETF和日期区间，查询已登记交易日历口径的覆盖率。";
@@ -89,7 +90,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     private void InvalidateCoverage()
     {
         // 输入在后台查询期间也可能改变，用版本号拒绝旧请求回写到新选择。
-        selectionVersion++;CoverageDays.Clear();CoverageStatus="选择ETF和日期区间后查询；刷新数据后需要重新查询。";
+        selectionVersion++;CoverageDays.Clear();CollectionAttempts.Clear();CoverageStatus="选择ETF和日期区间后查询；刷新数据后需要重新查询。";
     }
     private async Task ExecuteAsync(Func<CancellationToken,Task> work,CancellationToken cancellationToken=default)
     {
@@ -187,9 +188,13 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     {
         if(Selected is null || CoverageFrom is null || CoverageTo is null)throw new InvalidDataException("请先选择ETF和完整日期区间。");
         var requestedVersion=selectionVersion;
-        var report=await workspace.CoverageAsync(new(Selected.Market,Selected.Ticker),DateOnly.FromDateTime(CoverageFrom.Value),DateOnly.FromDateTime(CoverageTo.Value),token);
+        var key=new EtfKey(Selected.Market,Selected.Ticker);var from=DateOnly.FromDateTime(CoverageFrom.Value);var to=DateOnly.FromDateTime(CoverageTo.Value);
+        var report=await workspace.CoverageAsync(key,from,to,token);
+        token.ThrowIfCancellationRequested();if(requestedVersion!=selectionVersion)return;
+        var attempts=await workspace.CollectionAttemptsAsync(key,from,to,token);
         token.ThrowIfCancellationRequested();if(requestedVersion!=selectionVersion)return;
         CoverageDays.Clear();foreach(var day in report.Days)CoverageDays.Add(day);
+        CollectionAttempts.Clear();foreach(var attempt in attempts)CollectionAttempts.Add(attempt);
         CoverageStatus=$"{report.Market}:{report.Ticker} · 已登记交易日 {report.RegisteredTradingDays} · 有效 {report.AcceptedDays} · 缺失 {report.MissingDays} · 待审核 {report.PendingDays} · 证据异常 {report.CriticalDays} · 拒绝 {report.RejectedDays} · 覆盖率 {(report.CoveragePercent is null?"不可判定":report.CoveragePercent.Value+"%")} · {report.StatusText}。一期目标250个有效交易日；本比例只针对所选区间内已登记的日历。";
     });
     [RelayCommand] private Task ExportOriginal()=>ExportEvidence(true);
@@ -200,7 +205,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
         if(SelectedEvidence is null)throw new InvalidDataException("请先选择一条证据修订。");
         var dialog=new Microsoft.Win32.SaveFileDialog {FileName=SelectedEvidence.Ticker+"-"+SelectedEvidence.TradeDate+(original?"-original.bin":"-normalized.csv"),Filter=original?"原始证据字节|*.bin|所有文件|*.*":"标准化CSV|*.csv",OverwritePrompt=true};
         if(dialog.ShowDialog()!=true)return;
-        await workspace.ExportEvidenceAsync(SelectedEvidence.RevisionId,original,dialog.FileName,token);Status="证据已核验并导出；原始文件内容保持不变。";
+        await workspace.ExportEvidenceAsync(SelectedEvidence.RevisionId,original,dialog.FileName,token);Status=$"B · 市场客观数据 · 截至 {SelectedEvidence.TradeDate}：已导出份额证据；ETF全市场份额不代表机构持仓或买卖，原始文件内容保持不变。";
     });
     [RelayCommand] private Task Approve()=>Review(true);
     [RelayCommand] private Task Reject()=>Review(false);

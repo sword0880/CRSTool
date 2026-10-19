@@ -10,6 +10,12 @@ public interface IRawEvidenceStore
 /// <summary>市场数据与修订仓储端口；不允许访问宿主税务数据库。</summary>
 public interface IMarketRepository : IDisposable
 {
+    string BeginCollection(EtfKey key,DateOnly day)=>throw new NotSupportedException();
+    void RecordCollection(string id,string state,string reason,string? fetchId=null)=>throw new NotSupportedException();
+    List<CollectionAttempt> CollectionAttempts(EtfKey key,DateOnly from,DateOnly to)=>throw new NotSupportedException();
+    List<ShareGap> DueShareGaps(DateOnly from,DateOnly to,DateTimeOffset now)=>[];
+    List<ShareGap> DueHistoricalShareGaps(DateOnly through,DateTimeOffset now)=>[];
+    List<EtfAcceptance> Acceptance(DateOnly through)=>throw new NotSupportedException();
     List<EtfSummary> Overview();
     List<MarketActivityPoint> MarketActivity()=>throw new NotSupportedException();
     void SaveMarketActivity(string market,DateOnly day,MarketActivitySource? source)=>throw new NotSupportedException();

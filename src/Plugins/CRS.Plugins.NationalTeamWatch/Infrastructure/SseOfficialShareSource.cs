@@ -38,15 +38,15 @@ public sealed class SseOfficialShareSource(IPluginHttpGateway http,IRawEvidenceS
         {
             token.ThrowIfCancellationRequested();var uri=Request(day,page);var response=await http.GetAsync(uri,token);
             // 解析失败和非成功响应也保留字节现场，不能靠重试覆盖原始证据。
-            token.ThrowIfCancellationRequested();raw?.Save(response.Content);
-            if(response.StatusCode!=200)throw new InvalidDataException($"上交所采集失败：HTTP {response.StatusCode}；未将缺失数据填零。");
-            var parsed=Parse(response.Content,day,page);
-            if(total is not null && (total!=parsed.Total || count!=Math.Max(1,parsed.PageCount)))throw new InvalidDataException("上交所分页期间总数发生变化，请稍后重试。");
+            token.ThrowIfCancellationRequested();
+            var parsed=OfficialResponse.Parse("SSE",null,uri,response.Content,response.StatusCode,"sse-etf-json-v1",raw,()=>Parse(response.Content,day,page));
+            var sourcePage=new SourcePage(uri,response.Content,parsed.Rows);
+            if(total is not null && (total!=parsed.Total || count!=Math.Max(1,parsed.PageCount)))throw OfficialResponse.InvalidPage("SSE",null,sourcePage,"sse-etf-json-v1",raw,"上交所分页期间总数发生变化，请稍后重试。");
             total=parsed.Total;count=Math.Max(1,parsed.PageCount);
-            foreach(var row in parsed.Rows)if(!allCodes.Add(row.Key.Ticker))throw new InvalidDataException("上交所跨页记录重复。");
-            pages.Add(new(uri,response.Content,parsed.Rows));
+            foreach(var row in parsed.Rows)if(!allCodes.Add(row.Key.Ticker))throw OfficialResponse.InvalidPage("SSE",null,sourcePage,"sse-etf-json-v1",raw,"上交所跨页记录重复。");
+            pages.Add(sourcePage);
         }
-        if(allCodes.Count!=total)throw new InvalidDataException("上交所返回数据截断，拒绝登记为完整日期。");
+        if(allCodes.Count!=total)throw OfficialResponse.InvalidPage("SSE",null,pages[^1],"sse-etf-json-v1",raw,"上交所返回数据截断，拒绝登记为完整日期。");
         return new(day,pages);
     }
 }

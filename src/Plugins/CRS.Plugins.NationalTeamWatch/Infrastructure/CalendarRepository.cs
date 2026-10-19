@@ -11,7 +11,7 @@ public sealed partial class MarketRepository
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
         var hash=raw.Save(content);
         if(Convert.ToInt32(Scalar("SELECT count(*) FROM exchange_calendar_day c JOIN source_fetch f ON f.fetch_id=c.fetch_id WHERE c.market=$m AND c.day LIKE $y AND f.sha256=$h",("$m",market),("$y",$"{year}-%"),("$h",hash)))==days.Count){transaction.Commit();return;}
-        var fetch=RecordFetch(hash,uri.AbsoluteUri,hash,"ReviewedOfficialCalendar","calendar-2026-v1");
+        var fetch=RecordFetch(hash,uri.AbsoluteUri,hash,"ReviewedOfficialCalendar",$"calendar-{year}-v1");
         foreach(var (date,open) in days)
         {
             var d=date.ToString("yyyy-MM-dd");
