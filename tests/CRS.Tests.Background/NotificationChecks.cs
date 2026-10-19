@@ -40,6 +40,24 @@ internal static class NotificationChecks
         var unknown=await dispatcher.SendAsync("not-installed","default",message,default);
         Check(unknown.State==NotificationDeliveryState.Unavailable&&transport.Calls==1&&ding.Calls==1,"未安装渠道不会偷偷改用邮件或其它渠道");
         Check((await dispatcher.StatusAsync("default",default)).Count==3,"单个渠道配置故障不抹去其它渠道状态");
+        var invalid=await dispatcher.SendAsync("dingtalk","default",message with{Title="风险\r\n注入"},default);
+        Check(invalid.State==NotificationDeliveryState.PermanentFailure&&ding.Calls==1,"无效消息在调用渠道之前拒绝，不误报结果未知");
+        var attributes=new Dictionary<string,string>{{"EventId","synthetic-event"}};
+        await dispatcher.SendAsync("dingtalk","research-team",message with{Attributes=attributes},default);
+        attributes["EventId"]="changed-after-submit";
+        Check(ding.LastProfile=="research-team"&&ding.Last!.Attributes!["EventId"]=="synthetic-event","配置Profile独立路由且附加字段冻结，不依赖邮件配置");
+        ding.Mismatch=true;
+        var mismatch=await dispatcher.SendAsync("dingtalk","default",message,default);
+        Check(mismatch.State==NotificationDeliveryState.OutcomeUnknown&&mismatch.MessageId==message.MessageId,"适配器返回其它消息的结果不能误记为本条已受理");
+        ding.Mismatch=false;
+        using(var cancelled=new CancellationTokenSource())
+        {
+            cancelled.Cancel();var calls=ding.Calls;
+            try{await dispatcher.SendAsync("dingtalk","default",message,cancelled.Token);throw new Exception("已取消调用仍被执行");}
+            catch(OperationCanceledException){Check(ding.Calls==calls,"已取消请求不进入外发适配器");}
+        }
+        try{_ =new NotificationDispatcher([ding,ding]);throw new Exception("重复渠道被接受");}
+        catch(ArgumentException){Check(true,"重复渠道注册不能悄悄覆盖原适配器");}
         using var repository=new EncryptedTaskRepository(Path.Combine(root,"scheduler-config.db"),RandomNumberGenerator.GetBytes(32));
         await using var catalog=new BackgroundPluginCatalog();var gateway=new WorkerNotificationGateway(reopened,dispatcher);
         await using var runtime=new BackgroundRuntime(repository,catalog,notifications:gateway);
@@ -59,9 +77,9 @@ internal static class NotificationChecks
     }
     private sealed class FakeChannel(string id):INotificationChannel
     {
-        public NotificationChannelDescriptor Descriptor {get;}=new(id,"Synthetic "+id);public bool Fail;public int Calls;public NotificationEnvelope? Last;
+        public NotificationChannelDescriptor Descriptor {get;}=new(id,"Synthetic "+id);public bool Fail;public bool Mismatch;public int Calls;public NotificationEnvelope? Last;public string? LastProfile;
         public Task<NotificationChannelStatus> StatusAsync(string profileId,CancellationToken token)=>Fail?throw new IOException("synthetic channel failure"):Task.FromResult(new NotificationChannelStatus(id,profileId,true,true,"Synthetic"));
         public Task<NotificationDeliveryResult> SendAsync(string profileId,NotificationEnvelope message,CancellationToken token)
-        {Calls++;Last=message;if(Fail)throw new IOException("synthetic channel failure");return Task.FromResult(new NotificationDeliveryResult(id,NotificationDeliveryState.Accepted,"SyntheticAccepted",message.MessageId));}
+        {Calls++;Last=message;LastProfile=profileId;if(Fail)throw new IOException("synthetic channel failure");return Task.FromResult(new NotificationDeliveryResult(id,NotificationDeliveryState.Accepted,"SyntheticAccepted",Mismatch?"other-message":message.MessageId));}
     }
 }

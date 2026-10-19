@@ -48,6 +48,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         new("market-activity-sync","沪深股票成交统计同步","0 30 23 * * ?","China Standard Time",true,true),
         new("official-calendar-sync","官方交易日历核验","0 5 23 * * ?","China Standard Time",true,true),
         new("equity-disclosure-sync","直接持股披露检查","0 45 23 * * ?","China Standard Time",true,true),
+        new("alert-evaluate","预警评价与通知提交","0 0/5 * * * ?","China Standard Time",true,true),
+        new("alert-manage","预警规则与证据管理（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-watch","直接持股观察设置（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-review","直接持股原文核验（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-report-search","查找持股官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
@@ -81,6 +83,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             var request=payload is null?new EtfRequest("sync"):Parse(payload);
             switch(jobId)
             {
+                case "alert-evaluate" when request.Operation is "sync" or "alert-evaluate":
+                    await workspace!.EvaluateAlertsAsync(request.Operation=="alert-evaluate",token);
+                    return await DispatchAlertNotificationsAsync(token);
+                case "alert-manage":
+                    return await ManageAlertAsync(request,commandId,token);
                 case "equity-report-search" when request.Operation=="equity-report-search":
                     return await SearchEquityReportsAsync(request,commandId,token);
                 case "activity-review" when request.Operation=="activity-review":
@@ -140,10 +147,12 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
                     var report=request.From is null && request.To is null?await workspace!.SyncRecentAsync(token):
                         await workspace!.SyncAsync(request.From??today.AddDays(-7),request.To??today,token);
+                    await workspace!.EvaluateAlertsAsync(token);
                     return new(report.SourceIssues>0 || report.HasMore?"RetryDeferred":report.ReceivedRows==0?"NotPublished":"Succeeded",
                         $"days={report.QueriedDays};sourceIssues={report.SourceIssues};rows={report.ReceivedRows}",report.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
                 case "review" when request.Operation=="review":
-                    await workspace!.ReviewAsync(request.Revision??"",request.Accept,request.Reviewer??"",request.Comparable,token,commandId);break;
+                    await workspace!.ReviewAsync(request.Revision??"",request.Accept,request.Reviewer??"",request.Comparable,token,commandId);
+                    await workspace!.EvaluateAlertsAsync(token);break;
                 case "watchlist" when request.Operation=="watchlist":
                     if(request.ConfigurationRevision is { } revision)
                     {
@@ -181,6 +190,18 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             string[] rows;
             switch(request.Operation)
             {
+                case "alert-overview":rows=[JsonSerializer.Serialize(await workspace!.AlertOverviewAsync(token))];break;
+                case "alert-configuration":rows=[JsonSerializer.Serialize(await workspace!.AlertConfigurationAsync(token))];break;
+                case "alert-events":rows=(await workspace!.AlertEventsAsync(request.AlertFilter??new(),token)).Select(x=>JsonSerializer.Serialize(x with{RevisionIds=[]})).ToArray();break;
+                case "alert-event":rows=[JsonSerializer.Serialize(await workspace!.AlertEventAsync(request.Revision??"",token))];break;
+                case "alert-changes":rows=(await workspace!.AlertChangesAsync(request.Revision??"",token)).Select(x=>JsonSerializer.Serialize(x with{Payload=""})).ToArray();break;
+                case "alert-outbox":rows=(request.AlertFilter is null?await workspace!.AlertOutboxAsync(token):await workspace!.AlertOutboxAsync(request.AlertFilter,token)).Select(x=>JsonSerializer.Serialize(x with{Body=""})).ToArray();break;
+                case "alert-deliveries":rows=(await workspace!.AlertDeliveriesAsync(request.Revision??"",token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "alert-channels":
+                    rows=context is IBackgroundNotificationContext notificationContext?(await notificationContext.NotificationChannelsAsync(token)).Select(x=>JsonSerializer.Serialize(new AlertChannel(x.Id,x.Name,x.Enabled,x.Configured))).ToArray():[];break;
+                case "alert-documents":rows=(await workspace!.AlertDocumentsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "alert-metadata":rows=(await workspace!.AlertMetadataAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "alert-holdings":rows=(await workspace!.NamedEtfHoldingsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "overview":rows=(await workspace!.OverviewAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "configuration":rows=(await workspace!.ConfigurationAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-watchlist":rows=(await workspace!.EquityWatchlistAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;

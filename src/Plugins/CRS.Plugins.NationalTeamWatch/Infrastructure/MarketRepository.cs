@@ -11,10 +11,12 @@ public sealed partial class MarketRepository : IMarketRepository
     private readonly SqliteConnection db;
     private readonly RawEvidenceStore raw;
     private readonly Action? beforeWrite;
-    public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? encryptionKey=null)
+    private readonly TimeProvider clock;
+    public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? encryptionKey=null,TimeProvider? timeProvider=null)
     {
         if(encryptionKey is not {Length:32})throw new InvalidDataException("市场库必须提供独立的32字节加密密钥。");
         this.beforeWrite=beforeWrite;
+        clock=timeProvider??TimeProvider.System; // 生产固定系统时间，隔离测试可推进时钟验证停机及相邻交易日规则。
         raw = rawStore; Directory.CreateDirectory(dataPath);
         // 共用宿主锁定的原生提供器版本，但不共用税务连接或加密密钥。
         SQLitePCL.Batteries_V2.Init();
@@ -68,7 +70,7 @@ public sealed partial class MarketRepository : IMarketRepository
         }
         seed.Commit();InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();
     }
-    private static string Now => DateTimeOffset.UtcNow.ToString("O");
+    private string Now => clock.GetUtcNow().ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
     public DateOnly? ReadSyncCursor()=>Scalar("SELECT checked_through FROM worker_sync_cursor WHERE id=1") is string value?DateOnly.ParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture):null;
     public void RecordSyncCursor(DateOnly day)

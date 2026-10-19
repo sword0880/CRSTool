@@ -12,6 +12,7 @@ namespace CRS.Plugins.NationalTeamWatch.Presentation;
 /// <summary>仅管理界面状态和交互命令，数据判断与存储交由应用用例。</summary>
 public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lifetime) : ObservableObject
 {
+    public ExitAlertViewModel Alerts {get;}=new(workspace,lifetime);
     public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EtfSummary> Rows { get; }=[];
     public ObservableCollection<EtfConfiguration> Configurations {get;}=[];

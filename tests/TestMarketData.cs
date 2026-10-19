@@ -3,6 +3,6 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 internal static class TestMarketData
 {
     public static readonly byte[] Key=Enumerable.Range(1,32).Select(x=>(byte)x).ToArray();
-    public static MarketRepository Open(string directory,RawEvidenceStore raw,Action? beforeWrite=null)=>
-        new(directory,raw,beforeWrite,Key);
+    public static MarketRepository Open(string directory,RawEvidenceStore raw,Action? beforeWrite=null,TimeProvider? timeProvider=null)=>
+        new(directory,raw,beforeWrite,Key,timeProvider);
 }

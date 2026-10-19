@@ -69,6 +69,7 @@
     <DataGrid Grid.Row="1" Height="640" RowHeight="32" ColumnHeaderHeight="36" PreviewMouseWheel="OnTableMouseWheel" ItemsSource="{Binding Evidence}" SelectedItem="{Binding SelectedEvidence}" IsReadOnly="True" AutoGenerateColumns="True"/>
     <StackPanel Grid.Row="2" Margin="0,8"><WrapPanel><ui:Button Content="导出官方原文件" Command="{Binding ExportOriginalCommand}"/><ui:Button Content="导出标准化CSV" Command="{Binding ExportNormalizedCommand}" Margin="8,0"/></WrapPanel><CheckBox Content="已核实份额可比，排除未处理的基金折算或合并（此版本不支持折算调整）" IsChecked="{Binding ConfirmedComparable}" Margin="0,4"/><StackPanel Orientation="Horizontal"><TextBlock Text="审核人" VerticalAlignment="Center"/><TextBox Text="{Binding Reviewer}" Width="150" Margin="8,0"/><ui:Button Content="接受所选修订" Command="{Binding ApproveCommand}" IsEnabled="{Binding CanManage}"/><ui:Button Content="拒绝所选修订" Command="{Binding RejectCommand}" IsEnabled="{Binding CanManage}" Margin="8,0"/></StackPanel></StackPanel>
    </Grid></TabItem>
+   <TabItem Header="预警中心"><p:ExitAlertPage xmlns:p="clr-namespace:CRS.Plugins.NationalTeamWatch.Presentation" DataContext="{Binding Alerts}"/></TabItem>
   </TabControl>
  </Grid>
  </ScrollViewer>

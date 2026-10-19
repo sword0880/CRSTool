@@ -32,11 +32,12 @@ public sealed partial class MarketRepository
     public void ReviewAlertMetadata(AlertMetadataReview review,Guid? commandId=null)
     {
         if(Committed(commandId))return;var document=RequireAlertDocument(review.DocumentId);
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
         if(!review.OriginalConfirmed||review.ComparableFrom>review.ComparableThrough||review.ComparableThrough>today
             ||!Identifier(review.FundId)||!Identifier(review.ManagerId)||!Identifier(review.IndexId)||!ReviewerName(review.Reviewer))throw new InvalidDataException("基金标识、管理人、审核期间或原件确认不足。");
         var row=new AlertFundMetadata(document.Market,document.Ticker,review.FundId,review.ManagerId,review.IndexId,review.ComparableFrom,review.ComparableThrough,document.Url,document.Hash,review.Reviewer,true);
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
+        Execute("INSERT INTO nt_alert_metadata_review VALUES($id,$m,$t,$doc,$at,$p)",("$id",Guid.NewGuid().ToString("N")),("$m",row.Market),("$t",row.Ticker),("$doc",document.Id),("$at",Now),("$p",JsonSerializer.Serialize(row)));
         Execute("INSERT INTO nt_alert_metadata VALUES($m,$t,$p) ON CONFLICT(market,ticker) DO UPDATE SET payload=excluded.payload",("$m",row.Market),("$t",row.Ticker),("$p",JsonSerializer.Serialize(row)));
         MarkAlertPending();RecordCommand(commandId,"alert-metadata");transaction.Commit();
     }
@@ -48,10 +49,10 @@ public sealed partial class MarketRepository
     public void ReviewNamedEtfHolding(NamedEtfHoldingReview review,Guid? commandId=null)
     {
         if(Committed(commandId))return;var document=RequireAlertDocument(review.DocumentId);
-        if(!Identifier(review.LegalEntityId)||review.LegalName.Length is <1 or >150||review.Account.Length is <1 or >150
-            ||review.EvidencePage.Length is <1 or >300||!ReviewerName(review.Reviewer)||review.PublishedAt>DateTimeOffset.UtcNow
+        if(!Identifier(review.LegalEntityId)||review.LegalName is not {Length:>0 and <=150}||review.Account is not {Length:>0 and <=150}
+            ||review.EvidencePage is not {Length:>0 and <=300}||!ReviewerName(review.Reviewer)||review.PublishedAt>clock.GetUtcNow()
             ||review.PublishedAt>DateTimeOffset.Parse(document.FirstSeenAt,CultureInfo.InvariantCulture)
-            ||review.HoldingAsOf>DateOnly.FromDateTime(review.PublishedAt.UtcDateTime))throw new InvalidDataException("具名持仓的主体、时序、报告期或证据位置无效。");
+            ||review.HoldingAsOf>DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(review.PublishedAt,"China Standard Time").DateTime))throw new InvalidDataException("具名持仓的主体、时序、报告期或证据位置无效。");
         var id=ExitAlertEvaluator.Hash(document.Id+"|"+review.LegalEntityId+"|"+review.Account+"|"+review.HoldingAsOf.ToString("yyyy-MM-dd"));
         var row=new NamedEtfHolding(id,document.Market,document.Ticker,review.LegalEntityId,review.LegalName,review.Account,review.HoldingAsOf,
             review.PublishedAt,DateTimeOffset.Parse(document.FirstSeenAt,CultureInfo.InvariantCulture),review.Shares,document.Url,document.Hash,review.EvidencePage,review.Reviewer,review.OriginalConfirmed,review.IndependentOwnershipConfirmed);
@@ -67,6 +68,6 @@ public sealed partial class MarketRepository
         using var command=Command("SELECT payload FROM nt_named_etf_holding WHERE $m IS NULL OR (market=$m AND ticker=$t)",("$m",key?.Market),("$t",key?.Ticker));
         return ReadJson<NamedEtfHolding>(command).Select(x=>raw.Verify(x.DocumentHash)?x:x with{OriginalConfirmed=false}).ToList();
     }
-    private static bool Identifier(string value)=>value.Length is >0 and <=80&&value.All(c=>!char.IsControl(c)&&c!='|');
-    private static bool ReviewerName(string value)=>!string.IsNullOrWhiteSpace(value)&&value.Length<=120&&!value.Any(char.IsControl);
+    private static bool Identifier(string? value)=>value is {Length:>0 and <=80}&&value.All(c=>!char.IsControl(c)&&c!='|');
+    private static bool ReviewerName(string? value)=>!string.IsNullOrWhiteSpace(value)&&value.Length<=120&&!value.Any(char.IsControl);
 }

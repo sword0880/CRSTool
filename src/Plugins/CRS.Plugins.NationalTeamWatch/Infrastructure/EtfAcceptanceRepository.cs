@@ -7,7 +7,7 @@ public sealed partial class MarketRepository
     /// <summary>补采250日不等于实际连续采集20日；按每个交易日的真实接收时点独立核验。</summary>
     public List<EtfAcceptance> Acceptance(DateOnly through)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
         if(through>=today)throw new InvalidDataException("验收只统计已结束的自然日，不能提前批准当日采集。");
         ValidateEvidence();var result=new List<EtfAcceptance>();var active=Configuration().Where(x=>x.Active).ToArray();
         // 同市场日历只读一次；用有界区间计数校验完整自然日，不对每只ETF逐日发起数百次SQL。

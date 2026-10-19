@@ -10,6 +10,24 @@ public interface IRawEvidenceStore
 /// <summary>市场数据与修订仓储端口；不允许访问宿主税务数据库。</summary>
 public interface IMarketRepository : IDisposable
 {
+    ExitAlertOverview EvaluateExitAlerts(bool force=false)=>throw new NotSupportedException();
+    ExitAlertOverview AlertOverview()=>throw new NotSupportedException();
+    ExitAlertConfiguration AlertConfiguration()=>throw new NotSupportedException();
+    void SaveAlertConfiguration(ExitAlertConfiguration value,Guid? commandId=null)=>throw new NotSupportedException();
+    List<ExitAlertEvent> AlertEvents(ExitAlertFilter filter)=>throw new NotSupportedException();
+    ExitAlertEvent? AlertEvent(string id)=>throw new NotSupportedException();
+    List<ExitAlertChange> AlertChanges(string id)=>throw new NotSupportedException();
+    List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)=>throw new NotSupportedException();
+    AlertOutboxItem? ClaimAlertNotification()=>throw new NotSupportedException();
+    void CompleteAlertNotification(string id,string lease,AlertDispatchOutcome outcome)=>throw new NotSupportedException();
+    void RetryAlertNotification(string id,Guid? commandId=null)=>throw new NotSupportedException();
+    List<AlertDeliveryRecord> AlertDeliveries(string id)=>throw new NotSupportedException();
+    List<AlertDocument> AlertDocuments(EtfKey key)=>throw new NotSupportedException();
+    void RegisterAlertDocument(AlertDocumentRequest request,byte[] document,Guid? commandId=null)=>throw new NotSupportedException();
+    List<AlertFundMetadata> AlertMetadata()=>throw new NotSupportedException();
+    void ReviewAlertMetadata(AlertMetadataReview review,Guid? commandId=null)=>throw new NotSupportedException();
+    List<NamedEtfHolding> NamedEtfHoldings(EtfKey? key=null)=>throw new NotSupportedException();
+    void ReviewNamedEtfHolding(NamedEtfHoldingReview review,Guid? commandId=null)=>throw new NotSupportedException();
     string BeginCollection(EtfKey key,DateOnly day)=>throw new NotSupportedException();
     void RecordCollection(string id,string state,string reason,string? fetchId=null)=>throw new NotSupportedException();
     List<CollectionAttempt> CollectionAttempts(EtfKey key,DateOnly from,DateOnly to)=>throw new NotSupportedException();

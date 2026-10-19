@@ -14,7 +14,7 @@ public sealed record ExitAlertRules(string Version="exit-v1.0",bool Enabled=true
 {
     public ExitAlertRules Validate()
     {
-        if(Version.Length is <1 or >40||Version.Any(c=>!char.IsAsciiLetterOrDigit(c)&&c is not '.' and not '-')
+        if(Version is null||Version.Length is <1 or >40||Version.Any(c=>!char.IsAsciiLetterOrDigit(c)&&c is not '.' and not '-')
             ||Decline5 is <=0 or >=1||Decline20 is <=0 or >=1||MinimumFunds is <2 or >100||MinimumManagers is <2 or >30||ClearObservations is <2 or >20)
             throw new InvalidDataException("预警规则版本或候选阈值无效。");
         return this;
@@ -27,7 +27,7 @@ public sealed record AlertFundMetadata(string Market,string Ticker,string FundId
 {
     public bool Covers(DateOnly from,DateOnly through)=>OriginalConfirmed&&FundId.Length>0&&ManagerId.Length>0&&IndexId.Length>0
         &&ComparableFrom<=from&&ComparableThrough>=through&&EvidenceHash.Length==64&&EvidenceHash.All(Uri.IsHexDigit)
-        &&!string.IsNullOrWhiteSpace(Reviewer)&&Uri.TryCreate(EvidenceUrl,UriKind.Absolute,out var uri)&&OfficialEquityDocuments.IsAllowed(uri);
+        &&!string.IsNullOrWhiteSpace(Reviewer)&&Uri.TryCreate(EvidenceUrl,UriKind.Absolute,out var uri)&&OfficialEquityDocuments.IsAllowed(uri)&&!OfficialEquityDocuments.IsReviewedIssuer(uri);
 }
 
 /// <summary>输入仅为已接受且原件健康的份额；缺口、交易日历及份额折算可比性均由后台保留。</summary>
@@ -68,7 +68,7 @@ public static class ExitAlertEvaluator
         }
         var pct1=Pct(1);var pct5=Pct(5);var pct20=Pct(20);var revisions=ids.Order().ToArray();
         var state=pct5.HasValue&&pct20.HasValue?"Complete":pct5.HasValue||pct20.HasValue?"Partial":input.Metadata is null?"NotComparable":"IncompleteFactsOrComparability";
-        return new(date,state,pct1,pct5,pct20,revisions,Hash(rules.Version+"|"+string.Join('|',revisions)+"|"+input.Metadata?.EvidenceHash),pct5<=-rules.Decline5||pct20<=-rules.Decline20);
+        return new(date,state,pct1,pct5,pct20,revisions,Hash(rules.Version+"|"+string.Join('|',revisions)+"|"+System.Text.Json.JsonSerializer.Serialize(input.Metadata)),pct5<=-rules.Decline5||pct20<=-rules.Decline20);
     }
     public static ExitAlertFinding Single(AlertFundInput input,DateOnly date,ExitAlertRules rules,bool acceptancePassed)
     {
@@ -84,7 +84,7 @@ public static class ExitAlertEvaluator
         decimal? Value(AlertWindows value)=>window==5?value.Pct5:value.Pct20;
         var threshold=window==5?rules.Decline5:rules.Decline20;
         // 同一基金的不同份额类别只能计一次，不相加不同ETF的份额数。
-        var complete=inputs.Count>0&&inputs.All(x=>Value(x.Window).HasValue&&x.Input.Metadata is not null);
+        var complete=inputs.Count>0&&inputs.All(x=>x.Window.Date==date&&Value(x.Window).HasValue&&x.Input.Metadata is not null);
         var selected=inputs.Where(x=>Value(x.Window)<=-threshold&&x.Input.Metadata is not null)
             .GroupBy(x=>x.Input.Metadata!.FundId,StringComparer.Ordinal).Select(x=>x.First()).ToArray();
         var managers=selected.Select(x=>x.Input.Metadata!.ManagerId).Distinct(StringComparer.Ordinal).Count();
@@ -92,7 +92,7 @@ public static class ExitAlertEvaluator
         var ids=selected.SelectMany(x=>x.Window.RevisionIds).Distinct().Order().ToArray();
         return new("SampleBreadth","monitored-sample:"+window,AlertLane.EtfOutflow,AlertSeverity.Warning,AlertEvidenceKind.OfficialMarketObserved,date,
             "当前监控样本池 · 多基金份额同步收缩",$"达到候选阈值的独立基金{selected.Length}只、管理人{managers}家。样本池不代表全市场，也不能确认国家队身份；承接行情证据不足时不升级Critical。",
-            Hash(rules.Version+"|"+string.Join('|',ids)),ids,triggered,complete,!acceptancePassed);
+            Hash(rules.Version+"|"+string.Join('|',inputs.Select(x=>x.Window.Fingerprint).Order())),ids,triggered,complete,!acceptancePassed);
     }
     public static MinimumReductionProof Minimum(IReadOnlyList<NamedEtfHolding> holdings,AlertFundInput input,DateOnly date,DateTimeOffset cutoff)
     {

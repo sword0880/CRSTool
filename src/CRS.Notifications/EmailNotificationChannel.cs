@@ -8,12 +8,17 @@ public sealed class EmailNotificationChannel(EmailNotificationService email):INo
     {
         token.ThrowIfCancellationRequested();
         if(profileId!="default")return Task.FromResult(new NotificationChannelStatus("email",profileId,false,false,"ProfileNotFound"));
-        var settings=email.Read();return Task.FromResult(new NotificationChannelStatus("email",profileId,settings.Enabled,settings.Host.Length>0,"ConfiguredStatus"));
+        var settings=email.Read();var configured=settings.Host.Length>0&&settings.From.Length>0&&settings.Recipients is {Length:>0}
+            &&(settings.UserName.Length==0||settings.HasPassword);
+        return Task.FromResult(new NotificationChannelStatus("email",profileId,settings.Enabled,configured,"ConfiguredStatus"));
     }
     public async Task<NotificationDeliveryResult> SendAsync(string profileId,NotificationEnvelope message,CancellationToken token)
     {
         if(profileId!="default")return new("email",NotificationDeliveryState.Unavailable,"ProfileNotFound",message.MessageId);
-        var result=await email.SendAsync(new(message.MessageId,message.Title,message.Body),token);
+        EmailSendResult result;
+        // 邮件的格式限制比公共消息更严格，明确在提交前拒绝时不能记为受理结果未知。
+        try{result=await email.SendAsync(new(message.MessageId,message.Title,message.Body),token);}
+        catch(InvalidDataException){return new("email",NotificationDeliveryState.PermanentFailure,"InvalidEmailConfigurationOrMessage",message.MessageId);}
         var state=result.State switch
         {
             "SmtpAccepted"=>NotificationDeliveryState.Accepted,"Disabled"=>NotificationDeliveryState.Disabled,

@@ -5,6 +5,24 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>页面只接触用例契约；本地后台实现和管道客户端可分别验证。</summary>
 public interface IEtfWorkspace
 {
+    Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>throw new NotSupportedException("预警中心需要更新后台服务。");
+    Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token)=>throw new NotSupportedException();
+    Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>throw new NotSupportedException();
+    Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>throw new NotSupportedException();
+    Task<ExitAlertEvent> AlertEventAsync(string id,CancellationToken token)=>throw new NotSupportedException();
+    Task<List<ExitAlertChange>> AlertChangesAsync(string id,CancellationToken token)=>throw new NotSupportedException();
+    Task<List<AlertOutboxItem>> AlertOutboxAsync(CancellationToken token)=>throw new NotSupportedException();
+    Task<List<AlertOutboxItem>> AlertOutboxAsync(ExitAlertFilter filter,CancellationToken token)=>AlertOutboxAsync(token);
+    Task<List<AlertDeliveryRecord>> AlertDeliveriesAsync(string id,CancellationToken token)=>throw new NotSupportedException();
+    Task RetryAlertNotificationAsync(string id,CancellationToken token)=>throw new NotSupportedException();
+    Task EvaluateAlertsAsync(CancellationToken token)=>throw new NotSupportedException();
+    Task<List<AlertChannel>> AlertChannelsAsync(CancellationToken token)=>throw new NotSupportedException();
+    Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
+    Task RegisterAlertDocumentAsync(AlertDocumentRequest request,CancellationToken token)=>throw new NotSupportedException();
+    Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>throw new NotSupportedException();
+    Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>throw new NotSupportedException();
+    Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
+    Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token)=>throw new NotSupportedException();
     string NetworkStatus { get; }
     bool CanManage=>true;
     Task<List<EtfSummary>> OverviewAsync(CancellationToken token);
@@ -41,7 +59,9 @@ public interface IEtfWorkspace
 public sealed record EtfRequest(string Operation,string? Market=null,string? Ticker=null,DateOnly? From=null,
     DateOnly? To=null,string? Revision=null,bool Accept=false,string? Reviewer=null,bool Comparable=false,
     string? Name=null,string? Index=null,bool Active=false,string? Reason=null,int Offset=0,int Count=10,bool Original=false,string? Snapshot=null,long? ConfigurationRevision=null,
-    string? Search=null,string? Institution=null,string? Nature=null,bool Favorites=false,EquityWatch? EquityWatch=null,EquityReview? EquityReview=null);
+    string? Search=null,string? Institution=null,string? Nature=null,bool Favorites=false,EquityWatch? EquityWatch=null,EquityReview? EquityReview=null,
+    ExitAlertFilter? AlertFilter=null,ExitAlertConfiguration? AlertConfiguration=null,AlertDocumentRequest? AlertDocument=null,
+    AlertMetadataReview? AlertMetadata=null,NamedEtfHoldingReview? NamedEtfHolding=null);
 /// <summary>分页使用服务端短期快照，避免采集同时写入导致桌面分页重复或遗漏。</summary>
 public sealed record EtfQueryPage(string Items,string Snapshot,int? NextOffset,string? Metadata=null);
 /// <summary>证据导出按有界字节块返回，桌面自行选择输出位置，服务不接收用户路径。</summary>

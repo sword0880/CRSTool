@@ -7,7 +7,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch;
 
 /// <summary>客户端只访问授权管道，不打开市场库或向服务提交桌面文件路径。</summary>
-public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IEtfWorkspace
+public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IEtfWorkspace
 {
     private const string Plugin="crs.national-team";
     private readonly BackgroundPipeClient client=connection??new();

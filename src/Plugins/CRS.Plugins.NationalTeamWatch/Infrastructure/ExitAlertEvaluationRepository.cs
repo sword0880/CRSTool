@@ -8,7 +8,7 @@ public sealed partial class MarketRepository
     /// <summary>新事实的持久标记在采集事务中落库；后台恢复后可重算，事件与通知另在同一事务提交。</summary>
     public ExitAlertOverview EvaluateExitAlerts(bool force=false)
     {
-        var configuration=AlertConfiguration();var now=DateTimeOffset.UtcNow;
+        var configuration=AlertConfiguration();var now=clock.GetUtcNow();
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(now,"China Standard Time").DateTime);
         var last=Scalar("SELECT at FROM nt_alert_evaluation WHERE id=1") as string;
         if(!force&&Scalar("SELECT changed_at FROM nt_alert_pending WHERE id=1") is null&&last is not null&&DateTimeOffset.Parse(last,CultureInfo.InvariantCulture)>now.AddMinutes(-10))return AlertOverview();
@@ -22,10 +22,11 @@ public sealed partial class MarketRepository
             if(date==default)date=today.AddDays(-1);
             var expected=calendar.LastOrDefault(x=>x.Date<today).Date;var current=date<expected?expected:date;
             var verified=acceptance.SingleOrDefault(x=>x.Market==key.Market&&x.Ticker==key.Ticker)?.CalendarVerified==true;
-            var input=new AlertFundInput(key,item.Name,calendar.Where(x=>x.Valid).Select(x=>x.Date).ToArray(),points,metadata.SingleOrDefault(x=>x.Market==key.Market&&x.Ticker==key.Ticker),verified,now);
+            // 日历中的损坏日期不能被删掉后变成跨缺口的“相邻”窗口。
+            var input=new AlertFundInput(key,item.Name,calendar.Select(x=>x.Date).ToArray(),points,metadata.SingleOrDefault(x=>x.Market==key.Market&&x.Ticker==key.Ticker),verified&&calendar.Where(x=>x.Date<=current).All(x=>x.Valid),now);
             var window=ExitAlertEvaluator.Windows(input,current,rules);inputs.Add((input,window));
             ApplyAlertFinding(ExitAlertEvaluator.Single(input,current,rules,gate),configuration);
-            EvaluateQuality(key,current,facts,configuration);
+            EvaluateQuality(key,current,facts,configuration,input.CalendarVerified);
             EvaluateMinimum(input,current,configuration,gate,now);
         }
         // 集群只使用同一交易日的同一窗口；不混用日期，也不相加不同ETF份额。
@@ -39,7 +40,7 @@ public sealed partial class MarketRepository
         Execute("DELETE FROM nt_alert_pending WHERE id=1");Execute("INSERT INTO nt_alert_evaluation VALUES(1,$at) ON CONFLICT(id) DO UPDATE SET at=excluded.at",("$at",Now));transaction.Commit();
         return AlertOverview();
     }
-    private void EvaluateQuality(EtfKey key,DateOnly date,IReadOnlyList<CRS.Plugins.NationalTeamWatch.Application.EvidenceRow> facts,ExitAlertConfiguration configuration)
+    private void EvaluateQuality(EtfKey key,DateOnly date,IReadOnlyList<CRS.Plugins.NationalTeamWatch.Application.EvidenceRow> facts,ExitAlertConfiguration configuration,bool calendarVerified)
     {
         var pending=facts.Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker&&x.State is "NeedsReview" or "Critical").ToArray();
         var ids=pending.Select(x=>x.RevisionId).Order().ToArray();var scope=key.Market+":"+key.Ticker;
@@ -49,9 +50,9 @@ public sealed partial class MarketRepository
             key.Ticker+" · 数据核查",explanation,ExitAlertEvaluator.Hash(string.Join('|',ids)),ids,pending.Length>0,true,false),configuration);
         var latest=CollectionAttempts(key,date.AddDays(-7),date).FirstOrDefault(x=>x.State is not ("Expected" or "Fetching" or "RawSaved" or "Parsed" or "Validating"));
         var failed=latest?.State is "AccessBlocked" or "ParseFailed" or "SourceFailed" or "Missing" or "NotPublished" or "Interrupted";
-        var missing=!ReadPoints(key).Any(x=>x.Date==date);
+        var missing=!ReadPoints(key).Any(x=>x.Date==date)||!calendarVerified;
         ApplyAlertFinding(new("CollectionHealth",scope,AlertLane.DataQuality,AlertSeverity.Watch,AlertEvidenceKind.InsufficientEvidence,date,
-            key.Ticker+" · 来源与覆盖状态",failed?$"最新采集状态{latest!.StatusText}；已有事实保留，风险不能因此变为解除。":missing?"当前应有交易日缺少有效份额，风险状态未知。":"当前应有交易日已具备有效份额，来源状态恢复。",
+            key.Ticker+" · 来源与覆盖状态",failed?$"最新采集状态{latest!.StatusText}；已有事实保留，风险不能因此变为解除。":missing?"交易日历尚未完整核验或当前应有交易日缺少有效份额，风险状态未知。":"当前应有交易日已具备有效份额，来源状态恢复。",
             ExitAlertEvaluator.Hash((latest?.State??"NoAttempt")+"|"+date+"|"+missing),[],failed||missing,true,false),configuration);
     }
     private void EvaluateMinimum(AlertFundInput input,DateOnly date,ExitAlertConfiguration configuration,bool gate,DateTimeOffset now)
@@ -70,7 +71,7 @@ public sealed partial class MarketRepository
     {
         var config=AlertConfiguration();var active=Configuration().Where(x=>x.Active).ToArray();var metadata=AlertMetadata();
         var latest=active.SelectMany(x=>ReadPoints(new(x.Market,x.Ticker))).Select(x=>(DateOnly?)x.Date).Max();
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
         var acceptance=Acceptance(today.AddDays(-1));
         var pending=Convert.ToInt32(Scalar("SELECT count(*) FROM share_observation_revision WHERE status='NeedsReview'"));
         var events=Convert.ToInt32(Scalar("SELECT count(*) FROM nt_risk_event WHERE state IN ('Active','PendingVerification')"));
