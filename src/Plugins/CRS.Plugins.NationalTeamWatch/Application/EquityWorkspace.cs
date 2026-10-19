@@ -6,6 +6,7 @@ public sealed partial class EtfWorkspace
     public Task<List<EquityWatch>> EquityWatchlistAsync(CancellationToken token)=>RunAsync(()=>repository!.EquityWatchlist(),token);
     public Task<List<EquityHoldingRow>> EquityHoldingsAsync(string? search,string? institution,string? nature,bool favorites,CancellationToken token)=>RunAsync(()=>repository!.EquityHoldings(search,institution,nature,favorites),token);
     public Task<List<EquityDisclosure>> EquityDisclosuresAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.EquityDisclosures(key),token);
+    public Task<List<EquityHoldingRow>> EquityEventsAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.EquityEvents(key),token);
     public Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token)=>SaveEquityWatchAsync(watch,token,null);
     public Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.SaveEquityWatch(watch,commandId);return true;},token);
     public Task SaveEquityDisclosureAsync(string market,string ticker,Uri uri,byte[] bytes,CancellationToken token)=>RunAsync(()=>{repository!.SaveEquityDisclosure(market,ticker,uri,bytes);return true;},token);

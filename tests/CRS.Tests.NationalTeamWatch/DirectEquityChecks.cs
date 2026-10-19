@@ -16,9 +16,12 @@ internal static class DirectEquityChecks
         repository.SaveEquityDisclosure("SSE","600036",uri,Source(new(2026,4,28),("中央汇金资产管理有限责任公司",1000,10),("全国社保基金一零一组合",500,5),("基本养老保险基金一零零一组合",200,2)));
         var first=repository.EquityDisclosures(new("SSE","600036")).Single();
         repository.ReviewEquity(new(first.Id,new(2026,3,31),new(2026,4,28),"https://www.sse.com.cn/fixture-first.pdf","P10 股东表","test-reviewer",true,"Portfolio",Account:"中央汇金资产管理有限责任公司",OriginalConfirmed:true),"%PDF-synthetic-first"u8.ToArray());
+        foreach(var account in new[]{"全国社保基金一零一组合","基本养老保险基金一零零一组合"})
+            repository.ReviewEquity(new(first.Id,new(2026,3,31),new(2026,4,28),"https://www.sse.com.cn/fixture-first.pdf","P10 股东表","test-reviewer",true,"Portfolio",Account:account,OriginalConfirmed:true),"%PDF-synthetic-first"u8.ToArray());
         repository.SaveEquityDisclosure("SSE","600036",uri,Source(new(2026,8,28),("中央汇金资产管理有限责任公司",900,9),("全国社保基金一零一组合",550,5.5m)));
         var second=repository.EquityDisclosures(new("SSE","600036")).First(x=>x.State=="NeedsReview");
         repository.ReviewEquity(new(second.Id,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/fixture-second.pdf","P11 股东表","test-reviewer",true,"Portfolio",Account:"中央汇金资产管理有限责任公司",OriginalConfirmed:true),"%PDF-synthetic-second"u8.ToArray());
+        repository.ReviewEquity(new(second.Id,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/fixture-second.pdf","P11 股东表","test-reviewer",true,"Portfolio",Account:"全国社保基金一零一组合",OriginalConfirmed:true),"%PDF-synthetic-second"u8.ToArray());
     }
     public static void Run(string root)
     {
@@ -47,6 +50,25 @@ internal static class DirectEquityChecks
         Check(seed.EquityHoldings(null,null,null,false).Where(x=>x.ReportAsOf==new DateOnly(2026,6,30)).All(x=>x.Shares is null&&x.Delta is null&&x.State=="Critical"),"正式报告原件损坏阻断持仓及变动");
         File.WriteAllBytes(Path.Combine(root,"equity-seed-raw",expected+".raw"),"%PDF-synthetic-second"u8.ToArray());
         Check(seed.EquityHoldings(null,null,null,false).Single(x=>x.Institution=="汇金资管").Delta==-100,"原件恢复到原哈希后解除阻断");
+        var events=seed.EquityEvents(new("SSE","600036"));
+        Check(events.Count==6&&events.Count(x=>x.State=="FirstListed")==3&&events.Single(x=>x.Account=="全国社保基金一零一组合"&&x.ReportAsOf==new DateOnly(2026,6,30)).Delta==50,"历次变动保留每个报告期与首次列示");
+        seed.SaveEquityDisclosure("SSE","600036",uri,Source(new(2026,10,16),("中央汇金资产管理有限责任公司",800,8),("全国社保基金一零一组合",600,6)));
+        var third=seed.EquityDisclosures(new("SSE","600036")).Single(x=>x.State=="NeedsReview");
+        seed.ReviewEquity(new(third.Id,new(2026,9,30),new(2026,10,16),"https://www.sse.com.cn/fixture-third.pdf","P12","reviewer",false,"Portfolio",Account:"中央汇金资产管理有限责任公司",OriginalConfirmed:true),"%PDF-third"u8.ToArray());
+        Check(seed.EquityHoldings(null,null,null,false).Single(x=>x.Institution=="社保基金") is {State:"NeedsReview",Delta:null},"同报告其他账户未经核验不得继承确认");
+        seed.ReviewEquity(new(third.Id,new(2026,9,30),new(2026,10,16),"https://www.sse.com.cn/fixture-third.pdf","P12","reviewer",true,"Portfolio",Account:"全国社保基金一零一组合",OriginalConfirmed:true),"%PDF-third"u8.ToArray());
+        Check(seed.EquityHoldings(null,null,null,false).Single(x=>x.Institution=="汇金资管") is {State:"NotComparable",Delta:null},"后核验账户不覆盖其他账户的可比性");
+        Check(seed.EquityEvents(new("SSE","600036")).Count(x=>x.ReportAsOf==new DateOnly(2026,6,30))==3,"新增报告不抹去历史变动");
+        Check(seed.EquityEvents(new("SSE","600036")).First().ComparisonFrom==new DateOnly(2026,6,30),"变动明确标记比较起始报告期而非每日交易");
+        Reject(()=>seed.ReviewEquity(new(third.Id,new(2026,9,30),new(2026,10,16),"https://www.sse.com.cn/replaced.pdf","P12","reviewer",true,"Portfolio",Account:"全国社保基金一零一组合",OriginalConfirmed:true),"%PDF-replaced"u8.ToArray()),"替换同披露原文不得继承既有账户核验");
+        var aliasRaw=new RawEvidenceStore(Path.Combine(root,"equity-alias-raw"));using var aliases=TestMarketData.Open(Path.Combine(root,"equity-alias-data"),aliasRaw);
+        foreach(var (sourceDate,reportDate,institution,shares) in new[]{(new DateOnly(2026,4,28),new DateOnly(2026,3,31),"汇金投资",100m),(new DateOnly(2026,8,28),new DateOnly(2026,6,30),"汇金资管",200m)})
+        {
+            aliases.SaveEquityDisclosure("SSE","600036",uri,Source(sourceDate,("汇金公司",shares,1)));
+            var candidate=aliases.EquityDisclosures(new("SSE","600036")).Single(x=>x.State=="NeedsReview");
+            aliases.ReviewEquity(new(candidate.Id,reportDate,sourceDate,"https://www.sse.com.cn/alias.pdf","P1","reviewer",true,"Portfolio",Account:"汇金公司",OriginalConfirmed:true,Institution:institution),"%PDF-alias"u8.ToArray());
+        }
+        Check(aliases.EquityHoldings(null,null,null,false).Single() is {State:"NotComparable",Delta:null},"相同简称核验为不同法人主体时禁止计算增减持");
         Reliability(root);
     }
     private static void Reliability(string root)

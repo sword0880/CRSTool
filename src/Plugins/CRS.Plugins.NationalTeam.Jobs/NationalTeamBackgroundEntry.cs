@@ -182,6 +182,7 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
                 case "equity-watchlist":rows=(await workspace!.EquityWatchlistAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-holdings":rows=(await workspace!.EquityHoldingsAsync(request.Search,request.Institution,request.Nature,request.Favorites,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-disclosures":rows=(await workspace!.EquityDisclosuresAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "equity-events":rows=(await workspace!.EquityEventsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "evidence":rows=(await workspace!.EvidenceAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "history":
                     if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");

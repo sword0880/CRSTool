@@ -21,7 +21,7 @@ public sealed record EquityHolder(string Account,decimal Shares,decimal? Percent
 public sealed record EquityDisclosure(string Id,string Market,string Ticker,DateOnly SourceDate,DateOnly? ReportAsOf,DateOnly? Published,
     string State,string SourceUrl,string Hash,string? DocumentUrl,string? Page,string? Reviewer,bool Comparable,string Nature,IReadOnlyList<EquityHolder> Holders);
 public sealed record EquityHoldingRow(string DisclosureId,string Market,string Ticker,string Name,string Institution,string Account,
-    decimal? Shares,decimal? Percent,DateOnly? ReportAsOf,DateOnly? Published,DateOnly SourceDate,string State,decimal? Delta,string Nature,bool Favorite,string SourceUrl)
+    decimal? Shares,decimal? Percent,DateOnly? ReportAsOf,DateOnly? Published,DateOnly SourceDate,string State,decimal? Delta,string Nature,bool Favorite,string SourceUrl,DateOnly? ComparisonFrom=null)
 {
     public string StatusText=>State switch{"Increased"=>"确认净增持","Decreased"=>"确认净减持","Unchanged"=>"持股数持平","FirstListed"=>"首次列示，前值未知","NotListed"=>"本期未列示","NotComparable"=>"口径不可比","NeedsReview"=>"待核验原文与报告期","Critical"=>"证据异常","Conflict"=>"同日来源冲突",_=>State};
     public string NatureText=>Nature=="Strategic"?"战略控股/参股":Nature=="Portfolio"?"证券投资持仓":"性质待核验";

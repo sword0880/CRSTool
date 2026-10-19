@@ -23,6 +23,7 @@ public interface IMarketRepository : IDisposable
     void SaveEquityWatch(EquityWatch watch,Guid? commandId=null)=>throw new NotSupportedException();
     void SaveEquityDisclosure(string market,string ticker,Uri uri,byte[] bytes)=>throw new NotSupportedException();
     List<EquityHoldingRow> EquityHoldings(string? search,string? institution,string? nature,bool favorites)=>throw new NotSupportedException();
+    List<EquityHoldingRow> EquityEvents(EtfKey key)=>throw new NotSupportedException();
     List<EquityDisclosure> EquityDisclosures(EtfKey key)=>throw new NotSupportedException();
     void ReviewEquity(EquityReview review,byte[] document,Guid? commandId=null)=>throw new NotSupportedException();
     List<EvidenceRow> Evidence();

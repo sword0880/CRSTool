@@ -119,6 +119,7 @@ using(var service=Start())
         Check(basketHistory.Count>0 && basketHistory.All(x=>x.Total==5 && x.Covered==5 && x.Shares>0 && x.DeltaShares is null),"全部ETF历史经真实分页返回同日总和，无日历不计算净变化");
         var singleHistory=await ui.HistoryAsync(new("SSE","510300"),default);
         Check(singleHistory.Count==basketHistory.Count && singleHistory.All(x=>x.Total==1 && x.Covered==1 && x.Shares>0),"单只ETF历史使用独立口径");
+        Check((await ui.EquityEventsAsync(new("SSE","600036"),default)).Count==0,"历次持股变动经真实只读管道返回，未采集不伪造事件");
         var first=(await Query("GetHistory")).History!.First(x=>x.PluginId=="crs.national-team" && x.Result=="Succeeded");
         var firstLog=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:first.ExecutionId));
         Check(firstLog.Execution?.Progress is{Count:>0} stages && stages.Any(x=>x.Detail.Stage=="SourceParsed") && stages.Any(x=>x.Detail.Stage=="DayCommitted") && stages[^1].Detail.Stage=="RangeCompleted","真实管道提供来源解析、事实提交及区间汇总阶段");

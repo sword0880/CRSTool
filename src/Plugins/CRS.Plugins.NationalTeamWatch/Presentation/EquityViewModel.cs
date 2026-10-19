@@ -15,6 +15,7 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
     public ObservableCollection<EquityHoldingRow> Rows {get;}=[];
     public ObservableCollection<EquityWatch> Watches {get;}=[];
     public ObservableCollection<EquityDisclosure> Disclosures {get;}=[];
+    public ObservableCollection<EquityHoldingRow> Events {get;}=[];
     public IReadOnlyList<string> Institutions {get;}=["全部机构","汇金投资","汇金资管","证金公司","社保基金","养老保险基金","主体待核验"];
     public IReadOnlyList<string> ReviewInstitutions {get;}=["汇金投资","汇金资管","证金公司","社保基金","养老保险基金"];
     [ObservableProperty] private string? reviewInstitution;
@@ -55,7 +56,9 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
     partial void OnSelectedChanged(EquityHoldingRow? value)
     {
         ReportAsOf=null;Published=null;DocumentUrl="";Page="";OriginalConfirmed=false;Comparable=false;
+        Strategic=value?.Nature=="Strategic";
         ReviewInstitution=value is not null&&ReviewInstitutions.Contains(value.Institution)?value.Institution:null;
+        SetStockAccounts(value);
         DetailTask=LoadDetailAsync(value);
     }
     partial void OnSelectedWatchChanged(EquityWatch? value)
@@ -73,29 +76,28 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
             var rows=await workspace.EquityHoldingsAsync(Search,Institution=="全部机构"?null:Institution,Nature switch{"证券投资持仓"=>"Portfolio","战略控股/参股"=>"Strategic","性质待核验"=>"Unknown",_=>null},Favorites,lifetime);
             if(version!=queryVersion||lifetime.IsCancellationRequested)return;
             Rows.Clear();foreach(var row in rows)Rows.Add(row);
+            RebuildEquityOverview();
             Selected=rows.FirstOrDefault(x=>x.Market==old?.Market&&x.Ticker==old.Ticker&&x.Account==old.Account&&x.State==old.State)
                 ??rows.FirstOrDefault(x=>x.Market==old?.Market&&x.Ticker==old.Ticker&&x.Account==old.Account);
-            if(Selected is null){Disclosures.Clear();HoldingSeries=[];HoldingAxes=[];DetailStatus="选择持仓查看披露时间线。";}
+            if(Selected is null){Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);DetailStatus="选择持仓查看披露时间线。";}
             Status=$"当前筛选 {rows.Count} 条 · 已核验 {rows.Count(x=>x.ReportAsOf.HasValue&&x.State is not ("Critical" or "NeedsReview" or "Conflict"))} 条 · 待核验 {rows.Count(x=>x.State is "NeedsReview" or "Conflict")} 条。观察列表仅代表采集范围，不代表机构已确认持有。";
         }
         catch(OperationCanceledException) when(lifetime.IsCancellationRequested){}
-        catch(Exception error){if(version==queryVersion){Rows.Clear();Selected=null;Disclosures.Clear();HoldingSeries=[];HoldingAxes=[];Status="直接持股查询失败："+(error is System.IO.InvalidDataException?error.Message:error.GetType().Name);}}
+        catch(Exception error){if(version==queryVersion){Rows.Clear();RebuildEquityOverview();Selected=null;Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);Status="直接持股查询失败："+(error is System.IO.InvalidDataException?error.Message:error.GetType().Name);}}
     }
     private async Task LoadDetailAsync(EquityHoldingRow? row)
     {
-        var version=++detailVersion;Disclosures.Clear();SelectedDisclosure=null;HoldingSeries=[];HoldingAxes=[];
+        var version=++detailVersion;Disclosures.Clear();Events.Clear();SelectedDisclosure=null;ClearEquityCharts();
         if(row is null){DetailStatus="选择持仓查看披露时间线。";return;}
         DetailStatus=$"{row.Ticker} {row.Name} · {row.Account} · 正在加载披露证据…";
         try
         {
             var items=await workspace.EquityDisclosuresAsync(new(row.Market,row.Ticker),lifetime);
+            var events=await workspace.EquityEventsAsync(new(row.Market,row.Ticker),lifetime);
             if(version!=detailVersion||lifetime.IsCancellationRequested)return;
             foreach(var item in items)Disclosures.Add(item);SelectedDisclosure=items.FirstOrDefault(x=>x.Id==row.DisclosureId);
-            // 只把已确认的离散快照映射到图表，不补值、不连线、不计算业务增减持。
-            var points=items.Where(x=>x.State=="Accepted"&&x.ReportAsOf.HasValue).OrderBy(x=>x.ReportAsOf).ToArray();
-            var values=points.Select((x,i)=>(Index:i,Holder:x.Holders.FirstOrDefault(h=>h.Account==row.Account))).Where(x=>x.Holder is not null).Select(x=>new ObservablePoint(x.Index,(double)x.Holder!.Shares)).ToArray();
-            HoldingSeries=values.Length>0?[new ScatterSeries<ObservablePoint>{Name="已披露持股（股）",Values=values,GeometrySize=10}]:[];
-            HoldingAxes=[new(){Labels=points.Select(x=>x.ReportAsOf!.Value.ToString("yyyy-MM-dd")).ToArray(),MinStep=1}];
+            foreach(var item in events.Where(x=>x.Account==row.Account&&x.Institution==row.Institution))Events.Add(item);
+            RebuildEquityCharts();
             DetailStatus=$"{row.Ticker} {row.Name} · {row.Account} · {row.StatusText}。持仓仅展示报告时点；来源日期不是持仓截止日。股价及个股成交额尚未接入，不能据此判断每日交易。";
         }
         catch(OperationCanceledException) when(lifetime.IsCancellationRequested){}

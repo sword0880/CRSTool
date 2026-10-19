@@ -60,6 +60,7 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
     public async Task<List<EquityWatch>> EquityWatchlistAsync(CancellationToken token)=>(await ReadPagesAsync<EquityWatch>(new("equity-watchlist"),token)).Rows;
     public async Task<List<EquityHoldingRow>> EquityHoldingsAsync(string? search,string? institution,string? nature,bool favorites,CancellationToken token)=>(await ReadPagesAsync<EquityHoldingRow>(new("equity-holdings",Search:search,Institution:institution,Nature:nature,Favorites:favorites),token)).Rows;
     public async Task<List<EquityDisclosure>> EquityDisclosuresAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<EquityDisclosure>(new("equity-disclosures",key.Market,key.Ticker),token)).Rows;
+    public async Task<List<EquityHoldingRow>> EquityEventsAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<EquityHoldingRow>(new("equity-events",key.Market,key.Ticker),token)).Rows;
     public Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token)=>RunAsync("equity-watch",new("equity-watch",EquityWatch:watch),token);
     public Task SyncEquityAsync(CancellationToken token)=>RunAsync("equity-disclosure-sync",new("equity-sync"),token);
     public Task ReviewEquityAsync(EquityReview review,CancellationToken token)=>RunAsync("equity-review",new("equity-review",EquityReview:review),token);
