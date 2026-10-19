@@ -68,7 +68,7 @@ internal static class P0LiveOperations
         using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(2));var reader=new WorkerEtfWorkspace();
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
         var rows=await reader.AcceptanceAsync(today.AddDays(-1),deadline.Token);
-        var result=new{CheckedAt=DateTimeOffset.UtcNow,Use="PersonalLocalNonCommercialNoRedistribution",HumanGoldenConfirmed="UserConfirmed2026-10-19",DataGatePassed=rows.Count>0&&rows.All(x=>x.DataAcceptancePassed),Rows=rows};
+        var result=new{CheckedAt=DateTimeOffset.UtcNow,Use="PersonalLocalNonCommercialNoRedistribution",GoldenStatus="NotAssessedByReadinessProbe",DataGatePassed=rows.Count>0&&rows.All(x=>x.DataAcceptancePassed),Rows=rows};
         Directory.CreateDirectory(DirectoryPath);await File.WriteAllTextAsync(Path.Combine(DirectoryPath,"installed-readiness.json"),JsonSerializer.Serialize(result,new JsonSerializerOptions{WriteIndented=true}),deadline.Token);
         foreach(var row in rows)Console.WriteLine($"READ {row.Market}:{row.Ticker}: history={row.AcceptedDays}/{row.ExpectedDays};continuous={row.ContinuousCollectionDays}/20;calendar={row.CalendarVerified};passed={row.DataAcceptancePassed}");
     }

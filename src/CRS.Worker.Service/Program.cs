@@ -76,10 +76,11 @@ namespace CRS.Worker.Service
                 var email=new CRS.Notifications.EmailNotificationService(locations.Data);
                 var dispatcher=new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email)]);
                 var notifications=new WorkerNotificationGateway(email,dispatcher);
-                await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () => Environment.Exit(2),
+                var diagnostics = new ServiceEventLog(locations.Data);
+                await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () =>
+                    {try{diagnostics.Write("PluginUnresponsive","service","CancellationGraceExceeded");}finally{Environment.Exit(2);}},
                     hostContext:id=>new WorkerPluginContext(id,locations.Data,key,notifications));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
-                var diagnostics = new ServiceEventLog(locations.Data);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
                     executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications);
                 Task? pipeTask = null;

@@ -229,7 +229,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     rows=(await workspace!.CollectionAttemptsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "acceptance":
                     if(request.To is null)throw new InvalidDataException("验收需要截至日期。");
-                    rows=(await workspace!.AcceptanceAsync(request.To.Value,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                    rows=(request.Market is null&&request.Ticker is null?await workspace!.AcceptanceAsync(request.To.Value,token)
+                        :await workspace!.AcceptanceAsync(Key(request),request.To.Value,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "coverage":
                     if(request.From is null || request.To is null || request.To<request.From || request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new ArgumentException("覆盖区间超限。");
                     var coverage=await workspace!.CoverageAsync(Key(request),request.From.Value,request.To.Value,token);

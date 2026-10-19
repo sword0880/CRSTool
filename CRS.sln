@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.10.12224.181 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
@@ -31,25 +31,25 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Tests.Security", "tests
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{565AA4D7-A634-41BA-9B86-6D7376855889}"
 	ProjectSection(SolutionItems) = preProject
-		docs\KNOWN_ISSUES.md = docs\KNOWN_ISSUES.md
-		docs\CRS_PLUGIN_ARCHITECTURE.md = docs\CRS_PLUGIN_ARCHITECTURE.md
-		docs\CRS_BACKGROUND_SERVICE_DESIGN.md = docs\CRS_BACKGROUND_SERVICE_DESIGN.md
-		docs\NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md = docs\NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md
 		docs\DATA_SOURCE_POC.md = docs\DATA_SOURCE_POC.md
-		docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md = docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md
-		docs\implementation\BACKGROUND_SERVICE.md = docs\implementation\BACKGROUND_SERVICE.md
-		docs\implementation\WORKER_REMEDIATION.md = docs\implementation\WORKER_REMEDIATION.md
 		docs\implementation\ETF_WORKER_MIGRATION.md = docs\implementation\ETF_WORKER_MIGRATION.md
+		docs\KNOWN_ISSUES.md = docs\KNOWN_ISSUES.md
+		docs\NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md = docs\NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md
+		docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md = docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md
 		docs\README.md = docs\README.md
+		docs\implementation\WORKER_REMEDIATION.md = docs\implementation\WORKER_REMEDIATION.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "architecture", "architecture", "{9F9BC824-1AD2-4FAD-AADD-0949B4DA572E}"
 	ProjectSection(SolutionItems) = preProject
 		docs\architecture\API_SPEC.md = docs\architecture\API_SPEC.md
+		docs\implementation\BACKGROUND_SERVICE.md = docs\implementation\BACKGROUND_SERVICE.md
+		docs\CRS_BACKGROUND_SERVICE_DESIGN.md = docs\CRS_BACKGROUND_SERVICE_DESIGN.md
+		docs\CRS_PLUGIN_ARCHITECTURE.md = docs\CRS_PLUGIN_ARCHITECTURE.md
 		docs\architecture\CRS开发规范.md = docs\architecture\CRS开发规范.md
+		docs\architecture\CURRENT_ARCHITECTURE.md = docs\architecture\CURRENT_ARCHITECTURE.md
 		docs\architecture\PRD.md = docs\architecture\PRD.md
 		docs\architecture\PROJECT_STRUCTURE.md = docs\architecture\PROJECT_STRUCTURE.md
-		docs\architecture\CURRENT_ARCHITECTURE.md = docs\architecture\CURRENT_ARCHITECTURE.md
 		docs\architecture\README.md = docs\architecture\README.md
 		docs\architecture\SAD.md = docs\architecture\SAD.md
 	EndProjectSection
@@ -110,8 +110,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "specifications", "specifica
 	ProjectSection(SolutionItems) = preProject
 		docs\specifications\CALCULATION_EVIDENCE_SPEC.md = docs\specifications\CALCULATION_EVIDENCE_SPEC.md
 		docs\specifications\CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md = docs\specifications\CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md
-		docs\specifications\README.md = docs\specifications\README.md
 		docs\specifications\PERFORMANCE_ANALYTICS_SPEC.md = docs\specifications\PERFORMANCE_ANALYTICS_SPEC.md
+		docs\specifications\README.md = docs\specifications\README.md
 		docs\specifications\RELEASE_PLAN.md = docs\specifications\RELEASE_PLAN.md
 		docs\specifications\SECURITY_AUTH_SPEC.md = docs\specifications\SECURITY_AUTH_SPEC.md
 		docs\specifications\SECURITY_DESIGN.md = docs\specifications\SECURITY_DESIGN.md
@@ -600,5 +600,8 @@ Global
 		{3FD47E82-E813-4791-96C8-6165C0F287B3} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{4A47A866-735C-4BEC-B59A-70B316EF50CF} = {F12727AA-ABEF-07AF-E6F0-CD96E3D9A8AF}
 		{F215663F-068D-4EE4-802F-A54C80EDAEBE} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4413F185-FDDF-4BF7-B687-D5EC05D51471}
 	EndGlobalSection
 EndGlobal

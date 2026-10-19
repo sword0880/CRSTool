@@ -10,6 +10,8 @@ public interface IRawEvidenceStore
 /// <summary>市场数据与修订仓储端口；不允许访问宿主税务数据库。</summary>
 public interface IMarketRepository : IDisposable
 {
+    /// <summary>串行用例把取消传入同步原件核验；取消后的未完整查询不能返回部分金融结果。</summary>
+    T ExecuteOperation<T>(Func<T> work,CancellationToken token)=>work();
     ExitAlertOverview EvaluateExitAlerts(bool force=false)=>throw new NotSupportedException();
     ExitAlertOverview AlertOverview()=>throw new NotSupportedException();
     ExitAlertConfiguration AlertConfiguration()=>throw new NotSupportedException();
@@ -36,6 +38,7 @@ public interface IMarketRepository : IDisposable
     List<ShareGap> DueShareGaps(DateOnly from,DateOnly to,DateTimeOffset now)=>[];
     List<ShareGap> DueHistoricalShareGaps(DateOnly through,DateTimeOffset now)=>[];
     List<EtfAcceptance> Acceptance(DateOnly through)=>throw new NotSupportedException();
+    List<EtfAcceptance> Acceptance(EtfKey key,DateOnly through)=>Acceptance(through).Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker).ToList();
     List<EtfSummary> Overview();
     List<MarketActivityPoint> MarketActivity()=>throw new NotSupportedException();
     void SaveMarketActivity(string market,DateOnly day,MarketActivitySource? source)=>throw new NotSupportedException();

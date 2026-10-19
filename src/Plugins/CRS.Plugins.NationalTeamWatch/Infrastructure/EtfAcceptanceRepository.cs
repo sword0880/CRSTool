@@ -5,11 +5,14 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 public sealed partial class MarketRepository
 {
     /// <summary>补采250日不等于实际连续采集20日；按每个交易日的真实接收时点独立核验。</summary>
-    public List<EtfAcceptance> Acceptance(DateOnly through)
+    public List<EtfAcceptance> Acceptance(DateOnly through)=>ReadAcceptance(through,null);
+    public List<EtfAcceptance> Acceptance(EtfKey key,DateOnly through)=>ReadAcceptance(through,key);
+    private List<EtfAcceptance> ReadAcceptance(DateOnly through,EtfKey? selected)
     {
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
         if(through>=today)throw new InvalidDataException("验收只统计已结束的自然日，不能提前批准当日采集。");
-        ValidateEvidence();var result=new List<EtfAcceptance>();var active=Configuration().Where(x=>x.Active).ToArray();
+        ValidateEvidence(selected,includeCalendar:true);var result=new List<EtfAcceptance>();
+        var active=Configuration().Where(x=>x.Active&&(selected is null||x.Market==selected.Market&&x.Ticker==selected.Ticker)).ToArray();
         // 同市场日历只读一次；用有界区间计数校验完整自然日，不对每只ETF逐日发起数百次SQL。
         var calendars=active.Select(x=>x.Market).Distinct().ToDictionary(m=>m,m=>ReadCalendar(m).Where(x=>x.Date<=through).TakeLast(250).ToArray());
         var verifiedMarkets=calendars.ToDictionary(x=>x.Key,x=>x.Value.Length>0&&x.Value.All(d=>d.Valid)

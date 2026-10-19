@@ -96,7 +96,18 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     public async Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)
         =>(await ReadPagesAsync<CollectionAttempt>(new("collection-attempts",key.Market,key.Ticker,from,to),token)).Rows;
     public async Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)
-        =>(await ReadPagesAsync<EtfAcceptance>(new("acceptance",To:through),token)).Rows;
+    {
+        // 每只独立核验份额和市场日历，完整收齐再返回；旧服务忽略证券筛选时明确拒绝。
+        var pool=(await ConfigurationAsync(token)).Where(x=>x.Active).ToArray();var result=new List<EtfAcceptance>();
+        foreach(var item in pool)
+        {
+            var rows=(await ReadPagesAsync<EtfAcceptance>(new("acceptance",item.Market,item.Ticker,To:through),token)).Rows;
+            if(rows.Count!=1||rows[0].Market!=item.Market||rows[0].Ticker!=item.Ticker||rows[0].Through!=through)
+                throw new InvalidDataException("逐证券验收响应不匹配，请更新后台服务或刷新观察池。");
+            result.AddRange(rows);
+        }
+        return result;
+    }
     /// <summary>写操作先持久接受；响应丢失后沿用原ID、原参数，禁止新操作冒充重试。</summary>
     private async Task RunAsync(string job,EtfRequest value,CancellationToken token)
     {

@@ -3,9 +3,11 @@ $ErrorActionPreference = 'Stop'
 
 function Assert-WorkerNoLinks([string]$Path) {
     for ($current = [IO.Path]::GetFullPath($Path); $current; $current = [IO.Path]::GetDirectoryName($current)) {
-        if ((Test-Path -LiteralPath $current) -and ((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-            throw '维护路径不可包含链接。'
-        }
+        # 每个文件仍逐级重新检查；直接读取属性，避免数千文件反复构造PowerShell提供程序对象。
+        try { $attributes = [IO.File]::GetAttributes($current) }
+        catch [IO.FileNotFoundException] { continue }
+        catch [IO.DirectoryNotFoundException] { continue }
+        if ($attributes -band [IO.FileAttributes]::ReparsePoint) { throw '维护路径不可包含链接。' }
     }
 }
 function Get-WorkerChild([string]$Root, [string]$Relative) {

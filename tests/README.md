@@ -137,6 +137,8 @@ SCM检查需要管理员令牌、创建服务和私有ACL权限，只创建`CRSW
 
 ## 减持预警历史研究回放（2026-10-19追加）
 
+2026-10-20新增`--monitor-audit-live`、`--monitor-backfill-live yyyy-MM-dd yyyy-MM-dd`、`--monitor-backfill-status`和`--monitor-apply-reviewed-metadata 清单路径`，分别用于真实服务只读核验、提交官方历史补采、读取原补采命令回执/执行记录、应用已逐项核验的官方原件口径。补采提交和口径应用会写入后台；口径应用先检查外发渠道和期初/期末交易所份额，下载哈希不符立即停止，缺事实或份额范围不符保留待核查。详见[核验记录](../docs/implementation/MONITOR_READINESS_20261020.md)。完整回归及`--exit-alerts`包含10项原件范围、执行中SQL中断和取消恢复检查；回填不计入20日连续采集。
+
 以下命令通过`tests/CRS.Tests.NationalTeamWatch`的Release构建运行。`--exit-alert-replay-checks`验证14项合成规则及文件复算；同时包含在完整ETF回归与`--exit-alerts`中。
 
 ```powershell
@@ -145,4 +147,4 @@ dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- 
 dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay-installed 2025-09-30 2026-06-30 artifacts/replay-real
 ```
 
-前两项不需要正式服务；第三项只读当前启用池、规则、已接受份额、日历覆盖及机构证据，要求正式服务查询可用。导出`report.md`、`report.json`、`inputs.json`；服务快照另附`evidence.json`原件哈希/来源/修订。所有回放均为事后研究且时效`NotProven`，不发信、不补采、不审核。当前池不是历史无偏样本；无数据或无可计算窗口不能被解读为未发生异常。2026-10-19正式服务处于未完成升级恢复，真实回放暂未完成。
+前两项不需要正式服务；第三项只读当前启用池、规则、已接受份额、日历覆盖及机构证据，要求正式服务查询可用。导出`report.md`、`report.json`、`inputs.json`；服务快照另附`evidence.json`原件哈希/来源/修订。所有回放均为事后研究且时效`NotProven`，不发信、不补采、不审核。当前池不是历史无偏样本；无数据或无可计算窗口不能被解读为未发生异常。2026-10-19用户授权清理旧后台数据后，服务及预警IPC已恢复；旧历史需重新采集和核验，不能把新库可查询视为历史回测通过。

@@ -24,6 +24,10 @@ Reject {Test-WorkerPackage $candidate '' -Development} '包内二进制篡改被
 [IO.File]::WriteAllBytes($entry,$original)
 Reject {Get-WorkerChild $root '../escape'} '相对路径越界被拒绝'
 Reject {Get-WorkerChild $root 'file:stream'} 'NTFS备用数据流路径被拒绝'
+$linkTarget=Join-Path $root 'link-target';New-Item -ItemType Directory -Path $linkTarget | Out-Null
+$link=Join-Path $root 'linked';New-Item -ItemType Junction -Path $link -Target $linkTarget | Out-Null
+Reject {Get-WorkerChild $root 'linked/not-created/child.txt'} '缺失叶节点也逐级拒绝链接祖先'
+Check ((Get-WorkerChild $root 'ordinary/not-created.txt') -eq (Join-Path $root 'ordinary/not-created.txt')) '普通未创建路径仍可用于后续安全写入'
 New-Item -ItemType Directory -Path (Join-Path $data 'maintenance'),(Join-Path $data 'plugins/p/raw') -Force | Out-Null
 Set-Content -LiteralPath (Join-Path $data 'service-key.dpapi') -Value 'synthetic-protected-key'
 Set-Content -LiteralPath (Join-Path $data 'scheduler-config.db') -Value 'synthetic-encrypted-database'

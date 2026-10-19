@@ -12,6 +12,18 @@ public sealed partial class MarketRepository : IMarketRepository
     private readonly RawEvidenceStore raw;
     private readonly Action? beforeWrite;
     private readonly TimeProvider clock;
+    private CancellationToken operationCancellation;
+    /// <summary>应用用例已持有串行门槛，作用域结束恢复令牌，取消不能泄漏到下一次查询。</summary>
+    public T ExecuteOperation<T>(Func<T> work,CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();var previous=operationCancellation;operationCancellation=token;
+        // 哈希循环之外，SQLite执行期间也必须可中断；串行门槛保证不会取消另一个用例。
+        using var interrupt=token.Register(()=>SQLitePCL.raw.sqlite3_interrupt(db.Handle));
+        try{token.ThrowIfCancellationRequested();return work();}
+        catch(SqliteException error) when(error.SqliteErrorCode==9&&token.IsCancellationRequested)
+        {throw new OperationCanceledException("市场查询已取消。",error,token);}
+        finally{operationCancellation=previous;}
+    }
     public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? encryptionKey=null,TimeProvider? timeProvider=null)
     {
         if(encryptionKey is not {Length:32})throw new InvalidDataException("市场库必须提供独立的32字节加密密钥。");
@@ -189,7 +201,7 @@ public sealed partial class MarketRepository : IMarketRepository
         return ReadEvidence();
     }
     /// <summary>先过滤证券再返回证据，单只历史不会挤占全池查询的分页容量。</summary>
-    public List<EvidenceRow> Evidence(EtfKey key){ValidateEvidence();return ReadEvidence(key);}
+    public List<EvidenceRow> Evidence(EtfKey key){ValidateEvidence(key);return ReadEvidence(key);}
     private List<EvidenceRow> ReadEvidence(EtfKey? key=null)
     {
         using var command=Command("SELECT r.revision_id,r.market,r.ticker,r.trade_date,r.total_shares,CASE WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open') THEN 'Critical' ELSE r.status END,r.revision_no,f.sha256,f.original_sha256,f.source_url,f.retrieved_utc,r.first_seen,r.accepted_at,r.supersedes_id FROM share_observation_revision r JOIN source_fetch f ON f.fetch_id=r.fetch_id WHERE ($m IS NULL OR (r.market=$m AND r.ticker=$t)) ORDER BY r.trade_date DESC,r.revision_no DESC",("$m",key?.Market),("$t",key?.Ticker));
@@ -224,7 +236,7 @@ public sealed partial class MarketRepository : IMarketRepository
     }
     public List<SharePoint> Points(EtfKey key)
     {
-        ValidateEvidence();
+        ValidateEvidence(key);
         return ReadPoints(key);
     }
     /// <summary>原件核验仅在本次批查询内共享；下次查询仍重新读取，不能跨查询缓存损坏结果。</summary>
@@ -239,19 +251,26 @@ public sealed partial class MarketRepository : IMarketRepository
             """,("$m",key.Market),("$t",key.Ticker)); using var reader=command.ExecuteReader(); var rows=new List<SharePoint>();
         while(reader.Read()) rows.Add(new(DateOnly.ParseExact(reader.GetString(0),"yyyy-MM-dd",CultureInfo.InvariantCulture),decimal.Parse(reader.GetString(1),CultureInfo.InvariantCulture),null,reader.GetString(2))); return rows;
     }
-    private void ValidateEvidence()
+    private void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false)
     {
         // 核验缓存只在本次查询内有效；重复抓取共用哈希只读取一次，下次刷新重新检查。
         var bad=new List<string>();var good=new List<string>();
         var verified=new Dictionary<string,bool>(StringComparer.Ordinal);
         bool Verify(string hash)
-        {if(!verified.TryGetValue(hash,out var valid))verified[hash]=valid=raw.Verify(hash);return valid;}
-        using(var command=Command("SELECT fetch_id,sha256,original_sha256 FROM source_fetch"))
+        {operationCancellation.ThrowIfCancellationRequested();if(!verified.TryGetValue(hash,out var valid))verified[hash]=valid=raw.Verify(hash);operationCancellation.ThrowIfCancellationRequested();return valid;}
+        // 单只份额/证据查询只读取其依赖的原件；全池查询和写入审核仍沿原来的完整核验。
+        using(var command=Command("""
+            SELECT fetch_id,sha256,original_sha256 FROM source_fetch
+            WHERE $market IS NULL OR fetch_id IN(SELECT fetch_id FROM share_observation_revision WHERE market=$market AND ticker=$ticker)
+            OR ($calendar=1 AND (fetch_id IN(SELECT fetch_id FROM trading_day WHERE market=$market)
+                OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day WHERE market=$market)))
+            """,("$market",shareKey?.Market),("$ticker",shareKey?.Ticker),("$calendar",includeCalendar?1:0)))
         using(var reader=command.ExecuteReader()) while(reader.Read())
             if(!Verify(reader.GetString(1)) || !Verify(reader.GetString(2))) bad.Add(reader.GetString(0));else good.Add(reader.GetString(0));
         if(bad.Count>0)beforeWrite?.Invoke();
         foreach(var id in bad)
         {
+            operationCancellation.ThrowIfCancellationRequested();
             if(Scalar("SELECT status FROM quality_issue WHERE id=$id",("$id","raw-"+id)) as string!="Open")Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'Damaged',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));
             Execute("INSERT INTO quality_issue VALUES($issue,'Q15','1',$id,'Critical','Open',$id,NULL,NULL) ON CONFLICT(id) DO UPDATE SET status='Open',reviewer=NULL,decision_time=NULL",("$issue","raw-"+id),("$id",id));
         }
@@ -261,7 +280,7 @@ public sealed partial class MarketRepository : IMarketRepository
         using(var command=Command("SELECT id FROM quality_issue WHERE rule_id='Q15' AND status='Open'"))
         using(var reader=command.ExecuteReader())while(reader.Read())openIssues.Add(reader.GetString(0));
         foreach(var id in good.Where(id=>openIssues.Contains("raw-"+id)))
-        {beforeWrite?.Invoke();Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'RestoredOriginalHash',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));Execute("UPDATE quality_issue SET status='Resolved',reviewer='SHA256-reverified',decision_time=$now WHERE id=$id",("$now",Now),("$id","raw-"+id));}
+        {operationCancellation.ThrowIfCancellationRequested();beforeWrite?.Invoke();Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'RestoredOriginalHash',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));Execute("UPDATE quality_issue SET status='Resolved',reviewer='SHA256-reverified',decision_time=$now WHERE id=$id",("$now",Now),("$id","raw-"+id));}
     }
     public List<EtfSummary> Overview()
     {

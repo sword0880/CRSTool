@@ -4,7 +4,11 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
-if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
+if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
+if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
+if(args is ["--monitor-backfill-status"]){await MonitorReadinessTool.BackfillStatus();return;}
+if(args is ["--monitor-apply-reviewed-metadata",var reviewFile]){await ReviewedFundMetadataTool.Apply(reviewFile);return;}
+if(args is ["--monitor-backfill-live",var monitorFrom,var monitorThrough]){await MonitorReadinessTool.Backfill(monitorFrom,monitorThrough);return;}
 if(args is ["--exit-alert-replay",var replayInput,var replayOutput]){await ExitAlertReplayTool.FromFile(replayInput,replayOutput);return;}
 if(args is ["--exit-alert-replay-checks"]){ExitAlertReplayChecks.Run();return;}
 if(args is ["--exit-alert-replay-installed",var replayFrom,var replayTo,var installedReplayOutput]){await ExitAlertReplayTool.Installed(replayFrom,replayTo,installedReplayOutput);return;}
@@ -51,6 +55,7 @@ Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
 await P0RemediationChecks.Run(root);
 ExitAlertChecks.Run(Path.Combine(root,"exit-alerts"));
+ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));
 ExitAlertReplayChecks.Run();
 await GapRecoveryChecks.Run(root);
 MarketActivityChecks.Run(root);

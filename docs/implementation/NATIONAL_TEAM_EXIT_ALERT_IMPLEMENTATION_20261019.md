@@ -1,5 +1,7 @@
 # 减持预警增量实施（2026-10-19）
 
+2026-10-20的24只ETF官方原件、真实覆盖与查询故障修复见[监控核验续记](MONITOR_READINESS_20261020.md)。本文件中的覆盖数与重建状态均保留其记录时点。
+
 需求依据：[减持预警技术设计与反方架构评审](../减持预警.md)。用户明确要求开始实现，并在系统设置配置邮件；新增代码须有中文注释并同步项目文档。
 
 ## 用户确认的组件边界
@@ -59,7 +61,7 @@ SMTP实现固定使用[MailKit](https://github.com/jstedfast/MailKit)，公共�
 
 系统设置已改为类似Visual Studio选项的两级目录；邮件位于“通知渠道 → 邮件”，未来渠道可独立扩展。设置结构与窗口验收见[分类导航说明](SETTINGS_NAVIGATION_20261019.md)。修改后的主界面不改变公共通知或事件投递接口。
 
-2026-10-19保留数据升级事务为`92acc89863134029b8d073ed1470d04f`，16:34进入Staged。后续本轮直接读取正式维护日志，已转`NeedsManualRepair`且`NewFactsPossible=true`；SCM最终读回为Stopped/Disabled，预警IPC连接超时。`artifacts/exit-alert-live/upgrade-progress.json`中的Staged是旧快照，不能视为当前状态。不得回退覆盖旧数据库；继续同一候选的恢复动作被自动审批拒绝，理由为正式数据写入、服务影响及允许开发包需要明确授权，本轮恢复命令未执行。已安装服务验收仍未通过。
+2026-10-19保留数据升级事务为`92acc89863134029b8d073ed1470d04f`，16:34进入Staged，后转`NeedsManualRepair`且`NewFactsPossible=true`，服务Stopped/Disabled、预警IPC超时。最初继续候选恢复被自动审批拒绝。随后用户明确授权删除旧数据，采用下方记录的限范围重建；当前服务已恢复。`artifacts/exit-alert-live/upgrade-progress.json`和`continuation-status.json`均为重建前历史快照，不能视为当前状态。此次未回退覆盖旧库，也不把授权重建记作保留数据升级验收成功。
 
 | 范围 | 当前边界 |
 | --- | --- |
@@ -86,6 +88,18 @@ SMTP实现固定使用[MailKit](https://github.com/jstedfast/MailKit)，公共�
 - `artifacts/exit-alert-replay-checks.log`：回放专项14项，含文件导出和冻结输入重新载入后指纹一致。
 - `artifacts/exit-alert-replay-synthetic/report.md`及同目录JSON：明确的合成示例，不是真实历史结论。
 - `artifacts/exit-alert-continuation-architecture.log`：架构门禁通过。
-- `artifacts/exit-alert-continuation-installed.log`：正式服务预警IPC连接超时；没有把未连接成功计为真实验收通过。
+- `artifacts/exit-alert-continuation-installed.log`：授权重建后正式服务预警IPC通过，24只监控、0只已核验可比口径，24条数据质量事件；金融门槛仍未通过。重建前曾连接超时，最新日志为重建后的复验结果。
 
 初次隔离回归受受限环境的原子文件替换权限阻断，正常Windows权限下完整重跑通过；未据此放松原件完整性约束。
+
+## 用户授权清理旧数据后的服务重建（16:53）
+
+用户明确表示旧数据不重要、允许删除。操作仅限`C:\ProgramData\CRS\Background`中的`maintenance`失败升级快照、`plugins/crs.national-team`旧市场数据/证据/回执、`scheduler-config.db`及其WAL/SHM；保留根目录ACL、服务密钥、诊断日志，未触碰个人税务或保险库。现场没有已保存的邮件配置，重建后邮件保持默认关闭。
+
+删除前核对固定服务路径及LocalService身份、现有开发候选完整文件索引和失败事务指纹；所有目标绝对路径及子树排除链接，停机并取得维护/数据独占锁后用原生PowerShell删除。新数据库由同一已核验候选正常初始化，原服务密钥前后哈希一致；未修改生产代码以绕过升级保护，也未人工伪造Committed状态。
+
+服务恢复延迟自动启动，健康返回Running，两个后台插件均Started，`MaxConcurrency=8`。真实预警IPC和无口令邮件设置摘要可读，24只默认观察标的及每5分钟预警评价计划已启用。新库最初24条事件全部为数据质量提醒，不是已确认金融流出；`DataAcceptancePassed=false`，可比性证据0只，邮件`Enabled=false`，没有发送测试或业务邮件。
+
+证据：`artifacts/exit-alert-live/authorized-reset.json`、`authorized-reset.log`、`reset-health.json`、`installed-preview.json`及`artifacts/exit-alert-continuation-installed.log`。这是用户授权的数据重建恢复，不能关闭保留数据升级、250日历史、20日连续采集或正式发行门槛。旧审核、监控自定义和调度历史随旧后台库一起清除，当前按默认计划重新运行。
+
+随后通过真实服务完成只读历史研究报告导出（`artifacts/exit-alert-replay-real-reset/`：`report.md`、`report.json`、`inputs.json`及`evidence.json`）。2025-09-30至2026-06-30固定当前24只样本合计4248个已登记标的交易日，仅94条已接受事实，可比性审核尚未完成，有效5/20日规则窗口均为0，模拟首次触发0项，时效`NotProven`。这是新库实际覆盖与缺口报告，不是策略阴性结论；不能因无触发宣称未发生减持。后台日历同步已成功，份额同步有来源重试退避，历史覆盖尚未补齐。
