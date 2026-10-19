@@ -40,7 +40,7 @@ public sealed record AlertWindows(DateOnly Date,string State,decimal? Pct1,decim
 }
 public sealed record ExitAlertFinding(string RuleId,string ScopeId,AlertLane Lane,AlertSeverity Severity,AlertEvidenceKind EvidenceKind,
     DateOnly ObservationDate,string Headline,string Explanation,string Fingerprint,IReadOnlyList<string> RevisionIds,
-    bool Triggered,bool Complete,bool Preview,decimal? MinimumReduction=null);
+    bool Triggered,bool Complete,bool Preview,decimal? MinimumReduction=null,IReadOnlyList<AlertFundInput>? InputSnapshots=null,IReadOnlyList<NamedEtfHolding>? HoldingSnapshots=null);
 
 /// <summary>具名机构的ETF持仓，与股票直接持股分别存储；首见时间由系统记录，匿名名称不能据数额匹配身份。</summary>
 public sealed record NamedEtfHolding(string Id,string Market,string Ticker,string LegalEntityId,string LegalName,string Account,
@@ -55,6 +55,7 @@ public static class ExitAlertEvaluator
     public static AlertWindows Windows(AlertFundInput input,DateOnly date,ExitAlertRules rules)
     {
         rules.Validate();var days=input.TradingDays.Distinct().Order().ToArray();var index=Array.IndexOf(days,date);
+        if(input.Metadata is {} metadata&&(metadata.Market!=input.Key.Market||metadata.Ticker!=input.Key.Ticker))return Empty(date,"NotComparable");
         if(!input.CalendarVerified||index<1)return Empty(date,"IncompleteCalendar");
         var points=input.Points.ToDictionary(x=>x.Date);var ids=new HashSet<string>(StringComparer.Ordinal);
         decimal? Pct(int window)
@@ -73,10 +74,11 @@ public static class ExitAlertEvaluator
     public static ExitAlertFinding Single(AlertFundInput input,DateOnly date,ExitAlertRules rules,bool acceptancePassed)
     {
         var value=Windows(input,date,rules);var scope=input.Key.Market+":"+input.Key.Ticker;
-        var explanation=value.Pct5.HasValue||value.Pct20.HasValue?$"最近5个有效交易日份额变化{Percent(value.Pct5)}，20日{Percent(value.Pct20)}。仅为ETF全市场份额；不能据此确认任何机构的买卖。"
+        var explanation=value.Pct5.HasValue||value.Pct20.HasValue?$"最近1个有效交易日份额变化{Percent(value.Pct1)}，5日{Percent(value.Pct5)}，20日{Percent(value.Pct20)}。仅为ETF全市场份额；不能据此确认任何机构的买卖。"
             :value.State=="NotComparable"?"份额折算及同口径证据尚未核验，不能生成正式窗口信号。":"日历或相邻交易日份额不完整，风险状态未知；不补零、不跨缺口计算。";
+        if(input.Metadata is {} metadata)explanation+=$" 基金{metadata.FundId}；管理人{metadata.ManagerId}；指数{metadata.IndexId}；可比区间{metadata.ComparableFrom:yyyy-MM-dd}至{metadata.ComparableThrough:yyyy-MM-dd}；核验原件{metadata.EvidenceUrl}；SHA256 {metadata.EvidenceHash}；审核人{metadata.Reviewer}。";
         return new("EtfShareContraction",scope,AlertLane.EtfOutflow,AlertSeverity.Watch,AlertEvidenceKind.OfficialMarketObserved,date,
-            input.Name+" · ETF份额收缩观察",explanation,value.Fingerprint,value.RevisionIds,value.Triggered,value.Complete,!acceptancePassed);
+            input.Name+" · ETF份额收缩观察",explanation,value.Fingerprint,value.RevisionIds,value.Triggered,value.Complete,!acceptancePassed,InputSnapshots:[Snapshot(input,date)]);
     }
     public static ExitAlertFinding Cluster(IReadOnlyList<(AlertFundInput Input,AlertWindows Window)> inputs,DateOnly date,ExitAlertRules rules,bool acceptancePassed,int window=5)
     {
@@ -92,12 +94,13 @@ public static class ExitAlertEvaluator
         var ids=selected.SelectMany(x=>x.Window.RevisionIds).Distinct().Order().ToArray();
         return new("SampleBreadth","monitored-sample:"+window,AlertLane.EtfOutflow,AlertSeverity.Warning,AlertEvidenceKind.OfficialMarketObserved,date,
             "当前监控样本池 · 多基金份额同步收缩",$"达到候选阈值的独立基金{selected.Length}只、管理人{managers}家。样本池不代表全市场，也不能确认国家队身份；承接行情证据不足时不升级Critical。",
-            Hash(rules.Version+"|"+string.Join('|',inputs.Select(x=>x.Window.Fingerprint).Order())),ids,triggered,complete,!acceptancePassed);
+            Hash(rules.Version+"|"+string.Join('|',inputs.Select(x=>x.Window.Fingerprint).Order())),ids,triggered,complete,!acceptancePassed,InputSnapshots:inputs.Select(x=>Snapshot(x.Input,date)).ToArray());
     }
     public static MinimumReductionProof Minimum(IReadOnlyList<NamedEtfHolding> holdings,AlertFundInput input,DateOnly date,DateTimeOffset cutoff)
     {
         var current=input.Points.SingleOrDefault(x=>x.Date==date);
-        if(holdings.Count==0||current is null)return NoProof("缺少已审核具名ETF持仓或当前全市场份额。");
+        if(holdings.Count==0||current is null||current.Shares<0||date>DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(cutoff,"China Standard Time").DateTime))return NoProof("缺少已审核具名ETF持仓、当前有效份额或截止时点尚未到达。");
+        if(input.Metadata is not {} metadata||metadata.Market!=input.Key.Market||metadata.Ticker!=input.Key.Ticker)return NoProof("可比性核验不属于同一证券。");
         if(holdings.Any(x=>x.Market!=input.Key.Market||x.Ticker!=input.Key.Ticker||x.HoldingAsOf>date||x.PublishedAt>cutoff||x.FirstSeenAt>cutoff))
             return NoProof("证券或时序不一致；不使用截止时点之后公布或首次取得的证据。");
         if(holdings.Select(x=>x.HoldingAsOf).Distinct().Count()!=1||holdings.Select(x=>x.LegalEntityId+"|"+x.Account).Distinct().Count()!=holdings.Count
@@ -109,11 +112,18 @@ public static class ExitAlertEvaluator
             "下界=max(0,具名机构基准持有份额之和－随后全市场总份额)。仅证明相对该披露基准日至少净减少，不代表单日成交、全部减持量或清仓。");
     }
     public static bool NamedVerified(NamedEtfHolding value)=>value.OriginalConfirmed&&value.IndependentOwnershipConfirmed&&value.Shares>0
+        &&value.PublishedAt<=value.FirstSeenAt&&value.HoldingAsOf<=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(value.PublishedAt,"China Standard Time").DateTime)
         &&value.LegalEntityId.Length>0&&value.LegalName.Length>0&&!System.Text.RegularExpressions.Regex.IsMatch(value.LegalName,@"匿名|未知|机构\s*[一二三四五六七八九十0-9]|institution\s*\d",System.Text.RegularExpressions.RegexOptions.IgnoreCase)
         &&value.DocumentHash.Length==64&&value.DocumentHash.All(Uri.IsHexDigit)&&!string.IsNullOrWhiteSpace(value.EvidencePage)
         &&!string.IsNullOrWhiteSpace(value.Reviewer)&&Uri.TryCreate(value.DocumentUrl,UriKind.Absolute,out var uri)&&OfficialEquityDocuments.IsAllowed(uri);
     private static AlertWindows Empty(DateOnly date,string state)=>new(date,state,null,null,null,[],"",false);
     private static string Percent(decimal? value)=>value.HasValue?value.Value.ToString("P2",CultureInfo.InvariantCulture):"不可计算";
     private static MinimumReductionProof NoProof(string reason)=>new("InsufficientEvidence",null,null,null,null,[],[],reason);
+    /// <summary>只冻结本次所需窗口，历史更正使用当时成员及口径，不把当前监控池带回过去。</summary>
+    public static AlertFundInput Snapshot(AlertFundInput input,DateOnly date)
+    {
+        var days=input.TradingDays.Where(x=>x<=date).Order().TakeLast(21).ToArray();var needed=days.ToHashSet();
+        return input with{TradingDays=days,Points=input.Points.Where(x=>needed.Contains(x.Date)||x.Date==date).ToArray()};
+    }
     public static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }

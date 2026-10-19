@@ -10,6 +10,8 @@ public interface IEtfWorkspace
     Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>throw new NotSupportedException();
     Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>throw new NotSupportedException();
     Task<ExitAlertEvent> AlertEventAsync(string id,CancellationToken token)=>throw new NotSupportedException();
+    Task<ExitAlertEvent> AlertEventVersionAsync(string id,int sequence,CancellationToken token)=>throw new NotSupportedException();
+    Task<List<EvidenceRow>> AlertInputsAsync(string id,int? sequence,CancellationToken token)=>throw new NotSupportedException();
     Task<List<ExitAlertChange>> AlertChangesAsync(string id,CancellationToken token)=>throw new NotSupportedException();
     Task<List<AlertOutboxItem>> AlertOutboxAsync(CancellationToken token)=>throw new NotSupportedException();
     Task<List<AlertOutboxItem>> AlertOutboxAsync(ExitAlertFilter filter,CancellationToken token)=>AlertOutboxAsync(token);

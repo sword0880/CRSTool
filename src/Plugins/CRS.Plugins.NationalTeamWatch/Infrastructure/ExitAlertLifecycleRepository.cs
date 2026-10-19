@@ -22,6 +22,7 @@ public sealed partial class MarketRepository
             ON CONFLICT(id) DO UPDATE SET last_date=excluded.last_date,state=excluded.state,updated_at=excluded.updated_at,payload=excluded.payload
             """,("$id",row.Id),("$r",row.RuleId),("$s",row.ScopeId),("$v",row.RuleVersion),("$first",row.FirstTradeDate.ToString("yyyy-MM-dd")),("$last",row.LastTradeDate.ToString("yyyy-MM-dd")),("$lane",row.Lane.ToString()),("$state",row.State),("$at",row.UpdatedAt),("$p",JsonSerializer.Serialize(row)));
         Execute("INSERT INTO nt_risk_event_change VALUES($id,$n,$kind,$at,$p)",("$id",row.Id),("$n",row.ChangeNo),("$kind",kind),("$at",row.UpdatedAt),("$p",JsonSerializer.Serialize(row)));
+        if(finding.Triggered&&finding.InputSnapshots is {Count:>0})SaveAlertInputSnapshot(row,finding);
         if(notify)EnqueueAlertNotifications(row,kind,configuration.Routes);
         transaction.Commit();
     }
@@ -90,8 +91,8 @@ public sealed partial class MarketRepository
         {
             var id=ExitAlertEvaluator.Hash(row.Id+"|"+row.ChangeNo+"|"+route.ChannelId+"|"+route.ProfileId);
             var subject=$"[{row.LaneText} · {row.SeverityText}] {row.Headline}";
-            var body=$"{row.Headline}\n事件状态：{row.StateText}\n观察日期：{row.LastTradeDate:yyyy-MM-dd}\n首次发现：{row.FirstSeenAt}\n本次更新：{row.UpdatedAt}\n规则：{row.RuleVersion}\n证据：{row.EvidenceKind}\n变更：{kind}\n{row.Explanation}\n{row.UsageText}\n这是日终公开数据观察，不能称为机构当日成交；渠道受理不证明用户已收到。";
-            WriteOutbox(new(id,row.Id,row.ChangeNo,route.ChannelId,route.ProfileId,row.Preview?"BlockedAcceptance":"Pending",0,Now,"nt."+id.ToLowerInvariant()+"@crs.local",subject,body,Now));
+            var body=$"{row.Headline}\n事件状态：{row.StateText}\n观察日期：{row.LastTradeDate:yyyy-MM-dd}\n首次发现：{row.FirstSeenAt}\n本次更新：{row.UpdatedAt}\n规则：{row.RuleVersion}\n证据：{row.EvidenceKind}\n变更：{kind}\n{row.Explanation}\n{row.HistoricalRevisionNote}\n{row.UsageText}\n这是日终公开数据观察，不能称为机构当日成交；渠道受理不证明用户已收到。";
+            WriteOutbox(new(id,row.Id,row.ChangeNo,route.ChannelId,route.ProfileId,row.Preview?"BlockedAcceptance":"Pending",0,Now,"nt."+id.ToLowerInvariant()+"@crs.local",subject,body,Now,Kind:kind));
         }
     }
 }

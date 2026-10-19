@@ -16,6 +16,8 @@ public interface IMarketRepository : IDisposable
     void SaveAlertConfiguration(ExitAlertConfiguration value,Guid? commandId=null)=>throw new NotSupportedException();
     List<ExitAlertEvent> AlertEvents(ExitAlertFilter filter)=>throw new NotSupportedException();
     ExitAlertEvent? AlertEvent(string id)=>throw new NotSupportedException();
+    ExitAlertEvent? AlertEvent(string id,int? sequence)=>AlertEvent(id);
+    List<EvidenceRow> AlertInputs(string id,int? sequence=null)=>throw new NotSupportedException();
     List<ExitAlertChange> AlertChanges(string id)=>throw new NotSupportedException();
     List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)=>throw new NotSupportedException();
     AlertOutboxItem? ClaimAlertNotification()=>throw new NotSupportedException();

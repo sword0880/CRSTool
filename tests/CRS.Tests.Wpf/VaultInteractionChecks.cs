@@ -93,7 +93,7 @@ internal static class VaultInteractionChecks
         if(!helloSecurity.SecuritySettingsAvailable || !helloSecurity.WindowsHelloEnabled || helloSecurity.PhoneVerificationEnabled) throw new Exception("Hello 与手机选项没有互斥。");
         Console.WriteLine("保险库界面验证通过：恢复确认、凭证清理、目录绑定、日常 TOTP/Hello、首次选择与手机开关隔离。");
     }
-    private sealed class FakeVault : IVaultService
+    internal sealed class FakeVault : IVaultService
     {
         public bool HelloSupported {get;set;}
         public string DocumentEncryptionPassword {get;private set;}="";

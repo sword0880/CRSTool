@@ -5,6 +5,7 @@ using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
 // 独立窗口验收只查询公开后台任务，不创建或解锁个人保险库。
 if(args is ["--cron"]){CronEditorChecks.Run();return;}
+if(args is ["--settings-ui",var settingsDirectory]){SettingsViewChecks.Run(settingsDirectory);return;}
 if(args is ["--execution-log-ui",var logScreenshot]){ExecutionLogViewChecks.Run(logScreenshot);return;}
 if(args.Contains("--background-ui")){var index=Array.IndexOf(args,"--background-ui");BackgroundServiceViewChecks.Run(args[index+1],args.ElementAtOrDefault(index+2));return;}
 var cases=new FakeUseCases();

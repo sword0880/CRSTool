@@ -60,7 +60,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null)
     {
-        State = state; this.service = service; this.vault=vault; Reload();
+        State = state; this.service = service; this.vault=vault; Reload(); InitializeNavigation();
         state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
     }
     public void Reload()

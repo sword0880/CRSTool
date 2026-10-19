@@ -7,7 +7,7 @@ public sealed record ExitAlertFilter(string? Lane=null,string? State=null,DateOn
 public sealed record ExitAlertEvent(string Id,string RuleId,string ScopeId,string RuleVersion,AlertLane Lane,AlertSeverity Severity,
     AlertEvidenceKind EvidenceKind,DateOnly FirstTradeDate,DateOnly LastTradeDate,string State,string DataHealth,bool Preview,
     string FirstSeenAt,string UpdatedAt,string Headline,string Explanation,string Fingerprint,IReadOnlyList<string> RevisionIds,
-    int ChangeNo=1,int ClearCount=0,DateOnly? LastClearDate=null)
+    int ChangeNo=1,int ClearCount=0,DateOnly? LastClearDate=null,string? HistoricalRevisionNote=null,IReadOnlyList<string>? HistoricalRevisionIds=null)
 {
     public string LaneText=>Lane switch{AlertLane.DataQuality=>"数据核查",AlertLane.EtfOutflow=>"ETF份额异常",_=>"机构最低净减少证据"};
     public string SeverityText=>Severity switch{AlertSeverity.Info=>"信息",AlertSeverity.Watch=>"观察",AlertSeverity.Warning=>"警告",_=>"严重"};
@@ -20,10 +20,10 @@ public sealed record ExitAlertEvent(string Id,string RuleId,string ScopeId,strin
 public sealed record ExitAlertChange(string EventId,int Sequence,string Kind,string At,string Payload)
 {
     public string KindText=>Kind switch{"FirstObserved"=>"首次发现","DataUnavailable"=>"数据不足","UpdatedEvidence"=>"证据更正或风险升级","ObservationUpdated"=>"观察更新",
-        "RetractedByRevision"=>"修订撤销","Resolved"=>"解除观察","ClearPending"=>"等待连续解除观察","RuleSuperseded"=>"规则版本替换",_=>Kind};
+        "RetractedByRevision"=>"修订撤销","Resolved"=>"解除观察","ClearPending"=>"等待连续解除观察","RuleSuperseded"=>"规则版本替换","HistoricalCorrection"=>"历史输入更正",_=>Kind};
 }
 public sealed record AlertOutboxItem(string Id,string EventId,int ChangeNo,string ChannelId,string ProfileId,string State,int Attempts,
-    string NextAttemptAt,string MessageId,string Subject,string Body,string CreatedAt,string? LastCode=null,string? AcceptedAt=null,string? Lease=null,int Failures=0)
+    string NextAttemptAt,string MessageId,string Subject,string Body,string CreatedAt,string? LastCode=null,string? AcceptedAt=null,string? Lease=null,int Failures=0,string? Kind=null)
 {
     public string StatusText=>State switch{"Pending"=>"待发送","InFlight"=>"正在提交","Accepted"=>"渠道已受理，送达未验证","Retry"=>"等待重试",
         "Disabled"=>"渠道未启用","Unavailable"=>"渠道不可用","Failed"=>"发送失败","OutcomeUnknown"=>"受理结果未知，需核对",

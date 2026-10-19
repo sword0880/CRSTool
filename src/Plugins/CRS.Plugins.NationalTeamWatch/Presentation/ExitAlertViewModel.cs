@@ -12,6 +12,7 @@ public partial class ExitAlertViewModel(IEtfWorkspace workspace,CancellationToke
     public bool CanEdit=>CanManage&&!Busy;
     public ObservableCollection<ExitAlertEvent> Events {get;}=[];
     public ObservableCollection<ExitAlertChange> Changes {get;}=[];
+    public ObservableCollection<EvidenceRow> Inputs {get;}=[];
     public ObservableCollection<AlertOutboxItem> Notifications {get;}=[];
     public ObservableCollection<AlertDeliveryRecord> Deliveries {get;}=[];
     public ObservableCollection<AlertRouteEditor> Routes {get;}=[];
@@ -27,6 +28,7 @@ public partial class ExitAlertViewModel(IEtfWorkspace workspace,CancellationToke
     [ObservableProperty] private string overviewText="尚未读取服务状态";
     [ObservableProperty] private string detail="选择事件查看输入证据、时间与变更记录。";
     [ObservableProperty] private ExitAlertEvent? selectedEvent;
+    [ObservableProperty] private ExitAlertChange? selectedChange;
     [ObservableProperty] private AlertOutboxItem? selectedNotification;
     [ObservableProperty] private DateTime? notificationFrom=Today.AddDays(-31);
     [ObservableProperty] private DateTime? notificationTo=Today;
@@ -50,6 +52,10 @@ public partial class ExitAlertViewModel(IEtfWorkspace workspace,CancellationToke
     private static DateTime Today=>TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").Date;
     partial void OnBusyChanged(bool value)=>OnPropertyChanged(nameof(CanEdit));
     partial void OnSelectedEventChanged(ExitAlertEvent? value)=>DetailLoadTask=LoadDetailAsync(value,++detailVersion);
+    partial void OnSelectedChangeChanged(ExitAlertChange? value)
+    {
+        if(value is not null&&SelectedEvent is {} current)DetailLoadTask=LoadDetailAsync(current,++detailVersion,value.Sequence);
+    }
     partial void OnSelectedNotificationChanged(AlertOutboxItem? value)=>DeliveryLoadTask=LoadDeliveryAsync(value,++deliveryVersion);
     private async Task Run(Func<Task> action)
     {
@@ -108,16 +114,18 @@ public partial class ExitAlertViewModel(IEtfWorkspace workspace,CancellationToke
         if(!CanManage||SelectedNotification is null)return;
         await workspace.RetryAlertNotificationAsync(SelectedNotification.Id,lifetime);await LoadNotificationsAsync();Status="已安排安全重试；未知受理、已受理和正式门槛阻断的记录不能通过此入口重发。";
     });
-    private async Task LoadDetailAsync(ExitAlertEvent? row,int version)
+    private async Task LoadDetailAsync(ExitAlertEvent? row,int version,int? sequence=null)
     {
-        Detail="";Changes.Clear();if(row is null)return;
+        Detail="";Inputs.Clear();if(sequence is null){SelectedChange=null;Changes.Clear();}if(row is null)return;
         try
         {
-            var current=await workspace.AlertEventAsync(row.Id,lifetime);var changes=await workspace.AlertChangesAsync(row.Id,lifetime);
+            var current=sequence is {} number?await workspace.AlertEventVersionAsync(row.Id,number,lifetime):await workspace.AlertEventAsync(row.Id,lifetime);
+            var changes=sequence is null?await workspace.AlertChangesAsync(row.Id,lifetime):null;var inputs=await workspace.AlertInputsAsync(row.Id,sequence,lifetime);
             if(version!=detailVersion||lifetime.IsCancellationRequested)return;
-            Detail=$"{current.Headline}\n{current.LaneText} · {current.SeverityText} · {current.StateText} · {current.DataHealthText}\n{current.UsageText}\n规则：{current.RuleVersion}；证据类型：{current.EvidenceText}\n"
-                +$"首次发现：{current.FirstSeenAt}；最近更新：{current.UpdatedAt}\n观察区间：{current.FirstTradeDate:yyyy-MM-dd} 至 {current.LastTradeDate:yyyy-MM-dd}\n{current.Explanation}\n输入证据：\n"+string.Join('\n',current.RevisionIds);
-            foreach(var change in changes)Changes.Add(change);
+            Detail=(sequence is {} historical?$"历史变更版本{historical}（按该次记录展示，不代表当前状态）\n":"")+ $"{current.Headline}\n{current.LaneText} · {current.SeverityText} · {current.StateText} · {current.DataHealthText}\n{current.UsageText}\n规则：{current.RuleVersion}；证据类型：{current.EvidenceText}\n"
+                +$"首次发现：{current.FirstSeenAt}；最近更新：{current.UpdatedAt}\n观察区间：{current.FirstTradeDate:yyyy-MM-dd} 至 {current.LastTradeDate:yyyy-MM-dd}\n{current.Explanation}\n{current.HistoricalRevisionNote}\n输入证据见下表（更正时同时保留原修订和新输入）。";
+            if(changes is not null)foreach(var change in changes)Changes.Add(change);
+            foreach(var input in inputs)Inputs.Add(input);
         }
         catch(OperationCanceledException){}catch(Exception error){if(version==detailVersion)Detail="详情读取失败："+error.GetType().Name;}
     }

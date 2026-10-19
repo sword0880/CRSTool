@@ -111,7 +111,8 @@ using(var service=Start())
             await Until(async()=>(await ui.OverviewAsync(default)).All(x=>x.Shares>0) && (await ui.MarketActivityAsync(default)).Count(x=>x.State=="Complete")>=21);
             EtfConfigurationUiChecks.Run(client,Path.Combine(Environment.CurrentDirectory,"artifacts","etf-configuration-ui","configuration.png"));return;
         }
-        await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.Result=="Succeeded"));
+        // 新增独立预警启动任务后，任意成功不再代表份额批次完成；比较两个查询前先等待目标采集提交。
+        await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.JobId=="official-share-sync"&&x.Result=="Succeeded"));
         Check((await ui.OverviewAsync(default)).Count==5 && (await ui.OverviewAsync(default)).All(x=>x.Shares>0),"启动后自动采集两市五只ETF并经管道查询");
         await Until(async()=>(await ui.MarketActivityAsync(default)).Any(x=>x.State=="Complete"));
         Check((await ui.MarketActivityAsync(default)).Where(x=>x.State=="Complete").All(x=>x.AmountYuan==1678054000000m && x.VolumeShares==104657000000m),"独立成交任务自动采集两市并通过真实管道返回统一单位总额");
@@ -126,6 +127,16 @@ using(var service=Start())
         Check(attempts.Any(x=>x.State=="Accepted"&&x.OriginalHash is not null&&x.ParserVersion=="sse-etf-json-v1"),"采集尝试经真实分页管道返回来源版本与原件关联");
         Check((await ui.EquityEventsAsync(new("SSE","600036"),default)).Count==0,"历次持股变动经真实只读管道返回，未采集不伪造事件");
         Check((await ui.EquityReportsAsync(new("SSE","600036"),default)).Count==0,"未检索前官方报告目录留空");
+        // 预警与通知经真实服务管道，未配置邮件不联系外部提供商，也不能越过真实数据门槛。
+        var alertOverview=await ui.AlertOverviewAsync(default);var alertRules=await ui.AlertConfigurationAsync(default);
+        Check(!alertOverview.DataAcceptancePassed&&alertRules.Routes.Single().ChannelId=="email","预警真实管道明确研究门槛及独立渠道订阅");
+        Check((await ui.AlertChannelsAsync(default)).Single(x=>x.Id=="email") is {Enabled:false,Configured:false},"邮件默认关闭，业务页面不读取SMTP凭据");
+        await ui.EvaluateAlertsAsync(default);
+        var alerts=await ui.AlertEventsAsync(new("DataQuality"),default);
+        Check(alerts.Count>0&&alerts.All(x=>x.Lane==CRS.Plugins.NationalTeamWatch.Domain.AlertLane.DataQuality),"无完整日历时独立形成数据核查，不伪造金融信号");
+        var alert=await ui.AlertEventAsync(alerts[0].Id,default);
+        Check(alert.Id==alerts[0].Id&&(await ui.AlertChangesAsync(alert.Id,default)).Count>0,"预警详情和变更记录由服务分页提供");
+        Check((await ui.AlertEventsAsync(new("EtfOutflow"),default)).Count==0&&(await ui.AlertOutboxAsync(default)).All(x=>x.ChannelId=="email"&&x.State!="Accepted"),"无可比性原件不生成流出结论，默认关闭邮件不出现受理假象");
         var reportHold=Path.Combine(data,"plugins","crs.national-team","http-hold.fixture");File.WriteAllText(reportHold,"report query hold");
         try
         {

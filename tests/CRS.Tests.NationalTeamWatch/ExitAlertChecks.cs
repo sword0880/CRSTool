@@ -18,6 +18,7 @@ internal static class ExitAlertChecks
         Persistence(Path.Combine(root,"persistence"));
         Revisions(Path.Combine(root,"revisions"));
         ClearStreak(Path.Combine(root,"clear-streak"));
+        CurrentDay(Path.Combine(root,"unfinished-day"));
     }
     private static void Domain()
     {
@@ -34,7 +35,7 @@ internal static class ExitAlertChecks
         Check(partial.Pct5.HasValue&&partial.Pct20 is null&&partial.Triggered,"5日完整与20日不足独立显示");
         Check(!ExitAlertEvaluator.Single(input with{Metadata=metadata with{OriginalConfirmed=false}},Date,rules,true).Triggered,"ALERT-05 未核验折算可比性不生成正式流出信号");
         Check(!ExitAlertEvaluator.Single(input with{CalendarVerified=false},Date,rules,true).Triggered,"未经核验日历不能以周一至周五猜测窗口");
-        var peers=Enumerable.Range(0,3).Select(i=>input with{Key=new("SSE","51030"+i),Metadata=metadata with{FundId="fund-"+i,ManagerId="manager-"+i}}).ToArray();
+        var peers=Enumerable.Range(0,3).Select(i=>input with{Key=new("SSE","51030"+i),Metadata=metadata with{Ticker="51030"+i,FundId="fund-"+i,ManagerId="manager-"+i}}).ToArray();
         var cluster=ExitAlertEvaluator.Cluster(peers.Select(x=>(x,ExitAlertEvaluator.Windows(x,Date,rules))).ToArray(),Date,rules,false);
         Check(cluster.Triggered&&cluster.Severity==AlertSeverity.Warning&&!cluster.Explanation.Contains("人民币"),"ALERT-03 同一窗口三基金两管理人只生成样本池警告，不相加份额");
         var duplicate=peers.Select(x=>x with{Metadata=x.Metadata! with{FundId="one-fund"}}).Select(x=>(x,ExitAlertEvaluator.Windows(x,Date,rules))).ToArray();
@@ -44,7 +45,7 @@ internal static class ExitAlertChecks
         var mild=input with{Points=days.Select((d,i)=>new SharePoint(d,i==20?990.1m:1000,null,"m"+i)).ToArray()};
         Check(!ExitAlertEvaluator.Single(mild,Date,rules,true).Triggered,"ALERT-15 约负0.99%的样本不宣布大规模退出");
         var holding=new NamedEtfHolding("h1","SSE","510300","legal-a","合成具名法人","account-a",days[0],
-            new(2026,7,1,18,0,0,TimeSpan.FromHours(8)),new(2026,7,2,0,0,0,TimeSpan.FromHours(8)),950,Url,Hash,"P10 股东表","reviewer",true,true);
+            new(2026,8,28,18,0,0,TimeSpan.FromHours(8)),new(2026,8,29,0,0,0,TimeSpan.FromHours(8)),950,Url,Hash,"P10 股东表","reviewer",true,true);
         var cutoff=new DateTimeOffset(2026,9,2,0,0,0,TimeSpan.FromHours(8));
         Check(ExitAlertEvaluator.Minimum([holding],input,Date,cutoff).LowerBound==90,"ALERT-06 具名同口径基准950减全市场860，下界90，不称单日成交");
         Check(ExitAlertEvaluator.Minimum([holding with{PublishedAt=cutoff.AddDays(1)}],input,Date,cutoff).LowerBound is null
@@ -52,6 +53,8 @@ internal static class ExitAlertChecks
         Check(ExitAlertEvaluator.Minimum([holding with{LegalName="机构1"}],input,Date,cutoff).LowerBound is null,"ALERT-08 匿名机构不按份额推断汇金身份");
         Check(ExitAlertEvaluator.Minimum([holding,holding],input,Date,cutoff).LowerBound is null
             &&ExitAlertEvaluator.Minimum([holding with{IndependentOwnershipConfirmed=false}],input,Date,cutoff).LowerBound is null,"重叠持仓或独立性未确认不能相加计算下界");
+        Check(!ExitAlertEvaluator.Single(input with{Metadata=metadata with{Ticker="159919"}},Date,rules,true).Triggered
+            &&ExitAlertEvaluator.Minimum([holding with{PublishedAt=new(2026,1,1,0,0,0,TimeSpan.Zero)}],input,Date,cutoff).LowerBound is null,"其它证券的可比性或早于报告基准的公布时点不能产生证明");
     }
     private static MarketRepository Setup(string root,ManualClock clock,out RawEvidenceStore raw)
     {
@@ -127,6 +130,7 @@ internal static class ExitAlertChecks
         var revision=repository.Evidence(Key).Single(x=>x.State=="NeedsReview");repository.Review(revision.RevisionId,true,"synthetic-reviewer",true);
         repository.EvaluateExitAlerts(true);
         Check(repository.AlertEvent(original.Id) is {State:"RetractedByRevision"}&&repository.AlertChanges(original.Id).Last().Kind=="RetractedByRevision","ALERT-09 接受修订后重算并撤销原信号，保留更正历史");
+        Check(repository.AlertEvent(original.Id,1)!.State=="Active"&&repository.AlertInputs(original.Id,1).Any(x=>x.RevisionId!=revision.RevisionId&&x.TradeDate==Date.ToString("yyyy-MM-dd")),"历史事件版本仍定位原始输入，不用新修订覆盖旧证据");
     }
     private static void ClearStreak(string root)
     {
@@ -138,10 +142,24 @@ internal static class ExitAlertChecks
         Check(repository.AlertEvent(original.Id) is {State:"Active",ClearCount:1},"ALERT-11 停机跨交易日不能累计成连续解除观察");
         clock.Value=new(2026,9,8,0,0,0,TimeSpan.Zero);Metadata(repository,clock);Import(repository,raw,(new(2026,9,7),1000));repository.EvaluateExitAlerts(true);
         Check(repository.AlertEvent(original.Id) is {State:"Resolved",ClearCount:2},"相邻真实交易日的完整正常窗口才解除风险");
+        Import(repository,raw,(Date,1000));repository.EvaluateExitAlerts(true);
+        Check(repository.AlertEvent(original.Id) is {DataHealth:"Unknown"},"已解除历史事件遇到待审修订也保留未知状态，不继续冒充证据完整");
+        var revised=repository.Evidence(Key).Single(x=>x.State=="NeedsReview");repository.Review(revised.RevisionId,true,"synthetic-reviewer",true);repository.EvaluateExitAlerts(true);
+        var corrected=repository.AlertEvent(original.Id)!;var changes=repository.AlertChanges(original.Id).Count;
+        Check(corrected.State=="RetractedByRevision"&&corrected.DataHealth=="Complete"&&corrected.FirstSeenAt==original.FirstSeenAt&&corrected.HistoricalRevisionNote!.Contains("修订后视角"),"ALERT-09 已关闭事件按冻结成员、原规则及原时点口径回算，撤销全部失效窗口且不改写首见");
+        Check(repository.AlertInputs(original.Id).Any(x=>x.RevisionId==revised.RevisionId),"历史更正详情同时定位新修订输入与未覆盖的原版本");
+        repository.EvaluateExitAlerts(true);
+        Check(repository.AlertChanges(original.Id).Count==changes,"历史回算指纹持久化，不在每次评价重复更正");
     }
     private sealed class ManualClock:TimeProvider
     {
         public DateTimeOffset Value=new(2026,9,2,0,0,0,TimeSpan.Zero);
         public override DateTimeOffset GetUtcNow()=>Value;
+    }
+    private static void CurrentDay(string root)
+    {
+        var clock=new ManualClock();using var repository=Setup(root,clock,out var raw);repository.EvaluateExitAlerts(true);
+        var original=repository.AlertEvents(new("EtfOutflow")).Single();Import(repository,raw,(new(2026,9,2),700));repository.EvaluateExitAlerts(true);
+        Check(repository.AlertEvent(original.Id)!.LastTradeDate==Date,"当日尚未结束的份额不能冒充新的日终风险信号");
     }
 }

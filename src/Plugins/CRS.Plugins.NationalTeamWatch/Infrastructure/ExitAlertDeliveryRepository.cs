@@ -16,8 +16,8 @@ public sealed partial class MarketRepository
         foreach(var row in due)
         {
             var current=AlertEvent(row.EventId);
-            if(current is null||current.State=="RuleSuperseded"||current.State is ("Resolved" or "RetractedByRevision" or "HistoricalEvidence")&&row.ChangeNo!=current.ChangeNo
-                ||current.RuleVersion!=config.Rules.Version||!config.Routes.Contains(new(row.ChannelId,row.ProfileId)))
+            if(current is null||row.Kind!="HistoricalCorrection"&&(current.State=="RuleSuperseded"||current.RuleVersion!=config.Rules.Version)
+                ||current.State is ("Resolved" or "RetractedByRevision" or "HistoricalEvidence")&&row.ChangeNo!=current.ChangeNo||!config.Routes.Contains(new(row.ChannelId,row.ProfileId)))
             {WriteOutbox(row with{State="Superseded",LastCode="EventOrSubscriptionChanged"});continue;}
             // 发送前重验正式门槛；不能借以前的门槛状态发出当前已失效的金融提醒。
             if(current.Lane!=AlertLane.DataQuality)
@@ -33,9 +33,18 @@ public sealed partial class MarketRepository
         transaction.Commit();return null;
     }
     public ExitAlertEvent? AlertEvent(string id)
+        =>AlertEvent(id,null);
+    public ExitAlertEvent? AlertEvent(string id,int? sequence)
     {
-        var json=Scalar("SELECT payload FROM nt_risk_event WHERE id=$id",("$id",id)) as string;
+        var json=sequence is {} number?Scalar("SELECT payload FROM nt_risk_event_change WHERE event_id=$id AND sequence=$n",("$id",id),("$n",number)) as string
+            :Scalar("SELECT payload FROM nt_risk_event WHERE id=$id",("$id",id)) as string;
         return json is null?null:JsonSerializer.Deserialize<ExitAlertEvent>(json);
+    }
+    /// <summary>按事件版本的实际输入筛选证据后分页，历史修订仍可定位原件与接收时间。</summary>
+    public List<CRS.Plugins.NationalTeamWatch.Application.EvidenceRow> AlertInputs(string id,int? sequence=null)
+    {
+        var row=AlertEvent(id,sequence)??throw new InvalidDataException("事件版本不存在。");ValidateEvidence();
+        var ids=row.RevisionIds.Concat(row.HistoricalRevisionIds??[]).ToHashSet(StringComparer.Ordinal);return ReadEvidence().Where(x=>ids.Contains(x.RevisionId)).ToList();
     }
     /// <summary>匹配持久租约后记录结果及每次尝试；受理结果未知不进入自动重试。</summary>
     public void CompleteAlertNotification(string id,string lease,AlertDispatchOutcome outcome)

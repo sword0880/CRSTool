@@ -19,6 +19,11 @@ public sealed partial class MarketRepository
             CREATE TABLE IF NOT EXISTS nt_risk_event(id TEXT PRIMARY KEY,rule_id TEXT NOT NULL,scope_id TEXT NOT NULL,rule_version TEXT NOT NULL,first_date TEXT NOT NULL,last_date TEXT NOT NULL,lane TEXT NOT NULL,state TEXT NOT NULL,updated_at TEXT NOT NULL,payload TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS nt_risk_event_query ON nt_risk_event(lane,state,last_date,updated_at);
             CREATE TABLE IF NOT EXISTS nt_risk_event_change(event_id TEXT NOT NULL REFERENCES nt_risk_event(id),sequence INTEGER NOT NULL,kind TEXT NOT NULL,at TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(event_id,sequence));
+            CREATE TABLE IF NOT EXISTS nt_alert_input_snapshot(event_id TEXT NOT NULL REFERENCES nt_risk_event(id),sequence INTEGER NOT NULL,payload TEXT NOT NULL,holdings TEXT NOT NULL,rechecked TEXT,PRIMARY KEY(event_id,sequence));
+            CREATE TABLE IF NOT EXISTS nt_alert_snapshot_revision(event_id TEXT NOT NULL,sequence INTEGER NOT NULL,revision_id TEXT NOT NULL,PRIMARY KEY(event_id,sequence,revision_id));
+            CREATE INDEX IF NOT EXISTS nt_alert_snapshot_revision_id ON nt_alert_snapshot_revision(revision_id);
+            CREATE TABLE IF NOT EXISTS nt_alert_snapshot_source(event_id TEXT NOT NULL,sequence INTEGER NOT NULL,fetch_id TEXT NOT NULL,PRIMARY KEY(event_id,sequence,fetch_id));
+            CREATE INDEX IF NOT EXISTS nt_alert_snapshot_source_fetch ON nt_alert_snapshot_source(fetch_id);
             CREATE TABLE IF NOT EXISTS nt_alert_outbox(id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES nt_risk_event(id),change_no INTEGER NOT NULL,channel_id TEXT NOT NULL,profile_id TEXT NOT NULL,state TEXT NOT NULL,next_at TEXT NOT NULL,payload TEXT NOT NULL,UNIQUE(event_id,change_no,channel_id,profile_id));
             CREATE INDEX IF NOT EXISTS nt_alert_outbox_due ON nt_alert_outbox(state,next_at);
             CREATE TABLE IF NOT EXISTS nt_alert_delivery(id TEXT PRIMARY KEY,outbox_id TEXT NOT NULL REFERENCES nt_alert_outbox(id),attempt INTEGER NOT NULL,at TEXT NOT NULL,payload TEXT NOT NULL);

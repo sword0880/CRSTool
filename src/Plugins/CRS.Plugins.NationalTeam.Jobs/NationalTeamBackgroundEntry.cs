@@ -192,8 +192,14 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             {
                 case "alert-overview":rows=[JsonSerializer.Serialize(await workspace!.AlertOverviewAsync(token))];break;
                 case "alert-configuration":rows=[JsonSerializer.Serialize(await workspace!.AlertConfigurationAsync(token))];break;
-                case "alert-events":rows=(await workspace!.AlertEventsAsync(request.AlertFilter??new(),token)).Select(x=>JsonSerializer.Serialize(x with{RevisionIds=[]})).ToArray();break;
-                case "alert-event":rows=[JsonSerializer.Serialize(await workspace!.AlertEventAsync(request.Revision??"",token))];break;
+                case "alert-events":rows=(await workspace!.AlertEventsAsync(request.AlertFilter??new(),token)).Select(x=>JsonSerializer.Serialize(x with{RevisionIds=[],HistoricalRevisionIds=null})).ToArray();break;
+                case "alert-event":rows=[JsonSerializer.Serialize((await workspace!.AlertEventAsync(request.Revision??"",token)) with{RevisionIds=[],HistoricalRevisionIds=null})];break;
+                case "alert-event-version":
+                    if(!int.TryParse(request.Name,out var sequence)||sequence<1)throw new InvalidDataException("历史变更序号无效。");
+                    rows=[JsonSerializer.Serialize((await workspace!.AlertEventVersionAsync(request.Revision??"",sequence,token)) with{RevisionIds=[],HistoricalRevisionIds=null})];break;
+                case "alert-inputs":
+                    int? inputSequence=request.Name is null?null:int.TryParse(request.Name,out var parsedSequence)&&parsedSequence>0?parsedSequence:throw new InvalidDataException("历史输入版本无效。");
+                    rows=(await workspace!.AlertInputsAsync(request.Revision??"",inputSequence,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "alert-changes":rows=(await workspace!.AlertChangesAsync(request.Revision??"",token)).Select(x=>JsonSerializer.Serialize(x with{Payload=""})).ToArray();break;
                 case "alert-outbox":rows=(request.AlertFilter is null?await workspace!.AlertOutboxAsync(token):await workspace!.AlertOutboxAsync(request.AlertFilter,token)).Select(x=>JsonSerializer.Serialize(x with{Body=""})).ToArray();break;
                 case "alert-deliveries":rows=(await workspace!.AlertDeliveriesAsync(request.Revision??"",token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;

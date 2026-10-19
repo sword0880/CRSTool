@@ -10,6 +10,8 @@ public sealed partial class EtfWorkspace
     public Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.SaveAlertConfiguration(value,commandId);return true;},token);
     public Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>RunAsync(()=>repository!.AlertEvents(filter),token);
     public Task<ExitAlertEvent> AlertEventAsync(string id,CancellationToken token)=>RunAsync(()=>repository!.AlertEvent(id)??throw new InvalidDataException("事件不存在。"),token);
+    public Task<ExitAlertEvent> AlertEventVersionAsync(string id,int sequence,CancellationToken token)=>RunAsync(()=>repository!.AlertEvent(id,sequence)??throw new InvalidDataException("历史事件版本不存在。"),token);
+    public Task<List<EvidenceRow>> AlertInputsAsync(string id,int? sequence,CancellationToken token)=>RunAsync(()=>repository!.AlertInputs(id,sequence),token);
     public Task<List<ExitAlertChange>> AlertChangesAsync(string id,CancellationToken token)=>RunAsync(()=>repository!.AlertChanges(id),token);
     public Task<List<AlertOutboxItem>> AlertOutboxAsync(CancellationToken token)=>RunAsync(()=>repository!.AlertOutbox(),token);
     public Task<List<AlertOutboxItem>> AlertOutboxAsync(ExitAlertFilter filter,CancellationToken token)=>RunAsync(()=>repository!.AlertOutbox(filter),token);

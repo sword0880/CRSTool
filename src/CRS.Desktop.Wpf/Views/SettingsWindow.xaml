@@ -1,10 +1,39 @@
-<ui:FluentWindow x:Class="CRS.DesktopClient.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="设置" Width="680" Height="600" MinWidth="620" MinHeight="560" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="#FBFCFD">
+<ui:FluentWindow x:Class="CRS.DesktopClient.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:CRS.DesktopClient.ViewModels" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="设置" Width="1040" Height="780" MinWidth="860" MinHeight="640" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="#F5F7FA">
  <Grid><Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <ui:TitleBar Title="设置" ShowClose="True" ShowMaximize="False" ShowMinimize="False" ForceShutdown="False"/>
-  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><StackPanel Margin="24,8,24,12" IsEnabled="{Binding State.IsIdle}">
-   <!-- 验证方式归属当前加密保险库，只有授权会话能验证和保存。 -->
+  <ui:TitleBar Title="系统设置" ShowClose="True" ShowMaximize="True" ShowMinimize="False" ForceShutdown="False"/>
+  <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="232"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <!-- 分类目录固定在左侧，新增设置不再增加整页的纵向查找成本。 -->
+   <Border Background="#EDF1F6" BorderBrush="#DDE3EC" BorderThickness="0,0,1,0" Padding="16,20,16,16">
+    <DockPanel LastChildFill="True">
+     <StackPanel DockPanel.Dock="Top"><TextBlock Text="设置" FontSize="26" FontWeight="SemiBold" Margin="8,0,0,16"/>
+      <ui:TextBox x:Name="SectionSearchBox" Text="{Binding SectionSearch,UpdateSourceTrigger=PropertyChanged}" PlaceholderText="搜索设置分类" AutomationProperties.Name="搜索设置分类" ToolTip="按分类名称或关键词查找，例如 SMTP、备份、密码" Margin="0,0,0,16"/>
+     </StackPanel>
+     <TextBlock DockPanel.Dock="Bottom" Text="切换分类会保留未保存的输入。" TextWrapping="Wrap" FontSize="12" Foreground="#64748B" Margin="8,16,8,0"/>
+     <TreeView x:Name="SectionNavigation" ItemsSource="{Binding NavigationGroups}" SelectedItemChanged="OnSectionSelected" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="设置分类目录">
+      <TreeView.Resources>
+       <HierarchicalDataTemplate DataType="{x:Type vm:SettingsGroup}" ItemsSource="{Binding Children}"><TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14"/></HierarchicalDataTemplate>
+       <DataTemplate DataType="{x:Type vm:SettingsSection}"><TextBlock Text="{Binding Title}" FontSize="14" TextWrapping="Wrap"/></DataTemplate>
+      </TreeView.Resources>
+      <TreeView.ItemContainerStyle><Style TargetType="TreeViewItem"><Setter Property="IsExpanded" Value="True"/><Setter Property="IsSelected" Value="{Binding IsSelected,Mode=TwoWay}"/><Setter Property="Padding" Value="6,9"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style></TreeView.ItemContainerStyle>
+     </TreeView>
+    </DockPanel>
+   </Border>
+   <Grid Grid.Column="1" Margin="28,20,24,16">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding NoSectionMatches,Converter={StaticResource BooleanVisibility}}"><TextBlock Text="没有匹配的设置分类" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="试试“邮件”“备份”或“日志”，也可以清空搜索。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,12,0,0"/></StackPanel>
+    <Grid Visibility="{Binding HasSelectedSection,Converter={StaticResource BooleanVisibility}}"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <StackPanel Margin="0,0,0,20"><TextBlock Text="{Binding SelectedSection.Breadcrumb}" Foreground="#64748B" FontSize="12" Margin="0,0,0,12"/><TextBlock Text="{Binding SelectedSection.Title}" FontSize="26" FontWeight="SemiBold"/><TextBlock Text="{Binding SelectedSection.Description}" Foreground="#64748B" TextWrapping="Wrap" Margin="0,8,0,0"/></StackPanel>
+     <ScrollViewer x:Name="SectionContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
+      <Border Padding="24" VerticalAlignment="Top" Background="White" BorderBrush="#E0E5ED" BorderThickness="1" CornerRadius="8"><Grid IsEnabled="{Binding State.IsIdle}">
+<StackPanel x:Name="StorageSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="storage"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+   <ui:Button x:Name="DatabaseManagementButton" Content="数据库与备份管理" Click="OnDatabaseManagement" HorizontalAlignment="Left" Margin="0,10,0,6" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}"/>
+   <TextBlock Text="统一管理数据库加密备份、恢复、主密码与手机绑定。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"/>
+   <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
+   <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
+   <TextBlock Text="已有加密库需验证后访问；新目录进入首次创建或恢复向导，不会自动建库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,16"/>
+</StackPanel>
+<StackPanel x:Name="SecuritySection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="security"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Text="解锁保险库后可管理此项设置。" Foreground="#64748B" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SecuritySettingsAvailable}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>   <!-- 验证方式归属当前加密保险库，只有授权会话能验证和保存。 -->
    <StackPanel x:Name="PhoneVerificationPanel" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}" Margin="0,0,0,20">
-    <TextBlock Text="登录验证" FontSize="20" FontWeight="SemiBold"/>
+
     <RadioButton x:Name="PhoneVerificationOption" GroupName="LoginVerification" Content="启用手机验证" IsChecked="{Binding PhoneVerificationEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" Margin="0,12,0,8"/>
     <RadioButton x:Name="WindowsHelloOption" GroupName="LoginVerification" Content="使用 Windows Hello" IsChecked="{Binding WindowsHelloEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding WindowsHelloAvailable}" Margin="0,0,0,8"/>
     <TextBlock Text="两种方式只能选择一种。未配置 Windows Hello 时，只能使用手机验证。" TextWrapping="Wrap" Foreground="#64748B"/>
@@ -14,18 +43,22 @@
     <ui:Button Content="保存验证方式" Command="{Binding SavePhoneVerificationCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
     <TextBlock Text="{Binding SecurityMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
    </StackPanel>
-   <StackPanel Margin="0,0,0,20" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}">
-    <TextBlock Text="文档加密密码" FontSize="20" FontWeight="SemiBold"/>
+</StackPanel>
+<StackPanel x:Name="DocumentsSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="documents"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Text="解锁保险库后可管理此项设置。" Foreground="#64748B" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SecuritySettingsAvailable}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>   <StackPanel Margin="0,0,0,20" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}">
+
     <TextBlock Text="统一用于所有页面的加密文档导出和解密；密码保存在加密数据库中。更改密码不会重写旧文件。" TextWrapping="Wrap" Margin="0,8"/>
     <TextBlock Text="新密码（12—1024 个字符）"/><PasswordBox x:Name="DocumentPasswordInput" MaxLength="1024" PasswordChanged="OnDocumentPassword" Margin="0,6"/>
     <TextBlock Text="再次输入"/><PasswordBox x:Name="DocumentConfirmationInput" MaxLength="1024" PasswordChanged="OnDocumentConfirmation" Margin="0,6"/>
     <ui:Button Content="保存文档加密密码" Command="{Binding SaveDocumentPasswordCommand}" HorizontalAlignment="Left" Margin="0,6"/>
     <TextBlock Text="{Binding DocumentPasswordMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
    </StackPanel>
-   <!-- 邮件由公共组件处理，设置页不连接SMTP、不读取已保存口令。 -->
+</StackPanel>
+<StackPanel x:Name="NotificationsSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="notifications"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>   <!-- 邮件由公共组件处理，设置页不连接SMTP、不读取已保存口令。 -->
    <StackPanel Margin="0,0,0,20">
-    <TextBlock Text="邮件通知" FontSize="20" FontWeight="SemiBold"/>
+
     <TextBlock Text="后台使用系统邮件配置发送通知，关闭或锁定界面不影响已启用的后台任务。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8"/>
+    <WrapPanel Margin="0,12,0,8"><ui:Button Content="保存邮件设置" Command="{Binding SaveEmailCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试邮件" Command="{Binding TestEmailCommand}" ToolTip="使用已保存的启用配置发送一封测试邮件" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadEmailCommand}"/></WrapPanel>
+    <TextBlock Text="{Binding EmailMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
     <StackPanel IsEnabled="{Binding CanEditEmail}">
      <CheckBox Content="启用邮件通知" IsChecked="{Binding EmailEnabled}" Margin="0,4,0,8"/>
      <TextBlock Text="SMTP服务器" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailHost,UpdateSourceTrigger=PropertyChanged}" MaxLength="253"/>
@@ -40,16 +73,9 @@
      <CheckBox Content="清除已保存授权码" IsChecked="{Binding EmailClearPassword}" Margin="0,8"/>
      <TextBlock Text="{Binding EmailPasswordStatus}" TextWrapping="Wrap" Foreground="#64748B"/>
     </StackPanel>
-    <WrapPanel Margin="0,12,0,8"><ui:Button Content="保存邮件设置" Command="{Binding SaveEmailCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试邮件" Command="{Binding TestEmailCommand}" ToolTip="使用已保存的启用配置发送一封测试邮件" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadEmailCommand}"/></WrapPanel>
-    <TextBlock Text="{Binding EmailMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
    </StackPanel>
-   <TextBlock Text="数据库" FontSize="20" FontWeight="SemiBold"/>
-   <ui:Button x:Name="DatabaseManagementButton" Content="数据库与备份管理" Click="OnDatabaseManagement" HorizontalAlignment="Left" Margin="0,10,0,6" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}"/>
-   <TextBlock Text="统一管理数据库加密备份、恢复、主密码与手机绑定。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"/>
-   <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
-   <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
-   <TextBlock Text="已有加密库需验证后访问；新目录进入首次创建或恢复向导，不会自动建库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,16"/>
-   <TextBlock Text="桌面日志" FontSize="20" FontWeight="SemiBold"/>
+</StackPanel>
+<StackPanel x:Name="LoggingSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="logging"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
    <TextBlock Text="保存后立即生效，仅控制桌面日志。插件任务的阶段记录请到任务中心查看；降低级别不会自动生成任务记录。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,0"/>
    <CheckBox Content="启用日志" IsChecked="{Binding LoggingEnabled}" Margin="0,12,0,4"/>
    <TextBlock Text="日志目录" Style="{StaticResource InputLabel}"/>
@@ -59,10 +85,16 @@
     <StackPanel Grid.Column="2"><TextBlock Text="保留归档数" Style="{StaticResource InputLabel}"/><ui:NumberBox Value="{Binding LogRetentionFiles, Mode=TwoWay}" Minimum="1" Maximum="365" MaxDecimalPlaces="0"/></StackPanel>
     <StackPanel Grid.Column="4"><TextBlock Text="单文件上限（MB）" Style="{StaticResource InputLabel}"/><ui:NumberBox Value="{Binding LogFileSizeMb, Mode=TwoWay}" Minimum="1" Maximum="100" MaxDecimalPlaces="0"/></StackPanel>
    </Grid>
-  </StackPanel></ScrollViewer>
-  <Border Grid.Row="2" Padding="24,12" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0"><StackPanel>
-   <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,12"/>
-   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><ui:Button Content="保存设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
-  </StackPanel></Border>
+</StackPanel>
+      </Grid></Border>
+     </ScrollViewer>
+    </Grid>
+   </Grid>
+  </Grid>
+  <!-- 底部保存区常驻；保存继续处理跨分类改动，测试通知必须单独点击。 -->
+  <Border Grid.Row="2" Padding="24,14" Background="White" BorderBrush="#DDE3EC" BorderThickness="0,1,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+   <StackPanel VerticalAlignment="Center" Margin="0,0,20,0"><TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" FontSize="12"/><TextBlock Text="保存设置会处理所有分类的改动；测试邮件需单独发送。" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+   <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><ui:Button x:Name="SaveSettingsButton" Content="保存设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
+  </Grid></Border>
  </Grid>
 </ui:FluentWindow>

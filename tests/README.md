@@ -1,5 +1,7 @@
 # CRS 验证项目
 
+2026-10-19减持预警增量：先完整构建，再运行NationalTeamWatch的 `--exit-alerts`（纯规则、加密事件/Outbox事务、进程重建、历史修订回算及真实后台入口的假渠道投递）及 `--exit-alert-ui`（真实WPF窗口和合成截图）。Background的 `--notifications` 验证公共渠道、受保护邮件配置及管理授权。完整WorkerEtf隔离包套件增加真实命名管道的预警、证据、订阅和默认停用渠道检查。这些均不连接真实收件人，不能替代真实SMTP、ETF公告黄金样本、历史回测、250日覆盖或连续20日采集验收；详见[实施记录](../docs/implementation/NATIONAL_TEAM_EXIT_ALERT_IMPLEMENTATION_20261019.md)。
+
 2026-10-16架构整改：`./tests/Verify-ProjectGraph.ps1`核对当前架构清单、直接依赖与循环；已接入`Verify-Architecture.ps1`。`./tests/Test-ProjectGraph.ps1`验证四种结构回退均被拒绝。后台`WorkerRemediationChecks`新增真实15秒插件查询、2秒控制面SLA、插件级限额、异常隔离、取消与维护排空；完整后台测试需真实Windows管道/ACL权限并使用独立TEMP目录，见[实施记录](../docs/implementation/ARCH_REMEDIATION_20261016.md)。
 
 Worker升级专项：先构建当前Release并发布新的HeartbeatOnly测试包；`./tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop`使用隔离合成文件验证包核验、快照/原件、程序切换、禁止有新事实回退和PowerShell/C#互操作，不操作SCM。`dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --upgrade-only <全新Worker测试包目录>`使用真实SQLCipher/DPAPI与测试自有进程验证升级阶段及强杀；已接入完整后台套件。需独立TEMP目录及Windows管道测试权限，不能替代真实安装服务升级或跨机恢复验收。
@@ -128,3 +130,19 @@ dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --sched
 ```
 
 SCM检查需要管理员令牌、创建服务和私有ACL权限，只创建`CRSWorkerUpgradeTest<GUID>`测试服务并在finally移除注册，保留隔离证据；不升级或停止正式服务。测试发行使用同一构建的两份版本清单，不能替代真实插件Schema兼容矩阵。受限环境完整管道/ACL回归须在获准的正常Windows令牌下执行，不放宽生产ACL。并发配置、会话安全并行声明及健康等待指标见[当前架构](../docs/architecture/CURRENT_ARCHITECTURE.md)。
+
+## 设置窗口分类导航
+
+`dotnet run --project tests/CRS.Tests.Wpf --no-build -- --settings-ui artifacts/settings-redesigned` 渲染真实窗口，验证两级树选择、分类关键词搜索/空结果、草稿保留、最小尺寸保存区和锁定凭证清理。使用隔离设置与保险库替身，不保存个人配置、不发送邮件。布局与新增分类约定见[设置导航实现](../docs/implementation/SETTINGS_NAVIGATION_20261019.md)。
+
+## 减持预警历史研究回放（2026-10-19追加）
+
+以下命令通过`tests/CRS.Tests.NationalTeamWatch`的Release构建运行。`--exit-alert-replay-checks`验证14项合成规则及文件复算；同时包含在完整ETF回归与`--exit-alerts`中。
+
+```powershell
+dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay-checks
+dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay inputs.json artifacts/replay-restored
+dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay-installed 2025-09-30 2026-06-30 artifacts/replay-real
+```
+
+前两项不需要正式服务；第三项只读当前启用池、规则、已接受份额、日历覆盖及机构证据，要求正式服务查询可用。导出`report.md`、`report.json`、`inputs.json`；服务快照另附`evidence.json`原件哈希/来源/修订。所有回放均为事后研究且时效`NotProven`，不发信、不补采、不审核。当前池不是历史无偏样本；无数据或无可计算窗口不能被解读为未发生异常。2026-10-19正式服务处于未完成升级恢复，真实回放暂未完成。

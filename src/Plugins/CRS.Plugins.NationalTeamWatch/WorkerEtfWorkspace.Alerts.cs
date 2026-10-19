@@ -11,6 +11,8 @@ public sealed partial class WorkerEtfWorkspace
     public Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>RunAsync("alert-manage",new("alert-settings",AlertConfiguration:value),token);
     public Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>AlertRows<ExitAlertEvent>(new("alert-events",AlertFilter:filter),token);
     public async Task<ExitAlertEvent> AlertEventAsync(string id,CancellationToken token)=>(await AlertRows<ExitAlertEvent>(new("alert-event",Revision:id),token)).Single();
+    public async Task<ExitAlertEvent> AlertEventVersionAsync(string id,int sequence,CancellationToken token)=>(await AlertRows<ExitAlertEvent>(new("alert-event-version",Revision:id,Name:sequence.ToString(System.Globalization.CultureInfo.InvariantCulture)),token)).Single();
+    public Task<List<EvidenceRow>> AlertInputsAsync(string id,int? sequence,CancellationToken token)=>AlertRows<EvidenceRow>(new("alert-inputs",Revision:id,Name:sequence?.ToString(System.Globalization.CultureInfo.InvariantCulture)),token);
     public Task<List<ExitAlertChange>> AlertChangesAsync(string id,CancellationToken token)=>AlertRows<ExitAlertChange>(new("alert-changes",Revision:id),token);
     public Task<List<AlertOutboxItem>> AlertOutboxAsync(CancellationToken token)=>AlertRows<AlertOutboxItem>(new("alert-outbox"),token);
     public Task<List<AlertOutboxItem>> AlertOutboxAsync(ExitAlertFilter filter,CancellationToken token)=>AlertRows<AlertOutboxItem>(new("alert-outbox",AlertFilter:filter),token);
