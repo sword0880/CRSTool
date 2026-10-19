@@ -26,6 +26,8 @@ public interface IEtfWorkspace
     Task<List<EquityHoldingRow>> EquityHoldingsAsync(string? search,string? institution,string? nature,bool favorites,CancellationToken token)=>throw new NotSupportedException("直接持股需要更新后台服务。");
     Task<List<EquityDisclosure>> EquityDisclosuresAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
     Task<List<EquityHoldingRow>> EquityEventsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException("历次变动需要更新后台服务。");
+    Task<List<EquityReportDocument>> EquityReportsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException("官方报告目录需要更新后台服务。");
+    Task<EquityReportSearch> QueueEquityReportsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
     Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token)=>throw new NotSupportedException();
     Task SyncEquityAsync(CancellationToken token)=>throw new NotSupportedException();
     Task ReviewEquityAsync(EquityReview review,CancellationToken token)=>throw new NotSupportedException();

@@ -21,7 +21,11 @@ internal static class ExecutionProgressChecks
             var stages=repository.FindExecution(id)!.Progress!;
             Check(stages.Count==128 && stages[0].Sequence==473 && stages[^1].Sequence==600,"有界读取最近128条并保留真实递增序号");
             Check(stages.Zip(stages.Skip(1)).All(x=>x.First.Utc<=x.Second.Utc),"记录时间由宿主持久生成");
-            var completed=repository.Begin(plan,DateTimeOffset.UtcNow);repository.End(completed,plan,BackgroundJobResult.Success());
+            var completed=repository.Begin(plan,DateTimeOffset.UtcNow);
+            repository.AppendProgress(completed,new("ReportIndexPage",Market:"SSE",Received:1));
+            repository.AppendProgress(completed,new("ReportIndexCommitted",Market:"SSE",Added:1));
+            Check(repository.FindExecution(completed)!.Progress!.Count==2,"仅受控报告目录阶段可持久化，不冒充持股确认");
+            repository.End(completed,plan,BackgroundJobResult.Success());
             var heartbeat=repository.Plans().Single(x=>x.PluginId=="crs.heartbeat");
             for(var i=0;i<501;i++){var beat=repository.Begin(heartbeat,DateTimeOffset.UtcNow);repository.End(beat,heartbeat,BackgroundJobResult.Success());}
             Check(repository.HistoryPage(null,10,"crs.national-team").Rows is{Count:2} rows && rows.Any(x=>x.ExecutionId==id),"ETF历史不被较新的心跳挤出");

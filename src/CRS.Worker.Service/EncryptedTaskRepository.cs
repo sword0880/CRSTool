@@ -181,7 +181,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
     /// <summary>写入正在执行的阶段并保留最近512条；时间和顺序由宿主生成，强杀后仍可读取。</summary>
     public void AppendProgress(string id,BackgroundProgress progress)
     {
-        if(progress.Stage is not ("RangeStarted" or "DayStarted" or "SourceStarted" or "SourceParsed" or "SourceFailed" or "RequestStarted" or "ResponseReceived" or "RequestFailed" or "RequestTimedOut" or "RateWait" or "Cooldown" or "DayCommitted" or "RangeCompleted")
+        if(progress.Stage is not ("RangeStarted" or "DayStarted" or "SourceStarted" or "SourceParsed" or "SourceFailed" or "RequestStarted" or "ResponseReceived" or "RequestFailed" or "RequestTimedOut" or "RateWait" or "Cooldown" or "DayCommitted" or "RangeCompleted" or "ReportIndexPage" or "ReportIndexCommitted")
             || progress.Market is not (null or "SSE" or "SZSE") || progress.Received<0 || progress.Added<0 || progress.Duplicates<0 || progress.Pending<0 || progress.HttpStatus is <100 or >599)throw new ArgumentException("进度格式无效。");
         lock(gate)
         {

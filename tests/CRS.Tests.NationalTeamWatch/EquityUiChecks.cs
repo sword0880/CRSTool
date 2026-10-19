@@ -10,7 +10,11 @@ internal static class EquityUiChecks
         Exception? failure=null;var thread=new Thread(()=>
         {
             var app=new System.Windows.Application();var root=Path.Combine(Environment.CurrentDirectory,"artifacts","direct-equity-20261018","ui",Guid.NewGuid().ToString("N"));
-            var raw=new RawEvidenceStore(Path.Combine(root,"raw"));using(var seed=TestMarketData.Open(Path.Combine(root,"data"),raw))DirectEquityChecks.Seed(seed);
+            var raw=new RawEvidenceStore(Path.Combine(root,"raw"));using(var seed=TestMarketData.Open(Path.Combine(root,"data"),raw))
+            {
+                DirectEquityChecks.Seed(seed);
+                seed.SaveEquityReports(new("SSE","600036"),new(2026,8,1),new(2026,10,19),[EquityReportChecks.Page()]);
+            }
             using var lifetime=new CancellationTokenSource();var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
             workspace.InitializeAsync(default).GetAwaiter().GetResult();var model=new EquityViewModel(workspace,lifetime.Token);var page=new EquityPage(model);
             var window=new System.Windows.Window{Content=page,Width=1200,Height=850,ShowInTaskbar=false,Title="直接持股隔离合成验收"};
@@ -46,11 +50,19 @@ internal static class EquityUiChecks
                     await workspace.SaveEquityDisclosureAsync("SSE","600036",OfficialEquitySource.Request("SSE","600036"),DirectEquityChecks.Source(new(2026,10,16),("中央汇金资产管理有限责任公司",800,8)),default);
                     await model.RefreshAsync();model.Selected=model.Rows.Single(x=>x.State=="NeedsReview");await model.DetailTask;
                     var candidate=model.SelectedDisclosure;
+                    if(model.Reports.Count!=1)throw new Exception("缓存官方目录未加载。");
+                    model.OriginalConfirmed=true;model.Comparable=true;model.SelectedReport=model.Reports.Single();model.UseReportCommand.Execute(null);
+                    if(model.DocumentUrl!=model.SelectedReport.DocumentUrl||model.Published!=new DateTime(2026,8,29)||model.ReportAsOf is not null||model.OriginalConfirmed||model.Comparable)throw new Exception("报告线索没有安全填入表单或被自动批准为持仓。");
+                    Descendants(page).OfType<System.Windows.Controls.TabItem>().Single(x=>Equals(x.Header,"披露证据 / 核验")).IsSelected=true;
+                    await Task.Delay(100);window.UpdateLayout();Descendants(page).OfType<System.Windows.Controls.GroupBox>().Single().BringIntoView();await Task.Delay(200);window.UpdateLayout();
+                    var reportsBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);reportsBitmap.Render(page);
+                    var reportsEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();reportsEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(reportsBitmap));
+                    using(var file=File.Create(Path.Combine(Environment.CurrentDirectory,"artifacts","equity-disclosures-20261019","reports-synthetic.png")))reportsEncoder.Save(file);
                     model.HoldingPercent=true;
                     if(candidate?.Id!=model.Selected.DisclosureId||model.SelectedDisclosure!=candidate||model.SelectedEvent is not null)throw new Exception("图表默认选择或单位切换覆盖了待审候选。");
                     var detachedAxis=model.HoldingAxes.First();
                     model.Institution="养老保险基金";await model.LoadTask;if(model.Rows.Count!=1||model.Rows[0].State!="NotListed")throw new Exception("机构筛选未保持未知持仓。");
-                    model.Search="无此组合";await model.LoadTask;if(model.Rows.Count!=0||model.HoldingSeries.Length!=0||model.DeltaSeries.Length!=0||model.Disclosures.Count!=0||model.Events.Count!=0||model.Matrix.Count!=0||model.StockAccounts.Count!=0)throw new Exception("空结果残留旧详情。");
+                    model.Search="无此组合";await model.LoadTask;if(model.Rows.Count!=0||model.HoldingSeries.Length!=0||model.DeltaSeries.Length!=0||model.Disclosures.Count!=0||model.Events.Count!=0||model.Matrix.Count!=0||model.StockAccounts.Count!=0||model.Reports.Count!=0)throw new Exception("空结果残留旧详情。");
                     if(detachedAxis is not null)detachedAxis.MinLimit=.25;
                     CheckUnsafeChartInputs(workspace);
                     Console.WriteLine("PASS 真实WPF直接持股：上下图、比例、联动缩放、组合切换、矩阵、空结果及不安全输入隔离；截图为合成数据。");

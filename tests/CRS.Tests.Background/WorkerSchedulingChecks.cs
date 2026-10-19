@@ -78,8 +78,10 @@ internal static class WorkerSchedulingChecks
         try
         {
             await runtime.StartAsync(default);
-            Check((await Send(Request("RunNow", "crs.slow"))).Code == "Accepted", "慢插件首任务正常启动");
+            var firstRequest=Request("RunNow","crs.slow");
+            Check((await Send(firstRequest)).Code == "Accepted", "慢插件首任务正常启动");
             await Until(async () => (await Health()).Health?.Scheduling?.Running == 1);
+            Check((await Send(firstRequest)).Code=="Accepted"&&repository.FindCommand(firstRequest.RequestId,Admin.Sid)?.State is "Pending" or "Running","运行中的原请求重放保留未完成回执，不提前完成命令");
             var queued = new List<BackgroundRequest>();
             foreach (var job in new[] { "two", "job3", "job4", "job5" })
             {

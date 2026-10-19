@@ -15,7 +15,7 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 }
 
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
-public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null):IBackgroundPluginSession,
+public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null):IBackgroundPluginSession,
     IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession
 {
     private readonly SemaphoreSlim serial=new(1);
@@ -50,6 +50,7 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
         new("equity-disclosure-sync","直接持股披露检查","0 45 23 * * ?","China Standard Time",true,true),
         new("equity-watch","直接持股观察设置（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-review","直接持股原文核验（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("equity-report-search","查找持股官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("activity-review","成交统计修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("review","ETF修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("watchlist","ETF验证池变更（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true)];
@@ -80,6 +81,8 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
             var request=payload is null?new EtfRequest("sync"):Parse(payload);
             switch(jobId)
             {
+                case "equity-report-search" when request.Operation=="equity-report-search":
+                    return await SearchEquityReportsAsync(request,commandId,token);
                 case "activity-review" when request.Operation=="activity-review":
                     await workspace!.ReviewMarketActivityAsync(request.Revision??"",request.Accept,request.Reviewer??"",token,commandId);return BackgroundJobResult.Success();
                 case "equity-watch" when request.Operation=="equity-watch" && request.EquityWatch is {} watch:
@@ -183,6 +186,7 @@ public sealed class NationalTeamBackgroundSession(IBackgroundHostContext context
                 case "equity-holdings":rows=(await workspace!.EquityHoldingsAsync(request.Search,request.Institution,request.Nature,request.Favorites,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-disclosures":rows=(await workspace!.EquityDisclosuresAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-events":rows=(await workspace!.EquityEventsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "equity-reports":rows=(await workspace!.EquityReportsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "evidence":rows=(await workspace!.EvidenceAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "history":
                     if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");

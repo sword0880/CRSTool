@@ -120,7 +120,25 @@ using(var service=Start())
         var singleHistory=await ui.HistoryAsync(new("SSE","510300"),default);
         Check(singleHistory.Count==basketHistory.Count && singleHistory.All(x=>x.Total==1 && x.Covered==1 && x.Shares>0),"单只ETF历史使用独立口径");
         Check((await ui.EquityEventsAsync(new("SSE","600036"),default)).Count==0,"历次持股变动经真实只读管道返回，未采集不伪造事件");
-        var first=(await Query("GetHistory")).History!.First(x=>x.PluginId=="crs.national-team" && x.Result=="Succeeded");
+        Check((await ui.EquityReportsAsync(new("SSE","600036"),default)).Count==0,"未检索前官方报告目录留空");
+        var reportHold=Path.Combine(data,"plugins","crs.national-team","http-hold.fixture");File.WriteAllText(reportHold,"report query hold");
+        try
+        {
+            var reportReceipt=await ui.QueueEquityReportsAsync(new("SSE","600036"),default);
+            Check(reportReceipt.State is "Pending" or "Running" or "Completed","官方报告检索持久受理后立即返回，不等待来源冷却");
+            var repeatedReport=await ui.QueueEquityReportsAsync(new("SSE","600036"),default);
+            Check(repeatedReport.RequestId==reportReceipt.RequestId,"重复待执行检索沿用请求ID，避免重复占用来源额度");
+        }
+        finally{File.Delete(reportHold);}
+        try{await Until(async()=>(await ui.EquityReportsAsync(new("SSE","600036"),default)).Count==1);}
+        catch
+        {
+            var diagnostic=await Query("GetHistory");Console.WriteLine(JsonSerializer.Serialize(diagnostic.History));
+            foreach(var run in diagnostic.History?.Where(x=>x.JobId=="equity-report-search")??[])Console.WriteLine(JsonSerializer.Serialize((await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:run.ExecutionId))).Execution));
+            throw;
+        }
+        Check((await ui.EquityReportsAsync(new("SSE","600036"),default)).Single() is {State:"Indexed",Title:"合成2026年半年度报告"},"官方目录通过后台分页与只读管道提供，尚未确认持仓");
+        var first=(await Query("GetHistory")).History!.First(x=>x.PluginId=="crs.national-team" && x.JobId=="official-share-sync" && x.Result=="Succeeded");
         var firstLog=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:first.ExecutionId));
         Check(firstLog.Execution?.Progress is{Count:>0} stages && stages.Any(x=>x.Detail.Stage=="SourceParsed") && stages.Any(x=>x.Detail.Stage=="DayCommitted") && stages[^1].Detail.Stage=="RangeCompleted","真实管道提供来源解析、事实提交及区间汇总阶段");
         var assemblies=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:"fixture-assemblies"));

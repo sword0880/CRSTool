@@ -8,6 +8,7 @@ if(args is ["--market-live"]){await MarketActivityChecks.RunLive(Path.Combine(En
 if(args is ["--chart-gap-ui"]){EtfChartChecks.RunGapUi();return;}
 if(args is ["--equity-ui"]){EquityUiChecks.Run();return;}
 if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
+if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
 await EtfChartChecks.Run();
 Check(EtfMetrics.Normalize(2489718.77m,"万份")==24897187700m,"DATA-01 decimal units");
 Reject(()=>EtfMetrics.Normalize(1,"亿元"),"Unknown unit rejected");
@@ -32,6 +33,7 @@ Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
 MarketActivityChecks.Run(root);
 DirectEquityChecks.Run(root);
+EquityReportChecks.Run(root);
 await HistoryRangeChecks.Run(root);
 EtfConfigurationChecks.Run(root);
 // 合成官方响应验证字段、单位、日期及完整分页；不把联网能返回200当作解析验收。

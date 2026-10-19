@@ -24,6 +24,9 @@ public interface IMarketRepository : IDisposable
     void SaveEquityDisclosure(string market,string ticker,Uri uri,byte[] bytes)=>throw new NotSupportedException();
     List<EquityHoldingRow> EquityHoldings(string? search,string? institution,string? nature,bool favorites)=>throw new NotSupportedException();
     List<EquityHoldingRow> EquityEvents(EtfKey key)=>throw new NotSupportedException();
+    List<EquityReportDocument> EquityReports(EtfKey key)=>throw new NotSupportedException();
+    void SaveEquityReports(EtfKey key,DateOnly from,DateOnly to,IReadOnlyList<byte[]> pages,Guid? commandId=null)=>throw new NotSupportedException();
+    bool EquityReportCommandComplete(Guid id)=>false;
     List<EquityDisclosure> EquityDisclosures(EtfKey key)=>throw new NotSupportedException();
     void ReviewEquity(EquityReview review,byte[] document,Guid? commandId=null)=>throw new NotSupportedException();
     List<EvidenceRow> Evidence();

@@ -111,7 +111,9 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
             "SourceParsed"=>$"来源解析完成：{value.Received}条（含非监控证券，写入时过滤）", "SourceFailed"=>"来源未完成，未将失败当作零份额",
             "RequestStarted"=>"发起HTTPS请求（响应头和正文共用20秒期限）", "ResponseReceived"=>$"收到HTTP {value.HttpStatus}响应头，继续读取和校验正文",
             "RequestTimedOut"=>"请求超过20秒期限，已登记重试退避", "RequestFailed"=>"网络连接失败，已登记重试退避", "RateWait"=>"按来源间隔等待", "Cooldown"=>"来源冷却，停止本次网络请求",
-            "DayCommitted"=>"当日写入完成 · "+counts, "RangeCompleted"=>"区间查询结束 · "+counts, _=>"未知阶段"
+            "DayCommitted"=>"当日写入完成 · "+counts, "RangeCompleted"=>"区间查询结束 · "+counts,
+            "ReportIndexPage"=>$"官方报告目录分页解析完成：{value.Received}份全文线索（PDF尚未核验）",
+            "ReportIndexCommitted"=>$"官方报告目录已完整存证：{value.Added}页；持股和报告期仍须核验", _=>"未知阶段"
         };
         return scope+" · "+stage+(value.Until is { } until?$"；最早继续时间 {Time(until)}（北京时间）":"");
     }

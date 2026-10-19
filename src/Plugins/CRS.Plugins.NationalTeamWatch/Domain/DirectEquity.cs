@@ -17,6 +17,9 @@ public static class InstitutionAccounts
 }
 
 public sealed record EquityWatch(string Market,string Ticker,string Name,bool Active,bool Favorite);
+public sealed record EquityReportDocument(string Id,string Market,string Ticker,string BulletinId,string Title,DateOnly Announced,string DocumentUrl,string State,string ListSourceUrl);
+public sealed record EquityReportPage(int Total,int Pages,IReadOnlyList<string> GroupIds,IReadOnlyList<EquityReportDocument> Documents);
+public sealed record EquityReportSearch(Guid RequestId,string State,string Code);
 public sealed record EquityHolder(string Account,decimal Shares,decimal? Percent);
 public sealed record EquityDisclosure(string Id,string Market,string Ticker,DateOnly SourceDate,DateOnly? ReportAsOf,DateOnly? Published,
     string State,string SourceUrl,string Hash,string? DocumentUrl,string? Page,string? Reviewer,bool Comparable,string Nature,IReadOnlyList<EquityHolder> Holders);

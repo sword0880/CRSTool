@@ -229,11 +229,14 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         var accepted = false;
         try
         {
-            if (request.Command == "RunNow" && repository.FindCommand(request.RequestId, caller.Sid) is null
+            var replayedRun=request.Command=="RunNow"&&repository.FindCommand(request.RequestId,caller.Sid) is not null;
+            if (request.Command == "RunNow" && !replayedRun
                 && !running.ContainsKey(Key(plan)) && repository.PendingRuns().Count(x => x.PluginId == plan.PluginId) >= settings.MaxPendingPerPlugin)
                 return Reply("PluginBusy"); // 超配额的新命令不落盘，不制造无界待执行积压。
             var receipt = repository.AcceptCommand(request, caller.Sid); accepted = true;
             if (receipt.State != "Pending") return Reply(receipt.Code, receipt);
+            // AcceptCommand先校验相同ID的调用者和原始参数；运行中的同一命令重放只返回原受理状态。
+            if(replayedRun)return Reply("Accepted",receipt);
             var code = "Ok";
             switch (request.Command)
             {

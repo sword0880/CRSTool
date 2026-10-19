@@ -46,6 +46,12 @@ public sealed class Entry:IContextualBackgroundPluginEntry
             // 仅测试可控的网络等待，验证阶段可查询且配置按插件写入门槛排队。
             while(File.Exists(Path.Combine(root,"http-hold.fixture")))await Task.Delay(25,token);
             var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
+            if(uri.AbsolutePath=="/security/stock/queryCompanyBulletinNew.do")
+            {
+                var code=query["SECURITY_CODE"];var date=query["END_DATE"];
+                var valueReport=new{SECURITY_CODE=code,START_DATE=query["START_DATE"],END_DATE=date,TITLE="报告",pageHelp=new{total=1,pageCount=1,pageNo=1,pageSize=10},result=new[]{new[]{new{SECURITY_CODE=code,ORG_BULLETIN_ID="fixture-report",TITLE="合成2026年半年度报告",SSEDATE=date,BULLETIN_TYPE_DESC="半年报",URL=$"/disclosure/listedinfo/announcement/c/new/{date}/{code}_{date.Replace("-","")}_FIXTURE.pdf"}}}};
+                return new PublicHttpResponse(200,JsonSerializer.SerializeToUtf8Bytes(valueReport),"application/json");
+            }
             var day=query.GetValueOrDefault("SEARCH_DATE")??query.GetValueOrDefault("txtQueryDate")??query.GetValueOrDefault("STAT_DATE")??query["txtStart"];
             var amount=1000+DateOnly.Parse(day).DayNumber;
             if(File.Exists(Path.Combine(root,"changed.fixture")))amount+=100;

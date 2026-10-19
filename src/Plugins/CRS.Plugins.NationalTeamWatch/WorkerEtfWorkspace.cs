@@ -61,6 +61,23 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
     public async Task<List<EquityHoldingRow>> EquityHoldingsAsync(string? search,string? institution,string? nature,bool favorites,CancellationToken token)=>(await ReadPagesAsync<EquityHoldingRow>(new("equity-holdings",Search:search,Institution:institution,Nature:nature,Favorites:favorites),token)).Rows;
     public async Task<List<EquityDisclosure>> EquityDisclosuresAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<EquityDisclosure>(new("equity-disclosures",key.Market,key.Ticker),token)).Rows;
     public async Task<List<EquityHoldingRow>> EquityEventsAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<EquityHoldingRow>(new("equity-events",key.Market,key.Ticker),token)).Rows;
+    public async Task<List<EquityReportDocument>> EquityReportsAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<EquityReportDocument>(new("equity-reports",key.Market,key.Ticker),token)).Rows;
+    private BackgroundRequest? pendingReportSearch;
+    private EtfKey? pendingReportKey;
+    private readonly Dictionary<EtfKey,BackgroundRequest> reportSearches=[];
+    public async Task<EquityReportSearch> QueueEquityReportsAsync(EtfKey key,CancellationToken token)
+    {
+        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var payload=JsonSerializer.Serialize(new EtfRequest("equity-report-search",key.Market,key.Ticker,From:today.AddDays(-400),To:today));
+        if(pendingReportSearch is not null&&pendingReportKey!=key)throw new InvalidDataException("上次报告检索受理情况未确认，请先用原股票重试。");
+        pendingReportKey=key;
+        var request=pendingReportSearch??=(reportSearches.TryGetValue(key,out var existing)?existing:new(WorkerProtocol.Version,Guid.NewGuid(),"RunNow",Plugin,"equity-report-search",Payload:payload));
+        var reply=await SendAsync(request,token);
+        if(reply.Code is not ("Accepted" or "Succeeded" or "RetryDeferred")&&reply.Receipt is null){pendingReportSearch=null;pendingReportKey=null;throw new InvalidDataException("后台未接受报告检索："+reply.Code);}
+        pendingReportSearch=null;pendingReportKey=null;
+        if(reply.Receipt?.State=="Completed")reportSearches.Remove(key);else reportSearches[key]=request;
+        return new(request.RequestId,reply.Receipt?.State??reply.Code,reply.Receipt?.Code??reply.Code);
+    }
     public Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token)=>RunAsync("equity-watch",new("equity-watch",EquityWatch:watch),token);
     public Task SyncEquityAsync(CancellationToken token)=>RunAsync("equity-disclosure-sync",new("equity-sync"),token);
     public Task ReviewEquityAsync(EquityReview review,CancellationToken token)=>RunAsync("equity-review",new("equity-review",EquityReview:review),token);

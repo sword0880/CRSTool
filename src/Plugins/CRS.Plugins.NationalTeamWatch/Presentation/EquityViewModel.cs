@@ -88,6 +88,8 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
     private async Task LoadDetailAsync(EquityHoldingRow? row)
     {
         var version=++detailVersion;Disclosures.Clear();Events.Clear();SelectedDisclosure=null;ClearEquityCharts();
+        Reports.Clear();SelectedReport=null;
+        ReportStatus=row is null?"选择股票后查找官方报告。":"正在读取已缓存的官方报告目录…";
         if(row is null){DetailStatus="选择持仓查看披露时间线。";return;}
         DetailStatus=$"{row.Ticker} {row.Name} · {row.Account} · 正在加载披露证据…";
         try
@@ -99,6 +101,7 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
             foreach(var item in events.Where(x=>x.Account==row.Account&&x.Institution==row.Institution))Events.Add(item);
             RebuildEquityCharts();
             DetailStatus=$"{row.Ticker} {row.Name} · {row.Account} · {row.StatusText}。持仓仅展示报告时点；来源日期不是持仓截止日。股价及个股成交额尚未接入，不能据此判断每日交易。";
+            await LoadReportDocumentsAsync(row,version);
         }
         catch(OperationCanceledException) when(lifetime.IsCancellationRequested){}
         catch(Exception error){if(version==detailVersion)DetailStatus="披露明细加载失败："+error.GetType().Name;}

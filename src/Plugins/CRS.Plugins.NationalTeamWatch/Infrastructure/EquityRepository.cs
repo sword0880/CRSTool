@@ -25,6 +25,7 @@ public sealed partial class MarketRepository
         foreach(var (ticker,name) in new[]{("601398","工商银行"),("601288","农业银行"),("601988","中国银行"),("601939","建设银行"),("600036","招商银行"),("601318","中国平安"),("600519","贵州茅台"),("600887","伊利股份"),("600900","长江电力"),("600153","建发股份"),("603195","公牛集团"),("600426","华鲁恒升"),("600429","三元股份")})
             Execute("INSERT OR IGNORE INTO equity_watch VALUES('SSE',$t,$n,1,0)",("$t",ticker),("$n",name));
         transaction.Commit();
+        InitializeEquityReportSchema();
     }
     public List<EquityWatch> EquityWatchlist()
     {
