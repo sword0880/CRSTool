@@ -38,6 +38,7 @@ public sealed class SourceRequestPolicy : IDisposable
     {
         "www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" => "SSE",
         "www.szse.cn" or "disc.static.szse.cn" => "SZSE",
+        "www.chinacnd.com" => "ISSUER-600153",
         _ => throw new ArgumentException("不支持的来源。")
     };
 

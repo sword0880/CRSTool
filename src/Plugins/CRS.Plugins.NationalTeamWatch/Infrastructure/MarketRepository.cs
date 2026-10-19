@@ -84,8 +84,9 @@ public sealed partial class MarketRepository : IMarketRepository
     {
         beforeWrite?.Invoke();
         if (!Uri.TryCreate(sourceUrl,UriKind.Absolute,out var uri) || uri.Scheme!="https" || uri.UserInfo.Length!=0 || !uri.IsDefaultPort
-            || !(uri.Host=="sse.com.cn" || uri.Host.EndsWith(".sse.com.cn",StringComparison.Ordinal) || uri.Host=="szse.cn" || uri.Host.EndsWith(".szse.cn",StringComparison.Ordinal)))
-            throw new InvalidDataException("一期仅接受上交所或深交所HTTPS来源链接；链接与原文件需人工核对。");
+            || !(uri.Host=="sse.com.cn" || uri.Host.EndsWith(".sse.com.cn",StringComparison.Ordinal) || uri.Host=="szse.cn" || uri.Host.EndsWith(".szse.cn",StringComparison.Ordinal)
+                ||provider=="ReviewedEquityDisclosurePdf"&&OfficialEquityDocuments.IsReviewedIssuer(uri)))
+            throw new InvalidDataException("仅接受已登记的官方HTTPS来源；发行人原文须匹配固定证券、报告期及已核验哈希。");
         if (!raw.Verify(hash)) throw new InvalidDataException("Evidence is missing or damaged.");
         originalHash ??= hash;
         if (!raw.Verify(originalHash)) throw new InvalidDataException("Original official file evidence is missing or damaged.");
@@ -138,9 +139,11 @@ public sealed partial class MarketRepository : IMarketRepository
             var before = Scalar("SELECT r.total_shares FROM share_accepted_current c JOIN share_observation_revision r ON r.revision_id=c.revision_id WHERE c.market=$m AND c.ticker=$t AND c.trade_date=(SELECT max(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date<$d)",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var after = Scalar("SELECT r.total_shares FROM share_accepted_current c JOIN share_observation_revision r ON r.revision_id=c.revision_id WHERE c.market=$m AND c.ticker=$t AND c.trade_date=(SELECT min(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date>$d)",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             var current=EtfMetrics.Normalize(row.Original,row.Unit);
+            var beforeDate=Scalar("SELECT max(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date<$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
+            var afterDate=Scalar("SELECT min(trade_date) FROM share_accepted_current WHERE market=$m AND ticker=$t AND trade_date>$d",("$m",row.Key.Market),("$t",row.Key.Ticker),("$d",date)) as string;
             static bool Jump(decimal previousValue,decimal nextValue)=>previousValue==0?nextValue!=0:Math.Abs(nextValue/previousValue-1)>0.2m;
-            var jump = before is not null && Jump(decimal.Parse(before,CultureInfo.InvariantCulture),current)
-                || after is not null && Jump(current,decimal.Parse(after,CultureInfo.InvariantCulture));
+            var jump = before is not null && NoKnownTradingDayBetween(row.Key,beforeDate!,date) && Jump(decimal.Parse(before,CultureInfo.InvariantCulture),current)
+                || after is not null && NoKnownTradingDayBetween(row.Key,date,afterDate!) && Jump(current,decimal.Parse(after,CultureInfo.InvariantCulture));
             var review = previous is not null || jump || latest is not null;
             if(review)pending++;
             var id = Guid.NewGuid().ToString("N"); var now=Now;
@@ -152,6 +155,11 @@ public sealed partial class MarketRepository : IMarketRepository
         Execute("UPDATE source_fetch SET status='Parsed' WHERE fetch_id=$fetch",("$fetch",fetchId));
         Execute("INSERT INTO sync_checkpoint VALUES($fetch,'Validated',$count)",("$fetch",fetchId),("$count",accepted)); cancellation.ThrowIfCancellationRequested();transaction.Commit(); return new(accepted,duplicates,pending);
     }
+    // 跨过已核验交易日的长期差额不能冒充相邻日20%跳变。日历未知时仍保守保留原有预警。
+    private bool NoKnownTradingDayBetween(EtfKey key,string from,string to)=>Convert.ToInt32(Scalar("""
+        SELECT count(*) FROM trading_day d WHERE d.market=$m AND d.trade_date>$from AND d.trade_date<$to
+        AND NOT EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=d.fetch_id AND q.rule_id='Q15' AND q.status='Open')
+        """,("$m",key.Market),("$from",from),("$to",to)))==0;
     private void SetCurrent(EtfKey key,string date,string id) => Execute("INSERT INTO share_accepted_current VALUES($m,$t,$d,$id) ON CONFLICT(market,ticker,trade_date) DO UPDATE SET revision_id=excluded.revision_id",("$m",key.Market),("$t",key.Ticker),("$d",date),("$id",id));
     public void Review(string revisionId, bool accept, string reviewer, bool comparableConfirmed = false,Guid? commandId=null)
     {
@@ -178,9 +186,11 @@ public sealed partial class MarketRepository : IMarketRepository
         ValidateEvidence();
         return ReadEvidence();
     }
-    private List<EvidenceRow> ReadEvidence()
+    /// <summary>先过滤证券再返回证据，单只历史不会挤占全池查询的分页容量。</summary>
+    public List<EvidenceRow> Evidence(EtfKey key){ValidateEvidence();return ReadEvidence(key);}
+    private List<EvidenceRow> ReadEvidence(EtfKey? key=null)
     {
-        using var command=Command("SELECT r.revision_id,r.market,r.ticker,r.trade_date,r.total_shares,CASE WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open') THEN 'Critical' ELSE r.status END,r.revision_no,f.sha256,f.original_sha256,f.source_url,f.retrieved_utc,r.first_seen,r.accepted_at,r.supersedes_id FROM share_observation_revision r JOIN source_fetch f ON f.fetch_id=r.fetch_id ORDER BY r.trade_date DESC,r.revision_no DESC");
+        using var command=Command("SELECT r.revision_id,r.market,r.ticker,r.trade_date,r.total_shares,CASE WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open') THEN 'Critical' ELSE r.status END,r.revision_no,f.sha256,f.original_sha256,f.source_url,f.retrieved_utc,r.first_seen,r.accepted_at,r.supersedes_id FROM share_observation_revision r JOIN source_fetch f ON f.fetch_id=r.fetch_id WHERE ($m IS NULL OR (r.market=$m AND r.ticker=$t)) ORDER BY r.trade_date DESC,r.revision_no DESC",("$m",key?.Market),("$t",key?.Ticker));
         using var reader=command.ExecuteReader(); var rows=new List<EvidenceRow>();
         while(reader.Read()) rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5),reader.GetInt32(6),reader.GetString(7),reader.GetString(8),reader.GetString(9),reader.GetString(10),reader.GetString(11),reader.IsDBNull(12)?null:reader.GetString(12),reader.IsDBNull(13)?null:reader.GetString(13)));
         return rows;

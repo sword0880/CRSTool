@@ -6,6 +6,10 @@ public sealed record SourcePage(Uri Uri,byte[] Content,IReadOnlyList<ImportRow> 
 public sealed record SourceFailure(string Market,string? Ticker,string State,string Reason,string? SourceUrl=null,string? OriginalHash=null,string? ParserVersion=null);
 public sealed record SourceDay(DateOnly Date,IReadOnlyList<SourcePage> Pages,IReadOnlyList<string>? Issues=null,IReadOnlyList<SourceFailure>? Failures=null);
 public sealed record SyncReport(int QueriedDays,int SourceIssues,int ReceivedRows=0,bool HasMore=false);
+public interface IOfficialSourceValidationFeedback
+{
+    void RejectContract(Uri uri);
+}
 public interface IOfficialShareSource
 {
     Task PrepareRangeAsync(DateOnly from,DateOnly to,CancellationToken token)=>Task.CompletedTask;

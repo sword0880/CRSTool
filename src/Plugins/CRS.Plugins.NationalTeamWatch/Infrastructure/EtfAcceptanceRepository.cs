@@ -29,6 +29,7 @@ public sealed partial class MarketRepository
         }
         return result;
     }
+    /// <summary>以北京时间验收真实接收窗口；历史回填不计入连续运行天数。</summary>
     private static bool WithinDailyWindow(string updatedAt,DateOnly day)
     {
         var local=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.Parse(updatedAt,CultureInfo.InvariantCulture),"China Standard Time");

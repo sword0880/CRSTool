@@ -119,6 +119,11 @@ using(var service=Start())
         Check(basketHistory.Count>0 && basketHistory.All(x=>x.Total==5 && x.Covered==5 && x.Shares>0 && x.DeltaShares is null),"全部ETF历史经真实分页返回同日总和，无日历不计算净变化");
         var singleHistory=await ui.HistoryAsync(new("SSE","510300"),default);
         Check(singleHistory.Count==basketHistory.Count && singleHistory.All(x=>x.Total==1 && x.Covered==1 && x.Shares>0),"单只ETF历史使用独立口径");
+        var acceptanceThrough=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime).AddDays(-1);
+        var acceptance=await ui.AcceptanceAsync(acceptanceThrough,default);
+        Check(acceptance.Count==5&&acceptance.All(x=>!x.DataAcceptancePassed&&!x.CalendarVerified),"生产验收查询经真实管道返回，无日历时不得批准250日或连续20日");
+        var attempts=await ui.CollectionAttemptsAsync(new("SSE","510300"),acceptanceThrough.AddDays(-8),acceptanceThrough.AddDays(1),default);
+        Check(attempts.Any(x=>x.State=="Accepted"&&x.OriginalHash is not null&&x.ParserVersion=="sse-etf-json-v1"),"采集尝试经真实分页管道返回来源版本与原件关联");
         Check((await ui.EquityEventsAsync(new("SSE","600036"),default)).Count==0,"历次持股变动经真实只读管道返回，未采集不伪造事件");
         Check((await ui.EquityReportsAsync(new("SSE","600036"),default)).Count==0,"未检索前官方报告目录留空");
         var reportHold=Path.Combine(data,"plugins","crs.national-team","http-hold.fixture");File.WriteAllText(reportHold,"report query hold");
@@ -157,6 +162,9 @@ using(var service=Start())
         Check((await ui.OverviewAsync(default)).Count==6,"桌面验证池变更由服务持久执行");
         Check((await ui.HistoryAsync(null,default)).All(x=>x.Total==6 && x.Covered==5 && x.Shares is null && x.DeltaShares is null),"新增无数据成员后汇总留空，不沿用旧篮子或填零");
         var evidence=await ui.EvidenceAsync(default);Check(evidence.Count==40 && evidence.Select(x=>x.RevisionId).Distinct().Count()==40,"多页证据快照完整且无重复");
+        // 真实管道校验证券过滤发生在服务端分页之前，避免全池历史增长后证据页不可用。
+        var selectedEvidence=await ui.EvidenceAsync(new("SSE","510300"),default);
+        Check(selectedEvidence.Count==8&&selectedEvidence.All(x=>x.Market=="SSE"&&x.Ticker=="510300"),"单只ETF证据按证券过滤后分页，不混入其它ETF记录");
         var output=Path.Combine(root,"original.json");await ui.ExportEvidenceAsync(evidence[0].RevisionId,true,output,default);
         Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output)))==evidence[0].OriginalHash,"原始证据分块导出并验证完整哈希");
         Check((await ui.CoverageAsync(new("SSE","510300"),new(2026,1,1),new(2026,10,15),default)).State=="NoCalendar","没有完整交易日历时保持覆盖率不可判定");

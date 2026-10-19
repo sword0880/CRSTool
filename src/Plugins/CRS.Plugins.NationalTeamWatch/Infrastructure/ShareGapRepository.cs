@@ -5,6 +5,7 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 public sealed partial class MarketRepository
 {
+    /// <summary>分段扫描所有已登记年份，优先最近250交易日，并让未尝试的缺口先行。</summary>
     public List<ShareGap> DueHistoricalShareGaps(DateOnly through,DateTimeOffset now)
     {
         var first=Scalar("SELECT min(trade_date) FROM trading_day") as string;
@@ -35,6 +36,7 @@ public sealed partial class MarketRepository
                 if(accepted.Contains(day)||pending.Contains(day))continue;
                 attempts.TryGetValue(day,out var history);var last=history?.FirstOrDefault();
                 var time=last is null?(DateTimeOffset?)null:DateTimeOffset.Parse(last.UpdatedAt,CultureInfo.InvariantCulture);
+                // 来源限制和解析异常均跨重启冷却，不能靠重复任务绕过来源退避。
                 var delay=last?.State switch
                 {
                     "AccessBlocked"=>TimeSpan.FromHours(6),

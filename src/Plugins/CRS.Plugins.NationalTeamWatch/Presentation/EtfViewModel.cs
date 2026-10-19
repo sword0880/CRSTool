@@ -43,6 +43,8 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     [ObservableProperty] private bool allEtfs=true;
     [ObservableProperty] private string chartStatus="选择ETF即可自动加载图表，也可切换全部监控ETF汇总。";
     public Task HistoryLoadTask {get;private set;}=Task.CompletedTask;
+    public Task EvidenceLoadTask {get;private set;}=Task.CompletedTask;
+    private int evidenceVersion;
     private int chartVersion;
     private bool refreshingRows;
     [ObservableProperty] private LiveChartsCore.SkiaSharpView.Axis[] xAxes=[];
@@ -73,6 +75,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
         // 切换证券后立即清掉旧图表和覆盖率，避免把旧证券的数据展示到新选择上。
         InvalidateCoverage();
         if(refreshingRows)return;
+        EvidenceLoadTask=LoadEvidenceAsync(lifetime);
         // 点击具体ETF时回到单只模式；快速切换由独立版本号保护，不受其它操作Busy阻挡。
         if(value is not null && AllEtfs)AllEtfs=false;
         else if(!refreshingRows)HistoryLoadTask=LoadHistoryAsync();
@@ -82,6 +85,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
         if(value && !refreshingRows)
         {
             refreshingRows=true;Selected=null;refreshingRows=false;
+            EvidenceLoadTask=LoadEvidenceAsync(lifetime);
         }
         if(!refreshingRows)HistoryLoadTask=LoadHistoryAsync();
     }
@@ -104,16 +108,31 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     }
     public async Task RefreshAsync(CancellationToken token)
     {
-        var rows=await workspace.OverviewAsync(token);var evidence=await workspace.EvidenceAsync(token);await RefreshConfigurationAsync(token); token.ThrowIfCancellationRequested();
+        var rows=await workspace.OverviewAsync(token);await RefreshConfigurationAsync(token); token.ThrowIfCancellationRequested();
         var selectedKey=Selected is {} current?new EtfKey(current.Market,current.Ticker):null;
         refreshingRows=true;
         Selected=null;SelectedEvidence=null;InvalidateCoverage();CoverageStatus="本地数据已刷新，请重新查询ETF覆盖率。";
-        Rows.Clear();foreach(var row in rows) Rows.Add(row); Evidence.Clear();foreach(var row in evidence) Evidence.Add(row);
+        Rows.Clear();foreach(var row in rows) Rows.Add(row);
         Selected=rows.FirstOrDefault(x=>x.Market==selectedKey?.Market && x.Ticker==selectedKey.Ticker);
         refreshingRows=false;
+        EvidenceLoadTask=LoadEvidenceAsync(token);await EvidenceLoadTask;
         HistoryLoadTask=LoadHistoryAsync();await HistoryLoadTask;
         await LoadMarketActivityAsync(token);
         Status=$"当前监控 {Rows.Count} 只 · {workspace.NetworkStatus}";
+    }
+    /// <summary>只读取当前证券的证据；选择变化时立即清空旧数据，并拒绝迟到的查询结果。</summary>
+    private async Task LoadEvidenceAsync(CancellationToken token)
+    {
+        var version=++evidenceVersion;Evidence.Clear();SelectedEvidence=null;
+        if(Selected is not {} row||token.IsCancellationRequested)return;
+        try
+        {
+            var evidence=await workspace.EvidenceAsync(new EtfKey(row.Market,row.Ticker),token);
+            if(version!=evidenceVersion||token.IsCancellationRequested)return;
+            foreach(var item in evidence)Evidence.Add(item);
+        }
+        catch(OperationCanceledException) when(token.IsCancellationRequested) { }
+        catch(Exception error){if(version==evidenceVersion)Status="证据读取失败："+error.GetType().Name;}
     }
     /// <summary>编辑配置只刷新目录与概览，避免每次保存都重新下载全部历史证据。</summary>
     private async Task RefreshConfigurationAsync(CancellationToken token,EtfKey? select=null)

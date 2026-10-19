@@ -11,6 +11,8 @@ public interface IEtfWorkspace
     Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token);
     Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token);
     Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token);
+    /// <summary>单只证券证据由服务端过滤后分页，避免历史扩展后全池证据超过传输上限。</summary>
+    async Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>(await EvidenceAsync(token)).Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker).ToList();
     Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>throw new NotSupportedException("市场温度需要更新后台服务。");
     Task SyncMarketActivityAsync(DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
     Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>throw new NotSupportedException();

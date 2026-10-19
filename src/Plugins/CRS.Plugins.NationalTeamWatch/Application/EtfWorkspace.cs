@@ -168,6 +168,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         repository!.RecordCollection(attempt,failure.State,failure.Reason,fetch);
     }
     public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>RunAsync(()=>repository!.Evidence(),token);
+    public Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.Evidence(key),token);
     public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>RunAsync(()=>repository!.History(key),token);
     public Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.Points(key),token);
     /// <summary>在后台查询日历口径内的覆盖状态，不以份额记录本身推断交易日。</summary>

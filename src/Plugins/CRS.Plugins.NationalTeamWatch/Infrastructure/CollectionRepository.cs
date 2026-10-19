@@ -5,6 +5,7 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 public sealed partial class MarketRepository
 {
+    /// <summary>每次请求独立建档，不覆盖同日旧失败；事务保证预期阶段同时落库。</summary>
     public string BeginCollection(EtfKey key,DateOnly day)
     {
         if(Convert.ToInt32(Scalar("SELECT count(*) FROM security_master WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker)))!=1)
@@ -23,6 +24,7 @@ public sealed partial class MarketRepository
         beforeWrite?.Invoke();
         Execute("INSERT INTO etf_collection_transition(attempt_id,state,reason,fetch_id,updated_at) VALUES($id,$s,$r,$f,$now)",("$id",id),("$s",state),("$r",reason),("$f",fetchId),("$now",Now));
     }
+    /// <summary>保留全部尝试，每次尝试展示最新阶段；日期限制控制查询规模。</summary>
     public List<CollectionAttempt> CollectionAttempts(EtfKey key,DateOnly from,DateOnly to)
     {
         if(from>to||to.DayNumber-from.DayNumber>400)throw new InvalidDataException("采集查询区间必须不超过400个自然日。");

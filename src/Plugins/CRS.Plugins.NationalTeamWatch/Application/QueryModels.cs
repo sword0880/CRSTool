@@ -4,7 +4,9 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>公开采集阶段，不含原件、凭据、任意异常消息或完整请求URL。</summary>
 public sealed record EtfProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null);
 public sealed record ShareImportOutcome(int Added,int Duplicates,int Pending);
+/// <summary>已核验交易日上的真实缺口，末次尝试用于持久冷却与公平排序。</summary>
 public sealed record ShareGap(EtfKey Key,DateOnly Date,DateTimeOffset? LastAttempt);
+/// <summary>历史覆盖与连续运行分开验收，任何一项证据不足均不能通过数据门槛。</summary>
 public sealed record EtfAcceptance(string Market,string Ticker,DateOnly Through,DateOnly? TargetFrom,int ExpectedDays,int AcceptedDays,int UnresolvedDays,int ContinuousCollectionDays,bool CalendarVerified)
 {
     public bool History250Passed=>CalendarVerified&&ExpectedDays>=250&&AcceptedDays==ExpectedDays&&UnresolvedDays==0;
@@ -32,7 +34,7 @@ public sealed record EvidenceRow(string RevisionId, string Market, string Ticker
     public string EvidenceText=>EvidenceSemantics.Text(EvidenceLevel);
     public string Basis=>EvidenceSemantics.EtfBasis;
 }
-/// <summary>保留日历中的每个日期边界，区分缺失、待审核、拒绝和损坏。</summary>
+/// <summary>单次采集最新阶段及来源证据；无日历时仍可查询，不凭阶段状态制造事实。</summary>
 public sealed record CollectionAttempt(string Id,string Market,string Ticker,DateOnly Date,string State,string Reason,string? FetchId,string UpdatedAt,
     string? SourceUrl=null,string? ParserVersion=null,string? OriginalHash=null)
 {
@@ -43,6 +45,7 @@ public sealed record CollectionAttempt(string Id,string Market,string Ticker,Dat
         "Missing"=>"无份额，日历待核验", "NeedsReview"=>"待人工审核", "Interrupted"=>"采集已中断", _=>"来源请求失败"
     };
 }
+/// <summary>保留日历中的每个日期边界，区分缺失、待审核、拒绝和损坏。</summary>
 public sealed record CoverageDay(DateOnly Date,string State,string? RevisionId,CollectionAttempt? LastAttempt=null)
 {
     public string AttemptText=>LastAttempt is null?"未登记采集尝试":$"{LastAttempt.StatusText} · {LastAttempt.UpdatedAt}";

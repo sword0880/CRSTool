@@ -79,13 +79,15 @@ public sealed partial class MarketRepository
         var identified=InstitutionAccounts.Group(review.Account);var group=review.Institution??identified;
         if(!review.OriginalConfirmed || InstitutionAccounts.CandidateGroup(review.Account) is null || group is not ("汇金投资" or "汇金资管" or "证金公司" or "社保基金" or "养老保险基金") || identified is not null && identified!=group || review.ReportAsOf>review.Published || review.Published>today || review.Nature is not ("Strategic" or "Portfolio") || review.ShareClass!="A" || review.PercentBasis!="TotalShares" || string.IsNullOrWhiteSpace(review.Reviewer)||review.Reviewer.Length>100||string.IsNullOrWhiteSpace(review.Page)||review.Page.Length>100)
             throw new InvalidDataException("核验信息不完整：报告期、公告日、原文页码、审核人及持仓性质必须有效。当前适配器仅支持A股/总股本口径。");
-        var uri=new Uri(review.DocumentUrl);if(!uri.AbsolutePath.EndsWith(".pdf",StringComparison.OrdinalIgnoreCase) || document.Length<5 || !document.AsSpan(0,5).SequenceEqual("%PDF-"u8))throw new InvalidDataException("必须取得官方PDF原文，不能仅凭网页确认持仓。");
+        var uri=new Uri(review.DocumentUrl);if(!OfficialEquityDocuments.IsAllowed(uri) || document.Length<5 || !document.AsSpan(0,5).SequenceEqual("%PDF-"u8))throw new InvalidDataException("必须取得官方PDF原文，不能仅凭网页确认持仓。");
         ValidateEvidence();
         var market=Scalar("SELECT market FROM equity_disclosure WHERE id=$id AND state IN ('NeedsReview','Accepted')",("$id",review.Id)) as string??throw new InvalidDataException("候选不存在或已被替代。");
         var ticker=(string)Scalar("SELECT ticker FROM equity_disclosure WHERE id=$id",("$id",review.Id))!;
+        if(!OfficialEquityDocuments.Matches(uri,market,ticker,review.ReportAsOf))throw new InvalidDataException("官方原文与证券或报告期不匹配。");
         var row=ReadEquityDisclosures(new(market,ticker)).Single(x=>x.Id==review.Id);
         if(row.State=="Critical")throw new InvalidDataException("候选证据损坏，不能审核。");
         var documentHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(document)).ToLowerInvariant();
+        if(OfficialEquityDocuments.ReviewedIssuerHash(uri) is {} expectedHash&&documentHash!=expectedHash)throw new InvalidDataException("发行人原文已改变，不得继承已确认黄金样本的核验结论。");
         var acceptedHash=Scalar("SELECT f.sha256 FROM equity_disclosure d JOIN source_fetch f ON f.fetch_id=d.document_fetch_id WHERE d.id=$id",("$id",review.Id)) as string;
         if(acceptedHash is not null&&!acceptedHash.Equals(documentHash,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("同一披露的核验原文不能替换；更正报告须登记新候选并重新逐账户核验。");
         if(!row.Holders.Any(x=>x.Account==review.Account) || row.ReportAsOf is {} known && known!=review.ReportAsOf || row.Published is {} publication && publication!=review.Published)throw new InvalidDataException("审核账户或已确认报告时点不匹配。");

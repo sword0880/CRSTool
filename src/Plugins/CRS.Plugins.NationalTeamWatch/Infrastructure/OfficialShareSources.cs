@@ -44,7 +44,16 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
             // 只有调用方取消才终止整批；单个来源的网络超时不能吞掉另一交易所的数据。
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
             catch(OperationCanceledException){issues.Add(name+"：官方来源响应超时。");failures.Add(new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","Timeout"));}
-            catch(Exception error){issues.Add(name+"："+error.Message);failures.Add(error.Data[OfficialResponse.FailureKey] as SourceFailure??new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","SourceRequestFailed"));}
+            catch(Exception error)
+            {
+                issues.Add(name+"："+error.Message);
+                var failure=error.Data[OfficialResponse.FailureKey] as SourceFailure??new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","SourceRequestFailed");
+                failures.Add(failure);
+                if(failure is {State:"ParseFailed",SourceUrl:{} url}&&http is IOfficialSourceValidationFeedback feedback&&error.Data["EtfContractFeedbackRecorded"] is not true)
+                {
+                    feedback.RejectContract(new(url));error.Data["EtfContractFeedbackRecorded"]=true;
+                }
+            }
             // 日志只保留阶段与公开数量，不持久化来源异常消息。
             if(progress is not null)await progress(new(result is null?"SourceFailed":"SourceParsed",day,market,Received:result?.Pages.Sum(x=>x.Rows.Count)??0));
         }

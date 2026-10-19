@@ -88,7 +88,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "equity-watch" when request.Operation=="equity-watch" && request.EquityWatch is {} watch:
                     await workspace!.SaveEquityWatchAsync(watch,token,commandId);return BackgroundJobResult.Success();
                 case "equity-review" when request.Operation=="equity-review" && request.EquityReview is {} review:
-                    if(!Uri.TryCreate(review.DocumentUrl,UriKind.Absolute,out var documentUri)||documentUri.Scheme!="https"||!documentUri.AbsolutePath.EndsWith(".pdf",StringComparison.OrdinalIgnoreCase))return new("Rejected","equity=OfficialPdfRequired");
+                    if(!Uri.TryCreate(review.DocumentUrl,UriKind.Absolute,out var documentUri)||!OfficialEquityDocuments.IsAllowed(documentUri))return new("Rejected","equity=OfficialPdfRequired");
                     var document=await http!.GetAsync(documentUri,token);
                     if(document.StatusCode!=200)return new("RetryDeferred","equity=DocumentUnavailable",TimeSpan.FromMinutes(30));
                     try{await workspace!.ReviewEquityDocumentAsync(review,document.Content,token,commandId);}
@@ -188,7 +188,9 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "equity-disclosures":rows=(await workspace!.EquityDisclosuresAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-events":rows=(await workspace!.EquityEventsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-reports":rows=(await workspace!.EquityReportsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "evidence":rows=(await workspace!.EvidenceAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "evidence":
+                    // 按证券过滤必须发生在快照分页和容量校验之前。
+                    rows=(request.Market is null&&request.Ticker is null?await workspace!.EvidenceAsync(token):await workspace!.EvidenceAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "history":
                     if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
                     rows=(await workspace!.HistoryAsync(request.Market is null?null:Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;

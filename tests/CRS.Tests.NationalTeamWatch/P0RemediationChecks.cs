@@ -4,6 +4,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 
+/// <summary>隔离夹具验证失败、恢复和语义约束；不作为官方来源实测或连续运行验收。</summary>
 internal static class P0RemediationChecks
 {
     private static void Check(bool value,string label){if(!value)throw new Exception(label);Console.WriteLine("PASS P0："+label);}
@@ -61,6 +62,27 @@ internal static class P0RemediationChecks
         Check((holding with{EvidencePage=null}).EvidenceLevel==EvidenceLevel.ResearchHypothesis,"缺少可定位原文不得标记A类持仓");
         Check(holding.Basis.Contains("不与ETF间接暴露合并")&&EtfHistory.Calculate([new(key,[day],[new(day,1000000,null,"fixture")])]).Single() is {Shares:1000000,EvidenceLevel:EvidenceLevel.MarketObservation},"直接股票记录不进入ETF市场份额汇总，禁止将市场篮子当机构穿透暴露");
         await QueryPaging(root,key,day);
+        await ValidationBackoff(root,day);
+    }
+    private static async Task ValidationBackoff(string root,DateOnly day)
+    {
+        var path=Path.Combine(root,"contract-backoff");var raw=new RawEvidenceStore(Path.Combine(path,"raw"));var handler=new HtmlHandler();
+        using(var policy=new CRS.Plugins.NationalTeam.Jobs.SourceRequestPolicy(Path.Combine(path,"policy"),TestMarketData.Key))
+        using(var gateway=new CRS.Plugins.NationalTeam.Jobs.OfficialHttpGateway(policy,handler))
+        {
+            var source=new OfficialShareSources(gateway,raw);
+            var first=await source.FetchAsync(day,[new("SSE","510300")],default);
+            var second=await source.FetchAsync(day.AddDays(1),[new("SSE","510300")],default);
+            Check(first.Failures?.Single().State=="ParseFailed"&&second.Failures?.Single().State=="SourceFailed"&&handler.Requests==1,"HTTP200防护HTML触发契约失败持久退避，不连续请求同一来源");
+        }
+        using var reopened=new CRS.Plugins.NationalTeam.Jobs.SourceRequestPolicy(Path.Combine(path,"policy"),TestMarketData.Key);
+        Check(reopened.Read("query.sse.com.cn").Blocked>DateTimeOffset.UtcNow,"结构/解析错误冷却在策略库重建后保留");
+    }
+    private sealed class HtmlHandler:System.Net.Http.HttpMessageHandler
+    {
+        public int Requests;
+        protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request,CancellationToken token)
+        {Requests++;return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK){Content=new System.Net.Http.StringContent("<html>synthetic access challenge; no facts</html>")});}
     }
     private static async Task QueryPaging(string root,EtfKey key,DateOnly day)
     {

@@ -95,7 +95,7 @@ internal static class EtfConfigurationUiChecks
                     var scroll=Find<ScrollViewer>(overview)!;
                     if(overview.Items.Count!=21 || scroll.ScrollableHeight<=0 || scroll.VerticalOffset<=0)throw new InvalidOperationException("第21只ETF未完整保留或无法通过表格滚动访问。");
                     overview.SelectedItem=model.Rows.First(x=>x.Ticker=="510300");await model.HistoryLoadTask;
-                    if(model.Series.Length!=1 || !model.ChartStatus.Contains("510300"))throw new InvalidOperationException("真实表格选择没有自动加载历史。");
+                    if(model.Series.Length!=1 || !model.ChartStatus.Contains("510300"))throw new InvalidOperationException($"真实表格选择没有自动加载历史：{model.ChartStatus}；序列={model.Series.Length}；所选={model.Selected?.Ticker}。");
                     model.AllEtfs=true;await model.HistoryLoadTask;
                     if(model.Series.Length!=1 || !model.ChartStatus.Contains("全部监控ETF") || !model.ChartStatus.Contains("不可计算"))throw new InvalidOperationException("真实后台汇总或缺口提示失败。");
                     ((ScrollViewer)page.FindName("PageScroll")).ScrollToEnd();

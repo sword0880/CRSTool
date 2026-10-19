@@ -2,6 +2,7 @@ using System.Text;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
+/// <summary>日历与补采隔离回归，不将合成250日或回填20日视作真实来源验收。</summary>
 internal static class GapRecoveryChecks
 {
     internal const string Calendar2025="2025年部分节假日休市安排；周末休市；1月1日（星期三）休市；1月28日（星期二）至2月4日（星期二）休市；4月4日（星期五）至4月6日（星期日）休市；5月1日（星期四）至5月5日（星期一）休市；5月31日（星期六）至6月2日（星期一）休市；10月1日（星期三）至10月8日（星期三）休市";
@@ -31,6 +32,14 @@ internal static class GapRecoveryChecks
             var days=ReviewedExchangeCalendar.Parse("SSE",2025,Calendar2025).Concat(ReviewedExchangeCalendar.Parse("SSE",2026,DirectEquityChecks.CalendarHtml)).Where(x=>x.Open&&x.Date<today.AddDays(-7)&&x.Date!=missing).Select(x=>new ImportRow(key,x.Date,100,"万份")).ToArray();
             var fetch=repository.RecordFetch(raw.Save("synthetic reviewed historical shares"u8.ToArray()),"https://www.sse.com.cn/",provider:"OfficialSseEtfJson");repository.ImportSharesDetailed(fetch,days,default,false);
             Check(repository.DueHistoricalShareGaps(today.AddDays(-8),now.AddSeconds(2)).Single().Date==missing,"全部已登记历史分段扫描，可找回400天以前的旧缺口");
+            var acceptance=repository.Acceptance(today.AddDays(-1)).Single();
+            Check(!acceptance.Continuous20Passed&&acceptance.ContinuousCollectionDays==0,"大量历史回填不能冒充20个真实交易日连续采集");
+            var comparisonKey=new EtfKey("SSE","510050");repository.SetMembership(comparisonKey,"isolated","index",true,"isolated gap comparison");
+            string Fetch(string tag)=>repository.RecordFetch(raw.Save(Encoding.UTF8.GetBytes(tag)),"https://www.sse.com.cn/",provider:"OfficialSseEtfJson");
+            repository.ImportSharesDetailed(Fetch("synthetic later year"),[new(comparisonKey,new(2026,9,1),1000,"份")],default,false);
+            repository.ImportSharesDetailed(Fetch("synthetic earlier year"),[new(comparisonKey,new(2025,9,1),100,"份")],default,false);
+            Check(repository.Points(comparisonKey).Count==2&&!repository.Evidence().Any(x=>x.Ticker==comparisonKey.Ticker&&x.State=="NeedsReview"),"长期回填差额不当作相邻交易日跳变，跨缺口日指标仍不可算");
+            repository.SetMembership(comparisonKey,"isolated","index",false,"end isolated gap comparison");
         }
         var source=new RecordingSource();
         await using(var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(data,raw),raw))

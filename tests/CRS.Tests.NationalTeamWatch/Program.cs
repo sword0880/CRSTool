@@ -9,8 +9,15 @@ if(args is ["--chart-gap-ui"]){EtfChartChecks.RunGapUi();return;}
 if(args is ["--equity-ui"]){EquityUiChecks.Run();return;}
 if(args is ["--p0-live-audit"]){await P0LiveAcceptanceChecks.Run();return;}
 if(args is ["--p0-equity-case"]){await P0LiveAcceptanceChecks.EquityCase();return;}
+if(args is ["--p0-golden",var goldenDirectory]){EquityGoldenChecks.Run(goldenDirectory);return;}
+if(args is ["--p0-readiness-live"]){await P0LiveOperations.Readiness();return;}
+if(args is ["--p0-collect-live"]){await P0LiveOperations.Collect();return;}
+if(args is ["--p0-evidence-live"]){await P0LiveOperations.EvidenceCase();return;}
+if(args is ["--p0-spot-check-live"]){await P0OfficialSpotChecks.Run();return;}
+if(args is ["--p0-review-live","--human-confirmed"]){await P0LiveOperations.ReviewConfirmedSample();return;}
 if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
+if(args.Length!=0)throw new ArgumentException("未知的验收参数，拒绝自动退回合成测试。");
 await EtfChartChecks.Run();
 Check(EtfMetrics.Normalize(2489718.77m,"万份")==24897187700m,"DATA-01 decimal units");
 Reject(()=>EtfMetrics.Normalize(1,"亿元"),"Unknown unit rejected");

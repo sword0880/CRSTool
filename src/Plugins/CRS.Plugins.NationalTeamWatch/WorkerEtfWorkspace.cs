@@ -22,6 +22,8 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
         {
             var response=await client.SendAsync(request,token);
             if(response.Code=="RateLimited"){await Task.Delay(500,token);continue;}
+            // 同一插件只允许一个在途查询；图表和证据并行读取时等待前一查询结束，写命令不自动重放。
+            if(request.Command=="QueryPlugin"&&response.Code=="PluginBusy"){await Task.Delay(100,token);continue;}
             if(response.Code=="Forbidden")throw new InvalidDataException("操作需要管理员权限；查询公开结果无需管理员权限。");
             return response;
         }
@@ -52,6 +54,7 @@ public sealed class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IE
         NetworkStatus=await QueryAsync<string>(new("status"),token);return result.Rows;
     }
     public async Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>(await ReadPagesAsync<EvidenceRow>(new("evidence"),token)).Rows;
+    public async Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<EvidenceRow>(new("evidence",key.Market,key.Ticker),token)).Rows;
     public async Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>(await ReadPagesAsync<MarketActivityPoint>(new("market-activity"),token)).Rows;
     public async Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>(await ReadPagesAsync<MarketActivityRevision>(new("activity-revisions"),token)).Rows;
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token)=>RunAsync("activity-review",new("activity-review",Revision:id,Accept:accept,Reviewer:reviewer),token);
