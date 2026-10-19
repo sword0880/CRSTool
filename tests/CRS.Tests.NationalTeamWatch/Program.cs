@@ -14,6 +14,9 @@ if(args is ["--p0-readiness-live"]){await P0LiveOperations.Readiness();return;}
 if(args is ["--p0-collect-live"]){await P0LiveOperations.Collect();return;}
 if(args is ["--p0-evidence-live"]){await P0LiveOperations.EvidenceCase();return;}
 if(args is ["--p0-spot-check-live"]){await P0OfficialSpotChecks.Run();return;}
+if(args is ["--p0-status-live"]){await P0LiveOperations.Status();return;}
+if(args is ["--p0-maintenance-pause"]){await P0LiveOperations.MaintenancePlans(false);return;}
+if(args is ["--p0-maintenance-resume"]){await P0LiveOperations.MaintenancePlans(true);return;}
 if(args is ["--p0-review-live","--human-confirmed"]){await P0LiveOperations.ReviewConfirmedSample();return;}
 if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}

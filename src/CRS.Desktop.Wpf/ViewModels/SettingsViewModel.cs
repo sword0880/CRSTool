@@ -61,7 +61,7 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null)
     {
         State = state; this.service = service; this.vault=vault; Reload();
-        state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();} };
+        state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
     }
     public void Reload()
     {
@@ -114,7 +114,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         finally {ClearSecurityInputs();}
     }
-    public void ClearSecurityInputs() {SecurityPassword=""; SecurityCode=""; DocumentPassword="";DocumentPasswordConfirmation="";SecurityInputsCleared?.Invoke();}
+    public void ClearSecurityInputs() {SecurityPassword=""; SecurityCode=""; DocumentPassword="";DocumentPasswordConfirmation="";SecurityInputsCleared?.Invoke();ClearEmailInput();}
     [RelayCommand]
     private void BrowseDatabase() { var path = State.Interaction.PickFolder(); if (path is not null) DatabaseDirectory = path; }
     [RelayCommand]
@@ -123,6 +123,7 @@ public partial class SettingsViewModel : ObservableObject
     private async Task SaveAsync()
     {
         if(HasLoginMethodChanges && !ValidateSecurityInputs()) return;
+        if(HasEmailChanges&&!await SaveEmailCoreAsync())return;
         if(DocumentPassword.Length>0 || DocumentPasswordConfirmation.Length>0)
         {await SaveDocumentPasswordAsync();if(!DocumentPasswordMessage.Contains("已保存"))return;}
         var settings = new DesktopSettings(DatabaseDirectory, LogDirectory, LoggingEnabled, LogLevel, LogRetentionFiles, LogFileSizeMb);

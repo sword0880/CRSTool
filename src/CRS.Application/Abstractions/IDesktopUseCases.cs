@@ -3,6 +3,10 @@ namespace CRS.Application.Abstractions;
 /// <summary>前台应用入口，只暴露用例，不暴露数据库、解析器和输出适配器。</summary>
 public interface IDesktopUseCases
 {
+    /// <summary>系统通知经应用用例和宿主授权端口配置，不借用税务或保险库凭据。</summary>
+    Task<NotificationEmailSettings> LoadEmailSettingsAsync(CancellationToken token=default)=>throw new NotSupportedException();
+    Task<NotificationEmailSettings> SaveEmailSettingsAsync(NotificationEmailEdit edit,CancellationToken token=default)=>throw new NotSupportedException();
+    Task<NotificationSendResult> TestEmailSettingsAsync(CancellationToken token=default)=>throw new NotSupportedException();
     string ConfigPath { get; }
     string ReadQueryId();
     void LogFailure(string exceptionType);

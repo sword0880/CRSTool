@@ -87,11 +87,22 @@ foreach($name in @('Abstractions','PluginHost','Ipc','Service')){
     [xml]$project=Get-Content -Raw $path
     Assert-Boundary ($null -eq $project.SelectSingleNode('//UseWPF | //UseWindowsForms')) "后台项目引用桌面框架：$name"
     foreach($reference in $project.SelectNodes('//ProjectReference')){
-        Assert-Boundary ($reference.Include -match 'CRS\.Worker\.') "后台项目越过服务边界：$name"
+        # 公共通知只在服务组合根装配；其它后台层不能反向依赖通知实现。
+        $sharedNotification=$name -eq 'Service' -and $reference.Include -eq '../CRS.Notifications/CRS.Notifications.csproj'
+        Assert-Boundary ($reference.Include -match 'CRS\.Worker\.' -or $sharedNotification) "后台项目越过服务边界：$name"
     }
 }
 [xml]$backgroundContract=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj')
 Assert-Boundary ($backgroundContract.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) '后台契约必须保持纯BCL。'
+# 通知组件保持独立，SMTP依赖只能在这里出现，宿主仅保留契约适配。
+[xml]$notificationProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Notifications/CRS.Notifications.csproj')
+Assert-Boundary ($notificationProject.SelectNodes('//ProjectReference | //UseWPF | //UseWindowsForms').Count -eq 0) '公共通知组件不得依赖宿主、业务或UI。'
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Notifications') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
+    Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using CRS\.(Worker|Plugins|Infrastructure|Application)|using System\.Windows')) '公共通知组件反向依赖业务或宿主。'
+}
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Worker.Service') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
+    Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using (MailKit|MimeKit|System\.Net\.Mail)')) 'SMTP实现必须归属公共通知组件。'
+}
 Write-Output '后台服务无 WPF/私人税务依赖门禁通过。'
 # ETF桌面入口必须只使用管道，后台入口必须保持无界面，主程序会话不能再实例化调度器。
 [xml]$etfUi=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj')

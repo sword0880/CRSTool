@@ -167,6 +167,9 @@ using(var service=Start())
         Check(selectedEvidence.Count==8&&selectedEvidence.All(x=>x.Market=="SSE"&&x.Ticker=="510300"),"单只ETF证据按证券过滤后分页，不混入其它ETF记录");
         var output=Path.Combine(root,"original.json");await ui.ExportEvidenceAsync(evidence[0].RevisionId,true,output,default);
         Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output)))==evidence[0].OriginalHash,"原始证据分块导出并验证完整哈希");
+        // 连续三次完整导出应释放缓存额度；保留未完成导出的有界保护。
+        foreach(var row in evidence.Skip(1).Take(2))await ui.ExportEvidenceAsync(row.RevisionId,true,Path.Combine(root,row.RevisionId+".json"),default);
+        Check(true,"连续三次完整原件导出不会占满服务端缓存额度");
         Check((await ui.CoverageAsync(new("SSE","510300"),new(2026,1,1),new(2026,10,15),default)).State=="NoCalendar","没有完整交易日历时保持覆盖率不可判定");
         var plan=(await Query("GetJobs")).Jobs!.Single(x=>x.JobId=="official-share-sync");
         var changed=await Send(Request("ChangeSchedule",revision:plan.Revision) with{Cron="0/2 * * * * ?",TimeZoneId="China Standard Time"});

@@ -72,12 +72,16 @@ namespace CRS.Worker.Service
                 key = ServiceKey.Open(locations.Data);
                 StorageSecurity.Validate(locations.Data, locations.Console); // 新建密钥也须满足数据树权限策略。
                 using var repository = new EncryptedTaskRepository(Path.Combine(locations.Data, "scheduler-config.db"), key);
+                // 公共通知组件在组合根装配，宿主不包含SMTP实现或业务风险规则。
+                var email=new CRS.Notifications.EmailNotificationService(locations.Data);
+                var dispatcher=new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email)]);
+                var notifications=new WorkerNotificationGateway(email,dispatcher);
                 await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () => Environment.Exit(2),
-                    hostContext:id=>new WorkerPluginContext(id,locations.Data,key));
+                    hostContext:id=>new WorkerPluginContext(id,locations.Data,key,notifications));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 var diagnostics = new ServiceEventLog(locations.Data);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
-                    executionSettings: WorkerExecutionSettings.Read(locations.Data));
+                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications);
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 try

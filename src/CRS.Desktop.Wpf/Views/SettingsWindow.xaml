@@ -22,6 +22,27 @@
     <ui:Button Content="保存文档加密密码" Command="{Binding SaveDocumentPasswordCommand}" HorizontalAlignment="Left" Margin="0,6"/>
     <TextBlock Text="{Binding DocumentPasswordMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
    </StackPanel>
+   <!-- 邮件由公共组件处理，设置页不连接SMTP、不读取已保存口令。 -->
+   <StackPanel Margin="0,0,0,20">
+    <TextBlock Text="邮件通知" FontSize="20" FontWeight="SemiBold"/>
+    <TextBlock Text="后台使用系统邮件配置发送通知，关闭或锁定界面不影响已启用的后台任务。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8"/>
+    <StackPanel IsEnabled="{Binding CanEditEmail}">
+     <CheckBox Content="启用邮件通知" IsChecked="{Binding EmailEnabled}" Margin="0,4,0,8"/>
+     <TextBlock Text="SMTP服务器" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailHost,UpdateSourceTrigger=PropertyChanged}" MaxLength="253"/>
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel><TextBlock Text="端口" Style="{StaticResource InputLabel}"/><ui:NumberBox Value="{Binding EmailPort,Mode=TwoWay}" Minimum="1" Maximum="65535" MaxDecimalPlaces="0"/></StackPanel>
+      <StackPanel Grid.Column="2"><TextBlock Text="连接安全" Style="{StaticResource InputLabel}"/><ComboBox SelectedValue="{Binding EmailSecurity}" SelectedValuePath="Tag"><ComboBoxItem Content="STARTTLS（常用587）" Tag="StartTls"/><ComboBoxItem Content="直接TLS（常用465）" Tag="SslOnConnect"/></ComboBox></StackPanel>
+     </Grid>
+     <TextBlock Text="发件邮箱" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailFrom,UpdateSourceTrigger=PropertyChanged}" MaxLength="254"/>
+     <TextBlock Text="收件邮箱（多个地址以分号分隔，最多10个）" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailRecipients,UpdateSourceTrigger=PropertyChanged}" MaxLength="2560"/>
+     <TextBlock Text="SMTP用户名（无需登录的服务器可留空）" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailUserName,UpdateSourceTrigger=PropertyChanged}" MaxLength="256"/>
+     <TextBlock Text="SMTP授权码或密码（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="EmailPasswordInput" PasswordChanged="OnEmailPassword" MaxLength="2048"/>
+     <CheckBox Content="清除已保存授权码" IsChecked="{Binding EmailClearPassword}" Margin="0,8"/>
+     <TextBlock Text="{Binding EmailPasswordStatus}" TextWrapping="Wrap" Foreground="#64748B"/>
+    </StackPanel>
+    <WrapPanel Margin="0,12,0,8"><ui:Button Content="保存邮件设置" Command="{Binding SaveEmailCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试邮件" Command="{Binding TestEmailCommand}" ToolTip="使用已保存的启用配置发送一封测试邮件" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadEmailCommand}"/></WrapPanel>
+    <TextBlock Text="{Binding EmailMessage}" TextWrapping="Wrap" Foreground="#64748B"/>
+   </StackPanel>
    <TextBlock Text="数据库" FontSize="20" FontWeight="SemiBold"/>
    <ui:Button x:Name="DatabaseManagementButton" Content="数据库与备份管理" Click="OnDatabaseManagement" HorizontalAlignment="Left" Margin="0,10,0,6" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}"/>
    <TextBlock Text="统一管理数据库加密备份、恢复、主密码与手机绑定。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"/>

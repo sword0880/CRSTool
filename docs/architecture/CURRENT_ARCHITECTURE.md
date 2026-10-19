@@ -17,7 +17,8 @@
 | CRS.Worker.Abstractions | 无 | 后台会话、任务、查询及存储上下文契约 |
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Named Pipes、Windows 身份授权及请求协议 |
-| CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc | Windows Service、唯一 Quartz 调度和加密任务库 |
+| CRS.Notifications | 无 | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
+| CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
 | CRS.Plugins.Heartbeat | CRS.Worker.Abstractions | 后台心跳插件 |
 | CRS.Plugins.NationalTeam.Core | 无 | ETF 领域与应用模型，共享源码边界见项目文件 |

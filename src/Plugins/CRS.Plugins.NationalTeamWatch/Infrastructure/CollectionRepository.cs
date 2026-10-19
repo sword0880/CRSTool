@@ -23,6 +23,7 @@ public sealed partial class MarketRepository
         if(string.IsNullOrWhiteSpace(reason)||reason.Length>100)throw new InvalidDataException("采集原因必须为简短状态码。");
         beforeWrite?.Invoke();
         Execute("INSERT INTO etf_collection_transition(attempt_id,state,reason,fetch_id,updated_at) VALUES($id,$s,$r,$f,$now)",("$id",id),("$s",state),("$r",reason),("$f",fetchId),("$now",Now));
+        if(state is "Accepted" or "NotPublished" or "AccessBlocked" or "ParseFailed" or "Missing" or "NeedsReview" or "SourceFailed" or "Interrupted")MarkAlertPending();
     }
     /// <summary>保留全部尝试，每次尝试展示最新阶段；日期限制控制查询规模。</summary>
     public List<CollectionAttempt> CollectionAttempts(EtfKey key,DateOnly from,DateOnly to)

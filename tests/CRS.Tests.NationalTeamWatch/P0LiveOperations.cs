@@ -7,6 +7,39 @@ using CRS.Worker.Ipc;
 internal static class P0LiveOperations
 {
     private static string DirectoryPath=>Path.Combine(Environment.CurrentDirectory,"artifacts","p0-live");
+    /// <summary>发布窗口暂缓新自动批次，保留在途采集及原始启用状态；升级后按原状态恢复。</summary>
+    public static async Task MaintenancePlans(bool resume)
+    {
+        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(2));var pipe=new BackgroundPipeClient();var token=deadline.Token;
+        var jobs=(await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetJobs"),token)).Jobs!
+            .Where(x=>x.PluginId=="crs.national-team"&&x.JobId is "official-calendar-sync" or "official-share-sync" or "market-activity-sync" or "equity-disclosure-sync").ToArray();
+        Directory.CreateDirectory(DirectoryPath);var path=Path.Combine(DirectoryPath,"maintenance-original-plans.json");
+        if(!resume&&!File.Exists(path))await File.WriteAllTextAsync(path,JsonSerializer.Serialize(jobs.ToDictionary(x=>x.JobId,x=>x.Enabled)),token);
+        if(!File.Exists(path))throw new InvalidDataException("没有原始计划快照，拒绝猜测恢复状态。");
+        var original=JsonSerializer.Deserialize<Dictionary<string,bool>>(await File.ReadAllTextAsync(path,token))!;
+        foreach(var plan in jobs.Where(x=>resume?original[x.JobId]&&!x.Enabled:x.Enabled))
+        {
+            var response=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),resume?"Resume":"Pause","crs.national-team",plan.JobId,ExpectedRevision:plan.Revision),token);
+            if(response.Code!="Ok")throw new InvalidDataException("发布计划变更未成功："+response.Code);
+            Console.WriteLine($"PASS 维护计划 {(resume?"恢复":"暂缓新批次")} {plan.JobId}；在途任务不取消。");
+        }
+        if(resume)await File.WriteAllTextAsync(Path.Combine(DirectoryPath,"maintenance-plans-restored.json"),JsonSerializer.Serialize(new{RestoredAt=DateTimeOffset.UtcNow,Original=original}),token);
+    }
+    /// <summary>读取任务与持久回执，区分排队、运行、来源失败和事实已经提交。</summary>
+    public static async Task Status()
+    {
+        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(2));var pipe=new BackgroundPipeClient();var token=deadline.Token;
+        var jobs=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetJobs"),token);
+        var history=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHistory"),token);
+        var receipts=new List<object>();var path=Path.Combine(DirectoryPath,"equity-review-command-ids.json");
+        if(File.Exists(path))foreach(var item in JsonSerializer.Deserialize<Dictionary<string,Guid>>(await File.ReadAllTextAsync(path,token))!)
+        {
+            var response=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:item.Value),token);
+            receipts.Add(new{Account=item.Key,Id=item.Value,response.Code,response.Receipt});Console.WriteLine($"READ 审核回执 {item.Key}: {response.Receipt?.State}/{response.Receipt?.Code}");
+        }
+        Directory.CreateDirectory(DirectoryPath);
+        await File.WriteAllTextAsync(Path.Combine(DirectoryPath,"installed-service-status.json"),JsonSerializer.Serialize(new{jobs.Jobs,history.History,Receipts=receipts},new JsonSerializerOptions{WriteIndented=true}),token);
+    }
     /// <summary>只提交现有官方采集任务，后续以持久回执和真实数据回读判定进展。</summary>
     public static async Task Collect()
     {
@@ -43,7 +76,7 @@ internal static class P0LiveOperations
     public static async Task ReviewConfirmedSample()
     {
         EquityGoldenChecks.Run(DirectoryPath);
-        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(3));var token=deadline.Token;
+        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(6));var token=deadline.Token;
         var reader=new WorkerEtfWorkspace();var pipe=new BackgroundPipeClient();
         var candidate=(await reader.EquityDisclosuresAsync(new("SSE","600153"),token)).Single(x=>x.Hash=="D3EE5B577EE76B6EB511730C91019EBCF866115DA134852FCA04F530AC89BA29");
         var accounts=candidate.Holders.Where(x=>InstitutionAccounts.CandidateGroup(x.Account) is not null).Select(x=>x.Account).ToArray();
@@ -55,20 +88,24 @@ internal static class P0LiveOperations
         var receipts=new List<object>();
         foreach(var account in accounts)
         {
+            // 同一手动作业只接收一个在途命令；已明确拒绝的请求另记新尝试，未知结果继续沿用原ID。
+            var existing=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:ids[account]),token);
+            if(existing.Receipt is {State:"Completed",Code:"AlreadyRunning"})
+            {
+                receipts.Add(new{Account=account,Id=ids[account],existing.Code,existing.Receipt});ids[account]=Guid.NewGuid();
+                await File.WriteAllTextAsync(path,JsonSerializer.Serialize(ids,new JsonSerializerOptions{WriteIndented=true}),token);
+            }
             var review=new EquityReview(candidate.Id,new(2026,6,30),new(2026,8,29),"https://www.chinacnd.com/report-227.html","PDF P112 前十名股东表；单位股/A股/总股本口径","用户逐项确认2026-10-19；Codex代提交",true,"Portfolio",Account:account,OriginalConfirmed:true,Institution:InstitutionAccounts.Group(account)??"社保基金");
             var response=await pipe.SendAsync(new(WorkerProtocol.Version,ids[account],"RunNow","crs.national-team","equity-review",Payload:JsonSerializer.Serialize(new EtfRequest("equity-review",EquityReview:review))),token);
             receipts.Add(new{Account=account,Id=ids[account],response.Code,response.Receipt});
             await File.WriteAllTextAsync(Path.Combine(DirectoryPath,"equity-review-receipts.json"),JsonSerializer.Serialize(receipts,new JsonSerializerOptions{WriteIndented=true}),token);
             if(response.Code is not ("Accepted" or "Succeeded" or "RetryDeferred")&&response.Receipt is null)throw new InvalidDataException("服务未接受审核："+response.Code);
-        }
-        foreach(var account in accounts)
-        {
             while(true)
             {
-                var response=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:ids[account]),token);
-                if(response.Receipt?.State=="Completed")
+                var completion=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:ids[account]),token);
+                if(completion.Receipt?.State=="Completed")
                 {
-                    if(response.Receipt.Code!="Succeeded")throw new InvalidDataException("审核未成功："+response.Receipt.Code);
+                    if(completion.Receipt.Code!="Succeeded")throw new InvalidDataException("审核未成功："+completion.Receipt.Code);
                     break;
                 }
                 await Task.Delay(1000,token);

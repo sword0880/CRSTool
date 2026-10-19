@@ -63,7 +63,8 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
             {
                 token.ThrowIfCancellationRequested();NetworkStatus=$"两市正在获取 {day:yyyy-MM-dd}；已完成{completed}个查询日。";
                 await ReportAsync(new("DayStarted",day));
-                var activeKeys=await RunAsync(()=>repository!.Overview().Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
+                // 这里只读取监控配置，不为确定请求池重复计算全池指标和扫描全部原件。
+                var activeKeys=await RunAsync(()=>repository!.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
                 if(activeKeys.Count==0){NetworkStatus="当前没有启用监控的ETF，已停止本次采集；已提交事实保留。";return new(completed,issues.Count,receivedRows);}
                 var poolKeys=await RunAsync(()=>activeKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)!=false
                     && (gapBatch is null||gapBatch.TryGetValue(day,out var due)&&due.Contains(key))).ToList(),token);
@@ -95,7 +96,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
                 try { outcome=await RunAsync(()=>
                 {
                     int added=0,duplicates=0,pending=0;
-                    var pool=repository!.Overview().Select(x=>new EtfKey(x.Market,x.Ticker)).ToHashSet();
+                    var pool=repository!.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToHashSet();
                     foreach(var page in result.Pages)
                     {
                         token.ThrowIfCancellationRequested();var original=raw.Save(page.Content);
@@ -119,6 +120,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
                         catch{repository.MarkFailed(fetch);throw;}
                     }
                     var evidence=repository.Evidence();
+                    var points=repository.PointsForKeys(poolKeys);
                     foreach(var key in poolKeys)
                     {
                         var failure=result.Failures?.FirstOrDefault(x=>x.Market==key.Market&&(x.Ticker is null||x.Ticker==key.Ticker));
@@ -129,7 +131,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
                         var sourceFailed=result.Issues?.Any(issue=>issue.StartsWith(key.Market=="SSE"?"SSE":"SZSE "+key.Ticker,StringComparison.Ordinal))==true;
                         var state=!received?sourceFailed?"SourceFailed":repository.IsReviewedTradingDay(key.Market,day)==true?"NotPublished":"Missing"
                             :revisions.Any(x=>x.State=="NeedsReview")?"NeedsReview"
-                            :repository.Points(key).Any(x=>x.Date==day)?"Accepted":"NeedsReview";
+                            :points[key].Any(x=>x.Date==day)?"Accepted":"NeedsReview";
                         repository.RecordCollection(attempts[key],state,!received?sourceFailed?"SourceRequestFailed":"NoObservationReturned":state=="Accepted"?"AcceptedFactVerified":"QualityReviewRequired",attempt.FetchId);
                     }
                     if(trackProgress && contiguous)repository.RecordSyncCursor(day);

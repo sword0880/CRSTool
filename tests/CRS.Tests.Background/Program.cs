@@ -7,6 +7,7 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--notifications"]){await NotificationChecks.Run();return;}
 
 // 验收工具只操作自己创建的隔离目录和进程；--probe 可只读检查实际安装的服务。
 if(args is ["--isolated-fact-create",var factPipe])

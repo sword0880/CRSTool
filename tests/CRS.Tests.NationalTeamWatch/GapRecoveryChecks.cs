@@ -39,6 +39,14 @@ internal static class GapRecoveryChecks
             repository.ImportSharesDetailed(Fetch("synthetic later year"),[new(comparisonKey,new(2026,9,1),1000,"份")],default,false);
             repository.ImportSharesDetailed(Fetch("synthetic earlier year"),[new(comparisonKey,new(2025,9,1),100,"份")],default,false);
             Check(repository.Points(comparisonKey).Count==2&&!repository.Evidence().Any(x=>x.Ticker==comparisonKey.Ticker&&x.State=="NeedsReview"),"长期回填差额不当作相邻交易日跳变，跨缺口日指标仍不可算");
+            // 批读取减少重复扫描，但必须继续隔离真实损坏，并在恢复同一哈希后重新核验。
+            var beforeBatch=repository.PointsForKeys([key,comparisonKey]);
+            var original="synthetic earlier year"u8.ToArray();var originalHash=raw.Save(original);var originalPath=Path.Combine(root,"gap-raw",originalHash+".raw");
+            File.WriteAllBytes(originalPath,"damaged fixture"u8.ToArray());
+            var damagedBatch=repository.PointsForKeys([key,comparisonKey]);
+            Check(damagedBatch[key].Count==beforeBatch[key].Count&&damagedBatch[comparisonKey].Count==1,"批事实查询仍隔离损坏原件，不抹去其它证券的有效事实");
+            File.WriteAllBytes(originalPath,original);
+            Check(repository.PointsForKeys([key,comparisonKey])[comparisonKey].Count==2,"批查询下次重新核验原件，同哈希恢复后解除阻断");
             repository.SetMembership(comparisonKey,"isolated","index",false,"end isolated gap comparison");
         }
         var source=new RecordingSource();

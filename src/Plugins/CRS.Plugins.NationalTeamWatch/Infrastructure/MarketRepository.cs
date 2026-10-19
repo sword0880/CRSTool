@@ -66,7 +66,7 @@ public sealed partial class MarketRepository : IMarketRepository
             Execute("INSERT OR IGNORE INTO watchlist_membership VALUES($m,$t,1,'默认观察候选，名称和指数待核验','DataPilot',NULL)",("$m",item.Market),("$t",item.Ticker));
             Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,'参考目录（待核验）')",("$m",item.Market),("$t",item.Ticker));
         }
-        seed.Commit();InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();
+        seed.Commit();InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();
     }
     private static string Now => DateTimeOffset.UtcNow.ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
@@ -153,7 +153,7 @@ public sealed partial class MarketRepository : IMarketRepository
             else { SetCurrent(row.Key,date,id); accepted++; }
         }
         Execute("UPDATE source_fetch SET status='Parsed' WHERE fetch_id=$fetch",("$fetch",fetchId));
-        Execute("INSERT INTO sync_checkpoint VALUES($fetch,'Validated',$count)",("$fetch",fetchId),("$count",accepted)); cancellation.ThrowIfCancellationRequested();transaction.Commit(); return new(accepted,duplicates,pending);
+        Execute("INSERT INTO sync_checkpoint VALUES($fetch,'Validated',$count)",("$fetch",fetchId),("$count",accepted));MarkAlertPending(); cancellation.ThrowIfCancellationRequested();transaction.Commit(); return new(accepted,duplicates,pending);
     }
     // 跨过已核验交易日的长期差额不能冒充相邻日20%跳变。日历未知时仍保守保留原有预警。
     private bool NoKnownTradingDayBetween(EtfKey key,string from,string to)=>Convert.ToInt32(Scalar("""
@@ -179,7 +179,7 @@ public sealed partial class MarketRepository : IMarketRepository
             Execute("UPDATE share_observation_revision SET status='Superseded' WHERE market=$m AND ticker=$t AND trade_date=$d AND status='NeedsReview'",("$m",row.Market),("$t",row.Ticker),("$d",row.TradeDate));
             SetCurrent(new(row.Market,row.Ticker),row.TradeDate,revisionId);
         }
-        RecordCommand(commandId,"review");transaction.Commit();
+        MarkAlertPending();RecordCommand(commandId,"review");transaction.Commit();
     }
     public List<EvidenceRow> Evidence()
     {
@@ -225,6 +225,9 @@ public sealed partial class MarketRepository : IMarketRepository
         ValidateEvidence();
         return ReadPoints(key);
     }
+    /// <summary>原件核验仅在本次批查询内共享；下次查询仍重新读取，不能跨查询缓存损坏结果。</summary>
+    public Dictionary<EtfKey,List<SharePoint>> PointsForKeys(IReadOnlyList<EtfKey> keys)
+    {ValidateEvidence();return keys.ToDictionary(x=>x,ReadPoints);}
     private List<SharePoint> ReadPoints(EtfKey key)
     {
         using var command=Command("""
@@ -251,7 +254,11 @@ public sealed partial class MarketRepository : IMarketRepository
             Execute("INSERT INTO quality_issue VALUES($issue,'Q15','1',$id,'Critical','Open',$id,NULL,NULL) ON CONFLICT(id) DO UPDATE SET status='Open',reviewer=NULL,decision_time=NULL",("$issue","raw-"+id),("$id",id));
         }
         // 仅原始和标准化字节都恢复到原哈希时解除阻断，保留异常记录及恢复时间。
-        foreach(var id in good.Where(id=>Convert.ToInt32(Scalar("SELECT count(*) FROM quality_issue WHERE id=$id AND status='Open'",("$id","raw-"+id)))>0))
+        // 一次读取待恢复问题集合；不能为每份健康原件单独发起SQL，避免历史增长后阻塞采集和查询。
+        var openIssues=new HashSet<string>(StringComparer.Ordinal);
+        using(var command=Command("SELECT id FROM quality_issue WHERE rule_id='Q15' AND status='Open'"))
+        using(var reader=command.ExecuteReader())while(reader.Read())openIssues.Add(reader.GetString(0));
+        foreach(var id in good.Where(id=>openIssues.Contains("raw-"+id)))
         {beforeWrite?.Invoke();Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'RestoredOriginalHash',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));Execute("UPDATE quality_issue SET status='Resolved',reviewer='SHA256-reverified',decision_time=$now WHERE id=$id",("$now",Now),("$id","raw-"+id));}
     }
     public List<EtfSummary> Overview()

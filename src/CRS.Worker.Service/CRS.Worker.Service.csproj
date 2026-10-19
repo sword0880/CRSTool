@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../CRS.Worker.PluginHost/CRS.Worker.PluginHost.csproj" />
     <ProjectReference Include="../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
+    <ProjectReference Include="../CRS.Notifications/CRS.Notifications.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="Quartz" />

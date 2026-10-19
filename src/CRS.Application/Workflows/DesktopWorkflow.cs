@@ -8,11 +8,27 @@ public sealed record DesktopCalculationRequest(string[] Files, int Year, string 
 public sealed record DesktopCalculationOutcome(CalculationResult Result, string RatesFingerprint);
 
 /// <summary>WPF 前台的应用用例，集中计算、持久化和导出门槛。</summary>
-public sealed class DesktopWorkflow(IDesktopOperations operations) : IDesktopUseCases
+public sealed class DesktopWorkflow(IDesktopOperations operations,INotificationSettingsGateway? notifications=null) : IDesktopUseCases
 {
     private readonly ReviewUseCases reviews = new(operations.Repository);
     private readonly CancellationTokenSource lifetime=new();
     public void EndSession()=>lifetime.Cancel();
+    /// <summary>窗口只提交选项；配置保护、管道身份和SMTP发送不进入展示层。</summary>
+    public async Task<NotificationEmailSettings> LoadEmailSettingsAsync(CancellationToken token=default)
+    {
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,lifetime.Token);
+        return await (notifications??throw new NotSupportedException("邮件设置通道不可用。")).LoadAsync(linked.Token);
+    }
+    public async Task<NotificationEmailSettings> SaveEmailSettingsAsync(NotificationEmailEdit edit,CancellationToken token=default)
+    {
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,lifetime.Token);
+        return await (notifications??throw new NotSupportedException("邮件设置通道不可用。")).SaveAsync(edit,linked.Token);
+    }
+    public async Task<NotificationSendResult> TestEmailSettingsAsync(CancellationToken token=default)
+    {
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,lifetime.Token);
+        return await (notifications??throw new NotSupportedException("邮件设置通道不可用。")).TestAsync(linked.Token);
+    }
     public string ConfigPath => operations.ConfigPath;
     public string ReadQueryId() => operations.ReadQueryId();
     public void LogFailure(string exceptionType) => operations.LogFailure(exceptionType);

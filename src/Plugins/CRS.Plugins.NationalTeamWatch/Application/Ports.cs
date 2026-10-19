@@ -40,6 +40,8 @@ public interface IMarketRepository : IDisposable
     List<EvidenceRow> Evidence(EtfKey key)=>Evidence().Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker).ToList();
     List<EtfHistoryPoint> History(EtfKey? key)=>throw new NotSupportedException();
     List<SharePoint> Points(EtfKey key);
+    /// <summary>同一批事实共享一次原件完整性核验，避免采集提交期间逐证券重复扫描全库。</summary>
+    Dictionary<EtfKey,List<SharePoint>> PointsForKeys(IReadOnlyList<EtfKey> keys)=>keys.ToDictionary(x=>x,Points);
     CoverageReport Coverage(EtfKey key,DateOnly from,DateOnly to);
     DateOnly? ReadSyncCursor();
     void RecordSyncCursor(DateOnly day);

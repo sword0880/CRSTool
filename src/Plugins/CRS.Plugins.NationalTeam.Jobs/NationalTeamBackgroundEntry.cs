@@ -248,6 +248,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         }
         if(request.Offset<0 || request.Offset>cached.Bytes.Length)throw new ArgumentException("证据偏移错误。");
         var chunk=cached.Bytes.Skip(request.Offset).Take(16384).ToArray();
+        // 最后一块返回后释放额度；响应丢失时可从不可变原件重建，不能让两次完整导出占满五分钟。
+        if(request.Offset+chunk.Length==cached.Bytes.Length)exports.Remove(id);
         return JsonSerializer.Serialize(new EvidenceChunk(cached.Hash,cached.Bytes.Length,request.Offset,chunk));
     }
     /// <summary>JSON只允许有限长度，业务操作另在白名单中验证。</summary>
