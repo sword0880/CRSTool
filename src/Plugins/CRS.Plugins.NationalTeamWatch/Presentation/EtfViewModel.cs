@@ -104,7 +104,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
         Busy=true; operation=CancellationTokenSource.CreateLinkedTokenSource(lifetime,cancellationToken);
         try {await work(operation.Token);}
         catch(OperationCanceledException) {Status="已停止等待；服务已接受的任务可能继续运行，请在任务管理中查询或取消。";}
-        catch(Exception error) {Status=error is InvalidDataException?error.Message:"操作失败；类别："+error.GetType().Name;}
+        catch(Exception error) {Status=error is InvalidDataException or CRS.Worker.Ipc.BackgroundServiceException?error.Message:"操作失败；类别："+error.GetType().Name;}
         finally {operation.Dispose();operation=null;Busy=false;}
     }
     public async Task RefreshAsync(CancellationToken token)

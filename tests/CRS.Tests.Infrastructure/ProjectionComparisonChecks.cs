@@ -28,7 +28,7 @@ internal static class ProjectionComparisonChecks
         Check(ordered.SameFacts,"按事件标识比较，不因行顺序改变制造差异");
         var legacy=ProjectionComparer.Compare(run,PerformanceEvidence.Seal(run with{ImportProvenance=[]}));
         Check(legacy.Comparable&&legacy.SameFacts&&!legacy.VersionsFullyRecorded,"旧历史版本缺失保持未知");
-        var other=PerformanceEvidence.Seal(run with{ImportProvenance=[..run.ImportProvenance.Select(x=>x with{SourceFileHash=new string('a',64)})]});
+        var other=PerformanceEvidence.Seal(run with{ImportProvenance=[..run.ImportProvenance.Select(x=>x with{SourceFileHash=new string('a',64),ImportBatchId=new string('a',64)})]});
         var unrelated=ProjectionComparer.Compare(run,other);
         Check(!unrelated.Comparable&&!unrelated.SameFacts&&unrelated.Changes.IsEmpty,"不同原件集合不强行对应");
         Reject(()=>ProjectionComparer.Compare(run,run with{InputHash=new string('0',64)}),"输入或结果摘要篡改拒绝");

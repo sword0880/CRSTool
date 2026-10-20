@@ -5,7 +5,8 @@ using System.Text.Json;
 namespace CRS.Worker.Ipc;
 
 /// <summary>查询与管理使用独立容量和 ACL，普通用户的慢连接不能占用管理员控制通道。</summary>
-public sealed class BackgroundPipeServer(IBackgroundControl control, string pipeName = BackgroundPipeServer.DefaultPipeName)
+public sealed class BackgroundPipeServer(IBackgroundControl control, string pipeName = BackgroundPipeServer.DefaultPipeName,
+    TimeSpan? requestTimeout=null,Action<string,string>? diagnostic=null)
 {
     // 用户确认将管道一并重命名；端点版本与分页、持久命令协议同时升级。
     public const string DefaultPipeName = "CRS.Worker.Service.v2";
@@ -18,6 +19,8 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)
     {
+        if(requestTimeout is {} timeout&&(timeout<TimeSpan.FromMilliseconds(100)||timeout>TimeSpan.FromSeconds(20)))
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout));
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token);
         var loops = new List<Task>();
         // 第一个实例独占声明端点；后续实例使用相同 ACL，受程序数据目录租约保护。
@@ -42,10 +45,8 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
             while (!token.IsCancellationRequested)
             {
                 await pipe.WaitForConnectionAsync(token);
-                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-                deadline.CancelAfter(TimeSpan.FromSeconds(8));
-                try { await HandleConnectionAsync(pipe, management, deadline.Token); }
-                catch (Exception error) when (error is IOException or OperationCanceledException or JsonException or UnauthorizedAccessException or ArgumentException)
+                try { await HandleConnectionAsync(pipe, management, token); }
+                catch (Exception error) when (error is IOException or InvalidDataException or OperationCanceledException or JsonException or UnauthorizedAccessException or ArgumentException)
                 { /* 畸形请求、断连和超时仅影响当前连接。 */ }
                 await pipe.DisposeAsync(); pipe = null;
                 token.ThrowIfCancellationRequested(); pipe = CreatePipe(management, false);
@@ -55,7 +56,8 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     }
     private async Task HandleConnectionAsync(NamedPipeServerStream pipe, bool management, CancellationToken token)
     {
-        var request = await Framing.ReadAsync<BackgroundRequest>(pipe, token);
+        using var reading=CancellationTokenSource.CreateLinkedTokenSource(token);reading.CancelAfter(TimeSpan.FromSeconds(5));
+        var request = await Framing.ReadAsync<BackgroundRequest>(pipe, reading.Token);
         BackgroundCaller? caller = null;
         pipe.RunAsClient(() =>
         {
@@ -67,11 +69,31 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         });
         if (caller is null) throw new UnauthorizedAccessException();
         var invalid = Limit(caller, management) ?? Validate(request, caller, management);
-        var response = invalid is null ? await control.HandleAsync(request, caller, token) : new BackgroundResponse(WorkerProtocol.Version, request.RequestId, invalid);
+        var response = invalid is null ? await ExecuteRequestAsync(request,caller,token) : new BackgroundResponse(WorkerProtocol.Version, request.RequestId, invalid);
         if (invalid is not (null or "RateLimited" or "Busy") && Writes.Contains(request.Command)) await control.HandleAsync(request with { Command = "AuditDenied" }, caller, token);
         // 消息上限是最后防线；超限返回协议错误，不把服务伪装成断线。
         if (JsonSerializer.SerializeToUtf8Bytes(response).Length > 131072) response = new(WorkerProtocol.Version, request.RequestId, "PayloadTooLarge");
-        await Framing.WriteAsync(pipe, response, token);
+        using var replying=CancellationTokenSource.CreateLinkedTokenSource(token);replying.CancelAfter(TimeSpan.FromSeconds(3));
+        await Framing.WriteAsync(pipe, response, replying.Token);
+    }
+    private async Task<BackgroundResponse> ExecuteRequestAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
+    {
+        using var processing=CancellationTokenSource.CreateLinkedTokenSource(token);
+        processing.CancelAfter(requestTimeout??TimeSpan.FromSeconds(20));
+        try
+        {
+            var response=await control.HandleAsync(request,caller,processing.Token);
+            processing.Token.ThrowIfCancellationRequested();return response;
+        }
+        catch(OperationCanceledException) when(!token.IsCancellationRequested)
+        {return Failure(IsMutation(request.Command)?"CommandOutcomeUnknown":"RequestTimedOut");}
+        catch(Exception error) when(error is IOException or InvalidDataException or ArgumentException or JsonException or UnauthorizedAccessException)
+        {return Failure(IsMutation(request.Command)?"CommandOutcomeUnknown":"RequestFailed");}
+        BackgroundResponse Failure(string code)
+        {
+            try{diagnostic?.Invoke(request.Command,code);}catch(Exception){ /* 诊断失败不吞掉已确定的协议响应。 */ }
+            return new(WorkerProtocol.Version,request.RequestId,code);
+        }
     }
     private string? Validate(BackgroundRequest request, BackgroundCaller caller, bool management)
     {

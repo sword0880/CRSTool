@@ -94,7 +94,8 @@ namespace CRS.Worker.Service
                     await runtime.StartAsync(stoppingToken);
                     new WorkerUpgradeJournal(locations.Data).MarkHealthy(AppContext.BaseDirectory);
                     diagnostics.Write("Started", "service", "Running");
-                    pipeTask = new BackgroundPipeServer(runtime, locations.Pipe).RunAsync(listeners.Token);
+                    pipeTask = new BackgroundPipeServer(runtime, locations.Pipe,
+                        diagnostic:(command,code)=>diagnostics.Write("PipeRequestFailed",command,code)).RunAsync(listeners.Token);
                     logger.LogInformation("CRS 后台服务已启动，加载 {Count} 个后台任务。", catalog.Jobs.Count);
                     using var interval = new PeriodicTimer(TimeSpan.FromSeconds(30));
                     while (await interval.WaitForNextTickAsync(stoppingToken))

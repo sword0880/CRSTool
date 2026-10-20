@@ -171,6 +171,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         catch (System.Text.Json.JsonException) { return Reply("InvalidRequest"); }
         catch (InvalidDataException) { return Reply("InvalidRequest"); }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) { return Reply("RequestTimedOut"); }
         catch (PluginLifecycleTimeoutException) { throw; } // 不合作插件必须继续走宿主进程终止策略。
         catch (Exception error)
         {

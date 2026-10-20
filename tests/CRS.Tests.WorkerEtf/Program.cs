@@ -50,6 +50,17 @@ if(args is ["--backfill-live",var fromText,var toText])
     }
     return;
 }
+if(args is ["--installed-overview-probe"])
+{
+    var timer=Stopwatch.StartNew();
+    try
+    {
+        var rows=await new WorkerEtfWorkspace().OverviewAsync(default);
+        Console.WriteLine($"PASS 已安装服务概览只读查询：rows={rows.Count};elapsedMs={timer.ElapsedMilliseconds}");
+    }
+    catch(Exception error){Console.WriteLine($"FAIL 已安装服务概览只读查询：category={error.GetType().Name};elapsedMs={timer.ElapsedMilliseconds}");Environment.ExitCode=1;}
+    return;
+}
 if(args is ["--installed-chart-ui"]){EtfConfigurationUiChecks.RunInstalled();return;}
 if(args is ["--installed-chart-probe"])
 {

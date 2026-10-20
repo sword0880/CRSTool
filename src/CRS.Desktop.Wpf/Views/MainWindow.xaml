@@ -2,8 +2,15 @@
  <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <!-- 产品名与口号集中定义，标题区仅负责展示。 -->
   <ui:TitleBar Title="" AutomationProperties.Name="{x:Static services:ProductIdentity.Name}" Height="64" ShowClose="True" ShowMinimize="True" ShowMaximize="True" ForceShutdown="False"/>
-  <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="16,0,0,0" IsHitTestVisible="False"><Image Source="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu_256.png" Width="32" Height="32"/><TextBlock Text="{x:Static services:ProductIdentity.Name}" FontSize="23" FontWeight="Bold" VerticalAlignment="Center" Margin="12,0,0,0"/></StackPanel>
-  <TextBlock Text="{x:Static services:ProductIdentity.Slogan}" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="168,0,0,0" IsHitTestVisible="False"/>
+  <Border x:Name="BrandHeader" Width="206" HorizontalAlignment="Left" VerticalAlignment="Center" Padding="18,0,10,0" IsHitTestVisible="False">
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Image Source="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu_256.png" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality"/>
+    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+     <TextBlock Text="{x:Static services:ProductIdentity.Name}" FontSize="18" FontWeight="SemiBold" Foreground="#252A34"/>
+     <TextBlock Text="{x:Static services:ProductIdentity.Slogan}" FontSize="10.5" Foreground="#7B8493" Margin="0,2,0,0"/>
+    </StackPanel>
+   </Grid>
+  </Border>
   <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="#E5E7EB">
    <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="True" IsBackButtonVisible="Collapsed" IsPaneOpen="True">
     <ui:NavigationView.MenuItems>

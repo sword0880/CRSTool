@@ -203,3 +203,28 @@ ITaskRepository补充原子提交、业务冲突和不透明游标契约；Encry
 此项完成富途税务版本缺口，ARCH-208整体仍保持In Progress：完整类型化事实、跨版本投影差异及独立真实金额验收尚未关闭；独立税务金额验收按用户既有顺序最后处理。未替换已安装程序或操作个人资料。
 
 最终验证退出码均0：全项目Release0警告/0错误（futu-tax-provenance-solution.log）；完整基础设施回归含IBKR16项、Futu16项及原绩效/备份/升级/资源/锁定恢复（futu-tax-provenance-infrastructure.log）；既有Verification68项（futu-tax-provenance-verification.log）；架构门禁通过、复杂度基线未提高（futu-tax-provenance-architecture.log）。工作区空白检查通过，金融夹具未改写。日志哈希与边界汇总：artifacts/futu-tax-provenance-final-evidence.json。
+
+## 公共通知扩展与目录整理：钉钉、个人微信
+
+按用户确认，微信是个人微信，先实现PushPlus适配器（可独立替换），不是企业微信群机器人。钉钉使用自定义机器人文本消息和HMAC-SHA256加签。两个通道均注册到Worker公共通知分发器，使用default Profile；WPF经应用端口和管理员IPC提供独立配置页，不连接HTTP、不读取已存密钥。配置使用DPAPI保护，带Revision冲突检查，秘密不进入持久业务命令；保存不外发，显式测试才提交，默认关闭，已有业务订阅不自动变更。
+
+CRS.Notifications按Contracts、Dispatching、Configuration、Transport、Channels/Email、Channels/DingTalk、Channels/WeChat分目录。邮件原配置文件与格式保留，公共命名空间不变。CRS.Worker.Service同时按Runtime、Sources、Persistence/SqlCipher、Hosting、Notifications、Security、Diagnostics、Deployment分目录；原15份文件纯移动哈希审计见artifacts/worker-directory-move-audit.json，后续通知接入在新路径单独修改。
+
+通知协议采用固定HTTPS提供商地址，生产传输禁用重定向/自动重试、UTF8正文上限、每渠道串行及至少3秒本地间隔，HTTP429尊重Retry-After；不是跨重启持久配额。提供商受理不冒充送达，PushPlus仅保留其真实流水号，提交后取消/超时/5xx/响应错误保持OutcomeUnknown。回执查询与提供商幂等仍未实现。
+
+验证：完整Release构建0警告0错误（notification-channels-solution.log）；公共通知与新HTTP通道隔离测试通过（notification-channels-checks.log）；真实WPF设置窗口渲染、搜索、草稿与锁定清理通过（notification-settings-ui.log），截图在artifacts/notification-settings-ui/。未使用真实Token、未向任何真实群/微信/邮箱发消息，未替换已安装程序，真实送达仍需配置后由用户显式验证。使用指南与通知边界已同步。
+
+## ARCH-208续项：冻结投影差异审计（本步已验证，整体仍In Progress）
+
+新增Application的ProjectionComparer及CompareProjectionsAsync只读端口，校验两个历史输入摘要与结果封存，只有非空、有效且相同的原件SHA集合才进行对应。按稳定类别/身份比较Accounts、Events、Valuations、Prices、Fx、Coverage、Transfers、Revisions及模型版本，输出Added/Removed/Changed、变化字段和前后摘要；版本依据单独呈现，旧版本缺失不补填。配置/人工修订的变化也可能出现在差异中，不能自动归因于解析器升级。存在行内数组时保留原顺序，保守报告结构差异。
+
+重复身份、超过20万行或1万项差异拒绝输出截断结论；支持取消。仅比较已有冻结输入，不执行归档旧程序集、不重算财务结果、不覆盖历史；尚无专用桌面审计页。完整类型化投资账本、真实版本升级前后原件投影验证与独立真实Golden仍开放。
+
+已通过：实际SQLCipher历史只读比对、版本差异与事实差异分离、金额字段定位、新增/删除、行序无关、旧版本未知、原件集合不匹配、篡改/重复身份拒绝及取消12项；原解析版本持久化21项一并通过，含真实备份恢复和旧格式读取。证据：arch208-projection-comparison.log。首次测试构造不同来源夹具时未同步ImportBatchId，被既有校验正确拒绝；已修正为有效独立来源夹具，最终全部通过。
+
+## ARCH-209续项：插件旧来源策略故障锁定（本步已验证，整体仍In Progress）
+
+旧SourceRequestPolicy在已初始化但缺少状态表时拒绝启动，不再悄悄重建；启动读取三类已知来源验证完整时间格式、整数类型和0..16计数。运行期SQL提供方故障转IOException，读损坏或写入失败后本策略会话锁定；底层修复后仍须重新构建策略并核验，既有持久冷却不缩短。本步只加强该插件策略自身恢复，不声称能在旧策略库及宿主预算库同时丢失时重建未知冷却。
+
+原来源策略20项、新增缺表/损坏计数及日期/运行中故障锁定/重启恢复13项通过（arch209-legacy-policy-recovery.log），共享来源预算63项回归通过（arch209-source-budget-regression.log）。没有真实网络访问或安装服务变更；跨日、真实源站恢复与物理断电验收仍开放。最终架构门禁含Worker新目录通过，绩效复杂度基线未提高（notification-channels-architecture.log）。
+最终证据补充：公共通知共51项通过，完整WPF交互回归通过（notification-wpf-interaction.log），各日志SHA256汇总于artifacts/notification-architecture-final-evidence.json；源码空白检查通过。

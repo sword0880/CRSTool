@@ -33,11 +33,21 @@ internal static class Framing
     public const int Version = WorkerProtocol.Version;
     public static async Task<T> ReadAsync<T>(Stream stream, CancellationToken token)
     {
-        var header = new byte[4]; await stream.ReadExactlyAsync(header, token);
+        var header = new byte[4]; await ReadFrameAsync(stream,header,token);
         var length = BinaryPrimitives.ReadInt32LittleEndian(header);
         if (length is < 2 or > 131072) throw new InvalidDataException("管道消息长度超过上限。");
-        var body = new byte[length]; await stream.ReadExactlyAsync(body, token);
+        var body = new byte[length]; await ReadFrameAsync(stream,body,token);
         return JsonSerializer.Deserialize<T>(body) ?? throw new InvalidDataException("管道消息格式不正确。");
+    }
+    private static async Task ReadFrameAsync(Stream stream,Memory<byte> buffer,CancellationToken token)
+    {
+        var read=0;
+        while(read<buffer.Length)
+        {
+            var count=await stream.ReadAsync(buffer[read..],token);
+            if(count==0)throw new PipeFrameInterruptedException();
+            read+=count;
+        }
     }
     public static async Task WriteAsync<T>(Stream stream, T value, CancellationToken token)
     {
@@ -47,3 +57,5 @@ internal static class Framing
         await stream.WriteAsync(header, token); await stream.WriteAsync(body, token); await stream.FlushAsync(token);
     }
 }
+
+internal sealed class PipeFrameInterruptedException():IOException("管道在完整消息到达前关闭。");

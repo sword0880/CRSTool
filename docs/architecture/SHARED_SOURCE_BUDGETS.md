@@ -47,3 +47,4 @@ Jobs保留原`source-policy.db`作为旧宿主兼容与保守限制。网关创�
 ## 存储提供方边界
 
 SourceBudgetRegistry仅接收ISourceBudgetStore；Program创建SqliteSourceBudgetStore并移交生命周期。注册表不接触目录、密钥、连接或SQL。具体适配器保持原Schema和持久提交顺序，运行期SQLite故障转为IOException并保持故障锁定。替换实现仍须满足原子持久Save与损坏拒绝语义；当前只支持单Worker写入，多实例数据库部署需额外原子预留设计。详见[数据库抽象与替换边界](DATABASE_PORTABILITY.md)。
+2026-10-20：插件旧来源策略也加入缺表拒绝、启动全来源状态校验和运行期读写故障会话锁定；修复底层后须重建策略并验证已有冷却。原来源策略20项、新恢复13项、宿主预算63项通过，见整改续记。仅保护已知持久状态，不自动补回同时丢失的宿主与插件冷却证据。
