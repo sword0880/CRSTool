@@ -191,3 +191,4 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 富途税务版本：`CRS.Tests.Infrastructure --futu-tax-provenance`共16项，亦纳入默认完整回归；`--compare-futu-tax-before <旧Infrastructure.dll>`增加三种输入组合的旧构建逐字段对照，共19项。采用合成Excel/PDF/交易夹具和真实隔离SQLCipher库，旧形态保持未知，不代表独立金额Golden。
 `CRS.Tests.Background --notifications` 覆盖公共邮件与钉钉/个人微信HTTP适配器：DPAPI、修订冲突、签名、纯文本、明确拒绝、未知结果、UTF8上限、管理员配置隔离，全部使用假传输，不外发。`CRS.Tests.Wpf --settings-ui <隔离截图目录>` 同时渲染钉钉/个人微信设置页，验证搜索、草稿与锁定清理。
 `--broker-provenance` 另含12项冻结投影比对：真实加密历史只读、变化字段、增删、行序、缺失版本、不同原件、篡改/重复身份及取消。`CRS.Tests.WorkerEtf --source-policy` 在既有20项后运行13项旧策略库故障恢复检查，仅用隔离库和网络替身。
+`CRS.Tests.Background --ipc-boundaries` 覆盖11项真实隔离管道边界；`--ipc-compatibility <包>` / `--plugin-package-compatibility <包>` 核验原宿主与新通信/插件组合。`Verify-WorkerBinaryCompatibility.ps1` 比较旧/新契约及IPC公开接口。`CRS.Tests.WorkerEtf --overview-query-plan` 验证覆盖索引、结果一致和原件损坏拒绝；`--installed-refresh-probe` 仅只读核验真实概览/配置/历史/成交统计。`CRS.Tests.Wpf --shell-brand-preview <目录>` 脱离窗口生命周期渲染品牌区，无插件启动。

@@ -33,7 +33,9 @@ function New-WorkerServiceOperations([string]$Name,[string]$Program,[scriptblock
     return @{Disable=$disable;Stop=$stop;Enable=$enable;Start=$start;Health=$HealthProbe}
 }
 function Wait-WorkerHealthy([hashtable]$Service){
-    $deadline=[DateTime]::UtcNow.AddSeconds(40)
+    # 候选在打开数据库前逐份核验一致性快照；数千份小文件可超过原40秒。
+    # 保持有界等待，但不能在校验期间反复停止服务，或绕过其完整性检查。
+    $deadline=[DateTime]::UtcNow.AddSeconds(180)
     do{
         if(& $Service.Health){return}
         Start-Sleep -Milliseconds 250

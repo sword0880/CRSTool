@@ -14,6 +14,7 @@ if(args is ["--storage-providers"]){await PluginStorageProviderChecks.RunAsync()
 if(args is ["--source-budget"]){await SourceBudgetChecks.RunAsync();return;}
 if(args is ["--source-budget-soak",var soakSeconds]){await SourceBudgetSoakChecks.RunAsync(int.Parse(soakSeconds,System.Globalization.CultureInfo.InvariantCulture));return;}
 if(args is ["--source-policy"]){await SourcePolicyChecks.RunAsync();LegacySourcePolicyRecoveryChecks.Run();return;}
+if(args is ["--overview-query-plan"]){OverviewQueryPlanChecks.Run();return;}
 if(args is ["--enable-reference-live"])
 {
     var live=new WorkerEtfWorkspace();
@@ -50,13 +51,20 @@ if(args is ["--backfill-live",var fromText,var toText])
     }
     return;
 }
-if(args is ["--installed-overview-probe"])
+if(args is ["--installed-overview-probe"] or ["--installed-refresh-probe"])
 {
     var timer=Stopwatch.StartNew();
     try
     {
-        var rows=await new WorkerEtfWorkspace().OverviewAsync(default);
+        var workspace=new WorkerEtfWorkspace();var rows=await workspace.OverviewAsync(default);
         Console.WriteLine($"PASS 已安装服务概览只读查询：rows={rows.Count};elapsedMs={timer.ElapsedMilliseconds}");
+        if(args[0]=="--installed-refresh-probe")
+        {
+            var configuration=await workspace.ConfigurationAsync(default);
+            var history=await workspace.HistoryAsync(null,default);
+            var activity=await workspace.MarketActivityAsync(default);
+            Console.WriteLine($"PASS 已安装服务页面刷新只读查询：configuration={configuration.Count};history={history.Count};activity={activity.Count};elapsedMs={timer.ElapsedMilliseconds}");
+        }
     }
     catch(Exception error){Console.WriteLine($"FAIL 已安装服务概览只读查询：category={error.GetType().Name};elapsedMs={timer.ElapsedMilliseconds}");Environment.ExitCode=1;}
     return;

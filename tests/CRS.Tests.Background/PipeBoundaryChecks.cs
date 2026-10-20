@@ -52,7 +52,7 @@ internal static class PipeBoundaryChecks
             await using var server=new NamedPipeServerStream(name,PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous);
             var peer=Task.Run(async()=>
             {
-                await server.WaitForConnectionAsync();var request=new byte[4096];await server.ReadAsync(request);
+                await server.WaitForConnectionAsync();await ReadRequest(server);
                 if(cut>0){var frame=new byte[cut];BinaryPrimitives.WriteInt32LittleEndian(cut>=4?frame:new byte[4],20);await server.WriteAsync(frame);await server.FlushAsync();}
                 await server.DisposeAsync();
             });
@@ -65,7 +65,7 @@ internal static class PipeBoundaryChecks
         {
             var id=Guid.NewGuid();var body=JsonSerializer.SerializeToUtf8Bytes(new BackgroundResponse(WorkerProtocol.Version,id,"Ok"));
             var frame=new byte[body.Length+4];BinaryPrimitives.WriteInt32LittleEndian(frame,body.Length);body.CopyTo(frame,4);
-            var peer=Task.Run(async()=>{await server.WaitForConnectionAsync();var input=new byte[4096];await server.ReadAsync(input);foreach(var b in frame)await server.WriteAsync(new[]{b});await server.FlushAsync();});
+            var peer=Task.Run(async()=>{await server.WaitForConnectionAsync();await ReadRequest(server);foreach(var b in frame)await server.WriteAsync(new[]{b});await server.FlushAsync();});
             var reply=await new BackgroundPipeClient(name).SendAsync(new(WorkerProtocol.Version,id,"GetHealth"));await peer;
             Check(reply.Code=="Ok","分片到单字节的完整帧仍正确重组");
         }
@@ -74,6 +74,11 @@ internal static class PipeBoundaryChecks
             cancel.Cancel();try{await new BackgroundPipeClient("unused").QueryAsync("GetHealth",cancel.Token);throw new Exception("取消未传播");}
             catch(OperationCanceledException){Check(true,"用户取消保持取消语义");}
         }
+    }
+    private static async Task ReadRequest(Stream stream)
+    {
+        var header=new byte[4];await stream.ReadExactlyAsync(header);
+        var body=new byte[BinaryPrimitives.ReadInt32LittleEndian(header)];await stream.ReadExactlyAsync(body);
     }
     private sealed class Control:IBackgroundControl
     {
@@ -84,7 +89,7 @@ internal static class PipeBoundaryChecks
             if(request.Payload=="slow")await Task.Delay(TimeSpan.FromSeconds(9),token);
             if(request.Payload=="timeout")await Task.Delay(Timeout.Infinite,token);
             if(request.Payload=="fail")throw new IOException("synthetic private detail");
-            return new(WorkerProtocol.Version,request.RequestId,"Ok");
+            return new(WorkerProtocol.Version,request.RequestId,"Ok",request.Command=="GetHealth"?new BackgroundHealth("Running",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,Environment.ProcessId):null);
         }
     }
 }

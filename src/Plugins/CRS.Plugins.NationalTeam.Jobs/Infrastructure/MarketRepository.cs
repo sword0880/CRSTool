@@ -64,6 +64,7 @@ public sealed partial class MarketRepository : IMarketRepository
             CREATE TABLE IF NOT EXISTS share_observation_revision(revision_id TEXT PRIMARY KEY,market TEXT,ticker TEXT,trade_date TEXT,total_shares TEXT NOT NULL,original_value TEXT NOT NULL,original_unit TEXT NOT NULL,fetch_id TEXT NOT NULL,revision_no INTEGER NOT NULL,accepted_at TEXT,first_seen TEXT NOT NULL,status TEXT NOT NULL,supersedes_id TEXT,UNIQUE(market,ticker,trade_date,revision_no),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             CREATE TABLE IF NOT EXISTS share_accepted_current(market TEXT,ticker TEXT,trade_date TEXT,revision_id TEXT NOT NULL,PRIMARY KEY(market,ticker,trade_date),FOREIGN KEY(revision_id) REFERENCES share_observation_revision(revision_id));
             CREATE TABLE IF NOT EXISTS quality_issue(id TEXT PRIMARY KEY,rule_id TEXT NOT NULL,rule_version TEXT NOT NULL,target_id TEXT NOT NULL,severity TEXT NOT NULL,status TEXT NOT NULL,evidence_id TEXT NOT NULL,reviewer TEXT,decision_time TEXT);
+            CREATE INDEX IF NOT EXISTS ix_quality_evidence_rule_status ON quality_issue(evidence_id,rule_id,status);
             CREATE TABLE IF NOT EXISTS evidence_integrity_event(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL,event TEXT NOT NULL,checked_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS sync_checkpoint(fetch_id TEXT PRIMARY KEY,status TEXT NOT NULL,accepted_count INTEGER NOT NULL);
             INSERT OR IGNORE INTO institution VALUES('huijin-investment','中央汇金投资有限责任公司'),('huijin-asset','中央汇金资产管理有限责任公司');

@@ -131,3 +131,4 @@ ARCH-208税务审计补强：IBKR新年度/期初报告的TaxImportProvenance随
 
 Worker源码目录按职责收拢：运行规则在Runtime，来源预算在Sources，仓储接口在Persistence、SQLCipher实现位于Persistence/SqlCipher；宿主上下文、安全、通知、日志及升级分别归Hosting/Security/Notifications/Diagnostics/Deployment。目录调整不改变命名空间或运行标识，详见[目录说明](../../src/CRS.Worker.Service/README.md)。
 2026-10-20：公共通知新增钉钉加签机器人及个人微信PushPlus适配器，经管理员IPC配置，WPF仅保留表单；见 [通知渠道边界](NOTIFICATION_CHANNELS.md)。配置默认关闭，尚无真实通道送达验收。
+IPC分段超时、旧构造器兼容及市场质量状态索引已落地验收；相关服务维护代次与品牌区布局见[修复记录](../implementation/IPC_EOF_BRAND_HEADER_20261020.md)。该实际部署保留原宿主实现，共享来源预算部署状态不能由此推定完成。

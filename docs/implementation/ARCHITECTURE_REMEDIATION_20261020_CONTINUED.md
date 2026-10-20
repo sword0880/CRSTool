@@ -228,3 +228,4 @@ CRS.Notifications按Contracts、Dispatching、Configuration、Transport、Channe
 
 原来源策略20项、新增缺表/损坏计数及日期/运行中故障锁定/重启恢复13项通过（arch209-legacy-policy-recovery.log），共享来源预算63项回归通过（arch209-source-budget-regression.log）。没有真实网络访问或安装服务变更；跨日、真实源站恢复与物理断电验收仍开放。最终架构门禁含Worker新目录通过，绩效复杂度基线未提高（notification-channels-architecture.log）。
 最终证据补充：公共通知共51项通过，完整WPF交互回归通过（notification-wpf-interaction.log），各日志SHA256汇总于artifacts/notification-architecture-final-evidence.json；源码空白检查通过。
+补充：已完成真实管道EOF修复、旧宿主二进制兼容、概览覆盖索引及主窗口品牌区调整，实际24只ETF和配置/历史/成交统计刷新链路验收通过；维护等待40秒调整为180秒，原件核验与一致性备份保留。具体失败恢复过程、维护代次、41秒整页耗时与构建/部署边界见[专项记录](IPC_EOF_BRAND_HEADER_20261020.md)。

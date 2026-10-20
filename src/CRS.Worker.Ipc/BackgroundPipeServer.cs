@@ -8,6 +8,8 @@ namespace CRS.Worker.Ipc;
 public sealed class BackgroundPipeServer(IBackgroundControl control, string pipeName = BackgroundPipeServer.DefaultPipeName,
     TimeSpan? requestTimeout=null,Action<string,string>? diagnostic=null)
 {
+    // 保留已安装宿主调用的二参数构造签名，新增期限/诊断参数不破坏二进制兼容。
+    public BackgroundPipeServer(IBackgroundControl control,string pipeName):this(control,pipeName,null,null){}
     // 用户确认将管道一并重命名；端点版本与分页、持久命令协议同时升级。
     public const string DefaultPipeName = "CRS.Worker.Service.v2";
     public const string ControlSuffix = ".control";

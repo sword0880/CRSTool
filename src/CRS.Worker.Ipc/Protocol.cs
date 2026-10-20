@@ -11,8 +11,15 @@ public sealed record BackgroundRequest(int ProtocolVersion, Guid RequestId, stri
 public sealed record BackgroundPluginScheduling(string PluginId, int MaxConcurrency, int Running, int Waiting);
 public sealed record BackgroundScheduling(int MaxConcurrency, int Running, int Waiting, int MaxPendingPerPlugin, long CoalescedTriggers,
     long CapacityDeferredTriggers, int PendingManualCommands = 0, IReadOnlyList<BackgroundPluginScheduling>? Plugins = null);
+[method:System.Text.Json.Serialization.JsonConstructor]
 public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, DateTimeOffset ObservedUtc, int ProcessId, BackgroundScheduling? Scheduling = null,
-    IReadOnlyList<SourceBudgetHealth>? Sources = null);
+    IReadOnlyList<SourceBudgetHealth>? Sources = null)
+{
+    public BackgroundHealth(string state,DateTimeOffset startedUtc,DateTimeOffset observedUtc,int processId,BackgroundScheduling? scheduling)
+        :this(state,startedUtc,observedUtc,processId,scheduling,null){}
+    public void Deconstruct(out string state,out DateTimeOffset startedUtc,out DateTimeOffset observedUtc,out int processId,out BackgroundScheduling? scheduling)
+    {state=State;startedUtc=StartedUtc;observedUtc=ObservedUtc;processId=ProcessId;scheduling=Scheduling;}
+}
 public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, string Code,
     BackgroundHealth? Health = null, IReadOnlyList<TaskDefinition>? Jobs = null,
     IReadOnlyList<ExecutionRecord>? History = null, string? NextCursor = null,
