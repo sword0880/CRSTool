@@ -26,9 +26,14 @@ internal static class ScopedEvidenceChecks
             catch(IOException){Check(true,"全池查询仍核验全部依赖，不借范围优化放松完整性");}
         }
         File.WriteAllText(Path.Combine(rawPath,hash+".raw"),"tampered");
-        Check(repository.Points(key).Count==0&&repository.Evidence(key).Single().State=="Critical","下一次查询重新校验，损坏原件不得沿用上次结果");
+        try{repository.Points(key);throw new Exception("已损坏原件被读查询放行");}
+        catch(InvalidDataException){Check(true,"查询核验原件损坏时拒绝返回金融数据，且不持久化状态");}
+        repository.ReconcileEvidenceIntegrity();
+        Check(repository.Points(key).Count==0 && repository.Evidence(key).Single().State=="Critical",
+            "受控完整性作业登记Q15后，页面可只读显示Critical且不返回损坏份额");
         Check(repository.Points(other).Single().Shares==200,"损坏证券不污染独立证券事实");
         File.WriteAllBytes(Path.Combine(rawPath,hash+".raw"),content);
+        repository.ReconcileEvidenceIntegrity();
         Check(repository.Points(key).Single().Shares==100&&repository.Evidence(key).Single().State=="Accepted","原始哈希恢复后重新核验，保留恢复链");
         using(var cancelled=new CancellationTokenSource())
         {
@@ -49,7 +54,7 @@ internal static class ScopedEvidenceChecks
         }
         Check(repository.ExecuteOperation(()=>repository.Points(key),CancellationToken.None).Single().Shares==100,"SQLite中断结束后连接可继续正确查询");
         File.WriteAllText(Path.Combine(rawPath,calendarHash+".raw"),"damaged calendar");
-        repository.Acceptance(key,day);
+        repository.ReconcileEvidenceIntegrity();
         using var issue=connection.CreateCommand();issue.CommandText="SELECT count(*) FROM quality_issue WHERE evidence_id=$id AND rule_id='Q15' AND status='Open'";issue.Parameters.AddWithValue("$id",calendarFetch);
         Check(Convert.ToInt32(issue.ExecuteScalar())==1,"逐证券验收仍检出所属市场日历原件损坏");
     }

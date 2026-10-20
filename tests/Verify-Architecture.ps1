@@ -74,8 +74,8 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
 }
 [xml]$contract = Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj')
 Assert-Boundary ($contract.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) 'BCL插件契约不得引用实现或WPF。'
-foreach($layer in @('Presentation','Domain')) {
-    foreach($file in Get-ChildItem (Join-Path $RepositoryRoot "src/Plugins/CRS.Plugins.NationalTeamWatch/$layer") -Filter '*.cs' -Recurse) {
+foreach($sourceDir in @('src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation','src/Plugins/CRS.Plugins.NationalTeam.Core/Domain')) {
+    foreach($file in Get-ChildItem (Join-Path $RepositoryRoot $sourceDir) -Filter '*.cs' -Recurse) {
         $source=Get-Content -Raw $file.FullName
         Assert-Boundary (-not ($source -match 'Microsoft\.Data\.Sqlite|System\.Net\.Http|new\s+MarketRepository|\.Calculate\(')) "插件展示/领域层越界：$($file.Name)"
     }
@@ -111,14 +111,20 @@ Assert-Boundary (-not (($etfUi.SelectNodes('//ProjectReference').Include -join '
 [xml]$etfJobs=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeam.Jobs/CRS.Plugins.NationalTeam.Jobs.csproj')
 Assert-Boundary ($null -eq $etfJobs.SelectSingleNode('//UseWPF | //UseWindowsForms')) 'ETF作业引用了桌面框架。'
 Assert-Boundary (-not (($etfJobs.SelectNodes('//ProjectReference').Include -join ';') -match 'Plugin.Wpf|Worker.Ipc|NationalTeamWatch/')) 'ETF作业反向引用了桌面实现。'
+Assert-Boundary ($etfJobs.SelectNodes('//Compile[@Include]').Count -eq 0 -and $etfUi.SelectNodes('//Compile[@Remove]').Count -eq 0) '国家队 Core/Jobs/UI 必须实体拥有源码，不得通过链接/排除维持虚假模块边界。'
+[xml]$etfCore=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeam.Core/CRS.Plugins.NationalTeam.Core.csproj')
+Assert-Boundary ($etfCore.SelectNodes('//Compile[@Include]').Count -eq 0) 'ETF Core 不允许跨目录源码链接。'
+Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.PluginHost/QuartzTaskScheduler.cs'))) '桌面宿主仍保留第二套 Quartz 执行实现。'
 $uiEntry=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/NationalTeamPluginEntry.cs')
 Assert-Boundary (-not ($uiEntry -match 'new\s+(MarketRepository|OfficialShareSources)|RegisterAsync|\bEtfWorkspace\(')) 'ETF桌面入口仍有本地采集/写入路径。'
 $uiHost=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.PluginHost/PluginRuntime.cs')
 Assert-Boundary (-not ($uiHost -match 'new\s+QuartzTaskScheduler|scheduler\.Scope')) '桌面插件宿主仍创建第二个调度器。'
 Write-Output 'ETF双入口、唯一任务执行者与桌面无写库依赖门禁通过。'
-foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/Application') -Filter '*.cs' -Recurse) {
+foreach($sourceDir in @('src/Plugins/CRS.Plugins.NationalTeam.Core/Application','src/Plugins/CRS.Plugins.NationalTeam.Jobs/Application')) {
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot $sourceDir) -Filter '*.cs' -Recurse) {
     $source=Get-Content -Raw $file.FullName
     Assert-Boundary (-not ($source -match 'CRS\.Plugins\.NationalTeamWatch\.Infrastructure|Microsoft\.Data\.Sqlite|new\s+MarketRepository|\bFile\.(Read|Write)')) "插件用例层引用基础设施实现：$($file.Name)"
+}
 }
 # 先完成 Release 构建；以 SDK Roslyn 语法树检查绩效模块的新方法和已评审复杂度增量。
 & dotnet run --project (Join-Path $RepositoryRoot 'tests/CRS.Tests.Domain') -c Release --no-build -- --performance-architecture $RepositoryRoot

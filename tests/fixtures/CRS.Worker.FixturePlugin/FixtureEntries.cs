@@ -2,6 +2,7 @@ using CRS.Worker.Abstractions;
 namespace CRS.Worker.FixturePlugin;
 
 /// <summary>真实加载的多任务与生命周期故障夹具，所有副作用限定在测试显式给定的目录。</summary>
+public sealed class QueryOnlyEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("QueryOnly"); }
 public sealed class GoodEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Good"); }
 // 故障消息仅含合成敏感标记，用于确认公开执行日志只持久化异常分类。
 public sealed class BadJobEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadJob"); }
@@ -42,7 +43,7 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
         }
         return await ExecuteAsync(jobId,token);
     }
-    public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() => mode=="Deferred"?[new("one","延后重试夹具","0 0 0 1 1 ?","China Standard Time",false,false,true)]:mode == "Flood"
+    public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() => mode=="QueryOnly"?[]:mode=="Deferred"?[new("one","延后重试夹具","0 0 0 1 1 ?","China Standard Time",false,false,true)]:mode == "Flood"
         ? Enumerable.Range(1,12).Select(i => new BackgroundJobDescriptor(i == 1 ? "one" : i == 2 ? "two" : "job"+i, "积压夹具"+i, "0 0 0 1 1 ?", "China Standard Time", false)).ToArray()
         : [new("one", "夹具一", mode == "BadSchedule" ? "bad-cron" : "0 0 0 1 1 ?", "China Standard Time", false), new("two", "夹具二", "0 0 0 1 1 ?", "China Standard Time", false)];
     public async ValueTask StartAsync(CancellationToken cancellationToken)

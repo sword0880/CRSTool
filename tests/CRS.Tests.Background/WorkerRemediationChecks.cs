@@ -38,6 +38,17 @@ internal static class WorkerRemediationChecks
     }
     public static async Task RunAsync(string root, string servicePackage)
     {
+        // 纯查询插件不需要为可发现性创建虚构 Job。
+        var queryOnlyPackage = Package(root, ("crs.query-only", "QueryOnlyEntry"));
+        await using(var queryOnly = new BackgroundPluginCatalog())
+        {
+            await queryOnly.LoadAsync(queryOnlyPackage.Root,queryOnlyPackage.Trust,default);
+            Check(queryOnly.Jobs.Count==0 && queryOnly.Statuses.Single().State=="Started","无任务插件仍完成会话启动");
+            Check(await queryOnly.QueryAsync("crs.query-only","ping",default)=="fixture-query-ok","纯查询插件的查询能力独立注册");
+            queryOnly.Quarantine("crs.query-only","SyntheticQuarantine");
+            try { await queryOnly.QueryAsync("crs.query-only","ping",default);throw new InvalidOperationException("隔离后仍接受查询"); }
+            catch(ArgumentException) { Check(true,"隔离后删除查询注册"); }
+        }
         var package = Package(root, ("crs.fixture", "GoodEntry"));
         await using var catalog = new BackgroundPluginCatalog(); await catalog.LoadAsync(package.Root, package.Trust, default);
         var key = RandomNumberGenerator.GetBytes(32);
