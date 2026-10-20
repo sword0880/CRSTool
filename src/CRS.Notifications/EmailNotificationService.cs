@@ -57,7 +57,7 @@ public sealed class EmailNotificationService(string directory,IEmailTransport? t
         return settings with{Recipients=recipients.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()};
     }
     /// <summary>测试仅发送已经保存的配置，必须由用户显式点击；保存设置本身不发邮件。</summary>
-    public Task<EmailSendResult> TestAsync(Guid requestId,CancellationToken token)=>SendAsync(new("test."+requestId.ToString("N")+"@crs.local","CRS 邮件通知测试","这是系统设置中的邮件测试。SMTP受理不等于收件人已收到或已阅读。"),token);
+    public Task<EmailSendResult> TestAsync(Guid requestId,CancellationToken token)=>SendAsync(new("test."+requestId.ToString("N")+"@crs.local","小财牛邮件通知测试","这是系统设置中的邮件测试。SMTP受理不等于收件人已收到或已阅读。"),token);
     public async Task<EmailSendResult> SendAsync(EmailMessage mail,CancellationToken token)
     {
         if(mail.MessageId.Length is <1 or >160||mail.MessageId.Any(c=>!char.IsAsciiLetterOrDigit(c)&&c is not '.' and not '@' and not '-')

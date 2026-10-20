@@ -7,7 +7,7 @@ using CRS.Worker.Ipc;
 internal static class P0LiveOperations
 {
     private static string DirectoryPath=>Path.Combine(Environment.CurrentDirectory,"artifacts","p0-live");
-    /// <summary>发布窗口暂缓新自动批次，保留在途采集及原始启用状态；升级后按原状态恢复。</summary>
+    /// <summary>维护窗口暂停采集计划，宿主协作取消在途任务并保留已提交事实；之后按原状态恢复。</summary>
     public static async Task MaintenancePlans(bool resume)
     {
         using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(2));var pipe=new BackgroundPipeClient();var token=deadline.Token;
@@ -21,7 +21,7 @@ internal static class P0LiveOperations
         {
             var response=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),resume?"Resume":"Pause","crs.national-team",plan.JobId,ExpectedRevision:plan.Revision),token);
             if(response.Code!="Ok")throw new InvalidDataException("发布计划变更未成功："+response.Code);
-            Console.WriteLine($"PASS 维护计划 {(resume?"恢复":"暂缓新批次")} {plan.JobId}；在途任务不取消。");
+            Console.WriteLine($"PASS 维护计划 {(resume?"恢复":"暂停并协作取消在途任务")} {plan.JobId}；已提交事实保留。");
         }
         if(resume)await File.WriteAllTextAsync(Path.Combine(DirectoryPath,"maintenance-plans-restored.json"),JsonSerializer.Serialize(new{RestoredAt=DateTimeOffset.UtcNow,Original=original}),token);
     }

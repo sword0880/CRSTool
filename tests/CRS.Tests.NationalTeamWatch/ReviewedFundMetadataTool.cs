@@ -20,6 +20,14 @@ internal static class ReviewedFundMetadataTool
         if((await workspace.AlertChannelsAsync(token)).Any(x=>x.Enabled&&x.Configured))
             throw new InvalidDataException("存在已启用外发渠道；本次仅核验原件，不自动触发真实通知。");
         var root=Path.Combine(Environment.CurrentDirectory,"artifacts","monitor-readiness","metadata-application");Directory.CreateDirectory(root);
+        var unavailableHosts=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // 本批保留最近失败来源的退避，其他来源仍可独立核验；不反复探测同一失败站点。
+        foreach(var previous in Directory.EnumerateFiles(root,"*.json"))
+        {
+            using var saved=JsonDocument.Parse(await File.ReadAllTextAsync(previous,token));var value=saved.RootElement;
+            if(value.GetProperty("Status").GetString()=="RegistrationUnavailable"&&value.GetProperty("CheckedAt").GetDateTimeOffset()>DateTimeOffset.UtcNow.AddMinutes(-30))
+                unavailableHosts.Add(new Uri(value.GetProperty("Review").GetProperty("Url").GetString()!,UriKind.Absolute).Host);
+        }
         foreach(var row in rows)
         {
             var key=new EtfKey(row.Market,row.Ticker);var recordPath=Path.Combine(root,row.Market+"-"+row.Ticker+".json");
@@ -33,16 +41,32 @@ internal static class ReviewedFundMetadataTool
             if(endPoint is null||startPoint is null||endPoint.Shares!=row.ReportEndShares&&endPoint.Shares!=rounded
                 ||startPoint.Shares!=row.ReportStartShares&&startPoint.Shares!=roundedStart)
             {
-                await File.WriteAllTextAsync(recordPath,JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,Status=endPoint is null||startPoint is null?"AwaitingSameDateFact":"ShareScopeMismatch",
+                var status=endPoint is null||startPoint is null?"AwaitingSameDateFact":
+                    Math.Abs(endPoint.Shares-row.ReportEndShares)<100&&Math.Abs(startPoint.Shares-row.ReportStartShares)<100?"ShareDisplayPrecisionUnconfirmed":"ShareScopeMismatch";
+                await File.WriteAllTextAsync(recordPath,JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,Status=status,
                     Review=row,ExchangeFact=endPoint,ExchangeBaseline=startPoint,ReportEndShares=row.ReportEndShares,RoundedForWanSharesDisplay=rounded},new JsonSerializerOptions{WriteIndented=true}),token);
-                Console.WriteLine($"PENDING 份额口径 {row.Market}:{row.Ticker}：{(endPoint is null||startPoint is null?"尚缺期初或期末同日已接受事实":"报告总份额与交易所事实不一致")}，未审批。");continue;
+                Console.WriteLine($"PENDING 份额口径 {row.Market}:{row.Ticker}：{(status=="AwaitingSameDateFact"?"尚缺期初或期末同日已接受事实":status=="ShareDisplayPrecisionUnconfirmed"?"差异小于万份两位展示精度，截断或舍入规则尚未确认":"报告总份额与交易所事实口径待核验")}，未审批。");continue;
             }
             // 原件已登记时不重复下载；同URL被替换的内容不能继承本次审核。
             var documents=await workspace.AlertDocumentsAsync(key,token);
             var document=documents.SingleOrDefault(x=>x.Url==row.Url&&x.Hash.Equals(row.SHA256,StringComparison.OrdinalIgnoreCase));
             if(document is null)
             {
-                await workspace.RegisterAlertDocumentAsync(new(row.Market,row.Ticker,row.Url),token);
+                var host=new Uri(row.Url,UriKind.Absolute).Host;
+                if(unavailableHosts.Contains(host))
+                {
+                    if(File.Exists(recordPath))
+                    {using var previous=JsonDocument.Parse(await File.ReadAllTextAsync(recordPath,token));if(previous.RootElement.GetProperty("Status").GetString()=="RegistrationUnavailable")continue;}
+                    await File.WriteAllTextAsync(recordPath,JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,Status="AwaitingWorkerOriginal",Review=row,ExchangeFact=endPoint,ExchangeBaseline=startPoint},new JsonSerializerOptions{WriteIndented=true}),token);
+                    Console.WriteLine($"PENDING 后台原件 {row.Market}:{row.Ticker}：本来源下载已暂停，份额比对保留，未审批。");continue;
+                }
+                try{await workspace.RegisterAlertDocumentAsync(new(row.Market,row.Ticker,row.Url),token);}
+                catch(InvalidDataException error) when(error.Message.StartsWith("后台任务结果：Failed",StringComparison.Ordinal)||error.Message.StartsWith("后台任务结果：RetryDeferred",StringComparison.Ordinal))
+                {
+                    unavailableHosts.Add(host);
+                    await File.WriteAllTextAsync(recordPath,JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,Status="RegistrationUnavailable",Review=row,ExchangeFact=endPoint,ExchangeBaseline=startPoint},new JsonSerializerOptions{WriteIndented=true}),token);
+                    Console.WriteLine($"PENDING 后台原件 {row.Market}:{row.Ticker}：登记未成功，停止本来源后续下载，继续其他来源及只读比对。");continue;
+                }
                 documents=await workspace.AlertDocumentsAsync(key,token);
                 document=documents.SingleOrDefault(x=>x.Url==row.Url&&x.Hash.Equals(row.SHA256,StringComparison.OrdinalIgnoreCase))
                     ??throw new InvalidDataException("服务取得原件与核验哈希不一致，停止审批："+row.Ticker);

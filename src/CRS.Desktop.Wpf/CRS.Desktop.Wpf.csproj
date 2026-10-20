@@ -5,8 +5,10 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>CRS.Desktop.Wpf</AssemblyName>
     <!-- Windows 文件属性采用产品全称，程序集技术标识继续使用 CRS。 -->
-    <Product>境外证券投资所得税辅助计算工具</Product>
-    <Title>境外证券投资所得税辅助计算工具</Title>
+    <Product>小财牛</Product>
+    <Title>小财牛</Title>
+    <AssemblyTitle>小财牛</AssemblyTitle>
+    <Description>财富有数，投资有度</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="WPF-UI" />

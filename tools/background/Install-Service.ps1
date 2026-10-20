@@ -50,7 +50,7 @@ Copy-Item -LiteralPath $releasePath -Destination $target
 if(Test-Path -LiteralPath (Join-Path $source 'release.json.p7s')){Copy-Item -LiteralPath (Join-Path $source 'release.json.p7s') -Destination $target}
 if(-not [Diagnostics.EventLog]::SourceExists($serviceName)){New-EventLog -LogName Application -Source $serviceName}
 $binary='"'+(Join-Path $target 'CRS.Worker.Service.exe')+'"'
-New-Service -Name $serviceName -DisplayName 'CRS Background Service' -BinaryPathName $binary -StartupType Automatic -Credential ([PSCredential]::new('NT AUTHORITY\LocalService',[Security.SecureString]::new())) | Out-Null
+New-Service -Name $serviceName -DisplayName '小财牛后台服务' -BinaryPathName $binary -StartupType Automatic -Credential ([PSCredential]::new('NT AUTHORITY\LocalService',[Security.SecureString]::new())) | Out-Null
 function Invoke-ServiceConfig([string[]]$Arguments){& sc.exe @Arguments;if($LASTEXITCODE -ne 0){throw 'SCM 配置失败，请保留现场诊断。'}}
 Invoke-ServiceConfig @('config',$serviceName,'start=','delayed-auto')
 Invoke-ServiceConfig @('sidtype',$serviceName,'unrestricted')

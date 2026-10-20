@@ -17,7 +17,7 @@ public sealed class SmtpEmailTransport:IEmailTransport
             await client.ConnectAsync(settings.Host,settings.Port,settings.Security=="StartTls"?SecureSocketOptions.StartTls:SecureSocketOptions.SslOnConnect,token);
             if(settings.UserName.Length>0)await client.AuthenticateAsync(settings.UserName,password,token);
             var message=new MimeMessage{MessageId=mail.MessageId,Subject=mail.Subject,Body=new TextPart("plain"){Text=mail.Body}};
-            message.From.Add(new MailboxAddress("CRS通知",settings.From));foreach(var recipient in settings.Recipients??[])message.To.Add(new MailboxAddress("",recipient));
+            message.From.Add(new MailboxAddress("小财牛通知",settings.From));foreach(var recipient in settings.Recipients??[])message.To.Add(new MailboxAddress("",recipient));
             submitting=true;await client.SendAsync(message,token);
             return new("SmtpAccepted","ServerAccepted",mail.MessageId);
         }

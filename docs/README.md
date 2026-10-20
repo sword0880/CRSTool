@@ -1,10 +1,14 @@
-# 文档导航
+# 小财牛 · 文档导航
+
+**财富有数，投资有度**。产品中文名统一为“小财牛”，工程标识为 CRS。
 
 从这里进入当前文档。操作说明、现有实现、设计目标和历史记录分别维护；**未完成项目以 [当前待办](KNOWN_ISSUES.md) 为准，发布状态以 [发布验收](validation/RELEASE_ACCEPTANCE.md) 为准**。
 
 Visual Studio 打开或重新加载 CRS.sln 后，在解决方案资源管理器的 docs 节点中可按相同目录阅读文档与示例。
 
 ## 常用入口
+
+- 产品名称与口号：[小财牛品牌同步记录](implementation/PRODUCT_BRAND_20261020.md)。
 
 - 开始使用：[启动](../README.md)、[IBKR 导入](guides/IBKR_IMPORT_GUIDE.md)、[富途导入](guides/FUTU_CSHARP_IMPORT_GUIDE.md)。
 - 保护与恢复数据：[保险库](guides/VAULT_GUIDE.md)、[手机验证](guides/AUTH_IMPLEMENTATION.md)、[设置](guides/SETTINGS.md)、[加密底稿](guides/ENCRYPTED_EXPORT.md)。

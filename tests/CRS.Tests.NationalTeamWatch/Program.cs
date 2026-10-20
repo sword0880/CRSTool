@@ -7,6 +7,7 @@ static void Reject(Action action,string name) {try{action();}catch(Exception){Co
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
 if(args is ["--monitor-backfill-status"]){await MonitorReadinessTool.BackfillStatus();return;}
+if(args is ["--monitor-summary-live"]){await MonitorReadinessTool.Summary();return;}
 if(args is ["--monitor-apply-reviewed-metadata",var reviewFile]){await ReviewedFundMetadataTool.Apply(reviewFile);return;}
 if(args is ["--monitor-backfill-live",var monitorFrom,var monitorThrough]){await MonitorReadinessTool.Backfill(monitorFrom,monitorThrough);return;}
 if(args is ["--exit-alert-replay",var replayInput,var replayOutput]){await ExitAlertReplayTool.FromFile(replayInput,replayOutput);return;}

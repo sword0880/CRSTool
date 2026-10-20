@@ -28,7 +28,7 @@ internal sealed class WindowsHelloVerifier : IWindowsHelloVerifier
                 throw new CrsException("Windows Hello 不可用，请先在 Windows 设置中配置 PIN、指纹或人脸；本次不会切换认证方式。");
             // WPF 必须使用带窗口句柄的桌面互操作 API；只有 Verified 才能发布会话。
             var hwnd=new WindowInteropHelper(owner).EnsureHandle();
-            var result=await UserConsentVerifierInterop.RequestVerificationForWindowAsync(hwnd,"境外证券投资所得税辅助计算工具：验证身份以访问加密数据").AsTask(cancellation);
+            var result=await UserConsentVerifierInterop.RequestVerificationForWindowAsync(hwnd,CRS.DesktopClient.Services.ProductIdentity.Name+"：验证身份以访问加密数据").AsTask(cancellation);
             cancellation.ThrowIfCancellationRequested();
             if(result==UserConsentVerificationResult.Canceled) throw new OperationCanceledException(cancellation);
             if(result!=UserConsentVerificationResult.Verified) throw new CrsException("Windows Hello 未验证成功，数据保持锁定，请重试。");

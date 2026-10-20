@@ -1,6 +1,8 @@
-# 境外证券投资所得税辅助计算工具
+# 小财牛
 
-面向个人的本地境外证券投资所得税辅助计算工具（项目标识 CRS），提供所得计算、来源核对和 Excel 底稿，不自动申报。基于 .NET 10 WPF；WPF UI 4.3.x、CommunityToolkit.Mvvm、DataGridExtensions 和 LiveCharts 提供前台，Domain／Application／Infrastructure 负责业务，Security 提供安全机制。Python 与 WinForms 已移除。
+**财富有数，投资有度**
+
+小财牛是面向个人的本地投资分析与税务辅助工具（项目标识 CRS），提供证券数据管理、投资绩效分析、公开市场研究预览、所得计算、来源核对和 Excel 底稿，不自动申报。基于 .NET 10 WPF；WPF UI 4.3.x、CommunityToolkit.Mvvm、DataGridExtensions 和 LiveCharts 提供前台，Domain／Application／Infrastructure 负责业务，Security 提供安全机制。Python 与 WinForms 已移除。
 
 打开 CRS.sln，将 CRS.Desktop.Wpf 设为启动项目；最低支持 Windows 10 build 19041。
 

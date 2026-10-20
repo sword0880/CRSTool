@@ -38,7 +38,7 @@ public static class Totp
         const string alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; var encoded=new StringBuilder(32); int bits=0,value=0;
         foreach(var b in secret) {value=(value<<8)|b; bits+=8; while(bits>=5) {bits-=5; encoded.Append(alphabet[(value>>bits)&31]);}}
         // 微软验证器的发行者与账户标签统一使用产品中文名，仍只附加保险库短标识。
-        const string issuer="境外证券投资所得税辅助计算工具";
+        const string issuer="小财牛";
         var label=issuer+":"+vaultId.ToString("N")[..12];
         return "otpauth://totp/"+Uri.EscapeDataString(label)+"?secret="+encoded+"&issuer="+Uri.EscapeDataString(issuer)+"&algorithm=SHA1&digits=6&period=30";
     }

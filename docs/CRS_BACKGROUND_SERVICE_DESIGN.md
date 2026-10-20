@@ -195,7 +195,7 @@ SCM只启动已注册服务，但开发控制台模式、手工双击或误装�
 
 ```powershell
 # 在提升权限的PowerShell中运行，示例服务二进制已存在
-sc.exe create CRSBackgroundService binPath= '"C:\Program Files\CRS\Background\CRS.Worker.Service.exe"' start= delayed-auto obj= 'NT AUTHORITY\LocalService' DisplayName= 'CRS Background Service'
+sc.exe create CRSBackgroundService binPath= '"C:\Program Files\CRS\Background\CRS.Worker.Service.exe"' start= delayed-auto obj= 'NT AUTHORITY\LocalService' DisplayName= '小财牛后台服务'
 sc.exe description CRSBackgroundService 'CRS plugin background scheduler and public market data monitor'
 sc.exe sidtype CRSBackgroundService unrestricted
 sc.exe failure CRSBackgroundService reset= 86400 actions= restart/60000/restart/300000/none/0

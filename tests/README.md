@@ -137,7 +137,7 @@ SCM检查需要管理员令牌、创建服务和私有ACL权限，只创建`CRSW
 
 ## 减持预警历史研究回放（2026-10-19追加）
 
-2026-10-20新增`--monitor-audit-live`、`--monitor-backfill-live yyyy-MM-dd yyyy-MM-dd`、`--monitor-backfill-status`和`--monitor-apply-reviewed-metadata 清单路径`，分别用于真实服务只读核验、提交官方历史补采、读取原补采命令回执/执行记录、应用已逐项核验的官方原件口径。补采提交和口径应用会写入后台；口径应用先检查外发渠道和期初/期末交易所份额，下载哈希不符立即停止，缺事实或份额范围不符保留待核查。详见[核验记录](../docs/implementation/MONITOR_READINESS_20261020.md)。完整回归及`--exit-alerts`包含10项原件范围、执行中SQL中断和取消恢复检查；回填不计入20日连续采集。
+2026-10-20新增`--monitor-audit-live`、`--monitor-backfill-live yyyy-MM-dd yyyy-MM-dd`、`--monitor-backfill-status`和`--monitor-apply-reviewed-metadata 清单路径`，分别用于真实服务只读核验、提交官方历史补采、读取原补采命令回执/执行记录、应用已逐项核验的官方原件口径。补采提交和口径应用会写入后台；口径应用先检查外发渠道和期初/期末交易所份额，下载哈希不符立即停止，缺事实或份额范围不符保留待核查。详见[核验记录](../docs/implementation/MONITOR_READINESS_20261020.md)。完整回归及`--exit-alerts`包含12项原件范围、日历依赖、执行中SQL中断和取消恢复检查；回填不计入20日连续采集。
 
 以下命令通过`tests/CRS.Tests.NationalTeamWatch`的Release构建运行。`--exit-alert-replay-checks`验证14项合成规则及文件复算；同时包含在完整ETF回归与`--exit-alerts`中。
 

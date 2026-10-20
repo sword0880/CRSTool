@@ -1,4 +1,4 @@
-<Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="身份验证" Width="620" Height="740" MinWidth="540" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#F3F6FC" Foreground="#0F172A">
+<Window x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:services="clr-namespace:CRS.DesktopClient.Services" Title="身份验证" Width="620" Height="740" MinWidth="540" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#F3F6FC" Foreground="#0F172A">
  <Window.Resources>
   <BooleanToVisibilityConverter x:Key="ShowWhenTrue"/>
   <!-- 窗口内统一输入与按钮样式，保留原生密码控件和既有认证命令。 -->
@@ -13,7 +13,7 @@
   <Style x:Key="PrimaryAction" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="#2563EB"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="#2563EB"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="MinHeight" Value="44"/></Style>
  </Window.Resources>
  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="32,28" MaxWidth="500" HorizontalAlignment="Center" IsEnabled="{Binding IsIdle}">
-  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,22"><ui:SymbolIcon Symbol="LockClosed24" Foreground="#2563EB" FontSize="16"/><TextBlock Text="CRS · 安全访问" Foreground="#64748B" FontWeight="SemiBold" Margin="8,0,0,0"/></StackPanel>
+  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,22"><ui:SymbolIcon Symbol="LockClosed24" Foreground="#2563EB" FontSize="16"/><TextBlock Text="{x:Static services:ProductIdentity.SecurityAccessTitle}" Foreground="#64748B" FontWeight="SemiBold" Margin="8,0,0,0"/></StackPanel>
   <Border Background="White" BorderBrush="#E0E7F1" BorderThickness="1" CornerRadius="18" Padding="28">
   <StackPanel>
   <Border Width="56" Height="56" Background="#EFF6FF" CornerRadius="16" HorizontalAlignment="Left" Margin="0,0,0,18"><ui:SymbolIcon Symbol="LockClosed24" Foreground="#2563EB" FontSize="27"/></Border>
@@ -93,6 +93,6 @@
   <TextBlock Text="旧明文库不会迁移或删除。原始报表、Excel 和结转导出仍需自行妥善管理。" Visibility="{Binding ShowMaintenance,Converter={StaticResource ShowWhenTrue}}" TextWrapping="Wrap" Foreground="#64748B"/>
   <Button Content="锁定保险库" Visibility="{Binding IsUnlocked,Converter={StaticResource ShowWhenTrue}}" Command="{Binding LockCommand}" HorizontalAlignment="Left" Margin="0,14"/>
   </StackPanel></Border>
-  <TextBlock Text="境外证券投资所得税辅助计算工具" HorizontalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,20,0,0"/>
+  <StackPanel HorizontalAlignment="Center" Margin="0,20,0,0"><TextBlock Text="{x:Static services:ProductIdentity.Name}" HorizontalAlignment="Center" Foreground="#64748B" FontSize="13" FontWeight="SemiBold"/><TextBlock Text="{x:Static services:ProductIdentity.Slogan}" HorizontalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,6,0,0"/></StackPanel>
  </StackPanel></ScrollViewer>
 </Window>

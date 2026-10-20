@@ -47,10 +47,10 @@
 | 失败门槛 | 连续 5 次失败 → 冷却 15 分钟 | 只抑制普通 UI 猜测；时钟/快照回退可绕过 |
 | 自动锁定 | 无活动 10 分钟、Windows 锁屏/休眠 | 沿用 SECURITY_DESIGN.md |
 | 限速 | 每次失败逐级短暂延时 + 冷却 | 无需联网、不持久化明文验证码 |
-| 绑定标签 | `境外证券投资所得税辅助计算工具:<VaultId短标识>` | 不放券商账号、手机号/邮箱、交易信息 |
+| 绑定标签 | `小财牛:<VaultId短标识>` | 不放券商账号、手机号/邮箱、交易信息 |
 | 借助微软云端 | **禁止作为必要条件** | 本功能必须断网完全工作 |
 
-**`otpauth` URI：** `otpauth://totp/<编码后的产品名:保险库短标识>?secret=<Base32Secret>&issuer=<编码后的产品名>&algorithm=SHA1&digits=6&period=30`。产品名为“境外证券投资所得税辅助计算工具”，issuer 和 label 分别做 RFC3986 URI 编码，Secret 采用标准 Base32；二维码内容、Secret、恢复码一律不得进日志、异常、剪贴板、崩溃报告或遥测。
+**`otpauth` URI：** `otpauth://totp/<编码后的产品名:保险库短标识>?secret=<Base32Secret>&issuer=<编码后的产品名>&algorithm=SHA1&digits=6&period=30`。产品名为“小财牛”，issuer 和 label 分别做 RFC3986 URI 编码，Secret 采用标准 Base32；二维码内容、Secret、恢复码一律不得进日志、异常、剪贴板、崩溃报告或遥测。
 
 必须用 RFC 6238 官方测试向量检验算法，并在 Android/iOS 的 Microsoft Authenticator“其他账户”扫码验证互操作，不依赖仅在开发模拟器上通过的测试。
 
