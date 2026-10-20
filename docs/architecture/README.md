@@ -1,13 +1,14 @@
-# 产品与架构
+# 架构与开发约定
 
-用于了解产品范围、分层、项目目录与开发约定。具体功能机制查 [当前实现](../implementation/README.md)，完整目标查 [设计规范](../specifications/README.md)。
+**唯一当前架构入口**：[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)。该文档以现行源码和明确标注的未完成边界为准。
 
-- [当前架构入口（优先阅读）](CURRENT_ARCHITECTURE.md)
-- [产品说明](PRD.md)
-- [系统架构](SAD.md)
-- [项目结构与依赖](PROJECT_STRUCTURE.md)
+- [项目目录和前台细节](PROJECT_STRUCTURE.md)
+- [开发规范](CRS开发规范.md)
 - [应用接口](API_SPEC.md)
-- [开发约定](CRS开发规范.md)
+- [数据库提供方边界](DATABASE_PORTABILITY.md)
+- [架构整改计划](ARCHITECTURE_REMEDIATION_PLAN_20261020.md)
+- [当前未完成问题](../KNOWN_ISSUES.md)
+
+[PRD](PRD.md) 与 [SAD](SAD.md) 属于设计背景；历史整改方案和分阶段审计保留在本目录，但与现行源码冲突时不得直接当作当前事实。专项验收证据见 [验证目录](../validation/README.md)。
 
 [返回文档首页](../README.md)
-

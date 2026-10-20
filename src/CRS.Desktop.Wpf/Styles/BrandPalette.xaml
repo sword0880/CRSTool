@@ -3,7 +3,6 @@
  <!-- 小财牛视觉令牌：以保险库认证页为单一品牌源；控件与页面只引用键，不重复书写颜色。 -->
  <SolidColorBrush x:Key="BrandAccentBrush" Color="#C13D24"/>
  <SolidColorBrush x:Key="BrandAccentDarkBrush" Color="#A83A24"/>
- <SolidColorBrush x:Key="BrandAccentPressedBrush" Color="#8E2B1B"/>
  <SolidColorBrush x:Key="BrandAccentPaleBrush" Color="#FFF1E8"/>
  <SolidColorBrush x:Key="BrandAccentSoftBrush" Color="#FFF4E9"/>
  <SolidColorBrush x:Key="BrandCanvasBrush" Color="#FBF7F2"/>

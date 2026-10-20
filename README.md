@@ -2,24 +2,23 @@
 
 **财富有数，投资有度**
 
-小财牛是面向个人的本地投资分析与税务辅助工具（项目标识 CRS），提供证券数据管理、投资绩效分析、公开市场研究预览、所得计算、来源核对和 Excel 底稿，不自动申报。基于 .NET 10 WPF；WPF UI 4.3.x、CommunityToolkit.Mvvm、DataGridExtensions 和 LiveCharts 提供前台，Domain／Application／Infrastructure 负责业务，Security 提供安全机制。Python 与 WinForms 已移除。
+小财牛（工程标识 CRS）是面向个人的 Windows 本地投资分析与税务辅助工具。提供券商数据导入、交易与 FIFO 成本核对、税额辅助计算、投资绩效分析，以及独立后台的国家队 ETF/直接持股研究。**计算与预警不代表税务申报或投资建议；不自动报税。**
 
-打开 CRS.sln，将 CRS.Desktop.Wpf 设为启动项目；最低支持 Windows 10 build 19041。
+## 启动
+
+环境：Windows 10（build 19041）或更新版本、.NET 10 SDK。打开 `CRS.sln`，选择 `CRS.Desktop.Wpf`，或在仓库根目录执行：
 
 ```powershell
 dotnet run --project src/CRS.Desktop.Wpf
 ```
 
-左侧菜单可折叠为图标，底部提供历史任务与设置入口。日志和数据库设置下次启动生效。富途收入与交易明细可独立选择、替换或清除。IBKR 接收 Activity Flex XML，可选 Flex 下载。
+首次使用需创建加密保险库并配置登录验证；已有数据库仅支持受支持的加密格式，旧明文 SQLite 不会自动迁移。认证、恢复与数据保护要求见[保险库与登录指南](docs/guides/VAULT_GUIDE.md)。
 
-默认只保存结果和交易笔数；完整规范化快照由用户选择。数据库默认在 %LOCALAPPDATA%/CRS/data，不自动识别旧版本目录；改目录不自动迁移。令牌只保留当前窗口会话。
+## 使用和开发
 
-历史任务支持分页、报告原件校验及“复算并另存”。复算使用冻结汇率，输出一致后保留父任务并新建运行；旧版本快照仍可查看，需重新导入才能按新版口径复算。同秒成交无法证明先后时列为待复核，不猜测成本顺序。
+- [文档总入口](docs/README.md)：只列当前常用文档；其他专题保留在对应目录。
+- [数据导入](docs/guides/IBKR_IMPORT_GUIDE.md)、[富途导入](docs/guides/FUTU_CSHARP_IMPORT_GUIDE.md)、[设置](docs/guides/SETTINGS.md)。
+- [当前架构](docs/architecture/CURRENT_ARCHITECTURE.md)、[插件设计](docs/CRS_PLUGIN_ARCHITECTURE.md)、[全局 UI 样式规范](docs/implementation/BRAND_VISUAL_SYSTEM.md)。
+- [未完成问题](docs/KNOWN_ISSUES.md)、[发布验收](docs/validation/RELEASE_ACCEPTANCE.md)、[测试命令](tests/README.md)。
 
-年度汇总：在历史任务页勾选同年度的账户任务（可跨页），确认均属于同一纳税人后点击“汇总并另存”。后台合并原币事实统一计税，汇总结果和 Excel 保留全部来源及券商账户关系，原任务不变。同券商重复账户、不同年度或冲突汇率会拒绝；资料不足保持待复核及未知预计补税。
-
-[使用与开发文档](docs/README.md) · [设置说明](docs/guides/SETTINGS.md) · [未完成问题](docs/KNOWN_ISSUES.md) · [验证](tests/README.md)
-
-境外抵免支持历史任务导入国家、所得项目与凭证明细，说明见 [抵免复核](docs/guides/FOREIGN_CREDIT_REVIEW.md)。发布验证及未完成门槛见 [发布验收](docs/validation/RELEASE_ACCEPTANCE.md)，数据保存范围见 [隐私说明](docs/guides/PRIVACY.md)。
-
-首次进入设置主密码保护 SQLCipher 数据库并用 Microsoft Authenticator“其他账户”扫码绑定；日常在已启用的 Windows 用户环境中只输入手机验证码，验证成功直接进入。本机凭证失效或换电脑时保留主密码／独立恢复密钥路径。旧明文数据库不兼容且不会迁移；说明见 [保险库指南](docs/guides/VAULT_GUIDE.md) 与 [认证流程](docs/guides/AUTH_IMPLEMENTATION.md)。
+`src/` 为生产代码，`tests/` 为测试与验收，`docs/` 为设计、操作和历史记录，`tools/` 为维护脚本。架构目标、历史实施记录和真实已验收结果不是同一回事，判断当前可用能力请以代码、当前问题表及发布验收为准。

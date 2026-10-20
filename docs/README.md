@@ -1,48 +1,33 @@
-# 小财牛 · 文档导航
+# 小财牛文档导航
 
-**财富有数，投资有度**。产品中文名统一为“小财牛”，工程标识为 CRS。
+这里是**入口索引**，不再逐一复制每轮开发日志。源码和实测结果优先于历史描述；未完成项看 [KNOWN_ISSUES](KNOWN_ISSUES.md)，发布门槛看 [发布验收](validation/RELEASE_ACCEPTANCE.md)。
 
-从这里进入当前文档。操作说明、现有实现、设计目标和历史记录分别维护；**未完成项目以 [当前待办](KNOWN_ISSUES.md) 为准，发布状态以 [发布验收](validation/RELEASE_ACCEPTANCE.md) 为准**。
+## 最常用
 
-Visual Studio 打开或重新加载 CRS.sln 后，在解决方案资源管理器的 docs 节点中可按相同目录阅读文档与示例。
+| 任务 | 从这里开始 |
+| --- | --- |
+| 运行和使用 | [项目首页](../README.md) · [使用指南](guides/README.md) |
+| 了解当前架构 | [当前架构](architecture/CURRENT_ARCHITECTURE.md) · [项目目录](architecture/PROJECT_STRUCTURE.md) |
+| 继续专项整改 | [架构整改计划](architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md) · [整改续记](implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md) |
+| 插件与后台 | [插件架构](CRS_PLUGIN_ARCHITECTURE.md) · [后台设计](CRS_BACKGROUND_SERVICE_DESIGN.md) |
+| 国家队监控 | [ETF 一期设计](NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md) · [实施进展](implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md) |
+| 统一界面风格 | [全局品牌与控件样式](implementation/BRAND_VISUAL_SYSTEM.md) |
+| 测试及发布 | [测试命令](../tests/README.md) · [发布验收](validation/RELEASE_ACCEPTANCE.md) |
 
-## 常用入口
+## 文档目录
 
-- 产品名称与口号：[小财牛品牌同步记录](implementation/PRODUCT_BRAND_20261020.md)。
+- [guides](guides/README.md)：操作、导入、认证与设置。
+- [architecture](architecture/README.md)：当前分层、依赖、架构计划。
+- [implementation](implementation/README.md)：实现边界与专项技术记录。
+- [specifications](specifications/README.md)：需求和设计目标，**不等于已实现**。
+- [validation](validation/README.md)：测试范围、真实资料与验收结果。
+- [archive](archive/README.md)：旧方案、历史评审、历史验收依据。
+- [examples](examples/README.md)：模板与脱敏示例。
 
-- 开始使用：[启动](../README.md)、[IBKR 导入](guides/IBKR_IMPORT_GUIDE.md)、[富途导入](guides/FUTU_CSHARP_IMPORT_GUIDE.md)。
-- 保护与恢复数据：[保险库](guides/VAULT_GUIDE.md)、[手机验证](guides/AUTH_IMPLEMENTATION.md)、[设置](guides/SETTINGS.md)、[加密底稿](guides/ENCRYPTED_EXPORT.md)。
-- 核对资料：[账户期间](guides/ACCOUNT_PERIODS.md)、[汇率来源](guides/EXCHANGE_RATE_SOURCES.md)、[抵免复核](guides/FOREIGN_CREDIT_REVIEW.md)。
-- 继续开发：[当前架构入口](architecture/CURRENT_ARCHITECTURE.md)、[项目结构](architecture/PROJECT_STRUCTURE.md)、[应用接口](architecture/API_SPEC.md)、[数据库抽象与替换边界](architecture/DATABASE_PORTABILITY.md)、[当前待办](KNOWN_ISSUES.md)。
-- 插件开发：[宿主规范](CRS_PLUGIN_ARCHITECTURE.md)、[ETF一期设计](NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)、[联网预览实施记录](implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md)、[数据通道POC](DATA_SOURCE_POC.md)。
-- 主程序功能：[计划任务与执行记录](implementation/SCHEDULED_TASKS.md)。
-- 独立后台：[Windows Service 设计](CRS_BACKGROUND_SERVICE_DESIGN.md)、[心跳 POC 实施与安装](implementation/BACKGROUND_SERVICE.md)。
-- 架构整改：[2026-10-20计划与续记](implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)、[2026-10-16实施顺序与状态](implementation/ARCH_REMEDIATION_20261016.md)、[Worker升级与恢复边界（部分实现）](deployment/WORKER_UPGRADE_AND_RECOVERY.md)。
-- 查看验证：[验证范围](validation/TEST_SPEC.md)、[真实样本](validation/REAL_SAMPLE_PROGRESS.md)、[P0 修复记录](validation/P0_FIX_PROGRESS.md)、[运行命令](../tests/README.md)。
+## 维护规则
 
-## 目录
-
-| 目录 | 内容 | 阅读用途 |
-| --- | --- | --- |
-| [guides](guides/README.md) | 操作指南、资料要求与设置 | 使用产品 |
-| [architecture](architecture/README.md) | 产品、分层、接口与开发约定 | 理解项目 |
-| [implementation](implementation/README.md) | 当前算法、格式、限额与保护机制 | 核对现有行为 |
-| [specifications](specifications/README.md) | 安全、证据、税务验证与发布目标 | 查设计要求，不代表全部已实现 |
-| [validation](validation/README.md) | 测试范围、发布门槛、真实样本与 P0 记录 | 查验收证据 |
-| [archive](archive/README.md) | 旧交付、审查原状与历史测量 | 追溯历史 |
-| [examples](examples/README.md) | 可复制的输入清单示例 | 准备资料，必须替换占位值 |
-
-## 维护约定
-
-1. 新文档放入对应目录，并更新该目录导航；根目录只保留本导航和当前待办。
-2. 使用指南说明操作；实现文档说明当前代码；设计规范写目标；验收文档注明日期、产物及未通过项。
-3. 未完成项集中更新 KNOWN_ISSUES；发布门槛集中更新 RELEASE_ACCEPTANCE，避免在各文档复制进度表。
-4. 旧轮次测量和交付记录归档，不把历史覆盖率、合成测试或技术往返一致当作最新业务签认。
-5. 文件名尽量稳定，新增或移动时更新 Markdown 链接、目录索引及 CRS.sln 的解决方案文件条目；文中的 src、tests、Sample、artifacts 路径和运行命令均以仓库根目录为基准。
-
-- 投资绩效：[P0 操作与算法](implementation/PERFORMANCE_P0.md)、[离线模板](examples/performance.example.json)、[验收记录](validation/PERFORMANCE_ACCEPTANCE.md)。
-
-
-- [宿主共享来源预算与验收边界（ARCH-209）](architecture/SHARED_SOURCE_BUDGETS.md)
-
-数据库类型选择样例：`../config/storage-providers.example.json`；目前只内置SQLCipher，新适配器经可信代码注册后再选择类型，格式迁移与安全能力必须独立验收。
+1. 根目录 `README.md` 只保留启动与入口，详细功能放对应目录；每一主题只维护一个**当前**入口。
+2. 有日期的评审、验证与实施记录属于历史事实，不复制到多个目录首页；旧材料保留供追溯，但不作为当前状态。
+3. 状态以 `KNOWN_ISSUES.md` 和 `validation/RELEASE_ACCEPTANCE.md` 为主，不在文档导航重复写测试通过数字。
+4. Visual Studio 解决方案仅展示日常常用文档；**不在解决方案中显示，不代表文件被删除**。完整资料直接查看 `docs/` 文件夹。
+5. 修改文件名、删除文件或变更引用时，核验 Markdown 相对链接、`CRS.sln` 与相关测试脚本。
