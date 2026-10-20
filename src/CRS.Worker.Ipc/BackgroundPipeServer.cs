@@ -13,8 +13,8 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly object rateGate = new();
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings"];
-    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings"];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings"];
+    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings"];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)
     {

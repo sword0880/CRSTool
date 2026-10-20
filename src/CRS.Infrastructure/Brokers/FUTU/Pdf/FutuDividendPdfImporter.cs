@@ -6,6 +6,7 @@ namespace CRS.Infrastructure.Pdf;
 /// <summary>解析可提取文字的富途 CRS 收入表；优先官方英文页，避免三种语言重复计税。</summary>
 public static class FutuDividendPdfImporter
 {
+    internal const string ReaderVersion="FUTU.IncomePdf.v1";
     /// <summary>识别英文账户收入表并保持页码行号，不支持扫描件或无法可靠定位的布局。</summary>
     internal static List<FutuRow> Read(string path, CancellationToken cancellation)
         =>Read(FrozenInput.Read(path,cancellation),cancellation);

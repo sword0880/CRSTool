@@ -5,6 +5,7 @@ namespace CRS.Infrastructure;
 /// <summary>迁移富途年度交易、持仓及资产现金事件，不从持仓市价生成成本。</summary>
 internal sealed class FutuTradeExcelImporter
 {
+    internal const string ReaderVersion="FutuAnnualActivity.v1";
     /// <summary>读取一个年度工作簿，返回可用于绑定收入账户的名称与号码关系。</summary>
     public Dictionary<string, HashSet<string>> Read(FrozenInput input,FutuTable table, ImportData data, int selectedYear, CancellationToken cancellation)
     {

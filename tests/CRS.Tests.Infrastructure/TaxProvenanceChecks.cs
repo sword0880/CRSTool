@@ -57,7 +57,7 @@ internal static class TaxProvenanceChecks
         var unknownSource=loaded.Sources.Single() with{File="unknown.xml",Sha256=new string('b',64),Account="OTHER"};
         var knownPart=new CalculationResult{Year=2025,Summary=new(0,0,0,0,0,0,0),SnapshotId="known-part",Sources=loaded.Sources.ToList(),ImportProvenance=[provenance],CoveredAccounts=["UTEST001"]};
         var unknownPart=new CalculationResult{Year=2025,Summary=new(0,0,0,0,0,0,0),SnapshotId="unknown-part",Sources=[unknownSource],CoveredAccounts=["OTHER"]};
-        var aggregate=new AnnualTaxAggregationService().Aggregate("SYNTHETIC",2025,[knownPart,unknownPart]);
+        var aggregate=new AnnualTaxAggregationService().Aggregate("LOCAL_USER",2025,[knownPart,unknownPart]);
         Check(aggregate.ImportProvenance!.Single()==provenance&&aggregate.Sources.Count==2,"年度汇总保留已知依据且不为未知来源补造版本");
         var backup=Path.Combine(root,"tax.crsbak");await vault.BackupAsync(backup);vault.Lock();
         using var restored=new VaultManager();var target=Path.Combine(root,"restored");

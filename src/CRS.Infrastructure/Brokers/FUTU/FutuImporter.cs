@@ -7,6 +7,7 @@ namespace CRS.Infrastructure;
 /// <summary>富途输入组合适配器：唯一收入主表加不重叠的年度交易工作簿。</summary>
 public sealed class FutuImporter(int year) : IBrokerImporter
 {
+    internal const string ProjectionVersion="FUTU.Tax.v1";
     internal Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? SharedImport {get;init;}
     /// <summary>识别交易和收入用途，绑定可靠账户，拒绝重叠主数据且保留缺失资料问题。</summary>
     public ImportData Parse(IEnumerable<string> files, string? opening = null, CancellationToken cancellation = default)
@@ -34,6 +35,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
             {
                 var map = new FutuTradeExcelImporter().Read(input,table, data, year, cancellation);
                 SharedImport?.Invoke(input,cancellation,data.Warnings,null);
+                RecordVersion(data,input,FutuTradeExcelImporter.ReaderVersion);
                 foreach (var (name, ids) in map) { if (!nameMap.TryGetValue(name, out var existing)) nameMap[name] = existing = []; existing.UnionWith(ids); }
             }
             else SetIncome(input,false);
@@ -68,6 +70,12 @@ public sealed class FutuImporter(int year) : IBrokerImporter
         if (data.SecurityMovements.Count > 0) data.Warnings.Add($"保留 {data.SecurityMovements.Count} 条证券资产事件待复核，未自动调整成本。");
         if (data.Issues.Any(i => i.Code == "UNSUPPORTED_ASSET")) data.Warnings.Add("未支持的基金或其他品类已明确列于待复核清单，未作为零收益。");
         data.Warnings.Add("富途年度汇总为收入主数据；资金进出派息明细仅供核对，未重复计入股息。富途报表未提供逐笔券商 FIFO 盈亏，全部对账仍需人工复核。");
+        RecordVersion(data,incomeInput,incomeIsPdf?FutuDividendPdfImporter.ReaderVersion:FutuDividendExcelImporter.ReaderVersion);
         return data;
+    }
+    private static void RecordVersion(ImportData data,FrozenInput input,string reader)
+    {
+        data.ImportProvenance??=[];
+        data.ImportProvenance.Add(new(1,"FUTU",input.Sha256,input.Sha256,reader,ProjectionVersion));
     }
 }

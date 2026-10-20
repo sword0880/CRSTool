@@ -57,6 +57,8 @@ public sealed partial class PerformanceUseCases(IPerformanceStore store,IPerform
         });
     }
     public Task<PerformanceRun> OpenRunAsync(string id,CancellationToken cancellation=default)=>Run(cancellation,_=>store.OpenRun(id));
+    public Task<ProjectionComparison> CompareProjectionsAsync(string leftRun,string rightRun,CancellationToken cancellation=default)
+        =>Run(cancellation,token=>ProjectionComparer.Compare(store.OpenRun(leftRun),store.OpenRun(rightRun),token));
     public Task<PerformanceRun> ReplayAsync(string id,CancellationToken cancellation=default)=>Run(cancellation,token=>
     {
         var original=store.OpenRun(id);

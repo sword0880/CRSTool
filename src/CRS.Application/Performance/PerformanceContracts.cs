@@ -22,6 +22,7 @@ public sealed record PerformanceWorkspace(PerformanceData Data,InvestmentPortfol
 /// <summary>绩效端口只暴露用例，桌面不接触密钥、数据库或文件解析器。</summary>
 public interface IPerformanceUseCases
 {
+    Task<ProjectionComparison> CompareProjectionsAsync(string leftRun,string rightRun,CancellationToken cancellation=default)=>throw new NotSupportedException();
     bool OnlineUpdatesAllowed=>false;
     bool SetOnlineUpdatesAllowed(bool userAuthorized)=>false;
     Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false)=>Task.FromResult(false);

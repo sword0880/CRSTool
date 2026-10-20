@@ -32,6 +32,8 @@ public partial class SettingsViewModel
         new("security","安全","登录与验证","管理当前保险库的登录验证方式。","安全 手机 Windows Hello PIN 指纹 人脸 主密码 验证码"),
         new("documents","安全","文档加密","统一管理文档导出与解密所用的密码。","文档 导出 密码 解密"),
         new("notifications","通知渠道","邮件","配置后台通知使用的邮件发送渠道。","邮件 SMTP 授权码 密码 收件 发件 通知 端口 TLS STARTTLS SSL 服务器"),
+        new("dingtalk","通知渠道","钉钉","配置钉钉群机器人通知。","钉钉 机器人 Token 加签 通知"),
+        new("wechat","通知渠道","个人微信","通过 PushPlus 服务接收个人微信提醒。","微信 PushPlus Token 个人 通知"),
         new("logging","运行与诊断","桌面日志","调整桌面日志的保存位置与保留规则。","日志 级别 归档 调试 Debug")
     ];
     public ObservableCollection<SettingsSection> VisibleSections {get;}=[];

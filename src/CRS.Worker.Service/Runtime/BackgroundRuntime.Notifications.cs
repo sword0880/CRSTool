@@ -20,7 +20,8 @@ public sealed partial class BackgroundRuntime
             activeQueries.Add(completed);
         }
         finally{gate.Release();}
-        var result="EmailSettingsUnavailable";
+        var webhook=request.Command.Contains("Webhook",StringComparison.Ordinal);
+        var result=webhook?"WebhookSettingsUnavailable":"EmailSettingsUnavailable";
         using var cancellation=CancellationTokenSource.CreateLinkedTokenSource(token,queryStopping.Token);
         try
         {
@@ -28,11 +29,14 @@ public sealed partial class BackgroundRuntime
             {
                 "GetEmailSettings"=>notifications.Read(),
                 "SaveEmailSettings"=>notifications.Save(JsonSerializer.Deserialize<WorkerEmailUpdate>(request.Payload??"")??throw new InvalidDataException("邮件参数为空。")),
+                "GetWebhookSettings"=>notifications.ReadWebhook(request.Payload??""),
+                "SaveWebhookSettings"=>notifications.SaveWebhook(JsonSerializer.Deserialize<WorkerWebhookUpdate>(request.Payload??"")??throw new InvalidDataException("通知参数为空。")),
+                "TestWebhookSettings"=>await notifications.TestWebhookAsync(request.Payload??"",request.RequestId,cancellation.Token),
                 _=>await notifications.TestAsync(request.RequestId,cancellation.Token)
             };
             result="Ok";return Reply(result,JsonSerializer.Serialize(value));
         }
-        catch(Exception error) when(error is ArgumentException or InvalidDataException or JsonException){result="InvalidEmailSettings";return Reply(result);}
+        catch(Exception error) when(error is ArgumentException or InvalidDataException or JsonException){result=webhook?"InvalidWebhookSettings":"InvalidEmailSettings";return Reply(result);}
         catch(Exception error) when(error is CryptographicException or IOException or UnauthorizedAccessException){return Reply(result);}
         finally
         {
@@ -40,7 +44,7 @@ public sealed partial class BackgroundRuntime
             try
             {
                 // 仅记录动作与结果分类，不记录口令、Payload或第三方异常正文。
-                if(request.Command!="GetEmailSettings")repository.Audit(caller.Sid,request.RequestId,request.Command,result);
+                if(request.Command is not ("GetEmailSettings" or "GetWebhookSettings"))repository.Audit(caller.Sid,request.RequestId,request.Command,result);
             }
             finally{activeQueries.Remove(completed);completed.TrySetResult();gate.Release();}
         }

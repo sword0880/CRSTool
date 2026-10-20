@@ -5,7 +5,7 @@ namespace CRS.Infrastructure;
 /// <summary>富途读取共享解析事实后投影绩效；不调用税务计算或 FIFO 成本。</summary>
 internal static class FutuPerformanceAdapter
 {
-    internal const string ReaderVersion="FutuAnnualActivity.v1";
+    internal const string ReaderVersion=FutuTradeExcelImporter.ReaderVersion;
     internal const string ProjectionVersion="FUTU.Performance.v1";
     internal static Dictionary<string,string> AccountLabels(FrozenInput input)
     {

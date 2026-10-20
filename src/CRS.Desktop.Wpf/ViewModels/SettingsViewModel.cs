@@ -60,7 +60,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null)
     {
-        State = state; this.service = service; this.vault=vault; Reload(); InitializeNavigation();
+        State = state; this.service = service; this.vault=vault; InitializeWebhooks(); Reload(); InitializeNavigation();
         state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
     }
     public void Reload()
@@ -77,7 +77,7 @@ public partial class SettingsViewModel : ObservableObject
         if(SecuritySettingsAvailable)DocumentPasswordMessage=vault!.DocumentEncryptionPassword.Length>0?"已配置统一文档加密密码。留空保持当前密码；旧文件仍使用其原密码。":"尚未配置文档加密密码，请在此统一设置。";
         Message = "桌面日志保存后立即生效；数据库目录下次启动生效，原数据库不会移动。";
     }
-    private bool CanSave() => State.IsIdle;
+    private bool CanSave() => State.IsIdle&&!DingTalk.Busy&&!WeChat.Busy;
     private bool CanSavePhone()=>State.IsIdle && SecuritySettingsAvailable;
     private bool ValidateSecurityInputs()
     {
@@ -114,7 +114,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         finally {ClearSecurityInputs();}
     }
-    public void ClearSecurityInputs() {SecurityPassword=""; SecurityCode=""; DocumentPassword="";DocumentPasswordConfirmation="";SecurityInputsCleared?.Invoke();ClearEmailInput();}
+    public void ClearSecurityInputs() {SecurityPassword=""; SecurityCode=""; DocumentPassword="";DocumentPasswordConfirmation="";SecurityInputsCleared?.Invoke();ClearEmailInput();DingTalk?.ClearInputs();WeChat?.ClearInputs();}
     [RelayCommand]
     private void BrowseDatabase() { var path = State.Interaction.PickFolder(); if (path is not null) DatabaseDirectory = path; }
     [RelayCommand]
@@ -124,6 +124,8 @@ public partial class SettingsViewModel : ObservableObject
     {
         if(HasLoginMethodChanges && !ValidateSecurityInputs()) return;
         if(HasEmailChanges&&!await SaveEmailCoreAsync())return;
+        if(DingTalk.HasChanges&&!await DingTalk.SaveCoreAsync())return;
+        if(WeChat.HasChanges&&!await WeChat.SaveCoreAsync())return;
         if(DocumentPassword.Length>0 || DocumentPasswordConfirmation.Length>0)
         {await SaveDocumentPasswordAsync();if(!DocumentPasswordMessage.Contains("已保存"))return;}
         var settings = new DesktopSettings(DatabaseDirectory, LogDirectory, LoggingEnabled, LogLevel, LogRetentionFiles, LogFileSizeMb);

@@ -8,7 +8,7 @@ public sealed record DesktopCalculationRequest(string[] Files, int Year, string 
 public sealed record DesktopCalculationOutcome(CalculationResult Result, string RatesFingerprint);
 
 /// <summary>WPF 前台的应用用例，集中计算、持久化和导出门槛。</summary>
-public sealed class DesktopWorkflow(IDesktopOperations operations,INotificationSettingsGateway? notifications=null) : IDesktopUseCases
+public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotificationSettingsGateway? notifications=null) : IDesktopUseCases
 {
     private readonly ReviewUseCases reviews = new(operations.Repository);
     private readonly CancellationTokenSource lifetime=new();

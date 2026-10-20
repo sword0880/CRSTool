@@ -13,7 +13,7 @@ using Microsoft.Data.Sqlite;
 if(args is ["--storage-providers"]){await PluginStorageProviderChecks.RunAsync();return;}
 if(args is ["--source-budget"]){await SourceBudgetChecks.RunAsync();return;}
 if(args is ["--source-budget-soak",var soakSeconds]){await SourceBudgetSoakChecks.RunAsync(int.Parse(soakSeconds,System.Globalization.CultureInfo.InvariantCulture));return;}
-if(args is ["--source-policy"]){await SourcePolicyChecks.RunAsync();return;}
+if(args is ["--source-policy"]){await SourcePolicyChecks.RunAsync();LegacySourcePolicyRecoveryChecks.Run();return;}
 if(args is ["--enable-reference-live"])
 {
     var live=new WorkerEtfWorkspace();

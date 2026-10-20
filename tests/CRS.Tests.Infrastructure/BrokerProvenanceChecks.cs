@@ -54,6 +54,7 @@ internal static class BrokerProvenanceChecks
         try{await cases.LoadAsync();throw new Exception("版本/数据摘要不匹配未拒绝");}catch(CrsException){Check(true,"来源版本与保存的事实摘要不匹配时失败关闭");}
         using(var c=vault.OpenForTest())c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload=beforeSettings});
         var replay=await cases.ReplayAsync(run.Id);
+        await ProjectionComparisonChecks.RunAsync(cases,run,replay);
         Check(replay.ImportProvenance.Single()==p&&JsonSerializer.Serialize(replay.Result)==JsonSerializer.Serialize(run.Result),"重放保留版本且金额/结果不变");
         var backup=root+".crsbak";await vault.BackupAsync(backup);
         using(var restored=new VaultManager())

@@ -59,9 +59,16 @@ internal static class SettingsViewChecks
                     if(save.TranslatePoint(new Point(0,save.ActualHeight),window).Y>window.ActualHeight||viewport.ActualHeight<150)throw new Exception("最小设置窗口遮挡操作或正文。");
                     Capture(window,Path.Combine(directory,"compact.png"));
                     var password=(PasswordBox)window.FindName("EmailPasswordInput");password.Password="synthetic-only";
+                    var dingToken=(PasswordBox)window.FindName("DingTalkToken");dingToken.Password="syntheticDingToken";
+                    var dingSecret=(PasswordBox)window.FindName("DingTalkSecret");dingSecret.Password="SECsyntheticSecret";
+                    var wxToken=(PasswordBox)window.FindName("WeChatToken");wxToken.Password="syntheticWeChatToken";
+                    model.SelectedSection=model.Sections[0];
+                    if(dingToken.Password.Length==0||wxToken.Password.Length==0)throw new Exception("切换分类丢失通知Token草稿。");
+                    model.SectionSearch="微信";
+                    if(model.SelectedSection?.Key!="wechat"||model.VisibleSections.Count!=1)throw new Exception("微信搜索没有定位个人微信分类。");
                     model.State.IsBusy=true;
                     window.AbortForLock();
-                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
+                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
                 }
                 catch(Exception error){failure=error;}
                 finally{window.Close();}
@@ -85,6 +92,7 @@ internal static class SettingsViewChecks
     // 保留完整配置表单交互，所有地址为不可投递的保留域；发送接口仍没有实现。
     private sealed class SettingsUseCases:FakeUseCases,IDesktopUseCases
     {
+        public Task<NotificationWebhookSettings> LoadWebhookSettingsAsync(string channel,CancellationToken token=default)=>Task.FromResult(new NotificationWebhookSettings(channel,Revision:1));
         public Task<NotificationEmailSettings> LoadEmailSettingsAsync(CancellationToken token=default)=>
             Task.FromResult(new NotificationEmailSettings(false,"smtp.example.invalid",587,"StartTls","research@example.invalid","owner@example.invalid","",false,1));
     }

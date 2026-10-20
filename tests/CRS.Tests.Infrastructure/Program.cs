@@ -2,6 +2,8 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--futu-tax-provenance"]){await FutuTaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.FutuTaxProvenance",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--compare-futu-tax-before",var futuBaseline]){await FutuTaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.FutuTaxBefore",Guid.NewGuid().ToString("N")),futuBaseline);return;}
 if(args is ["--tax-provenance"]){await TaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.TaxProvenance",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--vault-providers"]){await VaultProviderChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.VaultProviders",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--broker-provenance"]){await BrokerProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.BrokerProvenance",Guid.NewGuid().ToString("N")));return;}
@@ -51,6 +53,8 @@ HistoryPagingChecks.Run(root);
 await AnnualAggregationChecks.RunAsync(root);
 await ForeignCreditChecks.RunAsync(root);
 await VaultChecks.RunAsync(root);
+await TaxProvenanceChecks.RunAsync(Path.Combine(root,"tax-provenance"));
+await FutuTaxProvenanceChecks.RunAsync(Path.Combine(root,"futu-tax-provenance"));
 await MfaChecks.RunAsync(root);
 await LocalKeyChecks.RunAsync(root);
 await PhoneSettingsChecks.RunAsync(root);

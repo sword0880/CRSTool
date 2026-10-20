@@ -74,8 +74,10 @@ namespace CRS.Worker.Service
                 using var repository = new EncryptedTaskRepository(Path.Combine(locations.Data, "scheduler-config.db"), key);
                 // 公共通知组件在组合根装配，宿主不包含SMTP实现或业务风险规则。
                 var email=new CRS.Notifications.EmailNotificationService(locations.Data);
-                var dispatcher=new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email)]);
-                var notifications=new WorkerNotificationGateway(email,dispatcher);
+                var webhooks=new CRS.Notifications.WebhookSettingsStore(locations.Data);
+                var dispatcher=new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email),
+                    new CRS.Notifications.DingTalkNotificationChannel(webhooks),new CRS.Notifications.PushPlusNotificationChannel(webhooks)]);
+                var notifications=new WorkerNotificationGateway(email,dispatcher,webhooks);
                 var diagnostics = new ServiceEventLog(locations.Data);
                 using var sources = new SourceBudgetRegistry(new SqliteSourceBudgetStore(locations.Data,key));
                 await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () =>

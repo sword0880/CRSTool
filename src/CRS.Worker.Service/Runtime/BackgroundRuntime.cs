@@ -132,7 +132,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request, BackgroundCaller caller, CancellationToken token)
     {
         if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, token);
-        if(request.Command is "GetEmailSettings" or "SaveEmailSettings" or "TestEmailSettings")return await HandleEmailAsync(request,caller,token);
+        if(request.Command is "GetEmailSettings" or "SaveEmailSettings" or "TestEmailSettings" or "GetWebhookSettings" or "SaveWebhookSettings" or "TestWebhookSettings")return await HandleEmailAsync(request,caller,token);
         await gate.WaitAsync(token);
         try
         {

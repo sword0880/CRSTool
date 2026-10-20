@@ -9,6 +9,7 @@ namespace CRS.Plugins.NationalTeam.Jobs;
 public sealed class SourceRequestPolicy : ISourceRequestPolicy
 {
     private readonly SqliteConnection db;
+    private bool failed;
     public SourceRequestPolicy(string directory, byte[] key)
     {
         if (key.Length != 32) throw new ArgumentException("来源策略需要32字节服务密钥。");
@@ -21,7 +22,13 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
             using (var version = db.CreateCommand())
             {
                 version.CommandText = "PRAGMA user_version";
-                if (Convert.ToInt32(version.ExecuteScalar()) is not (0 or 1)) throw new InvalidDataException("来源策略库版本不受支持。");
+                var schema=Convert.ToInt32(version.ExecuteScalar());
+                if (schema is not (0 or 1)) throw new InvalidDataException("来源策略库版本不受支持。");
+                if(schema==1)
+                {
+                    version.CommandText="SELECT count(*) FROM sqlite_master WHERE type='table' AND name='source_policy'";
+                    if(Convert.ToInt32(version.ExecuteScalar())!=1)throw new InvalidDataException("已初始化的来源策略库缺少状态表。");
+                }
             }
             using var command = db.CreateCommand();
             command.CommandText = """
@@ -31,6 +38,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
                 PRAGMA user_version=1;
                 """;
             command.ExecuteNonQuery();
+            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com"})_=Read(host);
         }
         catch { db.Dispose(); throw; }
     }
@@ -44,18 +52,26 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
         _ => throw new ArgumentException("不支持的来源。")
     };
 
-    public (DateTimeOffset Next, DateTimeOffset Blocked, int Failures) Read(string host)
+    private T Guard<T>(Func<T> action)
     {
-        try{return ReadCore(host);}
-        catch(SqliteException error){throw new IOException("插件来源策略读取失败。",error);}
+        if(failed)throw new InvalidDataException("插件来源策略存储已故障，须重启核验后恢复。");
+        try{return action();}
+        catch(SqliteException error){failed=true;throw new IOException("插件来源策略持久化失败。",error);}
+        catch(Exception error) when(error is IOException or InvalidDataException or FormatException or UnauthorizedAccessException)
+        {failed=true;throw;}
     }
+    public (DateTimeOffset Next, DateTimeOffset Blocked, int Failures) Read(string host)=>Guard(()=>ReadCore(host));
     private (DateTimeOffset Next,DateTimeOffset Blocked,int Failures) ReadCore(string host)
     {
         using var command = db.CreateCommand();
-        command.CommandText = "SELECT next_utc,blocked_utc,failures FROM source_policy WHERE source=$s";
+        command.CommandText = "SELECT next_utc,blocked_utc,failures,typeof(failures) FROM source_policy WHERE source=$s";
         command.Parameters.AddWithValue("$s", Source(host));
         using var reader = command.ExecuteReader();
-        return reader.Read() ? (DateTimeOffset.Parse(reader.GetString(0), CultureInfo.InvariantCulture), DateTimeOffset.Parse(reader.GetString(1), CultureInfo.InvariantCulture), reader.GetInt32(2)) : (DateTimeOffset.MinValue, DateTimeOffset.MinValue, 0);
+        if(!reader.Read())return (DateTimeOffset.MinValue,DateTimeOffset.MinValue,0);
+        if(reader.GetString(3)!="integer")throw new InvalidDataException("插件来源失败计数类型损坏。");
+        var failures=reader.GetInt64(2);
+        if(failures is <0 or >16)throw new InvalidDataException("插件来源失败计数损坏。");
+        return (DateTimeOffset.ParseExact(reader.GetString(0),"O",CultureInfo.InvariantCulture),DateTimeOffset.ParseExact(reader.GetString(1),"O",CultureInfo.InvariantCulture),(int)failures);
     }
 
     /// <summary>先持久登记请求间隔，再发起网络请求；写失败时不访问官网。</summary>
@@ -81,8 +97,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
 
     private void Save(string host,DateTimeOffset next,DateTimeOffset blocked,int failures)
     {
-        try{SaveCore(host,next,blocked,failures);}
-        catch(SqliteException error){throw new IOException("插件来源策略持久化失败。",error);}
+        Guard(()=>{SaveCore(host,next,blocked,failures);return 0;});
     }
     private void SaveCore(string host, DateTimeOffset next, DateTimeOffset blocked, int failures)
     {

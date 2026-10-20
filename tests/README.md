@@ -185,3 +185,8 @@ dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- 
 `CRS.Tests.Background --task-storage-boundary`：任务仓储真实SQLCipher事务/读取故障12项，加IO及通用数据库异常的宿主保护18项，合计30项；全部隔离运行，不需安装服务发行目录。此入口验证异常/原子性边界，不代表已支持第二数据库。
 
 可插拔数据库：`CRS.Tests.Infrastructure --vault-providers`及`CRS.Tests.WorkerEtf --storage-providers`各10项，验证未知/重复类型拒绝、配置与自定义注册接线。替身注册转发现有SQLCipher，不是第二数据库验收。配置样例 `config/storage-providers.example.json`；默认无配置仍为SQLCipher。
+
+ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证实际IBKR来源/税务投影版本、原件/批次绑定、年度/期初报告、持久化/冻结、无原件重放、修改/剥除拒绝、旧形态未知、底稿、年度汇总及加密备份恢复；也纳入默认Infrastructure回归。版本信息随现有结果JSON保存，不新增数据库提供方依赖；不代表独立税额Golden验收。
+
+富途税务版本：`CRS.Tests.Infrastructure --futu-tax-provenance`共16项，亦纳入默认完整回归；`--compare-futu-tax-before <旧Infrastructure.dll>`增加三种输入组合的旧构建逐字段对照，共19项。采用合成Excel/PDF/交易夹具和真实隔离SQLCipher库，旧形态保持未知，不代表独立金额Golden。
+`CRS.Tests.Background --notifications` 覆盖公共邮件与钉钉/个人微信HTTP适配器：DPAPI、修订冲突、签名、纯文本、明确拒绝、未知结果、UTF8上限、管理员配置隔离，全部使用假传输，不外发。`CRS.Tests.Wpf --settings-ui <隔离截图目录>` 同时渲染钉钉/个人微信设置页，验证搜索、草稿与锁定清理。

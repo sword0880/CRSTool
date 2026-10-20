@@ -6,7 +6,7 @@ using CRS.Worker.Ipc;
 namespace CRS.DesktopClient.Services;
 
 /// <summary>仅为应用设置端口适配授权IPC，不连接SMTP、不保存口令、不引用公共组件的实现。</summary>
-public sealed class WorkerNotificationSettingsGateway(BackgroundPipeClient? connection=null):INotificationSettingsGateway
+public sealed partial class WorkerNotificationSettingsGateway(BackgroundPipeClient? connection=null):INotificationSettingsGateway
 {
     private readonly BackgroundPipeClient client=connection??new();
     public async Task<NotificationEmailSettings> LoadAsync(CancellationToken token)=>Map(await Send<WorkerEmailSettings>("GetEmailSettings",null,token));
@@ -25,10 +25,11 @@ public sealed class WorkerNotificationSettingsGateway(BackgroundPipeClient? conn
         var response=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),command,Payload:payload),token);
         if(response.Code!="Ok"||response.Payload is null)throw new InvalidDataException(response.Code switch
         {
-            "Forbidden"=>"邮件设置需要管理员权限。",
-            "UnknownCommand" or "NotificationChannelUnavailable"=>"后台尚未支持系统邮件设置，请更新配套服务。",
+            "Forbidden"=>"通知设置需要管理员权限。",
+            "UnknownCommand" or "NotificationChannelUnavailable"=>"后台尚未支持此通知设置，请更新配套服务。",
             "InvalidEmailSettings"=>"邮件参数无效或已被其它窗口修改；请刷新并检查SMTP、地址、TLS及授权码。",
-            _=>"邮件设置服务不可用；类别："+response.Code
+            "InvalidWebhookSettings"=>"通知参数无效或已被其它窗口修改，请刷新并检查Token和加签密钥。",
+            _=>"通知设置服务不可用；类别："+response.Code
         });
         return JsonSerializer.Deserialize<T>(response.Payload)??throw new InvalidDataException("邮件设置返回为空。");
     }

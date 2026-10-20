@@ -6,6 +6,7 @@ namespace CRS.Infrastructure;
 /// <summary>富途年度股息、利息与其他收入表解析，Excel/PDF 共用同一行校验。</summary>
 internal static class FutuDividendExcelImporter
 {
+    internal const string ReaderVersion="FUTU.IncomeExcel.v1";
     /// <summary>读取唯一收入工作表，支持中文和原版英文表头。</summary>
     public static List<FutuRow> Read(string path)
         =>Read(FrozenInput.Read(path));

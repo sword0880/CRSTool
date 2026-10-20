@@ -14,7 +14,7 @@ if(args is ["--task-storage-boundary"])
     await WorkerRemediationChecks.StorageFaultsOnlyAsync(boundaryRoot);return;
 }
 if(args is ["--source-budget-process",var sourcePackage]){await SourceBudgetProcessChecks.RunAsync(sourcePackage);return;}
-if(args is ["--notifications"]){await NotificationChecks.Run();return;}
+if(args is ["--notifications"]){await NotificationChecks.Run();await WebhookNotificationChecks.Run();return;}
 if(args is ["--lifecycle-only"]){await LifecycleBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.Lifecycle",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--lifecycle-exit-child",var lifecycleRoot,var lifecyclePhase]){await LifecycleBoundaryChecks.ExitChild(lifecycleRoot,lifecyclePhase);return;}
 

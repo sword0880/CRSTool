@@ -1,4 +1,4 @@
-﻿# 架构整改续记（2026-10-20）
+# 架构整改续记（2026-10-20）
 
 基线：`01abcf9a9713e9bb7bb994704bc2d0628947106a`。对应[整改计划](../architecture/ARCHITECTURE_REMEDIATION_PLAN.md) ARCH-201～205；延续已合并的边界整改，不重新迁移已归属 Core/Jobs/UI 的源码。当前记录对应工作区改动，尚未提交。本轮不修改税务/FIFO/汇率算法。
 
@@ -80,7 +80,7 @@ ARCH-207最终后台完整回归175条PASS（含29条生命周期专项，进程
 
 已新增Application不可变来源记录和Infrastructure统一读取器；税务、现金对账、绩效与账号读取消费同一来源模型。证券流水同步绩效实际传递同一个不可变来源快照，避免重新解析；独立绩效导入复用同一读取器。富途维持既有规范事实路径。税务/FIFO/绩效算法与历史格式未改变，源头保留未知字段和记录。
 
-合同、调用链及仍待完成的版本持久化/完整类型化事实见[共享来源事实](../architecture/BROKER_SOURCE_FACTS.md)。状态是来源层迁移已实施，不把ARCH-208全项或独立金额Golden标Closed。
+合同、调用链、已接入的绩效/IBKR税务版本审计及仍待完成的完整类型化事实见[共享来源事实](../architecture/BROKER_SOURCE_FACTS.md)。状态是来源层迁移已实施，不把ARCH-208全项或独立金额Golden标Closed。
 
 验证证据：`artifacts/broker-facts-build-final.log`全项目Release0警告/0错误；`broker-source-checks.log`18条PASS；`broker-tax-before-after.log`两份IBKR税务解析与工作前Debug构建逐字段一致；`broker-tax-verification.log`既有68项验证通过；`broker-performance-regression.log`固定券商导入JSON、SQLCipher、共享导入去重、冻结/重放、取消及备份恢复通过；`broker-facts-wpf.log`交互通过；`broker-facts-architecture.log`架构门禁。
 
@@ -175,3 +175,31 @@ ITaskRepository补充原子提交、业务冲突和不透明游标契约；Encry
 源码移动审计以固定整改前提交1229fd4为基线核对11份保险库文件，除类/构造器名称、接口及三个端口方法可见性外，原实现保持一致，记录artifacts/storage-provider-vault-move-audit.json。工作期间有外部自动提交，审计不使用移动中的HEAD作为旧基线。首轮编译发现测试对网关的target-typed new依赖原具体参数，已显式指定测试SourceRequestPolicy构造；生产端口未退回具体类，最终全构建与回归通过。
 
 本轮未替换已安装服务/桌面程序，未迁移或删除个人资料。其他数据库的适配器、安全能力、并发与数据迁移仍须按数据库抽象规范单独实施验收。
+
+## ARCH-208后续：IBKR税务独立历史版本审计
+
+已新增Application不可变TaxImportProvenance V1，保存实际来源读取版本、税务投影版本、券商及原件/批次摘要。年度/期初报告读取成功后记录IBKR.SourceFacts.v1和IBKR.Tax.v1；随新计算结果在现有仓储原子保存，不新增表或数据库类型依赖。载入、冻结及封存核验原件/批次、券商、版本格式和重复/数量限制，版本集合冻结；修改或剥除新审计信息破坏既有整份结果封存。
+
+规范金融输入JSON、输入摘要与税务/FIFO/汇率规则不改。重放沿用历史版本集合，年度汇总保留已知依据，不替未知来源补造；底稿新增“解析版本”表。旧历史缺字段保持null且不重新写入字段，旧形态封存和重放仍可读取；不承诺旧二进制读取含新字段的新记录，不重签旧结果或剥字段降级。Futu税务版本尚未接入。
+
+新增 --tax-provenance 16项已通过（退出码0，artifacts/tax-provenance-checks-final.log）：实际年度/期初版本与批次、SQLCipher保存/冻结、无原件重放、规范输入摘要不变、修改/剥除拒绝、未封存的错误原件/未知格式拒绝、缺字段旧形态未知、底稿、已知/未知混合年度汇总及加密备份恢复。旧形态是兼容夹具，不是独立旧版本金额验收；已纳入默认Infrastructure回归。首轮专项在14项后被纳税人范围门槛阻断，修正夹具Aggregate调用使用原LOCAL_USER范围，保留生产校验，最终16项通过，首轮不计成功。
+
+两份IBKR夹具与既有归档旧Infrastructure对照通过：除新增审计字段外，其余所有字段完全一致；新增字段另外核验实际版本（tax-provenance-before-after.log）。没有重写performance-imports-v1.json等金融期望值。完整解决方案Release0警告/0错误（tax-provenance-solution.log）。
+
+本项关闭“IBKR税务新历史缺显式解析版本”的实现缺口；ARCH-208整体仍为In Progress。Futu税务审计、完整类型化事实、跨版本投影差异及独立真实金额Golden仍开放，独立税务金额验收继续按用户约定最后处理。未更新已安装程序或修改个人资料。
+
+最终回归退出码均0：完整基础设施（tax-provenance-infrastructure-regression.log）含既有真实认证/加密备份、绩效版本与冻结、升级/资源/锁定恢复；既有Verification68项（tax-provenance-verification.log）；Application与WPF（tax-provenance-application.log / tax-provenance-wpf.log）；架构门禁（tax-provenance-architecture.log）。本次16项新专项独立通过，默认回归入口已追加新专项调用并另行构建验证；完整基础设施日志来自追加入口前的既有全回归，不能声称该份日志本身含新增16项。
+
+默认专项入口追加后的测试项目构建0警告/0错误：tax-provenance-test-entry-build.log；证据汇总与日志哈希：artifacts/tax-provenance-final-evidence.json。工作区空白检查通过，金融夹具未改写。
+
+## ARCH-208后续：富途税务三类来源版本审计
+
+已给年度交易Excel、收入Excel、收入PDF的实际读取器分别定义FutuAnnualActivity.v1、FUTU.IncomeExcel.v1、FUTU.IncomePdf.v1，富途组合税务投影为FUTU.Tax.v1。绩效适配器改为引用交易读取器版本常量，值与原冻结事实不变。FutuImporter在各类来源成功读取后记录原件/批次和对应版本，复用既有税务版本的封存、原子持久化、重放、年度汇总、底稿及备份机制。
+
+沿用富途原交易ID及大写来源摘要，审计使用冻结原件的小写SHA256，绑定按既有不区分大小写核验。年度收入汇总不转成交易现金事件，重复Excel/PDF收入仍拒绝，缺交易/不支持资产等问题和未知状态不变。未新增表、连接或数据库提供方依赖，未改税务/FIFO/汇率算法或金融映射，也未回填旧历史。
+
+新增专项 --futu-tax-provenance 16项；--compare-futu-tax-before附加旧构建三组完整解析对照，共19项通过、退出码0（artifacts/futu-tax-provenance-checks.log）。覆盖真实版本、大小写摘要绑定、同一年度交易读取版本、双收入拒绝/取消、SQLCipher保存、无原件重放、篡改/剥除拒绝、缺字段旧形态未知、底稿及加密备份恢复。三个对照分别为收入Excel、收入PDF、交易+收入；仅排除新增审计字段，该字段单独验证，不能冒充独立真实金额Golden。已将16项纳入默认Infrastructure入口，并未改写金融期望文件。
+
+此项完成富途税务版本缺口，ARCH-208整体仍保持In Progress：完整类型化事实、跨版本投影差异及独立真实金额验收尚未关闭；独立税务金额验收按用户既有顺序最后处理。未替换已安装程序或操作个人资料。
+
+最终验证退出码均0：全项目Release0警告/0错误（futu-tax-provenance-solution.log）；完整基础设施回归含IBKR16项、Futu16项及原绩效/备份/升级/资源/锁定恢复（futu-tax-provenance-infrastructure.log）；既有Verification68项（futu-tax-provenance-verification.log）；架构门禁通过、复杂度基线未提高（futu-tax-provenance-architecture.log）。工作区空白检查通过，金融夹具未改写。日志哈希与边界汇总：artifacts/futu-tax-provenance-final-evidence.json。

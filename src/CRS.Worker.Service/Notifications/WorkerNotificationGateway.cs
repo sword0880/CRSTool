@@ -3,8 +3,14 @@ using CRS.Worker.Abstractions;
 namespace CRS.Worker.Service;
 
 /// <summary>宿主薄适配：只转换受限契约，SMTP、凭据保护与地址校验归公共通知组件。</summary>
-public sealed class WorkerNotificationGateway(EmailNotificationService email,NotificationDispatcher dispatcher):IBackgroundNotificationContext
+public sealed class WorkerNotificationGateway(EmailNotificationService email,NotificationDispatcher dispatcher,WebhookSettingsStore? webhooks=null):IBackgroundNotificationContext
 {
+    public WorkerWebhookSettings ReadWebhook(string id)=>Map((webhooks??throw new InvalidDataException("通知配置不可用。")).Read(id));
+    public WorkerWebhookSettings SaveWebhook(WorkerWebhookUpdate update)=>Map((webhooks??throw new InvalidDataException("通知配置不可用。")).Save(
+        new(update.ChannelId,update.Enabled,update.Revision,update.Token,update.SigningSecret,update.ClearToken,update.ClearSigningSecret)));
+    public Task<BackgroundNotificationResult> TestWebhookAsync(string id,Guid requestId,CancellationToken token)=>SendNotificationAsync(id,"default",
+        new("test."+requestId.ToString("N"),"小财牛通知测试","财富有数，投资有度。这是一条显式测试消息；提供商受理不代表已送达或已读。","SystemTest"),token);
+    private static WorkerWebhookSettings Map(WebhookSettings x)=>new(x.ChannelId,x.Enabled,x.HasToken,x.HasSigningSecret,x.Revision);
     public WorkerEmailSettings Read()=>Map(email.Read());
     public WorkerEmailSettings Save(WorkerEmailUpdate update)
     {

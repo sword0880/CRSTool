@@ -75,7 +75,32 @@
     </StackPanel>
    </StackPanel>
 </StackPanel>
-<StackPanel x:Name="LoggingSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="logging"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+<StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="dingtalk"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+ <StackPanel DataContext="{Binding DingTalk}">
+  <TextBlock Text="在钉钉群添加自定义机器人并启用加签。Token 是 Webhook 中 access_token 的值；不要填写完整网址。" TextWrapping="Wrap" Foreground="#64748B"/>
+  <WrapPanel Margin="0,12,0,12"><ui:Button Content="保存渠道设置" Command="{Binding SaveCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试消息" Command="{Binding TestCommand}" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadCommand}"/></WrapPanel>
+  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,12"/>
+  <StackPanel IsEnabled="{Binding CanEdit}"><CheckBox Content="启用通知" IsChecked="{Binding Enabled}"/>
+   <TextBlock Text="Token（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="DingTalkToken" PasswordChanged="OnDingTalkToken" MaxLength="512"/>
+   <CheckBox Content="清除Token" IsChecked="{Binding ClearToken}" Margin="0,8"/>
+   <TextBlock Text="加签密钥（SEC开头，留空保持）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="DingTalkSecret" PasswordChanged="OnDingTalkSecret" MaxLength="512"/><CheckBox Content="清除加签密钥" IsChecked="{Binding ClearSigningSecret}" Margin="0,8"/>
+   <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Foreground="#64748B"/>
+  </StackPanel>
+ </StackPanel>
+</StackPanel>
+<StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="wechat"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+ <StackPanel DataContext="{Binding WeChat}">
+  <TextBlock Text="在 www.pushplus.plus 绑定个人微信并取得 Token。通知内容会经 PushPlus 转发；额度以服务方为准。" TextWrapping="Wrap" Foreground="#64748B"/>
+  <WrapPanel Margin="0,12,0,12"><ui:Button Content="保存渠道设置" Command="{Binding SaveCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试消息" Command="{Binding TestCommand}" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadCommand}"/></WrapPanel>
+  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,12"/>
+  <StackPanel IsEnabled="{Binding CanEdit}"><CheckBox Content="启用通知" IsChecked="{Binding Enabled}"/>
+   <TextBlock Text="Token（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="WeChatToken" PasswordChanged="OnWeChatToken" MaxLength="512"/>
+   <CheckBox Content="清除Token" IsChecked="{Binding ClearToken}" Margin="0,8"/>
+   
+   <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Foreground="#64748B"/>
+  </StackPanel>
+ </StackPanel>
+</StackPanel><StackPanel x:Name="LoggingSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="logging"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
    <TextBlock Text="保存后立即生效，仅控制桌面日志。插件任务的阶段记录请到任务中心查看；降低级别不会自动生成任务记录。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8,0,0"/>
    <CheckBox Content="启用日志" IsChecked="{Binding LoggingEnabled}" Margin="0,12,0,4"/>
    <TextBlock Text="日志目录" Style="{StaticResource InputLabel}"/>
@@ -93,7 +118,7 @@
   </Grid>
   <!-- 底部保存区常驻；保存继续处理跨分类改动，测试通知必须单独点击。 -->
   <Border Grid.Row="2" Padding="24,14" Background="White" BorderBrush="#DDE3EC" BorderThickness="0,1,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-   <StackPanel VerticalAlignment="Center" Margin="0,0,20,0"><TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" FontSize="12"/><TextBlock Text="保存设置会处理所有分类的改动；测试邮件需单独发送。" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+   <StackPanel VerticalAlignment="Center" Margin="0,0,20,0"><TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#64748B" FontSize="12"/><TextBlock Text="保存设置会处理所有分类的改动；测试通知需单独发送。" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><ui:Button x:Name="SaveSettingsButton" Content="保存设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
   </Grid></Border>
  </Grid>
