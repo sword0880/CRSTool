@@ -3,7 +3,7 @@ using Dapper;
 
 namespace CRS.Infrastructure;
 
-public sealed partial class VaultManager
+internal sealed partial class SqlCipherVaultBackend
 {
     /// <summary>从加密认证表读取开关，不信任 settings.json 中的登录选项。</summary>
     public bool PhoneVerificationEnabled

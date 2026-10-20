@@ -1,0 +1,69 @@
+using System.IO;
+using System.Security.Cryptography;
+using CRS.Worker.Abstractions;
+using CRS.Plugins.NationalTeam.Jobs;
+using CRS.Plugins.NationalTeamWatch.Application;
+using CRS.Plugins.NationalTeamWatch.Infrastructure;
+
+internal static class PluginStorageProviderChecks
+{
+    public static async Task RunAsync()
+    {
+        var root=Path.Combine(Path.GetTempPath(),"CRS.PluginStorage",Guid.NewGuid().ToString("N"));
+        var passed=0;
+        void Check(bool ok,string name){if(!ok)throw new Exception(name);passed++;Console.WriteLine("PASS 插件存储提供方："+name);}
+        void Reject(Action work,string name)
+        {try{work();throw new Exception("意外允许");}catch(Exception e) when(e is ArgumentException or NotSupportedException or InvalidDataException or System.Text.Json.JsonException){Check(true,name);}}
+        var registry=new NationalTeamStorageProviders();
+        Reject(()=>registry.Create("postgresql"),"未注册类型拒绝");
+        Reject(()=>registry.Create("../sqlite"),"非法类型标识拒绝");
+        Reject(()=>new NationalTeamStorageProviders([new("SQLCIPHER",()=>registry.Create("sqlcipher"))]),"内置类型不能被覆盖");
+        await using(var invalid=new NationalTeamBackgroundSession(new Context(root),databaseProvider:"missing"))
+        {
+            try{await invalid.StartAsync(default);throw new Exception("未知类型被允许");}
+            catch(NotSupportedException){Check(!Directory.Exists(root),"未知类型在创建目录和获取密钥前拒绝");}
+        }
+        Directory.CreateDirectory(root);
+        var config=Path.Combine(root,"storage.json");
+        Check(NationalTeamStorageProviders.ConfiguredProvider(config)=="sqlcipher","缺省保留SQLCipher");
+        File.WriteAllText(config,"{\"Version\":1,\"Vault\":\"sqlcipher\",\"NationalTeam\":\"fixture\"}");
+        Check(NationalTeamStorageProviders.ConfiguredProvider(config)=="fixture","统一配置独立选择插件数据库");
+        File.WriteAllText(config,"{\"Version\":2,\"Vault\":\"sqlcipher\",\"NationalTeam\":\"fixture\"}");
+        Reject(()=>NationalTeamStorageProviders.ConfiguredProvider(config),"未知配置版本拒绝");
+        var recording=new RecordingProvider(registry.Create("sqlcipher"));var calls=0;
+        var custom=new NationalTeamStorageProviders([new("fixture",()=>{calls++;return recording;})]);
+        await using(var session=new NationalTeamBackgroundSession(new Context(Path.Combine(root,"custom")),databaseProvider:"fixture",storageProviders:custom))
+        {
+            await session.StartAsync(default);
+            Check(calls==1&&recording.Markets==1&&recording.Policies==1,"选择一次存储族同时装配市场与策略仓储");
+        }
+        // 故障转换在用例边界，取消仍必须保持取消语义。
+        var key=RandomNumberGenerator.GetBytes(32);
+        try
+        {
+            using var repository=registry.Create("sqlcipher").OpenMarket(Path.Combine(root,"failure"),new RawEvidenceStore(Path.Combine(root,"raw")),key);
+            try{repository.ExecuteOperation<int>(()=>throw new Microsoft.Data.Sqlite.SqliteException("injected",1),default);throw new Exception("未转换故障");}
+            catch(IOException e) when(e.InnerException is Microsoft.Data.Sqlite.SqliteException){Check(true,"市场仓储用例边界转换提供方故障");}
+            using var cancel=new CancellationTokenSource();cancel.Cancel();
+            try{repository.ExecuteOperation(()=>1,cancel.Token);throw new Exception("取消被忽略");}
+            catch(OperationCanceledException){Check(true,"取消保持取消语义");}
+        }
+        finally{CryptographicOperations.ZeroMemory(key);}
+        Console.WriteLine($"插件存储提供方通过：{passed}项。");
+    }
+    private sealed class Context(string path):IBackgroundHostContext
+    {
+        public string PluginId=>"crs.national-team";
+        public string DataDirectory=>path;
+        public byte[] OpenDataKey()=>RandomNumberGenerator.GetBytes(32);
+    }
+    // 仅转发现有SQLCipher族验证工厂接线，不是第二数据库实现。
+    private sealed class RecordingProvider(INationalTeamStorageProvider inner):INationalTeamStorageProvider
+    {
+        public int Markets,Policies;
+        public IMarketRepository OpenMarket(string directory,RawEvidenceStore raw,byte[] key)
+        {Markets++;return inner.OpenMarket(directory,raw,key);}
+        public ISourceRequestPolicy OpenSourcePolicy(string directory,byte[] key)
+        {Policies++;return inner.OpenSourcePolicy(directory,key);}
+    }
+}

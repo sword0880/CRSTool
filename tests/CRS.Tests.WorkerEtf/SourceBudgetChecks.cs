@@ -26,8 +26,9 @@ internal static class SourceBudgetChecks
             try{using var unexpected=await task;throw new Exception("请求意外获准");}
             catch(SourceBudgetUnavailableException error){Check(error.Code==code,code);}
         }
+        await SourceBudgetPortChecks.RunAsync(Check);
         var clock=new Clock();
-        using(var registry=new SourceBudgetRegistry(root,key,clock))
+        using(var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key),clock))
         {
             var a=new WorkerPluginContext("plugin-a",root,key,sources:registry);
             var b=new WorkerPluginContext("plugin-b",root,key,sources:registry);
@@ -65,7 +66,7 @@ internal static class SourceBudgetChecks
             try{using var ignored=await a.AcquireSourceAsync("unreviewed.example",Empty,default);throw new Exception();}
             catch(ArgumentException){Check(true,"域名白名单由宿主决定");}
         }
-        using(var registry=new SourceBudgetRegistry(root,key,clock))
+        using(var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key),clock))
         {
             await Denied(registry.AcquireAsync("new-plugin","www.sse.com.cn",Empty,default),"SourceCooldown");
             clock.Advance(TimeSpan.FromDays(3));
@@ -88,7 +89,7 @@ internal static class SourceBudgetChecks
         await RateSpacing(Path.Combine(root,"rate"),key,Check);
         StorageFailure(Path.Combine(root,"storage-failure"),key,Check);
         await SourceBudgetRecoveryChecks.RunAsync(Path.Combine(root,"recovery"),key,Check);
-        using(var registry=new SourceBudgetRegistry(root,key,clock))
+        using(var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key),clock))
         using(var repository=new EncryptedTaskRepository(Path.Combine(root,"scheduler-config.db"),key))
         await using(var catalog=new BackgroundPluginCatalog())
         await using(var runtime=new BackgroundRuntime(repository,catalog,sources:registry))
@@ -105,14 +106,14 @@ internal static class SourceBudgetChecks
         catch(SqliteException){locked=true;}
         Check(locked,"宿主预算库无钥拒读");
         var broken=Path.Combine(root,"broken");Directory.CreateDirectory(broken);File.WriteAllText(Path.Combine(broken,"source-budgets.db"),"broken");
-        try{using var ignored=new SourceBudgetRegistry(broken,key);throw new Exception("损坏被重建");}
+        try{using var ignored=new SourceBudgetRegistry(new SqliteSourceBudgetStore(broken,key));throw new Exception("损坏被重建");}
         catch(SqliteException){Check(true,"损坏库失败关闭，不清除冷却重建");}
         CryptographicOperations.ZeroMemory(key);
         Console.WriteLine($"共享来源预算通过：{passed}项。现场：{root}");
     }
     private static async Task QueueStorm(string root,byte[] key,Clock clock,Action<bool,string> check,Func<Task<IBackgroundSourceLease>,string,Task> denied)
     {
-        using var registry=new SourceBudgetRegistry(root,key,clock);
+        using var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key),clock);
         using var active=await registry.AcquireAsync("active","www.sse.com.cn",Empty,default);
         using var cancel=new CancellationTokenSource();
         var tasks=Enumerable.Range(0,32).Select(i=>registry.AcquireAsync("plugin-"+(i/8),"www.sse.com.cn",Empty,cancel.Token)).ToArray();
@@ -129,11 +130,11 @@ internal static class SourceBudgetChecks
     }
     private static async Task GatewayIntegration(string root,byte[] key,Action<bool,string> check)
     {
-        using var registry=new SourceBudgetRegistry(root,key);
+        using var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key));
         var first=new Handler(HttpStatusCode.TooManyRequests);
         var second=new Handler(HttpStatusCode.OK);
-        using var a=new OfficialHttpGateway(new(Path.Combine(root,"a"),key),first,new WorkerPluginContext("a",root,key,sources:registry));
-        using var b=new OfficialHttpGateway(new(Path.Combine(root,"b"),key),second,new WorkerPluginContext("b",root,key,sources:registry));
+        using var a=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"a"),key),first,new WorkerPluginContext("a",root,key,sources:registry));
+        using var b=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"b"),key),second,new WorkerPluginContext("b",root,key,sources:registry));
         check((await a.GetAsync(new("https://query.sse.com.cn/test"),default)).StatusCode==429,"真实网关登记429并保留响应状态");
         try{await b.GetAsync(new("https://etf.sse.com.cn/test"),default);throw new Exception("跨插件未阻断");}
         catch(SourceBudgetUnavailableException){check(second.Calls==0,"第二插件私有策略为空也不再发出HTTP");}
@@ -149,7 +150,7 @@ internal static class SourceBudgetChecks
     }
     private static async Task RateSpacing(string root,byte[] key,Action<bool,string> check)
     {
-        using var registry=new SourceBudgetRegistry(root,key);
+        using var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key));
         var watch=System.Diagnostics.Stopwatch.StartNew();
         using(var first=await registry.AcquireAsync("one","www.sse.com.cn",Empty,default))first.Complete(200);
         using(var second=await registry.AcquireAsync("two","query.sse.com.cn",Empty,default))
@@ -157,7 +158,7 @@ internal static class SourceBudgetChecks
     }
     private static async Task GatewayLocalFailure(string root,byte[] key,Action<bool,string> check)
     {
-        using var registry=new SourceBudgetRegistry(root,key);
+        using var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key));
         var local=Path.Combine(root,"local");
         var policy=new SourceRequestPolicy(local,key);policy.Reserve("www.sse.com.cn",DateTimeOffset.UtcNow.AddMinutes(-1));
         using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(local,"source-policy.db"),Password=Convert.ToHexString(key),Pooling=false}.ToString());
@@ -165,11 +166,11 @@ internal static class SourceBudgetChecks
         command.CommandText="CREATE TRIGGER fail_local BEFORE UPDATE ON source_policy WHEN NEW.failures>0 BEGIN SELECT RAISE(ABORT,'injected'); END";command.ExecuteNonQuery();
         using var gateway=new OfficialHttpGateway(policy,new Handler(HttpStatusCode.TooManyRequests),new WorkerPluginContext("one",root,key,sources:registry));
         try{await gateway.GetAsync(new("https://query.sse.com.cn/test"),default);throw new Exception("插件故障未上报");}
-        catch(SqliteException){check(registry.Snapshot().Single(x=>x.Source=="SSE").State=="Cooldown","插件策略写失败仍先保留宿主429冷却");}
+        catch(IOException error) when(error.InnerException is SqliteException){check(registry.Snapshot().Single(x=>x.Source=="SSE").State=="Cooldown","插件策略写失败仍先保留宿主429冷却");}
     }
     private static void StorageFailure(string root,byte[] key,Action<bool,string> check)
     {
-        using var registry=new SourceBudgetRegistry(root,key);
+        using var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key));
         var derived=HKDF.DeriveKey(HashAlgorithmName.SHA256,key,32,info:Encoding.UTF8.GetBytes("CRS.Worker.SourceBudget/v1"));
         using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(root,"source-budgets.db"),Password=Convert.ToHexString(derived),Pooling=false}.ToString());
         CryptographicOperations.ZeroMemory(derived);db.Open();
@@ -177,7 +178,7 @@ internal static class SourceBudgetChecks
         using var command=db.CreateCommand();
         command.CommandText="CREATE TRIGGER fail_budget BEFORE UPDATE ON source_budget BEGIN SELECT RAISE(ABORT,'injected'); END";command.ExecuteNonQuery();
         try{registry.ReportFailure("www.sse.com.cn",429);throw new Exception("故障写入意外成功");}
-        catch(SqliteException){check(true,"冷却写入失败向上报告");}
+        catch(IOException error) when(error.InnerException is SqliteException){check(true,"冷却写入失败以数据库无关异常向上报告");}
         command.CommandText="DROP TRIGGER fail_budget";command.ExecuteNonQuery();
         try{registry.Import("www.szse.cn",Empty);throw new Exception("故障后继续放行");}
         catch(InvalidDataException){check(true,"写入故障后即使存储恢复也保持失败关闭");}

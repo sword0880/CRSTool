@@ -1,4 +1,4 @@
-param([string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot))
+﻿param([string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot))
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 & (Join-Path $PSScriptRoot 'Verify-ProjectGraph.ps1') -RepositoryRoot $RepositoryRoot
@@ -135,3 +135,18 @@ foreach($file in Get-ChildItem (Join-Path $RepositoryRoot $sourceDir) -Filter '*
 # 先完成 Release 构建；以 SDK Roslyn 语法树检查绩效模块的新方法和已评审复杂度增量。
 & dotnet run --project (Join-Path $RepositoryRoot 'tests/CRS.Tests.Domain') -c Release --no-build -- --performance-architecture $RepositoryRoot
 Assert-Boundary ($LASTEXITCODE -eq 0) '绩效复杂度/方法规模门禁失败（请先构建当前源码）。'
+
+# 共享来源规则只能依赖存储端口；数据库装配与方言留在适配器/启动入口。
+$budgetPolicy=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/SourceBudgetRegistry.cs')
+Assert-Boundary ($budgetPolicy -match 'readonly ISourceBudgetStore store' -and $budgetPolicy -notmatch 'Sqlite|SqlConnection|DbConnection|Dapper|PRAGMA|new\s+\w*SourceBudgetStore') '来源预算规则重新耦合数据库实现。'
+$budgetPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/ISourceBudgetStore.cs')
+Assert-Boundary ($budgetPort -notmatch 'Microsoft\.Data|System\.Data|DbConnection|DbTransaction|IQueryable') '来源预算端口暴露数据库实现类型。'
+Write-Output '来源预算数据库端口边界检查通过。'
+
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Worker.Service') -Filter 'BackgroundRuntime*.cs') {
+    $source=Get-Content -Raw $file.FullName
+    Assert-Boundary ($source -notmatch 'Microsoft\.Data\.Sqlite|SqliteException|SqliteConnection|new\s+EncryptedTaskRepository') "后台运行规则耦合SQLite提供方：$($file.Name)"
+}
+$taskPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/ITaskRepository.cs')
+Assert-Boundary ($taskPort -notmatch 'Microsoft\.Data|System\.Data|DbConnection|DbTransaction|IQueryable') '任务仓储端口暴露数据库实现类型。'
+Write-Output '后台运行规则与任务仓储提供方边界检查通过。'

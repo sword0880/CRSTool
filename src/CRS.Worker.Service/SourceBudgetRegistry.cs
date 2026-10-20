@@ -17,13 +17,13 @@ public sealed class SourceBudgetRegistry : IDisposable
         public long Deferred, Rejected;
     }
     private readonly object sync = new();
-    private readonly SourceBudgetStore store;
+    private readonly ISourceBudgetStore store;
     private readonly TimeProvider clock;
     private readonly Dictionary<string, Budget> budgets = new(StringComparer.Ordinal);
     private bool disposed;
-    public SourceBudgetRegistry(string directory, byte[] masterKey, TimeProvider? clock = null)
+    public SourceBudgetRegistry(ISourceBudgetStore store, TimeProvider? clock = null)
     {
-        store = new(directory, masterKey);
+        this.store = store ?? throw new ArgumentNullException(nameof(store));
         this.clock = clock ?? TimeProvider.System;
         try
         {

@@ -54,7 +54,7 @@ IBKR 读取实际 Activity Flex 的 AccountInformation、EXECUTION Trades、DETA
 
 Domain/Performance 只负责纯计算；Application/Performance 暴露用例；Infrastructure/Performance 负责解析、SQLCipher 和报表；WPF 仅调用用例。税务运行与绩效运行分别存储。
 
-独立 Version=1 模块表 `performance_settings / performance_documents / performance_runs` 位于现有 SQLCipher 库。原件 ≤25 MiB、单份规范数据/快照 ≤64 MiB、设置 ≤4 MiB、历史索引 ≤64 KiB（列表最多 100 条，不读取完整历史载荷）、最多 500 原件、规范资料总量 ≤128 MiB；账户 100、事件/净值 20,000、价格/FX 50,000。写入超出 2 GiB 备份容量回滚。未知/部分表结构不会自动覆盖。
+独立模块表 `performance_settings / performance_documents / performance_runs`（金融数据模型仍为1；设置JSON新写2、兼容读取1，解析审计记录V1） 位于现有 SQLCipher 库。原件 ≤25 MiB、单份规范数据/快照 ≤64 MiB、设置 ≤4 MiB、历史索引 ≤64 KiB（列表最多 100 条，不读取完整历史载荷）、最多 500 原件、规范资料总量 ≤128 MiB；账户 100、事件/净值 20,000、价格/FX 50,000。写入超出 2 GiB 备份容量回滚。未知/部分表结构不会自动覆盖。
 
 每次原件按 SHA-256 去重，稳定 IBKR 业务键经济字段一致才合并，否则拒绝。载入时流式复核原件散列。分类/来源修订附原因和时间；账户与命名组合当前设置随库备份。运行冻结完整规范输入、账户范围、参数、引擎/成本版本、父运行、输入摘要与结果摘要，旧历史不随当前选择变动。重放需要版本、输入和结果一致，再创建子运行。摘要用于完整性校验，不是独立第三方签名；拥有主密码且能重写密文的攻击者不在无密钥完整性威胁模型内。
 
@@ -67,3 +67,6 @@ Domain/Performance 只负责纯计算；Application/Performance 暴露用例；I
 当前已经提供 SPX/HSI/IXIC 联网行情及净值对比曲线。上证综指、中证500、总回报指数、单股复盘、回撤、年度列表及完整汇率归因仍属后续范围，不能据当前曲线宣称这些能力已经完成。
 
 [验收记录](../validation/PERFORMANCE_ACCEPTANCE.md) · [返回当前实现](README.md)
+
+
+ARCH-208续项：新券商导入的读取/投影版本与原件、单份事实摘要事务保存，新历史冻结版本并纳入指纹；旧来源和旧历史缺失时保持未记录。设置JSON写2、兼容读1，不承诺旧程序读取新字段或删除字段降级。详见[来源版本与旧记录边界](../architecture/BROKER_SOURCE_FACTS.md)。金融冻结期望值和税务/FIFO/绩效算法未调整。

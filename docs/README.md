@@ -13,7 +13,7 @@ Visual Studio 打开或重新加载 CRS.sln 后，在解决方案资源管理器
 - 开始使用：[启动](../README.md)、[IBKR 导入](guides/IBKR_IMPORT_GUIDE.md)、[富途导入](guides/FUTU_CSHARP_IMPORT_GUIDE.md)。
 - 保护与恢复数据：[保险库](guides/VAULT_GUIDE.md)、[手机验证](guides/AUTH_IMPLEMENTATION.md)、[设置](guides/SETTINGS.md)、[加密底稿](guides/ENCRYPTED_EXPORT.md)。
 - 核对资料：[账户期间](guides/ACCOUNT_PERIODS.md)、[汇率来源](guides/EXCHANGE_RATE_SOURCES.md)、[抵免复核](guides/FOREIGN_CREDIT_REVIEW.md)。
-- 继续开发：[当前架构入口](architecture/CURRENT_ARCHITECTURE.md)、[项目结构](architecture/PROJECT_STRUCTURE.md)、[应用接口](architecture/API_SPEC.md)、[当前待办](KNOWN_ISSUES.md)。
+- 继续开发：[当前架构入口](architecture/CURRENT_ARCHITECTURE.md)、[项目结构](architecture/PROJECT_STRUCTURE.md)、[应用接口](architecture/API_SPEC.md)、[数据库抽象与替换边界](architecture/DATABASE_PORTABILITY.md)、[当前待办](KNOWN_ISSUES.md)。
 - 插件开发：[宿主规范](CRS_PLUGIN_ARCHITECTURE.md)、[ETF一期设计](NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)、[联网预览实施记录](implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md)、[数据通道POC](DATA_SOURCE_POC.md)。
 - 主程序功能：[计划任务与执行记录](implementation/SCHEDULED_TASKS.md)。
 - 独立后台：[Windows Service 设计](CRS_BACKGROUND_SERVICE_DESIGN.md)、[心跳 POC 实施与安装](implementation/BACKGROUND_SERVICE.md)。

@@ -2,9 +2,9 @@ using CRS.Application.Performance;
 
 namespace CRS.Infrastructure;
 
-public sealed partial class VaultManager
+internal sealed partial class SqlCipherVaultBackend
 {
-    internal void ImportSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null)
+    public void ImportSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null)
     {
         lock(gate)
         {

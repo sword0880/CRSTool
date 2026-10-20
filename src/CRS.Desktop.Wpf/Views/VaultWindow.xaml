@@ -1,4 +1,4 @@
-<Window Icon="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu.ico" x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:services="clr-namespace:CRS.DesktopClient.Services" Title="身份验证" Width="620" Height="740" MinWidth="540" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#F3F6FC" Foreground="#0F172A">
+<Window Icon="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu.ico" x:Class="CRS.DesktopClient.Views.VaultWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:services="clr-namespace:CRS.DesktopClient.Services" Title="{x:Static services:ProductIdentity.SecurityAccessTitle}" Width="620" Height="740" MinWidth="540" MinHeight="620" WindowStartupLocation="CenterScreen" Background="#FBF7F2" Foreground="#0F172A">
  <Window.Resources>
   <BooleanToVisibilityConverter x:Key="ShowWhenTrue"/>
   <!-- 窗口内统一输入与按钮样式，保留原生密码控件和既有认证命令。 -->
@@ -7,17 +7,26 @@
   <Style TargetType="Button">
    <Setter Property="MinHeight" Value="40"/><Setter Property="Padding" Value="16,9"/><Setter Property="FontSize" Value="14"/><Setter Property="Background" Value="#F8FAFC"/><Setter Property="Foreground" Value="#334155"/><Setter Property="BorderBrush" Value="#DCE4EF"/><Setter Property="BorderThickness" Value="1"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/></Border>
-    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#60A5FA"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4"/></Trigger></ControlTemplate.Triggers>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#C13D24"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4"/></Trigger></ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
-  <Style x:Key="PrimaryAction" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="#2563EB"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="#2563EB"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="MinHeight" Value="44"/></Style>
+  <Style x:Key="PrimaryAction" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="#C13D24"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="#C13D24"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="MinHeight" Value="44"/></Style>
  </Window.Resources>
- <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="32,28" MaxWidth="500" HorizontalAlignment="Center" IsEnabled="{Binding IsIdle}">
-  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,22"><ui:SymbolIcon Symbol="LockClosed24" Foreground="#2563EB" FontSize="16"/><TextBlock Text="{x:Static services:ProductIdentity.SecurityAccessTitle}" Foreground="#64748B" FontWeight="SemiBold" Margin="8,0,0,0"/></StackPanel>
-  <Border Background="White" BorderBrush="#E0E7F1" BorderThickness="1" CornerRadius="18" Padding="28">
+ <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="32,30" MaxWidth="500" HorizontalAlignment="Center" IsEnabled="{Binding IsIdle}">
+  <!-- 使用交付的原始品牌素材，名称与口号集中取自 ProductIdentity。 -->
+  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,26">
+   <Image Source="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu_256.png" Width="68" Height="68" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="小财牛品牌图标"/>
+   <StackPanel VerticalAlignment="Center" Margin="16,0,0,0">
+    <TextBlock Text="{x:Static services:ProductIdentity.Name}" FontSize="30" FontWeight="Bold" Foreground="#38251F"/>
+    <TextBlock Text="{x:Static services:ProductIdentity.Slogan}" FontSize="14" Foreground="#865F4B" Margin="0,5,0,0"/>
+   </StackPanel>
+  </StackPanel>
+  <Border Background="White" BorderBrush="#EADFD5" BorderThickness="1" CornerRadius="20" Padding="28">
   <StackPanel>
-  <Image Source="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu_256.png" Width="56" Height="56" HorizontalAlignment="Left" Margin="0,0,0,18" AutomationProperties.Name="小财牛"/>
-  <TextBlock Text="{Binding PageHeading}" FontSize="28" FontWeight="SemiBold"/>
+  <Border Background="#FFF1E8" CornerRadius="10" Padding="10,6" HorizontalAlignment="Left" Margin="0,0,0,16">
+   <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="LockClosed24" Foreground="#A83A24" FontSize="14" VerticalAlignment="Center"/><TextBlock Text="安全访问" Foreground="#A83A24" FontSize="12" FontWeight="SemiBold" Margin="6,0,0,0"/></StackPanel>
+  </Border>
+  <TextBlock Text="{Binding PageHeading}" FontSize="26" FontWeight="SemiBold"/>
   <TextBlock Text="{Binding PageDescription}" Foreground="#64748B" Margin="0,8,0,22" TextWrapping="Wrap" LineHeight="22"/>
   <!-- 日常手机验证不展示数据库路径；首次创建和用户主动选择位置时才展开。 -->
   <StackPanel x:Name="DirectoryPanel" Visibility="{Binding ShowDirectoryEntry,Converter={StaticResource ShowWhenTrue}}">
@@ -30,7 +39,7 @@
   </StackPanel>
   <Button Content="首次创建并加密" Style="{StaticResource PrimaryAction}" Command="{Binding CreateCommand}" Visibility="{Binding IsNewVault,Converter={StaticResource ShowWhenTrue}}" Margin="0,12,0,8"/>
   <!-- 首次扫码只显示内存素材，不提供二维码保存或复制按钮。 -->
-  <Border Background="#F8FAFC" BorderBrush="#E8EDF5" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,16"><StackPanel>
+  <Border Background="#FFFCF9" BorderBrush="#F0E6DC" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,16"><StackPanel>
    <TextBlock Text="{Binding AuthenticationHint}" Foreground="#475569" TextWrapping="Wrap" LineHeight="22" Margin="0,0,0,8"/>
    <!-- 只有首次未绑定状态出现替代方式；验证器故障不会自动降级。 -->
    <StackPanel Visibility="{Binding ShowHelloChoice,Converter={StaticResource ShowWhenTrue}}" Margin="0,6,0,12">
@@ -52,7 +61,7 @@
    </StackPanel>
   </StackPanel></Border>
   <!-- 反馈保留在验证区下方；准备与进入命令继续沿用原有权限及可执行条件。 -->
-  <Border Background="#EFF6FF" CornerRadius="8" Padding="12,10" Margin="0,0,0,14" Visibility="{Binding ShowStatus,Converter={StaticResource ShowWhenTrue}}"><TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#475569" LineHeight="20"/></Border>
+  <Border Background="#FFF4E9" CornerRadius="8" Padding="12,10" Margin="0,0,0,14" Visibility="{Binding ShowStatus,Converter={StaticResource ShowWhenTrue}}"><TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#475569" LineHeight="20"/></Border>
   <!-- 已经准备好的日常验证不再重复显示准备按钮；可进入时才显示工作区入口。 -->
   <WrapPanel Visibility="{Binding IsExistingVault,Converter={StaticResource ShowWhenTrue}}">
    <Button Content="{Binding UnlockLabel}" Command="{Binding UnlockCommand}" Margin="0,0,8,8"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers>
@@ -93,6 +102,6 @@
   <TextBlock Text="旧明文库不会迁移或删除。原始报表、Excel 和结转导出仍需自行妥善管理。" Visibility="{Binding ShowMaintenance,Converter={StaticResource ShowWhenTrue}}" TextWrapping="Wrap" Foreground="#64748B"/>
   <Button Content="锁定保险库" Visibility="{Binding IsUnlocked,Converter={StaticResource ShowWhenTrue}}" Command="{Binding LockCommand}" HorizontalAlignment="Left" Margin="0,14"/>
   </StackPanel></Border>
-  <StackPanel HorizontalAlignment="Center" Margin="0,20,0,0"><TextBlock Text="{x:Static services:ProductIdentity.Name}" HorizontalAlignment="Center" Foreground="#64748B" FontSize="13" FontWeight="SemiBold"/><TextBlock Text="{x:Static services:ProductIdentity.Slogan}" HorizontalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,6,0,0"/></StackPanel>
+  <TextBlock Text="验证身份后，开启你的小财牛工作区" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="#846F60" FontSize="12" Margin="0,20,0,0"/>
  </StackPanel></ScrollViewer>
 </Window>

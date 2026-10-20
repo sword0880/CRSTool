@@ -77,7 +77,7 @@ namespace CRS.Worker.Service
                 var dispatcher=new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email)]);
                 var notifications=new WorkerNotificationGateway(email,dispatcher);
                 var diagnostics = new ServiceEventLog(locations.Data);
-                using var sources = new SourceBudgetRegistry(locations.Data,key);
+                using var sources = new SourceBudgetRegistry(new SqliteSourceBudgetStore(locations.Data,key));
                 await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () =>
                     {try{diagnostics.Write("PluginUnresponsive","service","CancellationGraceExceeded");}finally{Environment.Exit(2);}},
                     hostContext:id=>new WorkerPluginContext(id,locations.Data,key,notifications,sources),

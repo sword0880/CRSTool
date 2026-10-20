@@ -27,7 +27,7 @@ internal static class SourcePolicyChecks
         });
         var sse = new Uri("https://query.sse.com.cn/test");
         var progress=new List<CRS.Plugins.NationalTeamWatch.Application.EtfProgress>();
-        using (var gateway = new OfficialHttpGateway(new(root, key), handler))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(root, key), handler))
         {
             gateway.Progress=value=>{progress.Add(value);return Task.CompletedTask;};
             Check((await gateway.GetAsync(sse, default)).StatusCode == 429, "拒绝响应保留原始状态供来源登记");
@@ -41,7 +41,7 @@ internal static class SourcePolicyChecks
             Check(policy.Read("www.szse.cn").Failures == 0, "上交所拒绝不污染深交所额度");
         }
         var healthy = new FixedHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("ok") }));
-        using (var gateway = new OfficialHttpGateway(new(root, key), healthy))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(root, key), healthy))
         {
             try { await gateway.GetAsync(new("https://etf.sse.com.cn/test"), default); throw new Exception("未阻断"); }
             catch (InvalidOperationException) { Check(healthy.Calls == 0, "重启后被阻断来源不会发出请求或切换域名"); }
@@ -60,21 +60,21 @@ internal static class SourcePolicyChecks
             Check(policy.Read(sse.Host).Failures == 0, "成功后清除连续失败计数");
         }
         var timeoutRoot = Path.Combine(root, "timeout");
-        using (var gateway = new OfficialHttpGateway(new(timeoutRoot, key), new FixedHandler((_, _) => throw new TaskCanceledException())))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(timeoutRoot, key), new FixedHandler((_, _) => throw new TaskCanceledException())))
         {
             try { await gateway.GetAsync(sse, default); throw new Exception("未分类超时"); }
             catch (TimeoutException) { Check(true, "传输超时转换为来源故障而非用户取消"); }
         }
         using (var policy = new SourceRequestPolicy(timeoutRoot, key))
             Check(policy.Read(sse.Host).Blocked > DateTimeOffset.UtcNow, "传输超时在重建后仍退避");
-        using (var gateway = new OfficialHttpGateway(new(Path.Combine(root, "body"), key), new FixedHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream()) }))))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root, "body"), key), new FixedHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream()) }))))
         {
             try { await gateway.GetAsync(sse, default); throw new Exception("正文未超时"); }
             catch (TimeoutException) { Check(true, "正文停滞也受20秒总期限约束"); }
         }
         var cancelRoot = Path.Combine(root, "cancel");
         using (var cancelled = new CancellationTokenSource())
-        using (var gateway = new OfficialHttpGateway(new(cancelRoot, key), new FixedHandler((_, token) => { cancelled.Cancel(); token.ThrowIfCancellationRequested(); throw new Exception(); })))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(cancelRoot, key), new FixedHandler((_, token) => { cancelled.Cancel(); token.ThrowIfCancellationRequested(); throw new Exception(); })))
         {
             try { await gateway.GetAsync(sse, cancelled.Token); throw new Exception("未取消"); }
             catch (OperationCanceledException) { Check(true, "调用方取消保持取消语义"); }

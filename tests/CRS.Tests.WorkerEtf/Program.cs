@@ -10,6 +10,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
+if(args is ["--storage-providers"]){await PluginStorageProviderChecks.RunAsync();return;}
 if(args is ["--source-budget"]){await SourceBudgetChecks.RunAsync();return;}
 if(args is ["--source-budget-soak",var soakSeconds]){await SourceBudgetSoakChecks.RunAsync(int.Parse(soakSeconds,System.Globalization.CultureInfo.InvariantCulture));return;}
 if(args is ["--source-policy"]){await SourcePolicyChecks.RunAsync();return;}

@@ -36,3 +36,14 @@ Jobs保留原`source-policy.db`作为旧宿主兼容与保守限制。网关创�
 新增启动前状态校验及来源故障后的健康诊断；补充写入故障、重复健康查询、停止新执行/查询、重启后保留原冷却、无效计数/日期、缺表与未知版本检查。后续验证证据汇总在[整改续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。
 
 `CRS.Tests.WorkerEtf --source-budget-soak 90`使用真实时间与SQLCipher，固定8个模拟插件和120个消费者持续争用三个来源；中途对SSE注入429、SZSE注入503，检查未故障来源继续推进、队列上限、取消排空、请求间隔和重启后的共享阻断。成功后保存`artifacts/source-budgets-soak-90s.json`；失败不覆盖上次成功摘要，必须同时检查本次日志与退出码。消费者只申请租约，不连接HTTP，不能冒充真实官网、跨日容量、内存泄漏或整机断电验收。参数允许60～600秒的有限测试，生产三秒间隔不缩短。
+
+
+## 后续：真实Worker进程恢复
+
+`CRS.Tests.Background --source-budget-process <已验证宿主包>`通过两个隔离插件及正式宿主上下文，以持久任务模拟429并核验跨插件拒绝和另一市场放行。实际强杀自有Worker后重启，持久冷却、共享拒绝和原服务密钥均保留；按本次RequestId/ExecutionId核验完成，不以排队状态验收。19项检查通过，详见整改续记。该夹具不联网、不操作SCM或安装服务，不能替代真实来源及物理断电验收。
+
+十分钟扩展验证已通过（实际602.61秒，19项，5722次采样）：队列峰值32、单来源在途峰值1，八个插件均有进展，取消排空和持久冷却重启通过。证据为 artifacts/source-budgets-soak-600s.log / .json；仅隔离租约压力，网络请求为0，跨日与生产部署验收仍开放。
+
+## 存储提供方边界
+
+SourceBudgetRegistry仅接收ISourceBudgetStore；Program创建SqliteSourceBudgetStore并移交生命周期。注册表不接触目录、密钥、连接或SQL。具体适配器保持原Schema和持久提交顺序，运行期SQLite故障转为IOException并保持故障锁定。替换实现仍须满足原子持久Save与损坏拒绝语义；当前只支持单Worker写入，多实例数据库部署需额外原子预留设计。详见[数据库抽象与替换边界](DATABASE_PORTABILITY.md)。

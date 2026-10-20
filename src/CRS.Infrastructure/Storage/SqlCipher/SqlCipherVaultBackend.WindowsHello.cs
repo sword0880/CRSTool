@@ -5,7 +5,7 @@ using Dapper;
 
 namespace CRS.Infrastructure;
 
-public sealed partial class VaultManager
+internal sealed partial class SqlCipherVaultBackend
 {
     public Task<bool> IsWindowsHelloAvailableAsync()=>hello?.IsAvailableAsync()??Task.FromResult(false);
 

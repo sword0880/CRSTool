@@ -22,6 +22,7 @@ public sealed partial class MarketRepository : IMarketRepository
         try{token.ThrowIfCancellationRequested();return work();}
         catch(SqliteException error) when(error.SqliteErrorCode==9&&token.IsCancellationRequested)
         {throw new OperationCanceledException("市场查询已取消。",error,token);}
+        catch(SqliteException error){throw new IOException("插件市场仓储操作失败。",error);}
         finally{operationCancellation=previous;}
     }
     public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? encryptionKey=null,TimeProvider? timeProvider=null)

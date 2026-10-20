@@ -6,7 +6,7 @@ namespace CRS.DesktopClient.Composition;
 /// <summary>桌面启动组合根，基础设施类型只在此处装配。</summary>
 internal static class DesktopComposition
 {
-    public static IVaultService CreateVault()=>new VaultManager(new WindowsHelloVerifier());
+    public static IVaultService CreateVault()=>new VaultManager(new WindowsHelloVerifier(),VaultStorageProviders.ConfiguredProvider());
     public static IDesktopSettingsService CreateSettings()=>new DesktopSettingsStore();
     public static DesktopRuntime Create(bool smoke,IVaultService? vault=null,IDesktopSettingsService? userSettings=null)
     {

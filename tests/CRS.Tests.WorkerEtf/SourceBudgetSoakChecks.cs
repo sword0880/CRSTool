@@ -31,7 +31,7 @@ internal static class SourceBudgetSoakChecks
         void Check(bool value,string name)
         {if(!value)throw new InvalidOperationException(name);checks++;Console.WriteLine("PASS 持续负载："+name);}
         IReadOnlyList<SourceBudgetHealth> final;
-        using(var sources=new SourceBudgetRegistry(root,key))
+        using(var sources=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key)))
         using(var cancel=new CancellationTokenSource())
         {
             var contexts=Enumerable.Range(0,8).Select(i=>new WorkerPluginContext("plugin-"+i,root,key,sources:sources)).ToArray();
@@ -98,7 +98,7 @@ internal static class SourceBudgetSoakChecks
             Check(starts[0].All(x=>x.AddSeconds(-3)<=blockedAt[0])&&starts[1].All(x=>x.AddSeconds(-3)<=blockedAt[1]),"来源拒绝后未放行新租约");
             Check(starts[2].Any(x=>x.AddSeconds(-3)>blockedAt[1]),"两个来源冷却后第三来源仍继续推进");
         }
-        using(var reopened=new SourceBudgetRegistry(root,key))
+        using(var reopened=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key)))
         {
             foreach(var market in new[]{0,1})
             {

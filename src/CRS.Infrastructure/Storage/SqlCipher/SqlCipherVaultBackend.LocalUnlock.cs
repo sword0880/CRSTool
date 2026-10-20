@@ -3,7 +3,7 @@ using CRS.Security.Cryptography;
 
 namespace CRS.Infrastructure;
 
-public sealed partial class VaultManager
+internal sealed partial class SqlCipherVaultBackend
 {
     /// <summary>探测本机槽是否可由当前 Windows 用户解封，不打开业务仓储。</summary>
     public bool HasLocalKey(string directory)

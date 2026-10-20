@@ -5,7 +5,7 @@ using NLog;
 namespace CRS.Infrastructure;
 
 /// <summary>适配现有基础设施行为；窗口只使用 Core 契约。</summary>
-public sealed class DesktopOperations(ICalculationRepository repository, string configPath,VaultManager? vault=null) : IDesktopOperations
+public sealed class DesktopOperations(ICalculationRepository repository, string configPath,IVaultStorageBackend? vault=null) : IDesktopOperations
 {
     private readonly Action<Action>? guard=vault?.CaptureGuard();
     /// <summary>取得本次运行配置位置。</summary>

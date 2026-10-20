@@ -10,7 +10,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
 {
     private readonly HttpClient client;
     private readonly HttpClient directClient;
-    private readonly SourceRequestPolicy policy;
+    private readonly ISourceRequestPolicy policy;
     private readonly IBackgroundSourceContext? sources;
     private readonly HashSet<string> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim gate = new(1);
@@ -36,7 +36,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     public Func<EtfProgress,Task>? Progress {get;set;}
     private Task ReportAsync(string stage,Uri uri,int? status=null,DateTimeOffset? until=null)=>Progress?.Invoke(new(stage,Market:uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)||OfficialEquityDocuments.IsReviewedIssuer(uri)?"SSE":"SZSE",HttpStatus:status,Until:until))??Task.CompletedTask;
     /// <summary>测试可注入固定响应；正式入口只使用禁重定向的默认传输。</summary>
-    public OfficialHttpGateway(SourceRequestPolicy policy, HttpMessageHandler? transport = null,IBackgroundSourceContext? sources=null)
+    public OfficialHttpGateway(ISourceRequestPolicy policy, HttpMessageHandler? transport = null,IBackgroundSourceContext? sources=null)
     {
         this.policy = policy;
         this.sources = sources;

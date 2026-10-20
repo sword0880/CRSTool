@@ -1,10 +1,12 @@
 using System.Globalization;
+using System.IO;
+using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
 namespace CRS.Plugins.NationalTeam.Jobs;
 
 /// <summary>来源限速和退避独立存入加密库，重启不能清除交易所拒绝状态。</summary>
-public sealed class SourceRequestPolicy : IDisposable
+public sealed class SourceRequestPolicy : ISourceRequestPolicy
 {
     private readonly SqliteConnection db;
     public SourceRequestPolicy(string directory, byte[] key)
@@ -44,6 +46,11 @@ public sealed class SourceRequestPolicy : IDisposable
 
     public (DateTimeOffset Next, DateTimeOffset Blocked, int Failures) Read(string host)
     {
+        try{return ReadCore(host);}
+        catch(SqliteException error){throw new IOException("插件来源策略读取失败。",error);}
+    }
+    private (DateTimeOffset Next,DateTimeOffset Blocked,int Failures) ReadCore(string host)
+    {
         using var command = db.CreateCommand();
         command.CommandText = "SELECT next_utc,blocked_utc,failures FROM source_policy WHERE source=$s";
         command.Parameters.AddWithValue("$s", Source(host));
@@ -72,7 +79,12 @@ public sealed class SourceRequestPolicy : IDisposable
         Save(host, state.Next, until, failures);
     }
 
-    private void Save(string host, DateTimeOffset next, DateTimeOffset blocked, int failures)
+    private void Save(string host,DateTimeOffset next,DateTimeOffset blocked,int failures)
+    {
+        try{SaveCore(host,next,blocked,failures);}
+        catch(SqliteException error){throw new IOException("插件来源策略持久化失败。",error);}
+    }
+    private void SaveCore(string host, DateTimeOffset next, DateTimeOffset blocked, int failures)
     {
         using var command = db.CreateCommand();
         command.CommandText = "INSERT INTO source_policy VALUES($s,$n,$b,$f) ON CONFLICT(source) DO UPDATE SET next_utc=$n,blocked_utc=$b,failures=$f";

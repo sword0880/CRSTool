@@ -15,7 +15,8 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 }
 
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
-public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null):IBackgroundPluginSession,
+public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null,
+    string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null):IBackgroundPluginSession,
     IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession
 {
     private readonly SemaphoreSlim serial=new(1);
@@ -62,13 +63,14 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     public async ValueTask StartAsync(CancellationToken token)
     {
         if(workspace is not null)throw new InvalidOperationException("会话已经启动。");
+        var storage=(storageProviders??new NationalTeamStorageProviders()).Create(databaseProvider??NationalTeamStorageProviders.ConfiguredProvider());
         Directory.CreateDirectory(context.DataDirectory);rawPath=Path.Combine(context.DataDirectory,"raw");
         key=context.OpenDataKey();raw=new(rawPath);
         // 策略库使用同一插件专用密钥和受限目录，缺失密钥或损坏时不能退回内存策略。
-        http??=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(context.DataDirectory,"data"),key),sources:context as IBackgroundSourceContext);
+        http??=new OfficialHttpGateway(storage.OpenSourcePolicy(Path.Combine(context.DataDirectory,"data"),key),sources:context as IBackgroundSourceContext);
         if(http is OfficialHttpGateway official)official.Progress=ReportAsync;
         var adapter=new WorkerContext(context.DataDirectory,http);
-        workspace=new(adapter,()=>new MarketRepository(Path.Combine(context.DataDirectory,"data"),raw,encryptionKey:key),raw);
+        workspace=new(adapter,()=>storage.OpenMarket(Path.Combine(context.DataDirectory,"data"),raw,key),raw);
         workspace.SetProgressSink(ReportAsync);workspace.SetOfficialSource(new OfficialShareSources(http,raw,ReportAsync));await workspace.InitializeAsync(token);
         workspace.SetMarketActivitySource(new OfficialMarketActivitySource(http));
     }

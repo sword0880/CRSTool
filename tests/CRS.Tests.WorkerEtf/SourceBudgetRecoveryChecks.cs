@@ -13,7 +13,7 @@ internal static class SourceBudgetRecoveryChecks
     {
         var empty=new SourceBudgetState(DateTimeOffset.MinValue,DateTimeOffset.MinValue,0);
         DateTimeOffset blocked;
-        using(var sources=new SourceBudgetRegistry(root,key))
+        using(var sources=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key)))
         using(var repository=new EncryptedTaskRepository(Path.Combine(root,"scheduler.db"),key))
         await using(var catalog=new BackgroundPluginCatalog())
         await using(var runtime=new BackgroundRuntime(repository,catalog,sources:sources))
@@ -25,7 +25,7 @@ internal static class SourceBudgetRecoveryChecks
             command.CommandText="CREATE TRIGGER fail_write BEFORE UPDATE ON source_budget BEGIN SELECT RAISE(ABORT,'injected'); END";
             command.ExecuteNonQuery();
             try{sources.ReportFailure("www.sse.com.cn",503);throw new Exception("写故障未上报。");}
-            catch(SqliteException){check(true,"已存冷却后的写入故障明确上报");}
+            catch(IOException error) when(error.InnerException is SqliteException){check(true,"已存冷却后的写入故障以存储端口异常上报");}
             command.CommandText="DROP TRIGGER fail_write";command.ExecuteNonQuery();
             for(var i=0;i<2;i++)
             {
@@ -37,7 +37,7 @@ internal static class SourceBudgetRecoveryChecks
             try{using var ignored=await sources.AcquireAsync("new-plugin","www.szse.cn",empty,default);throw new Exception("存储故障被清除。");}
             catch(InvalidDataException){check(true,"修复注入条件后仍拒绝其他来源请求");}
         }
-        using(var sources=new SourceBudgetRegistry(root,key))
+        using(var sources=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key)))
         {
             check(sources.Snapshot().Single(x=>x.Source=="SSE").BlockedUtc==blocked,"重启保留写故障前已提交的冷却期限");
             try{using var ignored=await sources.AcquireAsync("new-plugin","static.sse.com.cn",empty,default);throw new Exception("重启绕过冷却。");}
@@ -62,14 +62,14 @@ internal static class SourceBudgetRecoveryChecks
     }
     private static void InvalidState(string root,byte[] key,string update,Action<bool,string> check)
     {
-        using(var sources=new SourceBudgetRegistry(root,key))sources.ReportFailure("www.sse.com.cn",403);
+        using(var sources=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key)))sources.ReportFailure("www.sse.com.cn",403);
         using(var db=OpenBudget(root,key))
         {
             using var command=db.CreateCommand();
             command.CommandText=update.Length==0?"PRAGMA user_version=99":update=="DROP TABLE source_budget"?update:"UPDATE source_budget SET "+update;
             command.ExecuteNonQuery();
         }
-        try{using var ignored=new SourceBudgetRegistry(root,key);throw new Exception("无效预算意外获准启动。");}
+        try{using var ignored=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key));throw new Exception("无效预算意外获准启动。");}
         catch(Exception error) when(error is InvalidDataException or FormatException)
         {check(true,"损坏计数/日期或未知版本在启动前被拒绝："+Path.GetFileName(root));}
     }

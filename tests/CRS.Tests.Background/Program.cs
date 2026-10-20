@@ -7,6 +7,12 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--task-storage-boundary"])
+{
+    var boundaryRoot=Path.Combine(Path.GetTempPath(),"CRS.TaskStorageBoundary",Guid.NewGuid().ToString("N"));
+    await TaskRepositoryBoundaryChecks.RunAsync(boundaryRoot);
+    await WorkerRemediationChecks.StorageFaultsOnlyAsync(boundaryRoot);return;
+}
 if(args is ["--source-budget-process",var sourcePackage]){await SourceBudgetProcessChecks.RunAsync(sourcePackage);return;}
 if(args is ["--notifications"]){await NotificationChecks.Run();return;}
 if(args is ["--lifecycle-only"]){await LifecycleBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.Lifecycle",Guid.NewGuid().ToString("N")));return;}

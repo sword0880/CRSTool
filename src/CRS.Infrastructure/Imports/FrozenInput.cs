@@ -3,13 +3,13 @@ using System.Security.Cryptography;
 namespace CRS.Infrastructure;
 
 /// <summary>单次限量读取的来源副本；解析器与来源摘要共用同一份私有字节。</summary>
-internal sealed class FrozenInput
+public sealed class FrozenInput
 {
     private const int MaxBytes=25*1024*1024;
     private readonly byte[] content;
-    internal string Name {get;}
-    internal int Length=>content.Length;
-    internal string Sha256 {get;}
+    public string Name {get;}
+    public int Length=>content.Length;
+    public string Sha256 {get;}
     private FrozenInput(string path,byte[] bytes)
     {
         content=bytes; Name=Path.GetFileName(path);
@@ -34,7 +34,7 @@ internal sealed class FrozenInput
         return new(path,bytes);
     }
     // 不公开底层数组，避免某个解析器修改其他用途所依赖的冻结内容。
-    internal Stream OpenRead()=>new MemoryStream(content,0,content.Length,false,false);
+    public Stream OpenRead()=>new MemoryStream(content,0,content.Length,false,false);
     internal byte[] CopyBytes()=>content.ToArray();
     internal static FrozenInput FromBytes(string name,byte[] raw)
     {if(raw.Length is <=0 or >MaxBytes)throw new CrsException("源文件大小无效。");return new(name,raw);}

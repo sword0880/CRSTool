@@ -174,3 +174,12 @@ dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- 
 
 
 `--source-budget`还覆盖来源存储故障后的重复健康查询、失败关闭与启动校验。`dotnet run --project tests/CRS.Tests.WorkerEtf/CRS.Tests.WorkerEtf.csproj -c Release -- --source-budget-soak 90`运行90秒真实时间负载（可选60～600秒），固定120个消费者/8个插件，不访问网络；检查持续容量、来源故障、三秒间隔、排空和重启冷却。成功摘要写入`artifacts/source-budgets-soak-90s.json`，与本次退出码/日志一起使用，不能拿旧摘要冒充失败运行已通过，也不能替代跨日负载或真实升级验收。
+
+
+`CRS.Tests.Infrastructure --broker-provenance`验证实际读取/投影版本、原件与数据摘要绑定、历史冻结/指纹、事务回滚、备份恢复、设置1读取/写2、旧历史签名兼容及重复导入不补旧版本；纳入`--performance-only`。不重新生成金融冻结期望值。
+
+`CRS.Tests.Background --source-budget-process <已验证宿主开发包目录>`在隔离目录启动自有真实Worker与两个插件，通过持久命令模拟429，跟踪本次RequestId/ExecutionId完成态，再强杀/重启核验来源期限、跨插件阻断、另一来源及原密钥。需要正常Windows ACL/DPAPI/管道权限，不操作安装服务，不访问网络。它是进程崩溃验收，不是SCM、真实源站或物理断电验收。
+
+数据库替换边界：`CRS.Tests.WorkerEtf --source-budget`现含7项存储端口替换/生命周期检查与原SQLCipher专项，合计63项；内存替身只验证策略解耦，不验证其他数据库持久性。`Verify-Architecture.ps1`禁止来源预算规则和端口暴露数据库实现，设计约束见 `docs/architecture/DATABASE_PORTABILITY.md`。
+
+`CRS.Tests.Background --task-storage-boundary`：任务仓储真实SQLCipher事务/读取故障12项，加IO及通用数据库异常的宿主保护18项，合计30项；全部隔离运行，不需安装服务发行目录。此入口验证异常/原子性边界，不代表已支持第二数据库。

@@ -143,12 +143,23 @@ internal static class WorkerRemediationChecks
         }
         finally { if (File.Exists(hold)) File.Delete(hold); Environment.SetEnvironmentVariable("CRS_WORKER_TEST_HOLD", previous); }
     }
+    internal static async Task StorageFaultsOnlyAsync(string root)
+    {
+        Directory.CreateDirectory(root);
+        var package=Package(root,("crs.fixture","GoodEntry"));
+        await using var catalog=new BackgroundPluginCatalog();
+        await catalog.LoadAsync(package.Root,package.Trust,default);
+        var key=RandomNumberGenerator.GetBytes(32);
+        try { await FaultsAsync(root,catalog,key); }
+        finally { CryptographicOperations.ZeroMemory(key); }
+    }
     private static async Task FaultsAsync(string root, BackgroundPluginCatalog catalog, byte[] key)
     {
+        foreach (var providerFailure in new[] { false, true })
         foreach (var operation in new[] { "Begin", "End", "Audit", "Progress" })
         {
-            using var repository = new EncryptedTaskRepository(Path.Combine(root, "fault-" + operation + ".db"), key);
-            var failing = new FaultRepository(repository) { Failure = operation };
+            using var repository = new EncryptedTaskRepository(Path.Combine(root, "fault-" + operation + "-" + providerFailure + ".db"), key);
+            var failing = new FaultRepository(repository) { Failure = operation, ProviderFailure=providerFailure };
             await using var runtime = new BackgroundRuntime(failing, catalog); await runtime.StartAsync(default);
             var request = Request(operation == "Audit" ? "Pause" : "RunNow", revision: operation == "Audit" ? 1 : null);
             await runtime.HandleAsync(request, Admin, default);
@@ -314,11 +325,17 @@ internal static class WorkerRemediationChecks
         }
         finally { if (!restored.HasExited) restored.Kill(); await restored.WaitForExitAsync(); }
     }
+    private sealed class AlternateProviderException():System.Data.Common.DbException("isolated alternate provider failure");
     private sealed class FaultRepository(ITaskRepository inner) : ITaskRepository
     {
         public void AppendProgress(string id,BackgroundProgress progress){Fail("Progress");inner.AppendProgress(id,progress);}
         public string? Failure { get; set; }
-        private void Fail(string operation) { if (Failure == operation) throw new IOException("隔离持久化边界故障"); }
+        public bool ProviderFailure {get;init;}
+        private void Fail(string operation)
+        {
+            if(Failure==operation)
+                throw ProviderFailure?new AlternateProviderException():new IOException("隔离持久化边界故障");
+        }
         public void RegisterDefault(string p, BackgroundJobDescriptor d) => inner.RegisterDefault(p, d);
         public List<TaskDefinition> Plans() => inner.Plans();
         public void Save(TaskDefinition p, long r, Guid? id = null) => inner.Save(p, r, id);

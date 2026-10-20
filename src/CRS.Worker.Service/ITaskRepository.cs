@@ -2,7 +2,13 @@ using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 namespace CRS.Worker.Service;
 
-/// <summary>调度器仅经仓储操作权威状态，便于对真实持久化边界进行故障注入。</summary>
+/// <summary>
+/// 调度器仅经仓储操作权威状态；接口不暴露数据库连接、事务、SQL或提供方类型。
+/// Save（含禁用时取消待执行命令）、Begin、End及关联命令状态必须各自原子提交。
+/// 持久化IO故障以IOException上报，权限/损坏分别保留对应BCL异常；不能返回空状态掩盖错误。
+/// 业务冲突仍为InvalidOperationException，调用方不能把它当作存储不可用。
+/// HistoryPage的游标不透明，由同一适配器解析，调用方只原样传回。
+/// </summary>
 public interface ITaskRepository
 {
     void RegisterDefault(string plugin, BackgroundJobDescriptor descriptor);

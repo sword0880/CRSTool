@@ -7,11 +7,11 @@ using Microsoft.Data.Sqlite;
 namespace CRS.Worker.Service;
 
 /// <summary>仅由共享注册表在互斥区内使用；损坏或未知版本失败关闭，不重建来源状态。</summary>
-internal sealed class SourceBudgetStore : IDisposable
+public sealed class SqliteSourceBudgetStore : ISourceBudgetStore
 {
     private readonly SqliteConnection db;
     private bool failed;
-    public SourceBudgetStore(string directory, byte[] masterKey)
+    public SqliteSourceBudgetStore(string directory, byte[] masterKey)
     {
         if (masterKey.Length != 32) throw new ArgumentException("服务密钥长度不合法。");
         Directory.CreateDirectory(directory);
@@ -46,7 +46,9 @@ internal sealed class SourceBudgetStore : IDisposable
     {
         if(failed)throw new InvalidDataException("来源预算存储已故障，须重启核验后恢复。");
         try{return operation();}
-        catch(Exception error) when(error is SqliteException or IOException or UnauthorizedAccessException or InvalidDataException or FormatException)
+        catch(SqliteException error)
+        {failed=true;throw new IOException("来源预算持久化失败。",error);}
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or InvalidDataException or FormatException)
         {failed=true;throw;}
     }
     public SourceBudgetState Read(string source)=>Guard(()=>ReadCore(source));

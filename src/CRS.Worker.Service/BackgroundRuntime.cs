@@ -2,7 +2,7 @@ using System.Collections.Specialized;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 using Quartz;
 
 namespace CRS.Worker.Service;
@@ -27,7 +27,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     private readonly DateTimeOffset started = DateTimeOffset.UtcNow;
     private static JobKey Key(TaskDefinition plan) => new(plan.JobId, plan.PluginId);
     private static TriggerKey TriggerKey(JobKey key, string kind) => new(key.Name + "." + kind, key.Group);
-    private static bool StorageError(Exception error) => error is SqliteException or IOException or UnauthorizedAccessException or ObjectDisposedException;
+    private static bool StorageError(Exception error) => error is DbException or IOException or UnauthorizedAccessException or ObjectDisposedException;
     private static void Validate(string cron, string zone)
     {
         if (cron.Length > 120) throw new ArgumentException("Cron 不合法。");

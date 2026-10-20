@@ -1,4 +1,4 @@
-# 架构整改续记（2026-10-20）
+﻿# 架构整改续记（2026-10-20）
 
 基线：`01abcf9a9713e9bb7bb994704bc2d0628947106a`。对应[整改计划](../architecture/ARCHITECTURE_REMEDIATION_PLAN.md) ARCH-201～205；延续已合并的边界整改，不重新迁移已归属 Core/Jobs/UI 的源码。当前记录对应工作区改动，尚未提交。本轮不修改税务/FIFO/汇率算法。
 
@@ -120,3 +120,44 @@ ARCH-209最终后台完整回归：175 条PASS，进程退出码0，见 artifact
 
 最终复验全部退出码0：共享/恢复专项 56 项（source-budgets-recovery-final-checks.log），90秒持续负载 19 项（source-budgets-soak-90s-final.log），后台完整回归 175 项（source-budgets-recovery-final-background.log）。有限负载采样 862 次，队列峰值 32，单来源在途峰值 1，过载拒绝 27138 次、冷却拒绝 67570 次；全部消费者排空、重启保留已提交冷却。测试、候选包与最终Release宿主程序集哈希一致；证据汇总 artifacts/source-budgets-recovery-final-evidence.json，详细负载摘要 source-budgets-soak-90s.json。以上为有限隔离验证，未部署正式服务。
 
+
+
+## ARCH-208后续：绩效版本归档与真实旧格式兼容
+
+新增Application不可变BrokerImportProvenance V1，记录原件/批次、券商、实际读取版本、投影版本及单份导入事实摘要。IBKR独立导入仍只读取一次，共享导入复用实际来源快照；Futu保留既有共享规范事实路径。原件与版本在同一SQLCipher事务提交；版本写入故障整笔回滚，载入核对版本指向的事实摘要。新计算冻结有效来源版本，重放沿用原记录，结果指纹覆盖新非空版本集合；旧历史使用原版指纹载荷，不回填、不重签。
+
+绩效设置JSON新写格式2、兼容读取格式1，旧格式无版本信息则保持未知；旧原件重复导入不以当前版本冒充过去的解析。金融PerformanceData版本仍为1，三张表、保险库主Schema及税务/FIFO/绩效算法不改。旧二进制严格解码不支持新增字段，不承诺反向读取新资料；回退必须保留新库并按备份/恢复流程处理，不能删字段或修改版本号冒充旧数据。
+
+新增21项版本持久化检查纳入 --performance-only：实际版本/摘要绑定、事务失败回滚、指纹篡改/剥除拒绝、备份恢复、真实格式1缺字段读取、旧指纹、重放与关闭/重开。完整绩效回归通过，见 artifacts/broker-provenance-performance-regression.log；既有IBKR/FUTU金融冻结JSON未改写，技术税务前后对照2份通过（broker-provenance-tax-before-after.log）。应用层与WPF回归通过：broker-provenance-application.log、broker-provenance-wpf.log；既有68项验证正常Windows权限下通过：broker-provenance-verification-full.log。沙箱首轮63项通过、5项文件权限失败保留在 broker-provenance-verification.log，不计为验收。
+
+全解决方案Release0警告/0错误：artifacts/broker-provenance-verified-solution.log；架构门禁：broker-provenance-verified-architecture.log。未增加复杂度预算或重写金额期望。首轮兼容夹具误用默认数值枚举序列化写旧历史，已改为原Codec字符串枚举格式；不放宽生产解码。首次架构检查与WPF构建并行时读到临时csproj，最终在构建结束后复核通过。
+
+本轮关闭的是绩效版本归档与向前读取旧资料的开发缺口。税务独立历史的显式解析版本、完整类型化投资事实、跨版本投影差异及独立真实Tax/Performance金额签认仍开放；ARCH-208整项保持In Progress。未修改个人保险库或部署已安装程序。
+
+## ARCH-209后续：真实Worker进程共享与崩溃重启
+
+新增两个仅用于隔离验收的可信插件，不联网、不在查询中写状态。通过正式WorkerPluginContext及持久命令，插件A实际向共享预算提交模拟429，插件B申请同一来源被拒绝；另一市场仍可执行。使用真实Windows管道，以本次RequestId/ExecutionId跟踪完成结果，避免最近一页历史或Accepted被当作完成。
+
+真实强杀测试自有Worker进程后，以相同目录/密钥重启，再核验来源冷却截止完全相同、插件B仍被阻断、另一来源无遗留占用，服务密钥没有重建。19项通过、退出码0：artifacts/source-budget-process-final.log。使用已验证宿主心跳开发包 artifacts/worker-source-budget-recovery-verified-20261020；本轮未改生产Worker或安装服务。夹具首轮未给ManualOnly任务参数被ParametersRequired拒绝，已提供固定空对象参数，保留宿主门槛，不将首轮失败计为验收。
+
+该验证证明隔离正式宿主的跨插件共享及进程崩溃恢复，不代表SCM/LocalService安装升级、真实源站恢复或物理断电验收。十分钟有限负载 --source-budget-soak 600 已完成，实际602.61秒、19项通过、退出码0，5722次采样，队列峰值32、单来源在途峰值1，过载拒绝181676次、冷却拒绝440278次。验证八个插件均有进展、取消后五秒内排空、重启保留两市场冷却且未故障来源继续推进；网络请求为0。证据：artifacts/source-budgets-soak-600s.log 与 source-budgets-soak-600s.json。跨日容量与生产发布门槛仍开放。
+
+## 数据库替换边界补强
+
+按新增要求收拢数据库提供方耦合。共享来源预算策略改为依赖ISourceBudgetStore，由Program装配SqliteSourceBudgetStore；策略不再持有目录、密钥或创建数据库实现。存储端口以SourceBudgetState交互，Save保留原子持久提交约束，生命周期随注册表释放。运行期SQLite异常在适配器中转为IOException，内部原因保留，故障锁定与健康拒绝语义不变。Schema、密钥、事务时序和预算算法未改。
+
+新增7项替换存储检查：无数据库健康读取、冷却写入与共享拒绝、网络前预留、生命周期释放、重建后状态复用、读取失败拒绝启动及释放；内存替身不能作为另一个生产数据库的验收。原SQLCipher故障、加密与恢复回归同时通过，--source-budget合计63项，退出码0（artifacts/database-port-source-checks.log）；架构门禁新增策略和端口禁止数据库实现泄漏检查（database-port-architecture.log）。
+
+[数据库抽象与替换边界](../architecture/DATABASE_PORTABILITY.md)列明事务、幂等、精度、加密备份与迁移要求，以及绩效、任务和插件等剩余耦合。此次完成共享预算一处边界，未声称全项目已支持其他数据库；此前十分钟/进程恢复证据对应此前构建，未将其冒称为本次新适配器构建的复验。
+
+本次完整解决方案Release构建0警告/0错误：artifacts/database-port-solution.log；工作区diff空白检查通过。未更换已安装服务、未变更数据库格式或迁移个人资料。
+
+## 数据库抽象续项：Worker任务仓储异常与原子操作
+
+ITaskRepository补充原子提交、业务冲突和不透明游标契约；EncryptedTaskRepository在18个公开操作外层转换SQLite异常为IOException，内部异常保留。原SQL/锁/事务主体不变，转换位于using事务释放之后，审计记录 artifacts/task-storage-operation-audit.json 核对18个原操作主体忽略缩进后完全一致。BackgroundRuntime移除具体SQLite引用；尚未收拢的插件持久化异常以BCL DbException兼容分类，保留原失败关闭行为，不能宣称全项目业务层均已无数据库异常依赖。
+
+新增专项 --task-storage-boundary 共30项、退出码0：真实SQLCipher注入验证Save的计划修订/取消/回执共同回滚、Begin执行与占用共同回滚、End结果/退避/回执共同回滚，业务冲突/参数错误不误转存储故障，真实读取失败后健康仍可查询（12项）；原四类故障保护分别验证IO及通用数据库异常（18项）。日志 artifacts/task-storage-boundary-checks.log。使用隔离库和内存加载的测试插件，不联网、不修改个人资料或已安装服务；未将通用异常夹具当成其他数据库实测。
+
+本次完整解决方案Release构建0警告/0错误：artifacts/task-storage-boundary-solution.log。仓储操作主体审计覆盖18个公开方法，不能据此替代真实数据库故障检查。
+
+最终架构门禁通过（task-storage-boundary-architecture.log），含新增后台运行规则/任务仓储提供方边界；共享来源预算回归63项全部通过（task-storage-source-regression.log），退出码0。工作区空白检查通过。

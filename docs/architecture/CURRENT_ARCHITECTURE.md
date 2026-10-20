@@ -106,7 +106,7 @@ NationalTeam插件业务DTO现由Core的`EtfBusinessProtocol`独立管理V1版�
 可信后台插件超出协作取消收尾期后，Catalog进入需要进程重启的终止状态；不再分派或释放仍被使用的会话。Worker健康返回PluginUnresponsive并拒绝新工作，Service继续使用既有退出码2策略。生命周期日志带插件ID/阶段和异常分类，不写异常消息；此机制不构成进程隔离。详见[ARCH-207续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。
 
 
-IBKR税务/绩效/现金对账/账号展示通过统一`IbkrSourceReader`消费Application不可变`BrokerSourceDocument`；证券流水同步绩效传递实际来源快照，不重复解析。投影与算法仍独立，版本持久化及完整类型化投资事实尚未关闭，见[共享来源事实](BROKER_SOURCE_FACTS.md)。
+IBKR税务/绩效/现金对账/账号展示通过统一`IbkrSourceReader`消费Application不可变`BrokerSourceDocument`；证券流水同步绩效传递实际来源快照，不重复解析。投影与算法仍独立；绩效导入及新历史已保存读取/投影版本，设置JSON写2、读1，税务独立历史版本和完整类型化投资事实尚未关闭，见[共享来源事实](BROKER_SOURCE_FACTS.md)。
 
 
 ## ARCH-209宿主共享来源预算（2026-10-20）
@@ -115,3 +115,9 @@ Worker组合根唯一创建来源注册表，通过可选BCL端口绑定插件�
 
 
 ARCH-209后续：新增来源状态启动前校验；已初始化库缺表、损坏日期、失败计数越界及未知版本拒绝启动。来源存储异常后，Worker健康仍返回可读StorageFault，来源快照为null，不返回空来源或Ready；新增执行与插件查询继续失败关闭。库版本仍为1，本次不更改金融Schema、密钥域或服务运行标识。有限持续负载入口与最终证据见[共享来源预算](SHARED_SOURCE_BUDGETS.md)及[续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)，跨日与实际部署门槛仍开放。
+
+## 数据库替换约束
+
+业务层通过仓储端口操作业务对象；连接、事务、SQL方言、迁移与加密备份留在具体存储实现。共享来源预算已以ISourceBudgetStore注入，Program装配SqliteSourceBudgetStore，预算规则不再创建数据库。当前仍为SQLite/SQLCipher，其他模块的剩余耦合与迁移验收见[数据库抽象与替换边界](DATABASE_PORTABILITY.md)。
+
+Worker任务仓储的运行期SQLite异常现由适配器转为IO故障；BackgroundRuntime不再引用具体SQLite类型，插件遗留异常暂以通用DbException兼容。ITaskRepository明确原子提交与游标边界，数据库迁移仍按上述规范独立验收。

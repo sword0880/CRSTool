@@ -9,7 +9,7 @@ using QRCoder;
 namespace CRS.Infrastructure;
 
 /// <summary>主密码恢复或本机受保护槽建立受限上下文；手机验证成功后才发布业务仓储。</summary>
-public sealed partial class VaultManager
+internal sealed partial class SqlCipherVaultBackend
 {
     private VaultSession? pending;
     private long pendingStarted;
