@@ -19,6 +19,30 @@ internal static class Program
  private static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
  private static async Task Run(string[] args)
  {
+  if(args is ["--load-probe",var directory,"--host-assemblies",var hostDirectory])
+  {
+   // 复现桌面默认上下文先加载共享依赖的顺序，不能只验证测试程序自带的依赖。
+   foreach(var name in new[]{"CRS.Worker.Abstractions.dll","CRS.Worker.Ipc.dll"})
+   {
+    var path=Path.GetFullPath(Path.Combine(hostDirectory,name));
+    if(File.Exists(path))System.Runtime.Loader.AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
+   }
+   args=["--load-probe",directory];
+  }
+  if(args is ["--load-probe",var pluginDirectory])
+  {
+   var isolated=Path.Combine(Path.GetTempPath(),"CRS-plugin-load-probe",Guid.NewGuid().ToString("N"));
+   await using var probe=new PluginRuntime(Path.GetFullPath(pluginDirectory),isolated);
+   await probe.StartAsync();
+   foreach(var status in probe.Statuses)Console.WriteLine($"{status.Id}: {status.State};version={status.Version};error={status.Error};detail={status.Failure}");
+   Check(probe.Statuses.Count>0&&probe.Statuses.All(x=>x.State==PluginState.Started),"可信包经真实宿主加载并启动");
+   foreach(var page in probe.Pages)
+   {
+    var view=page.Contribution.CreateView();view.Measure(new Size(1200,800));view.Arrange(new Rect(0,0,1200,800));view.UpdateLayout();
+    Check(view.ActualWidth>0&&view.ActualHeight>0,"页面构造及布局 "+page.Route);
+   }
+   return;
+  }
   var root=Path.Combine(Path.GetTempPath(),"CRS-host-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
   await using(var empty=new PluginRuntime(root,Path.Combine(root,"storage"))) {await empty.StartAsync();Check(empty.Pages.Count==0,"Tax-only no-plugin startup");}
   // 用同名目录阻止临时配置文件创建，保存失败必须保留原来的内存设置。

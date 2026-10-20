@@ -68,19 +68,17 @@ public sealed partial class MarketRepository : IMarketRepository
             CREATE TABLE IF NOT EXISTS evidence_integrity_event(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL,event TEXT NOT NULL,checked_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS sync_checkpoint(fetch_id TEXT PRIMARY KEY,status TEXT NOT NULL,accepted_count INTEGER NOT NULL);
             INSERT OR IGNORE INTO institution VALUES('huijin-investment','中央汇金投资有限责任公司'),('huijin-asset','中央汇金资产管理有限责任公司');
-            INSERT OR IGNORE INTO security_master VALUES('SSE','510300','华泰柏瑞沪深300ETF','CSI300'),('SSE','510050','华夏上证50ETF','SSE50'),('SSE','588000','华夏科创50ETF','STAR50'),('SZSE','159919','嘉实沪深300ETF','CSI300'),('SZSE','159915','易方达创业板ETF','ChiNext');
-            INSERT OR IGNORE INTO watchlist_membership SELECT s.market,s.ticker,1,'初始数据链路验证','DataPilot',NULL FROM security_master s WHERE NOT EXISTS(SELECT 1 FROM watchlist_membership w WHERE w.market=s.market AND w.ticker=s.ticker);
             PRAGMA user_version=2;
             """);
         Execute("INSERT OR IGNORE INTO plugin_schema_migration VALUES(2,$now,'2.0.0')", ("$now", Now));
         // 内置观察候选默认全部监控；已有用户停用/修改仍由明确配置命令控制，不在重启时覆盖。
         using var seed=db.BeginTransaction();
         Execute("INSERT OR IGNORE INTO etf_configuration_version SELECT market,ticker,0,'原有配置' FROM security_master");
-        foreach(var item in ReferenceEtfDirectory.Entries)
+        foreach(var item in InitialEtfDirectory.Entries)
         {
             Execute("INSERT OR IGNORE INTO security_master VALUES($m,$t,$name,$index)",("$m",item.Market),("$t",item.Ticker),("$name",item.Name),("$index",item.Index));
             Execute("INSERT OR IGNORE INTO watchlist_membership VALUES($m,$t,1,'默认观察候选，名称和指数待核验','DataPilot',NULL)",("$m",item.Market),("$t",item.Ticker));
-            Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,'参考目录（待核验）')",("$m",item.Market),("$t",item.Ticker));
+            Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,$origin)",("$m",item.Market),("$t",item.Ticker),("$origin",InitialEtfDirectory.Origin));
         }
         seed.Commit();InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();
     }
@@ -270,14 +268,7 @@ public sealed partial class MarketRepository : IMarketRepository
     private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false)
     {
         var bad=new List<string>();var good=new List<string>();
-        var verified=new Dictionary<string,bool>(StringComparer.Ordinal);
-        bool Verify(string hash)
-        {
-            operationCancellation.ThrowIfCancellationRequested();
-            if(!verified.TryGetValue(hash,out var valid))verified[hash]=valid=raw.Verify(hash);
-            operationCancellation.ThrowIfCancellationRequested();
-            return valid;
-        }
+        var fetches=new List<(string Id,string Hash,string Original)>();
         using(var command=Command("""
             SELECT fetch_id,sha256,original_sha256 FROM source_fetch
             WHERE $market IS NULL OR fetch_id IN(SELECT fetch_id FROM share_observation_revision WHERE market=$market AND ticker=$ticker)
@@ -287,10 +278,15 @@ public sealed partial class MarketRepository : IMarketRepository
         using(var reader=command.ExecuteReader())
             while(reader.Read())
             {
-                var id=reader.GetString(0);
-                if(!Verify(reader.GetString(1))||!Verify(reader.GetString(2)))bad.Add(id);
-                else good.Add(id);
+                operationCancellation.ThrowIfCancellationRequested();
+                fetches.Add((reader.GetString(0),reader.GetString(1),reader.GetString(2)));
             }
+        var verified=raw.VerifyMany(fetches.SelectMany(x=>new[]{x.Hash,x.Original}),operationCancellation);
+        foreach(var fetch in fetches)
+        {
+            operationCancellation.ThrowIfCancellationRequested();
+            if(!verified[fetch.Hash]||!verified[fetch.Original])bad.Add(fetch.Id);else good.Add(fetch.Id);
+        }
         return (bad,good);
     }
     /// <summary>仅由 Worker 持久后台完整性任务调用。状态变更和审计事件在单一事务中提交，重跑幂等。</summary>

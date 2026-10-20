@@ -132,3 +132,5 @@ ARCH-208税务审计补强：IBKR新年度/期初报告的TaxImportProvenance随
 Worker源码目录按职责收拢：运行规则在Runtime，来源预算在Sources，仓储接口在Persistence、SQLCipher实现位于Persistence/SqlCipher；宿主上下文、安全、通知、日志及升级分别归Hosting/Security/Notifications/Diagnostics/Deployment。目录调整不改变命名空间或运行标识，详见[目录说明](../../src/CRS.Worker.Service/README.md)。
 2026-10-20：公共通知新增钉钉加签机器人及个人微信PushPlus适配器，经管理员IPC配置，WPF仅保留表单；见 [通知渠道边界](NOTIFICATION_CHANNELS.md)。配置默认关闭，尚无真实通道送达验收。
 IPC分段超时、旧构造器兼容及市场质量状态索引已落地验收；相关服务维护代次与品牌区布局见[修复记录](../implementation/IPC_EOF_BRAND_HEADER_20261020.md)。该实际部署保留原宿主实现，共享来源预算部署状态不能由此推定完成。
+桌面国家队插件StartAsync只建立展示模型；首次ETF数据查询由页面Loaded触发并在会话内共享初始任务，不占用宿主15秒启动期限。数据读取失败不撤销已注册页面，页面仍允许手动重试；后台查询期限和金融证据校验不变。
+ETF默认目录由纯领域InitialEtfDirectory统一维护，数据库适配器幂等落库，不覆盖用户配置；页面先读配置再读份额。原件批校验在释放读取器后最多四路访问只读文件句柄，数据库连接始终留在应用串行门槛内，不跨查询缓存完整性结论。详见[目录与份额加载](../implementation/ETF_DIRECTORY_AND_SHARE_LOADING_20261021.md)。

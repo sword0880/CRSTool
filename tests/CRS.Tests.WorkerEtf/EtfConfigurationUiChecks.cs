@@ -26,7 +26,7 @@ internal static class EtfConfigurationUiChecks
             {
                 try
                 {
-                    await model.RefreshCommand.ExecuteAsync(null);
+                    await model.EnsureInitializedAsync();
                     if(model.Rows.Count==0 || model.ChartStatus.Contains("失败") || model.MarketActivityStatus.Contains("失败"))throw new InvalidOperationException("实际服务初始化查询失败："+model.ChartStatus+"；"+model.MarketActivityStatus);
                     var grid=(DataGrid)page.FindName("OverviewGrid");
                     foreach(var row in model.Rows)
@@ -67,7 +67,7 @@ internal static class EtfConfigurationUiChecks
             {
                 try
                 {
-                    await model.RefreshCommand.ExecuteAsync(null);
+                    await model.EnsureInitializedAsync();
                     if(model.Configurations.Count<24)throw new InvalidOperationException("配置目录没有加载完整。");
                     var tabs=Find<TabControl>(page)!;tabs.SelectedIndex=1;window.UpdateLayout();
                     model.ConfigurationSearch="510500";

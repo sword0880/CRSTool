@@ -36,7 +36,29 @@ IPC改为分段期限：收帧5秒、控制层处理默认20秒、回响应3秒�
 
 最终实际页面刷新链路亦通过：概览24只/8318ms、配置24项、历史434行、成交统计38行，整链路41034ms（overview-installed-refresh-acceptance.log）。没有再断流或触发15秒单查询期限；整页仍需约41秒，不能称为即时刷新。全过程为只读，不触发采集、写入或测试通知；行数不代表覆盖完整或机构持仓已确认。
 
-## 左上品牌区
+## 2026-10-21：插件启动取消与页面刷新分离
+
+用户随后报告等待管道响应时的TaskCanceledException。源码确认：NationalTeamUiSession.StartAsync等待完整刷新，而桌面PluginRuntime只允许15秒启动；此前41034ms验收直接调用workspace，没有经过桌面插件启动，不能证明桌面启动链路通过。启动超时后宿主清理会取消会话，传播到Framing.ReadFrameAsync。该堆栈也可能来自手动取消或锁定，单凭异常类型不能确定实际触发源。
+
+改为StartAsync只建立模型和注册页面，首次数据查询由EtfPage.Loaded触发；同一模型共享首次刷新任务，重复导航不会重复发起初始查询，失败后仍可手动重试。未延长宿主启动期限或通信期限，后台查询及原件核验保持原有要求。Visual Studio在异常“引发时”可能先停在底层读取，随后界面按既有取消分支处理；不通过全局吞异常或关闭诊断来修复。
+
+新增`CRS.Tests.WorkerEtf --startup-ui`验证真实会话不等待后台启动、导航注册、首次加载共享任务，以及受控查询超过15秒后仍未被启动超时取消、失败提示和手动重试。`--ipc-boundaries`增加“请求已发送、等待响应期间取消”检查。测试使用隔离替身，不代表真实数据刷新耗时已经缩短，41秒的性能续项仍开放。
+
+本轮7项启动回归、12项管道边界与架构门禁通过，Release构建零警告/错误。开发包`artifacts/etf-startup-desktop-20261021`已同步Debug/Release，每份52个插件文件与信任清单逐项哈希一致；重启桌面后加载。本轮仅更新桌面开发输出，未重新部署后台服务。
+
+实际只读后台复核首轮概览在15364ms失败（`artifacts/etf-startup-installed-refresh.log`），说明后台慢查询仍可能碰到独立查询期限，不能用启动修复宣称后台性能问题已关闭。探针另增加各数据集计时与安全错误码，继续保留失败证据。启动与管道回归日志分别为`etf-startup-checks.log`、`etf-startup-pipe-checks.log`。
+
+分阶段复核第二轮概览24只/10582ms、配置24项/13ms成功；历史读取约15027ms后返回PluginQueryFailed，总耗时25622ms（`etf-startup-installed-refresh-detailed.log`）。现有后台宿主会将插件内部取消归并为该通用类别，约15秒与插件调用期限相符，但该探针未提供后台内部阶段耗时，尚不能把根因确定为原件扫描、SQL或历史计算。两次失败均保留，未自动重试掩盖问题。
+
+## 2026-10-21：ETF插件加载专项复核
+
+用户继续报告ETF插件异常无法加载。新增独立进程`CRS.Tests.PluginHost --load-probe`，通过真实PluginRuntime读取工作区Debug/Release的可信插件包，并依次完成包校验、默认上下文加载、会话启动、导航注册及两张页面的XAML构造/布局；两种配置均显示crs.national-team 2.0.0为Started。预载对应桌面输出CRS.Worker.Abstractions/CRS.Worker.Ipc后再次核验，Debug/Release均通过。所有存储为新建隔离目录，不打开真实保险库，不显示窗口，不触发Loaded或后台查询。
+
+本机插件disabled.json为[]；现有桌面日志未记录本次加载失败类别，进程清单未发现正在运行的CRS.Desktop.Wpf.exe。因此当前磁盘包未复现加载故障，不能在缺少用户界面错误类别时断言根因，也不能把后台历史读取失败归为插件包加载失败。前述15秒启动期限修复已在开发输出中，重新启动桌面后加载。验证日志见`artifacts/etf-plugin-load-debug.log`、`etf-plugin-load-release.log`、`etf-plugin-load-debug-host.log`、`etf-plugin-load-release-host.log`。
+
+## 左上品牌区（布局与交付）
+
+2026-10-21后续：ETF清单先读取、24只初始化目录及原件读取优化已完成实际维护更新，完整刷新当前实测24187ms；详细基准、目录重建和部署证据见[目录与份额加载](ETF_DIRECTORY_AND_SHARE_LOADING_20261021.md)。以上41秒及15秒失败记录保留为修复前现场，不代表当前新版本本轮验收状态。
 
 保留交付说明指定的现有图标、产品名“小财牛”及口号“财富有数，投资有度”。品牌区与206px展开侧栏对齐，34px图标旁使用名称18px/口号10.5px的两行布局，移除口号跨至内容区的绝对偏移。标题栏拖动、窗口控制及导航行为不变。
 

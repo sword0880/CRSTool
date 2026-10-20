@@ -69,6 +69,17 @@ internal static class PipeBoundaryChecks
             var reply=await new BackgroundPipeClient(name).SendAsync(new(WorkerProtocol.Version,id,"GetHealth"));await peer;
             Check(reply.Code=="Ok","分片到单字节的完整帧仍正确重组");
         }
+        name="CRS.PipeCancelRead."+Guid.NewGuid().ToString("N");
+        await using(var server=new NamedPipeServerStream(name,PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous))
+        using(var cancel=new CancellationTokenSource())
+        {
+            var received=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var peer=Task.Run(async()=>{await server.WaitForConnectionAsync();await ReadRequest(server);received.SetResult();});
+            var pending=new BackgroundPipeClient(name).QueryAsync("GetHealth",cancel.Token);
+            await received.Task.WaitAsync(TimeSpan.FromSeconds(5));await peer;cancel.Cancel();
+            try{await pending;throw new Exception("等待响应时取消未传播");}
+            catch(OperationCanceledException error){Check(cancel.IsCancellationRequested&&error.CancellationToken.IsCancellationRequested,"已提交请求等待响应时调用方取消正常传播，可由界面处理");}
+        }
         using(var cancel=new CancellationTokenSource())
         {
             cancel.Cancel();try{await new BackgroundPipeClient("unused").QueryAsync("GetHealth",cancel.Token);throw new Exception("取消未传播");}

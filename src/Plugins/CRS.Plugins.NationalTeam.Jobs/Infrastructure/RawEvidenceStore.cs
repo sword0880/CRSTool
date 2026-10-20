@@ -58,8 +58,28 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null) : IRa
     {
         if (hash.Length != 64 || !hash.All(Uri.IsHexDigit)) return false;
         var path = Path.Combine(root, hash + ".raw");
-        if (!File.Exists(path)) return false;
-        if(new FileInfo(path).Length>8*1024*1024)return false;
-        using var stream = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(stream)) == hash;
+        try
+        {
+            // 在同一个只读句柄上检查大小并校验，避免每份原件重复查询目录和文件信息。
+            using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,4096,FileOptions.SequentialScan);
+            return stream.Length<=8*1024*1024 && Convert.ToHexString(SHA256.HashData(stream))==hash;
+        }
+        catch(FileNotFoundException){return false;}
+        catch(DirectoryNotFoundException){return false;}
+    }
+    /// <summary>仅本次操作共享结果；最多四个只读句柄并行，下一次查询仍重新校验全部原件。</summary>
+    public IReadOnlyDictionary<string,bool> VerifyMany(IEnumerable<string> hashes,CancellationToken token)
+    {
+        var results=new System.Collections.Concurrent.ConcurrentDictionary<string,bool>(StringComparer.Ordinal);
+        var failures=new System.Collections.Concurrent.ConcurrentQueue<Exception>();
+        Parallel.ForEach(hashes.Distinct(StringComparer.Ordinal),new ParallelOptions{MaxDegreeOfParallelism=4,CancellationToken=token},(hash,state)=>
+        {
+            try{token.ThrowIfCancellationRequested();results[hash]=Verify(hash);}
+            catch(Exception error) when(error is IOException or UnauthorizedAccessException)
+            {failures.Enqueue(error);state.Stop();}
+        });
+        token.ThrowIfCancellationRequested();
+        if(failures.TryDequeue(out var failure))System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        return results;
     }
 }

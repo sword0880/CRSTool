@@ -55,6 +55,9 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     [ObservableProperty] private string indexGroup="";
     [ObservableProperty] private string reason="";
     private CancellationTokenSource? operation;
+    private Task? initialRefresh;
+    /// <summary>同一会话的首次页面加载共享刷新任务，导航重建视图不会重复查询。</summary>
+    public Task EnsureInitializedAsync()=>initialRefresh??=RefreshCommand.ExecuteAsync(null);
     private int selectionVersion;
     // 研究日期以北京时间为准，不依赖电脑的本地时区。
     private static DateTime MarketToday=>TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").Date;
@@ -109,7 +112,9 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     }
     public async Task RefreshAsync(CancellationToken token)
     {
-        var rows=await workspace.OverviewAsync(token);await RefreshConfigurationAsync(token); token.ThrowIfCancellationRequested();
+        await RefreshConfigurationAsync(token);
+        Status=$"ETF清单已读取 {Configurations.Count} 项，正在读取份额概览…";
+        var rows=await workspace.OverviewAsync(token);token.ThrowIfCancellationRequested();
         var selectedKey=Selected is {} current?new EtfKey(current.Market,current.Ticker):null;
         refreshingRows=true;
         Selected=null;SelectedEvidence=null;InvalidateCoverage();CoverageStatus="本地数据已刷新，请重新查询ETF覆盖率。";

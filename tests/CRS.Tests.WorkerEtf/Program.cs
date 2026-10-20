@@ -10,6 +10,19 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
+if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
+if(args is ["--initial-directory"]){InitialEtfDirectoryChecks.Run();return;}
+if(args is ["--raw-batch"]){RawEvidenceReadChecks.Run();return;}
+if(args is ["--raw-read-profile",var rawRoot]){RawEvidenceReadChecks.Profile(rawRoot);return;}
+if(args is ["--installed-directory-probe"])
+{
+    var entries=await new WorkerEtfWorkspace().ConfigurationAsync(default);
+    var expected=CRS.Plugins.NationalTeamWatch.Domain.InitialEtfDirectory.Entries.Select(x=>(x.Market,x.Ticker)).ToHashSet();
+    var found=entries.Select(x=>(x.Market,x.Ticker)).ToHashSet();
+    Console.WriteLine($"实际ETF配置只读核验：rows={entries.Count};missingInitial={expected.Except(found).Count()};active={entries.Count(x=>x.Active)}");
+    if(expected.Except(found).Any())Environment.ExitCode=1;
+    return;
+}
 if(args is ["--storage-providers"]){await PluginStorageProviderChecks.RunAsync();return;}
 if(args is ["--source-budget"]){await SourceBudgetChecks.RunAsync();return;}
 if(args is ["--source-budget-soak",var soakSeconds]){await SourceBudgetSoakChecks.RunAsync(int.Parse(soakSeconds,System.Globalization.CultureInfo.InvariantCulture));return;}
@@ -60,13 +73,20 @@ if(args is ["--installed-overview-probe"] or ["--installed-refresh-probe"])
         Console.WriteLine($"PASS 已安装服务概览只读查询：rows={rows.Count};elapsedMs={timer.ElapsedMilliseconds}");
         if(args[0]=="--installed-refresh-probe")
         {
-            var configuration=await workspace.ConfigurationAsync(default);
-            var history=await workspace.HistoryAsync(null,default);
-            var activity=await workspace.MarketActivityAsync(default);
+            var phase=Stopwatch.StartNew();var configuration=await workspace.ConfigurationAsync(default);
+            Console.WriteLine($"PASS 只读配置：rows={configuration.Count};elapsedMs={phase.ElapsedMilliseconds}");
+            phase.Restart();var history=await workspace.HistoryAsync(null,default);
+            Console.WriteLine($"PASS 只读历史：rows={history.Count};elapsedMs={phase.ElapsedMilliseconds}");
+            phase.Restart();var activity=await workspace.MarketActivityAsync(default);
+            Console.WriteLine($"PASS 只读成交统计：rows={activity.Count};elapsedMs={phase.ElapsedMilliseconds}");
             Console.WriteLine($"PASS 已安装服务页面刷新只读查询：configuration={configuration.Count};history={history.Count};activity={activity.Count};elapsedMs={timer.ElapsedMilliseconds}");
         }
     }
-    catch(Exception error){Console.WriteLine($"FAIL 已安装服务概览只读查询：category={error.GetType().Name};elapsedMs={timer.ElapsedMilliseconds}");Environment.ExitCode=1;}
+    catch(Exception error)
+    {
+        var detail=error is BackgroundServiceException service?service.Code:error is InvalidDataException?error.Message:error.GetType().Name;
+        Console.WriteLine($"FAIL 已安装服务只读查询：category={error.GetType().Name};detail={detail};elapsedMs={timer.ElapsedMilliseconds}");Environment.ExitCode=1;
+    }
     return;
 }
 if(args is ["--installed-chart-ui"]){EtfConfigurationUiChecks.RunInstalled();return;}
