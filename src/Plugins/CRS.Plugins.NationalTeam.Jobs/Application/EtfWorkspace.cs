@@ -169,6 +169,8 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         }
         repository!.RecordCollection(attempt,failure.State,failure.Reason,fetch);
     }
+    /// <summary>后台独占写路径：统一核验原件、协调质量问题与证据事件。</summary>
+    public Task ReconcileEvidenceIntegrityAsync(CancellationToken token)=>RunAsync(()=>{repository!.ReconcileEvidenceIntegrity();return true;},token);
     public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>RunAsync(()=>repository!.Evidence(),token);
     public Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.Evidence(key),token);
     public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>RunAsync(()=>repository!.History(key),token);

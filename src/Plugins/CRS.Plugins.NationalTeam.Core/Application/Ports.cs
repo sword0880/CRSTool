@@ -58,6 +58,8 @@ public interface IMarketRepository : IDisposable
     bool EquityReportCommandComplete(Guid id)=>false;
     List<EquityDisclosure> EquityDisclosures(EtfKey key)=>throw new NotSupportedException();
     void ReviewEquity(EquityReview review,byte[] document,Guid? commandId=null)=>throw new NotSupportedException();
+    /// <summary>仅后台完整性作业执行持久状态协调；读查询不得调用。</summary>
+    void ReconcileEvidenceIntegrity()=>throw new NotSupportedException();
     List<EvidenceRow> Evidence();
     /// <summary>生产仓储在查询时过滤证券；默认实现供已有隔离夹具兼容。</summary>
     List<EvidenceRow> Evidence(EtfKey key)=>Evidence().Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker).ToList();

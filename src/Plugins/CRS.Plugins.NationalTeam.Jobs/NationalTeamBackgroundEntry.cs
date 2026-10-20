@@ -44,6 +44,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
 
     /// <summary>默认仅自动采集，审核和池变更只接受管理员的持久手动命令。</summary>
     public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>[
+        new("evidence-integrity","证据完整性巡检","0 0/5 * * * ?","China Standard Time",true,true),
         new("official-share-sync","官方ETF份额同步","0 15 23 * * ?","China Standard Time",true,true),
         new("market-activity-sync","沪深股票成交统计同步","0 30 23 * * ?","China Standard Time",true,true),
         new("official-calendar-sync","官方交易日历核验","0 5 23 * * ?","China Standard Time",true,true),
@@ -83,7 +84,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             var request=payload is null?new EtfRequest("sync"):Parse(payload);
             switch(jobId)
             {
+                case "evidence-integrity" when request.Operation is "sync" or "integrity":
+                    await workspace!.ReconcileEvidenceIntegrityAsync(token);
+                    return BackgroundJobResult.Success("integrity=Reconciled");
                 case "alert-evaluate" when request.Operation is "sync" or "alert-evaluate":
+                    await workspace!.ReconcileEvidenceIntegrityAsync(token);
                     await workspace!.EvaluateAlertsAsync(request.Operation=="alert-evaluate",token);
                     return await DispatchAlertNotificationsAsync(token);
                 case "alert-manage":

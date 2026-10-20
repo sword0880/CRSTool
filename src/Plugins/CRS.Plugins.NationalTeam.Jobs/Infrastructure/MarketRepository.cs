@@ -251,36 +251,64 @@ public sealed partial class MarketRepository : IMarketRepository
             """,("$m",key.Market),("$t",key.Ticker)); using var reader=command.ExecuteReader(); var rows=new List<SharePoint>();
         while(reader.Read()) rows.Add(new(DateOnly.ParseExact(reader.GetString(0),"yyyy-MM-dd",CultureInfo.InvariantCulture),decimal.Parse(reader.GetString(1),CultureInfo.InvariantCulture),null,reader.GetString(2))); return rows;
     }
+    /// <summary>纯只读完整性核验：发现未受信原件时拒绝返回可能误导的金融结果，不修改质量状态。</summary>
     private void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false)
     {
-        // 核验缓存只在本次查询内有效；重复抓取共用哈希只读取一次，下次刷新重新检查。
+        var (bad,_) = ScanEvidence(shareKey,includeCalendar);
+        if(bad.Count>0)throw new InvalidDataException("Evidence integrity failure; background reconciliation required.");
+    }
+    /// <summary>读取原始字节和规范化字节的哈希；仅在本次操作中缓存相同哈希的结果。</summary>
+    private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false)
+    {
         var bad=new List<string>();var good=new List<string>();
         var verified=new Dictionary<string,bool>(StringComparer.Ordinal);
         bool Verify(string hash)
-        {operationCancellation.ThrowIfCancellationRequested();if(!verified.TryGetValue(hash,out var valid))verified[hash]=valid=raw.Verify(hash);operationCancellation.ThrowIfCancellationRequested();return valid;}
-        // 单只份额/证据查询只读取其依赖的原件；全池查询和写入审核仍沿原来的完整核验。
+        {
+            operationCancellation.ThrowIfCancellationRequested();
+            if(!verified.TryGetValue(hash,out var valid))verified[hash]=valid=raw.Verify(hash);
+            operationCancellation.ThrowIfCancellationRequested();
+            return valid;
+        }
         using(var command=Command("""
             SELECT fetch_id,sha256,original_sha256 FROM source_fetch
             WHERE $market IS NULL OR fetch_id IN(SELECT fetch_id FROM share_observation_revision WHERE market=$market AND ticker=$ticker)
             OR ($calendar=1 AND (fetch_id IN(SELECT fetch_id FROM trading_day WHERE market=$market)
                 OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day WHERE market=$market)))
             """,("$market",shareKey?.Market),("$ticker",shareKey?.Ticker),("$calendar",includeCalendar?1:0)))
-        using(var reader=command.ExecuteReader()) while(reader.Read())
-            if(!Verify(reader.GetString(1)) || !Verify(reader.GetString(2))) bad.Add(reader.GetString(0));else good.Add(reader.GetString(0));
-        if(bad.Count>0)beforeWrite?.Invoke();
-        foreach(var id in bad)
-        {
-            operationCancellation.ThrowIfCancellationRequested();
-            if(Scalar("SELECT status FROM quality_issue WHERE id=$id",("$id","raw-"+id)) as string!="Open")Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'Damaged',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));
-            Execute("INSERT INTO quality_issue VALUES($issue,'Q15','1',$id,'Critical','Open',$id,NULL,NULL) ON CONFLICT(id) DO UPDATE SET status='Open',reviewer=NULL,decision_time=NULL",("$issue","raw-"+id),("$id",id));
-        }
-        // 仅原始和标准化字节都恢复到原哈希时解除阻断，保留异常记录及恢复时间。
-        // 一次读取待恢复问题集合；不能为每份健康原件单独发起SQL，避免历史增长后阻塞采集和查询。
+        using(var reader=command.ExecuteReader())
+            while(reader.Read())
+            {
+                var id=reader.GetString(0);
+                if(!Verify(reader.GetString(1))||!Verify(reader.GetString(2)))bad.Add(id);
+                else good.Add(id);
+            }
+        return (bad,good);
+    }
+    /// <summary>仅由 Worker 持久后台完整性任务调用。状态变更和审计事件在单一事务中提交，重跑幂等。</summary>
+    public void ReconcileEvidenceIntegrity()
+    {
+        var (bad,good)=ScanEvidence();
         var openIssues=new HashSet<string>(StringComparer.Ordinal);
         using(var command=Command("SELECT id FROM quality_issue WHERE rule_id='Q15' AND status='Open'"))
         using(var reader=command.ExecuteReader())while(reader.Read())openIssues.Add(reader.GetString(0));
-        foreach(var id in good.Where(id=>openIssues.Contains("raw-"+id)))
-        {operationCancellation.ThrowIfCancellationRequested();beforeWrite?.Invoke();Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'RestoredOriginalHash',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));Execute("UPDATE quality_issue SET status='Resolved',reviewer='SHA256-reverified',decision_time=$now WHERE id=$id",("$now",Now),("$id","raw-"+id));}
+        var damaged=bad.Where(id=>!openIssues.Contains("raw-"+id)).ToArray();
+        var restored=good.Where(id=>openIssues.Contains("raw-"+id)).ToArray();
+        if(damaged.Length==0&&restored.Length==0)return;
+        beforeWrite?.Invoke();
+        using var transaction=db.BeginTransaction();
+        foreach(var id in damaged)
+        {
+            operationCancellation.ThrowIfCancellationRequested();
+            Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'Damaged',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));
+            Execute("INSERT INTO quality_issue VALUES($issue,'Q15','1',$id,'Critical','Open',$id,NULL,NULL) ON CONFLICT(id) DO UPDATE SET status='Open',reviewer=NULL,decision_time=NULL",("$issue","raw-"+id),("$id",id));
+        }
+        foreach(var id in restored)
+        {
+            operationCancellation.ThrowIfCancellationRequested();
+            Execute("INSERT INTO evidence_integrity_event VALUES($event,$id,'RestoredOriginalHash',$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$now",Now));
+            Execute("UPDATE quality_issue SET status='Resolved',reviewer='SHA256-reverified',decision_time=$now WHERE id=$id",("$now",Now),("$id","raw-"+id));
+        }
+        MarkAlertPending();operationCancellation.ThrowIfCancellationRequested();transaction.Commit();
     }
     public List<EtfSummary> Overview()
     {
