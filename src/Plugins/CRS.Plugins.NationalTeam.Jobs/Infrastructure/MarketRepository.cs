@@ -255,7 +255,14 @@ public sealed partial class MarketRepository : IMarketRepository
     private void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false)
     {
         var (bad,_) = ScanEvidence(shareKey,includeCalendar);
-        if(bad.Count>0)throw new InvalidDataException("Evidence integrity failure; background reconciliation required.");
+        if(bad.Count==0)return;
+        // 已由后台作业标记 Q15 的原件交给各只读查询的现有 SQL 过滤/标红；
+        // 后台尚未登记的新损坏必须失败关闭，不能在查询时偷偷写状态。
+        var blocked=new HashSet<string>(StringComparer.Ordinal);
+        using(var query=Command("SELECT evidence_id FROM quality_issue WHERE rule_id='Q15' AND status='Open'"))
+        using(var reader=query.ExecuteReader())while(reader.Read())blocked.Add(reader.GetString(0));
+        if(bad.Any(id=>!blocked.Contains(id)))
+            throw new InvalidDataException("Evidence integrity failure; background reconciliation required.");
     }
     /// <summary>读取原始字节和规范化字节的哈希；仅在本次操作中缓存相同哈希的结果。</summary>
     private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false)

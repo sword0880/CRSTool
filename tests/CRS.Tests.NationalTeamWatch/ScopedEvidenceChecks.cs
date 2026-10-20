@@ -29,8 +29,8 @@ internal static class ScopedEvidenceChecks
         try{repository.Points(key);throw new Exception("已损坏原件被读查询放行");}
         catch(InvalidDataException){Check(true,"查询核验原件损坏时拒绝返回金融数据，且不持久化状态");}
         repository.ReconcileEvidenceIntegrity();
-        try{repository.Evidence(key);throw new Exception("损坏证据被读查询放行");}
-        catch(InvalidDataException){Check(true,"受控完整性作业写入Q15后，读请求仍保持拒绝损坏数据");}
+        Check(repository.Points(key).Count==0 && repository.Evidence(key).Single().State=="Critical",
+            "受控完整性作业登记Q15后，页面可只读显示Critical且不返回损坏份额");
         Check(repository.Points(other).Single().Shares==200,"损坏证券不污染独立证券事实");
         File.WriteAllBytes(Path.Combine(rawPath,hash+".raw"),content);
         repository.ReconcileEvidenceIntegrity();
