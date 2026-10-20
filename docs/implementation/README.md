@@ -1,27 +1,23 @@
-# 当前实现
+# 实施文档
 
-描述当前代码行为、格式、限额与失败边界。测试命令和证据统一在 [验证与验收](../validation/README.md)，未完成项统一在 [当前待办](../KNOWN_ISSUES.md)。
+本目录包含**当前实现说明和有日期的专项工作记录**。先看[当前架构](../architecture/CURRENT_ARCHITECTURE.md)，再查需要的专题；历史“已通过”只代表原记录当时的测试，不等于当前发布验收。
 
-- [金额与未知值展示](AMOUNT_PRESENTATION.md)
-- [国家队ETF插件联网预览与Quartz.NET](NATIONAL_TEAM_PLUGIN_PROGRESS.md)
-- [ETF自动图表、全池汇总与市场温度](ETF_CHARTS_AND_MARKET_ACTIVITY.md)
-- [主程序计划任务与执行记录](SCHEDULED_TASKS.md)
-- [独立后台 Windows Service 心跳 POC 与安装](BACKGROUND_SERVICE.md)
-- [Worker v2 首批架构整改](WORKER_REMEDIATION.md)
-- [2026-10-16 架构整改顺序、实现与验收](ARCH_REMEDIATION_20261016.md)
-- [ETF任务迁入Worker与统一任务中心](ETF_WORKER_MIGRATION.md)
-- [备份容量与读取保护](BACKUP_CAPACITY.md)
-- [快照校验](CANONICAL_VALIDATION.md)
-- [FIFO 计算](CAPITAL_GAIN_FIFO_SPEC.md)
-- [数据库升级与程序集归档](DATABASE_UPGRADE.md)
-- [冻结结果与运行证据](FROZEN_EVIDENCE.md)
-- [富途字段映射](FUTU_FIELD_MAPPING.md)
-- [输入一致性](INPUT_CONSISTENCY.md)
-- [长任务锁定中断](LOCK_INTERRUPTION.md)
-- [敏感导出与诊断保护](SENSITIVE_EXPORT.md)
-- [默认 TOTP 与首次 Windows Hello](WINDOWS_HELLO.md)
-- [税额引擎](TAX_ENGINE_SPEC.md)
+## 常用实现规范
+
+- [全局品牌主题](BRAND_VISUAL_SYSTEM.md)
+- [FIFO 核算](CAPITAL_GAIN_FIFO_SPEC.md) · [金额显示](AMOUNT_PRESENTATION.md) · [富途字段](FUTU_FIELD_MAPPING.md)
+- [数据库升级](DATABASE_UPGRADE.md) · [备份容量](BACKUP_CAPACITY.md) · [锁定中断](LOCK_INTERRUPTION.md)
+- [计划任务](SCHEDULED_TASKS.md) · [后台服务](BACKGROUND_SERVICE.md)
+- [ETF Worker 迁移](ETF_WORKER_MIGRATION.md) · [国家队插件进展](NATIONAL_TEAM_PLUGIN_PROGRESS.md)
+- [投资绩效](PERFORMANCE_P0.md)
+
+## 整改与历史记录
+
+- [2026-10-20 架构整改续记](ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)
+- [2026-10-16 整改记录](ARCH_REMEDIATION_20261016.md)
+- [旧品牌变更记录](PRODUCT_BRAND_20261020.md)
+- [过往设置导航实现](SETTINGS_NAVIGATION_20261019.md) · [插件导航调整](PLUGIN_NAVIGATION_UI.md)
+
+其余细分专题按文件名在此目录查找，不重复维护第二份完整文件列表。进行发布判断，请查看 [待办](../KNOWN_ISSUES.md) 和 [发布验收](../validation/RELEASE_ACCEPTANCE.md)。
 
 [返回文档首页](../README.md)
-
-- [投资绩效 P0 实现与操作](PERFORMANCE_P0.md)

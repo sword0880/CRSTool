@@ -51,7 +51,7 @@ dotnet run --project tests/CRS.Tests.Verification -c Release --no-build
 窗口验证使用隔离的临时数据库，不读取真实账户历史：
 
 ```powershell
-dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --fixture D:/ATXCode/Test/CRS/tests/fixtures/ibkr_activity.xml
+dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --fixture tests/fixtures/ibkr_activity.xml
 dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --futu
 ```
 
