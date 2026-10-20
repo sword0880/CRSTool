@@ -22,14 +22,15 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     private readonly List<IBackgroundPluginSession> sessions = [];
     private readonly List<AssemblyLoadContext> contexts = [];
     private readonly List<HostedBackgroundJob> jobs = [];
+    // 查询能力独立于任务描述列表，支持零 Job 插件。
+    private readonly Dictionary<string,IBackgroundQuerySession> querySessions = new(StringComparer.Ordinal);
     private readonly List<BackgroundPluginStatus> statuses = [];
     public IReadOnlyList<HostedBackgroundJob> Jobs => jobs;
     public IReadOnlyList<BackgroundPluginStatus> Statuses => statuses;
     /// <summary>查询仅分派到已成功启动的插件，并沿用有界生命周期等待策略。</summary>
     public async Task<string> QueryAsync(string plugin,string payload,CancellationToken token)
     {
-        var session=jobs.FirstOrDefault(x=>x.PluginId==plugin)?.Session as IBackgroundQuerySession
-            ??throw new ArgumentException("插件不支持查询。");
+        if(!querySessions.TryGetValue(plugin,out var session))throw new ArgumentException("插件不支持查询。");
         string result="";await InvokeAsync(async cancellation=>result=await session.QueryAsync(payload,cancellation),token);
         if(System.Text.Encoding.UTF8.GetByteCount(result)>48000)throw new InvalidDataException("业务查询响应超限。");
         return result;
@@ -38,6 +39,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     public void Quarantine(string pluginId, string errorCode)
     {
         jobs.RemoveAll(x => x.PluginId == pluginId);
+        querySessions.Remove(pluginId);
         statuses.RemoveAll(x => x.PluginId == pluginId);
         statuses.Add(new(pluginId, "Failed", errorCode));
     }
@@ -98,6 +100,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
                 if (!ValidId(descriptor.JobId) || descriptor.Name.Length > 100) throw new InvalidDataException("任务标识错误。");
                 jobs.Add(new(package.Id, descriptor, session, maximumConcurrency));
             }
+            if(session is IBackgroundQuerySession querySession)querySessions.Add(package.Id,querySession);
             statuses.Add(new(package.Id, "Started"));
             }
             catch (PluginLifecycleTimeoutException) { throw; }
@@ -106,6 +109,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             {
                 // 单个包损坏或初始化失败只隔离该插件，保持其它可信任务可用。
                 jobs.RemoveAll(x => x.PluginId == package.Id);
+                querySessions.Remove(package.Id);
                 if (session is not null)
                 {
                     try { await CleanupAsync(session, token); }
@@ -201,7 +205,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             catch (PluginLifecycleTimeoutException) { throw; }
             catch (Exception error) { failures.Add(error); }
         }
-        sessions.Clear(); jobs.Clear();
+        sessions.Clear(); jobs.Clear();querySessions.Clear();
         foreach (var context in contexts) context.Unload();
         contexts.Clear();
         if (failures.Count != 0) throw new AggregateException("后台插件释放存在异常。", failures);
