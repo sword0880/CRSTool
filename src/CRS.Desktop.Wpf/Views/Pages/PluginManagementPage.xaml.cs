@@ -50,7 +50,10 @@ public sealed class PluginManagementRow : ObservableObject
     public string Detail => string.Join("\n", new[] { failure, status.Error, status.RecoveryMessage }.Where(text => !string.IsNullOrWhiteSpace(text)));
     public string ActionLabel => nextEnabled ? "下次启动禁用" : "下次启动启用";
     public SymbolRegular ActionIcon => nextEnabled ? SymbolRegular.Pause24 : SymbolRegular.Play24;
-    public string ActionForeground => nextEnabled ? "#64748B" : "#2563EB";
+    // 操作图标使用全局品牌颜色，不在代码里引入另一份蓝色常量。
+    public System.Windows.Media.Brush ActionForeground =>
+        System.Windows.Application.Current.TryFindResource(nextEnabled ? "BrandTextMutedBrush" : "BrandAccentBrush") as System.Windows.Media.Brush
+        ?? System.Windows.Media.Brushes.Gray;
     public IRelayCommand ToggleCommand { get; }
 
     public PluginManagementRow(PluginStatus status, Action<string, bool> save, bool nextEnabled)

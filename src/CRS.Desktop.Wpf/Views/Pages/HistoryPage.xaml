@@ -5,7 +5,7 @@
   <!-- 校验和复算均保留原任务；后台不满足历史口径门槛时明确拒绝。 -->
   <WrapPanel Grid.Row="1"><ui:Button Content="刷新任务" Command="{Binding RefreshCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="打开所选结果" Command="{Binding OpenCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="校验报告原件" Command="{Binding VerifyOriginalsCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="复算并另存" Command="{Binding ReplayCommand}" Style="{StaticResource ActionButton}"/><!-- 抵免复核另存结果，国家限额与凭证关系展示在税务页。 --><ui:Button Content="导入抵免明细" Command="{Binding ReviewForeignCreditCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="取消本页操作" Command="{Binding CancelOperationCommand}" Style="{StaticResource ActionButton}"/></WrapPanel>
   <!-- 汇总勾选跨页保留；确认归属后才允许提交，所有金额由后台计算。 -->
-  <Border Grid.Row="2" Style="{StaticResource Card}" Padding="16,12" Margin="0,4,0,14" Background="#F0F5FF">
+  <Border Grid.Row="2" Style="{StaticResource Card}" Padding="16,12" Margin="0,4,0,14" Background="{DynamicResource BrandAccentPaleBrush}">
    <StackPanel>
     <TextBlock Text="年度汇总" FontSize="16" FontWeight="SemiBold"/>
     <TextBlock Text="{Binding AggregationHint}" Foreground="#64748B" Margin="0,4,0,8" TextWrapping="Wrap"/>

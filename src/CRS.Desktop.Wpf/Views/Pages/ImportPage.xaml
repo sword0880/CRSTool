@@ -10,14 +10,14 @@
    <TextBlock Text="选择年度报表并确认期初成本，后台会统一完成 FIFO、税务计算与对账。" Style="{StaticResource Subtitle}" Margin="0,0,0,16"/>
   </StackPanel>
   <!-- 操作区独立于滚动表单，进入页面即可开始计算。 -->
-  <Border Grid.Row="1" Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1" CornerRadius="10" Padding="16,12" Margin="0,0,0,20">
+  <Border Grid.Row="1" Background="{DynamicResource BrandAccentPaleBrush}" BorderBrush="{DynamicResource BrandAccentSoftBrush}" BorderThickness="1" CornerRadius="10" Padding="16,12" Margin="0,0,0,20">
    <DockPanel LastChildFill="True">
     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
      <ui:Button x:Name="CalculateButton" Content="导入并开始计算" Icon="{ui:SymbolIcon Calculator24}" Appearance="Primary" Command="{Binding CalculateCommand}" MinHeight="40" Padding="16,8"/>
      <ui:Button Content="取消当前操作" Command="{Binding CancelCommand}" Appearance="Transparent" MinHeight="40" Margin="8,0,0,0" Visibility="{Binding State.IsBusy, Converter={StaticResource BooleanVisibility}}"/>
     </StackPanel>
     <StackPanel VerticalAlignment="Center">
-     <TextBlock Text="准备好资料后，开始年度核算" FontWeight="SemiBold" Foreground="#1E3A8A"/>
+     <TextBlock Text="准备好资料后，开始年度核算" FontWeight="SemiBold" Foreground="{DynamicResource BrandAccentDarkBrush}"/>
      <TextBlock Text="请先选择报表，并核对下方期初资料与报告范围。" Foreground="#64748B" TextWrapping="Wrap" Margin="0,4,0,0"/>
     </StackPanel>
    </DockPanel>
@@ -75,7 +75,7 @@
       <WrapPanel><ui:Button Content="选择期间依据" Command="{Binding PickAccountPeriodsCommand}"/><ui:Button Content="清除" Command="{Binding ClearAccountPeriodsCommand}" Margin="8,0,0,0"/></WrapPanel>
       <TextBlock Text="{Binding AccountPeriodsLabel}" TextWrapping="Wrap" Margin="0,8"/>
      </StackPanel></Expander>
-     <Border BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Margin="0,4,0,16"/>
+     <Border BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,16"/>
      <CheckBox IsChecked="{Binding ScopeConfirmed}" Margin="0,0,0,16"><TextBlock Text="确认报告未过滤账户、证券或现金类型" TextWrapping="Wrap"/></CheckBox>
      <CheckBox IsChecked="{Binding SaveCanonicalSnapshot}"><TextBlock Text="保存可重放规范化快照（含敏感数据）" TextWrapping="Wrap"/></CheckBox>
     </StackPanel></Border>
