@@ -6,6 +6,7 @@ namespace CRS.Infrastructure;
 
 public sealed class IbkrXmlParser
 {
+    internal const string ProjectionVersion="IBKR.Tax.v1";
     internal Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? SharedImport {get;init;}
     private readonly Dictionary<(string Account, string Type, string Id), string> seen = [];
     private readonly Dictionary<(string Account, DateOnly End), Dictionary<SecurityKey, decimal>> snapshots = [];
@@ -68,6 +69,9 @@ public sealed class IbkrXmlParser
             CheckCashTotals(s, account, end, name);
         }
         if(!opening) SharedImport?.Invoke(input,cancellation,data.Warnings,sourceFacts);
+        data.ImportProvenance??=[];
+        if(!data.ImportProvenance.Any(p=>p.SourceFileHash==input.Sha256))
+            data.ImportProvenance.Add(new(1,"IBKR",input.Sha256,sourceFacts.ImportBatchId,sourceFacts.ParserVersion,ProjectionVersion));
     }
     /// <summary>读取执行级成交，保留券商原始金额；边界异常进入复核并阻断相关成本链。</summary>
     private void ReadTrades(BrokerSourceRecord s, string account, DateOnly start, DateOnly end, string name)

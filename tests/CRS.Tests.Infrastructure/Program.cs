@@ -2,6 +2,7 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--tax-provenance"]){await TaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.TaxProvenance",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--vault-providers"]){await VaultProviderChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.VaultProviders",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--broker-provenance"]){await BrokerProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.BrokerProvenance",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--broker-source-facts"]){BrokerSourceFactsChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.BrokerFacts",Guid.NewGuid().ToString("N")));return;}

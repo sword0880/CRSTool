@@ -61,6 +61,7 @@ public sealed record RunEvidenceSeal(int Version,string Encoding,string Applicat
         {seal.Version,seal.Encoding,seal.ApplicationSha256,seal.DomainSha256,seal.InfrastructureSha256,seal.PayloadDigest}));
     public static void Verify(CalculationResult result)
     {
+        TaxImportProvenance.Validate(result.Sources,result.ImportProvenance,result.Broker);
         if(result.EvidenceSeal is not { } seal) return; // 明确的旧记录仍可查看，不冒充已有执行封存。
         if(seal.Version!=1 || seal.Encoding!=CanonicalEvidence.Version || seal.PayloadDigest!=CanonicalEvidence.PayloadHash(result)
             || seal.EvidenceDigest!=HeaderHash(seal))

@@ -44,3 +44,5 @@ Visual Studio 打开或重新加载 CRS.sln 后，在解决方案资源管理器
 
 
 - [宿主共享来源预算与验收边界（ARCH-209）](architecture/SHARED_SOURCE_BUDGETS.md)
+
+数据库类型选择样例：`../config/storage-providers.example.json`；目前只内置SQLCipher，新适配器经可信代码注册后再选择类型，格式迁移与安全能力必须独立验收。

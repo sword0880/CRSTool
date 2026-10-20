@@ -18,7 +18,8 @@
 | 绩效 | Application的IPerformanceStore屏蔽具体数据库；导入及版本元数据在实现内同事务 | PerformanceStore内部仍含SQLite方言、DDL、容量PRAGMA和VaultSession；替换时应整体提供另一适配器并复用仓储契约验收 |
 | Worker任务 | ITaskRepository隔离调度与任务仓储 | 18个公开仓储操作（含本地快照）在适配器内转换SQLite错误为IOException，业务冲突保持原分类；调度库迁移、并发及真实第二数据库仍需验收 |
 | 共享来源预算 | SourceBudgetRegistry只依赖ISourceBudgetStore；Program选择SqliteSourceBudgetStore，运行期SQLite错误转为IOException | 当前为单Worker写入；多实例/远程库必须增加原子预留或并发控制，不能沿用独立Read/Save冒充跨进程安全 |
-| 其他持久化 | 原有分层仍适用 | LocalStore、VaultSession、插件市场仓储、凭证及备份尚未整体完成可替换性整改 |
+| 保险库 | VaultManager转发IVaultStorageBackend；SQLCipher认证、计算/绩效仓储、锁定和备份属于同一适配器族 | 新提供方必须完整实现会话与安全能力并验证数据迁移；当前只内置SQLCipher |
+| 国家队插件 | NationalTeamStorageProviders同时选择市场仓储和ISourceRequestPolicy；入口/网关不创建具体数据库 | 新提供方仍需实现IMarketRepository、来源策略与迁移，不等同于已有第二数据库 |
 
 ISourceBudgetStore由注册表串行调用并接管释放。Save必须持久、原子，损坏/未知状态必须拒绝使用；当前本地实现保留原数据库格式、密钥派生、冷却与故障锁定。内存替身仅用于验证规则独立性，不是生产替代数据库。
 
@@ -38,3 +39,35 @@ EncryptedTaskRepository在18个公开操作（17个ITaskRepository操作与本�
 BackgroundRuntime不再识别具体SQLite类型；已适配任务/来源存储使用IO异常，尚未统一转换的插件持久化故障暂以BCL DbException兼容分类，避免丢失原有失败关闭保护。这是过渡边界，并不等于所有插件已遵守稳定异常契约；后续需逐个插件存储适配器收拢，再移除该兼容分类。
 
 任务仓储端口明确Save/Begin/End与关联命令状态的原子提交、业务冲突分类及不透明分页游标。专项入口 CRS.Tests.Background --task-storage-boundary：真实SQLCipher事务/读取注入12项，IO与通用DbException分别覆盖Begin/End/Audit/Progress故障锁定18项，共30项。通用异常夹具验证故障分类，不构成第二数据库集成验收。证据：artifacts/task-storage-boundary-checks.log。
+
+## 可插拔结构与配置（2026-10-20）
+
+用户本轮选择“暂不指定，先完成可插拔结构”。当前只内置sqlcipher，没有虚构PostgreSQL/SQL Server实现。受信任代码注册新适配器后，只改数据库类型配置即可选择已注册实现；首次更换仍需另行执行迁移、加密、并发和恢复验收，不自动将现有库转换格式。
+
+两个进程均读取各自运行目录的 `config/storage-providers.json`，同一文件结构为：
+
+```json
+{
+  "Version": 1,
+  "Vault": "sqlcipher",
+  "NationalTeam": "sqlcipher"
+}
+```
+
+样例源文件为 `config/storage-providers.example.json`。部署时将所需配置放到对应桌面/Worker运行目录；运行中不热切换，修改后重启相应进程。缺省文件沿用sqlcipher；重复字段、未知版本、非法ID、未知提供方明确拒绝，不能回落内存或明文库。配置不保存连接密码或密钥。两处组合根独立解析同一配置契约，避免基础设施与业务插件产生项目依赖；Worker调度库/宿主预算库不受此两字段切换，应单独保持现有注册边界。
+
+### 保险库
+
+- `VaultStorageProviders`在装配时注册不可变的ID→工厂映射，拒绝覆盖内置ID。`VaultManager`持有选中的`IVaultStorageBackend`，全部公开认证、文档密码、仓储、绩效、备份恢复及锁定操作转发给同一实例。
+- 原SQLCipher实现及其Session、认证表和快照代码归 `CRS.Infrastructure/Storage/SqlCipher`。原业务SQL与加密格式未改；新提供方替换整个存储族，不能让认证使用一种库而财务或备份偷偷使用另一种。
+- `IVaultStorageBackend`不暴露连接/SQL；来源冻结输入仅公开只读流与摘要，不暴露底层可写字节。旧验收用的原生连接/时钟注入集中在适配器目录的测试钩子，不进入生产端口。
+- 桌面组合根通过配置选择类型，DesktopOperations只依赖存储族端口。未来注册另一个实现时无需修改WPF、计算或绩效用例。
+
+### 插件
+
+- `NationalTeamStorageProviders`按类型选择`INationalTeamStorageProvider`，同族提供市场仓储与持久来源策略。会话先解析提供方，再创建目录、取密钥、构建网关与工作区。
+- `OfficialHttpGateway`仅依赖`ISourceRequestPolicy`。SQLCipher来源策略在真实SQL入口转换故障；MarketRepository在ExecuteOperation用例边界转换数据库故障，SQL中断的取消语义保持不变。
+- 新市场适配器继续实现既有`IMarketRepository`，来源策略必须满足持久冷却、不以未知为零及网络前预留的约束；原件存证仍通过独立证据存储能力处理。
+- 注册工厂只接受随可信发行构建的代码，不从配置加载任意程序集、类型名或可执行内容。两个自定义注册测试都转发现有SQLCipher，只证明选择/接线，不代表第二种数据库集成验收。
+
+验证入口：`CRS.Tests.Infrastructure --vault-providers`（10项）、`CRS.Tests.WorkerEtf --storage-providers`（10项）；完整回归与证据见实施续记。架构门禁禁止保险库入口暴露SQL、插件入口直接创建具体仓储，以及网关引用具体数据库策略。

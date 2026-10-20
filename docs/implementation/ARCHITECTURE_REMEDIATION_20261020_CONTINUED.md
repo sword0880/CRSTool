@@ -161,3 +161,17 @@ ITaskRepository补充原子提交、业务冲突和不透明游标契约；Encry
 本次完整解决方案Release构建0警告/0错误：artifacts/task-storage-boundary-solution.log。仓储操作主体审计覆盖18个公开方法，不能据此替代真实数据库故障检查。
 
 最终架构门禁通过（task-storage-boundary-architecture.log），含新增后台运行规则/任务仓储提供方边界；共享来源预算回归63项全部通过（task-storage-source-regression.log），退出码0。工作区空白检查通过。
+
+## 可插拔数据库：保险库与插件仓储族
+
+按用户“暂不指定，先完成可插拔结构”的选择实施。VaultManager改为数据库无关的IVaultStorageBackend转发入口，选中的一套适配器负责认证、计算/绩效仓储、锁定、文档密码及备份恢复。原SQLCipher实现和Session/认证表/快照实现归Storage/SqlCipher；DesktopOperations依赖存储族端口。后端来源输入仅公开摘要和只读流，测试原生连接注入留在适配器目录。没有改财务规则或加密格式。
+
+插件NationalTeamStorageProviders按类型提供市场仓储与ISourceRequestPolicy；后台入口不再直接创建具体数据库仓储，先解析类型再创建目录/获取密钥。OfficialHttpGateway依赖来源策略接口，市场用例和来源策略真实SQL边界将提供方异常转为IO故障，取消仍保留OperationCanceledException语义。工厂不可覆盖内置类型，未知ID拒绝，不回退内存或明文。
+
+统一配置文件为各进程运行目录的config/storage-providers.json，Version=1，Vault/NationalTeam分别选择类型；样例config/storage-providers.example.json。缺省仍为sqlcipher。后续新后端作为可信代码实现和注册后可通过配置切换，当前不含第二数据库实现，修改配置不自动迁移旧库，不热切换；Worker调度和宿主预算是独立范围，不能把此两字段描述为全部存储都已切换。
+
+验证全部退出码0：完整解决方案Release0警告/0错误（artifacts/storage-providers-solution.log）；保险库提供方10项（storage-provider-vault-checks.log）；插件提供方10项（storage-provider-plugin-checks.log）；共享预算63项（storage-provider-budget-regression.log）；来源策略20项（storage-provider-policy-regression.log）；完整基础设施回归（storage-provider-infrastructure-regression.log）覆盖真实认证、加密/备份恢复、本机凭证、绩效冻结/旧格式、升级回滚、资源限制及锁定中断；桌面交互回归（storage-provider-wpf-regression.log）；架构门禁含新增存储族边界（storage-providers-architecture.log）。自定义注册夹具转发现有SQLCipher，仅验证选择链路，不冒充其他数据库。
+
+源码移动审计以固定整改前提交1229fd4为基线核对11份保险库文件，除类/构造器名称、接口及三个端口方法可见性外，原实现保持一致，记录artifacts/storage-provider-vault-move-audit.json。工作期间有外部自动提交，审计不使用移动中的HEAD作为旧基线。首轮编译发现测试对网关的target-typed new依赖原具体参数，已显式指定测试SourceRequestPolicy构造；生产端口未退回具体类，最终全构建与回归通过。
+
+本轮未替换已安装服务/桌面程序，未迁移或删除个人资料。其他数据库的适配器、安全能力、并发与数据迁移仍须按数据库抽象规范单独实施验收。

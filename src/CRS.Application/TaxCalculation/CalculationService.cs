@@ -124,7 +124,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             canonical=node.ToJsonString();
         }
         var canonicalDigest = evidence.Hash(Encoding.UTF8.GetBytes(canonical));
-        var result = new CalculationResult { Broker = data.Broker, ImportedTradeCount = data.Trades.Count(t => t.Time.Year == year),
+        var result = new CalculationResult { Broker = data.Broker, ImportProvenance=TaxImportProvenance.Merge(data.ImportProvenance??[]), ImportedTradeCount = data.Trades.Count(t => t.Time.Year == year),
             AccountPeriods=data.AccountPeriods.Count==0?null:(SnapshotList<AccountPeriodEvidence>)data.AccountPeriods.OrderBy(p=>p.Account,StringComparer.Ordinal).ToList(),
             AccountCoverage=data.AccountPeriods.Count==0?null:(SnapshotList<AccountCoverage>)accounts.Select(account=>
             {
@@ -179,6 +179,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         var document=CanonicalInputReader.ReadFull(snapshot);
         var replayContext = ReplayExecutionContext.Read(snapshot);
         var data = document.ToImportData();
+        data.ImportProvenance=snapshot.ImportProvenance?.ToList();
         cancellation.ThrowIfCancellationRequested();
         var replay = CalculateParsed(data, [], snapshot.Year, document.Confirmations.OpeningZero,
             document.Confirmations.ScopeConfirmed, null, document.Carry, cancellation, replayContext, snapshot.CanonicalInputJson, true);

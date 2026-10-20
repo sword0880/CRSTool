@@ -93,6 +93,7 @@ public sealed class AnnualTaxAggregationService
             PnlChecks = results.SelectMany(r => r.PnlChecks).ToList(),
             Rates = rates,
             Sources = results.SelectMany(r => r.Sources).ToList(),
+            ImportProvenance=TaxImportProvenance.Merge(results.SelectMany(r=>r.ImportProvenance??[])),
             EndingLots = [], EndingRounding = [], OpeningZero = results.All(r => r.OpeningZero), ScopeConfirmed = results.All(r => r.ScopeConfirmed),
             Provisional = provisional, Reconciled = reconciliation == ReconciliationStatus.Matched,
             CarryEligible = false, CalculationStatus = status, DataCompleteness = completeness, ReconciliationStatus = reconciliation,

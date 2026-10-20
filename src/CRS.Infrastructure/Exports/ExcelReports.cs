@@ -108,6 +108,12 @@ public static class ExcelReports
         Sheet("期末LOT", ["账户", "证券标识", "证券", "币种", "买入时间", "数量", "剩余成本", "剩余费用", "原始ID", "来源"],
             r.EndingLots.Select(l => new object?[] { l.Key.Account, l.Key.Instrument, l.Symbol, l.Key.Currency, l.BuyTime, l.Quantity, l.Cost, l.Fee, l.RecordId, l.SourceFile }));
         Sheet("来源文件", ["文件", "SHA256", "账户", "起日", "止日", "期初", "用途", "权威级别"], r.Sources.Select(s => new object?[] { s.File, s.Sha256, s.Account, s.Start, s.End, s.Opening, s.Purpose, s.Authority }));
+        Sheet("解析版本", ["原件SHA256", "批次ID", "券商", "来源读取版本", "税务投影版本"],
+            r.Sources.Select(s=>s.Sha256).Distinct(StringComparer.OrdinalIgnoreCase).Select(hash=>
+            {
+                var p=r.ImportProvenance?.SingleOrDefault(p=>p.SourceFileHash.Equals(hash,StringComparison.OrdinalIgnoreCase));
+                return new object?[]{hash,p?.ImportBatchId,p?.Broker,p?.ReaderVersion??"未记录",p?.ProjectionVersion??"未记录"};
+            }));
         Sheet("人工复核", ["计算编号", "类型", "依据", "确认时间UTC"], (reviews ?? []).Select(v => new object?[] { v.SnapshotId, v.Category, v.Evidence, v.CreatedUtc }));
         // 生命周期资料跟随底稿，完整活动期与完整自然年必须明确区分。
         if(r.AccountPeriods is not null) Sheet("账户期间依据",["账户","开户日期","关闭日期","开户零持仓已核对","凭证","凭证摘要","用户已核对"],

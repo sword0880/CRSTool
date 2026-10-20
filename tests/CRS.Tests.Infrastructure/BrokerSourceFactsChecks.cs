@@ -51,7 +51,11 @@ internal static class BrokerSourceFactsChecks
                 var files=new[]{Path.GetFullPath(Path.Combine("tests/fixtures",fixture))};
                 var before=(ImportData)type.GetMethod("Parse")!.Invoke(Activator.CreateInstance(type),[files,null,CancellationToken.None])!;
                 var after=new IbkrXmlParser().Parse(files);
-                Check(JsonSerializer.Serialize(before)==JsonSerializer.Serialize(after),fixture+"税务解析与工作前Debug构建逐字段一致（非独立金额签认）");
+                Check(after.ImportProvenance is{Count:1} versions&&versions[0].ReaderVersion==IbkrSourceReader.Version&&versions[0].ProjectionVersion==IbkrXmlParser.ProjectionVersion,"新增税务版本审计明确且仅记录实际版本");
+                var oldNode=System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(before))!.AsObject();
+                var newNode=System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(after))!.AsObject();
+                oldNode.Remove(nameof(ImportData.ImportProvenance));newNode.Remove(nameof(ImportData.ImportProvenance));
+                Check(oldNode.ToJsonString()==newNode.ToJsonString(),fixture+"除新增版本审计外，税务解析与旧构建逐字段一致（非独立金额签认）");
             }
         }
         finally{context.Unload();}

@@ -131,3 +131,5 @@ CRS.Security 已是独立生产项目，包含 Cryptography、Vault、Recovery�
 ## 投资绩效模块
 
 Domain/Performance 存放独立净值、流量、TWR/XIRR 与区间市场成本引擎；Application/Performance 暴露端口与冻结运行；Infrastructure/Performance 解析原件、存储 SQLCipher 和导出；WPF 的 PerformanceViewModel/PerformancePage 提供第十个页面。实现说明见[绩效 P0](../implementation/PERFORMANCE_P0.md)。
+
+数据库适配层：`CRS.Infrastructure/Storage/IVaultStorageBackend.cs`与`VaultStorageProviders.cs`定义保险库存储族，`Storage/SqlCipher`收拢原认证/会话/备份实现；`CRS.Plugins.NationalTeam.Jobs/Infrastructure/Storage`负责插件市场与来源策略的提供方工厂。配置样例见 `config/storage-providers.example.json`，说明见[数据库可插拔规范](DATABASE_PORTABILITY.md)。

@@ -183,3 +183,5 @@ dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- 
 数据库替换边界：`CRS.Tests.WorkerEtf --source-budget`现含7项存储端口替换/生命周期检查与原SQLCipher专项，合计63项；内存替身只验证策略解耦，不验证其他数据库持久性。`Verify-Architecture.ps1`禁止来源预算规则和端口暴露数据库实现，设计约束见 `docs/architecture/DATABASE_PORTABILITY.md`。
 
 `CRS.Tests.Background --task-storage-boundary`：任务仓储真实SQLCipher事务/读取故障12项，加IO及通用数据库异常的宿主保护18项，合计30项；全部隔离运行，不需安装服务发行目录。此入口验证异常/原子性边界，不代表已支持第二数据库。
+
+可插拔数据库：`CRS.Tests.Infrastructure --vault-providers`及`CRS.Tests.WorkerEtf --storage-providers`各10项，验证未知/重复类型拒绝、配置与自定义注册接线。替身注册转发现有SQLCipher，不是第二数据库验收。配置样例 `config/storage-providers.example.json`；默认无配置仍为SQLCipher。

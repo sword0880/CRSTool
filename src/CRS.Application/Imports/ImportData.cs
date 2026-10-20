@@ -4,6 +4,7 @@ namespace CRS.Application;
 
 public sealed class ImportData
 {
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] public List<TaxImportProvenance>? ImportProvenance {get;set;}
     public string Broker { get; set; } = "IBKR";
     public List<AccountPeriodEvidence> AccountPeriods {get;}=[];
     public List<AnnualIncome> AnnualIncome { get; } = [];

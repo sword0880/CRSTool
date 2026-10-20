@@ -150,3 +150,13 @@ foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Worker.Servic
 $taskPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/ITaskRepository.cs')
 Assert-Boundary ($taskPort -notmatch 'Microsoft\.Data|System\.Data|DbConnection|DbTransaction|IQueryable') '任务仓储端口暴露数据库实现类型。'
 Write-Output '后台运行规则与任务仓储提供方边界检查通过。'
+
+$vaultFacade=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Infrastructure/Security/VaultManager.cs')
+Assert-Boundary ($vaultFacade -match 'IVaultStorageBackend backend' -and $vaultFacade -notmatch 'Sqlite|Dapper|PRAGMA|new\s+(LocalStore|PerformanceStore|VaultSession)') '保险库入口重新耦合具体数据库。'
+$vaultPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Infrastructure/Storage/IVaultStorageBackend.cs')
+Assert-Boundary ($vaultPort -notmatch 'Microsoft\.Data|System\.Data|Sqlite|DbConnection|DbTransaction') '保险库存储端口泄漏数据库实现。'
+$jobsEntry=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeam.Jobs/NationalTeamBackgroundEntry.cs')
+Assert-Boundary ($jobsEntry -match 'storage.OpenMarket' -and $jobsEntry -notmatch 'new\s+(MarketRepository|SourceRequestPolicy)') '插件入口绕过存储工厂。'
+$officialGateway=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeam.Jobs/OfficialHttpGateway.cs')
+Assert-Boundary ($officialGateway -match 'readonly ISourceRequestPolicy policy' -and $officialGateway -notmatch 'new\s+SourceRequestPolicy|Microsoft\.Data|Sqlite') '插件网关耦合具体数据库策略。'
+Write-Output '保险库存储族与插件存储工厂边界检查通过。'
