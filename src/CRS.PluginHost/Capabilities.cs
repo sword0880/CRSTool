@@ -72,7 +72,7 @@ public sealed class PublicHttpGateway : IPluginHttpGateway, IDisposable
 internal sealed class Diagnostics(Action<string, string> report) : IPluginDiagnostics { public void Report(string code, string message) => report(code, message); }
 /// <summary>未在清单中授予的能力在访问时拒绝，避免无意扩大插件接口权限。</summary>
 internal sealed class PluginContext(string pluginId, IPluginJobScheduler jobs, IPluginDataPaths paths,
-    IPluginHttpGateway http, IPluginDiagnostics diagnostics, IReadOnlyCollection<string> granted,IPluginScheduleGateway schedules) : IPluginHostContext,IPluginScheduleContext
+    IPluginHttpGateway http, IPluginDiagnostics diagnostics, IReadOnlyCollection<string> granted) : IPluginHostContext
 {
     public string PluginId=>pluginId;
     private T Require<T>(string capability,T value)=>granted.Contains(capability)?value:throw new InvalidOperationException("Capability not granted: "+capability);
@@ -80,5 +80,4 @@ internal sealed class PluginContext(string pluginId, IPluginJobScheduler jobs, I
     public IPluginDataPaths DataPaths=>Require("storage-private",paths);
     public IPluginHttpGateway Http=>Require("http-public",http);
     public IPluginDiagnostics Diagnostics=>Require("logging",diagnostics);
-    public IPluginScheduleGateway Schedules=>Require("schedules",schedules);
 }

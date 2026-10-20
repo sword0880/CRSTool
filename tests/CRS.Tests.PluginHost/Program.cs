@@ -48,20 +48,6 @@ internal static class Program
   await concurrent.PrepareAsync(new("1.0.0","old"),new("2.0.0","new"),writing,CancellationToken.None);
   writing.OnVerify=async ()=>{await Task.Yield();concurrent.MarkBeforeNewFactWrite();throw new InvalidDataException();};
   Check(await concurrent.RecoverAsync(writing,true,CancellationToken.None)==UpgradeStage.RequiresRecovery,"Facts written during verification forbid rollback");
-  // 真正启动Quartz时钟，验证触发、同任务不重叠以及会话取消后的停止。
-  await using(var clock=new QuartzTaskScheduler())
-  {
-   using var lifetime=new CancellationTokenSource();var fired=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var executions=0;var running=0;var maximum=0;
-   await clock.Scope("fixture",lifetime.Token).RegisterAsync("sync","0/1 * * * * ?","China Standard Time",async token=>
-   {
-    Interlocked.Increment(ref executions);maximum=Math.Max(maximum,Interlocked.Increment(ref running));
-    try{await Task.Delay(1200,token);fired.TrySetResult();}finally{Interlocked.Decrement(ref running);}
-   },CancellationToken.None);
-   await fired.Task.WaitAsync(TimeSpan.FromSeconds(10));Check(executions>0 && maximum==1,"Quartz fires real cron without concurrent duplicate execution");
-   lifetime.Cancel();await Task.Delay(1500);var stoppedCount=executions;await Task.Delay(1500);
-   Check(executions==stoppedCount,"Quartz plugin scope stops after session cancellation");
-  }
-  await TaskScheduleChecks.Run(root);
   if(args.Length==0){Console.WriteLine("Live dual-plugin POC requires a published Plugins directory argument.");return;}
   var release=Path.GetFullPath(args[0]);await using var runtime=new PluginRuntime(release,Path.Combine(root,"live-storage"));await runtime.StartAsync();
   foreach(var status in runtime.Statuses) Console.WriteLine($"{status.Id}: {status.State} {status.Failure}");

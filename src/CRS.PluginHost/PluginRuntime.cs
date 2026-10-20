@@ -108,7 +108,7 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
                 participant=new(layout,maintenanceEntry.CreateStorageMaintenance(paths),selected.Manifest.SchemaVersion);
                 await participant.VerifyCandidateAsync(active!,token);
             }
-            session=load.Entry.CreateSession(new PluginContext(first.Id,new PluginJobs(lifetime.Token),paths,http,new Diagnostics((code,_)=>status.Error=code),selected.Manifest.RequestedCapabilities,new WorkerOwnedSchedules()));
+            session=load.Entry.CreateSession(new PluginContext(first.Id,new PluginJobs(lifetime.Token),paths,http,new Diagnostics((code,_)=>status.Error=code),selected.Manifest.RequestedCapabilities));
             await session.StartAsync(lifetime.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(15),token);token.ThrowIfCancellationRequested();
             if(session is IPluginWpfSession wpf)
             {
@@ -171,11 +171,5 @@ public sealed class PluginRuntime(string releaseRoot,string storageRoot,IReadOnl
             finally{item.Http.Dispose();item.Lifetime.Dispose();item.Load.Dispose();item.Lease.Dispose();}
         }
         sessions.Clear();runtimeLifetime.Dispose();
-    }
-    /// <summary>旧桌面调度契约明确拒绝，不能在后台服务不可用时回退为第二个调度器。</summary>
-    private sealed class WorkerOwnedSchedules:IPluginScheduleGateway
-    {
-        public Task RegisterAsync(string id,string cron,string zone,Func<CancellationToken,Task> work,CancellationToken token,TimeSpan? delay=null,string? name=null)
-            =>throw new NotSupportedException("公开计划任务由 Worker 唯一执行。");
     }
 }
