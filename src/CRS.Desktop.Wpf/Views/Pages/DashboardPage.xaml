@@ -19,7 +19,7 @@
    </Button>
   </Grid>
   <Border Style="{StaticResource Card}">
-   <StackPanel><DockPanel Margin="0,0,0,14"><ui:Button DockPanel.Dock="Right" Content="查看全部" Command="{Binding NavigateCommand}" CommandParameter="history" Appearance="Transparent" Foreground="#2563EB"/><TextBlock Text="最新导入任务" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+   <StackPanel><DockPanel Margin="0,0,0,14"><ui:Button DockPanel.Dock="Right" Content="查看全部" Command="{Binding NavigateCommand}" CommandParameter="history" Appearance="Transparent" Foreground="{DynamicResource BrandAccentBrush}"/><TextBlock Text="最新导入任务" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
     <ItemsControl ItemsSource="{Binding RecentTasks}">
      <ItemsControl.ItemTemplate><DataTemplate>
       <Button Command="{Binding DataContext.OpenTaskCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource MetricButton}" BorderThickness="0" Padding="0,12" ToolTip="打开这份任务的核算结果">

@@ -20,6 +20,9 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // WPF-UI 的主按钮、导航选中与焦点色均从品牌调色板取得，禁止跟随操作系统蓝色。
+        if (Resources["BrandAccentBrush"] is System.Windows.Media.SolidColorBrush brandAccent)
+            Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(brandAccent.Color, Wpf.Ui.Appearance.ApplicationTheme.Light);
         // 启动向导和锁定切换不应被最后一个旧窗口关闭触发自动退出。
         ShutdownMode=ShutdownMode.OnExplicitShutdown;
         Microsoft.Win32.SystemEvents.SessionSwitch+=SessionChanged;
