@@ -10,6 +10,8 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
+if(args is ["--source-budget"]){await SourceBudgetChecks.RunAsync();return;}
+if(args is ["--source-budget-soak",var soakSeconds]){await SourceBudgetSoakChecks.RunAsync(int.Parse(soakSeconds,System.Globalization.CultureInfo.InvariantCulture));return;}
 if(args is ["--source-policy"]){await SourcePolicyChecks.RunAsync();return;}
 if(args is ["--enable-reference-live"])
 {
@@ -235,11 +237,18 @@ using(var service=Start())
         Check(configurations.Count>=24 && configurations.Any(x=>x.Ticker=="510500" && !x.Active),"服务分页返回参考候选及停用ETF，不自动加入监控池");
         var existing=configurations.Single(x=>x.Ticker=="510900");
         File.WriteAllText(hold,"synthetic network hold");
-        await Send(Request("RunNow"));
-        await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.JobId=="official-share-sync" && x.Result=="Running"));
-        var activeRun=(await Query("GetHistory")).History!.First(x=>x.JobId=="official-share-sync" && x.Result=="Running");
+        var heldRequest=Request("RunNow");var heldAccepted=await Send(heldRequest);
+        if(heldAccepted.Code!="Accepted")throw new InvalidOperationException("采集阻塞夹具未受理："+heldAccepted.Code);
+        string? heldExecution=null;
+        await Until(async()=>
+        {
+            var state=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:heldRequest.RequestId));
+            if(state.Receipt?.State=="Completed")throw new InvalidOperationException("阻塞采集提前结束："+state.Receipt.Code);
+            heldExecution=state.Receipt?.ExecutionId;
+            return heldExecution is not null;
+        });
         // Running由宿主先提交，来源阶段随后写入；等待实际阶段，不能把这两个时刻当作原子动作。
-        await Until(async()=>(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:activeRun.ExecutionId))).Execution?.Progress?.Any(x=>x.Detail.Stage=="SourceStarted")==true);
+        await Until(async()=>(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:heldExecution))).Execution?.Progress?.Any(x=>x.Detail.Stage=="SourceStarted")==true);
         Check(true,"网络尚未返回时可读取来源开始与最近进展");
         var editing=ui.SaveConfigurationAsync(new(existing.Market,existing.Ticker),"合成后台编辑名称","CONFIG",false,"采集期间修改",existing.Revision,default);
         // 宿主按插件串行写入；网络等待期间应保留命令，不能绕开统一写入门槛。

@@ -10,7 +10,7 @@ namespace CRS.Worker.Service;
 /// <summary>加密仓储是唯一权威；内存触发器、命令恢复和开始执行按同一门闩排序。</summary>
 public sealed partial class BackgroundRuntime(ITaskRepository repository, BackgroundPluginCatalog catalog,
     Action<string, string, string>? diagnostics = null, Action? onUnresponsive = null,
-    TimeSpan? executionTimeout = null, WorkerExecutionSettings? executionSettings = null,WorkerNotificationGateway? notifications=null) : IBackgroundControl, IAsyncDisposable
+    TimeSpan? executionTimeout = null, WorkerExecutionSettings? executionSettings = null,WorkerNotificationGateway? notifications=null,SourceBudgetRegistry? sources=null) : IBackgroundControl, IAsyncDisposable
 {
     private readonly WorkerExecutionSettings settings = (executionSettings ?? new()).Validate();
     private readonly SemaphoreSlim gate = new(1);
@@ -157,6 +157,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try
         {
             if (fault is not null) return Reply(fault);
+            if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
             if (maintenance) return Reply("Maintenance");
             if (request.PluginId is null || request.Payload is null || request.Payload.Length > 4096) return Reply("InvalidRequest");
             // 不允许一个慢插件在宿主内积累无界等待；其它插件和管理命令使用各自路径。
@@ -183,16 +184,28 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             finally { gate.Release(); }
         }
     }
+    /// <summary>来源存储失效时保留宿主健康诊断；缺失的来源快照不能当作Ready或空额度。</summary>
+    private async Task<IReadOnlyList<SourceBudgetHealth>?> SourceHealthAsync()
+    {
+        try{return sources?.Snapshot();}
+        catch(Exception error) when(StorageError(error)||error is InvalidDataException or FormatException)
+        {
+            await TripFaultAsync("StorageFault");
+            return null;
+        }
+    }
     private async Task<BackgroundResponse> HandleCoreAsync(BackgroundRequest request, BackgroundCaller caller, CancellationToken token)
     {
         BackgroundResponse Reply(string code, CommandReceipt? receipt = null) => new(WorkerProtocol.Version, request.RequestId, code, Receipt: receipt);
         if (request.Command == "GetHealth")
         {
-            var state = fault ?? (maintenance ? "Maintenance" : catalog.Statuses.Any(x => x.State == "Failed") || repository.Plans().Any(x => x.NeedsReconcile || !HasHandler(x)) ? "Degraded" : "Running");
+            var sourceHealth=await SourceHealthAsync();
+            var state = fault ?? (catalog.RequiresProcessRestart ? "PluginUnresponsive" : maintenance ? "Maintenance" : catalog.Statuses.Any(x => x.State == "Failed") || repository.Plans().Any(x => x.NeedsReconcile || !HasHandler(x)) ? "Degraded" : "Running");
             return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, DateTimeOffset.UtcNow, Environment.ProcessId,
-                SchedulingSnapshot()), Plugins: catalog.Statuses.ToArray());
+                SchedulingSnapshot(),sourceHealth), Plugins: catalog.Statuses.ToArray());
         }
         if (fault is not null) return Reply(fault);
+        if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
         if (request.PageSize is < 1 or > 10) return Reply("InvalidRequest");
         if (request.Command == "GetJobs")
         {
@@ -288,7 +301,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         await gate.WaitAsync(stopping.Token);
         try
         {
-            if (maintenance || fault is not null || running.ContainsKey(key)) return;
+            if (maintenance || fault is not null || catalog.RequiresProcessRestart || running.ContainsKey(key)) return;
             plan = repository.Plans().SingleOrDefault(x => x.PluginId == key.Group && x.JobId == key.Name);
             if (plan is null || !HasHandler(plan)) return;
             var manual = invocation.Manual;

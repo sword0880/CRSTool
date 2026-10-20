@@ -47,8 +47,10 @@ internal static class DirectEquityChecks
         Check(seed.EquityHoldings("一零一","社保基金",null,false).Count==1&&seed.EquityHoldings("不存在",null,null,false).Count==0,"服务端机构和关键词筛选在分页前完成");
         seed.SaveEquityWatch(new("SSE","600036","招商银行",true,true));Check(seed.EquityHoldings(null,null,null,true).Count==3,"关注列表由后台持久化");
         var expected=seedRaw.Save("%PDF-synthetic-second"u8.ToArray());File.WriteAllText(Path.Combine(root,"equity-seed-raw",expected+".raw"),"broken");
+        seed.ReconcileEvidenceIntegrity();
         Check(seed.EquityHoldings(null,null,null,false).Where(x=>x.ReportAsOf==new DateOnly(2026,6,30)).All(x=>x.Shares is null&&x.Delta is null&&x.State=="Critical"),"正式报告原件损坏阻断持仓及变动");
         File.WriteAllBytes(Path.Combine(root,"equity-seed-raw",expected+".raw"),"%PDF-synthetic-second"u8.ToArray());
+        seed.ReconcileEvidenceIntegrity();
         Check(seed.EquityHoldings(null,null,null,false).Single(x=>x.Institution=="汇金资管").Delta==-100,"原件恢复到原哈希后解除阻断");
         var events=seed.EquityEvents(new("SSE","600036"));
         Check(events.Count==6&&events.Count(x=>x.State=="FirstListed")==3&&events.Single(x=>x.Account=="全国社保基金一零一组合"&&x.ReportAsOf==new DateOnly(2026,6,30)).Delta==50,"历次变动保留每个报告期与首次列示");
@@ -79,8 +81,10 @@ internal static class DirectEquityChecks
         repository.ImportSharesDetailed(Fetch("later"),[new(key,second,1000,"份")],default,false);
         repository.ImportSharesDetailed(Fetch("earlier"),[new(key,first,100,"份")],default,false);
         Check(repository.Evidence().Count(x=>x.State=="NeedsReview")==1&&repository.Points(key).Count==1,"倒序补历史检查与后继日的异常跳变");
-        var hash=raw.Save("later"u8.ToArray());File.WriteAllText(Path.Combine(root,"reliability-raw",hash+".raw"),"corrupted");Check(repository.Points(key).Count==0,"损坏证据拒绝参与计算");
-        File.WriteAllBytes(Path.Combine(root,"reliability-raw",hash+".raw"),"later"u8.ToArray());Check(repository.Points(key).Count==1,"原字节恢复无需清库");
+        var hash=raw.Save("later"u8.ToArray());File.WriteAllText(Path.Combine(root,"reliability-raw",hash+".raw"),"corrupted");
+        repository.ReconcileEvidenceIntegrity();Check(repository.Points(key).Count==0,"受控巡检隔离损坏证据，拒绝参与计算");
+        File.WriteAllBytes(Path.Combine(root,"reliability-raw",hash+".raw"),"later"u8.ToArray());
+        repository.ReconcileEvidenceIntegrity();Check(repository.Points(key).Count==1,"原字节恢复经巡检解除阻断，无需清库");
         foreach(var market in new[]{"SSE","SZSE"})repository.RegisterReviewedCalendar(market,2026,Encoding.UTF8.GetBytes(CalendarHtml),ReviewedExchangeCalendar.Source(market,2026));
         Check(repository.IsReviewedTradingDay("SSE",new(2026,10,10))==false&&repository.IsReviewedTradingDay("SZSE",new(2026,10,1))==false&&repository.IsReviewedTradingDay("SSE",new(2026,10,8))==true,"官方年度公告区分假期、周末和调休工作日");
         Reject(()=>ReviewedExchangeCalendar.Parse("SSE",2026,CalendarHtml.Replace("10月7日","10月8日")),"休市公告范围变化停止登记");

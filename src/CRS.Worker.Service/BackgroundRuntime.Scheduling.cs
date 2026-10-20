@@ -32,7 +32,7 @@ public sealed partial class BackgroundRuntime
     private bool IsCurrent(DispatchInvocation invocation)
     {
         var plan = repository.Plans().SingleOrDefault(x => Key(x).Equals(invocation.Key));
-        if (plan is null || !HasHandler(plan)) return false;
+        if (catalog.RequiresProcessRestart || plan is null || !HasHandler(plan)) return false;
         return invocation.Manual is { } nonce
             ? queued.TryGetValue(invocation.Key, out var expected) && expected == nonce
             : plan.Enabled && invocation.Revision == plan.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -65,7 +65,7 @@ public sealed partial class BackgroundRuntime
     }
     private async Task WakeWaitingAsync(string plugin, CancellationToken token)
     {
-        if (maintenance || fault is not null || pluginWriters[plugin].CurrentCount == 0) return;
+        if (maintenance || fault is not null || catalog.RequiresProcessRestart || pluginWriters[plugin].CurrentCount == 0) return;
         var head = waitingOrder[plugin].First?.Value;
         if (head is null) return;
         var ticket = waiting[head];
@@ -94,7 +94,7 @@ public sealed partial class BackgroundRuntime
             await gate.WaitAsync(stopping.Token);
             try
             {
-                if (maintenance || fault is not null || !pluginWriters.TryGetValue(key.Group, out var writer)) return;
+                if (maintenance || fault is not null || catalog.RequiresProcessRestart || !pluginWriters.TryGetValue(key.Group, out var writer)) return;
                 if (context.MergedJobDataMap.GetString("ready") is { } ready)
                 {
                     if (wakeTickets.TryGetValue(key, out var expected) && expected == ready) wakeTickets.Remove(key);
@@ -129,7 +129,7 @@ public sealed partial class BackgroundRuntime
                 try
                 {
                     permit.Release();
-                    if (!maintenance && fault is null)
+                    if (!maintenance && fault is null && !catalog.RequiresProcessRestart)
                     {
                         await WakeWaitingAsync(key.Group, CancellationToken.None);
                         await RestorePendingAsync(CancellationToken.None);

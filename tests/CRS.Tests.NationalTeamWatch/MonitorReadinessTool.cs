@@ -49,7 +49,7 @@ internal static class MonitorReadinessTool
                 Payload:JsonSerializer.Serialize(new EtfRequest("acceptance",key.Market,key.Ticker,To:through))),token);
             if(reply.Code is "PluginBusy" or "RateLimited"){await Task.Delay(500,token);continue;}
             if(reply.Code!="Ok"||reply.Payload is null)throw new InvalidDataException("逐只验收失败："+reply.Code);
-            var page=JsonSerializer.Deserialize<EtfQueryPage>(reply.Payload)??throw new InvalidDataException("验收页为空。");
+            var page=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(reply.Payload);
             var items=JsonSerializer.Deserialize<List<EtfAcceptance>>(page.Items)??[];
             if(page.NextOffset is not null||items.Count!=1||items[0].Market!=key.Market||items[0].Ticker!=key.Ticker||items[0].Through!=through)
                 throw new InvalidDataException("逐只验收响应不匹配，不能把旧服务全池响应当作单证券。");
@@ -85,15 +85,25 @@ internal static class MonitorReadinessTool
         using var saved=JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Root,"backfill-receipt.json")));
         var id=saved.RootElement.GetProperty("RequestId").GetGuid();
         using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(30));var token=deadline.Token;var pipe=new BackgroundPipeClient();
-        var command=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:id),token);
+        var command=await ReadStatus(pipe,new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:id),token);
         BackgroundResponse? execution=null;
         if(command.Receipt?.ExecutionId is {} executionId)
-            execution=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:executionId),token);
-        var jobs=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetJobs"),token);
-        var history=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory","crs.national-team","official-share-sync"),token);
+            execution=await ReadStatus(pipe,new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:executionId),token);
+        var jobs=await ReadStatus(pipe,new(WorkerProtocol.Version,Guid.NewGuid(),"GetJobs"),token);
+        var history=await ReadStatus(pipe,new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory","crs.national-team","official-share-sync"),token);
         await File.WriteAllTextAsync(Path.Combine(Root,"backfill-status.json"),JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,RequestId=id,
             Command=command,Execution=execution,RecentExecutions=history.History,Plans=jobs.Jobs?.Where(x=>x.PluginId=="crs.national-team"&&x.JobId=="official-share-sync")},Json),token);
         Console.WriteLine($"READ 补采回执：{command.Code} {command.Receipt?.State}/{command.Receipt?.Code}；执行记录已另存，覆盖仍须逐只核验。");
+    }
+    private static async Task<BackgroundResponse> ReadStatus(BackgroundPipeClient pipe,BackgroundRequest request,CancellationToken token)
+    {
+        while(true)
+        {
+            var reply=await pipe.SendAsync(request,token);
+            if(reply.Code is "RateLimited" or "PluginBusy"){await Task.Delay(500,token);continue;}
+            if(reply.Code!="Ok")throw new InvalidDataException("读取补采状态失败："+request.Command+"/"+reply.Code);
+            return reply;
+        }
     }
     public static async Task Backfill(string fromText,string throughText)
     {

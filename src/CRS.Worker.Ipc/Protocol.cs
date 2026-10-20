@@ -11,7 +11,8 @@ public sealed record BackgroundRequest(int ProtocolVersion, Guid RequestId, stri
 public sealed record BackgroundPluginScheduling(string PluginId, int MaxConcurrency, int Running, int Waiting);
 public sealed record BackgroundScheduling(int MaxConcurrency, int Running, int Waiting, int MaxPendingPerPlugin, long CoalescedTriggers,
     long CapacityDeferredTriggers, int PendingManualCommands = 0, IReadOnlyList<BackgroundPluginScheduling>? Plugins = null);
-public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, DateTimeOffset ObservedUtc, int ProcessId, BackgroundScheduling? Scheduling = null);
+public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, DateTimeOffset ObservedUtc, int ProcessId, BackgroundScheduling? Scheduling = null,
+    IReadOnlyList<SourceBudgetHealth>? Sources = null);
 public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, string Code,
     BackgroundHealth? Health = null, IReadOnlyList<TaskDefinition>? Jobs = null,
     IReadOnlyList<ExecutionRecord>? History = null, string? NextCursor = null,

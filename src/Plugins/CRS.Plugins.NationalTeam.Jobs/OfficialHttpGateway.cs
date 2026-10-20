@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using CRS.Plugin.Abstractions;
+using CRS.Worker.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeam.Jobs;
@@ -10,15 +11,48 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     private readonly HttpClient client;
     private readonly HttpClient directClient;
     private readonly SourceRequestPolicy policy;
+    private readonly IBackgroundSourceContext? sources;
     private readonly HashSet<string> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim gate = new(1);
-    public void RejectContract(Uri uri)=>policy.Failure(uri.Host,DateTimeOffset.UtcNow,0);
+    public void RejectContract(Uri uri)
+    {
+        sources?.ReportSourceFailure(uri.Host,0);
+        policy.Failure(uri.Host,DateTimeOffset.UtcNow,0);
+        ImportPolicy(uri.Host);
+    }
+    private void ImportPolicy(string host)
+    {
+        if(sources is null)return;
+        var state=policy.Read(host);
+        sources.ImportSourceState(host,new(state.Next,state.Blocked,state.Failures));
+    }
+    private void Failure(Uri uri,int status,IBackgroundSourceLease? lease,DateTimeOffset? retryAfter=null)
+    {
+        // 宿主先登记；插件库写失败也不能让其他插件继续访问已拒绝来源。
+        lease?.Complete(status,retryAfter);
+        policy.Failure(uri.Host,DateTimeOffset.UtcNow,status,retryAfter);
+        ImportPolicy(uri.Host);
+    }
     public Func<EtfProgress,Task>? Progress {get;set;}
     private Task ReportAsync(string stage,Uri uri,int? status=null,DateTimeOffset? until=null)=>Progress?.Invoke(new(stage,Market:uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)||OfficialEquityDocuments.IsReviewedIssuer(uri)?"SSE":"SZSE",HttpStatus:status,Until:until))??Task.CompletedTask;
     /// <summary>测试可注入固定响应；正式入口只使用禁重定向的默认传输。</summary>
-    public OfficialHttpGateway(SourceRequestPolicy policy, HttpMessageHandler? transport = null)
+    public OfficialHttpGateway(SourceRequestPolicy policy, HttpMessageHandler? transport = null,IBackgroundSourceContext? sources=null)
     {
         this.policy = policy;
+        this.sources = sources;
+        // 会话Start在调度启动前合并所有旧来源，防止其他插件先请求空宿主预算。
+        if(sources is not null)
+        {
+            try
+            {
+                foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com"})
+                {
+                    var legacy=policy.Read(host);
+                    sources.ImportSourceState(host,new(legacy.Next,legacy.Blocked,legacy.Failures));
+                }
+            }
+            catch{policy.Dispose();throw;}
+        }
         client = new(transport ?? new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }) { Timeout = Timeout.InfiniteTimeSpan };
         directClient = new(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false }) { Timeout = Timeout.InfiniteTimeSpan };
     }
@@ -30,6 +64,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
         try
         {
             var state = policy.Read(uri.Host);
+            using var lease = await AcquireSourceAsync(uri,state,cancellationToken).ConfigureAwait(false);
             if (state.Blocked > DateTimeOffset.UtcNow) {await ReportAsync("Cooldown",uri,until:state.Blocked);throw new InvalidOperationException($"来源冷却中，最早重试时间{state.Blocked:O}。");}
             var wait = state.Next - DateTimeOffset.UtcNow;
             if (wait > TimeSpan.Zero) {await ReportAsync("RateWait",uri,until:state.Next);await Task.Delay(wait, cancellationToken).ConfigureAwait(false);}
@@ -53,7 +88,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
                         var now = DateTimeOffset.UtcNow;
                         until = delta > DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now.Add(delta);
                     }
-                    policy.Failure(uri.Host, DateTimeOffset.UtcNow, status, until);
+                    Failure(uri,status,lease,until);
                     await ReportAsync("Cooldown",uri,status,policy.Read(uri.Host).Blocked);
                 }
                 if (response.Content.Headers.ContentLength > 8 * 1024 * 1024) throw new InvalidDataException("Response too large.");
@@ -64,23 +99,34 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
                     if (buffer.Length + read > 8 * 1024 * 1024) throw new InvalidDataException("Response too large.");
                     await buffer.WriteAsync(bytes.AsMemory(0, read), deadline.Token).ConfigureAwait(false);
                 }
-                if (status is >= 200 and < 300) policy.Success(uri.Host);
+                if (status is >= 200 and < 300) {policy.Success(uri.Host);lease?.Complete(status);}
                 return new(status, buffer.ToArray(), response.Content.Headers.ContentType?.MediaType);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                policy.Failure(uri.Host, DateTimeOffset.UtcNow, 0);
+                Failure(uri,0,lease);
                 await ReportAsync("RequestTimedOut",uri,until:policy.Read(uri.Host).Blocked);
                 throw new TimeoutException("官方来源响应超时，已进入持久退避。");
             }
             catch (HttpRequestException)
             {
-                policy.Failure(uri.Host, DateTimeOffset.UtcNow, 0);
+                Failure(uri,0,lease);
                 await ReportAsync("RequestFailed",uri,until:policy.Read(uri.Host).Blocked);
                 throw new HttpRequestException("官方来源连接失败，已进入持久退避。");
             }
         }
         finally { gate.Release(); }
+    }
+    private async Task<IBackgroundSourceLease?> AcquireSourceAsync(Uri uri,(DateTimeOffset Next,DateTimeOffset Blocked,int Failures) state,CancellationToken token)
+    {
+        if(sources is null)return null;
+        await ReportAsync("RateWait",uri);
+        try{return await sources.AcquireSourceAsync(uri.Host,new(state.Next,state.Blocked,state.Failures),token).ConfigureAwait(false);}
+        catch(SourceBudgetUnavailableException error)
+        {
+            await ReportAsync(error.Code=="SourceCooldown"?"Cooldown":"RateWait",uri,until:error.Until);
+            throw;
+        }
     }
     private async Task<HttpResponseMessage> SendAsync(Uri uri,CancellationToken token)
     {

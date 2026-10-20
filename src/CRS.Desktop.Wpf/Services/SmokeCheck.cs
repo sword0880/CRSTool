@@ -41,6 +41,17 @@ internal static class SmokeCheck
             if (shell.Dashboard.RecentTasks.Count != 1 || shell.Dashboard.TradeCount != "1") throw new InvalidOperationException("概览未读取真实任务。");
             var imageIndex = Array.IndexOf(args, "--image");
             var imagePath = imageIndex >= 0 && imageIndex + 1 < args.Length ? args[imageIndex + 1] : null;
+            if(args.Contains("--brand-icons"))
+            {
+                window.UpdateLayout();
+                if(imagePath is not null)Capture(window,imagePath);
+                if(vault is null || settings is null)throw new InvalidOperationException("图标预览需要隔离保险库。");
+                vault.Lock();
+                var brandAccess=new VaultWindow(new VaultViewModel(vault,settings,new SmokeInteraction()));
+                brandAccess.Show();await Task.Delay(300);brandAccess.UpdateLayout();
+                if(imagePath is not null)Capture(brandAccess,VariantPath(imagePath,"vault"));
+                brandAccess.Close();return;
+            }
             window.IsNavigationExpanded = false;
             window.UpdateLayout(); await Task.Delay(250);
             if (window.IsNavigationExpanded) throw new InvalidOperationException("侧栏未折叠。");

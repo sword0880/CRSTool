@@ -22,6 +22,9 @@ internal static class PerformanceChecks
     internal static async Task RunAsync(string root,bool realOnly=false)
     {
         PerformanceImportRegression.Run();
+        BrokerSourceFactsChecks.Run(Path.Combine(root,"broker-source-facts"));
+        await BrokerProvenanceChecks.RunAsync(Path.Combine(root,"broker-provenance"));
+        await PerformanceManualInputChecks.RunAsync(root);
         const string password="Synthetic-Performance-Password-2026";
         await CheckMarketAsync();
         await CheckFutuLabelsAsync(root);

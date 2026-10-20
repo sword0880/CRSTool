@@ -148,3 +148,29 @@ dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- 
 ```
 
 前两项不需要正式服务；第三项只读当前启用池、规则、已接受份额、日历覆盖及机构证据，要求正式服务查询可用。导出`report.md`、`report.json`、`inputs.json`；服务快照另附`evidence.json`原件哈希/来源/修订。所有回放均为事后研究且时效`NotProven`，不发信、不补采、不审核。当前池不是历史无偏样本；无数据或无可计算窗口不能被解读为未发生异常。2026-10-19用户授权清理旧后台数据后，服务及预警IPC已恢复；旧历史需重新采集和核验，不能把新库可查询视为历史回测通过。
+
+
+### 2026-10-20架构续验
+
+证据与命令见[架构整改续记](../docs/implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。`CRS.Tests.Infrastructure --performance-only`包含类型化手工账户/事件/净值/覆盖确认与拒绝输入无写入检查；`CRS.Tests.Wpf`包含表单映射及用例错误呈现。`ScopedEvidenceChecks`验证查询无写、巡检幂等及事务故障回滚。宿主可靠性回归使用`Publish-BackgroundService.ps1 -HeartbeatOnly`生成的隔离包；ETF服务化使用完整双入口包，不能混用无上下文宿主夹具。
+
+监控`--monitor-summary-live`仅回读逐证券250/20日验收，保存`current-acceptance.json`。状态查询限流/繁忙只在总期限内重读，不生成补采命令，失败不覆盖最终报告。
+
+
+`CRS.Tests.NationalTeamWatch --business-contracts`在隔离目录验证业务V1默认/显式、可选新字段、缺字段/重复属性、UTF-8超限、未知版本拒绝、旧服务响应、真实管道客户端错误呈现和未知市场Schema拒绝。也已纳入默认ETF回归。它不操作已安装服务；生产部署与旧发行升级矩阵另外验收。
+
+
+`CRS.Tests.Background --lifecycle-only`在隔离目录验证插件四阶段超时、禁止失控后清理、健康与分派拒绝、诊断异常、迟到结果及真实子进程退出。`--lifecycle-exit-child`仅供该夹具创建的测试子进程使用，不操作SCM。该专项已纳入后台默认回归。
+
+品牌仅需预览时，可指定完整项目`src/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj`及参数`--smoke-test --brand-icons --image <绝对PNG路径>`，只用合成隔离保险库输出主窗口与身份验证页。不要用该预览声称全部财务/设置回归通过。
+
+
+`CRS.Tests.Infrastructure --broker-source-facts`验证共享来源的确定性、实际同步回调、未知字段/位置保留、取消及结构拒绝；也包含在`--performance-only`。`--compare-ibkr-before <工作前受信Infrastructure程序集绝对路径>`用于本次变化前后技术比较，不是独立金额签认，不纳入需要旧二进制的常规CI。既有金融冻结JSON不自动更新。
+
+
+### 宿主共享来源预算（ARCH-209）
+
+`dotnet run --project tests/CRS.Tests.WorkerEtf/CRS.Tests.WorkerEtf.csproj -c Release -- --source-budget`：隔离SQLCipher与固定HTTP，验证跨插件共享、域名归并、FIFO/容量/取消、Retry-After、重启恢复、旧策略预合并、存储故障锁定、真实请求间隔及健康字段。配合既有`--source-policy`检查保留原网关行为；不访问官网，不操作安装服务。不能替代长期容量与真实升级/断电验收。
+
+
+`--source-budget`还覆盖来源存储故障后的重复健康查询、失败关闭与启动校验。`dotnet run --project tests/CRS.Tests.WorkerEtf/CRS.Tests.WorkerEtf.csproj -c Release -- --source-budget-soak 90`运行90秒真实时间负载（可选60～600秒），固定120个消费者/8个插件，不访问网络；检查持续容量、来源故障、三秒间隔、排空和重启冷却。成功摘要写入`artifacts/source-budgets-soak-90s.json`，与本次退出码/日志一起使用，不能拿旧摘要冒充失败运行已通过，也不能替代跨日负载或真实升级验收。

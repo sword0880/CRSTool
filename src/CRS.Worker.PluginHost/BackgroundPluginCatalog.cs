@@ -17,9 +17,12 @@ public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescripto
 
 /// <summary>只加载后台入口。完整包哈希验证后，私有依赖仍逐次校验，禁止链接逃逸。</summary>
 public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null,
-    Func<string,IBackgroundHostContext>? hostContext = null) : IAsyncDisposable
+    Func<string,IBackgroundHostContext>? hostContext = null, Action<string,string,string>? lifecycleDiagnostic = null) : IAsyncDisposable
 {
-    private readonly List<IBackgroundPluginSession> sessions = [];
+    private readonly List<(string Plugin,IBackgroundPluginSession Session)> sessions = [];
+    private PluginLifecycleTimeoutException? terminalFault;
+    public bool RequiresProcessRestart=>Volatile.Read(ref terminalFault) is not null;
+    private void EnsureResponsive(){if(Volatile.Read(ref terminalFault) is {} failure)throw failure;}
     private readonly List<AssemblyLoadContext> contexts = [];
     private readonly List<HostedBackgroundJob> jobs = [];
     // 查询能力独立于任务描述列表，支持零 Job 插件。
@@ -30,8 +33,9 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     /// <summary>查询仅分派到已成功启动的插件，并沿用有界生命周期等待策略。</summary>
     public async Task<string> QueryAsync(string plugin,string payload,CancellationToken token)
     {
+        EnsureResponsive();
         if(!querySessions.TryGetValue(plugin,out var session))throw new ArgumentException("插件不支持查询。");
-        string result="";await InvokeAsync(async cancellation=>result=await session.QueryAsync(payload,cancellation),token);
+        string result="";await InvokeAsync(plugin,"Query",async cancellation=>result=await session.QueryAsync(payload,cancellation),token);
         if(System.Text.Encoding.UTF8.GetByteCount(result)>48000)throw new InvalidDataException("业务查询响应超限。");
         return result;
     }
@@ -47,6 +51,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
 
     public async Task LoadAsync(string root, string trustFile, CancellationToken token)
     {
+        EnsureResponsive();
         if (!File.Exists(trustFile)) throw new InvalidDataException("缺少宿主信任索引，拒绝启动后台任务。");
         if (new FileInfo(trustFile).Length > 1024 * 1024) throw new InvalidDataException("信任索引过大。");
         var packages = JsonSerializer.Deserialize<TrustedPackage[]>(await File.ReadAllTextAsync(trustFile, token), Json)
@@ -77,7 +82,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             contexts.Add(context);
             RejectDesktopDependencies(Contained(directory, entry.Assembly));
             var assembly = context.LoadFromAssemblyPath(Contained(directory, entry.Assembly));
-            await InvokeAsync(_ =>
+            await InvokeAsync(package.Id,"CreateSession",_ =>
             {
                 var instance = Activator.CreateInstance(assembly.GetType(entry.Type, throwOnError: true)!) as IBackgroundPluginEntry
                     ?? throw new InvalidDataException("后台入口未实现约定接口。");
@@ -86,12 +91,12 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
                     : instance.CreateSession(); return Task.CompletedTask;
             }, token);
             if (session is null) throw new InvalidDataException("后台入口未建立会话。");
-            sessions.Add(session);
-            await InvokeAsync(cancellation => session.StartAsync(cancellation).AsTask(), token);
+            sessions.Add((package.Id,session));
+            await InvokeAsync(package.Id,"Start",cancellation => session.StartAsync(cancellation).AsTask(), token);
             IReadOnlyList<BackgroundJobDescriptor> descriptors = [];
-            await InvokeAsync(_ => { descriptors = session.DescribeJobs(); return Task.CompletedTask; }, token);
+            await InvokeAsync(package.Id,"DescribeJobs",_ => { descriptors = session.DescribeJobs(); return Task.CompletedTask; }, token);
             var maximumConcurrency = 1;
-            await InvokeAsync(_ => { maximumConcurrency = (session as IConcurrentBackgroundSession)?.MaximumConcurrentExecutions ?? 1; return Task.CompletedTask; }, token);
+            await InvokeAsync(package.Id,"Concurrency",_ => { maximumConcurrency = (session as IConcurrentBackgroundSession)?.MaximumConcurrentExecutions ?? 1; return Task.CompletedTask; }, token);
             if (maximumConcurrency is < 1 or > 32) throw new InvalidDataException("插件并发声明超出上限。");
             if (descriptors.Count > 32 || descriptors.Select(x => x.JobId).Distinct().Count() != descriptors.Count)
                 throw new InvalidDataException("任务重复或超过上限。");
@@ -112,10 +117,10 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
                 querySessions.Remove(package.Id);
                 if (session is not null)
                 {
-                    try { await CleanupAsync(session, token); }
+                    try { await CleanupAsync(package.Id,session, token); }
                     catch (PluginLifecycleTimeoutException) { throw; }
                     catch (Exception) { }
-                    sessions.Remove(session);
+                    sessions.RemoveAll(x=>ReferenceEquals(x.Session,session));
                 }
                 if (context is not null) { contexts.Remove(context); context.Unload(); }
                 statuses.Add(new(package.Id, "Failed", error.GetType().Name));
@@ -123,30 +128,50 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
         }
     }
 
-    private async Task InvokeAsync(Func<CancellationToken, Task> work, CancellationToken token)
+    private void ReportLifecycle(string plugin,string phase,string code)
     {
+        try{lifecycleDiagnostic?.Invoke(plugin,phase,code);}catch(Exception){ /* 诊断失败不能跳过退出保护。 */ }
+    }
+    private async Task InvokeAsync(string plugin,string phase,Func<CancellationToken, Task> work, CancellationToken token)
+    {
+        EnsureResponsive();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(lifecycleTimeout ?? TimeSpan.FromSeconds(15));
         var task = Task.Run(() => work(deadline.Token), CancellationToken.None);
-        try { await task.WaitAsync(deadline.Token); }
-        catch (OperationCanceledException) when (!task.IsCompleted)
+        try
         {
-            // 等待超时不代表执行已终止；先给协作取消短暂收尾，再要求宿主终止进程。
-            try { await task.WaitAsync(TimeSpan.FromSeconds(1)); }
-            catch (TimeoutException)
+            try { await task.WaitAsync(deadline.Token); }
+            catch (OperationCanceledException) when (!task.IsCompleted)
             {
-                _ = task.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
-                onUnresponsive?.Invoke(); throw new PluginLifecycleTimeoutException();
+                try { await task.WaitAsync(TimeSpan.FromSeconds(1)); }
+                catch (TimeoutException) when (!task.IsCompleted)
+                {
+                    _ = task.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                    var failure=new PluginLifecycleTimeoutException(plugin,phase);
+                    Interlocked.CompareExchange(ref terminalFault,failure,null);
+                    ReportLifecycle(plugin,phase,"CancellationGraceExceeded");
+                    try{onUnresponsive?.Invoke();}catch(Exception){ /* 回调失败仍保留终止状态。 */ }
+                    throw failure;
+                }
             }
+            // 插件迟到返回也不能把已取消/超时的调用冒充成功。
+            deadline.Token.ThrowIfCancellationRequested();
+        }
+        catch(PluginLifecycleTimeoutException){throw;}
+        catch(Exception error)
+        {
+            ReportLifecycle(plugin,phase,error is OperationCanceledException
+                ?token.IsCancellationRequested?"CallerCanceled":"TimeoutCanceled":error.GetType().Name);
+            throw;
         }
     }
-    private async Task CleanupAsync(IBackgroundPluginSession session, CancellationToken token)
+    private async Task CleanupAsync(string plugin,IBackgroundPluginSession session, CancellationToken token)
     {
         Exception? stopFailure = null;
-        try { await InvokeAsync(cancellation => session.StopAsync(cancellation).AsTask(), token); }
+        try { await InvokeAsync(plugin,"Stop",cancellation => session.StopAsync(cancellation).AsTask(), token); }
         catch (PluginLifecycleTimeoutException) { throw; }
         catch (Exception error) { stopFailure = error; }
-        await InvokeAsync(_ => session.DisposeAsync().AsTask(), token);
+        await InvokeAsync(plugin,"Dispose",_ => session.DisposeAsync().AsTask(), token);
         if (stopFailure is not null) throw new InvalidOperationException("后台插件停止失败，已尝试资源释放。", stopFailure);
     }
 
@@ -197,11 +222,12 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     }
     public async ValueTask DisposeAsync()
     {
+        EnsureResponsive(); // 不合作插件仍在运行时不得Stop/Dispose/Unload，必须退出进程。
         using var timeout = new CancellationTokenSource(lifecycleTimeout ?? TimeSpan.FromSeconds(15));
         var failures = new List<Exception>();
-        foreach (var session in sessions.AsEnumerable().Reverse())
+        foreach (var (plugin,session) in sessions.AsEnumerable().Reverse())
         {
-            try { await CleanupAsync(session, timeout.Token); }
+            try { await CleanupAsync(plugin,session, timeout.Token); }
             catch (PluginLifecycleTimeoutException) { throw; }
             catch (Exception error) { failures.Add(error); }
         }
@@ -240,4 +266,8 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
 }
 
 /// <summary>插件仍在运行时禁止假装已卸载；实际服务收到此信号会有界终止进程。</summary>
-public sealed class PluginLifecycleTimeoutException : Exception;
+public sealed class PluginLifecycleTimeoutException(string pluginId="unknown",string phase="Unknown") : Exception("Plugin lifecycle requires process restart.")
+{
+    public string PluginId{get;}=pluginId;
+    public string Phase{get;}=phase;
+}

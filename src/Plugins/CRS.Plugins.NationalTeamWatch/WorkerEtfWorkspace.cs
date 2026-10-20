@@ -32,7 +32,8 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     {
         var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:JsonSerializer.Serialize(query)),token);
         if(reply.Code!="Ok" || reply.Payload is null)throw new InvalidDataException("后台查询失败："+reply.Code+"；请确认服务和ETF后台插件已安装。");
-        return JsonSerializer.Deserialize<T>(reply.Payload)??throw new InvalidDataException("后台返回空数据。");
+        try{return EtfBusinessProtocol.ReadResponse<T>(reply.Payload);}
+        catch(EtfContractException error){throw new InvalidDataException("ETF业务契约校验失败："+error.Code+"；请核对桌面与后台插件版本。",error);}
     }
     /// <summary>同一次读取沿用快照，任何分页失败都不把半份结果交给页面。</summary>
     private async Task<(List<T> Rows,string? Metadata)> ReadPagesAsync<T>(EtfRequest query,CancellationToken token)

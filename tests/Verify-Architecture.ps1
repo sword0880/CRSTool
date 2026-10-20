@@ -62,6 +62,12 @@ $solution = Get-Content -Raw (Join-Path $RepositoryRoot 'CRS.sln')
 Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.Desktop.WinForms'))) 'WinForms 项目仍存在。'
 Assert-Boundary (-not ($solution -match 'CRS\.Desktop\.WinForms')) '解决方案仍引用 WinForms 项目。'
 Write-Output 'Domain / Application / Infrastructure / 前台边界、页面、项目引用和包版本检查通过。'
+foreach($projection in @('Brokers/IBKR/IbkrXmlParser.cs','Brokers/IBKR/CashBalanceChecker.cs','Performance/IbkrPerformanceAdapter.cs','Performance/PerformanceAccountIdentityReader.cs')) {
+    $source=Get-Content -Raw (Join-Path $infra $projection)
+    Assert-Boundary (-not ($source -match '\b(ReadXml|XElement|XDocument)\b')) "IBKR投影应只消费不可变来源事实，不得再次解析XML：$projection"
+}
+$performanceUi=Get-Content -Raw (Join-Path $wpf 'ViewModels/PerformanceViewModel.cs')
+Assert-Boundary (-not ($performanceUi -match 'JsonSerializer|new\s+PerformanceData|new\s+ValuationComponent|SecuritiesValue\s*[<>]|BaseCurrencyConfirmed')) '绩效手工录入构造/业务校验必须由 Application 用例拥有。'
 foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter '*.csproj' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
     [xml]$project = Get-Content -Raw $projectFile.FullName
     foreach ($reference in $project.SelectNodes('//ProjectReference')) {

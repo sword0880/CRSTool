@@ -19,6 +19,10 @@ internal static class XmlFields
     public static string Optional(XElement e, string field, string fallback = "") => e.Attribute(field)?.Value.Trim() ?? fallback;
     /// <summary>将必填属性解析为十进制金额或数量。</summary>
     public static decimal Number(XElement e, string field) => ParseNumber(Required(e, field), field);
+    public static string Required(BrokerSourceRecord e,string field)=>!e.Fields.TryGetValue(field,out var value)||string.IsNullOrWhiteSpace(value)
+        ?throw new CrsException($"IBKR 缺少字段 {field}，请补充导出。"):value.Trim();
+    public static string Optional(BrokerSourceRecord e,string field,string fallback="")=>e.Fields.TryGetValue(field,out var value)?value.Trim():fallback;
+    public static decimal Number(BrokerSourceRecord e,string field)=>ParseNumber(Required(e,field),field);
     /// <summary>使用固定文化格式解析有限十进制数，拒绝 NaN、无穷大与越界数值。</summary>
     public static decimal ParseNumber(string value, string field)
     {

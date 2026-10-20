@@ -7,7 +7,10 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--source-budget-process",var sourcePackage]){await SourceBudgetProcessChecks.RunAsync(sourcePackage);return;}
 if(args is ["--notifications"]){await NotificationChecks.Run();return;}
+if(args is ["--lifecycle-only"]){await LifecycleBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.Lifecycle",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--lifecycle-exit-child",var lifecycleRoot,var lifecyclePhase]){await LifecycleBoundaryChecks.ExitChild(lifecycleRoot,lifecyclePhase);return;}
 
 // 验收工具只操作自己创建的隔离目录和进程；--probe 可只读检查实际安装的服务。
 if(args is ["--isolated-fact-create",var factPipe])
@@ -222,6 +225,7 @@ await using (var rejected = new BackgroundPluginCatalog())
     Check(rejected.Jobs.Count == 0 && rejected.Statuses.Single().State == "Failed", "外部信任索引隔离已篡改后台包");
 }
 await WorkerRemediationChecks.RunAsync(root, package);
+await LifecycleBoundaryChecks.Run(root);
 await WorkerSchedulingChecks.RunAsync(root);
 await WorkerUpgradeChecks.RunAsync(root, package);
 await StorageSecurityChecks.RunAsync(root, package);

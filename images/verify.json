@@ -1,0 +1,117 @@
+{
+  "png_files": [
+    {
+      "file": "XiaoCaiNiu_16.png",
+      "size": [
+        16,
+        16
+      ],
+      "mode": "RGBA",
+      "bytes": 838
+    },
+    {
+      "file": "XiaoCaiNiu_24.png",
+      "size": [
+        24,
+        24
+      ],
+      "mode": "RGBA",
+      "bytes": 1590
+    },
+    {
+      "file": "XiaoCaiNiu_32.png",
+      "size": [
+        32,
+        32
+      ],
+      "mode": "RGBA",
+      "bytes": 2473
+    },
+    {
+      "file": "XiaoCaiNiu_48.png",
+      "size": [
+        48,
+        48
+      ],
+      "mode": "RGBA",
+      "bytes": 4662
+    },
+    {
+      "file": "XiaoCaiNiu_64.png",
+      "size": [
+        64,
+        64
+      ],
+      "mode": "RGBA",
+      "bytes": 7222
+    },
+    {
+      "file": "XiaoCaiNiu_128.png",
+      "size": [
+        128,
+        128
+      ],
+      "mode": "RGBA",
+      "bytes": 21106
+    },
+    {
+      "file": "XiaoCaiNiu_256.png",
+      "size": [
+        256,
+        256
+      ],
+      "mode": "RGBA",
+      "bytes": 66022
+    },
+    {
+      "file": "XiaoCaiNiu_512.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "bytes": 232531
+    },
+    {
+      "file": "XiaoCaiNiu_1024.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "bytes": 794493
+    }
+  ],
+  "ico_sizes": [
+    [
+      16,
+      16
+    ],
+    [
+      24,
+      24
+    ],
+    [
+      32,
+      32
+    ],
+    [
+      48,
+      48
+    ],
+    [
+      64,
+      64
+    ],
+    [
+      128,
+      128
+    ],
+    [
+      256,
+      256
+    ]
+  ],
+  "icon_opaque_center": 255,
+  "transparent_corner": 0
+}

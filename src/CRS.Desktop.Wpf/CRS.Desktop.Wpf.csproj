@@ -4,6 +4,7 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <AssemblyName>CRS.Desktop.Wpf</AssemblyName>
+    <ApplicationIcon>Assets/Brand/XiaoCaiNiu.ico</ApplicationIcon>
     <!-- Windows 文件属性采用产品全称，程序集技术标识继续使用 CRS。 -->
     <Product>小财牛</Product>
     <Title>小财牛</Title>
@@ -11,6 +12,8 @@
     <Description>财富有数，投资有度</Description>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets/Brand/XiaoCaiNiu.ico" />
+    <Resource Include="Assets/Brand/XiaoCaiNiu_256.png" />
     <PackageReference Include="WPF-UI" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="DataGridExtensions" />

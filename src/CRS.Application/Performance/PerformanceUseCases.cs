@@ -3,7 +3,7 @@ using CRS.Domain.Performance;
 namespace CRS.Application.Performance;
 
 /// <summary>每次任务绑定原解锁会话；取消后不保存半份结果，历史始终另存。</summary>
-public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFiles files,CancellationToken session,IPerformanceMarketData? market=null) : IPerformanceUseCases
+public sealed partial class PerformanceUseCases(IPerformanceStore store,IPerformanceFiles files,CancellationToken session,IPerformanceMarketData? market=null) : IPerformanceUseCases
 {
     private readonly PerformanceOnlineAccess onlineAccess=new();
     public bool OnlineUpdatesAllowed=>!session.IsCancellationRequested && onlineAccess.Allowed;
@@ -50,8 +50,9 @@ public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFile
         var frozenRequest=request with{AccountIds=[..request.AccountIds]};
         return Run(cancellation,token=>
         {
-            var data=PerformanceDataSnapshot.Copy(store.Load().Data);var result=PerformanceCalculator.Calculate(data,frozenRequest,token);
-            var run=PerformanceEvidence.Seal(new PerformanceRun(Guid.NewGuid().ToString("N"),null,DateTimeOffset.UtcNow,files.Hash(data),data,result));
+            var workspace=store.Load();var data=PerformanceDataSnapshot.Copy(workspace.Data);var result=PerformanceCalculator.Calculate(data,frozenRequest,token);
+            var run=PerformanceEvidence.Seal(new PerformanceRun(Guid.NewGuid().ToString("N"),null,DateTimeOffset.UtcNow,files.Hash(data),data,result)
+                {ImportProvenance=[..workspace.Sources.Where(s=>s.Included&&s.Provenance is not null).OrderBy(s=>s.Hash,StringComparer.Ordinal).Select(s=>s.Provenance!)]});
             token.ThrowIfCancellationRequested();store.SaveRun(run);return run;
         });
     }
@@ -63,7 +64,7 @@ public sealed class PerformanceUseCases(IPerformanceStore store,IPerformanceFile
         var result=PerformanceCalculator.Calculate(original.Input,original.Result.Request,token);
         PerformanceEvidence.Verify(original);
         if(System.Text.Json.JsonSerializer.Serialize(result)!=System.Text.Json.JsonSerializer.Serialize(original.Result))throw new CrsException("当前绩效输出与冻结原结果不一致，请明确升级规则并作为新计算运行，不能冒充原版重放。");
-        var run=PerformanceEvidence.Seal(new PerformanceRun(Guid.NewGuid().ToString("N"),original.Id,DateTimeOffset.UtcNow,original.InputHash,original.Input,result));
+        var run=PerformanceEvidence.Seal(new PerformanceRun(Guid.NewGuid().ToString("N"),original.Id,DateTimeOffset.UtcNow,original.InputHash,original.Input,result){ImportProvenance=original.ImportProvenance});
         token.ThrowIfCancellationRequested();store.SaveRun(run);return run;
     });
     public Task ExportAsync(string id,string path,bool encrypted,string password,SensitiveExportConsent? consent=null,CancellationToken cancellation=default)

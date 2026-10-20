@@ -38,8 +38,10 @@ internal static class EquityReportChecks
         var next=Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(Page(11,2)).Replace("report10","report0"));
         Reject(()=>repository.SaveEquityReports(Key,From,To,[Page(11),next]),"跨页重复公告组拒绝");
         var hash=raw.Save(bytes);File.WriteAllText(Path.Combine(rawPath,hash+".raw"),"damaged");
+        repository.ReconcileEvidenceIntegrity();
         Check(repository.EquityReports(Key).Single().State=="Critical","目录证据损坏后不能当作有效线索");
         File.WriteAllBytes(Path.Combine(rawPath,hash+".raw"),bytes);
+        repository.ReconcileEvidenceIntegrity();
         Check(repository.EquityReports(Key).Single().State=="Indexed","仅恢复到原哈希才解除证据阻断");
         Check(repository.EquityHoldings(null,null,null,false).Count==0&&repository.EquityEvents(Key).Count==0,"找到报告不批准持股或增减结论");
     }

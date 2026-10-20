@@ -4,8 +4,20 @@ using CRS.Worker.Abstractions;
 namespace CRS.Worker.Service;
 
 /// <summary>每个插件使用独立私有目录和域分离的密钥副本，主密钥不交给业务实现。</summary>
-public sealed class WorkerPluginContext(string id,string root,byte[] masterKey,IBackgroundNotificationContext? notifications=null):IBackgroundHostContext,IBackgroundNotificationContext
+public sealed class WorkerPluginContext(string id,string root,byte[] masterKey,IBackgroundNotificationContext? notifications=null,SourceBudgetRegistry? sources=null):IBackgroundHostContext,IBackgroundNotificationContext,IBackgroundSourceContext
 {
+    public void ImportSourceState(string host,SourceBudgetState legacy)
+    {
+        if(sources is null)throw new SourceBudgetUnavailableException("SourceBudgetUnavailable");
+        sources.Import(host,legacy);
+    }
+    public Task<IBackgroundSourceLease> AcquireSourceAsync(string host,SourceBudgetState legacy,CancellationToken token)=>sources?.AcquireAsync(id,host,legacy,token)
+        ??Task.FromException<IBackgroundSourceLease>(new SourceBudgetUnavailableException("SourceBudgetUnavailable"));
+    public void ReportSourceFailure(string host,int status,DateTimeOffset? retryAfter=null)
+    {
+        if(sources is null)throw new SourceBudgetUnavailableException("SourceBudgetUnavailable");
+        sources.ReportFailure(host,status,retryAfter);
+    }
     public string PluginId=>id;
     public string DataDirectory=>Path.Combine(root,"plugins",id);
     public byte[] OpenDataKey()=>HKDF.DeriveKey(HashAlgorithmName.SHA256,masterKey,32,

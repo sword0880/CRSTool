@@ -13,6 +13,7 @@ internal sealed class PerformanceStore : IPerformanceStore
         public Dictionary<string,string> Aliases {get;init;}=[];
         public Dictionary<string,string> BaseCurrencies {get;init;}=[];
         public PerformanceSourceRevision[] Sources {get;init;}=[];
+        public Dictionary<string,BrokerImportProvenance> ImportProvenance {get;init;}=[];
     }
     internal PerformanceStore(VaultSession session)
     {
@@ -25,7 +26,7 @@ internal sealed class PerformanceStore : IPerformanceStore
                 CREATE TABLE performance_documents(hash TEXT PRIMARY KEY,name TEXT NOT NULL,format TEXT NOT NULL,raw BLOB NOT NULL CHECK(length(raw) BETWEEN 1 AND 26214400),data BLOB NOT NULL CHECK(length(data) BETWEEN 1 AND 67108864));
                 CREATE TABLE performance_runs(id TEXT PRIMARY KEY,parent_id TEXT REFERENCES performance_runs(id),created_utc TEXT NOT NULL,payload BLOB NOT NULL CHECK(length(payload) BETWEEN 1 AND 67108864),metadata BLOB NOT NULL CHECK(length(metadata) BETWEEN 1 AND 65536));
                 """,transaction:tx);
-            c.Execute("INSERT INTO performance_settings VALUES(1,@payload)",new{payload=PerformanceCodec.Encode(new Settings(1,[],[],[]))},tx);
+            c.Execute("INSERT INTO performance_settings VALUES(1,@payload)",new{payload=EncodeSettings(new Settings(2,[],[],[]))},tx);
         }
         else if(count!=3)throw new CrsException("绩效存储结构不完整，不会重建或覆盖。");
         // 不借主业务版本号隐藏模块升级；字段和独立格式都必须明确匹配。
@@ -36,20 +37,24 @@ internal sealed class PerformanceStore : IPerformanceStore
     private static Settings ReadSettings(Microsoft.Data.Sqlite.SqliteConnection c,Microsoft.Data.Sqlite.SqliteTransaction? tx=null)
     {
         var bytes=c.ExecuteScalar<byte[]>("SELECT CASE WHEN length(payload)<=4194304 THEN payload ELSE NULL END FROM performance_settings WHERE id=1",transaction:tx)??throw new CrsException("绩效设置超限或缺失。");
-        var s=PerformanceCodec.Decode<Settings>(bytes);if(s.Version!=1)throw new CrsException("绩效设置版本不支持。");return s;
+        var s=PerformanceCodec.Decode<Settings>(bytes);if(s.Version is not (1 or 2))throw new CrsException("绩效设置版本不支持。");
+        if(s.ImportProvenance is null||s.ImportProvenance.Count>500)throw new CrsException("绩效解析版本依据无效或超限。");
+        if(s.Version==1&&s.ImportProvenance.Count!=0)throw new CrsException("旧版绩效设置不能携带新版解析依据。");
+        foreach(var pair in s.ImportProvenance)
+        {if(pair.Value is null||pair.Key!=pair.Value.SourceFileHash)throw new CrsException("绩效版本依据来源不一致。");pair.Value.Validate();}
+        return s;
     }
+    private static byte[] EncodeSettings(Settings settings)=>PerformanceCodec.Encode(settings with{Version=2});
     public PerformanceWorkspace Load()
     {
         using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction(deferred:true);
         var settings=ReadSettings(c,tx);
         if(c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents",transaction:tx)>500 || c.ExecuteScalar<long>("SELECT COALESCE(SUM(length(data)),0) FROM performance_documents",transaction:tx)>128L*1024*1024)throw new CrsException("绩效工作区资料超过读取限额。");
         VerifyOriginals(c,tx);
-        var documents=new List<PerformanceData>();
         var sourceRows=new List<PerformanceInputInfo>();
         var excluded=settings.Sources.OrderBy(s=>s.CreatedAt).GroupBy(s=>s.Hash).Where(g=>!g.Last().Included).Select(g=>g.Key).ToHashSet();
-        foreach(var row in c.Query<(string Hash,byte[] Data)>("SELECT hash,CASE WHEN length(data)<=67108864 THEN data ELSE NULL END FROM performance_documents ORDER BY hash",transaction:tx))
-        {if(row.Data is null)throw new CrsException("绩效输入超限。");if(!excluded.Contains(row.Hash))documents.Add(PerformanceCodec.Decode<PerformanceData>(row.Data));}
-        foreach(var row in c.Query<(string Hash,string Name)>("SELECT hash,name FROM performance_documents ORDER BY hash",transaction:tx))sourceRows.Add(new(row.Hash,row.Name,!excluded.Contains(row.Hash)));
+        var documents=ReadDocuments(c,tx,settings,excluded);
+        foreach(var row in c.Query<(string Hash,string Name)>("SELECT hash,name FROM performance_documents ORDER BY hash",transaction:tx))sourceRows.Add(new(row.Hash,row.Name,!excluded.Contains(row.Hash)){Provenance=settings.ImportProvenance.GetValueOrDefault(row.Hash)});
         var data=Merge(documents) with {Revisions=settings.Revisions,Transfers=settings.Transfers};
         // 只修正旧版摘要占位别名，不修改原件、冻结历史或用户命名。
         if(data.Accounts.Any(a=>a.Broker=="FUTU" && a.Id.Length>=6 && a.Alias=="富途账户 "+a.Id[^6..]))
@@ -117,6 +122,7 @@ internal sealed class PerformanceStore : IPerformanceStore
     public bool Import(PerformanceDocument document)
     {
         if(document.Hash!=PerformanceCodec.Hash(document.Raw) || document.Raw.Length is <=0 or >25*1024*1024)throw new CrsException("绩效原件摘要或大小不一致。");
+        ValidateProvenance(document);
         var encoded=PerformanceCodec.Encode(document.Data);using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();
         var exists=c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents WHERE hash=@Hash",document,tx)>0;
         if(exists && document.Format!="YahooChartJSON")return false;
@@ -130,17 +136,46 @@ internal sealed class PerformanceStore : IPerformanceStore
                 if(old.Hash!=document.Hash && !excluded.Contains(old.Hash) && PerformanceCodec.Decode<PerformanceData>(old.Data).Prices.Any(p=>p.Market=="INDEX" && p.Security==symbol))
                 {excluded.Add(old.Hash);currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(old.Hash,false,"联网更新同一指数，保留旧原响应和冻结历史。",DateTimeOffset.UtcNow)]};}
             if(excluded.Remove(document.Hash))currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(document.Hash,true,"重新使用已缓存的指数响应。",DateTimeOffset.UtcNow)]};
-            c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload=PerformanceCodec.Encode(currentSettings)},tx);
+            c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload=EncodeSettings(currentSettings)},tx);
         }
         var previous=c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents",transaction:tx).Where(r=>!excluded.Contains(r.Hash)).Select(r=>PerformanceCodec.Decode<PerformanceData>(r.Data));
         var merged=Merge(previous.Append(document.Data));
         if(merged.Events.Any(e=>!merged.Accounts.Any(a=>a.Id==e.AccountId)) || merged.Valuations.Any(v=>!merged.Accounts.Any(a=>a.Id==v.AccountId)) || merged.Coverage.Any(v=>!merged.Accounts.Any(a=>a.Id==v.AccountId)))throw new CrsException("补录资料引用了不存在的账户，请先登记或导入账户。");
         if(merged.Accounts.Length>100 || merged.Events.Length>20000 || merged.Valuations.Length>20000 || merged.Prices.Length>50000 || merged.Fx.Length>50000)throw new CrsException("合并后的绩效资料超过集合限额。");
         if(merged.Accounts.Length>0)_=PerformanceCalculator.Calculate(merged,new(merged.Accounts.Select(a=>a.Id).ToArray(),new(2000,1,1),new(2000,1,2)));
-        if(!exists)c.Execute("INSERT INTO performance_documents VALUES(@Hash,@Name,@Format,@Raw,@data)",new{document.Hash,document.Name,document.Format,document.Raw,data=encoded},tx);Capacity(c,tx);tx.Commit();return !exists;
+        if(!exists)c.Execute("INSERT INTO performance_documents VALUES(@Hash,@Name,@Format,@Raw,@data)",new{document.Hash,document.Name,document.Format,document.Raw,data=encoded},tx);
+        SaveProvenance(c,tx,document,currentSettings,exists);
+        Capacity(c,tx);tx.Commit();return !exists;
+    }
+    private static List<PerformanceData> ReadDocuments(Microsoft.Data.Sqlite.SqliteConnection c,Microsoft.Data.Sqlite.SqliteTransaction tx,Settings settings,HashSet<string> excluded)
+    {
+        var documents=new List<PerformanceData>();
+        foreach(var row in c.Query<(string Hash,byte[] Data)>("SELECT hash,CASE WHEN length(data)<=67108864 THEN data ELSE NULL END FROM performance_documents ORDER BY hash",transaction:tx))
+        {
+            if(row.Data is null)throw new CrsException("绩效输入超限。");
+            var decoded=PerformanceCodec.Decode<PerformanceData>(row.Data);
+            if(settings.ImportProvenance.TryGetValue(row.Hash,out var provenance)&&provenance.DataSnapshotId!=PerformanceSnapshot.Identity(decoded))throw new CrsException("绩效版本依据与导入事实摘要不一致。");
+            if(!excluded.Contains(row.Hash))documents.Add(decoded);
+        }
+        return documents;
+    }
+    private static void SaveProvenance(Microsoft.Data.Sqlite.SqliteConnection c,Microsoft.Data.Sqlite.SqliteTransaction tx,PerformanceDocument document,Settings settings,bool exists)
+    {
+        if(exists||document.Provenance is not {} provenance)return;
+        var next=settings with{ImportProvenance=new(settings.ImportProvenance){[document.Hash]=provenance}};
+        var payload=EncodeSettings(next);if(payload.Length>4*1024*1024)throw new CrsException("绩效版本依据超过台账限额。");
+        c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload},tx);
+    }
+    private static void ValidateProvenance(PerformanceDocument document)
+    {
+        if(document.Provenance is not {} p)return;
+        p.Validate();
+        if(p.SourceFileHash!=document.Hash||p.DataSnapshotId!=PerformanceSnapshot.Identity(document.Data)
+            ||(document.Format,p.Broker) is not ((".xml","IBKR") or (".xlsx","FUTU")))
+            throw new CrsException("导入事实、原件与解析版本依据不匹配。");
     }
     private void Update(Func<Settings,Settings> action)
-    {using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();var next=PerformanceCodec.Encode(action(ReadSettings(c,tx)));if(next.Length>4*1024*1024)throw new CrsException("绩效修订台账超过限额。");c.Execute("UPDATE performance_settings SET payload=@next WHERE id=1",new{next},tx);Capacity(c,tx);tx.Commit();}
+    {using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();var next=EncodeSettings(action(ReadSettings(c,tx)));if(next.Length>4*1024*1024)throw new CrsException("绩效修订台账超过限额。");c.Execute("UPDATE performance_settings SET payload=@next WHERE id=1",new{next},tx);Capacity(c,tx);tx.Commit();}
     public void SavePortfolio(InvestmentPortfolio portfolio)
     {
         var data=Load().Data;
@@ -162,7 +197,7 @@ internal sealed class PerformanceStore : IPerformanceStore
         var active=Merge(c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents",transaction:tx).Where(r=>!excluded.Contains(r.Hash)).Select(r=>PerformanceCodec.Decode<PerformanceData>(r.Data)));
         // 排除账户原件不得把其他有效补录变成悬空资料；先同时处理依赖来源。
         if(active.Events.Any(e=>!active.Accounts.Any(a=>a.Id==e.AccountId)) || active.Valuations.Any(v=>!active.Accounts.Any(a=>a.Id==v.AccountId)) || active.Coverage.Any(v=>!active.Accounts.Any(a=>a.Id==v.AccountId)))throw new CrsException("该来源仍被其他补录引用，请先处理依赖来源，再排除账户资料。");
-        var payload=PerformanceCodec.Encode(next);if(payload.Length>4*1024*1024)throw new CrsException("绩效修订超过台账限额。");c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload},tx);Capacity(c,tx);tx.Commit();
+        var payload=EncodeSettings(next);if(payload.Length>4*1024*1024)throw new CrsException("绩效修订超过台账限额。");c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload},tx);Capacity(c,tx);tx.Commit();
     }
     public void Transfer(TransferLink link)
     {
@@ -174,6 +209,7 @@ internal sealed class PerformanceStore : IPerformanceStore
     {
         PerformanceEvidence.Verify(run);
         var payload=PerformanceCodec.Encode(run);using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();
+        c.Execute("UPDATE performance_settings SET payload=@settings WHERE id=1",new{settings=EncodeSettings(ReadSettings(c,tx))},tx);
         // 完整范围仍保存在冻结输入；列表摘要有界，避免百账户长别名超出解码字符串限额。
         var scope=string.Join("、",run.Result.Accounts.Select(a=>a.AccountAlias));if(scope.Length>4000)scope=scope[..3900]+$"…（共 {run.Result.Accounts.Length} 个账户，完整范围见原结果）";
         var metadata=PerformanceCodec.Encode(new PerformanceHistory(run.Id,run.CreatedAt,run.Result.EffectiveFrom,run.Result.Request.To,run.Result.Request.Currency,scope,run.InputHash));

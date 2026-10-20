@@ -2,6 +2,9 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--broker-provenance"]){await BrokerProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.BrokerProvenance",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--broker-source-facts"]){BrokerSourceFactsChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.BrokerFacts",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--compare-ibkr-before",var baselineAssembly]){BrokerSourceFactsChecks.CompareBefore(baselineAssembly);return;}
 // 日志设置变更可独立复验，不重复运行无关的财务场景。
 if(args is ["--settings-only"]) {await SettingsChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS-Settings-"+Guid.NewGuid().ToString("N")));return;}
 if(args is ["--capture-performance-imports"]) {PerformanceImportRegression.Run(true);return;}

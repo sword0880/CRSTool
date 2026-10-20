@@ -12,6 +12,13 @@ internal static class PerformanceInteractionChecks
     {
         var cases=new Cases();var interaction=new Interaction();var shell=new ShellViewModel(new FakeUseCases(),interaction,performance:cases,documentPassword:()=>"Synthetic-Encrypted-Password");var vm=shell.Performance;
         await vm.RefreshCommand.ExecuteAsync(null);vm.Currency="USD";vm.From=new(2024,12,31);vm.To=new(2025,12,31);
+        vm.ManualAccount=vm.Accounts.Single();vm.NavDate=new(2025,6,30);vm.SecuritiesValue=10;vm.CashValue=20;vm.Receivable=3;vm.Liability=4;vm.Payable=5;vm.ManualSource="合成来源";vm.NavComplete=true;
+        await vm.AddNavCommand.ExecuteAsync(null);
+        if(cases.Valuation is not {AccountId:"A",Securities:10,Cash:20,Receivable:3,Liability:4,Payable:5,Complete:true,Source:"合成来源"} || vm.NavComplete)
+            throw new Exception("净值表单未完整映射或成功后未清理确认。");
+        cases.RejectValuation=true;interaction.ExpectedError="合成业务拒绝";vm.NavComplete=true;await vm.AddNavCommand.ExecuteAsync(null);
+        if(!vm.NavComplete || interaction.LastError!="合成业务拒绝")throw new Exception("用例拒绝未展示或丢失输入确认。");
+        cases.RejectValuation=false;interaction.ExpectedError=null;
         if(!vm.OnlineUpdatesAllowed || vm.Benchmark!="SSE" || !vm.Benchmarks.Contains("SPX") || vm.Accounts.Single().Alias.Contains("12345678") || !vm.Accounts.Single().Alias.Contains("5678") || vm.HasAccountDetails)throw new Exception("账户默认展示或联网基准不正确。");
         vm.RevealAccountCommand.Execute(vm.Accounts.Single());if(!vm.AccountDetails.Contains("12345678"))throw new Exception("无法主动查看完整账号。");
         vm.HideAccountDetailsCommand.Execute(null);if(vm.HasAccountDetails)throw new Exception("完整账号未收起。");
@@ -80,7 +87,8 @@ internal static class PerformanceInteractionChecks
         public bool ConfirmPlaintextExport()=>Consent;
         public string[] PickFiles(string filter,bool multiple)=>[];
         public string? SaveFile(string filter,string name)=>"synthetic-output";
-        public void ShowError(string message){if(!message.Contains("synthetic network failure"))throw new Exception(message);}
+        public string? ExpectedError,LastError;
+        public void ShowError(string message){if(message!=ExpectedError && !message.Contains("synthetic network failure"))throw new Exception(message);LastError=message;}
         public void OpenFolder(string path){}
     }
     private sealed class Cases:IPerformanceUseCases
@@ -99,6 +107,12 @@ internal static class PerformanceInteractionChecks
         {if(LoadGate is not null)await LoadGate.Task;return new PerformanceWorkspace(Data,[],[new(run.Id,run.CreatedAt,run.Result.Request.From,run.Result.Request.To,"USD","合成账户 12345678","synthetic")]){AccountIdentities=[new("A","合成开户姓名","12345678")]};}
         public Task<bool> ImportAsync(string path,string broker,CancellationToken cancellation=default)=>Task.FromResult(true);
         public Task<bool> ImportManualAsync(string json,CancellationToken cancellation=default)=>Task.FromResult(true);
+        public Task<bool> AddAccountAsync(ManualPerformanceAccount input,CancellationToken cancellation=default)=>Task.FromResult(true);
+        public Task<bool> AddEventAsync(ManualPerformanceEvent input,CancellationToken cancellation=default)=>Task.FromResult(true);
+        public ManualPerformanceValuation? Valuation;public bool RejectValuation;
+        public Task<bool> AddValuationAsync(ManualPerformanceValuation input,CancellationToken cancellation=default)
+        {if(RejectValuation)throw new CrsException("合成业务拒绝");Valuation=input;return Task.FromResult(true);}
+        public Task<bool> ConfirmCoverageAsync(ManualPerformanceCoverage input,CancellationToken cancellation=default)=>Task.FromResult(true);
         public Task SavePortfolioAsync(InvestmentPortfolio portfolio,CancellationToken cancellation=default)=>Task.CompletedTask;
         public Task RenameAccountAsync(string id,string alias,CancellationToken cancellation=default)=>Task.CompletedTask;
         public Task ConfirmBaseCurrencyAsync(string id,string currency,CancellationToken cancellation=default)=>Task.CompletedTask;

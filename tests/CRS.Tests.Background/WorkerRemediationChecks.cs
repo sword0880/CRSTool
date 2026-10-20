@@ -222,7 +222,8 @@ internal static class WorkerRemediationChecks
         var stuck = new BackgroundPluginCatalog(TimeSpan.FromMilliseconds(100), () => notified = true); var watch = Stopwatch.StartNew();
         try { await stuck.LoadAsync(hanging.Root, hanging.Trust, default); throw new InvalidOperationException("未检测出不合作插件。"); }
         catch (PluginLifecycleTimeoutException) { Check(notified && watch.Elapsed < TimeSpan.FromSeconds(3), "启动不响应取消时明确要求宿主终止，而非假装卸载"); }
-        await stuck.DisposeAsync();
+        try{await stuck.DisposeAsync();throw new InvalidOperationException("失控插件仍被清理。");}
+        catch(PluginLifecycleTimeoutException){Check(stuck.RequiresProcessRestart,"失控后禁止释放会话，保留需要进程重启状态");}
         var badStop = Package(root, ("crs.stop", "BadStopEntry"), ("crs.good", "GoodEntry"));
         var cleanup = new BackgroundPluginCatalog(); await cleanup.LoadAsync(badStop.Root, badStop.Trust, default);
         try { await cleanup.DisposeAsync(); throw new InvalidOperationException("停止故障未汇总。"); }

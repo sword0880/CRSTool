@@ -2,11 +2,16 @@ using CRS.Domain.Performance;
 
 namespace CRS.Application.Performance;
 
-public sealed record PerformanceDocument(string Hash,string Name,PerformanceData Data,byte[] Raw,string Format);
+public sealed record PerformanceDocument(string Hash,string Name,PerformanceData Data,byte[] Raw,string Format)
+{public BrokerImportProvenance? Provenance {get;init;}}
 public sealed record PerformanceRun(string Id,string? ParentId,DateTimeOffset CreatedAt,string InputHash,PerformanceData Input,PerformanceResult Result)
-{public string ResultSeal {get;init;}="";}
+{
+    public string ResultSeal {get;init;}="";
+    public System.Collections.Immutable.ImmutableArray<BrokerImportProvenance> ImportProvenance {get;init;}=[];
+}
 public sealed record PerformanceHistory(string Id,DateTimeOffset CreatedAt,DateOnly From,DateOnly To,string Currency,string Scope,string InputHash);
-public sealed record PerformanceInputInfo(string Hash,string Name,bool Included);
+public sealed record PerformanceInputInfo(string Hash,string Name,bool Included)
+{public BrokerImportProvenance? Provenance {get;init;}}
 public sealed record PerformanceSourceRevision(string Hash,bool Included,string Reason,DateTimeOffset CreatedAt);
 public sealed record PerformanceWorkspace(PerformanceData Data,InvestmentPortfolio[] Portfolios,PerformanceHistory[] History)
 {
@@ -24,6 +29,10 @@ public interface IPerformanceUseCases
     Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default);
     Task<bool> ImportAsync(string path,string broker,CancellationToken cancellation=default);
     Task<bool> ImportManualAsync(string json,CancellationToken cancellation=default);
+    Task<bool> AddAccountAsync(ManualPerformanceAccount input,CancellationToken cancellation=default);
+    Task<bool> AddEventAsync(ManualPerformanceEvent input,CancellationToken cancellation=default);
+    Task<bool> AddValuationAsync(ManualPerformanceValuation input,CancellationToken cancellation=default);
+    Task<bool> ConfirmCoverageAsync(ManualPerformanceCoverage input,CancellationToken cancellation=default);
     Task SavePortfolioAsync(InvestmentPortfolio portfolio,CancellationToken cancellation=default);
     Task RenameAccountAsync(string id,string alias,CancellationToken cancellation=default);
     Task ConfirmBaseCurrencyAsync(string id,string currency,CancellationToken cancellation=default);

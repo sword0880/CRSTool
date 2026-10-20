@@ -39,6 +39,9 @@ internal static class MarketActivityChecks
         Check(gap[20].Mean5 is null && gap[21].Mean20 is null,"已知缺口中断均值窗口");
         Check(MarketActivityMetrics.Calculate(Enumerable.Range(0,21).Select(i=>new MarketActivityPoint(Day.AddDays(i),0,0,"Complete")).ToArray())[^1].ActivityRatio is null,"零基准不除零");
         File.WriteAllText(Path.Combine(root,"activity-raw",Convert.ToHexString(SHA256.HashData(a.Content))+".raw"),"tampered");
+        try{repository.MarketActivity();throw new Exception("未登记损坏仍返回市场总额。");}
+        catch(InvalidDataException){Check(true,"市场总额查询在巡检前失败关闭");}
+        repository.ReconcileEvidenceIntegrity();
         Check(repository.MarketActivity().Single().AmountYuan is null,"官方原件损坏阻断总额");
         var conflictRaw=new RawEvidenceStore(Path.Combine(root,"activity-conflict-raw"));
         using var conflict=TestMarketData.Open(Path.Combine(root,"activity-conflict-data"),conflictRaw);

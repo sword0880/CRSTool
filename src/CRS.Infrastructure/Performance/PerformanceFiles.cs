@@ -14,14 +14,21 @@ internal sealed class PerformanceFiles(Action<Action> guard,SensitiveDataExportS
 {
     public PerformanceDocument Read(string path,string broker,CancellationToken cancellation)
         =>Read(FrozenInput.Read(path,cancellation),broker,cancellation);
-    internal PerformanceDocument Read(FrozenInput input,string broker,CancellationToken cancellation)
+    internal PerformanceDocument Read(FrozenInput input,string broker,CancellationToken cancellation,BrokerSourceDocument? sourceFacts=null)
     {
         var raw=input.CopyBytes();PerformanceData data;var ext=Path.GetExtension(input.Name).ToLowerInvariant();
         if(ext==".json")data=Stamp(PerformanceCodec.Decode<PerformanceData>(raw),input.Sha256,true);
-        else if(ext==".xml" && broker=="IBKR")data=PerformanceBrokerImporter.Ibkr(input,cancellation);
+        else if(ext==".xml" && broker=="IBKR")
+        {sourceFacts??=IbkrSourceReader.Read(input,cancellation);data=IbkrPerformanceAdapter.Read(input,cancellation,sourceFacts);}
         else if(ext==".xlsx" && broker=="FUTU")data=PerformanceBrokerImporter.Futu(input,cancellation);
         else throw new CrsException("绩效导入支持模板 JSON、IBKR Activity Flex XML 和富途年度交易 XLSX；不假定任意文件包含 NAV。");
-        Check(data);return new(input.Sha256,input.Name,data,raw,ext);
+        Check(data);return new(input.Sha256,input.Name,data,raw,ext){Provenance=Provenance(input,broker,ext,data,sourceFacts)};
+    }
+    private static BrokerImportProvenance? Provenance(FrozenInput input,string broker,string ext,PerformanceData data,BrokerSourceDocument? facts)
+    {
+        if(ext==".xml"&&broker=="IBKR")return new(1,input.Sha256,input.Sha256,broker,facts!.ParserVersion,IbkrPerformanceAdapter.ProjectionVersion,PerformanceSnapshot.Identity(data));
+        if(ext==".xlsx"&&broker=="FUTU")return new(1,input.Sha256,input.Sha256,broker,FutuPerformanceAdapter.ReaderVersion,FutuPerformanceAdapter.ProjectionVersion,PerformanceSnapshot.Identity(data));
+        return null;
     }
     public PerformanceDocument ReadManual(string json)
     {
@@ -84,7 +91,7 @@ internal sealed class PerformanceFiles(Action<Action> guard,SensitiveDataExportS
         string Summary(IEnumerable<string> values)
         {var text=string.Join(";",values);return text.Length<=30000?text:text[..29900]+"…（完整明细见各来源表或加密归档 evidence.json）";}
         Sheet("版本依据",["运行编号","输入摘要","引擎版本","成本口径","可信起点","数据模型版本","解析版本记录","来源摘要","外部数据集摘要","结果指纹"],
-            [new object?[]{run.Id,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.EffectiveFrom.ToString("yyyy-MM-dd"),manifest.DataModelVersion,manifest.NormalizationVersion,
+            [new object?[]{run.Id,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.EffectiveFrom.ToString("yyyy-MM-dd"),manifest.DataModelVersion,manifest.NormalizationVersion+";"+Summary(manifest.ImportProvenance.Select(p=>p.SourceFileHash+":"+p.ReaderVersion+"/"+p.ProjectionVersion)),
                 Summary(manifest.SourceHashes),Summary(manifest.ExternalDatasets.Select(d=>d.Kind+":"+d.SourceHash)),manifest.ResultSeal}]);
         if(!encrypted) {AtomicExport.Write(path,stream=>book.Write(stream,true),cancellation,guard);return;}
         byte[]? plain=null;byte[]? excel=null;

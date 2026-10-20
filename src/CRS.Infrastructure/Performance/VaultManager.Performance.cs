@@ -4,14 +4,14 @@ namespace CRS.Infrastructure;
 
 public sealed partial class VaultManager
 {
-    internal void ImportSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,Action<Action> originalSession)
+    internal void ImportSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null)
     {
         lock(gate)
         {
             originalSession(()=>
             {
                 var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this),active.Lifetime);
-                var document=new PerformanceFiles(CaptureGuard(),exports).Read(input,broker,cancellation);
+                var document=new PerformanceFiles(CaptureGuard(),exports).Read(input,broker,cancellation,sourceFacts);
                 cancellation.ThrowIfCancellationRequested();new PerformanceStore(active).Import(document);
             });
         }

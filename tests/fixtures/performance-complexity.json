@@ -39,7 +39,7 @@
     "Branches": 32,
     "Lines": 22
   },
-  "IbkrPerformanceAdapter.Project(FrozenInput,XElement[],CancellationToken)": {
+  "IbkrPerformanceAdapter.Project(FrozenInput,BrokerSourceRecord[],CancellationToken)": {
     "Branches": 68,
     "Lines": 55
   },

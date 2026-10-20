@@ -5,6 +5,8 @@ namespace CRS.Infrastructure;
 /// <summary>富途读取共享解析事实后投影绩效；不调用税务计算或 FIFO 成本。</summary>
 internal static class FutuPerformanceAdapter
 {
+    internal const string ReaderVersion="FutuAnnualActivity.v1";
+    internal const string ProjectionVersion="FUTU.Performance.v1";
     internal static Dictionary<string,string> AccountLabels(FrozenInput input)
     {
         using var table=new FutuTable(input);
@@ -20,7 +22,7 @@ internal static class FutuPerformanceAdapter
         var rows=table.Read("账户信息",true,"年份","账户号码","账户名称")!;var years=rows.Select(r=>FutuFields.Year(r["年份"])).Distinct().ToArray();
         if(years.Length!=1)throw new CrsException("富途年度工作簿必须包含唯一明确年度。");var year=years[0];
         var imported=new ImportData{Broker="FUTU"};_=new FutuTradeExcelImporter().Read(input,table,imported,year,cancellation);
-        return Project(input,BrokerActivityFacts.Freeze(imported,input.Sha256,"FutuAnnualActivity.v1"),year,AccountLabels(rows));
+        return Project(input,BrokerActivityFacts.Freeze(imported,input.Sha256,ReaderVersion),year,AccountLabels(rows));
     }
     private static PerformanceData Project(FrozenInput input,BrokerActivityFacts imported,int year,Dictionary<string,string> labels)
     {

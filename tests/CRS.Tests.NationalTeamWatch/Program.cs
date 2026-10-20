@@ -6,6 +6,7 @@ static void Check(bool condition,string name) {if(!condition)throw new Exception
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
+if(args is ["--business-contracts"]){await BusinessContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.BusinessContracts",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--monitor-backfill-status"]){await MonitorReadinessTool.BackfillStatus();return;}
 if(args is ["--monitor-summary-live"]){await MonitorReadinessTool.Summary();return;}
 if(args is ["--monitor-apply-reviewed-metadata",var reviewFile]){await ReviewedFundMetadataTool.Apply(reviewFile);return;}
@@ -55,6 +56,7 @@ Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,份\nSSE,510300,2026-09-01,2,份"),"Duplicate file rows rejected");
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
 await P0RemediationChecks.Run(root);
+await BusinessContractChecks.Run(Path.Combine(root,"business-contracts"));
 ExitAlertChecks.Run(Path.Combine(root,"exit-alerts"));
 ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));
 ExitAlertReplayChecks.Run();
@@ -122,6 +124,7 @@ using(var repository=TestMarketData.Open(Path.Combine(root,"data"),raw))
  Check(repository.Overview().Count==40,"All 24 default ETFs plus 16 test ETFs remain active; row capacity is presentation only");
  repository.Snapshot(Path.Combine(root,"snapshot.db"));Check(File.Exists(Path.Combine(root,"snapshot.db")),"WAL-safe SQLite backup snapshot");
  File.WriteAllText(Path.Combine(root,"raw",candidate.Hash+".raw"),"tampered");
+ repository.ReconcileEvidenceIntegrity();
  Check(repository.Points(new("SSE","510300")).Count==1,"DATA-09 tampered raw data excluded");
  Reject(()=>repository.ImportShares(Fetch("unknown date"),[new(new("SSE","510300"),new(2026,8,1),1,"份")],CancellationToken.None),"Unreviewed calendar dates rejected");
 }
@@ -142,6 +145,7 @@ using(var repository=TestMarketData.Open(Path.Combine(qualityRoot,"data"),qualit
  Check(repository.Coverage(key,four[0].AddDays(-1),four[3]).State=="CalendarRangeIncomplete","Unregistered range boundaries remain incomplete");
  Reject(()=>repository.Coverage(key,four[3],four[0]),"Reversed coverage range rejected");
  File.WriteAllText(Path.Combine(qualityRoot,"raw",middleHash+".raw"),"tampered");
+ repository.ReconcileEvidenceIntegrity();
  coverage=repository.Coverage(key,four[0],four[3]);
  Check(coverage is {RegisteredTradingDays:4,CriticalDays:1,CalendarVerified:false,CoveragePercent:null},"Damaged calendar retains date boundary and critical state");
  Check(repository.Calendar("SSE").Count==0 && repository.Overview().Single(x=>x.Ticker==key.Ticker).Change1 is null,"Calendar damage pauses metrics instead of skipping a trading day");

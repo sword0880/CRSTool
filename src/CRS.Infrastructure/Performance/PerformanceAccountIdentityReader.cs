@@ -16,10 +16,10 @@ internal static class PerformanceAccountIdentityReader
                 .Where(r=>r["账户号码"]!="").Select(r=>new PerformanceAccountIdentity(AccountId("FUTU","FUTU:"+r["账户号码"]),r["账户名称"],r["账户号码"])).ToArray();
         }
         if(format!=".xml")return [];
-        using var stream=input.OpenRead();var root=ReadXml(stream).Root;
-        return (root?.Element("FlexStatements")?.Elements("FlexStatement")??[]).Select(s=>
+        var facts=IbkrSourceReader.Read(input,default);
+        return facts.Root.Section("FlexStatements")!.Rows("FlexStatement").Select(s=>
         {
-            var number=Required(s,"accountId");var info=s.Element("AccountInformation");
+            var number=Required(s,"accountId");var info=s.Section("AccountInformation");
             return new PerformanceAccountIdentity(AccountId("IBKR",number),info is null?"原件未提供":Optional(info,"name",Optional(info,"accountAlias","原件未提供")),number);
         }).ToArray();
     }

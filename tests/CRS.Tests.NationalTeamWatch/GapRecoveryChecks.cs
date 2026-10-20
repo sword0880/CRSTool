@@ -43,9 +43,13 @@ internal static class GapRecoveryChecks
             var beforeBatch=repository.PointsForKeys([key,comparisonKey]);
             var original="synthetic earlier year"u8.ToArray();var originalHash=raw.Save(original);var originalPath=Path.Combine(root,"gap-raw",originalHash+".raw");
             File.WriteAllBytes(originalPath,"damaged fixture"u8.ToArray());
+            try{repository.PointsForKeys([key,comparisonKey]);throw new Exception("未登记损坏未拒绝查询。");}
+            catch(InvalidDataException){Check(true,"后台协调前批查询失败关闭，不偷偷修复状态");}
+            repository.ReconcileEvidenceIntegrity();
             var damagedBatch=repository.PointsForKeys([key,comparisonKey]);
             Check(damagedBatch[key].Count==beforeBatch[key].Count&&damagedBatch[comparisonKey].Count==1,"批事实查询仍隔离损坏原件，不抹去其它证券的有效事实");
             File.WriteAllBytes(originalPath,original);
+            repository.ReconcileEvidenceIntegrity();
             Check(repository.PointsForKeys([key,comparisonKey])[comparisonKey].Count==2,"批查询下次重新核验原件，同哈希恢复后解除阻断");
             repository.SetMembership(comparisonKey,"isolated","index",false,"end isolated gap comparison");
         }

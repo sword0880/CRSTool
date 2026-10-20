@@ -44,7 +44,7 @@ IBKR 读取实际 Activity Flex 的 AccountInformation、EXECUTION Trades、DETA
 
 `PerformanceCalculator` 的运行入口按准备输入、生成指标、生成账户行、组装结果编排。结构校验、估值/汇率选择、资金流匹配、收益率调度和质量/证据累积分为独立组件；既有 XirrSolver 与 PerformanceCostCalculator 继续复用。单次上下文深复制数组和估值组成，按账户/日期/口径、证券/市场/币种、货币对/日期及事件建立只读索引，索引不跨快照缓存。组件可以在不加载桌面、数据库和网络的条件下独立验证。
 
-两券商由独立 IbkrPerformanceAdapter、FutuPerformanceAdapter 处理，旧 PerformanceBrokerImporter 仅保留调用分派。富途先冻结共享解析器产生的 BrokerActivityFacts（不可变交易、现金、持仓、来源、问题集合），再投影绩效；事实不含税务 FIFO 结果。IBKR 保留实际 XML 字段映射与校验，解析入口和投影入口分开；其与税务解析器统一成完整类型化事实仍是后续工作，不在本次无行为变化拆分中强行替换。
+两券商由独立 IbkrPerformanceAdapter、FutuPerformanceAdapter 处理，旧 PerformanceBrokerImporter 仅保留调用分派。富途先冻结共享解析器产生的 BrokerActivityFacts（不可变交易、现金、持仓、来源、问题集合），再投影绩效；事实不含税务 FIFO 结果。2026-10-20续项将IBKR原件结构读取统一为不可变BrokerSourceDocument，税务、绩效、现金对账和账号读取共用来源模型，同步绩效传递已读快照。既有金额/分类映射与冻结输出保留；完整类型化账本、历史读取版本持久化及独立Golden仍待验收，见[来源事实边界](../architecture/BROKER_SOURCE_FACTS.md)。
 
 工作区内容摘要覆盖账户、事件、估值、价格、汇率、覆盖证据、转账及分类修订，不再以条数判断相同资料。计算参数序号、运行身份和指数选择在异步任务完成时再次核验；过期任务可保留其真实冻结历史，但不作为新输入/新参数的当前结果显示。历史载入始终显示其冻结口径，锁定清除会话；导出绑定显示时的运行，选择保存位置期间结果失效则不提交。
 

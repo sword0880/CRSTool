@@ -1,6 +1,6 @@
 # NationalTeam / Worker 架构边界专项实施记录（2026-10-20）
 
-> 状态：代码已提交到独立评审分支，**未完成 Windows Release 构建与动态回归**，不可将本记录作为正式验收通过证明。  
+> 历史状态：本记录最初为待Windows验证的分支提案，已合并至`01abcf9`。Windows续验发现并修复旧页面/测试残留；构建及隔离验证结果见[整改续记](ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。下列原分支限制保留其记录时点，不代表当前Windows测试仍未执行。
 > 分支：`refactor/nationalteam-worker-boundaries-20261020`  
 > 需求来源：[架构整改计划](../architecture/ARCHITECTURE_REMEDIATION_PLAN.md) ARCH-201～204。  
 > 代码基线：`987cb8834d74e028256341beb0b25f2db68ed988`。

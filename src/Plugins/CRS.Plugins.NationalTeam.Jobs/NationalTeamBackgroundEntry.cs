@@ -65,7 +65,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         Directory.CreateDirectory(context.DataDirectory);rawPath=Path.Combine(context.DataDirectory,"raw");
         key=context.OpenDataKey();raw=new(rawPath);
         // 策略库使用同一插件专用密钥和受限目录，缺失密钥或损坏时不能退回内存策略。
-        http??=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(context.DataDirectory,"data"),key));
+        http??=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(context.DataDirectory,"data"),key),sources:context as IBackgroundSourceContext);
         if(http is OfficialHttpGateway official)official.Progress=ReportAsync;
         var adapter=new WorkerContext(context.DataDirectory,http);
         workspace=new(adapter,()=>new MarketRepository(Path.Combine(context.DataDirectory,"data"),raw,encryptionKey:key),raw);
@@ -81,7 +81,9 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         await serial.WaitAsync(token);
         try
         {
-            var request=payload is null?new EtfRequest("sync"):Parse(payload);
+            EtfRequest request;
+            try{request=payload is null?new EtfRequest("sync"):Parse(payload);}
+            catch(EtfContractException error){return new("Rejected","contract="+error.Code);}
             switch(jobId)
             {
                 case "evidence-integrity" when request.Operation is "sync" or "integrity":
@@ -178,7 +180,10 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     public async Task<string> QueryAsync(string payload,CancellationToken token)
     {
         // 网络采集等待期间仍可查询已提交事实；数据库访问由 workspace 自身串行化。
-        var request=Parse(payload);await queries.WaitAsync(token);
+        EtfRequest request;
+        try{request=Parse(payload);}
+        catch(EtfContractException error){return JsonSerializer.Serialize(new EtfContractFailure(error.Code));}
+        await queries.WaitAsync(token);
         try
         {
             foreach(var id in snapshots.Where(x=>x.Value.Until<DateTimeOffset.UtcNow).Select(x=>x.Key).ToArray())snapshots.Remove(id);
@@ -286,8 +291,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         return JsonSerializer.Serialize(new EvidenceChunk(cached.Hash,cached.Bytes.Length,request.Offset,chunk));
     }
     /// <summary>JSON只允许有限长度，业务操作另在白名单中验证。</summary>
-    private static EtfRequest Parse(string payload)=>payload.Length<=4096?JsonSerializer.Deserialize<EtfRequest>(payload)
-        ??throw new ArgumentException("业务参数为空。"):throw new ArgumentException("业务参数过长。");
+    private static EtfRequest Parse(string payload)=>EtfBusinessProtocol.ParseRequest(payload);
     private static EtfKey Key(EtfRequest request)=>new(request.Market??"",request.Ticker??"");
     public ValueTask StopAsync(CancellationToken token)=>ValueTask.CompletedTask;
     public async ValueTask DisposeAsync()

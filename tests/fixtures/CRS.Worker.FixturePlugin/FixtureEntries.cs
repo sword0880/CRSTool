@@ -10,6 +10,11 @@ public sealed class BadStartEntry : IBackgroundPluginEntry { public IBackgroundP
 public sealed class BadStopEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadStop"); }
 public sealed class BadScheduleEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadSchedule"); }
 public sealed class HangingStartEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingStart"); }
+public sealed class HangingQueryEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingQuery"); }
+public sealed class HangingStopEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingStop"); }
+public sealed class HangingDisposeEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingDispose"); }
+public sealed class LateQueryEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("LateQuery"); }
+public sealed class TimeoutOnCancelQueryEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("TimeoutOnCancelQuery"); }
 public sealed class HangingJobEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("HangingJob"); }
 public sealed class FloodEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Flood"); }
 public sealed class ParallelEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Parallel"); }
@@ -20,6 +25,17 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
     public int MaximumConcurrentExecutions => mode == "Parallel" ? 2 : mode == "InvalidConcurrency" ? 33 : 1;
     public async Task<string> QueryAsync(string payload, CancellationToken token)
     {
+        if(mode=="HangingQuery")await Task.Delay(Timeout.InfiniteTimeSpan);
+        if(mode=="TimeoutOnCancelQuery")
+        {
+            try{await Task.Delay(Timeout.InfiniteTimeSpan,token);}catch(OperationCanceledException){}
+            throw new TimeoutException("synthetic completed timeout");
+        }
+        if(mode=="LateQuery")
+        {
+            try{await Task.Delay(Timeout.InfiniteTimeSpan,token);}catch(OperationCanceledException){}
+            await Task.Delay(100);return "late-success-must-be-rejected";
+        }
         if (payload == "fail") throw new IOException("synthetic-secret-not-for-public-log");
         if (payload == "state") return System.Text.Json.JsonSerializer.Serialize(new { Concurrent = Volatile.Read(ref concurrent), Maximum = Volatile.Read(ref maximum) });
         if (payload.StartsWith("slow:") || payload.StartsWith("cancel:"))
@@ -69,8 +85,9 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
     }
     public ValueTask StopAsync(CancellationToken cancellationToken)
     {
+        if(mode=="HangingStop")return new(Task.Delay(Timeout.InfiniteTimeSpan));
         if (mode == "BadStop") throw new InvalidOperationException("仅测试停止故障");
         return ValueTask.CompletedTask;
     }
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => mode=="HangingDispose"?new(Task.Delay(Timeout.InfiniteTimeSpan)):ValueTask.CompletedTask;
 }

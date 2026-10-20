@@ -77,12 +77,14 @@ namespace CRS.Worker.Service
                 var dispatcher=new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email)]);
                 var notifications=new WorkerNotificationGateway(email,dispatcher);
                 var diagnostics = new ServiceEventLog(locations.Data);
+                using var sources = new SourceBudgetRegistry(locations.Data,key);
                 await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () =>
                     {try{diagnostics.Write("PluginUnresponsive","service","CancellationGraceExceeded");}finally{Environment.Exit(2);}},
-                    hostContext:id=>new WorkerPluginContext(id,locations.Data,key,notifications));
+                    hostContext:id=>new WorkerPluginContext(id,locations.Data,key,notifications,sources),
+                    lifecycleDiagnostic:(plugin,phase,code)=>diagnostics.Write("PluginLifecycle",plugin,phase+"."+code));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
-                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications);
+                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources);
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 try

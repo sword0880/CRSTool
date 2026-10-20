@@ -253,31 +253,24 @@ public partial class PerformanceViewModel : ObservableObject
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task ConfirmAccountCurrencyAsync()=>await Run(async token=>{if(ManualAccount is null)throw new CrsException("请选择账户。");await useCases!.ConfirmBaseCurrencyAsync(ManualAccount.Account.Id,AccountCurrency,token);await Reload(token);});
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task AddAccountAsync()=>await Run(async token=>
     {
-        if(string.IsNullOrWhiteSpace(AccountAlias))throw new CrsException("请填写境外账户别名。");
-        await Manual(new(){Accounts=[new(Guid.NewGuid().ToString("N"),Broker,AccountAlias,AccountCurrency,DateOnly.FromDateTime(From))]},token);AccountAlias="";await Reload(token);
+        await useCases!.AddAccountAsync(new(Broker,AccountAlias,AccountCurrency,DateOnly.FromDateTime(From)),token);AccountAlias="";await Reload(token);
     });
-    private Task<bool> Manual(PerformanceData data,CancellationToken token)=>useCases!.ImportManualAsync(System.Text.Json.JsonSerializer.Serialize(data,new System.Text.Json.JsonSerializerOptions{Converters={new System.Text.Json.Serialization.JsonStringEnumConverter()}}),token);
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task RenameAccountAsync()=>await Run(async token=>{if(ManualAccount is null)throw new CrsException("请选择账户。");await useCases!.RenameAccountAsync(ManualAccount.Account.Id,AccountAlias,token);await Reload(token);});
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task ReviseSourceAsync()=>await Run(async token=>{if(SelectedSource is null)throw new CrsException("请选择来源。");await useCases!.SetSourceIncludedAsync(SelectedSource.Hash,SourceIncluded,SourceReason,token);await Reload(token);});
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task AddEventAsync()=>await Run(async token=>
     {
-        if(ManualAccount is null || string.IsNullOrWhiteSpace(ManualSource))throw new CrsException("资金/证券事件必须选择账户并填写原始来源。");
-        var date=DateOnly.FromDateTime(EventDate);
-        await Manual(new(){Events=[new(Guid.NewGuid().ToString("N"),ManualAccount.Account.Id,new(date.ToDateTime(new(12,0)),TimeSpan.Zero),date,ManualEventKind,EventAmount,EventCurrency,new("",ManualSource),EventSecurity,EventMarket,EventQuantity,EventFee,EventWithholding,Confirmed:ClassificationConfirmed)]},token);await Reload(token);
+        await useCases!.AddEventAsync(new(ManualAccount?.Account.Id,DateOnly.FromDateTime(EventDate),ManualEventKind,EventAmount,EventCurrency,
+            ManualSource,EventSecurity,EventMarket,EventQuantity,EventFee,EventWithholding,ClassificationConfirmed),token);await Reload(token);
     });
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task AddNavAsync()=>await Run(async token=>
     {
-        if(ManualAccount is null || !NavComplete || string.IsNullOrWhiteSpace(ManualSource))throw new CrsException("请选择账户，填写来源，并明确确认本日资产/负债完整。");
-        if(!ManualAccount.Account.BaseCurrencyConfirmed)throw new CrsException("请先核对并确认该账户基础币种，不能按预设币种补录整体净值。");
-        if(SecuritiesValue<0 || CashValue<0 || Receivable<0 || Liability<0 || Payable<0)throw new CrsException("资产、应收和负债金额不能为负；负现金请填融资负债。");
-        var date=DateOnly.FromDateTime(NavDate);var c=ManualAccount.Account.BaseCurrency;var components=new List<ValuationComponent>{new("Cash",c,CashValue),new("Receivable",c,Receivable),new("Liability",c,Liability),new("Payable",c,Payable)};
-        if(SecuritiesValue>0)components.Add(new("Security",c,SecuritiesValue));
-        await Manual(new(){Valuations=[new(Guid.NewGuid().ToString("N"),ManualAccount.Account.Id,new(date.ToDateTime(new(23,59,59)),TimeSpan.Zero),date,ValuationMoment.EndOfDay,components.ToArray(),new("",ManualSource),PerformanceQuality.Estimated)]},token);await Reload(token);NavComplete=false;
+        await useCases!.AddValuationAsync(new(ManualAccount?.Account.Id,DateOnly.FromDateTime(NavDate),SecuritiesValue,CashValue,Receivable,
+            Liability,Payable,NavComplete,ManualSource),token);await Reload(token);NavComplete=false;
     });
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task ConfirmCoverageAsync()=>await Run(async token=>
     {
-        if(ManualAccount is null || !FlowsComplete || string.IsNullOrWhiteSpace(ManualSource))throw new CrsException("完整性确认需要账户、来源和明确勾选，不能将缺失资金流水视为零。");
-        await Manual(new(){Coverage=[new(ManualAccount.Account.Id,DateOnly.FromDateTime(From),DateOnly.FromDateTime(To),true,new("",ManualSource),IncomeComplete:IncomeCostsComplete,CostsComplete:IncomeCostsComplete)]},token);await Reload(token);FlowsComplete=false;IncomeCostsComplete=false;
+        await useCases!.ConfirmCoverageAsync(new(ManualAccount?.Account.Id,DateOnly.FromDateTime(From),DateOnly.FromDateTime(To),
+            FlowsComplete,IncomeCostsComplete,ManualSource),token);await Reload(token);FlowsComplete=false;IncomeCostsComplete=false;
     });
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task ImportManualAsync()=>await Run(async token=>{await useCases!.ImportManualAsync(ManualJson,token);ManualJson="";await Reload(token);});
     [RelayCommand(CanExecute=nameof(CanExport))] private async Task ExportAsync()=>await Export(false);
