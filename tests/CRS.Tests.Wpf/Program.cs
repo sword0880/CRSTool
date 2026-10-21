@@ -8,6 +8,7 @@ if(args is ["--cron"]){CronEditorChecks.Run();return;}
 if(args is ["--settings-ui",var settingsDirectory]){SettingsViewChecks.Run(settingsDirectory);return;}
 if(args is ["--shell-brand-preview",var brandDirectory]){ShellBrandPreview.Run(brandDirectory);return;}
 if(args is ["--shell-status-checks"]){ShellStatusBarChecks.Run();return;}
+if(args is ["--task-center-deeplink-checks"]){TaskCenterDeepLinkChecks.Run();return;}
 if(args is ["--worker-status-preview",var workerDirectory]){WorkerStatusPreview.Run(workerDirectory);return;}
 if(args is ["--performance-component-preview",var componentDirectory]){PerformanceComponentPreview.Run(componentDirectory);return;}
 if(args is ["--plugin-management-preview",var pluginManagementDirectory]){PluginManagementPreview.Run(pluginManagementDirectory);return;}
