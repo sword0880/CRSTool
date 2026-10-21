@@ -19,7 +19,7 @@ internal static class MonitorReadinessTool
         var metadata=await Read(()=>workspace.AlertMetadataAsync(token),token);var configuration=await Read(()=>workspace.ConfigurationAsync(token),token);
         var pool=configuration.Where(x=>x.Active).OrderBy(x=>x.Market).ThenBy(x=>x.Ticker).ToArray();var acceptance=new List<EtfAcceptance>();
         var plans=await Read(()=>pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetJobs"),token),token);
-        var rows=new List<object>();Directory.CreateDirectory(Root);
+        var rows=new List<object>();var diagnostics=new List<AlertReadinessDiagnostic>();Directory.CreateDirectory(Root);
         var report=new StringBuilder("# 监控与预警逐标的验收\n\n此报告只读真实服务，不审核、不补零、不把补采计入连续采集。\n\n|标的|有效日/250|连续日/20|原件口径|待审修订|最近事实日|\n|---|---:|---:|---|---:|---|\n");
         foreach(var fund in pool)
         {
@@ -28,9 +28,24 @@ internal static class MonitorReadinessTool
             var facts=await Read(()=>workspace.EvidenceAsync(key,token),token);
             var pending=facts.Where(x=>x.State is "NeedsReview" or "Critical").ToArray();
             var proof=metadata.SingleOrDefault(x=>x.Market==key.Market&&x.Ticker==key.Ticker);
+            // 逐只读取已登记交易日的真实缺口。计数和日期在不同IPC查询中不一致时停止，不能覆盖旧的完整报告。
+            var through=today.AddDays(-1);var coverageFrom=item.TargetFrom??through.AddDays(-399);
+            var segments=new List<CoverageReport>();
+            for(var cursor=coverageFrom;cursor<=through;)
+            {
+                var end=cursor.AddDays(400)<through?cursor.AddDays(400):through;
+                var rangeStart=cursor;var rangeEnd=end;
+                segments.Add(await Read(()=>workspace.CoverageAsync(key,rangeStart,rangeEnd,token),token));
+                if(end==through)break;
+                cursor=end.AddDays(1);
+            }
+            // 旧日历或长期未采集时可能超过IPC单次400天限制，必须校验相邻分段后合并。
+            var coverage=ExitAlertReadiness.Combine(segments);
+            var diagnostic=ExitAlertReadiness.Analyze(item,coverage);diagnostics.Add(diagnostic);
             var points=await Read(()=>workspace.PointsAsync(key,token),token);var latest=points.LastOrDefault()?.Date;
             var attempts=await Read(()=>workspace.CollectionAttemptsAsync(key,today.AddDays(-7),today,token),token);
-            rows.Add(new{Key=key,Acceptance=item,Metadata=proof,PendingEvidence=pending,LatestDate=latest,RecentAttempts=attempts});
+            rows.Add(new{Key=key,Acceptance=item,Metadata=proof,PendingEvidence=pending,LatestDate=latest,RecentAttempts=attempts,
+                GapSummary=new{diagnostic.CalendarUsable,diagnostic.CalendarDaysShortfall,diagnostic.MissingDays,diagnostic.PendingReviewDays,diagnostic.DamagedDays,diagnostic.RejectedDays}});
             var state=proof is null?"未登记":!proof.OriginalConfirmed?"原件异常":latest is {} d&&proof.Covers(d,d)?"已核验，覆盖最新事实日":"已登记，最新事实日不在核验区间";
             report.AppendLine($"|{key.Market}:{key.Ticker}|{item.AcceptedDays}/{item.ExpectedDays}|{item.ContinuousCollectionDays}/20|{state}|{pending.Length}|{latest:yyyy-MM-dd}|");
             await File.WriteAllTextAsync(Path.Combine(Root,"audit-progress.json"),JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,Completed=rows.Count,Total=pool.Length,Rows=rows},Json),token);
@@ -39,6 +54,23 @@ internal static class MonitorReadinessTool
         report.AppendLine("\n份额历史、连续采集和原件口径分别核验；覆盖最新事实日不代表整个5/20交易日窗口可比。正式金融外发仍沿既有门槛。官方发布时间、来源使用许可、具名ETF黄金样本及实际邮件送达不由此查询确认。");
         await File.WriteAllTextAsync(Path.Combine(Root,"audit.json"),JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,Acceptance=acceptance,Metadata=metadata,Configuration=configuration,Plans=plans.Jobs,Rows=rows},Json),token);
         await File.WriteAllTextAsync(Path.Combine(Root,"audit.md"),report.ToString(),token);
+        // 逐日明细只读导出，不能据此生成新的RunNow绕过来源冷却或人工审核。
+        var gaps=new StringBuilder("# 国家队ETF历史覆盖及待审核缺口\n\n");
+        gaps.AppendLine("本报告仅包含已登记日历内的逐日状态。日历未核验、范围缺失或不足250日时，不能据此推断真实缺失交易日。历史补采与20个实际交易日连续采集是不同门槛；缺口补采仍由Worker原有来源限流/冷却策略执行。");
+        gaps.AppendLine("\n|证券|已登记交易日|距离250日|有效份额|缺日|待审|损坏|拒绝|日历可用|连续20日|");
+        gaps.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---|---|");
+        foreach(var item in diagnostics)
+            gaps.AppendLine($"|{item.Market}:{item.Ticker}|{item.RegisteredTradingDays}|{item.CalendarDaysShortfall}|{item.AcceptedDays}|{item.MissingDays}|{item.PendingReviewDays}|{item.DamagedDays}|{item.RejectedDays}|{(item.CalendarUsable?"是":"未证明")}|{(item.Continuous20Passed?"通过":"未通过")}|");
+        gaps.AppendLine("\n## 已登记日历内的待办日期\n\n以下是可核对线索，不是自动批准的补采列表；NeedsReview/Critical/CalendarCritical/QualityRejected必须核验或处理证据，不应由重复下载冒充已解决。");
+        gaps.AppendLine("\n|证券|日期|状态|修订ID|最新采集状态|最新尝试UTC|");
+        gaps.AppendLine("|---|---|---|---|---|---|");
+        foreach(var item in diagnostics)
+            foreach(var issue in item.Issues)
+                gaps.AppendLine($"|{item.Market}:{item.Ticker}|{issue.Date:yyyy-MM-dd}|{issue.State}|{issue.RevisionId??"-"}|{issue.LastAttemptState??"未登记"}|{issue.LastAttemptAt??"-"}|");
+        if(diagnostics.All(x=>x.Issues.Count==0))
+            gaps.AppendLine("\n已登记日历内无逐日未解决项，但仍需单独核验日历范围、250日有效覆盖、20日连续运行及来源许可。");
+        await File.WriteAllTextAsync(Path.Combine(Root,"audit-gaps.json"),JsonSerializer.Serialize(new{CheckedAt=DateTimeOffset.UtcNow,Through=today.AddDays(-1),Rows=diagnostics},Json),token);
+        await File.WriteAllTextAsync(Path.Combine(Root,"audit-gaps.md"),gaps.ToString(),token);
     }
     /// <summary>单条验收行必须在一页内完整返回，旧服务忽略证券参数时拒绝，不拼接到其他证券。</summary>
     private static async Task<EtfAcceptance> AcceptanceForKey(BackgroundPipeClient pipe,EtfKey key,DateOnly through,CancellationToken token)

@@ -15,6 +15,7 @@ internal static class ExitAlertChecks
     public static void Run(string root)
     {
         Domain();
+        ExitAlertReadinessChecks.Run();
         Persistence(Path.Combine(root,"persistence"));
         Revisions(Path.Combine(root,"revisions"));
         ClearStreak(Path.Combine(root,"clear-streak"));
@@ -48,6 +49,12 @@ internal static class ExitAlertChecks
             new(2026,8,28,18,0,0,TimeSpan.FromHours(8)),new(2026,8,29,0,0,0,TimeSpan.FromHours(8)),950,Url,Hash,"P10 股东表","reviewer",true,true);
         var cutoff=new DateTimeOffset(2026,9,2,0,0,0,TimeSpan.FromHours(8));
         Check(ExitAlertEvaluator.Minimum([holding],input,Date,cutoff).LowerBound==90,"ALERT-06 具名同口径基准950减全市场860，下界90，不称单日成交");
+        Check(ExitAlertEvaluator.Minimum([holding],input with{CalendarVerified=false},Date,cutoff).LowerBound is null
+            &&ExitAlertEvaluator.Minimum([holding],input with{TradingDays=days[..^1]},Date,cutoff).LowerBound is null,
+            "未核验日历或非交易日的当前份额不能作为机构减持下界");
+        Check(ExitAlertEvaluator.Minimum([holding],input with{Points=points.Select(p=>p.Date==Date?p with{Shares=0}:p).ToArray()},Date,cutoff).LowerBound is null
+            &&ExitAlertEvaluator.Minimum([holding],input with{Points=points.Select(p=>p.Date==Date?p with{RevisionId=""}:p).ToArray()},Date,cutoff).LowerBound is null,
+            "零份额和无有效修订ID的观测不形成具名机构减持证明");
         Check(ExitAlertEvaluator.Minimum([holding with{PublishedAt=cutoff.AddDays(1)}],input,Date,cutoff).LowerBound is null
             &&ExitAlertEvaluator.Minimum([holding with{FirstSeenAt=cutoff.AddDays(1)}],input,Date,cutoff).LowerBound is null,"ALERT-07 公布或首见在截止时点之后的证据不回看使用");
         Check(ExitAlertEvaluator.Minimum([holding with{LegalName="机构1"}],input,Date,cutoff).LowerBound is null,"ALERT-08 匿名机构不按份额推断汇金身份");
