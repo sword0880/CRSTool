@@ -7,6 +7,11 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--history-result-filter"])
+{
+    var root=Path.Combine(Path.GetTempPath(),"CRS.HistoryFilter",Guid.NewGuid().ToString("N"));
+    await HistoryResultFilterChecks.RunAsync(root);return;
+}
 if(args is ["--task-storage-boundary"])
 {
     var boundaryRoot=Path.Combine(Path.GetTempPath(),"CRS.TaskStorageBoundary",Guid.NewGuid().ToString("N"));
