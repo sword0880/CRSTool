@@ -99,7 +99,12 @@ public static class ExitAlertEvaluator
     public static MinimumReductionProof Minimum(IReadOnlyList<NamedEtfHolding> holdings,AlertFundInput input,DateOnly date,DateTimeOffset cutoff)
     {
         var current=input.Points.SingleOrDefault(x=>x.Date==date);
-        if(holdings.Count==0||current is null||current.Shares<0||date>DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(cutoff,"China Standard Time").DateTime))return NoProof("缺少已审核具名ETF持仓、当前有效份额或截止时点尚未到达。");
+        if(holdings.Count==0||current is null||current.Shares<=0||date>DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(cutoff,"China Standard Time").DateTime))
+            return NoProof("缺少已审核具名ETF持仓、正数有效份额或截止时点尚未到达。");
+        // 机构减持下界是正式证明，不仅要有份额数字，还要求已核验日历、真实交易日及有效修订身份。
+        // 回填研究也不能在无日历或非交易日的输入上生成“已证实减持”。
+        if(!input.CalendarVerified||!input.TradingDays.Contains(date)||string.IsNullOrWhiteSpace(current.RevisionId))
+            return NoProof("未核验的交易日历、非交易日或缺少有效份额修订，不形成机构最低净减持证明。");
         if(input.Metadata is not {} metadata||metadata.Market!=input.Key.Market||metadata.Ticker!=input.Key.Ticker)return NoProof("可比性核验不属于同一证券。");
         if(holdings.Any(x=>x.Market!=input.Key.Market||x.Ticker!=input.Key.Ticker||x.HoldingAsOf>date||x.PublishedAt>cutoff||x.FirstSeenAt>cutoff))
             return NoProof("证券或时序不一致；不使用截止时点之后公布或首次取得的证据。");

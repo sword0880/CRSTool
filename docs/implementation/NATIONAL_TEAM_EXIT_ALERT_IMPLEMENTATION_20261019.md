@@ -103,3 +103,22 @@ SMTP实现固定使用[MailKit](https://github.com/jstedfast/MailKit)，公共�
 证据：`artifacts/exit-alert-live/authorized-reset.json`、`authorized-reset.log`、`reset-health.json`、`installed-preview.json`及`artifacts/exit-alert-continuation-installed.log`。这是用户授权的数据重建恢复，不能关闭保留数据升级、250日历史、20日连续采集或正式发行门槛。旧审核、监控自定义和调度历史随旧后台库一起清除，当前按默认计划重新运行。
 
 随后通过真实服务完成只读历史研究报告导出（`artifacts/exit-alert-replay-real-reset/`：`report.md`、`report.json`、`inputs.json`及`evidence.json`）。2025-09-30至2026-06-30固定当前24只样本合计4248个已登记标的交易日，仅94条已接受事实，可比性审核尚未完成，有效5/20日规则窗口均为0，模拟首次触发0项，时效`NotProven`。这是新库实际覆盖与缺口报告，不是策略阴性结论；不能因无触发宣称未发生减持。后台日历同步已成功，份额同步有来源重试退避，历史覆盖尚未补齐。
+
+## 2026-10-21 M0：逐日缺口诊断与机构下界安全门槛
+
+- `ExitAlertReadiness.Analyze` 只读交叉校验单证券 `EtfAcceptance` 和 `CoverageReport`，日期、证券、已登记交易日数、有效份额和逐日记录不匹配时抛出错误，避免跨不同查询快照拼接成“已通过”的验收结果。
+- `--monitor-audit-live` 新增 `artifacts/monitor-readiness/audit-gaps.json` 与 `audit-gaps.md`：按IPC覆盖查询每段最多400自然日进行相邻、无重复校验后合并，并按监控证券列出已登记日历中的缺日、待人工审核、损坏、拒绝日期及最近采集尝试。未核验日历、缺少250日或未通过20日连续运行均独立显式展示；**只读，不自动提交补采/审核或发送通知**。补采仍由既有Worker按持久冷却与跨插件预算执行。
+- `ExitAlertEvaluator.Minimum` 补充要求：已核验交易日历、当前日期在日历中、当前份额为正且带有效修订ID。缺少任一前提仅返回 `InsufficientEvidence`，不得生成具名机构最低净减少证明；匿名及跨时点证据原有限制保留。
+- 增加 `ExitAlertReadinessChecks` 和 `ExitAlertChecks` 纯规则回归，覆盖分类/未知日历/并发快照不一致/重复日期/未来日期，以及机构下界在零份额和未核验日历下的安全拒绝。
+
+**状态**：仅源代码与测试用例已提交审查；未在 Windows 执行本次 .NET 构建、隔离回归或真实安装服务核验，**不得标记真实数据验收或发布门槛通过**。当前仍需要完成：逐证券250日、两市连续20真实交易日、具名ETF公告黄金样本及官方许可、真实发布时间、历史无未来信息回放、实际通知送达与生产部署/恢复。
+
+验证入口（Windows 仓库根目录）：
+
+```powershell
+dotnet build CRS.sln -c Release -m:1
+dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alerts
+./tests/Verify-Architecture.ps1
+# 需已安装且授权的后台服务；只读，不触发新的网络补采
+# dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --monitor-audit-live
+```
