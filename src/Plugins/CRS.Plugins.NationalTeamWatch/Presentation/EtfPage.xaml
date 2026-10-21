@@ -14,13 +14,15 @@
     <StackPanel Grid.Row="1" Margin="0,8"><WrapPanel><CheckBox Content="全部监控ETF汇总" IsChecked="{Binding AllEtfs}" VerticalAlignment="Center" ToolTip="汇总当前所有启用监控的ETF，不受表格筛选影响"/><ui:Button Content="刷新图表" Command="{Binding ShowHistoryCommand}" Margin="16,0"/></WrapPanel><TextBlock Text="{Binding ChartStatus}" TextWrapping="Wrap" Margin="0,8"/></StackPanel>
     <Border x:Name="ComparisonPanel" Grid.Row="2" Background="White" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
      <StackPanel>
-      <WrapPanel><TextBlock Text="ETF份额与市场成交额" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/><ui:Button Content="重置缩放" Command="{Binding ResetComparisonZoomCommand}" Margin="16,0,8,0"/><ui:Button Content="刷新成交额" Command="{Binding RefreshMarketActivityCommand}"/><ui:Button Content="采集上方日期区间的成交额" Command="{Binding SyncMarketActivityCommand}" IsEnabled="{Binding CanManage}" Margin="8,0"/></WrapPanel>
+      <WrapPanel><TextBlock Text="ETF份额与市场成交额" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/><ui:Button Content="重置缩放" Command="{Binding ResetComparisonZoomCommand}" Margin="16,0,8,0"/><ui:Button Content="刷新成交额" Command="{Binding RefreshMarketActivityCommand}"/><ui:Button Content="采集上方日期区间的成交额" Command="{Binding SyncMarketActivityCommand}" IsEnabled="{Binding CanManage}" ToolTip="需以管理员身份运行。提交到独立后台服务后，查看下方状态以及任务中心的执行日志。" Margin="8,0"/></WrapPanel>
+      <TextBlock Text="{Binding MarketActivityStatus}" TextWrapping="Wrap" Foreground="{DynamicResource BrandStatusInfoBrush}" Margin="0,10,0,4" AutomationProperties.LiveSetting="Polite"/>
+      <ProgressBar IsIndeterminate="True" Height="3" Margin="0,0,0,6" Visibility="{Binding Busy,Converter={StaticResource BooleanVisibility}}"/>
       <TextBlock Text="{Binding ComparisonReadout}" TextWrapping="Wrap" MinHeight="42" Margin="0,10,0,0" AutomationProperties.Name="同日ETF与成交额读数"/>
       <TextBlock Text="监控ETF总份额（亿份）" Foreground="{DynamicResource BrandAccentBrush}" FontWeight="SemiBold"/>
       <lvc:CartesianChart x:Name="ShareChart" Height="400" Series="{Binding Series}" XAxes="{Binding XAxes}" YAxes="{Binding ShareYAxes}" Sections="{Binding ShareSections}" DrawMargin="{Binding ComparisonMargin}" ZoomMode="X" TooltipPosition="Hidden" MouseMove="OnComparisonMouseMove" MouseLeave="OnComparisonMouseLeave" AnimationsSpeed="0:0:0"/>
       <TextBlock Text="沪深股票成交额（亿元）" Foreground="#475569" FontWeight="SemiBold" Margin="0,8,0,0"/>
       <lvc:CartesianChart x:Name="AmountChart" Height="170" Series="{Binding MarketAmountSeries}" XAxes="{Binding MarketAmountAxes}" YAxes="{Binding AmountYAxes}" Sections="{Binding AmountSections}" DrawMargin="{Binding ComparisonMargin}" ZoomMode="X" TooltipPosition="Hidden" MouseMove="OnComparisonMouseMove" MouseLeave="OnComparisonMouseLeave" AnimationsSpeed="0:0:0"/>
-      <TextBlock Text="{Binding MarketActivityStatus}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,8"/>
+      
       <TextBlock Text="成交额采用沪深股票口径，含B股、深市存托凭证，不含北交所、基金、债券及回购。上图是监控ETF份额，不能直接认定国家队买卖；缺失数据留空。" TextWrapping="Wrap" Foreground="#64748B" FontSize="12"/>
      </StackPanel>
     </Border>
