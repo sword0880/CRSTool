@@ -23,6 +23,9 @@ jobs:
       - name: Verify architecture dependency constraints
         shell: pwsh
         run: ./tests/Verify-Architecture.ps1
+      - name: Verify ETF market sync cooldown, empty downloads and job diagnostics
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
       - name: Verify settings UI and synthetic credential lifecycle
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui "$env:GITHUB_WORKSPACE/artifacts/ui-preview/settings"
