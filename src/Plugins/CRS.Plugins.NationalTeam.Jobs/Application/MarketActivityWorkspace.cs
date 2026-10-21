@@ -14,7 +14,7 @@ public sealed partial class EtfWorkspace
         var cursor=await RunAsync(()=>repository!.ReadMarketActivityCursor(),token);
         var from=cursor?.AddDays(-7)??today.AddDays(-35);var to=from.AddDays(29)<today?from.AddDays(29):today;
         var result=await SyncMarketActivityRangeAsync(from,to,token,true);
-        return result with{HasMore=to<today};
+        return result with{HasMore=result.HasMore || to<today};
     }
     public async Task SyncMarketActivityAsync(DateOnly from,DateOnly to,CancellationToken token)
     {
