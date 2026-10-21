@@ -143,5 +143,30 @@
   <Setter Property="CanUserDeleteRows" Value="False"/>
   <Setter Property="extensions:DataGridFilter.IsAutoFilterEnabled" Value="False"/>
  </Style>
+ <!-- 插件管理表格复用默认 DataGrid 模板，避免局部 ControlTemplate 丢失键盘/滚动/排序行为。 -->
+ <Style x:Key="UiPluginTableHeader" TargetType="DataGridColumnHeader">
+  <Setter Property="Background" Value="{DynamicResource BrandSurfaceAltBrush}"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextSecondaryBrush}"/>
+  <Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Height" Value="38"/>
+  <Setter Property="Padding" Value="12,0"/>
+ </Style>
+ <Style x:Key="UiPluginTableRow" TargetType="DataGridRow">
+  <Setter Property="Background" Value="{DynamicResource BrandSurfaceBrush}"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource BrandBorderSubtleBrush}"/>
+  <Style.Triggers>
+   <Trigger Property="AlternationIndex" Value="1"><Setter Property="Background" Value="{DynamicResource BrandSurfaceAltBrush}"/></Trigger>
+   <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource BrandHoverSurfaceBrush}"/></Trigger>
+   <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{DynamicResource BrandAccentPaleBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource BrandBorderStrongBrush}"/></Trigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="UiPluginTableCell" TargetType="DataGridCell">
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+  <Setter Property="Padding" Value="8,0"/>
+ </Style>
+ <Style x:Key="UiPluginAction" TargetType="Button" BasedOn="{StaticResource BrandButton}">
+  <Setter Property="Width" Value="36"/><Setter Property="Height" Value="36"/>
+  <Setter Property="Padding" Value="7"/>
+ </Style>
  <DataTemplate DataType="{x:Type vm:ResultTable}"><DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="True"/></DataTemplate>
 </ResourceDictionary>
