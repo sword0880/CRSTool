@@ -24,83 +24,66 @@
      <StackPanel Margin="0,0,0,20"><TextBlock Text="{Binding SelectedSection.Breadcrumb}" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="0,0,0,12"/><TextBlock Text="{Binding SelectedSection.Title}" FontSize="26" FontWeight="SemiBold"/><TextBlock Text="{Binding SelectedSection.Description}" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/></StackPanel>
      <ScrollViewer x:Name="SectionContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
       <Border Padding="24" VerticalAlignment="Top" Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="8"><Grid IsEnabled="{Binding State.IsIdle}">
-<StackPanel x:Name="StorageSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="storage"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-   <ui:Button x:Name="DatabaseManagementButton" Content="数据库与备份管理" Click="OnDatabaseManagement" HorizontalAlignment="Left" Margin="0,10,0,6" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}"/>
-   <TextBlock Text="统一管理数据库加密备份、恢复、主密码与手机绑定。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,8"/>
-   <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
-   <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
-   <TextBlock Text="已有加密库需验证后访问；新目录进入首次创建或恢复向导，不会自动建库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8,0,16"/>
-</StackPanel>
-<StackPanel x:Name="SecuritySection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="security"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Text="解锁保险库后可管理此项设置。" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SecuritySettingsAvailable}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>   <!-- 验证方式归属当前加密保险库，只有授权会话能验证和保存。 -->
-   <StackPanel x:Name="PhoneVerificationPanel" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}" Margin="0,0,0,20">
-
-    <RadioButton x:Name="PhoneVerificationOption" GroupName="LoginVerification" Content="启用手机验证" IsChecked="{Binding PhoneVerificationEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" Margin="0,12,0,8"/>
-    <RadioButton x:Name="WindowsHelloOption" GroupName="LoginVerification" Content="使用 Windows Hello" IsChecked="{Binding WindowsHelloEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding WindowsHelloAvailable}" Margin="0,0,0,8"/>
-    <TextBlock Text="两种方式只能选择一种。未配置 Windows Hello 时，只能使用手机验证。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-    <TextBlock Text="切换验证方式需填写主密码；当前使用手机验证时，还需手机上的新六位代码。选择 Hello 并保存后会弹出系统验证窗口。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8,0,0"/>
-    <TextBlock Text="确认修改：创建数据库时设置的主密码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityPasswordInput" PasswordChanged="OnSecurityPassword"/>
-    <StackPanel Visibility="{Binding ShowPhoneCode,Converter={StaticResource BooleanVisibility}}"><TextBlock Text="当前手机上的新六位代码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityCodeInput" PasswordChanged="OnSecurityCode" MaxLength="6"/></StackPanel>
-    <ui:Button Content="保存验证方式" Command="{Binding SavePhoneVerificationCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
-    <TextBlock Text="{Binding SecurityMessage}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-   </StackPanel>
-</StackPanel>
-<StackPanel x:Name="DocumentsSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="documents"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Text="解锁保险库后可管理此项设置。" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SecuritySettingsAvailable}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>   <StackPanel Margin="0,0,0,20" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}">
-
-    <TextBlock Text="统一用于所有页面的加密文档导出和解密；密码保存在加密数据库中。更改密码不会重写旧文件。" TextWrapping="Wrap" Margin="0,8"/>
-    <TextBlock Text="新密码（12—1024 个字符）"/><PasswordBox x:Name="DocumentPasswordInput" MaxLength="1024" PasswordChanged="OnDocumentPassword" Margin="0,6"/>
-    <TextBlock Text="再次输入"/><PasswordBox x:Name="DocumentConfirmationInput" MaxLength="1024" PasswordChanged="OnDocumentConfirmation" Margin="0,6"/>
-    <ui:Button Content="保存文档加密密码" Command="{Binding SaveDocumentPasswordCommand}" HorizontalAlignment="Left" Margin="0,6"/>
-    <TextBlock Text="{Binding DocumentPasswordMessage}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-   </StackPanel>
-</StackPanel>
-<StackPanel x:Name="NotificationsSection"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="notifications"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>   <!-- 邮件由公共组件处理，设置页不连接SMTP、不读取已保存口令。 -->
-   <StackPanel Margin="0,0,0,20">
-
-    <TextBlock Text="后台使用系统邮件配置发送通知，关闭或锁定界面不影响已启用的后台任务。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8"/>
-    <WrapPanel Margin="0,12,0,8"><ui:Button Content="保存邮件设置" Command="{Binding SaveEmailCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试邮件" Command="{Binding TestEmailCommand}" ToolTip="使用已保存的启用配置发送一封测试邮件" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadEmailCommand}"/></WrapPanel>
-    <TextBlock Text="{Binding EmailMessage}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-    <StackPanel IsEnabled="{Binding CanEditEmail}">
-     <CheckBox Content="启用邮件通知" IsChecked="{Binding EmailEnabled}" Margin="0,4,0,8"/>
-     <TextBlock Text="SMTP服务器" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailHost,UpdateSourceTrigger=PropertyChanged}" MaxLength="253"/>
-     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <StackPanel><TextBlock Text="端口" Style="{StaticResource InputLabel}"/><ui:NumberBox Value="{Binding EmailPort,Mode=TwoWay}" Minimum="1" Maximum="65535" MaxDecimalPlaces="0"/></StackPanel>
-      <StackPanel Grid.Column="2"><TextBlock Text="连接安全" Style="{StaticResource InputLabel}"/><ComboBox SelectedValue="{Binding EmailSecurity}" SelectedValuePath="Tag"><ComboBoxItem Content="STARTTLS（常用587）" Tag="StartTls"/><ComboBoxItem Content="直接TLS（常用465）" Tag="SslOnConnect"/></ComboBox></StackPanel>
-     </Grid>
-     <TextBlock Text="发件邮箱" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailFrom,UpdateSourceTrigger=PropertyChanged}" MaxLength="254"/>
-     <TextBlock Text="收件邮箱（多个地址以分号分隔，最多10个）" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailRecipients,UpdateSourceTrigger=PropertyChanged}" MaxLength="2560"/>
-     <TextBlock Text="SMTP用户名（无需登录的服务器可留空）" Style="{StaticResource InputLabel}"/><TextBox Text="{Binding EmailUserName,UpdateSourceTrigger=PropertyChanged}" MaxLength="256"/>
-     <TextBlock Text="SMTP授权码或密码（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="EmailPasswordInput" PasswordChanged="OnEmailPassword" MaxLength="2048"/>
-     <CheckBox Content="清除已保存授权码" IsChecked="{Binding EmailClearPassword}" Margin="0,8"/>
-     <TextBlock Text="{Binding EmailPasswordStatus}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-    </StackPanel>
-   </StackPanel>
-</StackPanel>
-<StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="dingtalk"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
- <StackPanel DataContext="{Binding DingTalk}">
-  <TextBlock Text="在钉钉群添加自定义机器人并启用加签。Token 是 Webhook 中 access_token 的值；不要填写完整网址。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-  <WrapPanel Margin="0,12,0,12"><ui:Button Content="保存渠道设置" Command="{Binding SaveCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试消息" Command="{Binding TestCommand}" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadCommand}"/></WrapPanel>
-  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,12"/>
-  <StackPanel IsEnabled="{Binding CanEdit}"><CheckBox Content="启用通知" IsChecked="{Binding Enabled}"/>
-   <TextBlock Text="Token（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="DingTalkToken" PasswordChanged="OnDingTalkToken" MaxLength="512"/>
-   <CheckBox Content="清除Token" IsChecked="{Binding ClearToken}" Margin="0,8"/>
-   <TextBlock Text="加签密钥（SEC开头，留空保持）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="DingTalkSecret" PasswordChanged="OnDingTalkSecret" MaxLength="512"/><CheckBox Content="清除加签密钥" IsChecked="{Binding ClearSigningSecret}" Margin="0,8"/>
-   <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-  </StackPanel>
- </StackPanel>
-</StackPanel>
-<StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="wechat"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
- <StackPanel DataContext="{Binding WeChat}">
-  <TextBlock Text="在 www.pushplus.plus 绑定个人微信并取得 Token。通知内容会经 PushPlus 转发；额度以服务方为准。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-  <WrapPanel Margin="0,12,0,12"><ui:Button Content="保存渠道设置" Command="{Binding SaveCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试消息" Command="{Binding TestCommand}" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadCommand}"/></WrapPanel>
-  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,12"/>
-  <StackPanel IsEnabled="{Binding CanEdit}"><CheckBox Content="启用通知" IsChecked="{Binding Enabled}"/>
-   <TextBlock Text="Token（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="WeChatToken" PasswordChanged="OnWeChatToken" MaxLength="512"/>
-   <CheckBox Content="清除Token" IsChecked="{Binding ClearToken}" Margin="0,8"/>
-   
-   <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
-  </StackPanel>
- </StackPanel>
-</StackPanel><settings:LoggingSettingsView x:Name="LoggingSection">
+<settings:StorageSettingsView x:Name="StorageSection">
+ <settings:StorageSettingsView.Style>
+  <Style TargetType="settings:StorageSettingsView">
+   <Setter Property="Visibility" Value="Collapsed"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="storage"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+   </Style.Triggers>
+  </Style>
+ </settings:StorageSettingsView.Style>
+</settings:StorageSettingsView>
+<settings:SecuritySettingsView x:Name="SecuritySection">
+ <settings:SecuritySettingsView.Style>
+  <Style TargetType="settings:SecuritySettingsView">
+   <Setter Property="Visibility" Value="Collapsed"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="security"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+   </Style.Triggers>
+  </Style>
+ </settings:SecuritySettingsView.Style>
+</settings:SecuritySettingsView>
+<settings:DocumentSettingsView x:Name="DocumentsSection">
+ <settings:DocumentSettingsView.Style>
+  <Style TargetType="settings:DocumentSettingsView">
+   <Setter Property="Visibility" Value="Collapsed"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="documents"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+   </Style.Triggers>
+  </Style>
+ </settings:DocumentSettingsView.Style>
+</settings:DocumentSettingsView>
+<settings:EmailSettingsView x:Name="NotificationsSection">
+ <settings:EmailSettingsView.Style>
+  <Style TargetType="settings:EmailSettingsView">
+   <Setter Property="Visibility" Value="Collapsed"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="notifications"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+   </Style.Triggers>
+  </Style>
+ </settings:EmailSettingsView.Style>
+</settings:EmailSettingsView>
+<settings:DingTalkSettingsView x:Name="DingTalkSection">
+ <settings:DingTalkSettingsView.Style>
+  <Style TargetType="settings:DingTalkSettingsView">
+   <Setter Property="Visibility" Value="Collapsed"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="dingtalk"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+   </Style.Triggers>
+  </Style>
+ </settings:DingTalkSettingsView.Style>
+</settings:DingTalkSettingsView>
+<settings:WeChatSettingsView x:Name="WeChatSection">
+ <settings:WeChatSettingsView.Style>
+  <Style TargetType="settings:WeChatSettingsView">
+   <Setter Property="Visibility" Value="Collapsed"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="wechat"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+   </Style.Triggers>
+  </Style>
+ </settings:WeChatSettingsView.Style>
+</settings:WeChatSettingsView><settings:LoggingSettingsView x:Name="LoggingSection">
  <settings:LoggingSettingsView.Style><Style TargetType="settings:LoggingSettingsView">
   <Setter Property="Visibility" Value="Collapsed"/>
   <Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="logging"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>

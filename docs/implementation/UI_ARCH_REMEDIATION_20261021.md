@@ -40,7 +40,10 @@
 - [x] 设置页基础标题、提示文字和白色面板接入共享样式/颜色。
 - [x] 设置页首个非敏感子视图：将日志设置拆为 `Views/Settings/LoggingSettingsView`，继承 `SettingsViewModel` 并继续由 `SettingsWindow` 的统一保存按钮提交；设置窗口验证工具检查子视图名称与共享主题加载。
 - [x] 合成截图发现 DatePicker 在 130–140px 宽度下按默认长格式显示星期几，未显示日期。ETF / 直接持股 / 减持预警共 13 个日期控件强制 `SelectedDateFormat="Short"`；`Verify-WpfDesignSystem.ps1` 阻止日后新增长日期格式。
-- [ ] **其余设置页拆分**：存储、安全与 TOTP、文档口令、邮件、钉钉、企业微信分批拆成独立 UserControl，并逐步切换至 SettingsSectionHost。需要先把密码框的 `PasswordChanged` 回调和锁定后的清理职责拆为明确的安全接口；不得丢失 `ClearSecurityInputs`、`ClearDocumentInputs`、`ClearEmailInput`、`ClearDingTalkInputs`、`ClearWeChatInputs`，也不得重建时复用明文凭证。
+- [x] **其余设置页分区组件化（源码已改，待 CI）**：存储、安全/TOTP、文档加密、邮件、钉钉及微信迁至 `Views/Settings/*SettingsView.xaml`；日志页沿用既有独立视图。父窗口预创建并保留全部子视图，仅切换 `Visibility`，不重建密码草稿或破坏跨分类统一保存。
+- [x] 敏感视图实现 `ISettingsSecretView.ClearInputs()`，`PasswordChanged` 留在各自名称域；父窗口继续订阅 VM 清理事件并统筹锁定/关闭/取消忙碌场景。存储页“数据库与备份管理”按钮以事件向父窗口请求切换，保留原先关闭及入口语义。
+- [x] 合成设置窗口回归将 7 个子视图逐一切换并确认可见；复核文档密码、TOTP、邮件、钉钉、微信的保留输入和锁定清零。**该测试使用合成数据，不代替实机凭证生命周期和内存清理审计。**
+- [ ] **SettingsSectionHost 进一步统一**：当前仍使用已验证的每页 `DataTrigger Visibility`，待 UI 截图确认后考虑集中为宿主策略；不可牺牲隐藏状态的密码草稿与凭证清理。
 - [x] 绩效组件真实合成截图发现空数据表的自动列宽仅能显示单个汉字，已为两张只读表设置语义样式、表头高度及有下限的星号/固定列宽；组件预览新增实际列宽断言（不得小于 70 DIP）。
 - [x] 绩效页将“原币资产组成”和“绩效历史”拆为独立只读 `PerformanceExposureView`、`PerformanceHistoryView`，复用原 `PerformanceViewModel` 的冻结结果与历史命令；CI 新增合成空状态宽度与数据绑定检查。
 - [ ] 绩效页其余账户范围、图表、补录和资金流继续抽取；须先做控件焦点、命令和数据权限验证。
@@ -75,4 +78,4 @@ dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --u
 
 - 保留分阶段独立 commit，PR 在 Windows 编译和截图验收前必须为 Draft。
 - 任一批改动若导致插件不能卸载、页面内容不可达、缺失证据被当作零、口令残留或 WPF 模板键盘行为回归，撤回该批 UI 改动，不绕过业务规则。
-- 设置拆分与 LiveCharts 图表颜色令牌属于后续专项；不因为界面任务修改来源数据、税务计算或国家队预警策略。
+- 剩余 SettingsSectionHost 统一、敏感凭证实机验收与 LiveCharts 图表颜色令牌属于后续专项；不因为界面任务修改来源数据、税务计算或国家队预警策略。

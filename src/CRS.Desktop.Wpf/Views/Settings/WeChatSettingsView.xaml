@@ -1,0 +1,18 @@
+<UserControl x:Class="CRS.DesktopClient.Views.Settings.WeChatSettingsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <StackPanel>
+<StackPanel DataContext="{Binding WeChat}">
+  <TextBlock Text="在 www.pushplus.plus 绑定个人微信并取得 Token。通知内容会经 PushPlus 转发；额度以服务方为准。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
+  <WrapPanel Margin="0,12,0,12"><ui:Button Content="保存渠道设置" Command="{Binding SaveCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试消息" Command="{Binding TestCommand}" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadCommand}"/></WrapPanel>
+  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,12"/>
+  <StackPanel IsEnabled="{Binding CanEdit}"><CheckBox Content="启用通知" IsChecked="{Binding Enabled}"/>
+   <TextBlock Text="Token（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="WeChatToken" PasswordChanged="OnWeChatToken" MaxLength="512"/>
+   <CheckBox Content="清除Token" IsChecked="{Binding ClearToken}" Margin="0,8"/>
+   
+   <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
+  </StackPanel>
+ </StackPanel>
+ </StackPanel>
+</UserControl>

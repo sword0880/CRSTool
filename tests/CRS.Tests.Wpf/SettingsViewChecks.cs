@@ -37,11 +37,25 @@ internal static class SettingsViewChecks
                     var leaf=(TreeViewItem)group.ItemContainerGenerator.ContainerFromIndex(1);leaf.IsSelected=true;
                     if(model.SelectedSection?.Key!="documents")throw new Exception("树目录选择没有切换到对应设置页。");
                     model.DatabaseDirectory="D:\\draft-data";
-                    var documentPassword=(PasswordBox)window.FindName("DocumentPasswordInput");documentPassword.Password="synthetic-document-only";
+                    var documents=(DocumentSettingsView)window.FindName("DocumentsSection");
+                    var documentPassword=(PasswordBox)documents.FindName("DocumentPasswordInput");documentPassword.Password="synthetic-document-only";
                     foreach(var section in model.Sections)
                     {
                         model.SelectedSection=section;
                         await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                        var viewName=section.Key switch
+                        {
+                            "storage"=>"StorageSection",
+                            "security"=>"SecuritySection",
+                            "documents"=>"DocumentsSection",
+                            "notifications"=>"NotificationsSection",
+                            "dingtalk"=>"DingTalkSection",
+                            "wechat"=>"WeChatSection",
+                            "logging"=>"LoggingSection",
+                            _=>throw new Exception("出现未登记的设置页面："+section.Key)
+                        };
+                        if(window.FindName(viewName) is not FrameworkElement panel || panel.Visibility!=Visibility.Visible)
+                            throw new Exception("设置子视图未随目录显示："+section.Key);
                         Capture(window,Path.Combine(directory,section.Key+".png"));
                     }
                     model.SectionSearch="smtp";
@@ -60,17 +74,22 @@ internal static class SettingsViewChecks
                     var viewport=(ScrollViewer)window.FindName("SectionContentScroll");
                     if(save.TranslatePoint(new Point(0,save.ActualHeight),window).Y>window.ActualHeight||viewport.ActualHeight<150)throw new Exception("最小设置窗口遮挡操作或正文。");
                     Capture(window,Path.Combine(directory,"compact.png"));
-                    var password=(PasswordBox)window.FindName("EmailPasswordInput");password.Password="synthetic-only";
-                    var dingToken=(PasswordBox)window.FindName("DingTalkToken");dingToken.Password="syntheticDingToken";
-                    var dingSecret=(PasswordBox)window.FindName("DingTalkSecret");dingSecret.Password="SECsyntheticSecret";
-                    var wxToken=(PasswordBox)window.FindName("WeChatToken");wxToken.Password="syntheticWeChatToken";
+                    var security=(SecuritySettingsView)window.FindName("SecuritySection");
+                    var securityPassword=(PasswordBox)security.FindName("SecurityPasswordInput");securityPassword.Password="synthetic-master";
+                    var securityCode=(PasswordBox)security.FindName("SecurityCodeInput");securityCode.Password="123456";
+                    var documentConfirmation=(PasswordBox)documents.FindName("DocumentConfirmationInput");documentConfirmation.Password="synthetic-document-only";
+                    var password=(PasswordBox)((EmailSettingsView)window.FindName("NotificationsSection")).FindName("EmailPasswordInput");password.Password="synthetic-only";
+                    var dingTalk=(DingTalkSettingsView)window.FindName("DingTalkSection");
+                    var dingToken=(PasswordBox)dingTalk.FindName("DingTalkToken");dingToken.Password="syntheticDingToken";
+                    var dingSecret=(PasswordBox)dingTalk.FindName("DingTalkSecret");dingSecret.Password="SECsyntheticSecret";
+                    var wxToken=(PasswordBox)((WeChatSettingsView)window.FindName("WeChatSection")).FindName("WeChatToken");wxToken.Password="syntheticWeChatToken";
                     model.SelectedSection=model.Sections[0];
                     if(dingToken.Password.Length==0||wxToken.Password.Length==0)throw new Exception("切换分类丢失通知Token草稿。");
                     model.SectionSearch="微信";
                     if(model.SelectedSection?.Key!="wechat"||model.VisibleSections.Count!=1)throw new Exception("微信搜索没有定位个人微信分类。");
                     model.State.IsBusy=true;
                     window.AbortForLock();
-                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
+                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||securityPassword.Password.Length!=0||securityCode.Password.Length!=0||documentPassword.Password.Length!=0||documentConfirmation.Password.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
                 }
                 catch(Exception error){failure=error;}
                 finally{window.Close();}

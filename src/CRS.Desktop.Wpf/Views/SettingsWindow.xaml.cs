@@ -10,11 +10,11 @@ public partial class SettingsWindow : FluentWindow
     private bool locking;
     public bool RequiresPhoneEnrollment {get;private set;}
     public bool OpenDatabaseManagement {get;private set;}
-    private void OnDatabaseManagement(object sender,RoutedEventArgs e) {OpenDatabaseManagement=true;Close();}
+    private void OnDatabaseManagementRequested(object? sender,EventArgs e) {OpenDatabaseManagement=true;Close();}
     private void OnPhoneEnrollmentRequired() {RequiresPhoneEnrollment=true; Close();}
     public SettingsWindow(SettingsViewModel model)
     {
-        InitializeComponent(); DataContext=model; Closing+=OnClosing; model.SecurityInputsCleared+=ClearSecurityInputs;
+        InitializeComponent(); DataContext=model; StorageSection.DatabaseManagementRequested+=OnDatabaseManagementRequested; Closing+=OnClosing; model.SecurityInputsCleared+=ClearSecurityInputs;
         // 新分类从顶部开始阅读；只改变视口，不重建表单或清除待保存字段。
         model.PropertyChanged+=OnModelPropertyChanged;
         model.PhoneEnrollmentRequired+=OnPhoneEnrollmentRequired;
@@ -23,7 +23,7 @@ public partial class SettingsWindow : FluentWindow
         model.DingTalk.InputsCleared+=ClearDingTalkInputs;
         model.WeChat.InputsCleared+=ClearWeChatInputs;
         Loaded+=async (_,_)=>{await model.CheckHelloAvailabilityAsync();await model.LoadEmailSettingsAsync();await model.LoadWebhookSettingsAsync();};
-        Closed+=(_,_)=> {model.PropertyChanged-=OnModelPropertyChanged;model.EmailInputCleared-=ClearEmailInput;model.DocumentInputsCleared-=ClearDocumentInputs;model.PhoneEnrollmentRequired-=OnPhoneEnrollmentRequired; model.SecurityInputsCleared-=ClearSecurityInputs; model.ClearSecurityInputs(); ClearSecurityInputs();ClearEmailInput();};
+        Closed+=(_,_)=> {StorageSection.DatabaseManagementRequested-=OnDatabaseManagementRequested;model.PropertyChanged-=OnModelPropertyChanged;model.EmailInputCleared-=ClearEmailInput;model.DocumentInputsCleared-=ClearDocumentInputs;model.PhoneEnrollmentRequired-=OnPhoneEnrollmentRequired; model.SecurityInputsCleared-=ClearSecurityInputs; model.ClearSecurityInputs(); ClearSecurityInputs();ClearEmailInput();};
     }
     private void OnModelPropertyChanged(object? sender,PropertyChangedEventArgs e)
     {
@@ -40,21 +40,14 @@ public partial class SettingsWindow : FluentWindow
             if(model.SelectedSection is {} first)first.IsSelected=true;
         }
     }
-    private void ClearSecurityInputs() {SecurityPasswordInput.Clear(); SecurityCodeInput.Clear();DocumentPasswordInput.Clear();DocumentConfirmationInput.Clear();}
-    private void OnDocumentPassword(object sender,RoutedEventArgs e) {if(DataContext is SettingsViewModel model)model.DocumentPassword=DocumentPasswordInput.Password;}
-    private void OnDocumentConfirmation(object sender,RoutedEventArgs e) {if(DataContext is SettingsViewModel model)model.DocumentPasswordConfirmation=DocumentConfirmationInput.Password;}
-    private void ClearDocumentInputs() {DocumentPasswordInput.Clear();DocumentConfirmationInput.Clear();}
-    private void ClearEmailInput()=>EmailPasswordInput.Clear();
-    private void ClearDingTalkInputs(){DingTalkToken.Clear();DingTalkSecret.Clear();}
-    private void ClearWeChatInputs()=>WeChatToken.Clear();
-    private void OnDingTalkToken(object sender,RoutedEventArgs e){if(DataContext is SettingsViewModel m)m.DingTalk.SetToken(DingTalkToken.Password);}
-    private void OnDingTalkSecret(object sender,RoutedEventArgs e){if(DataContext is SettingsViewModel m)m.DingTalk.SetSigningSecret(DingTalkSecret.Password);}
-    private void OnWeChatToken(object sender,RoutedEventArgs e){if(DataContext is SettingsViewModel m)m.WeChat.SetToken(WeChatToken.Password);}
-    private void OnEmailPassword(object sender,RoutedEventArgs e){if(DataContext is SettingsViewModel model)model.SetEmailPassword(EmailPasswordInput.Password);}
+    // 子视图各自保管 PasswordBox，窗口仍是敏感输入清理的唯一调度入口。
+    private void ClearSecurityInputs() {SecuritySection.ClearInputs();DocumentsSection.ClearInputs();}
+    private void ClearDocumentInputs()=>DocumentsSection.ClearInputs();
+    private void ClearEmailInput()=>NotificationsSection.ClearInputs();
+    private void ClearDingTalkInputs()=>DingTalkSection.ClearInputs();
+    private void ClearWeChatInputs()=>WeChatSection.ClearInputs();
     /// <summary>系统锁定关闭设置窗口时清理凭证，允许中断普通的忙碌关闭门槛。</summary>
     public void AbortForLock() {locking=true; ((SettingsViewModel)DataContext).ClearSecurityInputs(); Close();}
-    private void OnSecurityPassword(object sender,RoutedEventArgs e) {if(DataContext is SettingsViewModel model) model.SecurityPassword=SecurityPasswordInput.Password;}
-    private void OnSecurityCode(object sender,RoutedEventArgs e) {if(DataContext is SettingsViewModel model) model.SecurityCode=SecurityCodeInput.Password;}
     private void OnClose(object sender, RoutedEventArgs e) => Close();
     private void OnClosing(object? sender, CancelEventArgs e)
     {
