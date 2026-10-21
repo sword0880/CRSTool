@@ -8,6 +8,8 @@ namespace CRS.DesktopClient.Views.Pages;
 public partial class BackgroundServicePage : UserControl
 {
     public BackgroundServicePage(BackgroundServiceViewModel model) { InitializeComponent(); DataContext = model; }
+    /// <summary>主窗体底栏直达“最近执行”，不再默认停留在“服务计划”。</summary>
+    public void ShowRecentExecutions() => TaskCenterTabs.SelectedIndex=1;
     private void OnPlanDoubleClick(object sender,MouseButtonEventArgs e)
     {
         if(e.OriginalSource is DependencyObject origin && ItemsControl.ContainerFromElement(PlansGrid,origin) is DataGridRow {Item:TaskDefinition plan})OpenPlan(plan);

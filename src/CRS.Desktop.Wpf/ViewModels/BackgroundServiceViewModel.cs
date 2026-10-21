@@ -40,6 +40,8 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     [ObservableProperty] private string historyJob = "";
     private string? appliedPlugin = "crs.national-team";
     private string? appliedJob;
+    private string? appliedResultFilter;
+    [ObservableProperty] private bool onlyIssues;
     // 下拉建议允许补充手工任务编号，不把筛选范围限制为当前页。
     public ObservableCollection<string> HistoryPlugins { get; } = ["", "crs.national-team", "crs.heartbeat"];
     public ObservableCollection<string> HistoryJobs { get; } = [""];
@@ -48,9 +50,30 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     {
         appliedPlugin = string.IsNullOrWhiteSpace(HistoryPlugin) ? null : HistoryPlugin.Trim();
         appliedJob = string.IsNullOrWhiteSpace(HistoryJob) ? null : HistoryJob.Trim();
+        appliedResultFilter = OnlyIssues ? "Issues" : null;
         historyCursor = null; History.Clear();
-        await LoadAsync(); Status = "已按插件和任务筛选执行记录。";
+        await LoadAsync();
+        Status = OnlyIssues
+            ? History.Count==0
+                ? "异常执行筛选已启用，但没有匹配记录。来源冷却或插件启动失败可能没有执行记录，请查看后台服务状态。"
+                : "已按异常执行结果筛选，翻页继续保留条件。"
+            : "已按插件和任务筛选执行记录。";
     });
+    /// <summary>底栏直达最近执行；正在刷新时排队应用导航条件，避免忙碌状态吞掉用户点击。</summary>
+    public async Task OpenExecutionHistoryAsync(bool issues)
+    {
+        while(Busy)
+        {
+            lifetime.ThrowIfCancellationRequested();
+            await Task.Delay(80,lifetime);
+        }
+        lifetime.ThrowIfCancellationRequested();
+        HistoryPlugin=issues?"":"crs.national-team";
+        HistoryJob="";
+        OnlyIssues=issues;
+        await FilterHistoryCommand.ExecuteAsync(null);
+    }
+
     public bool CanChangeHistory=>!Busy;
     partial void OnBusyChanged(bool value)=>OnPropertyChanged(nameof(CanChangeHistory));
     partial void OnSelectedChanged(TaskDefinition? value)
@@ -82,10 +105,15 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
             SnapshotTime = "状态采样：" + sample.ObservedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") + " · " + sample.State;
         if (healthState is "StorageFault" or "UnresponsivePlugin") return;
         var plans = await client.QueryAsync("GetJobs", lifetime);
-        var history = await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:appliedPlugin,JobId:appliedJob),lifetime);
+        var history = await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:appliedPlugin,JobId:appliedJob,ResultFilter:appliedResultFilter),lifetime);
         lifetime.ThrowIfCancellationRequested();
         if (history.Code == "UnknownCommand") { Status = "后台服务版本不支持插件和任务组合筛选，请更新服务。"; throw new InvalidOperationException("服务不支持历史筛选。"); }
         if (health.Code != "Ok" || plans.Code != "Ok" || history.Code != "Ok") throw new InvalidOperationException("服务协议不兼容。");
+        // 旧Worker会忽略新增字段，因此要求明确回执；不能把普通记录混成异常记录。
+        if(appliedResultFilter is not null && history.AppliedResultFilter!=appliedResultFilter)
+            throw new System.IO.InvalidDataException("后台服务版本不支持异常筛选，请更新配套 Windows Service。");
+        if(appliedResultFilter=="Issues" && (history.History??[]).Any(x=>!IsIssueResult(x.Result)))
+            throw new System.IO.InvalidDataException("后台异常筛选返回正常执行记录，请核对前后台版本。");
         historyCursor = history.NextCursor;
         jobsCursor = plans.NextCursor;
         var key = Selected; Jobs.Clear(); foreach (var row in plans.Jobs ?? []) Jobs.Add(row);
@@ -112,11 +140,19 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     private Task MoreHistoryAsync() => WithStatusAsync(async () =>
     {
         if (historyCursor is null) { Status = "没有更多执行记录。"; return; }
-        var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetFilteredHistory", PluginId:appliedPlugin,JobId:appliedJob,Cursor: historyCursor), lifetime);
+        var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetFilteredHistory", PluginId:appliedPlugin,JobId:appliedJob,Cursor: historyCursor,ResultFilter:appliedResultFilter), lifetime);
         if (response.Code != "Ok") { Status = "历史读取失败：" + response.Code; return; }
+        if(appliedResultFilter is not null && (response.AppliedResultFilter!=appliedResultFilter || (response.History??[]).Any(x=>!IsIssueResult(x.Result))))
+        {
+            Status="后台未正确应用异常筛选；请更新服务并重新查询。";
+            History.Clear();historyCursor=null;return;
+        }
         foreach (var row in response.History ?? []) if (!History.Any(x => x.ExecutionId == row.ExecutionId)) History.Add(row);
         historyCursor = response.NextCursor; Status = historyCursor is null ? "已读取全部可用历史。" : "已加载下一页历史。";
     });
+    public static bool IsIssueResult(string result) =>
+        result is not ("Succeeded" or "NotPublished" or "Running" or "Cancelled");
+
     [RelayCommand]
     private Task RunNowAsync() => MutateAsync("RunNow");
     [RelayCommand]
@@ -160,6 +196,11 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         try { await action(); }
         catch (OperationCanceledException) when (!lifetime.IsCancellationRequested) { HealthLabel = "连接超时"; HealthTone = "Warning"; Status = "后台服务不可用或响应超时；所列内容为上次状态快照。"; }
         catch (OperationCanceledException) { }
+        catch (System.IO.InvalidDataException error)
+        {
+            Status=error.Message;HealthLabel="状态未确认";HealthTone="Warning";
+            History.Clear();historyCursor=null;
+        }
         catch (Exception) { HealthLabel = "无法确认服务状态"; HealthTone = "Warning"; Status = "后台服务不可用或版本不兼容；请检查服务状态并更新到支持任务筛选的版本。所列内容为上次状态快照。"; }
         finally { Busy = false; }
     }

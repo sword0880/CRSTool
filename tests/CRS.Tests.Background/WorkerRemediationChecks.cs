@@ -344,7 +344,7 @@ internal static class WorkerRemediationChecks
         public void End(string id, TaskDefinition p, BackgroundJobResult r, Guid? request = null) { Fail("End"); inner.End(id, p, r, request); }
         public List<ExecutionRecord> History() => inner.History();
         public ExecutionRecord? FindExecution(string id)=>inner.FindExecution(id);
-        public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? c, int n,string? plugin=null,string? job=null) => inner.HistoryPage(c, n,plugin,job);
+        public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? c, int n,string? plugin=null,string? job=null,string? resultFilter=null) => inner.HistoryPage(c, n,plugin,job,resultFilter);
         public void Audit(string s, Guid id, string c, string r) { Fail("Audit"); inner.Audit(s, id, c, r); }
         public CommandReceipt? FindCommand(Guid id, string s) => inner.FindCommand(id, s);
         public BackgroundRequest ReadCommand(Guid id)=>inner.ReadCommand(id);
