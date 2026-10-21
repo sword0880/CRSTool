@@ -27,8 +27,31 @@ public partial class EtfViewModel
     [RelayCommand] private Task SyncMarketActivity()=>ExecuteAsync(async token=>
     {
         if(SyncFrom is null || SyncTo is null)throw new System.IO.InvalidDataException("请设置采集日期区间。");
-        try {await workspace.SyncMarketActivityAsync(DateOnly.FromDateTime(SyncFrom.Value),DateOnly.FromDateTime(SyncTo.Value),token);}
-        finally {if(!token.IsCancellationRequested)await LoadMarketActivityAsync(token);}
+        var from=DateOnly.FromDateTime(SyncFrom.Value);
+        var to=DateOnly.FromDateTime(SyncTo.Value);
+        var range=$"{from:yyyy-MM-dd} 至 {to:yyyy-MM-dd}";
+        MarketActivityStatus=$"正在向后台提交 {range} 的沪深成交额采集，并等待执行结果；实际来源限流可能导致任务延期或失败。";
+        try
+        {
+            await workspace.SyncMarketActivityAsync(from,to,token);
+            token.ThrowIfCancellationRequested();
+            await LoadMarketActivityAsync(token);
+            token.ThrowIfCancellationRequested();
+            var result=MarketActivityStatus;
+            MarketActivityStatus=$"后台报告本轮采集已完成（{range}）。{result} " +
+                "成功不代表新增记录：原始记录可能已存在；实际请求数与失败原因请在“任务中心 → 最近执行”查看该次任务的检查点与日志。";
+        }
+        catch(OperationCanceledException) when(token.IsCancellationRequested)
+        {
+            MarketActivityStatus="已停止等待采集；后台已接受的任务可能继续执行，请查看任务中心的执行记录。";
+            throw;
+        }
+        catch(Exception error)
+        {
+            var reason=error is System.IO.InvalidDataException?error.Message:error.GetType().Name;
+            MarketActivityStatus=$"本轮成交额采集未确认成功（{range}）：{reason}。请到“任务中心 → 最近执行”查看 market-activity-sync 的来源请求和失败检查点；冷却期间不会强行再次访问官网。";
+            throw;
+        }
     });
     private async Task LoadMarketActivityAsync(CancellationToken token)
     {

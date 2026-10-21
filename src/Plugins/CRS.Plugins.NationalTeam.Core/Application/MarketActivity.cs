@@ -2,6 +2,17 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 
 public sealed record MarketActivityObservation(string Market,DateOnly Date,decimal AmountYuan,decimal VolumeShares);
 public sealed record MarketActivitySource(Uri Uri,byte[] Content,string Market,DateOnly Date,MarketActivityObservation? Observation);
+/// <summary>成交统计采集诊断：请求次数不等于成功下载；休市跳过不得被报告成联网成功。</summary>
+public sealed record MarketActivitySyncReport(
+    int QueriedDays,
+    int SourceIssues,
+    int ReceivedRows,
+    int RequestedSources,
+    int ClosedSources,
+    int EmptySources,
+    string? FirstFailureCode = null,
+    bool HasMore = false);
+
 public interface IMarketActivitySource
 {
     Task<MarketActivitySource> FetchAsync(string market,DateOnly day,CancellationToken token);
