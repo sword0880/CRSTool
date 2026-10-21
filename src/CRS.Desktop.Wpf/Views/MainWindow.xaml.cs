@@ -172,6 +172,11 @@ public partial class MainWindow : FluentWindow
         foreach(var group in Navigation.MenuItems.OfType<NavigationViewItem>().Where(x=>x.MenuItems.Count>0))
             group.IsExpanded=Navigation.IsPaneOpen && ReferenceEquals(group,selected);
     }
+    /// <summary>统一标题栏折叠入口。继续由NavigationView管理侧栏状态，插件偏移及品牌可见性复用同一IsPaneOpen绑定。</summary>
+    private void OnNavigationToggleClick(object sender,System.Windows.RoutedEventArgs e)
+    {
+        Navigation.IsPaneOpen=!Navigation.IsPaneOpen;
+    }
     private void OnSettings(object sender, System.Windows.RoutedEventArgs e)
     {
         var shell = (ShellViewModel)DataContext;
