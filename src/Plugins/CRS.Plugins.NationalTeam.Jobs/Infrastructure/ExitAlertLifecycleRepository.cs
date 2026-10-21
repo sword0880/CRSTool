@@ -6,7 +6,7 @@ public sealed partial class MarketRepository
 {
     private ExitAlertEvent? CurrentAlert(ExitAlertFinding finding,string version)
     {
-        using var command=Command("SELECT payload FROM nt_risk_event WHERE rule_id=$r AND scope_id=$s AND rule_version=$v AND state NOT IN ('Resolved','RetractedByRevision','HistoricalEvidence','RuleSuperseded') ORDER BY updated_at DESC LIMIT 1",("$r",finding.RuleId),("$s",finding.ScopeId),("$v",version));
+        using var command=Command("SELECT payload FROM nt_risk_event WHERE rule_id=$r AND scope_id=$s AND rule_version=$v AND state NOT IN ('Resolved','RetractedByRevision','HistoricalEvidence','RuleSuperseded') ORDER BY julianday(updated_at) DESC LIMIT 1",("$r",finding.RuleId),("$s",finding.ScopeId),("$v",version));
         var json=command.ExecuteScalar() as string;return json is null?null:JsonSerializer.Deserialize<ExitAlertEvent>(json);
     }
     /// <summary>未知数据不解除风险；事件变更与各渠道Outbox同事务，重复评价不重复通知。</summary>

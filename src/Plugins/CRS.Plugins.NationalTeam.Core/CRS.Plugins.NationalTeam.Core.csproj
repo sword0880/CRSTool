@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- 领域模型与查询契约由 Core 实体拥有；不再跨目录链接 UI 源码。 -->
   <PropertyGroup><Version>2.0.0</Version></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../CRS.Time/CRS.Time.csproj" /></ItemGroup>
 </Project>

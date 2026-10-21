@@ -10,7 +10,7 @@ public sealed partial class EtfWorkspace
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.ReviewMarketActivity(id,accept,reviewer,commandId);return true;},token);
     public async Task<MarketActivitySyncReport> SyncRecentMarketActivityAsync(CancellationToken token)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         var cursor=await RunAsync(()=>repository!.ReadMarketActivityCursor(),token);
         var from=cursor?.AddDays(-7)??today.AddDays(-35);var to=from.AddDays(29)<today?from.AddDays(29):today;
         var result=await SyncMarketActivityRangeAsync(from,to,token,true);
@@ -24,7 +24,7 @@ public sealed partial class EtfWorkspace
     public Task<MarketActivitySyncReport> SyncMarketActivityReportAsync(DateOnly from,DateOnly to,CancellationToken token)=>SyncMarketActivityRangeAsync(from,to,token,false);
     private async Task<MarketActivitySyncReport> SyncMarketActivityRangeAsync(DateOnly from,DateOnly to,CancellationToken token,bool track)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         if(from>to || to>today || to.DayNumber-from.DayNumber>400)throw new InvalidDataException("采集区间必须不超过400个自然日，不能包含未来日期。");
         if(activitySource is null)throw new InvalidOperationException("成交统计来源未注册。");
         int issues=0,received=0,days=0,sourceCalls=0,closed=0,empty=0;string? firstFailure=null;var contiguous=true;

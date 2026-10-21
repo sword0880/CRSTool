@@ -53,7 +53,7 @@ public sealed class SourceBudgetRegistry : IDisposable
             ObjectDisposedException.ThrowIf(disposed, this);
             budget = budgets[source];
             var state = Merge(source,legacy);
-            if (state.BlockedUtc > clock.GetUtcNow()) { budget.Rejected++; throw new SourceBudgetUnavailableException("SourceCooldown", state.BlockedUtc); }
+            if (state.BlockedUtc > CRS.Timing.BeijingClock.Read(clock)) { budget.Rejected++; throw new SourceBudgetUnavailableException("SourceCooldown", state.BlockedUtc); }
             var waiting = budget.Queue.Count - (budget.Active ? 1 : 0);
             if (waiting >= 32 || budget.Queue.Count(x => x.Plugin == plugin) >= 8)
             { budget.Rejected++; throw new SourceBudgetUnavailableException("SourceQueueFull"); }
@@ -72,12 +72,12 @@ public sealed class SourceBudgetRegistry : IDisposable
                     ObjectDisposedException.ThrowIf(disposed, this);
                     token.ThrowIfCancellationRequested();
                     var state = store.Read(source);
-                    if (state.BlockedUtc > clock.GetUtcNow()) { budget.Rejected++; throw new SourceBudgetUnavailableException("SourceCooldown", state.BlockedUtc); }
-                    wait = state.NextUtc - clock.GetUtcNow();
+                    if (state.BlockedUtc > CRS.Timing.BeijingClock.Read(clock)) { budget.Rejected++; throw new SourceBudgetUnavailableException("SourceCooldown", state.BlockedUtc); }
+                    wait = state.NextUtc - CRS.Timing.BeijingClock.Read(clock);
                     if (wait <= TimeSpan.Zero)
                     {
                         // 必须先持久登记间隔才能让调用者访问网络。
-                        store.Save(source, state with { NextUtc = clock.GetUtcNow().AddSeconds(3) });
+                        store.Save(source, state with { NextUtc = CRS.Timing.BeijingClock.Read(clock).AddSeconds(3) });
                         budget.Active = true;
                         return new Lease(this, source, node);
                     }
@@ -105,7 +105,7 @@ public sealed class SourceBudgetRegistry : IDisposable
         var state = store.Read(source);
         var failures = Math.Min(state.Failures + 1, 16);
         var seconds = status is 403 or 429 ? 21600 : Math.Min(21600, 300 * Math.Pow(2, Math.Min(failures - 1, 7)));
-        var until = clock.GetUtcNow().AddSeconds(seconds * (1 + Random.Shared.NextDouble() * .2));
+        var until = CRS.Timing.BeijingClock.Read(clock).AddSeconds(seconds * (1 + Random.Shared.NextDouble() * .2));
         store.Save(source, state with { BlockedUtc = Max(Max(until, retryAfter ?? DateTimeOffset.MinValue), state.BlockedUtc), Failures = failures });
     }
     private void Complete(string source, int status, DateTimeOffset? retryAfter)
@@ -118,7 +118,7 @@ public sealed class SourceBudgetRegistry : IDisposable
             {
                 var state = store.Read(source);
                 // 迟到成功不能清除其他校验反馈刚写入的冷却。
-                if (state.BlockedUtc <= clock.GetUtcNow()) store.Save(source, state with { Failures = 0 });
+                if (state.BlockedUtc <= CRS.Timing.BeijingClock.Read(clock)) store.Save(source, state with { Failures = 0 });
             }
         }
     }
@@ -141,7 +141,7 @@ public sealed class SourceBudgetRegistry : IDisposable
             return budgets.Select(pair =>
             {
                 var state = store.Read(pair.Key); var budget = pair.Value;
-                var kind = state.BlockedUtc > clock.GetUtcNow() ? "Cooldown" : state.NextUtc > clock.GetUtcNow() ? "RateWait" : "Ready";
+                var kind = state.BlockedUtc > CRS.Timing.BeijingClock.Read(clock) ? "Cooldown" : state.NextUtc > CRS.Timing.BeijingClock.Read(clock) ? "RateWait" : "Ready";
                 return new SourceBudgetHealth(pair.Key, kind, budget.Active ? 1 : 0, budget.Queue.Count - (budget.Active ? 1 : 0),
                     state.NextUtc, state.BlockedUtc, state.Failures, budget.Deferred, budget.Rejected);
             }).ToArray();

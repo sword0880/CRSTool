@@ -61,8 +61,8 @@ public sealed class SqliteSourceBudgetStore : ISourceBudgetStore
         if(!reader.Read())return new(DateTimeOffset.MinValue, DateTimeOffset.MinValue, 0);
         var failures=reader.GetInt64(2);
         if(failures is <0 or >16)throw new InvalidDataException("来源预算失败计数损坏。");
-        var state=new SourceBudgetState(DateTimeOffset.Parse(reader.GetString(0), CultureInfo.InvariantCulture),
-            DateTimeOffset.Parse(reader.GetString(1), CultureInfo.InvariantCulture), (int)failures);
+        var state=new SourceBudgetState(CRS.Timing.BeijingClock.Parse(reader.GetString(0)),
+            CRS.Timing.BeijingClock.Parse(reader.GetString(1)), (int)failures);
         return state;
     }
     public void Save(string source, SourceBudgetState state)=>Guard(()=>{SaveCore(source,state);return 0;});
@@ -71,8 +71,8 @@ public sealed class SqliteSourceBudgetStore : ISourceBudgetStore
         using var command = db.CreateCommand();
         command.CommandText = "INSERT INTO source_budget VALUES($s,$n,$b,$f) ON CONFLICT(source) DO UPDATE SET next_utc=$n,blocked_utc=$b,failures=$f";
         command.Parameters.AddWithValue("$s", source);
-        command.Parameters.AddWithValue("$n", state.NextUtc.ToString("O"));
-        command.Parameters.AddWithValue("$b", state.BlockedUtc.ToString("O"));
+        command.Parameters.AddWithValue("$n", CRS.Timing.BeijingClock.Serialize(state.NextUtc));
+        command.Parameters.AddWithValue("$b", CRS.Timing.BeijingClock.Serialize(state.BlockedUtc));
         command.Parameters.AddWithValue("$f", state.Failures);
         command.ExecuteNonQuery();
     }

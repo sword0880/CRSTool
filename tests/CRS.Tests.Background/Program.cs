@@ -7,6 +7,7 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
 if(args is ["--history-result-filter"])
 {
     var filterRoot=Path.Combine(Path.GetTempPath(),"CRS.HistoryFilter",Guid.NewGuid().ToString("N"));

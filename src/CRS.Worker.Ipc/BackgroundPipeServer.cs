@@ -113,7 +113,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         lock (rateGate)
         {
             // 只读请求无需重放缓存；身份配额独立，修改请求在加密仓储中进行持久幂等校验。
-            var bucket = management ? commands : queries; var now = DateTimeOffset.UtcNow;
+            var bucket = management ? commands : queries; var now = CRS.Timing.BeijingClock.Now;
             foreach (var sid in bucket.Where(x => now - x.Value.Started > TimeSpan.FromSeconds(10)).Select(x => x.Key).ToArray()) bucket.Remove(sid);
             if (!bucket.TryGetValue(caller.Sid, out var limit))
             {

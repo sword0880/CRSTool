@@ -14,7 +14,7 @@ public sealed class HeartbeatEntry : IBackgroundPluginEntry
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (jobId != "heartbeat") throw new InvalidOperationException("未知心跳任务。");
-            return Task.FromResult(BackgroundJobResult.Success(DateTimeOffset.UtcNow.ToString("O")));
+            return Task.FromResult(BackgroundJobResult.Success(CRS.Timing.BeijingClock.Now.ToString("O")));
         }
         public ValueTask StopAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

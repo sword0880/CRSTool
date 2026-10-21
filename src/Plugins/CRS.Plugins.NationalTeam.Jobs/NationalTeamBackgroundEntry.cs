@@ -127,7 +127,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     }
                     return new(equityIssues>0?"RetryDeferred":equityRows==0?"NotPublished":"Succeeded",$"equitySources={equityRows};sourceIssues={equityIssues}",TimeSpan.FromMinutes(30));
                 case "official-calendar-sync" when request.Operation=="sync":
-                    var calendarYear=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").Year;
+                    var calendarYear=CRS.Timing.BeijingClock.Now.Year;
                     var calendarIssues=0;
                     foreach(var market in new[]{"SSE","SZSE"})
                     foreach(var year in new[]{calendarYear-1,calendarYear})
@@ -155,7 +155,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                         ActivityCheckpoint(activity),activity.SourceIssues==0 && activity.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
                 case "official-share-sync" when request.Operation=="sync":
                     if(!(await workspace!.ConfigurationAsync(token)).Any(x=>x.Active))return BackgroundJobResult.Success("monitoring=NoActiveEtfs");
-                    var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+                    var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
                     var report=request.From is null && request.To is null?await workspace!.SyncRecentAsync(token):
                         await workspace!.SyncAsync(request.From??today.AddDays(-7),request.To??today,token);
                     await workspace!.EvaluateAlertsAsync(token);
@@ -196,8 +196,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         await queries.WaitAsync(token);
         try
         {
-            foreach(var id in snapshots.Where(x=>x.Value.Until<DateTimeOffset.UtcNow).Select(x=>x.Key).ToArray())snapshots.Remove(id);
-            foreach(var id in exports.Where(x=>x.Value.Until<DateTimeOffset.UtcNow).Select(x=>x.Key).ToArray())exports.Remove(id);
+            foreach(var id in snapshots.Where(x=>x.Value.Until<CRS.Timing.BeijingClock.Now).Select(x=>x.Key).ToArray())snapshots.Remove(id);
+            foreach(var id in exports.Where(x=>x.Value.Until<CRS.Timing.BeijingClock.Now).Select(x=>x.Key).ToArray())exports.Remove(id);
             if(request.Operation=="status")return JsonSerializer.Serialize(workspace!.NetworkStatus);
             if(request.Operation=="export")return await ExportAsync(request,token);
             var canonical=JsonSerializer.Serialize(request with{Offset=0,Snapshot=null});
@@ -258,7 +258,10 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 default:throw new ArgumentException("不支持此公开查询。");
             }
             if(rows.Length>10000 || rows.Sum(x=>x.Length)>2*1024*1024 || snapshots.Count>=8)throw new ArgumentException("查询快照额度已满，请稍后刷新。");
-            var snapshot=Guid.NewGuid().ToString("N");snapshots.Add(snapshot,(DateTimeOffset.UtcNow.AddMinutes(10),canonical,rows,metadata));
+            rows=rows.Select(BeijingQueryTimes.Normalize).ToArray();
+            if(metadata is not null)metadata=BeijingQueryTimes.Normalize(metadata);
+            if(rows.Sum(x=>x.Length)>2*1024*1024)throw new ArgumentException("查询快照超过时间元数据归一后的限额。");
+            var snapshot=Guid.NewGuid().ToString("N");snapshots.Add(snapshot,(CRS.Timing.BeijingClock.Now.AddMinutes(10),canonical,rows,metadata));
             return Page(snapshot,rows,metadata,request);
         }
         finally{queries.Release();}
@@ -292,7 +295,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             var hash=request.Original?row.OriginalHash:row.Hash;
             var bytes=await raw!.ReadImportFileAsync(Path.Combine(rawPath,hash+".raw"),token);
             if(Convert.ToHexString(SHA256.HashData(bytes))!=hash)throw new InvalidDataException("证据哈希不匹配。");
-            cached=(DateTimeOffset.UtcNow.AddMinutes(5),hash,bytes);exports[id]=cached;
+            cached=(CRS.Timing.BeijingClock.Now.AddMinutes(5),hash,bytes);exports[id]=cached;
         }
         if(request.Offset<0 || request.Offset>cached.Bytes.Length)throw new ArgumentException("证据偏移错误。");
         var chunk=cached.Bytes.Skip(request.Offset).Take(16384).ToArray();

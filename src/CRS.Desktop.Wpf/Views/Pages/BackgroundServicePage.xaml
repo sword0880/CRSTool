@@ -1,5 +1,7 @@
 <UserControl x:Class="CRS.DesktopClient.Views.Pages.BackgroundServicePage"
- xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:time="clr-namespace:CRS.Plugin.Wpf;assembly=CRS.Plugin.Wpf">
+ <UserControl.Resources><time:BeijingTimestampConverter x:Key="BeijingTimestamp"/></UserControl.Resources>
  <Grid Margin="24">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <StackPanel>
@@ -18,7 +20,7 @@
    <Button Content="确认上次请求" Command="{Binding ConfirmPendingCommand}" Margin="8,0,0,0"/>
   </WrapPanel>
   <TabControl x:Name="TaskCenterTabs" Grid.Row="2" Grid.RowSpan="2">
-   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron 与时区。" Foreground="#64748B" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron（北京时间）。" Foreground="#64748B" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/><DataGridCheckBoxColumn Header="待重建" Binding="{Binding NeedsReconcile}"/></DataGrid.Columns>
    </DataGrid></Grid></TabItem>
    <TabItem Header="最近执行"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -36,7 +38,7 @@
      <TextBlock Text="留空表示全部；仅异常按服务端结果过滤（含失败、延期重试、中断等），翻页仍保留筛选。来源冷却或插件启动故障可能不产生执行记录。" TextWrapping="Wrap" Foreground="#64748B"/>
     </StackPanel>
     <DataGrid x:Name="HistoryGrid" Grid.Row="1" ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MouseDoubleClick="OnHistoryDoubleClick" PreviewKeyDown="OnHistoryKeyDown" SelectionMode="Single">
-    <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="开始 UTC" Binding="{Binding StartedUtc}"/><DataGridTextColumn Header="结束 UTC" Binding="{Binding EndedUtc}"/><DataGridTextColumn Header="结果" Binding="{Binding Result}"/><DataGridTextColumn Header="尝试" Binding="{Binding Attempt}"/></DataGrid.Columns>
+    <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="开始时间（北京时间）" Binding="{Binding StartedUtc,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="结束时间（北京时间）" Binding="{Binding EndedUtc,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="结果" Binding="{Binding Result}"/><DataGridTextColumn Header="尝试" Binding="{Binding Attempt}"/></DataGrid.Columns>
    </DataGrid></Grid></TabItem>
   </TabControl>
  </Grid>

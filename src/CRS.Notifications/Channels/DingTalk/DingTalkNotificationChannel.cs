@@ -9,7 +9,7 @@ public sealed class DingTalkNotificationChannel(WebhookSettingsStore settings,Ht
     public override NotificationChannelDescriptor Descriptor {get;}=new("dingtalk","钉钉");
     private protected override HttpRequestMessage CreateRequest(string access,string signing,NotificationEnvelope message)
     {
-        var timestamp=(clock??TimeProvider.System).GetUtcNow().ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var timestamp=CRS.Timing.BeijingClock.Read(clock??TimeProvider.System).ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
         var hash=HMACSHA256.HashData(Encoding.UTF8.GetBytes(signing),Encoding.UTF8.GetBytes(timestamp+"\n"+signing));
         var signature=Uri.EscapeDataString(Convert.ToBase64String(hash));
         return new(HttpMethod.Post,"https://oapi.dingtalk.com/robot/send?access_token="+access+"&timestamp="+timestamp+"&sign="+signature)

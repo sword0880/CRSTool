@@ -13,12 +13,12 @@ public sealed class ServiceEventLog(string dataDirectory)
             try
             {
                 var directory = Path.Combine(dataDirectory, "logs"); Directory.CreateDirectory(directory);
-                var path = Path.Combine(directory, "service-" + DateTime.UtcNow.ToString("yyyyMMdd") + ".jsonl");
+                var path = Path.Combine(directory, "service-" + CRS.Timing.BeijingClock.Now.ToString("yyyyMMdd") + ".jsonl");
                 // 每天最多 5 MiB，最多保留 14 个文件，避免无人值守日志占满系统磁盘。
                 foreach (var old in Directory.EnumerateFiles(directory, "service-????????.jsonl").OrderDescending().Skip(13))
                     if (!string.Equals(old, path, StringComparison.OrdinalIgnoreCase)) File.Delete(old);
                 if (File.Exists(path) && new FileInfo(path).Length >= 5 * 1024 * 1024) return;
-                File.AppendAllText(path, JsonSerializer.Serialize(new { utc = DateTimeOffset.UtcNow, category, job, result }) + Environment.NewLine);
+                File.AppendAllText(path, JsonSerializer.Serialize(new { time = CRS.Timing.BeijingClock.Now, category, job, result }) + Environment.NewLine);
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {

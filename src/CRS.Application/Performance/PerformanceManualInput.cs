@@ -23,7 +23,7 @@ public sealed partial class PerformanceUseCases
     {
         var account=RequireManualAccount(input.AccountId,input.Source,"资金/证券事件必须选择账户并填写原始来源。");
         return ImportManualData(new(){Events=[new(Guid.NewGuid().ToString("N"),account.Id,
-            new(input.Date.ToDateTime(new(12,0)),TimeSpan.Zero),input.Date,input.Kind,input.Amount,input.Currency,new("",input.Source),
+            CRS.Timing.BeijingClock.At(input.Date,new(12,0)),input.Date,input.Kind,input.Amount,input.Currency,new("",input.Source),
             input.Security,input.Market,input.Quantity,input.Fee,input.Withholding,Confirmed:input.Confirmed)]},token);
     });
 
@@ -39,7 +39,7 @@ public sealed partial class PerformanceUseCases
             new("Liability",currency,input.Liability),new("Payable",currency,input.Payable)};
         if(input.Securities>0)components.Add(new("Security",currency,input.Securities));
         return ImportManualData(new(){Valuations=[new(Guid.NewGuid().ToString("N"),account.Id,
-            new(input.Date.ToDateTime(new(23,59,59)),TimeSpan.Zero),input.Date,ValuationMoment.EndOfDay,components.ToArray(),
+            CRS.Timing.BeijingClock.At(input.Date,new(23,59,59)),input.Date,ValuationMoment.EndOfDay,components.ToArray(),
             new("",input.Source),PerformanceQuality.Estimated)]},token);
     });
 

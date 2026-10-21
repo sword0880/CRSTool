@@ -3,6 +3,12 @@
   "dependencies": {
     "net10.0-windows10.0.19041": {
       "crs.plugin.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
+      },
+      "crs.time": {
         "type": "Project"
       }
     }

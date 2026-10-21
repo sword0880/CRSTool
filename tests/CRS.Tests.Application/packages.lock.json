@@ -1,14 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
   "dependencies": {
     "net10.0": {
       "crs.application": {
         "type": "Project",
         "dependencies": {
-          "CRS.Domain": "[1.0.0, )"
+          "CRS.Domain": "[1.0.0, )",
+          "CRS.Time": "[1.0.0, )"
         }
       },
       "crs.domain": {
+        "type": "Project"
+      },
+      "crs.time": {
         "type": "Project"
       }
     }

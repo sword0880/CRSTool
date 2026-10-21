@@ -114,7 +114,7 @@ public static class ExcelReports
                 var p=r.ImportProvenance?.SingleOrDefault(p=>p.SourceFileHash.Equals(hash,StringComparison.OrdinalIgnoreCase));
                 return new object?[]{hash,p?.ImportBatchId,p?.Broker,p?.ReaderVersion??"未记录",p?.ProjectionVersion??"未记录"};
             }));
-        Sheet("人工复核", ["计算编号", "类型", "依据", "确认时间UTC"], (reviews ?? []).Select(v => new object?[] { v.SnapshotId, v.Category, v.Evidence, v.CreatedUtc }));
+        Sheet("人工复核", ["计算编号", "类型", "依据", "确认时间（北京时间）"], (reviews ?? []).Select(v => new object?[] { v.SnapshotId, v.Category, v.Evidence, CRS.Timing.BeijingClock.NormalizeText(v.CreatedUtc) }));
         // 生命周期资料跟随底稿，完整活动期与完整自然年必须明确区分。
         if(r.AccountPeriods is not null) Sheet("账户期间依据",["账户","开户日期","关闭日期","开户零持仓已核对","凭证","凭证摘要","用户已核对"],
             r.AccountPeriods.Select(p=>new object?[]{p.Account,p.Opened,p.Closed?.ToString()??"尚未关闭",p.OpeningZeroConfirmed,p.EvidenceName,p.EvidenceSha256,p.Reviewed}));

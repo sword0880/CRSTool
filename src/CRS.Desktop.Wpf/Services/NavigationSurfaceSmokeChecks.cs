@@ -21,9 +21,9 @@ internal static class NavigationSurfaceSmokeChecks
         var builtIn = Find<NavigationViewContentPresenter>(navigation) ?? throw new InvalidOperationException("没有内置内容容器。");
         if (!builtIn.IsVisible || surface.IsVisible) throw new InvalidOperationException("内置页面未独占显示。");
         var extensions = (NavigationViewItem)window.FindName("ExtensionsGroup");
-        var until = DateTimeOffset.UtcNow.AddSeconds(15);
+        var until = CRS.Timing.BeijingClock.Now.AddSeconds(15);
         while (!extensions.MenuItems.OfType<NavigationViewItem>().Any(item => Equals(item.Content, "插件管理")))
-        { if (DateTimeOffset.UtcNow > until) throw new TimeoutException("插件导航尚未初始化。"); await Task.Delay(100); }
+        { if (CRS.Timing.BeijingClock.Now > until) throw new TimeoutException("插件导航尚未初始化。"); await Task.Delay(100); }
         var pages = extensions.MenuItems.OfType<NavigationViewItem>().Where(item => item.Tag is string).ToArray();
         if (pages.Length < 2) throw new InvalidOperationException("导航回归需要发行包中的两个实际插件。");
         var index = 0;

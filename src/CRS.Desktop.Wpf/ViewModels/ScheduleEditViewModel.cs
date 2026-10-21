@@ -45,7 +45,8 @@ public partial class ScheduleEditViewModel : ObservableObject
     public event Action? Saved;
     public ScheduleEditViewModel(BackgroundServiceViewModel parent,TaskDefinition plan)
     {
-        this.parent=parent;this.plan=plan;cron=plan.Cron;timeZoneId=plan.TimeZoneId;
+        this.parent=parent;this.plan=plan;cron=plan.Cron;timeZoneId=CRS.Timing.BeijingClock.ZoneId;
+        if(plan.TimeZoneId is not ("China Standard Time" or "Asia/Shanghai"))status="保存后本计划按北京时间执行；保存前保留已有调度规则。";
         var options=CronEditor.Read(cron);frequency=options.Frequency;interval=options.Interval;hour=options.Hour;minute=options.Minute;second=options.Second;day=options.Day;
         var labels=new[]{"周一","周二","周三","周四","周五","周六","周日"};
         Weekdays=CronEditor.DayNames.Select((code,index)=>new WeekdayChoice(code,labels[index],(options.Frequency==CronFrequency.Weekly?options.Weekdays:"MON").Split(',').Contains(code))).ToArray();
@@ -82,7 +83,8 @@ public partial class ScheduleEditViewModel : ObservableObject
     {
         Description=CronEditor.Describe(Options());
         if(generationError is not null){Valid=false;Validation=generationError;NextTimes.Clear();SaveCommand.NotifyCanExecuteChanged();return;}
-        var preview=CronEditor.Preview(Cron,TimeZoneId,DateTimeOffset.UtcNow);
+        if(TimeZoneId!=CRS.Timing.BeijingClock.ZoneId){Valid=false;Validation="任务计划统一使用北京时间（UTC+08:00）。";NextTimes.Clear();SaveCommand.NotifyCanExecuteChanged();return;}
+        var preview=CronEditor.Preview(Cron,TimeZoneId,CRS.Timing.BeijingClock.Now);
         Valid=preview.Valid;Validation=preview.Message;NextTimes.Clear();
         foreach(var instant in preview.Next)NextTimes.Add(instant.ToString("yyyy-MM-dd ddd HH:mm:ss zzz",System.Globalization.CultureInfo.GetCultureInfo("zh-CN")));
         SaveCommand.NotifyCanExecuteChanged();

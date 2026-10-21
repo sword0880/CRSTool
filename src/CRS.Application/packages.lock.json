@@ -4,6 +4,9 @@
     "net10.0": {
       "crs.domain": {
         "type": "Project"
+      },
+      "crs.time": {
+        "type": "Project"
       }
     }
   }

@@ -71,7 +71,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     private readonly Dictionary<EtfKey,BackgroundRequest> reportSearches=[];
     public async Task<EquityReportSearch> QueueEquityReportsAsync(EtfKey key,CancellationToken token)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         var payload=JsonSerializer.Serialize(new EtfRequest("equity-report-search",key.Market,key.Ticker,From:today.AddDays(-400),To:today));
         if(pendingReportSearch is not null&&pendingReportKey!=key)throw new InvalidDataException("上次报告检索受理情况未确认，请先用原股票重试。");
         pendingReportKey=key;

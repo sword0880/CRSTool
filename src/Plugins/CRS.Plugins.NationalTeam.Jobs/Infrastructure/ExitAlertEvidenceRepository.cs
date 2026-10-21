@@ -19,7 +19,7 @@ public sealed partial class MarketRepository
     }
     public List<AlertDocument> AlertDocuments(EtfKey key)
     {
-        using var command=Command("SELECT id,market,ticker,url,hash,first_seen FROM nt_alert_document WHERE market=$m AND ticker=$t ORDER BY first_seen DESC LIMIT 1000",("$m",key.Market),("$t",key.Ticker));
+        using var command=Command("SELECT id,market,ticker,url,hash,first_seen FROM nt_alert_document WHERE market=$m AND ticker=$t ORDER BY julianday(first_seen) DESC LIMIT 1000",("$m",key.Market),("$t",key.Ticker));
         using var reader=command.ExecuteReader();var rows=new List<AlertDocument>();while(reader.Read())rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5)));return rows;
     }
     private AlertDocument RequireAlertDocument(string id)
@@ -32,7 +32,7 @@ public sealed partial class MarketRepository
     public void ReviewAlertMetadata(AlertMetadataReview review,Guid? commandId=null)
     {
         if(Committed(commandId))return;var document=RequireAlertDocument(review.DocumentId);
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(clock).DateTime);
         if(!review.OriginalConfirmed||review.ComparableFrom>review.ComparableThrough||review.ComparableThrough>today
             ||!Identifier(review.FundId)||!Identifier(review.ManagerId)||!Identifier(review.IndexId)||!ReviewerName(review.Reviewer))throw new InvalidDataException("基金标识、管理人、审核期间或原件确认不足。");
         var row=new AlertFundMetadata(document.Market,document.Ticker,review.FundId,review.ManagerId,review.IndexId,review.ComparableFrom,review.ComparableThrough,document.Url,document.Hash,review.Reviewer,true);
@@ -50,7 +50,7 @@ public sealed partial class MarketRepository
     {
         if(Committed(commandId))return;var document=RequireAlertDocument(review.DocumentId);
         if(!Identifier(review.LegalEntityId)||review.LegalName is not {Length:>0 and <=150}||review.Account is not {Length:>0 and <=150}
-            ||review.EvidencePage is not {Length:>0 and <=300}||!ReviewerName(review.Reviewer)||review.PublishedAt>clock.GetUtcNow()
+            ||review.EvidencePage is not {Length:>0 and <=300}||!ReviewerName(review.Reviewer)||review.PublishedAt>CRS.Timing.BeijingClock.Read(clock)
             ||review.PublishedAt>DateTimeOffset.Parse(document.FirstSeenAt,CultureInfo.InvariantCulture)
             ||review.HoldingAsOf>DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(review.PublishedAt,"China Standard Time").DateTime))throw new InvalidDataException("具名持仓的主体、时序、报告期或证据位置无效。");
         var id=ExitAlertEvaluator.Hash(document.Id+"|"+review.LegalEntityId+"|"+review.Account+"|"+review.HoldingAsOf.ToString("yyyy-MM-dd"));

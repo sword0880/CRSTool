@@ -60,7 +60,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     public Task EnsureInitializedAsync()=>initialRefresh??=RefreshCommand.ExecuteAsync(null);
     private int selectionVersion;
     // 研究日期以北京时间为准，不依赖电脑的本地时区。
-    private static DateTime MarketToday=>TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").Date;
+    private static DateTime MarketToday=>CRS.Timing.BeijingClock.Now.Date;
     private ICollectionView CreateConfigurationView()
     {
         var view=CollectionViewSource.GetDefaultView(Configurations);

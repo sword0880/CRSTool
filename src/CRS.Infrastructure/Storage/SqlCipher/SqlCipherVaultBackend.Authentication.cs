@@ -19,7 +19,7 @@ internal sealed partial class SqlCipherVaultBackend
     private long cooldownUntil;
     private int passwordFailures;
     private long nextPasswordAttempt;
-    internal Func<long> Clock {get;set;}=()=>DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    internal Func<long> Clock {get;set;}=()=>CRS.Timing.BeijingClock.Now.ToUnixTimeSeconds();
     private long Now()=>Clock();
     public AuthenticationState Authentication
     {

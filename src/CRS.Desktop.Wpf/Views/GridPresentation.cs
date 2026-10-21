@@ -45,6 +45,6 @@ public static class GridPresentation
         "Difference" => "差额", "Status" => "状态", "Reason" => "原因", "Calculated" => "计算收益", "Reported" => "券商收益", "Value" => "汇率", "Source" => "来源",
         "Url" => "网址", "Method" => "统计方法", "Provisional" => "临时测算", "SourceConfirmed" => "来源已登记", "BuyTime" => "原始买入时间", "HasOffset" => "含时区",
         "SourceFile" => "来源文件", "Fee" => "剩余费用", "DividendCny" => "人民币股息", "InterestCny" => "人民币利息", "DividendInterestTax" => "股息利息税",
-        "GainTax" => "收益税", "ForeignCredit" => "辅助境外抵免", "SupplementTax" => "辅助测算补税", "CreatedUtc" => "保存时间UTC", "Complete" => "支持范围内完成",
+        "GainTax" => "收益税", "ForeignCredit" => "辅助境外抵免", "SupplementTax" => "辅助测算补税", "CreatedUtc" => "保存时间（北京时间）", "Complete" => "支持范围内完成",
         "Issues" => "待复核数量", "SnapshotId" => "计算编号", "Category" => "复核类型", "Evidence" => "复核依据", _ => key };
 }

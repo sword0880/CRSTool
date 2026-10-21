@@ -107,7 +107,7 @@ public sealed class AnnualTaxAggregationService
             result.SnapshotId, result.TaxpayerScopeId, result.Year, parentSnapshotIds = sourceIds,
             aggregationSources = result.AggregationSources,
             result.CalculationStatus, result.DataCompleteness, result.ReconciliationStatus, result.UsageLabel,
-            createdUtc = DateTimeOffset.UtcNow
+            createdUtc = CRS.Timing.BeijingClock.Now
         });
         return result.Freeze();
 

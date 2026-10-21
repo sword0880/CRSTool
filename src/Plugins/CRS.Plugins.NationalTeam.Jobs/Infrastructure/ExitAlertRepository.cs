@@ -71,7 +71,7 @@ public sealed partial class MarketRepository
         using var command=Command("""
             SELECT payload FROM nt_risk_event WHERE ($lane IS NULL OR lane=$lane) AND ($state IS NULL OR state=$state)
             AND ($from IS NULL OR last_date>=$from) AND ($to IS NULL OR first_date<=$to)
-            AND ($search IS NULL OR instr(scope_id,$search)>0 OR instr(payload,$search)>0) ORDER BY updated_at DESC LIMIT 1001
+            AND ($search IS NULL OR instr(scope_id,$search)>0 OR instr(payload,$search)>0) ORDER BY julianday(updated_at) DESC LIMIT 1001
             """,("$lane",filter.Lane),("$state",filter.State),("$from",filter.From?.ToString("yyyy-MM-dd")),("$to",filter.To?.ToString("yyyy-MM-dd")),("$search",string.IsNullOrWhiteSpace(filter.Search)?null:filter.Search));
         var result=ReadJson<ExitAlertEvent>(command);if(result.Count>1000)throw new InvalidDataException("事件过多，请缩小日期或状态范围。");return result;
     }
@@ -86,20 +86,20 @@ public sealed partial class MarketRepository
     }
     public List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(clock).DateTime);
         filter??=new(From:today.AddDays(-31),To:today);
         if(filter.From>filter.To||filter.Search?.Length>120||filter.State is not (null or "Pending" or "InFlight" or "Accepted" or "Retry" or "Disabled" or "Unavailable" or "Failed" or "OutcomeUnknown" or "BlockedAcceptance" or "Superseded"))throw new InvalidDataException("通知筛选无效。");
-        string? Start(DateOnly? day)=>day is {} value?new DateTimeOffset(value.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(8)).ToUniversalTime().ToString("O"):null;
+        string? Start(DateOnly? day)=>day is {} value?new DateTimeOffset(value.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(8)).ToString("O"):null;
         using var command=Command("""
             SELECT payload FROM nt_alert_outbox WHERE ($state IS NULL OR state=$state)
-            AND ($from IS NULL OR json_extract(payload,'$.CreatedAt')>=$from) AND ($to IS NULL OR json_extract(payload,'$.CreatedAt')<$to)
-            AND ($search IS NULL OR instr(payload,$search)>0) ORDER BY json_extract(payload,'$.CreatedAt') DESC LIMIT 1001
+            AND ($from IS NULL OR julianday(json_extract(payload,'$.CreatedAt'))>=julianday($from)) AND ($to IS NULL OR julianday(json_extract(payload,'$.CreatedAt'))<julianday($to))
+            AND ($search IS NULL OR instr(payload,$search)>0) ORDER BY julianday(json_extract(payload,'$.CreatedAt')) DESC LIMIT 1001
             """,("$state",filter.State),("$from",Start(filter.From)),("$to",Start(filter.To?.AddDays(1))),("$search",string.IsNullOrWhiteSpace(filter.Search)?null:filter.Search));
         var rows=ReadJson<AlertOutboxItem>(command);if(rows.Count>1000)throw new InvalidDataException("通知记录过多，请缩小日期、状态或搜索范围。");return rows;
     }
     private List<AlertOutboxItem> ReadOutbox(string trustedCondition)
     {
-        using var command=Command("SELECT payload FROM nt_alert_outbox WHERE "+trustedCondition+" ORDER BY next_at LIMIT 1001");
+        using var command=Command("SELECT payload FROM nt_alert_outbox WHERE "+trustedCondition+" ORDER BY julianday(next_at) LIMIT 1001");
         var rows=ReadJson<AlertOutboxItem>(command);if(rows.Count>1000)throw new InvalidDataException("通知记录超过查询上限。");return rows;
     }
     private void WriteOutbox(AlertOutboxItem row)=>Execute("""

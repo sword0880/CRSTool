@@ -34,7 +34,7 @@ public sealed partial class MarketRepository
             SELECT s.id,i.bulletin_id,i.title,i.announced,i.document_url,f.source_url,
             CASE WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.rule_id='Q15' AND q.status='Open' AND q.evidence_id=i.fetch_id) THEN 'Critical' ELSE 'Indexed' END
             FROM equity_report_index i JOIN equity_report_search s ON s.id=i.search_id JOIN source_fetch f ON f.fetch_id=i.fetch_id
-            WHERE s.market=$m AND s.ticker=$t ORDER BY i.announced DESC,s.completed_at DESC,s.id DESC
+            WHERE s.market=$m AND s.ticker=$t ORDER BY i.announced DESC,julianday(s.completed_at) DESC,s.id DESC
             """,("$m",key.Market),("$t",key.Ticker));
         using var reader=command.ExecuteReader();var urls=new HashSet<string>();
         while(reader.Read())if(urls.Add(reader.GetString(4)))result.Add(new(reader.GetString(0),key.Market,key.Ticker,reader.GetString(1),reader.GetString(2),DateOnly.ParseExact(reader.GetString(3),"yyyy-MM-dd",CultureInfo.InvariantCulture),reader.GetString(4),reader.GetString(6),reader.GetString(5)));

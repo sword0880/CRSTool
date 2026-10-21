@@ -8,7 +8,7 @@ public sealed partial class MarketRepository
     /// <summary>新事实的持久标记在采集事务中落库；后台恢复后可重算，事件与通知另在同一事务提交。</summary>
     public ExitAlertOverview EvaluateExitAlerts(bool force=false)
     {
-        var configuration=AlertConfiguration();var now=clock.GetUtcNow();
+        var configuration=AlertConfiguration();var now=CRS.Timing.BeijingClock.Read(clock);
         var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(now,"China Standard Time").DateTime);
         var last=Scalar("SELECT at FROM nt_alert_evaluation WHERE id=1") as string;
         if(!force&&Scalar("SELECT changed_at FROM nt_alert_pending WHERE id=1") is null&&last is not null&&DateTimeOffset.Parse(last,CultureInfo.InvariantCulture)>now.AddMinutes(-10))return AlertOverview();
@@ -53,7 +53,7 @@ public sealed partial class MarketRepository
         if(proofDamaged)explanation+=" ETF可比性或具名持仓原件完整性异常，不能继承旧确认；请核对原件登记及SHA256。";
         ApplyAlertFinding(new("DataQualityAnomaly",scope,AlertLane.DataQuality,AlertSeverity.Watch,AlertEvidenceKind.PendingQualityReview,date,
             key.Ticker+" · 数据核查",explanation,ExitAlertEvaluator.Hash(string.Join('|',ids)+"|"+proofDamaged),ids,pending.Length>0||proofDamaged,true,false),configuration);
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(clock).DateTime);
         var latest=CollectionAttempts(key,today.AddDays(-7),today).FirstOrDefault(x=>x.State is not ("Expected" or "Fetching" or "RawSaved" or "Parsed" or "Validating"));
         var failed=latest?.State is "AccessBlocked" or "ParseFailed" or "SourceFailed" or "Interrupted"
             ||latest is {State:"Missing" or "NotPublished"}&&latest.Date<today&&IsReviewedTradingDay(key.Market,latest.Date)==true;
@@ -79,7 +79,7 @@ public sealed partial class MarketRepository
     {
         var config=AlertConfiguration();var active=Configuration().Where(x=>x.Active).ToArray();var metadata=AlertMetadata();
         var latest=active.SelectMany(x=>ReadPoints(new(x.Market,x.Ticker))).Select(x=>(DateOnly?)x.Date).Max();
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(clock).DateTime);
         var acceptance=Acceptance(today.AddDays(-1));
         var pending=Convert.ToInt32(Scalar("SELECT count(*) FROM share_observation_revision WHERE status='NeedsReview'"));
         var events=Convert.ToInt32(Scalar("SELECT count(*) FROM nt_risk_event WHERE state IN ('Active','PendingVerification')"));

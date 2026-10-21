@@ -36,7 +36,7 @@ public sealed record TaskDefinition(string PluginId, string JobId, string Name, 
     string TimeZoneId, bool Enabled, long Revision, bool NeedsReconcile,
     DateTimeOffset? NotBefore = null, int Failures = 0);
 
-/// <summary>历史只包含结果分类，不持久化可能含凭据的异常消息或堆栈。</summary>
+/// <summary>历史只包含结果分类。时间均带北京时间 +08:00；Utc 字段名仅保留现有协议键名。</summary>
 public sealed record ExecutionRecord(string ExecutionId, string PluginId, string JobId,
     DateTimeOffset ScheduledUtc, DateTimeOffset StartedUtc, DateTimeOffset? EndedUtc,
     string Result, string? Checkpoint, int Attempt, IReadOnlyList<ExecutionProgressEvent>? Progress=null);

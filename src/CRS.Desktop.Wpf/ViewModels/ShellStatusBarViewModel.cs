@@ -118,7 +118,7 @@ public partial class ShellStatusBarViewModel : ObservableObject
             "PluginUnresponsive" or "UnresponsivePlugin" => ("插件无响应","Error"),
             _ => ("服务状态异常","Error")
         };
-        var sample=health.ObservedUtc.ToLocalTime().ToString("MM-dd HH:mm:ss");
+        var sample=health.ObservedUtc.ToString("MM-dd HH:mm:ss");
         var scheduling=health.Scheduling;
         var tasks=scheduling is null?"运行 -- · 排队 --":$"运行 {scheduling.Running} · 排队 {scheduling.Waiting}";
         var taskDetail=scheduling is null?"后台未提供调度快照。":
@@ -140,12 +140,12 @@ public partial class ShellStatusBarViewModel : ObservableObject
             ?history?.Where(IsSuccessfulSync).OrderByDescending(x=>x.EndedUtc).FirstOrDefault():null;
         var sync=recent is null
             ?historyVerified?(inspected==0?"最近同步：暂无记录":$"近{inspected}条未见成功同步"):"最近同步：未确认"
-            :$"最近同步 {recent.EndedUtc!.Value.ToLocalTime():MM-dd HH:mm}";
+            :$"最近同步 {recent.EndedUtc!.Value:MM-dd HH:mm}";
         var syncDetail=recent is null
             ?historyVerified?$"已核查国家队插件最近 {inspected} 条执行记录，尚未发现已成功结束的指定同步任务；不代表更早不存在成功记录。":
                 "国家队插件执行历史未核实，不能据服务健康状态推断采集成功。"
-            :$"国家队后台同步任务：{recent.JobId}，执行完成时间 {recent.EndedUtc!.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}（本地时区）；不代表已取得当天交易数据。";
-        return new(label,tone,$"Worker 状态 {state} · 采样 {sample}（本地时区）",
+            :$"国家队后台同步任务：{recent.JobId}，执行完成时间 {recent.EndedUtc!.Value:yyyy-MM-dd HH:mm:ss}（北京时间）；不代表已取得当天交易数据。";
+        return new(label,tone,$"Worker 状态 {state} · 采样 {sample}（北京时间）",
             tasks,taskDetail,sync,syncDetail,attention,attentionDetail);
     }
 }

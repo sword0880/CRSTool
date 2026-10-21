@@ -473,11 +473,15 @@
       "crs.notifications": {
         "type": "Project",
         "dependencies": {
+          "CRS.Time": "[1.0.0, )",
           "MailKit": "[4.17.0, )"
         }
       },
       "crs.plugin.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugin.wpf": {
         "type": "Project",
@@ -486,7 +490,10 @@
         }
       },
       "crs.plugins.nationalteam.core": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugins.nationalteam.jobs": {
         "type": "Project",
@@ -510,8 +517,14 @@
           "WPF-UI": "[4.3.0, )"
         }
       },
-      "crs.worker.abstractions": {
+      "crs.time": {
         "type": "Project"
+      },
+      "crs.worker.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.worker.etffixture": {
         "type": "Project",

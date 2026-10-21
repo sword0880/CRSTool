@@ -90,7 +90,7 @@ public sealed class WorkerUpgradeJournal(string dataDirectory)
         if (record.Stage != "Switched" || record.BackupManifestHash is null)
             throw new InvalidOperationException("后台升级尚未解决，需要显式恢复；禁止自动重启改写数据。");
         VerifyBackup(record);
-        Write(record with { Stage = "Starting", NewFactsPossible = true, UpdatedUtc = DateTimeOffset.UtcNow });
+        Write(record with { Stage = "Starting", NewFactsPossible = true, UpdatedUtc = CRS.Timing.BeijingClock.Now });
     }
     public void MarkHealthy(string programDirectory)
     {
@@ -99,6 +99,6 @@ public sealed class WorkerUpgradeJournal(string dataDirectory)
         if (record.Stage != "Starting" || !record.NewFactsPossible
             || !ReleaseHash(programDirectory).Equals(record.CandidateReleaseHash, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("候选升级状态与健康确认不一致。");
-        Write(record with { Stage = "Healthy", UpdatedUtc = DateTimeOffset.UtcNow });
+        Write(record with { Stage = "Healthy", UpdatedUtc = CRS.Timing.BeijingClock.Now });
     }
 }

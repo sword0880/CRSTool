@@ -82,7 +82,7 @@ public sealed partial class MarketRepository : IMarketRepository
         }
         seed.Commit();InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();
     }
-    private string Now => clock.GetUtcNow().ToString("O");
+    private string Now => CRS.Timing.BeijingClock.Read(clock).ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
     public DateOnly? ReadSyncCursor()=>Scalar("SELECT checked_through FROM worker_sync_cursor WHERE id=1") is string value?DateOnly.ParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture):null;
     public void RecordSyncCursor(DateOnly day)
@@ -138,7 +138,7 @@ public sealed partial class MarketRepository : IMarketRepository
         foreach (var row in rows.OrderBy(x=>x.Date))
         {
             cancellation.ThrowIfCancellationRequested(); var date = row.Date.ToString("yyyy-MM-dd");
-            var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+            var today = DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
             if (row.Date>today || Convert.ToInt32(Scalar("SELECT count(*) FROM watchlist_membership WHERE market=$m AND ticker=$t AND active=1",("$m",row.Key.Market),("$t",row.Key.Ticker)))!=1
                 || requireCalendar && Convert.ToInt32(Scalar("SELECT count(*) FROM trading_day WHERE market=$m AND trade_date=$d",("$m",row.Key.Market),("$d",date)))!=1)
                 throw new InvalidDataException("证券不在有效池、日期不在已核对交易日历内，或日期在未来。");
@@ -230,7 +230,7 @@ public sealed partial class MarketRepository : IMarketRepository
         return EtfHistory.Calculate(keys.Select(k=>
         {
             var calendar=ReadCalendar(k.Market);
-            var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+            var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
             return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Where(x=>x.Date<=today).Select(x=>x.Date).ToArray():[],ReadPoints(k));
         }).ToArray());
     }

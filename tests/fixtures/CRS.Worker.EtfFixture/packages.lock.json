@@ -21,10 +21,16 @@
         }
       },
       "crs.plugin.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugins.nationalteam.core": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugins.nationalteam.jobs": {
         "type": "Project",
@@ -36,8 +42,14 @@
           "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )"
         }
       },
-      "crs.worker.abstractions": {
+      "crs.time": {
         "type": "Project"
+      },
+      "crs.worker.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "Microsoft.Data.Sqlite.Core": {
         "type": "CentralTransitive",

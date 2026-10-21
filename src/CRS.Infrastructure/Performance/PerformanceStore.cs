@@ -71,7 +71,7 @@ internal sealed class PerformanceStore : IPerformanceStore
         data=data with{Accounts=data.Accounts.Select(a=>settings.Aliases.TryGetValue(a.Id,out var alias)?a with{Alias=alias}:a).ToArray()};
         data=data with{Accounts=data.Accounts.Select(a=>settings.BaseCurrencies.TryGetValue(a.Id,out var currency)?a with{BaseCurrency=currency,BaseCurrencyConfirmed=true}:a).ToArray()};
         // 列表只读取有界索引，不能每次刷新解码一百份完整交易/估值快照。
-        var history=c.Query<(string Id,byte[] Metadata)>("SELECT id,CASE WHEN length(metadata)<=65536 THEN metadata ELSE NULL END FROM performance_runs ORDER BY created_utc DESC,id DESC LIMIT 100",transaction:tx).Select(row=>
+        var history=c.Query<(string Id,byte[] Metadata)>("SELECT id,CASE WHEN length(metadata)<=65536 THEN metadata ELSE NULL END FROM performance_runs ORDER BY julianday(created_utc) DESC,id DESC LIMIT 100",transaction:tx).Select(row=>
         {if(row.Metadata is null)throw new CrsException("绩效历史索引超过限额。");var h=PerformanceCodec.Decode<PerformanceHistory>(row.Metadata);if(h.Id!=row.Id)throw new CrsException("绩效索引身份不一致。");return h;}).ToArray();
         var identities=ReadAccountIdentities(c,tx);
         tx.Commit();return new(PerformanceCodec.Ordered(data),settings.Portfolios,history){Sources=sourceRows.ToArray(),AccountIdentities=identities};
@@ -134,8 +134,8 @@ internal sealed class PerformanceStore : IPerformanceStore
             var symbol=document.Data.Prices.First(p=>p.Market=="INDEX").Security;
             foreach(var old in c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents WHERE format='YahooChartJSON'",transaction:tx))
                 if(old.Hash!=document.Hash && !excluded.Contains(old.Hash) && PerformanceCodec.Decode<PerformanceData>(old.Data).Prices.Any(p=>p.Market=="INDEX" && p.Security==symbol))
-                {excluded.Add(old.Hash);currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(old.Hash,false,"联网更新同一指数，保留旧原响应和冻结历史。",DateTimeOffset.UtcNow)]};}
-            if(excluded.Remove(document.Hash))currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(document.Hash,true,"重新使用已缓存的指数响应。",DateTimeOffset.UtcNow)]};
+                {excluded.Add(old.Hash);currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(old.Hash,false,"联网更新同一指数，保留旧原响应和冻结历史。",CRS.Timing.BeijingClock.Now)]};}
+            if(excluded.Remove(document.Hash))currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(document.Hash,true,"重新使用已缓存的指数响应。",CRS.Timing.BeijingClock.Now)]};
             c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload=EncodeSettings(currentSettings)},tx);
         }
         var previous=c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents",transaction:tx).Where(r=>!excluded.Contains(r.Hash)).Select(r=>PerformanceCodec.Decode<PerformanceData>(r.Data));

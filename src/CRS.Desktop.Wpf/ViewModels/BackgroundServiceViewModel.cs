@@ -102,7 +102,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         };
         // 故障同样需要显示真实采样时刻；没有新健康采样时保留上次时间。
         if (health.Health is { } sample)
-            SnapshotTime = "状态采样：" + sample.ObservedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") + " · " + sample.State;
+            SnapshotTime = "状态采样：" + sample.ObservedUtc.ToString("yyyy-MM-dd HH:mm:ss") + "（北京时间） · " + sample.State;
         if (healthState is "StorageFault" or "UnresponsivePlugin") return;
         var plans = await client.QueryAsync("GetJobs", lifetime);
         var history = await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:appliedPlugin,JobId:appliedJob,ResultFilter:appliedResultFilter),lifetime);

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../CRS.Domain/CRS.Domain.csproj" />
+    <ProjectReference Include="../CRS.Time/CRS.Time.csproj" />
     <Using Include="CRS.Domain" />
   </ItemGroup>
 </Project>

@@ -95,8 +95,8 @@ public partial class PerformanceViewModel : ObservableObject
     [ObservableProperty] private string broker="IBKR";
     [ObservableProperty] private string currency="CNY";
     [ObservableProperty] private string period="自定义";
-    [ObservableProperty] private DateTime from=DateTime.Today.AddYears(-1);
-    [ObservableProperty] private DateTime to=DateTime.Today;
+    [ObservableProperty] private DateTime from=CRS.Timing.BeijingClock.Today.AddYears(-1);
+    [ObservableProperty] private DateTime to=CRS.Timing.BeijingClock.Today;
     [ObservableProperty] private int methodIndex;
     [ObservableProperty] private int fallbackDays;
     [ObservableProperty] private string summary="共用证券流水导入的数据，无需重复导入；缺少期初净值时，相应收益率显示不可计算。";
@@ -117,7 +117,7 @@ public partial class PerformanceViewModel : ObservableObject
     [ObservableProperty] private string sourceReason="";
     [ObservableProperty] private string accountCurrency="USD";
     [ObservableProperty] private PerformanceAccountSelection? manualAccount;
-    [ObservableProperty] private DateTime navDate=DateTime.Today;
+    [ObservableProperty] private DateTime navDate=CRS.Timing.BeijingClock.Today;
     [ObservableProperty] private decimal securitiesValue;
     [ObservableProperty] private decimal cashValue;
     [ObservableProperty] private decimal receivable;
@@ -129,7 +129,7 @@ public partial class PerformanceViewModel : ObservableObject
     [ObservableProperty] private bool incomeCostsComplete;
     [ObservableProperty] private string manualJson="";
 
-    [ObservableProperty] private DateTime eventDate=DateTime.Today;
+    [ObservableProperty] private DateTime eventDate=CRS.Timing.BeijingClock.Today;
     [ObservableProperty] private InvestmentEventKind manualEventKind=InvestmentEventKind.Deposit;
     [ObservableProperty] private decimal eventAmount;
     [ObservableProperty] private string eventCurrency="USD";
@@ -180,7 +180,7 @@ public partial class PerformanceViewModel : ObservableObject
     {if(value is null)return;Currency=value.Currency;PortfolioName=value.Name;foreach(var a in Accounts)a.Selected=value.AccountIds.Contains(a.Account.Id);Invalidate();}
     partial void OnPeriodChanged(string value)
     {
-        var today=DateTime.Today;To=today;
+        var today=CRS.Timing.BeijingClock.Today;To=today;
         From=value switch {"本月"=>new DateTime(today.Year,today.Month,1).AddDays(-1),"本年"=>new DateTime(today.Year,1,1).AddDays(-1),"上一自然年"=>new DateTime(today.Year-1,1,1).AddDays(-1),"近12个月"=>today.AddYears(-1),"近3年"=>today.AddYears(-3),_=>From};
         if(value=="上一自然年")To=new(today.Year-1,12,31);Invalidate();
     }

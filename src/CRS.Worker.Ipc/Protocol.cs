@@ -37,6 +37,7 @@ public interface IBackgroundControl
 
 internal static class Framing
 {
+    private static readonly JsonSerializerOptions Json = new() { Converters = { new CRS.Timing.BeijingDateTimeOffsetConverter() } };
     public const int Version = WorkerProtocol.Version;
     public static async Task<T> ReadAsync<T>(Stream stream, CancellationToken token)
     {
@@ -44,7 +45,7 @@ internal static class Framing
         var length = BinaryPrimitives.ReadInt32LittleEndian(header);
         if (length is < 2 or > 131072) throw new InvalidDataException("管道消息长度超过上限。");
         var body = new byte[length]; await ReadFrameAsync(stream,body,token);
-        return JsonSerializer.Deserialize<T>(body) ?? throw new InvalidDataException("管道消息格式不正确。");
+        return JsonSerializer.Deserialize<T>(body, Json) ?? throw new InvalidDataException("管道消息格式不正确。");
     }
     private static async Task ReadFrameAsync(Stream stream,Memory<byte> buffer,CancellationToken token)
     {
@@ -58,7 +59,7 @@ internal static class Framing
     }
     public static async Task WriteAsync<T>(Stream stream, T value, CancellationToken token)
     {
-        var body = JsonSerializer.SerializeToUtf8Bytes(value);
+        var body = JsonSerializer.SerializeToUtf8Bytes(value, Json);
         if (body.Length > 131072) throw new InvalidDataException("响应超过上限。");
         var header = new byte[4]; BinaryPrimitives.WriteInt32LittleEndian(header, body.Length);
         await stream.WriteAsync(header, token); await stream.WriteAsync(body, token); await stream.FlushAsync(token);

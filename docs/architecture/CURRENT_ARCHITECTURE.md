@@ -8,22 +8,23 @@
 
 | 项目 | 直接项目依赖 | 职责 |
 | --- | --- | --- |
+| CRS.Time | 无 | 全应用北京时间时钟、带 +08:00 的时间点创建与持久化边界 |
 | CRS.Domain | 无 | 交易事实、FIFO、税务及绩效规则 |
-| CRS.Application | CRS.Domain | 用例、端口、冻结结果、DesktopWorkflow |
+| CRS.Application | CRS.Domain, CRS.Time | 用例、端口、冻结结果、DesktopWorkflow |
 | CRS.Security | 无 | 密码学、认证和保险库机制 |
 | CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security | 券商解析、持久化、汇率、导出、装配 |
 | CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc | 桌面进程，具体基础设施仅由 Composition 装配 |
-| CRS.Plugin.Abstractions | 无 | 桌面插件的 BCL 契约 |
+| CRS.Plugin.Abstractions | CRS.Time | 桌面插件的 BCL 契约 |
 | CRS.Plugin.Wpf | CRS.Plugin.Abstractions | WPF 页面贡献契约 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
-| CRS.Worker.Abstractions | 无 | 后台会话、任务、查询及存储上下文契约 |
+| CRS.Worker.Abstractions | CRS.Time | 后台会话、任务、查询及存储上下文契约 |
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Named Pipes、Windows 身份授权及请求协议 |
-| CRS.Notifications | 无 | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
+| CRS.Notifications | CRS.Time | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
 | CRS.Plugins.Heartbeat | CRS.Worker.Abstractions | 后台心跳插件 |
-| CRS.Plugins.NationalTeam.Core | 无 | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
+| CRS.Plugins.NationalTeam.Core | CRS.Time | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
 | CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
 

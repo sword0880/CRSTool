@@ -185,13 +185,19 @@
         "contentHash": "7Kj9DmCCo4SOCd1jAiw4+EcMFP2nR8rLLvitAYzVtzbWToTsodkbie24+8x9C4LDLxkopWEUGX62szqqNy7oeg=="
       },
       "crs.plugin.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugin.wpf": {
         "type": "Project",
         "dependencies": {
           "CRS.Plugin.Abstractions": "[1.0.0, )"
         }
+      },
+      "crs.time": {
+        "type": "Project"
       },
       "SkiaSharp": {
         "type": "CentralTransitive",

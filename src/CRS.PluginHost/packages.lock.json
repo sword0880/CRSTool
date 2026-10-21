@@ -135,13 +135,19 @@
         "contentHash": "inRnbpCS0nwO/RuoZIAqxQUuyjaknOOnCEZB55KSMMjRhl0RQDttSmLSGsUJN3RQ3ocf5NDLFd2mOQViHqMK5w=="
       },
       "crs.plugin.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugin.wpf": {
         "type": "Project",
         "dependencies": {
           "CRS.Plugin.Abstractions": "[1.0.0, )"
         }
+      },
+      "crs.time": {
+        "type": "Project"
       }
     }
   }

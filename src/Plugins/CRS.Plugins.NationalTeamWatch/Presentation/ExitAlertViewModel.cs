@@ -49,7 +49,7 @@ public partial class ExitAlertViewModel(IEtfWorkspace workspace,CancellationToke
     private int deliveryVersion;
     public Task DetailLoadTask {get;private set;}=Task.CompletedTask;
     public Task DeliveryLoadTask {get;private set;}=Task.CompletedTask;
-    private static DateTime Today=>TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").Date;
+    private static DateTime Today=>CRS.Timing.BeijingClock.Now.Date;
     partial void OnBusyChanged(bool value)=>OnPropertyChanged(nameof(CanEdit));
     partial void OnSelectedEventChanged(ExitAlertEvent? value)=>DetailLoadTask=LoadDetailAsync(value,++detailVersion);
     partial void OnSelectedChangeChanged(ExitAlertChange? value)

@@ -34,10 +34,10 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     /// <summary>串行下载官方份额；按日期提交，取消后保留已完成日，重试使用原件哈希与事实幂等。</summary>
     public async Task<SyncReport> SyncRecentAsync(CancellationToken token)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         // 最新数据先采；历史失败不能把所有后续日期挡在旧游标后面。
         var recent=await SyncAsync(today.AddDays(-7),today,token,true);
-        var gaps=await RunAsync(()=>repository!.DueHistoricalShareGaps(today.AddDays(-8),DateTimeOffset.UtcNow),token);
+        var gaps=await RunAsync(()=>repository!.DueHistoricalShareGaps(today.AddDays(-8),CRS.Timing.BeijingClock.Now),token);
         if(gaps.Count==0)return recent;
         var from=gaps[0].Date;var to=from.AddDays(29)<today.AddDays(-8)?from.AddDays(29):today.AddDays(-8);
         var batch=gaps.Where(x=>x.Date>=from&&x.Date<=to).GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.Select(g=>g.Key).ToHashSet());
@@ -49,7 +49,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     /// <summary>自动补采逐日提交查询游标；来源故障日阻断游标前进，但保留其它已提交事实。</summary>
     private async Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token,bool trackProgress,IReadOnlyDictionary<DateOnly,HashSet<EtfKey>>? gapBatch=null)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         if(from>to || to>today || to.DayNumber-from.DayNumber>400)throw new InvalidDataException("采集区间必须不超过400个自然日，不能包含未来日期。");
         if(officialSource is null)throw new InvalidOperationException("官方采集适配器没有注册。");
         // 手动补历史与计划任务不重叠，避免同一来源突发请求。

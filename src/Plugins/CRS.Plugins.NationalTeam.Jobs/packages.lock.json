@@ -40,13 +40,25 @@
         }
       },
       "crs.plugin.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugins.nationalteam.core": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
+      },
+      "crs.time": {
         "type": "Project"
       },
       "crs.worker.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       }
     }
   }

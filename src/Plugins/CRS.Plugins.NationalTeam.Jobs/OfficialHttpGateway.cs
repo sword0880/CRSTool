@@ -17,7 +17,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     public void RejectContract(Uri uri)
     {
         sources?.ReportSourceFailure(uri.Host,0);
-        policy.Failure(uri.Host,DateTimeOffset.UtcNow,0);
+        policy.Failure(uri.Host,CRS.Timing.BeijingClock.Now,0);
         ImportPolicy(uri.Host);
     }
     private void ImportPolicy(string host)
@@ -30,7 +30,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     {
         // 宿主先登记；插件库写失败也不能让其他插件继续访问已拒绝来源。
         lease?.Complete(status,retryAfter);
-        policy.Failure(uri.Host,DateTimeOffset.UtcNow,status,retryAfter);
+        policy.Failure(uri.Host,CRS.Timing.BeijingClock.Now,status,retryAfter);
         ImportPolicy(uri.Host);
     }
     public Func<EtfProgress,Task>? Progress {get;set;}
@@ -65,11 +65,11 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
         {
             var state = policy.Read(uri.Host);
             using var lease = await AcquireSourceAsync(uri,state,cancellationToken).ConfigureAwait(false);
-            if (state.Blocked > DateTimeOffset.UtcNow) {await ReportAsync("Cooldown",uri,until:state.Blocked);throw new InvalidOperationException($"来源冷却中，最早重试时间{state.Blocked:O}。");}
-            var wait = state.Next - DateTimeOffset.UtcNow;
+            if (state.Blocked > CRS.Timing.BeijingClock.Now) {await ReportAsync("Cooldown",uri,until:state.Blocked);throw new InvalidOperationException($"来源冷却中，最早重试时间{state.Blocked:O}。");}
+            var wait = state.Next - CRS.Timing.BeijingClock.Now;
             if (wait > TimeSpan.Zero) {await ReportAsync("RateWait",uri,until:state.Next);await Task.Delay(wait, cancellationToken).ConfigureAwait(false);}
             cancellationToken.ThrowIfCancellationRequested();
-            policy.Reserve(uri.Host, DateTimeOffset.UtcNow);
+            policy.Reserve(uri.Host, CRS.Timing.BeijingClock.Now);
             await ReportAsync("RequestStarted",uri);
             // 头部和正文共用20秒期限；HttpClient的ResponseHeadersRead本身不约束正文读取。
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -85,7 +85,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
                     var until = retry?.Date;
                     if (retry?.Delta is { } delta && delta > TimeSpan.Zero)
                     {
-                        var now = DateTimeOffset.UtcNow;
+                        var now = CRS.Timing.BeijingClock.Now;
                         until = delta > DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now.Add(delta);
                     }
                     Failure(uri,status,lease,until);

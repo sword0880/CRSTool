@@ -2,6 +2,21 @@
   "version": 2,
   "dependencies": {
     "net10.0-windows10.0.19041": {
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.6.2",
+        "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
+      },
+      "Enums.NET": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "NfGq1iLJZ15XZPgBhjk4Ns1XZ+beaGk6cog6B4LxcROdGoSMdgCJqYXF70P6VTd3dz/vFRY4h1u1lAMqW/DC2w=="
+      },
+      "ExtendedNumerics.BigDecimal": {
+        "type": "Transitive",
+        "resolved": "2025.1001.2.129",
+        "contentHash": "+woGT1lsBtwkntOpx2EZbdbySv0aWPefE0vrfvclxVdbi4oa2bbtphFPWgMiQe+kRCPICbfFJwp6w1DuR7Ge2Q=="
+      },
       "HarfBuzzSharp": {
         "type": "Transitive",
         "resolved": "8.3.1.1",
@@ -14,6 +29,11 @@
         "type": "Transitive",
         "resolved": "8.3.1.1",
         "contentHash": "UsJtQsfAJoFDZrXc4hCUfRPMqccfKZ0iumJ/upcUjz/cmsTgVFGNEL5yaJWmkqsuFYdMWbj/En5/kS4PFl9hBA=="
+      },
+      "Konscious.Security.Cryptography.Blake2": {
+        "type": "Transitive",
+        "resolved": "1.1.1",
+        "contentHash": "odwOyzj/J/lHJZNwFWJGU/LRecBShupAJ2S8TQqZfhUe9niHzu/voBYK5wuVKsvSpzbfupKQYZguVyIk1sgOkQ=="
       },
       "LiveChartsCore": {
         "type": "Transitive",
@@ -29,6 +49,11 @@
           "SkiaSharp": "2.88.9",
           "SkiaSharp.HarfBuzz": "2.88.9"
         }
+      },
+      "MathNet.Numerics.Signed": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "PSrHBVMf41SjbhlnpOMnoir8YgkyEJ6/nwxvjYpH+vJCexNcx2ms6zRww5yLVqLet1xLJgZ39swtKRTLhWdnAw=="
       },
       "Microsoft.Extensions.Configuration": {
         "type": "Transitive",
@@ -148,6 +173,11 @@
         "resolved": "10.0.0",
         "contentHash": "inRnbpCS0nwO/RuoZIAqxQUuyjaknOOnCEZB55KSMMjRhl0RQDttSmLSGsUJN3RQ3ocf5NDLFd2mOQViHqMK5w=="
       },
+      "Microsoft.IO.RecyclableMemoryStream": {
+        "type": "Transitive",
+        "resolved": "3.0.1",
+        "contentHash": "s/s20YTVY9r9TPfTrN5g8zPF1YhwxyqO6PxUkrYTGI2B+OGPe9AdajWZrLhFqXIvqIW23fnUE4+ztrUWNU1+9g=="
+      },
       "Microsoft.Xaml.Behaviors.Wpf": {
         "type": "Transitive",
         "resolved": "1.1.142",
@@ -249,6 +279,11 @@
           "OpenTK.redist.glfw": "[3.3.0-pre20200830200122, 3.4.0-pre)"
         }
       },
+      "SharpZipLib": {
+        "type": "Transitive",
+        "resolved": "1.4.2",
+        "contentHash": "yjj+3zgz8zgXpiiC3ZdF/iyTBbz2fFvMxZFEBPUcwZjIvXOf37Ylm+K58hqMfIBt5JgU/Z2uoUS67JmTLe973A=="
+      },
       "SkiaSharp.HarfBuzz": {
         "type": "Transitive",
         "resolved": "3.119.0",
@@ -257,6 +292,11 @@
           "HarfBuzzSharp": "8.3.1.1",
           "SkiaSharp": "3.119.0"
         }
+      },
+      "SkiaSharp.NativeAssets.Linux.NoDependencies": {
+        "type": "Transitive",
+        "resolved": "3.119.4",
+        "contentHash": "iFnpOfZoim2SwhSPy0EJNZtQAaWM7D0A6Q1YvquwOXUdQAFrSy81Tfb1I4c0IHrrQnoVjcZPcwOc1+VM2ja77w=="
       },
       "SkiaSharp.NativeAssets.Win32": {
         "type": "Transitive",
@@ -305,8 +345,55 @@
         "resolved": "4.3.0",
         "contentHash": "7Kj9DmCCo4SOCd1jAiw4+EcMFP2nR8rLLvitAYzVtzbWToTsodkbie24+8x9C4LDLxkopWEUGX62szqqNy7oeg=="
       },
-      "crs.plugin.abstractions": {
+      "ZString": {
+        "type": "Transitive",
+        "resolved": "2.6.0",
+        "contentHash": "XE8a+11nZg0LRaf+RGABEWaHIf8yGd5w8v/Ra1iWxMBmAVzwuKbW7G21mS0U7w7sh1lYcgckInWGgnz4qyET8A=="
+      },
+      "crs.application": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Domain": "[1.0.0, )",
+          "CRS.Time": "[1.0.0, )"
+        }
+      },
+      "crs.desktop.wpf": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Application": "[1.0.0, )",
+          "CRS.Infrastructure": "[1.0.0, )",
+          "CRS.PluginHost": "[1.0.0, )",
+          "CRS.Worker.Ipc": "[2.0.0, )",
+          "CommunityToolkit.Mvvm": "[8.4.2, )",
+          "DataGridExtensions": "[2.9.1, )",
+          "LiveChartsCore.SkiaSharpView.WPF": "[2.0.5, )",
+          "WPF-UI": "[4.3.0, )"
+        }
+      },
+      "crs.domain": {
         "type": "Project"
+      },
+      "crs.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Application": "[1.0.0, )",
+          "CRS.Domain": "[1.0.0, )",
+          "CRS.Security": "[1.0.0, )",
+          "Dapper": "[2.1.89, )",
+          "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
+          "NLog": "[6.2.1, )",
+          "NPOI": "[2.8.1, )",
+          "PdfPig": "[0.1.16, )",
+          "QRCoder": "[1.7.0, )",
+          "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )",
+          "SkiaSharp": "[3.119.4, )"
+        }
+      },
+      "crs.plugin.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.plugin.wpf": {
         "type": "Project",
@@ -322,16 +409,9 @@
         }
       },
       "crs.plugins.nationalteam.core": {
-        "type": "Project"
-      },
-      "crs.plugins.nationalteam.jobs": {
         "type": "Project",
         "dependencies": {
-          "CRS.Plugin.Abstractions": "[1.0.0, )",
-          "CRS.Plugins.NationalTeam.Core": "[2.0.0, )",
-          "CRS.Worker.Abstractions": "[2.0.0, )",
-          "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
-          "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )"
+          "CRS.Time": "[1.0.0, )"
         }
       },
       "crs.plugins.nationalteamwatch": {
@@ -346,8 +426,20 @@
           "WPF-UI": "[4.3.0, )"
         }
       },
-      "crs.worker.abstractions": {
+      "crs.security": {
+        "type": "Project",
+        "dependencies": {
+          "Konscious.Security.Cryptography.Argon2": "[1.3.1, )"
+        }
+      },
+      "crs.time": {
         "type": "Project"
+      },
+      "crs.worker.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Time": "[1.0.0, )"
+        }
       },
       "crs.worker.ipc": {
         "type": "Project",
@@ -361,6 +453,12 @@
         "resolved": "8.4.2",
         "contentHash": "WadCzGEc2U+3e20avRLng4qNtt4zoOGWrdUISqJWrHe3/FSnrYjuM5Sb4yQb09LhkBXrrI4Zt3dLKgRMbItsrg=="
       },
+      "Dapper": {
+        "type": "CentralTransitive",
+        "requested": "[2.1.89, )",
+        "resolved": "2.1.89",
+        "contentHash": "1VjFE664wnxvuhlgP8kS4PeFFF4jqD3VkbIHW6Zlc52zuibgcz5ICnIHcQXlTp6pURpPNGLV0ZpNe5x9KePJnA=="
+      },
       "DataGridExtensions": {
         "type": "CentralTransitive",
         "requested": "[2.9.1, )",
@@ -368,6 +466,15 @@
         "contentHash": "9nBc1Sm7DwFloQx5PfUhhwNBPFbaBdipm5Inrry0vGy7ZmZK/yNViG5gtwWz081P6E6EAdjA2DoDt59ygN/4fg==",
         "dependencies": {
           "Microsoft.Xaml.Behaviors.Wpf": "1.1.142"
+        }
+      },
+      "Konscious.Security.Cryptography.Argon2": {
+        "type": "CentralTransitive",
+        "requested": "[1.3.1, )",
+        "resolved": "1.3.1",
+        "contentHash": "T+OAGwzYYXftahpOxO7J4xA5K6urxwGnWQf3M+Jpi+76Azv/0T3M5SuN+h7/QvXuiqNw3ZEZ5QqVLI5ygDAylw==",
+        "dependencies": {
+          "Konscious.Security.Cryptography.Blake2": "1.1.1"
         }
       },
       "LiveChartsCore.SkiaSharpView.WPF": {
@@ -389,6 +496,41 @@
         "dependencies": {
           "SQLitePCLRaw.core": "2.1.12"
         }
+      },
+      "NLog": {
+        "type": "CentralTransitive",
+        "requested": "[6.2.1, )",
+        "resolved": "6.2.1",
+        "contentHash": "fTGNuJyzkgDc1TBEGXF+FMT4b6kB7gygkSN3dLei2Ziiwx/rugXA+OyyFWZ60P1G/+SzzSKiWHlQ4OklC8AgRg=="
+      },
+      "NPOI": {
+        "type": "CentralTransitive",
+        "requested": "[2.8.1, )",
+        "resolved": "2.8.1",
+        "contentHash": "0Zxx/o+Qc0UkQqcpnzFuDWBfIsX5PO3WKbQopCQMB+8He80EHBR/1OItn/2J7RZLkqYeDqYto/rppxPJKrJBmQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.6.2",
+          "Enums.NET": "5.0.0",
+          "ExtendedNumerics.BigDecimal": "2025.1001.2.129",
+          "MathNet.Numerics.Signed": "5.0.0",
+          "Microsoft.IO.RecyclableMemoryStream": "3.0.1",
+          "SharpZipLib": "1.4.2",
+          "SkiaSharp": "3.119.4",
+          "SkiaSharp.NativeAssets.Linux.NoDependencies": "3.119.4",
+          "ZString": "2.6.0"
+        }
+      },
+      "PdfPig": {
+        "type": "CentralTransitive",
+        "requested": "[0.1.16, )",
+        "resolved": "0.1.16",
+        "contentHash": "qQcbsNMYVY+K5ELptax2S8thNMk0+rSQq3H/KdYj3LLcko8yTCz8y5KIvsKxIyAuTN0ZYNnfsZkM+0EvxTwHVA=="
+      },
+      "QRCoder": {
+        "type": "CentralTransitive",
+        "requested": "[1.7.0, )",
+        "resolved": "1.7.0",
+        "contentHash": "6R3hQkayihGIDjp3F1nLRDBWG+nqahGyOY2+fH4Rll16Vad67oaUUfHkOiMWKiJFnGh+PIGDfUos+0R9m54O1g=="
       },
       "Quartz": {
         "type": "CentralTransitive",

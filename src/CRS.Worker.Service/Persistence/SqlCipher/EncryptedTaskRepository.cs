@@ -48,6 +48,8 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
                 CREATE UNIQUE INDEX IF NOT EXISTS one_pending_manual ON command_request(plugin,job) WHERE command='RunNow' AND state IN ('Pending','Running');
                 PRAGMA application_id=1129468738; PRAGMA user_version=2;
                 """);
+            NormalizeStoredTimes();
+            Execute("UPDATE task SET zone=$zone,revision=revision+1,reconcile=1 WHERE zone<>$zone", ("$zone", CRS.Timing.BeijingClock.ZoneId));
             Execute("UPDATE execution SET ended=$now,result='Interrupted' WHERE result='Running'", ("$now", Now));
             Execute("UPDATE command_request SET state='Pending',code='Accepted' WHERE state='Running' AND command='RunNow'");
             migration.Commit();
@@ -77,7 +79,20 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
         catch (SqliteException error) { throw new IOException("任务仓储持久化失败。", error); }
     }
     private static void Persist(Action operation) => Persist(() => { operation(); return 0; });
-    private static string Now => DateTimeOffset.UtcNow.ToString("O");
+    private static string Now => CRS.Timing.BeijingClock.Now.ToString("O");
+    // 与启动恢复共用事务；只改时间的偏移表示，保留实际时间点和历史结果。
+    private void NormalizeStoredTimes()
+    {
+        foreach (var (table, column) in new[] { ("execution", "scheduled"), ("execution", "started"), ("execution", "ended"),
+            ("execution_progress", "utc"), ("audit", "utc"), ("task", "not_before"), ("command_request", "created") })
+        {
+            var rows = new List<(long Id, string Time)>();
+            using (var command = Command($"SELECT rowid,{column} FROM {table} WHERE {column} IS NOT NULL AND substr({column},-6)<>'+08:00'"))
+            using (var reader = command.ExecuteReader())
+                while (reader.Read()) rows.Add((reader.GetInt64(0), CRS.Timing.BeijingClock.Serialize(CRS.Timing.BeijingClock.Parse(reader.GetString(1)))));
+            foreach (var row in rows) Execute($"UPDATE {table} SET {column}=$time WHERE rowid=$id", ("$time", row.Time), ("$id", row.Id));
+        }
+    }
     private SqliteCommand Command(string sql, params (string, object?)[] args)
     {
         var command = db.CreateCommand(); command.CommandText = sql;
@@ -91,7 +106,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
         Persist(() =>
         {
             lock (gate) Execute("INSERT OR IGNORE INTO task VALUES($p,$j,$n,$c,$z,$e,1,1,NULL,0)",
-                ("$p", plugin), ("$j", descriptor.JobId), ("$n", descriptor.Name), ("$c", descriptor.DefaultCron), ("$z", descriptor.TimeZoneId), ("$e", descriptor.EnabledByDefault));
+                ("$p", plugin), ("$j", descriptor.JobId), ("$n", descriptor.Name), ("$c", descriptor.DefaultCron), ("$z", CRS.Timing.BeijingClock.ZoneId), ("$e", descriptor.EnabledByDefault));
         });
     }
     public List<TaskDefinition> Plans()
@@ -102,7 +117,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             {
                 using var command = Command("SELECT * FROM task ORDER BY plugin,job"); using var reader = command.ExecuteReader();
                 var list = new List<TaskDefinition>();
-                while (reader.Read()) list.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5), reader.GetInt64(6), reader.GetBoolean(7), reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8), CultureInfo.InvariantCulture), reader.GetInt32(9)));
+                while (reader.Read()) list.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5), reader.GetInt64(6), reader.GetBoolean(7), reader.IsDBNull(8) ? null : CRS.Timing.BeijingClock.Parse(reader.GetString(8)), reader.GetInt32(9)));
                 return list;
             }
         });
@@ -115,7 +130,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             {
                 using var tx = db.BeginTransaction();
                 using var command = Command("UPDATE task SET cron=$c,zone=$z,enabled=$e,revision=revision+1,reconcile=1 WHERE plugin=$p AND job=$j AND revision=$r",
-                    ("$c", plan.Cron), ("$z", plan.TimeZoneId), ("$e", plan.Enabled), ("$p", plan.PluginId), ("$j", plan.JobId), ("$r", expectedRevision));
+                    ("$c", plan.Cron), ("$z", CRS.Timing.BeijingClock.ZoneId), ("$e", plan.Enabled), ("$p", plan.PluginId), ("$j", plan.JobId), ("$r", expectedRevision));
                 if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("计划已改变，请重新读取后编辑。");
                 if (!plan.Enabled) CancelPending(plan.PluginId, plan.JobId);
                 if (requestId is { } request) CompleteCommand(request, "Ok");
@@ -138,7 +153,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             {
                 using var tx = db.BeginTransaction();
                 var id = Guid.NewGuid().ToString("N");
-                Execute("INSERT INTO execution VALUES($id,$p,$j,$scheduled,$now,NULL,'Running',NULL,$a)", ("$id", id), ("$p", plan.PluginId), ("$j", plan.JobId), ("$scheduled", scheduled.ToString("O")), ("$now", Now), ("$a", plan.Failures + 1));
+                Execute("INSERT INTO execution VALUES($id,$p,$j,$scheduled,$now,NULL,'Running',NULL,$a)", ("$id", id), ("$p", plan.PluginId), ("$j", plan.JobId), ("$scheduled", CRS.Timing.BeijingClock.Serialize(scheduled)), ("$now", Now), ("$a", plan.Failures + 1));
                 if (requestId is { } request)
                 {
                     using var claim = Command("UPDATE command_request SET state='Running',execution=$id WHERE request=$r AND state='Pending'", ("$id", id), ("$r", request.ToString("N")));
@@ -165,7 +180,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
                 if (result.Status is "AccessBlocked" or "SourceSchemaChanged") seconds = 86400;
                 if (!failed) seconds = 300;
                 if (result.RetryAfter is { } retry) seconds = Math.Clamp(retry.TotalSeconds, failed ? seconds : 30, 86400);
-                Execute("UPDATE task SET failures=$f,not_before=$n WHERE plugin=$p AND job=$j", ("$f", failed ? Math.Min(plan.Failures + 1, 100) : result.Status == "Succeeded" ? 0 : plan.Failures), ("$n", deferred ? DateTimeOffset.UtcNow.AddSeconds(seconds).ToString("O") : null), ("$p", plan.PluginId), ("$j", plan.JobId));
+                Execute("UPDATE task SET failures=$f,not_before=$n WHERE plugin=$p AND job=$j", ("$f", failed ? Math.Min(plan.Failures + 1, 100) : result.Status == "Succeeded" ? 0 : plan.Failures), ("$n", deferred ? CRS.Timing.BeijingClock.Now.AddSeconds(seconds).ToString("O") : null), ("$p", plan.PluginId), ("$j", plan.JobId));
                 // 延后重试仍是同一持久命令；保留原参数，不能退化为无参数的自动任务。
                 if (requestId is { } request)
                 {
@@ -173,7 +188,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
                     else CompleteCommand(request, result.Status);
                 }
                 // 高频诊断心跳单独保留100条，不能消耗500条业务历史额度；运行中执行不参与清理。
-                Execute("DELETE FROM execution WHERE result<>'Running' AND ((plugin='crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin='crs.heartbeat' ORDER BY started DESC LIMIT 100)) OR (plugin<>'crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin<>'crs.heartbeat' ORDER BY started DESC LIMIT 500)))");
+                Execute("DELETE FROM execution WHERE result<>'Running' AND ((plugin='crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin='crs.heartbeat' ORDER BY julianday(started) DESC LIMIT 100)) OR (plugin<>'crs.heartbeat' AND id NOT IN (SELECT id FROM execution WHERE plugin<>'crs.heartbeat' ORDER BY julianday(started) DESC LIMIT 500)))");
                 tx.Commit();
             }
         });
@@ -184,9 +199,9 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
         {
             lock (gate)
             {
-                using var command = Command("SELECT * FROM execution ORDER BY started DESC LIMIT 100"); using var reader = command.ExecuteReader();
+                using var command = Command("SELECT * FROM execution ORDER BY julianday(started) DESC LIMIT 100"); using var reader = command.ExecuteReader();
                 var rows = new List<ExecutionRecord>();
-                while (reader.Read()) rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), DateTimeOffset.Parse(reader.GetString(3), CultureInfo.InvariantCulture), DateTimeOffset.Parse(reader.GetString(4), CultureInfo.InvariantCulture), reader.IsDBNull(5) ? null : DateTimeOffset.Parse(reader.GetString(5), CultureInfo.InvariantCulture), reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), reader.GetInt32(8)));
+                while (reader.Read()) rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), CRS.Timing.BeijingClock.Parse(reader.GetString(3)), CRS.Timing.BeijingClock.Parse(reader.GetString(4)), reader.IsDBNull(5) ? null : CRS.Timing.BeijingClock.Parse(reader.GetString(5)), reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), reader.GetInt32(8)));
                 return rows;
             }
         });
@@ -200,12 +215,12 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             {
                 using var command=Command("SELECT * FROM execution WHERE id=$id",("$id",id));
                 using var reader=command.ExecuteReader();
-                ExecutionRecord? record=reader.Read()?new(reader.GetString(0),reader.GetString(1),reader.GetString(2),DateTimeOffset.Parse(reader.GetString(3),CultureInfo.InvariantCulture),DateTimeOffset.Parse(reader.GetString(4),CultureInfo.InvariantCulture),reader.IsDBNull(5)?null:DateTimeOffset.Parse(reader.GetString(5),CultureInfo.InvariantCulture),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetString(7),reader.GetInt32(8)):null;
+                ExecutionRecord? record=reader.Read()?new(reader.GetString(0),reader.GetString(1),reader.GetString(2),CRS.Timing.BeijingClock.Parse(reader.GetString(3)),CRS.Timing.BeijingClock.Parse(reader.GetString(4)),reader.IsDBNull(5)?null:CRS.Timing.BeijingClock.Parse(reader.GetString(5)),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetString(7),reader.GetInt32(8)):null;
                 reader.Close();if(record is null)return null;
                 // 单条IPC只取最近128阶段，控制消息大小；序号可明确提示更早日志未在本页返回。
                 using var stages=Command("SELECT sequence,utc,detail FROM execution_progress WHERE execution=$id ORDER BY sequence DESC LIMIT 128",("$id",id));
                 using var values=stages.ExecuteReader();var events=new List<ExecutionProgressEvent>();
-                while(values.Read())events.Add(new(values.GetInt64(0),DateTimeOffset.Parse(values.GetString(1),CultureInfo.InvariantCulture),JsonSerializer.Deserialize<BackgroundProgress>(values.GetString(2))!));
+                while(values.Read())events.Add(new(values.GetInt64(0),CRS.Timing.BeijingClock.Parse(values.GetString(1)),JsonSerializer.Deserialize<BackgroundProgress>(values.GetString(2))!));
                 events.Reverse();return events.Count==0?record:record with{Progress=events};
             }
         });
@@ -303,7 +318,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
         {
             lock (gate)
             {
-                using var query = Command("SELECT request,plugin,job FROM command_request WHERE command='RunNow' AND state='Pending' ORDER BY created,request");
+                using var query = Command("SELECT request,plugin,job FROM command_request WHERE command='RunNow' AND state='Pending' ORDER BY julianday(created),request");
                 using var row = query.ExecuteReader(); var result = new List<(Guid, string, string)>();
                 while (row.Read()) result.Add((Guid.ParseExact(row.GetString(0), "N"), row.GetString(1), row.GetString(2)));
                 return result;
@@ -332,7 +347,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
                 {
                     if (rows.Count == pageSize) { more = true; break; }
                     last = reader.GetInt64(0).ToString(CultureInfo.InvariantCulture);
-                    rows.Add(new(reader.GetString(1), reader.GetString(2), reader.GetString(3), DateTimeOffset.Parse(reader.GetString(4), CultureInfo.InvariantCulture), DateTimeOffset.Parse(reader.GetString(5), CultureInfo.InvariantCulture), reader.IsDBNull(6) ? null : DateTimeOffset.Parse(reader.GetString(6), CultureInfo.InvariantCulture), reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8), reader.GetInt32(9)));
+                    rows.Add(new(reader.GetString(1), reader.GetString(2), reader.GetString(3), CRS.Timing.BeijingClock.Parse(reader.GetString(4)), CRS.Timing.BeijingClock.Parse(reader.GetString(5)), reader.IsDBNull(6) ? null : CRS.Timing.BeijingClock.Parse(reader.GetString(6)), reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8), reader.GetInt32(9)));
                 }
                 return (rows, more ? last : null);
             }

@@ -19,7 +19,7 @@ foreach($file in Get-ChildItem $security -Filter '*.cs' -Recurse | Where-Object 
 Assert-Boundary ($domainProject.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) 'Domain 不得引用外层或 UI 包。'
 [xml]$appProject = Get-Content -Raw (Join-Path $app 'CRS.Application.csproj')
 $appReferences = @($appProject.SelectNodes('//ProjectReference'))
-Assert-Boundary ($appReferences.Count -eq 1 -and $appReferences[0].Include -eq '../CRS.Domain/CRS.Domain.csproj') 'Application 只能引用 Domain。'
+Assert-Boundary ($appReferences.Count -eq 2 -and @($appReferences | Where-Object {$_.Include -notmatch '^../CRS\.(Domain|Time)/CRS\.(Domain|Time)\.csproj$'}).Count -eq 0) 'Application 只能引用 Domain 与纯BCL时间策略。'
 [xml]$infraProject = Get-Content -Raw (Join-Path $infra 'CRS.Infrastructure.csproj')
 foreach ($reference in $infraProject.SelectNodes('//ProjectReference')) {
     Assert-Boundary ($reference.Include -match 'CRS\.(Domain|Application|Security)/CRS\.(Domain|Application|Security)\.csproj$') 'Infrastructure 反向引用前台。'
@@ -78,12 +78,14 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
                 $reference.GetAttribute('DevelopmentPlugin') -eq 'true'
             Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.' -or $developmentBuildOnly) "宿主/税务静态引用业务插件：$($projectFile.Name)"
         } else {
-            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
+            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/|CRS\.Time/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
         }
     }
 }
 [xml]$contract = Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj')
-Assert-Boundary ($contract.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) 'BCL插件契约不得引用实现或WPF。'
+Assert-Boundary ($contract.SelectNodes('//PackageReference').Count -eq 0 -and @($contract.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../CRS.Time/CRS.Time.csproj'}).Count -eq 0) 'BCL插件契约只能依赖纯BCL时间策略。'
+[xml]$timeProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Time/CRS.Time.csproj')
+Assert-Boundary ($timeProject.SelectNodes('//ProjectReference | //PackageReference | //UseWPF | //UseWindowsForms').Count -eq 0) '时间策略不得依赖业务、UI或外部包。'
 foreach($sourceDir in @('src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation','src/Plugins/CRS.Plugins.NationalTeam.Core/Domain')) {
     foreach($file in Get-ChildItem (Join-Path $RepositoryRoot $sourceDir) -Filter '*.cs' -Recurse) {
         $source=Get-Content -Raw $file.FullName
@@ -99,14 +101,15 @@ foreach($name in @('Abstractions','PluginHost','Ipc','Service')){
     foreach($reference in $project.SelectNodes('//ProjectReference')){
         # 公共通知只在服务组合根装配；其它后台层不能反向依赖通知实现。
         $sharedNotification=$name -eq 'Service' -and $reference.Include -eq '../CRS.Notifications/CRS.Notifications.csproj'
-        Assert-Boundary ($reference.Include -match 'CRS\.Worker\.' -or $sharedNotification) "后台项目越过服务边界：$name"
+        $sharedTime=$name -eq 'Abstractions' -and $reference.Include -eq '../CRS.Time/CRS.Time.csproj'
+        Assert-Boundary ($reference.Include -match 'CRS\.Worker\.' -or $sharedNotification -or $sharedTime) "后台项目越过服务边界：$name"
     }
 }
 [xml]$backgroundContract=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj')
-Assert-Boundary ($backgroundContract.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) '后台契约必须保持纯BCL。'
+Assert-Boundary ($backgroundContract.SelectNodes('//PackageReference').Count -eq 0 -and @($backgroundContract.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../CRS.Time/CRS.Time.csproj'}).Count -eq 0) '后台契约只能依赖纯BCL时间策略。'
 # 通知组件保持独立，SMTP依赖只能在这里出现，宿主仅保留契约适配。
 [xml]$notificationProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Notifications/CRS.Notifications.csproj')
-Assert-Boundary ($notificationProject.SelectNodes('//ProjectReference | //UseWPF | //UseWindowsForms').Count -eq 0) '公共通知组件不得依赖宿主、业务或UI。'
+Assert-Boundary ($notificationProject.SelectNodes('//UseWPF | //UseWindowsForms').Count -eq 0 -and @($notificationProject.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../CRS.Time/CRS.Time.csproj'}).Count -eq 0) '公共通知组件不得依赖宿主、业务或UI。'
 foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Notifications') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
     Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using CRS\.(Worker|Plugins|Infrastructure|Application)|using System\.Windows')) '公共通知组件反向依赖业务或宿主。'
 }

@@ -24,7 +24,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     private IScheduler? scheduler;
     private bool maintenance;
     private string? fault;
-    private readonly DateTimeOffset started = DateTimeOffset.UtcNow;
+    private readonly DateTimeOffset started = CRS.Timing.BeijingClock.Now;
     private static JobKey Key(TaskDefinition plan) => new(plan.JobId, plan.PluginId);
     private static TriggerKey TriggerKey(JobKey key, string kind) => new(key.Name + "." + kind, key.Group);
     private static bool StorageError(Exception error) => error is DbException or IOException or UnauthorizedAccessException or ObjectDisposedException;
@@ -71,7 +71,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             var descriptor = catalog.Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId).Descriptor;
             // 启动补偿由插件显式声明，禁止所有普通定时任务一律启动执行。
             if (plan.Enabled && descriptor.RunOnStartup && plan.NotBefore is null)
-                await scheduler.ScheduleJob(AutomaticTrigger(plan, "startup").StartAt(DateTimeOffset.UtcNow.AddSeconds(2)).Build(), cancellationToken: token);
+                await scheduler.ScheduleJob(AutomaticTrigger(plan, "startup").StartAt(CRS.Timing.BeijingClock.Now.AddSeconds(2)).Build(), cancellationToken: token);
         }
         await RestorePendingAsync(token);
         await scheduler.Start(token);
@@ -97,7 +97,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         await scheduler!.UnscheduleJob(TriggerKey(Key(plan), "retry"), token);
         if(repository.PendingRuns().Any(x=>x.PluginId==plan.PluginId && x.JobId==plan.JobId))return;
         if (plan.Enabled && plan.NotBefore is { } retry)
-            await scheduler.ScheduleJob(AutomaticTrigger(plan, "retry").StartAt(retry > DateTimeOffset.UtcNow ? retry : DateTimeOffset.UtcNow).Build(), cancellationToken: token);
+            await scheduler.ScheduleJob(AutomaticTrigger(plan, "retry").StartAt(retry > CRS.Timing.BeijingClock.Now ? retry : CRS.Timing.BeijingClock.Now).Build(), cancellationToken: token);
     }
     private async Task RestorePendingAsync(CancellationToken token)
     {
@@ -111,7 +111,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                 await scheduler!.UnscheduleJob(TriggerKey(key, "manual"), token);
                 await scheduler.ScheduleJob(TriggerBuilder.Create().WithIdentity(TriggerKey(key, "manual")).ForJob(key)
                     .UsingJobData("manual", nonce).UsingJobData("request", pending.RequestId.ToString("N"))
-                    .StartAt(plan.NotBefore > DateTimeOffset.UtcNow ? plan.NotBefore.Value : DateTimeOffset.UtcNow).Build(), cancellationToken: token);
+                    .StartAt(plan.NotBefore > CRS.Timing.BeijingClock.Now ? plan.NotBefore.Value : CRS.Timing.BeijingClock.Now).Build(), cancellationToken: token);
             }
             catch { queued.Remove(key); throw; }
         }
@@ -202,7 +202,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         {
             var sourceHealth=await SourceHealthAsync();
             var state = fault ?? (catalog.RequiresProcessRestart ? "PluginUnresponsive" : maintenance ? "Maintenance" : catalog.Statuses.Any(x => x.State == "Failed") || repository.Plans().Any(x => x.NeedsReconcile || !HasHandler(x)) ? "Degraded" : "Running");
-            return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, DateTimeOffset.UtcNow, Environment.ProcessId,
+            return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, CRS.Timing.BeijingClock.Now, Environment.ProcessId,
                 SchedulingSnapshot(),sourceHealth), Plugins: catalog.Statuses.ToArray());
         }
         if (fault is not null) return Reply(fault);
@@ -267,7 +267,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                     var next = request.Command switch
                     {
                         "Pause" => plan with { Enabled = false }, "Resume" => plan with { Enabled = true },
-                        _ => plan with { Cron = request.Cron ?? "", TimeZoneId = request.TimeZoneId ?? "" }
+                        _ => plan with { Cron = request.Cron ?? "", TimeZoneId = CRS.Timing.BeijingClock.ZoneId }
                     };
                     Validate(next.Cron, next.TimeZoneId);
                     repository.Save(next, request.ExpectedRevision.Value, request.RequestId);
@@ -313,7 +313,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             }
             else if (!plan.Enabled || invocation.Revision != plan.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 || repository.PendingRuns().Any(x=>x.PluginId==plan.PluginId&&x.JobId==plan.JobId)) return;
-            if (plan.NotBefore > DateTimeOffset.UtcNow) return;
+            if (plan.NotBefore > CRS.Timing.BeijingClock.Now) return;
             source = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, cancellationToken);
             source.CancelAfter(executionTimeout ?? TimeSpan.FromMinutes(15));
             if(request is { } requestId)payload=repository.ReadCommand(requestId).Payload;

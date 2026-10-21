@@ -103,7 +103,7 @@ public sealed partial class BackgroundRuntime
                 }
                 else
                 {
-                    var incoming = new DispatchInvocation(key, context.ScheduledFireTimeUtc ?? DateTimeOffset.UtcNow,
+                    var incoming = new DispatchInvocation(key, context.ScheduledFireTimeUtc ?? CRS.Timing.BeijingClock.Now,
                         context.MergedJobDataMap.GetString("manual"), context.MergedJobDataMap.GetString("request"), context.MergedJobDataMap.GetString("revision"));
                     if (!IsCurrent(incoming) || !Enqueue(incoming)) return;
                 }

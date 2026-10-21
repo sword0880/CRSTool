@@ -129,7 +129,7 @@ public static class ForeignCreditReview
         node[nameof(CalculationResult.Issues)] = JsonSerializer.SerializeToNode(issues);
         node[nameof(CalculationResult.SnapshotJson)] = JsonSerializer.Serialize(new
         {
-            snapshotId, source.Year, source.Broker, parentSnapshotId = source.SnapshotId, createdUtc = DateTimeOffset.UtcNow, policy = "FOREIGN_CREDIT_REVIEW_V1",
+            snapshotId, source.Year, source.Broker, parentSnapshotId = source.SnapshotId, createdUtc = CRS.Timing.BeijingClock.Now, policy = "FOREIGN_CREDIT_REVIEW_V1",
             assessment, originalSnapshot = source.SnapshotJson, summary
         });
         // 派生任务需重新封存；不能复制父运行摘要冒充本次结果。

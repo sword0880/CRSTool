@@ -29,7 +29,7 @@ public sealed class LocalStore : ICalculationRepository
         if (enabled)
         {
             var target = new FileTarget("local") { FileName = Path.Combine(exactLogDirectory ? directory : Path.Combine(directory, "logs"), "crs.log"),
-                Layout = "${longdate}|${level}|${message}", ArchiveAboveSize = fileSizeMb * 1024L * 1024, MaxArchiveFiles = retentionFiles };
+                Layout = NLog.Layouts.Layout.FromMethod(e => $"{CRS.Timing.BeijingClock.Normalize(new DateTimeOffset(e.TimeStamp)):yyyy-MM-dd HH:mm:ss.fff zzz}|{e.Level}|{e.FormattedMessage}"), ArchiveAboveSize = fileSizeMb * 1024L * 1024, MaxArchiveFiles = retentionFiles };
             config.AddRule(LogLevel.FromString(minimumLevel), LogLevel.Fatal, target);
         }
         LogManager.Configuration = config;
@@ -58,7 +58,7 @@ public sealed class LocalStore : ICalculationRepository
                 || c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations WHERE id=@Id AND year=@Year", new { Id = source.SnapshotId, r.Year }, tx) != 1)
                 throw new CrsException("年度汇总来源不存在或年度不一致，不能保存。");
         c.Execute("INSERT INTO calculations(id,year,created_utc,complete,issues,result_json,carry,execution_archived) VALUES(@Id,@Year,@Utc,@Complete,@Issues,@Json,@Carry,1)",
-            new { Id = r.SnapshotId, r.Year, Utc = DateTimeOffset.UtcNow.ToString("O"), Complete = r.Complete ? 1 : 0,
+            new { Id = r.SnapshotId, r.Year, Utc = CRS.Timing.BeijingClock.Now.ToString("O"), Complete = r.Complete ? 1 : 0,
                 Issues = r.Issues.Count, Json = System.Text.Encoding.UTF8.GetString(payload), Carry = r.CarryEligible ? CarryFiles.Encode(CarryFiles.Create(r)) : null }, tx);
         // 文件归档和计算事实同时提交，缺失或不匹配时不留下孤立任务。
         ExecutionArchive.Save(c,tx,r);
@@ -84,7 +84,7 @@ public sealed class LocalStore : ICalculationRepository
         // SQLite INTEGER 返回 Int64，先映射可写行模型再构造领域记录，避免 record 构造类型不匹配。
         // 先限制本页，再处理 JSON；超大或损坏单条记录仍占据原历史位置，但不拖垮整页。
         var rows = c.Query<HistoryRow>("""
-            WITH page AS MATERIALIZED (SELECT id FROM calculations ORDER BY created_utc DESC,id DESC LIMIT @Limit OFFSET @Offset),
+            WITH page AS MATERIALIZED (SELECT id FROM calculations ORDER BY julianday(created_utc) DESC,id DESC LIMIT @Limit OFFSET @Offset),
             bounded AS (SELECT calculations.*,CASE WHEN length(CAST(result_json AS BLOB)) BETWEEN 1 AND @MaxBytes
               THEN CASE WHEN json_valid(result_json) THEN result_json ELSE NULL END ELSE NULL END AS safe_json
               FROM calculations INNER JOIN page ON calculations.id=page.id)
@@ -94,10 +94,10 @@ public sealed class LocalStore : ICalculationRepository
               COALESCE(json_array_length(json_extract(safe_json,'$.AggregationSources')),0) AS AggregationSourceCount,
               CASE WHEN length(CAST(json_extract(safe_json,'$.CoveredAccounts') AS BLOB))<=262144
                 THEN json_extract(safe_json,'$.CoveredAccounts') ELSE '[]' END AS AccountsJson
-            FROM bounded ORDER BY created_utc DESC,id DESC
+            FROM bounded ORDER BY julianday(created_utc) DESC,id DESC
             """,
             new { Limit = pageSize, Offset = (page - 1) * pageSize, MaxBytes=PersistedResultLimits.MaxBytes }, tx)
-            .Select(r => new HistoryItem(r.Id, r.Year, r.CreatedUtc, r.Complete == 1, r.Issues, r.Broker, r.ParentSnapshotId, r.AggregationSourceCount > 0 || r.Broker == "MULTI",
+            .Select(r => new HistoryItem(r.Id, r.Year, CRS.Timing.BeijingClock.NormalizeText(r.CreatedUtc), r.Complete == 1, r.Issues, r.Broker, r.ParentSnapshotId, r.AggregationSourceCount > 0 || r.Broker == "MULTI",
                 string.Join("、",ReadAccounts(r.AccountsJson)))).ToList();
         return new(rows, total, page, pageSize);
     }
@@ -134,7 +134,7 @@ public sealed class LocalStore : ICalculationRepository
         if (string.IsNullOrWhiteSpace(category) || string.IsNullOrWhiteSpace(evidence) || evidence.Length > 4000) throw new CrsException("请填写复核类型及不超过 4000 字的依据。");
         using var c = Open();
         c.Execute("INSERT INTO reviews(snapshot_id,category,evidence,created_utc) VALUES(@Id,@Category,@Evidence,@Utc)",
-            new { Id = id, Category = category.Trim(), Evidence = evidence.Trim(), Utc = DateTimeOffset.UtcNow.ToString("O") });
+            new { Id = id, Category = category.Trim(), Evidence = evidence.Trim(), Utc = CRS.Timing.BeijingClock.Now.ToString("O") });
     }
     /// <summary>读取当前快照的复核依据及 UTC 保存时间。</summary>
     public List<ReviewNote> Reviews(string id)

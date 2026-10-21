@@ -29,7 +29,7 @@
     <TextBox x:Name="CronEditor" Text="{Binding Cron,UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas" FontSize="16" AutomationProperties.Name="任务 Cron 表达式"><TextBox.Style><Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="IsReadOnly" Value="True"/><Style.Triggers><DataTrigger Binding="{Binding IsManual}" Value="True"><Setter Property="IsReadOnly" Value="False"/></DataTrigger></Style.Triggers></Style></TextBox.Style></TextBox>
     <TextBlock Text="选择“手动表达式”可输入高级规则；格式为 秒 分 时 日 月 星期，可选年份。" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,14"/>
     <TextBlock Text="时区" Style="{StaticResource Caption}"/>
-    <ComboBox IsEditable="True" Text="{Binding TimeZoneId,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="任务计划时区"><ComboBoxItem Content="China Standard Time"/><ComboBoxItem Content="UTC"/></ComboBox>
+    <TextBlock Text="北京时间（UTC+08:00）" AutomationProperties.Name="任务计划时区" Margin="0,6"/>
     <Border Background="{DynamicResource BrandAccentPaleBrush}" CornerRadius="10" Padding="14,10" Margin="0,14,0,4"><StackPanel>
      <TextBlock Text="未来 5 次计划触发时间" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextSecondaryBrush}"/>
      <TextBlock Text="{Binding Validation}" TextWrapping="Wrap" FontSize="12" Margin="0,6,0,8"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="#64748B"/><Style.Triggers><DataTrigger Binding="{Binding Valid}" Value="False"><Setter Property="Foreground" Value="#B45309"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>

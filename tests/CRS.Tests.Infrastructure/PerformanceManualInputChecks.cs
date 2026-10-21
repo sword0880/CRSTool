@@ -26,6 +26,8 @@ internal static class PerformanceManualInputChecks
         await cases.ConfirmBaseCurrencyAsync(account.Id,"HKD");
         await cases.AddValuationAsync(nav);
         var valuation=(await cases.LoadAsync()).Data.Valuations.Single();
+        if(valuation.AsOf.Offset!=CRS.Timing.BeijingClock.Offset || valuation.AsOf.Hour!=23 || valuation.AsOf.Date!=day.ToDateTime(TimeOnly.MinValue))
+            throw new Exception("手工日终估值没有直接保存北京时间。");
         if(valuation.Components.Any(x=>x.Currency!="HKD") || valuation.Quality!=PerformanceQuality.Estimated || valuation.Components.Length!=5)
             throw new Exception("净值没有使用当前已确认币种或被提升为已核验。");
         var coverage=new ManualPerformanceCoverage(account.Id,day,day,false,false,"合成核对");
@@ -38,7 +40,9 @@ internal static class PerformanceManualInputChecks
         var entry=new ManualPerformanceEvent(account.Id,day,InvestmentEventKind.Deposit,20,"HKD","合成流水","","",0,0,0,true);
         await Reject(()=>cases.AddEventAsync(entry with{AccountId=null}));
         await cases.AddEventAsync(entry);
-        if((await cases.LoadAsync()).Data.Events.Single().Amount!=20)throw new Exception("应用层事件录入丢失金额。");
+        var storedEvent=(await cases.LoadAsync()).Data.Events.Single();
+        if(storedEvent.Amount!=20 || storedEvent.Time.Offset!=CRS.Timing.BeijingClock.Offset || storedEvent.Time.Hour!=12)
+            throw new Exception("应用层事件金额或北京时间中午假定错误。");
         using var canceled=new CancellationTokenSource();canceled.Cancel();
         try {await cases.AddEventAsync(entry,canceled.Token);throw new Exception("取消仍写入。");}catch(OperationCanceledException){}
         if((await cases.LoadAsync()).Data.Events.Length!=1)throw new Exception("取消新增事件。");

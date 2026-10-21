@@ -32,17 +32,17 @@ public abstract class WebhookNotificationChannel(WebhookSettingsStore settings,H
         try
         {
             var saved=settings.Open(Descriptor.Id);if(!saved.Settings.Enabled)return Result(NotificationDeliveryState.Disabled,"ChannelNotEnabled");
-            if(DateTimeOffset.UtcNow<nextRequest)return Result(NotificationDeliveryState.RetryableFailure,"LocalRateLimited");
+            if(CRS.Timing.BeijingClock.Now<nextRequest)return Result(NotificationDeliveryState.RetryableFailure,"LocalRateLimited");
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(TimeSpan.FromSeconds(10));
             using var request=CreateRequest(saved.Token,saved.SigningSecret,message);
-            nextRequest=DateTimeOffset.UtcNow.AddSeconds(3);
+            nextRequest=CRS.Timing.BeijingClock.Now.AddSeconds(3);
             try
             {
                 using var response=await (client??Shared).SendAsync(request,HttpCompletionOption.ResponseHeadersRead,timeout.Token);
                 if(response.StatusCode==HttpStatusCode.TooManyRequests)
                 {
                     var retry=response.Headers.RetryAfter;
-                    var until=retry?.Date??DateTimeOffset.UtcNow.Add(retry?.Delta??TimeSpan.FromMinutes(1));
+                    var until=retry?.Date??CRS.Timing.BeijingClock.Now.Add(retry?.Delta??TimeSpan.FromMinutes(1));
                     if(until>nextRequest)nextRequest=until;
                     return Result(NotificationDeliveryState.RetryableFailure,"ProviderRateLimited");
                 }

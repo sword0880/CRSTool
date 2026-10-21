@@ -9,8 +9,8 @@ public sealed partial class MarketRepository
     public AlertOutboxItem? ClaimAlertNotification()
     {
         var config=AlertConfiguration();if(!config.Rules.Enabled)return null;
-        var now=clock.GetUtcNow();
-        using var query=Command("SELECT payload FROM nt_alert_outbox WHERE state IN ('Pending','Retry','Disabled','Unavailable') AND next_at<=$now ORDER BY next_at LIMIT 20",("$now",now.ToString("O")));
+        var now=CRS.Timing.BeijingClock.Read(clock);
+        using var query=Command("SELECT payload FROM nt_alert_outbox WHERE state IN ('Pending','Retry','Disabled','Unavailable') AND julianday(next_at)<=julianday($now) ORDER BY julianday(next_at) LIMIT 20",("$now",now.ToString("O")));
         var due=ReadJson<AlertOutboxItem>(query);if(due.Count==0)return null;
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
         foreach(var row in due)
@@ -58,7 +58,7 @@ public sealed partial class MarketRepository
             "PermanentFailure"=>"Failed","Disabled"=>"Disabled","Unavailable"=>"Unavailable",_=>"OutcomeUnknown"};
         var delay=state is "Disabled" or "Unavailable"?300:Math.Min(3600,30*Math.Pow(2,Math.Min(failures,7)));
         var at=Now;var safeCode=outcome.Code is {Length:>0 and <=80}&&outcome.Code.All(c=>char.IsAsciiLetterOrDigit(c)||c is '-' or '_')?outcome.Code:"ProviderResult";
-        var next=row with{State=state,LastCode=safeCode,Lease=null,Failures=failures,NextAttemptAt=clock.GetUtcNow().AddSeconds(delay).ToString("O"),AcceptedAt=state=="Accepted"?at:null};
+        var next=row with{State=state,LastCode=safeCode,Lease=null,Failures=failures,NextAttemptAt=CRS.Timing.BeijingClock.Read(clock).AddSeconds(delay).ToString("O"),AcceptedAt=state=="Accepted"?at:null};
         WriteOutbox(next);
         var delivery=new AlertDeliveryRecord(Guid.NewGuid().ToString("N"),id,row.Attempts,at,state,safeCode,outcome.ProviderReceipt is {Length:<=256}?outcome.ProviderReceipt:null);
         Execute("INSERT INTO nt_alert_delivery VALUES($id,$out,$attempt,$at,$p)",("$id",delivery.Id),("$out",id),("$attempt",row.Attempts),("$at",at),("$p",JsonSerializer.Serialize(delivery)));
@@ -66,7 +66,7 @@ public sealed partial class MarketRepository
     }
     public List<AlertDeliveryRecord> AlertDeliveries(string id)
     {
-        using var command=Command("SELECT payload FROM nt_alert_delivery WHERE outbox_id=$id ORDER BY at DESC LIMIT 100",("$id",id));return ReadJson<AlertDeliveryRecord>(command);
+        using var command=Command("SELECT payload FROM nt_alert_delivery WHERE outbox_id=$id ORDER BY julianday(at) DESC LIMIT 100",("$id",id));return ReadJson<AlertDeliveryRecord>(command);
     }
     /// <summary>只允许重试明确未受理的记录；未知、已受理和正式门槛阻断的记录不能借重试绕过。</summary>
     public void RetryAlertNotification(string id,Guid? commandId=null)

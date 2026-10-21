@@ -31,6 +31,9 @@
           "System.Security.Cryptography.Pkcs": "10.0.0"
         }
       },
+      "crs.time": {
+        "type": "Project"
+      },
       "System.Security.Cryptography.Pkcs": {
         "type": "CentralTransitive",
         "requested": "[10.0.13, )",

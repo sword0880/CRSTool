@@ -44,7 +44,7 @@ public sealed partial class MarketRepository
     {
         if(uri!=OfficialEquitySource.Request(market,ticker))throw new InvalidDataException("股东来源不匹配。");
         var parsed=OfficialEquitySource.Parse(ticker,bytes);
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         if(parsed.SourceDate>today)throw new InvalidDataException("股东来源日期在未来。");
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();var hash=raw.Save(bytes);
         if(Convert.ToInt32(Scalar("SELECT count(*) FROM equity_disclosure d JOIN source_fetch f USING(fetch_id) WHERE d.market=$m AND d.ticker=$t AND f.sha256=$h",("$m",market),("$t",ticker),("$h",hash)))>0){transaction.Commit();return;}
@@ -62,7 +62,7 @@ public sealed partial class MarketRepository
             SELECT d.id,d.source_date,d.report_date,d.published,
             CASE WHEN d.state='Superseded' THEN 'Superseded' WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.rule_id='Q15' AND q.status='Open' AND (q.evidence_id=d.fetch_id OR q.evidence_id=d.document_fetch_id)) THEN 'Critical' ELSE d.state END,
             f.source_url,f.sha256,p.source_url,d.page,d.reviewer,d.comparable,d.nature
-            FROM equity_disclosure d JOIN source_fetch f ON f.fetch_id=d.fetch_id LEFT JOIN source_fetch p ON p.fetch_id=d.document_fetch_id WHERE d.market=$m AND d.ticker=$t ORDER BY coalesce(d.report_date,d.source_date) DESC,f.retrieved_utc DESC,d.id DESC
+            FROM equity_disclosure d JOIN source_fetch f ON f.fetch_id=d.fetch_id LEFT JOIN source_fetch p ON p.fetch_id=d.document_fetch_id WHERE d.market=$m AND d.ticker=$t ORDER BY coalesce(d.report_date,d.source_date) DESC,julianday(f.retrieved_utc) DESC,d.id DESC
             """,("$m",key.Market),("$t",key.Ticker)))
         using(var reader=command.ExecuteReader())while(reader.Read())headers.Add((reader.GetString(0),DateOnly.Parse(reader.GetString(1),CultureInfo.InvariantCulture),reader.IsDBNull(2)?null:DateOnly.Parse(reader.GetString(2),CultureInfo.InvariantCulture),reader.IsDBNull(3)?null:DateOnly.Parse(reader.GetString(3),CultureInfo.InvariantCulture),reader.GetString(4),reader.GetString(5),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetString(7),reader.IsDBNull(8)?null:reader.GetString(8),reader.IsDBNull(9)?null:reader.GetString(9),reader.GetInt32(10)==1,reader.GetString(11)));
         return headers.Select(h=>
@@ -75,7 +75,7 @@ public sealed partial class MarketRepository
     public void ReviewEquity(EquityReview review,byte[] document,Guid? commandId=null)
     {
         if(Committed(commandId))return;
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         var identified=InstitutionAccounts.Group(review.Account);var group=review.Institution??identified;
         if(!review.OriginalConfirmed || InstitutionAccounts.CandidateGroup(review.Account) is null || group is not ("汇金投资" or "汇金资管" or "证金公司" or "社保基金" or "养老保险基金") || identified is not null && identified!=group || review.ReportAsOf>review.Published || review.Published>today || review.Nature is not ("Strategic" or "Portfolio") || review.ShareClass!="A" || review.PercentBasis!="TotalShares" || string.IsNullOrWhiteSpace(review.Reviewer)||review.Reviewer.Length>100||string.IsNullOrWhiteSpace(review.Page)||review.Page.Length>100)
             throw new InvalidDataException("核验信息不完整：报告期、公告日、原文页码、审核人及持仓性质必须有效。当前适配器仅支持A股/总股本口径。");
@@ -149,8 +149,8 @@ public sealed partial class MarketRepository
                 :DirectEquityComparison.Compare(before?.Shares,value?.Shares,Comparable(current)&&prior is not null&&Comparable(prior),prior?.State=="Accepted");
             var state=current.State=="Critical"?"Critical":accountNature is null||identity=="主体待核验"?"NeedsReview":comparison.State;
             // 页码属于逐账户核验；不能继承该披露最后一个审核账户的证据位置。
-            var evidencePage=Scalar("SELECT page FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY reviewed_at DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
-            var evidenceHash=Scalar("SELECT document_hash FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY reviewed_at DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
+            var evidencePage=Scalar("SELECT page FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY julianday(reviewed_at) DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
+            var evidenceHash=Scalar("SELECT document_hash FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY julianday(reviewed_at) DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
             yield return new(current.Id,watch.Market,watch.Ticker,watch.Name,identity,account,state=="Critical"?null:value?.Shares,state=="Critical"?null:value?.Percent,current.ReportAsOf,current.Published,current.SourceDate,state,state is "Critical" or "NeedsReview"?null:comparison.Delta,accountNature??"Unknown",watch.Favorite,current.DocumentUrl??current.SourceUrl,prior?.ReportAsOf,evidencePage,evidenceHash);
         }
     }

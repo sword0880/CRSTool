@@ -34,9 +34,9 @@ public sealed class PublicHttpGateway : IPluginHttpGateway, IDisposable
         try
         {
             if (blocked.Contains(uri.Host)) throw new InvalidOperationException("来源已拒绝访问，本次会话停止请求该来源。");
-            var wait = next - DateTimeOffset.UtcNow;
+            var wait = next - CRS.Timing.BeijingClock.Now;
             if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
-            next = DateTimeOffset.UtcNow.AddSeconds(3);
+            next = CRS.Timing.BeijingClock.Now.AddSeconds(3);
             using var response = await SendAsync(uri,cancellationToken).ConfigureAwait(false);
             var status = (int)response.StatusCode;
             if (status is 403 or 429) blocked.Add(uri.Host);

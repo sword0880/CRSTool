@@ -10,7 +10,7 @@ public sealed partial class NationalTeamBackgroundSession
     {
         var key=Key(request);
         if(key.Market!="SSE")return new("Rejected","reports=SseOnly");
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         var from=request.From??today.AddDays(-400);var to=request.To??today;
         if(to>today)return new("Rejected","reports=FutureDate");
         try{_=OfficialEquityReports.Request(key,from,to,1);}catch(InvalidDataException){return new("Rejected","reports=InvalidRange");}

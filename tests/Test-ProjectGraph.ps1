@@ -34,7 +34,7 @@ Assert-Rejected '循环依赖'
 Set-Content -LiteralPath $domain -Value $originalProject
 Set-Content -LiteralPath $document -Value ($originalDocument.Replace('| CRS.Tests.Background |', '| CRS.Tests.Removed |'))
 Assert-Rejected '项目不一致'
-Set-Content -LiteralPath $document -Value ($originalDocument.Replace('| CRS.Application | CRS.Domain |', '| CRS.Application | 无 |'))
+Set-Content -LiteralPath $document -Value ($originalDocument.Replace('| CRS.Application | CRS.Domain, CRS.Time |', '| CRS.Application | 无 |'))
 Assert-Rejected '直接依赖已漂移'
 Set-Content -LiteralPath $document -Value $originalDocument
 $extra = Join-Path $fixture 'src/CRS.Unregistered/CRS.Unregistered.csproj'

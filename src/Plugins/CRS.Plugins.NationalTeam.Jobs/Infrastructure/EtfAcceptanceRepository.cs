@@ -9,7 +9,7 @@ public sealed partial class MarketRepository
     public List<EtfAcceptance> Acceptance(EtfKey key,DateOnly through)=>ReadAcceptance(through,key);
     private List<EtfAcceptance> ReadAcceptance(DateOnly through,EtfKey? selected)
     {
-        var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(clock.GetUtcNow(),"China Standard Time").DateTime);
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(clock).DateTime);
         if(through>=today)throw new InvalidDataException("验收只统计已结束的自然日，不能提前批准当日采集。");
         ValidateEvidence(selected,includeCalendar:true);var result=new List<EtfAcceptance>();
         var active=Configuration().Where(x=>x.Active&&(selected is null||x.Market==selected.Market&&x.Ticker==selected.Ticker)).ToArray();

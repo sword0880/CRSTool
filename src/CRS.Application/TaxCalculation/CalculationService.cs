@@ -147,7 +147,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             CanonicalInputDigest = canonicalDigest, CanonicalInputJson = canonical, IsReplayable = canonicalInputOverride is not null || saveCanonicalSnapshot };
         result.SnapshotId = Guid.NewGuid().ToString("N");
         // 快照保留实际输入指纹和口径，服务令牌从不进入计算模型。
-        result.SnapshotJson = JsonSerializer.Serialize(new { result.SnapshotId, year, createdUtc = clock.GetUtcNow(),
+        result.SnapshotJson = JsonSerializer.Serialize(new { result.SnapshotId, year, createdUtc = CRS.Timing.BeijingClock.Read(clock),
             policy = TaxEngine.PolicyVersion, algorithm = ReplayExecutionContext.SupportedAlgorithm, version = typeof(CalculationService).Assembly.GetName().Version?.ToString(),
             configuration = replayContext?.Configuration ?? rates.Fingerprint, sources = data.Sources, rates = result.Rates, openingZero, scopeConfirmed,
             calculationStatus = result.CalculationStatus, dataCompleteness = result.DataCompleteness, reconciliationStatus = result.ReconciliationStatus,

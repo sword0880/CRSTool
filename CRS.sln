@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.10.12224.181 stable
+VisualStudioVersion = 18.10.12224.181
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
@@ -42,8 +42,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "architecture", "architectur
 		docs\architecture\ARCHITECTURE_REMEDIATION_PLAN_20261020.md = docs\architecture\ARCHITECTURE_REMEDIATION_PLAN_20261020.md
 	EndProjectSection
 EndProject
-
-
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "guides", "guides", "{01180C7A-DD82-4F3C-8ABE-AD26D53D8F2A}"
 	ProjectSection(SolutionItems) = preProject
 		docs\guides\AUTH_IMPLEMENTATION.md = docs\guides\AUTH_IMPLEMENTATION.md
@@ -58,7 +56,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "implementation", "implement
 		docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md = docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md
 	EndProjectSection
 EndProject
-
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "validation", "validation", "{7BFA079A-6147-4A4E-9DA8-82AAF92AF9F4}"
 	ProjectSection(SolutionItems) = preProject
 		docs\validation\RELEASE_ACCEPTANCE.md = docs\validation\RELEASE_ACCEPTANCE.md
@@ -108,6 +105,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Worker.EtfFixture", "tests\fixtures\CRS.Worker.EtfFixture\CRS.Worker.EtfFixture.csproj", "{4A47A866-735C-4BEC-B59A-70B316EF50CF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Notifications", "src\CRS.Notifications\CRS.Notifications.csproj", "{F215663F-068D-4EE4-802F-A54C80EDAEBE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Time", "src\CRS.Time\CRS.Time.csproj", "{1D248C0D-1132-41E4-A78F-B1109755C7F0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -491,6 +490,18 @@ Global
 		{F215663F-068D-4EE4-802F-A54C80EDAEBE}.Release|x64.Build.0 = Release|Any CPU
 		{F215663F-068D-4EE4-802F-A54C80EDAEBE}.Release|x86.ActiveCfg = Release|Any CPU
 		{F215663F-068D-4EE4-802F-A54C80EDAEBE}.Release|x86.Build.0 = Release|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Debug|x64.Build.0 = Debug|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Debug|x86.Build.0 = Debug|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Release|x64.ActiveCfg = Release|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Release|x64.Build.0 = Release|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Release|x86.ActiveCfg = Release|Any CPU
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -533,6 +544,7 @@ Global
 		{3FD47E82-E813-4791-96C8-6165C0F287B3} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{4A47A866-735C-4BEC-B59A-70B316EF50CF} = {F12727AA-ABEF-07AF-E6F0-CD96E3D9A8AF}
 		{F215663F-068D-4EE4-802F-A54C80EDAEBE} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1D248C0D-1132-41E4-A78F-B1109755C7F0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {4413F185-FDDF-4BF7-B687-D5EC05D51471}

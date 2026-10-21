@@ -14,7 +14,6 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     private readonly CancellationToken token;
     private ExecutionRecord record;
     private bool disposed;
-    private static readonly TimeZoneInfo DisplayZone=TimeZoneInfo.FindSystemTimeZoneById("China Standard Time");
     public CancellationToken Lifetime=>token;
     public string ExecutionId=>record.ExecutionId;
     public string TaskLabel=>record.PluginId+" / "+record.JobId;
@@ -50,7 +49,7 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
             Lifetime.ThrowIfCancellationRequested();
             if(response.Code=="Ok" && response.Execution is { } latest && latest.ExecutionId==ExecutionId)
             {
-                record=latest;Render();Status="服务采样："+Time(DateTimeOffset.UtcNow)+"（北京时间）";
+                record=latest;Render();Status="服务采样："+Time(CRS.Timing.BeijingClock.Now)+"（北京时间）";
             }
             else Status=response.Code switch
             {
@@ -63,7 +62,7 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
         catch(OperationCanceledException) when(Lifetime.IsCancellationRequested) { }
         catch(Exception) { if(!Lifetime.IsCancellationRequested)Status="服务不可用或响应超时；以下为上次快照。"; }
     }
-    private static string Time(DateTimeOffset value)=>TimeZoneInfo.ConvertTime(value,DisplayZone).ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture);
+    private static string Time(DateTimeOffset value)=>value.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture);
     /// <summary>时间线仅由真实持久字段组成；未保存的逐步调试过程不能凭空补写。</summary>
     private void Render()
     {
@@ -80,7 +79,7 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
         {
             if(progress[0].Sequence>1)lines.Add($"仅返回最近{progress.Count}条阶段；更早阶段未在本次响应中返回。");
             foreach(var item in progress)lines.Add($"[{Time(item.Utc)}] #{item.Sequence} · "+DescribeProgress(item.Detail));
-            var last=progress[^1];var seconds=Math.Max(0,(int)(DateTimeOffset.UtcNow-last.Utc).TotalSeconds);
+            var last=progress[^1];var seconds=Math.Max(0,(int)(CRS.Timing.BeijingClock.Now-last.Utc).TotalSeconds);
             ProgressLabel=IsRunning?$"最近阶段：{Time(last.Utc)} · {(seconds>=60?$"{seconds/60}分钟前":$"{seconds}秒前")} · {DescribeProgress(last.Detail)}":$"最后阶段：{Time(last.Utc)} · {DescribeProgress(last.Detail)}";
         }
         else ProgressLabel=IsRunning?"尚无阶段记录；旧服务仅提供结束摘要。":"此历史没有阶段记录。";

@@ -10,7 +10,7 @@ public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction 
     public string DocumentEncryptionPassword=>documentPassword?.Invoke()??"";
     public IDesktopUseCases UseCases { get; } = useCases;
     public IUserInteraction Interaction { get; } = interaction;
-    [ObservableProperty] private int year = DateTime.Today.Year - 1;
+    [ObservableProperty] private int year = CRS.Timing.BeijingClock.Today.Year - 1;
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private string status = "选择年度并导入报表，开始税务测算。";
     [ObservableProperty] private CalculationResult? result;
