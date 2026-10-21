@@ -39,7 +39,7 @@ public partial class EtfViewModel
             token.ThrowIfCancellationRequested();
             var result=MarketActivityStatus;
             MarketActivityStatus=$"后台报告本轮采集已完成（{range}）。{result} " +
-                "成功不代表新增记录：原始记录可能已存在；实际请求数与失败原因请在“任务中心 → 最近执行”查看该次任务的检查点与日志。";
+                "成功不代表新增记录：原始记录可能已存在；实际请求数与失败原因请在“任务中心 → 执行记录”查看该次任务的检查点与日志。";
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested)
         {
@@ -49,7 +49,7 @@ public partial class EtfViewModel
         catch(Exception error)
         {
             var reason=error is System.IO.InvalidDataException or MissingMethodException ? error.Message : error.GetType().Name;
-            MarketActivityStatus=$"本轮成交额采集未确认成功（{range}）：{reason}。请到“任务中心 → 最近执行”查看 market-activity-sync 的来源请求和失败检查点；冷却期间不会强行再次访问官网。";
+            MarketActivityStatus=$"本轮成交额采集未确认成功（{range}）：{reason}。请到“任务中心 → 执行记录”查看 market-activity-sync 的来源请求和失败检查点；冷却期间不会强行再次访问官网。";
             throw;
         }
     });

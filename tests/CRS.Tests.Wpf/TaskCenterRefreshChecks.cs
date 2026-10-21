@@ -30,7 +30,7 @@ internal static class TaskCenterRefreshChecks
             control.ProvidePending=false;model.HistoryJob="";await model.FilterHistoryCommand.ExecuteAsync(null);
             if(!model.PendingStatus.Contains("尚未提供"))throw new Exception("旧服务缺少排队字段被当作零。");
             await FooterRefreshAsync(control,new BackgroundPipeClient(pipe),stop.Token);
-            Console.WriteLine("PASS 最近执行：慢健康不挡首屏、运行与待执行分别显示、自动刷新和空筛选清理。");
+            Console.WriteLine("PASS 执行记录：慢健康不挡首屏、运行与待执行分别显示、自动刷新和空筛选清理。");
         }
         finally{control.ReleaseHealth.TrySetResult();stop.Cancel();try{await listening;}catch(OperationCanceledException){}}
     }

@@ -23,7 +23,7 @@ public partial class BackgroundServicePage : UserControl
             else refresh.Stop();
         };
     }
-    /// <summary>主窗体底栏直达“最近执行”，不再默认停留在“服务计划”。</summary>
+    /// <summary>主窗体底栏直达“执行记录”，不再默认停留在“服务计划”。</summary>
     public void ShowRecentExecutions() => TaskCenterTabs.SelectedIndex=1;
     public void ShowCurrentTasks()=>TaskCenterTabs.SelectedIndex=2;
     private void OnPlanDoubleClick(object sender,MouseButtonEventArgs e)

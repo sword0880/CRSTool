@@ -22,6 +22,8 @@ internal static class BackgroundServiceViewChecks
             {
                 try
                 {
+                    // 独立窗口没有主窗体负责初始化，先加载计划和状态。
+                    await model.RefreshCommand.ExecuteAsync(null);
                     // 显式应用空白范围，再验证组合筛选和零匹配不会沿用旧行。
                     await model.FilterHistoryCommand.ExecuteAsync(null);
                     if(model.History.Count==0) throw new InvalidOperationException("首次历史查询失败："+model.Status);
@@ -39,9 +41,12 @@ internal static class BackgroundServiceViewChecks
                     window.UpdateLayout();
                     if(Descendants(page).OfType<ComboBox>().Count(x=>x.IsVisible && x.IsEditable)!=2) throw new InvalidOperationException("插件及任务筛选输入不可见。");
                     if (model.Jobs.Count < 1 || model.History.Count == 0 || model.Status.Contains("不可用")) throw new InvalidOperationException("后台服务 DTO 未正确绑定到窗口。");
-                    var labels = new HashSet<string> { "刷新状态", "立即执行", "暂停", "恢复", "取消执行", "更多历史", "更多计划", "确认上次请求" };
+                    var labels = new HashSet<string> { "刷新状态", "立即执行", "暂停", "恢复", "取消执行" };
                     var buttons = Descendants(page).OfType<Button>().Where(x => x.Content is string label && labels.Contains(label)).ToArray();
-                    if (buttons.Length != 8 || buttons.Any(x => !x.IsVisible || x.ActualWidth <= 0 || x.TranslatePoint(new(0, 0), window).Y > window.ActualHeight - 50)) throw new InvalidOperationException("首屏后台服务操作不可见；已找到操作数：" + buttons.Length);
+                    if (buttons.Length != 5 || buttons.Any(x => !x.IsVisible || x.ActualWidth <= 0 || x.TranslatePoint(new(0, 0), window).Y > window.ActualHeight - 50)) throw new InvalidOperationException("首屏后台服务操作不可见；已找到操作数：" + buttons.Length);
+                    if(((FrameworkElement)page.FindName("MoreRecordsButton")).IsVisible!=model.HasMoreHistory||
+                        ((FrameworkElement)page.FindName("ConfirmRequestButton")).IsVisible)
+                        throw new InvalidOperationException("分页或重新确认按钮显示条件错误。");
                     var image = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
                     image.Render(window); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);

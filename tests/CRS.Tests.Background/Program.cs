@@ -8,6 +8,16 @@ using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
+if(args is ["--job-probe",var probePlugin,var probeJob])
+{
+    // 只读诊断指定任务；不触发采集，不直接访问正式服务数据库。
+    var jobClient=new BackgroundPipeClient();
+    var page=await jobClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:probePlugin,JobId:probeJob));
+    Console.WriteLine(JsonSerializer.Serialize(page));
+    foreach(var row in page.History??[])
+        Console.WriteLine(JsonSerializer.Serialize(await jobClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:row.ExecutionId))));
+    return;
+}
 if(args is ["--manual-immediate"])
 {
     var manualRoot=Path.Combine(Path.GetTempPath(),"CRS.ManualImmediate",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(manualRoot);

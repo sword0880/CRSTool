@@ -13,6 +13,15 @@ using Microsoft.Data.Sqlite;
 if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
 if(args is ["--query-cancellation"]){await EtfQueryCancellationChecks.RunAsync();return;}
 if(args is ["--cooling-progress"]){await CoolingProgressChecks.RunAsync();return;}
+if(args is ["--manual-receipts"]){await EtfManualReceiptChecks.RunAsync();return;}
+if(args is ["--collection-attempt-probe",var probeMarket,var probeTicker,var probeFrom,var probeTo])
+{
+    // 只读正式采集台账，不重新发起采集或读取密钥。
+    var attempts=await new WorkerEtfWorkspace().CollectionAttemptsAsync(new(probeMarket,probeTicker),
+        DateOnly.ParseExact(probeFrom,"yyyy-MM-dd"),DateOnly.ParseExact(probeTo,"yyyy-MM-dd"),default);
+    Console.WriteLine(JsonSerializer.Serialize(attempts.Select(x=>new{x.Date,x.State,x.Reason,x.UpdatedAt})));
+    return;
+}
 if(args is ["--initial-directory"]){InitialEtfDirectoryChecks.Run();return;}
 if(args is ["--raw-batch"]){RawEvidenceReadChecks.Run();return;}
 if(args is ["--raw-read-profile",var rawRoot]){RawEvidenceReadChecks.Profile(rawRoot);return;}

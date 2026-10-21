@@ -9,8 +9,8 @@ internal static class HistoryResultFilterChecks
 {
     private static void Check(bool ok,string name)
     {
-        if(!ok)throw new InvalidOperationException("最近执行结果筛选："+name);
-        Console.WriteLine("PASS 最近执行结果筛选："+name);
+        if(!ok)throw new InvalidOperationException("执行记录结果筛选："+name);
+        Console.WriteLine("PASS 执行记录结果筛选："+name);
     }
 
     public static async Task RunAsync(string root)

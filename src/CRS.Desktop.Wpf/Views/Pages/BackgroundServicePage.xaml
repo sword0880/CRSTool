@@ -3,6 +3,7 @@
  xmlns:time="clr-namespace:CRS.Plugin.Wpf;assembly=CRS.Plugin.Wpf">
  <UserControl.Resources>
   <time:BeijingTimestampConverter x:Key="BeijingTimestamp"/>
+  <BooleanToVisibilityConverter x:Key="TaskButtonVisibility"/>
   <Style x:Key="PlanAction" TargetType="Button"><Setter Property="IsEnabled" Value="False"/><Setter Property="ToolTip" Value="请在服务计划中选择任务后操作"/><Style.Triggers><DataTrigger Binding="{Binding SelectedIndex,ElementName=TaskCenterTabs}" Value="0"><Setter Property="IsEnabled" Value="True"/></DataTrigger></Style.Triggers></Style>
  </UserControl.Resources>
  <Grid Margin="24">
@@ -18,20 +19,21 @@
    <Button Content="暂停" Command="{Binding PauseCommand}" Style="{StaticResource PlanAction}" Margin="0,0,8,0"/>
    <Button Content="恢复" Command="{Binding ResumeCommand}" Style="{StaticResource PlanAction}" Margin="0,0,8,0"/>
    <Button Content="取消执行" Command="{Binding CancelRunCommand}" Style="{StaticResource PlanAction}"/>
-   <Button Content="更多历史" Command="{Binding MoreHistoryCommand}" Margin="8,0,0,0"/>
-   <Button Content="更多计划" Command="{Binding MoreJobsCommand}" Margin="8,0,0,0"/>
-   <Button Content="确认上次请求" Command="{Binding ConfirmPendingCommand}" Margin="8,0,0,0"/>
+   <StackPanel Orientation="Horizontal" Visibility="{Binding HasUnconfirmedRequest,Converter={StaticResource TaskButtonVisibility}}" Margin="12,0,0,0">
+    <TextBlock Text="上次操作的受理结果未确认，请重新核对。" VerticalAlignment="Center" Margin="0,0,8,0"/>
+    <Button x:Name="ConfirmRequestButton" Content="重新确认请求" Command="{Binding ConfirmPendingCommand}" ToolTip="连接中断时，沿用上次操作编号核对结果，避免创建重复操作。"/>
+   </StackPanel>
   </WrapPanel>
   <TabControl x:Name="TaskCenterTabs" Grid.Row="2" Grid.RowSpan="2">
-   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron（北京时间）。" Foreground="#64748B" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron（北京时间）。" Foreground="#64748B" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding JobId}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/>
      <DataGridCheckBoxColumn Header="计划待生效" Binding="{Binding NeedsReconcile}">
       <DataGridCheckBoxColumn.HeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="ToolTip" Value="勾选表示计划已保存，后台正在应用最新配置；成功后自动取消勾选。未勾选表示配置已应用。此状态不表示任务正在运行或排队。"/></Style></DataGridCheckBoxColumn.HeaderStyle>
       <DataGridCheckBoxColumn.CellStyle><Style TargetType="DataGridCell"><Setter Property="ToolTip" Value="勾选：计划已保存，等待后台应用，成功后自动清除。未勾选：配置已应用。无需手动操作。"/></Style></DataGridCheckBoxColumn.CellStyle>
      </DataGridCheckBoxColumn>
     </DataGrid.Columns>
-   </DataGrid></Grid></TabItem>
-   <TabItem Header="最近执行"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   </DataGrid><Button x:Name="MorePlansButton" Grid.Row="2" Content="加载更多计划" Command="{Binding MoreJobsCommand}" Visibility="{Binding HasMoreJobs,Converter={StaticResource TaskButtonVisibility}}" HorizontalAlignment="Left" Margin="0,10,0,0"/></Grid></TabItem>
+   <TabItem Header="执行记录"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <!-- 筛选在服务端分页前执行，空白表示全部。 -->
     <StackPanel Margin="0,8,0,10">
      <WrapPanel IsEnabled="{Binding CanChangeHistory}">
@@ -53,10 +55,10 @@
     </StackPanel>
     <DataGrid x:Name="HistoryGrid" Grid.Row="1" ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MouseDoubleClick="OnHistoryDoubleClick" PreviewKeyDown="OnHistoryKeyDown" SelectionMode="Single">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="开始时间（北京时间）" Binding="{Binding StartedUtc,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="结束时间（北京时间）" Binding="{Binding EndedUtc,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="结果" Binding="{Binding Result}"/><DataGridTextColumn Header="尝试" Binding="{Binding Attempt}"/></DataGrid.Columns>
-   </DataGrid></Grid></TabItem>
+   </DataGrid><Button x:Name="MoreRecordsButton" Grid.Row="2" Content="加载更早记录" Command="{Binding MoreHistoryCommand}" Visibility="{Binding HasMoreHistory,Converter={StaticResource TaskButtonVisibility}}" HorizontalAlignment="Left" Margin="0,10,0,0"/></Grid></TabItem>
    <TabItem Header="当前任务"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="0,8,0,0">
     <TextBlock Text="{Binding ActivityStatus}" TextWrapping="Wrap" Margin="0,0,0,8"/>
-    <TextBlock Text="显示全部插件，每3秒刷新，不受最近执行的筛选或翻页影响。首次手动请求直接调度；插件已有任务时排队；来源限制导致的重试会显示等待时间。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,10"/>
+    <TextBlock Text="显示全部插件，每3秒刷新，不受执行记录的筛选或翻页影响。首次手动请求直接调度；插件已有任务时排队；来源限制导致的重试会显示等待时间。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,10"/>
     <TextBlock Text="执行中的任务" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,6"/>
     <DataGrid x:Name="RunningTasksGrid" ItemsSource="{Binding RunningTasks}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MaxHeight="180" MinHeight="70">
      <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding Row.PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Row.Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding Row.JobId}"/><DataGridTextColumn Header="开始时间（北京时间）" Binding="{Binding Row.StartedAt,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="当前进展" Binding="{Binding ReasonText}"/><DataGridTextColumn Header="来源等待至（北京时间）" Binding="{Binding Row.NotBefore,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="执行编号" Binding="{Binding Row.ExecutionId}"/></DataGrid.Columns>

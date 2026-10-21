@@ -121,7 +121,7 @@ public partial class MainWindow : FluentWindow
     private async void OnFooterIssuesClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateExecutionHistoryAsync(true);
     private async void OnFooterServiceStatusClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateWorkerHealthAsync();
 
-    /// <summary>右下角两个入口直达最近执行；异常模式的服务端筛选与分页由页面模型负责。</summary>
+    /// <summary>右下角两个入口直达执行记录；异常模式的服务端筛选与分页由页面模型负责。</summary>
     public async Task NavigateExecutionHistoryAsync(bool issues)
     {
         OpenNavigationGroup(TasksGroup);
@@ -135,7 +135,7 @@ public partial class MainWindow : FluentWindow
             await backgroundServiceModel.OpenExecutionHistoryAsync(issues);
         }
         catch(OperationCanceledException) { /* 关闭或锁定时不继续查询。 */ }
-        catch(Exception error) {if(!forceClose)System.Windows.MessageBox.Show(this,"最近执行记录暂不可用；类别："+error.GetType().Name,"任务中心");}
+        catch(Exception error) {if(!forceClose)System.Windows.MessageBox.Show(this,"执行记录暂不可用；类别："+error.GetType().Name,"任务中心");}
     }
 
     public async Task NavigateWorkerHealthAsync()

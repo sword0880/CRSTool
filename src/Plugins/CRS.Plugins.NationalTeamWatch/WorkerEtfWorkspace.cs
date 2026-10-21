@@ -139,11 +139,17 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         {uncertain=null;throw new InvalidDataException("后台未接受任务："+reply.Code);}
         while(reply.Receipt?.State!="Completed")
         {
+            if(reply.Receipt is {State:"Pending",Code:"RetryDeferred"})
+            {
+                uncertain=null;
+                throw new InvalidDataException("后台已尝试执行，当前等待重试；原请求已保留，无需重复提交。请到“任务中心 → 当前任务”查看等待原因和重试时间。");
+            }
             await Task.Delay(750,token);
             reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId),token);
             if(reply.Code!="Ok" || reply.Receipt is null)throw new InvalidDataException("无法确认后台任务，请保留原参数重试。");
         }
         uncertain=null;
+        if(reply.Receipt.Code=="AlreadyRunning")throw new InvalidDataException("同一任务已有执行中或待执行请求，本次未重复创建。请到“任务中心 → 当前任务”查看实际状态；原请求及日期区间保持不变。");
         if(reply.Receipt.Code=="Rejected")throw new InvalidDataException("配置未保存：输入不符合要求或已被其它窗口修改，请刷新目录后重新选择并重试。");
         if(reply.Receipt.Code!="Succeeded")throw new InvalidDataException("后台任务结果："+reply.Receipt.Code+"；已提交事实保留，详情见执行记录。");
     }

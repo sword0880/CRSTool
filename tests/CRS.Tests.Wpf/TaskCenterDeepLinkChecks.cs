@@ -3,7 +3,7 @@ using CRS.DesktopClient.Views.Pages;
 using System.Windows;
 using System.Windows.Controls;
 
-/// <summary>真实 WPF 页面验证最近执行深链接与异常筛选控件，不连接或修改正式 Worker。</summary>
+/// <summary>真实 WPF 页面验证执行记录深链接与异常筛选控件，不连接或修改正式 Worker。</summary>
 internal static class TaskCenterDeepLinkChecks
 {
     public static void Run()
@@ -29,10 +29,10 @@ internal static class TaskCenterDeepLinkChecks
                     page.FindName("RunningTasksGrid") is not DataGrid||page.FindName("WaitingTasksGrid") is not DataGrid||page.FindName("PendingTasksGrid") is not DataGrid)
                     throw new InvalidOperationException("当前任务缺少运行、排队和待执行三张表。");
                 page.ShowRecentExecutions();
-                if(tabs.SelectedIndex!=1 || (tabs.SelectedItem as TabItem)?.Header?.ToString()!="最近执行")
-                    throw new InvalidOperationException("右下角直达未选中最近执行页签。");
+                if(tabs.SelectedIndex!=1 || (tabs.SelectedItem as TabItem)?.Header?.ToString()!="执行记录")
+                    throw new InvalidOperationException("右下角直达未选中执行记录页签。");
                 var check=page.FindName("OnlyIssuesCheckBox") as CheckBox
-                    ?? throw new InvalidOperationException("最近执行缺少异常筛选控件。");
+                    ?? throw new InvalidOperationException("执行记录缺少异常筛选控件。");
                 model.OnlyIssues=true;
                 page.Measure(new(1200,780));page.Arrange(new(0,0,1200,780));page.UpdateLayout();
                 if(check.IsChecked!=true)throw new InvalidOperationException("异常筛选未绑定到任务模型。");
@@ -45,7 +45,7 @@ internal static class TaskCenterDeepLinkChecks
                 foreach(var status in new[]{"Succeeded","NotPublished","Running","Cancelled"})
                     if(BackgroundServiceViewModel.IsIssueResult(status))
                         throw new InvalidOperationException("普通/主动取消状态误报为异常："+status);
-                Console.WriteLine("PASS 任务中心底栏深链接：最近执行页签、异常勾选绑定、正常/异常结果分类。");
+                Console.WriteLine("PASS 任务中心底栏深链接：执行记录页签、异常勾选绑定、正常/异常结果分类。");
             }
             catch(Exception failure){error=failure;}
         });

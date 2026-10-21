@@ -12,6 +12,7 @@ if(args is ["--shell-status-checks"]){ShellStatusBarChecks.Run();return;}
 if(args is ["--task-center-deeplink-checks"]){TaskCenterDeepLinkChecks.Run();return;}
 if(args is ["--task-center-refresh-checks"]){await TaskCenterRefreshChecks.RunAsync();return;}
 if(args is ["--task-activity-checks"]){await TaskActivityChecks.RunAsync();return;}
+if(args is ["--task-button-checks"]){await TaskCenterButtonChecks.RunAsync();return;}
 if(args is ["--worker-status-preview",var workerDirectory]){WorkerStatusPreview.Run(workerDirectory);return;}
 if(args is ["--performance-component-preview",var componentDirectory]){PerformanceComponentPreview.Run(componentDirectory);return;}
 if(args is ["--plugin-management-preview",var pluginManagementDirectory]){PluginManagementPreview.Run(pluginManagementDirectory);return;}
