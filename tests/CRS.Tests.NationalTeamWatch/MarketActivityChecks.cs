@@ -49,6 +49,51 @@ internal static class MarketActivityChecks
         conflict.SaveMarketActivity("SSE",Day,Source("SSE",Sse.Replace("7804.23","7805.23"),sse with{AmountYuan=sse.AmountYuan+100000000m}));
         Check(conflict.MarketActivity().Single().AmountYuan is null,"官方不同值修订保留并阻断冲突日");
     }
+    /// <summary>回归“秒完成但零请求”：区分冷却跳过、已请求但无数据和实际取得两市记录。</summary>
+    public static async Task RunSyncDiagnosticsAsync(string root)
+    {
+        Directory.CreateDirectory(root);
+        async Task<MarketActivitySyncReport> Collect(string name,IMarketActivitySource source,DateOnly from,DateOnly to)
+        {
+            var directory=Path.Combine(root,name);
+            var raw=new RawEvidenceStore(Path.Combine(directory,"raw"));
+            await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
+            await workspace.InitializeAsync(CancellationToken.None);
+            workspace.SetMarketActivitySource(source);
+            var result=await workspace.SyncMarketActivityReportAsync(from,to,CancellationToken.None);
+            var rows=await workspace.MarketActivityAsync(CancellationToken.None);
+            Check(rows.Count==result.QueriedDays || result.HasMore,"记录的完成天数与已登记尝试一致："+name);
+            return result;
+        }
+
+        var downloaded=await Collect("downloaded",new FixtureActivitySource((market,day)=>
+            new(OfficialMarketActivitySource.Request(market,day),Encoding.UTF8.GetBytes("fixture-"+market),market,day,
+                new(market,day,100000000m,100000000m))),Day,Day);
+        Check(downloaded is {QueriedDays:1,RequestedSources:2,ReceivedRows:2,SourceIssues:0,ClosedSources:0,EmptySources:0,HasMore:false},
+            "两市合成成交额完成：来源调用2次、取得2条、不伪报休市或失败");
+
+        var empty=await Collect("empty",new FixtureActivitySource((market,day)=>
+            new(OfficialMarketActivitySource.Request(market,day),Encoding.UTF8.GetBytes("empty-"+market),market,day,null)),Day,Day);
+        Check(empty is {QueriedDays:1,RequestedSources:2,ReceivedRows:0,EmptySources:2,SourceIssues:0},
+            "空响应作为无数据，不计为成功下载成交额");
+
+        var cooled=await Collect("cooled",new FixtureActivitySource((_,_)=>
+            throw new InvalidOperationException("来源冷却中，最早重试时间2026-10-22。")),Day,Day.AddDays(5));
+        Check(cooled is {QueriedDays:0,RequestedSources:1,ReceivedRows:0,SourceIssues:1,FirstFailureCode:"SourceCooldown",HasMore:true},
+            "来源冷却即停，不把剩余5天记录成已经访问官方来源");
+
+        var unavailable=await Collect("source-invalid",new FixtureActivitySource((_,_)=>
+            throw new InvalidDataException("官方成交统计响应失败。")),Day,Day);
+        Check(unavailable is {QueriedDays:1,RequestedSources:2,ReceivedRows:0,SourceIssues:2,FirstFailureCode:"InvalidOfficialResponse"},
+            "官方返回异常不冒充已成功下载成交额");
+    }
+
+    private sealed class FixtureActivitySource(Func<string,DateOnly,MarketActivitySource> next):IMarketActivitySource
+    {
+        public Task<MarketActivitySource> FetchAsync(string market,DateOnly day,CancellationToken token)
+        {token.ThrowIfCancellationRequested();return Task.FromResult(next(market,day));}
+    }
+
     public static async Task RunLive(string root)
     {
         using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"policy"),RandomNumberGenerator.GetBytes(32)));
