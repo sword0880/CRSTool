@@ -61,9 +61,30 @@ public static class PackageVerifier
         {
             AssemblyName name;
             try { name = AssemblyName.GetAssemblyName(path); } catch (BadImageFormatException) { continue; }
-            var loaded = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(x => x.GetName().Name == name.Name);
-            if (loaded is not null && loaded.GetName().Version != name.Version) throw new InvalidDataException("Shared assembly version conflict.");
+            EnsureLoadedAssemblyMatches(path,name);
+
         }
         return manifest;
+    }
+    /// <summary>
+    /// Core / IPC / 业务插件默认加载上下文以AssemblyVersion解析；同版本新构建却可能改变
+    /// 方法签名，旧DLL会在点击采集等运行时才抛MissingMethodException。
+    /// 在执行插件之前逐个核对已加载托管依赖的真实字节，不允许以版本号相同代替兼容。
+    /// </summary>
+    public static void EnsureLoadedAssemblyMatches(string candidatePath,AssemblyName? candidateIdentity=null)
+    {
+        var candidate=candidateIdentity??AssemblyName.GetAssemblyName(candidatePath);
+        var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(x=>
+            string.Equals(x.GetName().Name,candidate.Name,StringComparison.OrdinalIgnoreCase));
+        if(loaded is null)return;
+        if(loaded.GetName().FullName!=candidate.FullName)
+            throw new InvalidDataException("已加载程序集版本/标识冲突："+candidate.Name+"；需要统一版本后重启桌面程序。");
+        if(loaded.IsDynamic || string.IsNullOrWhiteSpace(loaded.Location) || !File.Exists(loaded.Location))
+            throw new InvalidDataException("已加载程序集来源无法核验："+candidate.Name+"；请重新启动并使用完整发行包。");
+        using var original=File.OpenRead(loaded.Location);
+        using var replacement=File.OpenRead(candidatePath);
+        if(!SHA256.HashData(original).SequenceEqual(SHA256.HashData(replacement)))
+            throw new InvalidDataException("共享组件同版本但代码不同："+candidate.Name+
+                "；请使用同一次构建生成的桌面程序和插件完整包，关闭全部桌面进程后更新，禁止只覆盖单个DLL。");
     }
 }

@@ -48,7 +48,7 @@ public partial class EtfViewModel
         }
         catch(Exception error)
         {
-            var reason=error is System.IO.InvalidDataException?error.Message:error.GetType().Name;
+            var reason=error is System.IO.InvalidDataException or MissingMethodException ? error.Message : error.GetType().Name;
             MarketActivityStatus=$"本轮成交额采集未确认成功（{range}）：{reason}。请到“任务中心 → 最近执行”查看 market-activity-sync 的来源请求和失败检查点；冷却期间不会强行再次访问官网。";
             throw;
         }

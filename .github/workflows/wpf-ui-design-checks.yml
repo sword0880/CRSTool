@@ -29,6 +29,9 @@ jobs:
       - name: Verify ETF market sync cooldown, empty downloads and job diagnostics
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
+      - name: Verify plugin shared assembly same-version ABI mismatch is rejected before loading
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build
       - name: Verify settings UI and synthetic credential lifecycle
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui "$env:GITHUB_WORKSPACE/artifacts/ui-preview/settings"

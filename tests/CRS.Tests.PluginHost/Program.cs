@@ -43,6 +43,23 @@ internal static class Program
    }
    return;
   }
+  // 同AssemblyVersion但二进制不同的旧组件必须在插件运行前被拦截，否则采集点击后才MissingMethodException。
+  var runningAssembly=typeof(PackageVerifier).Assembly.Location;
+  PackageVerifier.EnsureLoadedAssemblyMatches(runningAssembly);
+  Console.WriteLine("PASS 当前已加载程序集与可信文件字节一致");
+  var changedAssembly=Path.Combine(Path.GetTempPath(),"CRS-host-shared-conflict-"+Guid.NewGuid().ToString("N")+".dll");
+  try
+  {
+   File.Copy(runningAssembly,changedAssembly);
+   // 仅附加一个字节，保留真实程序集标识和版本，模拟被重新打包的同版本DLL。
+   using(var handle=new FileStream(changedAssembly,FileMode.Append,FileAccess.Write,FileShare.None))handle.WriteByte(0x5a);
+   if(System.Reflection.AssemblyName.GetAssemblyName(changedAssembly).FullName!=typeof(PackageVerifier).Assembly.GetName().FullName)
+    throw new InvalidOperationException("同版本冲突测试没有保留程序集身份。");
+   try{PackageVerifier.EnsureLoadedAssemblyMatches(changedAssembly);throw new Exception("同版本不同字节未拒绝");}
+   catch(InvalidDataException error) when(error.Message.Contains("同版本但代码不同"))
+   {Console.WriteLine("PASS 同版本不同字节的程序集启动前被拒绝");}
+  }
+  finally {if(File.Exists(changedAssembly))File.Delete(changedAssembly);}
   var root=Path.Combine(Path.GetTempPath(),"CRS-host-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
   await using(var empty=new PluginRuntime(root,Path.Combine(root,"storage"))) {await empty.StartAsync();Check(empty.Pages.Count==0,"Tax-only no-plugin startup");}
   // 用同名目录阻止临时配置文件创建，保存失败必须保留原来的内存设置。
