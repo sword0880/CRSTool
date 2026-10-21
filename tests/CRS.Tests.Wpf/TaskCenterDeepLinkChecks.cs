@@ -19,14 +19,15 @@ internal static class TaskCenterDeepLinkChecks
                 var window=new Window{Content=page,Width=1200,Height=780,ShowActivated=false,ShowInTaskbar=false};
                 var tabs=page.FindName("TaskCenterTabs") as TabControl
                     ?? throw new InvalidOperationException("任务中心缺少明确命名的TabControl。");
-                if(tabs.SelectedIndex!=0)throw new InvalidOperationException("常规任务中心不再默认服务计划。");
+                // 尚未Loaded的TabControl允许 SelectedIndex=-1，呈现后才会自动选中首个页签。
+                if(tabs.SelectedIndex is not (-1 or 0))throw new InvalidOperationException("任务中心初始页签异常。");
                 page.ShowRecentExecutions();
                 if(tabs.SelectedIndex!=1 || (tabs.SelectedItem as TabItem)?.Header?.ToString()!="最近执行")
                     throw new InvalidOperationException("右下角直达未选中最近执行页签。");
-                var check=Find<CheckBox>(page).SingleOrDefault(x=>x.Content?.ToString()=="仅异常")
+                var check=page.FindName("OnlyIssuesCheckBox") as CheckBox
                     ?? throw new InvalidOperationException("最近执行缺少异常筛选控件。");
                 model.OnlyIssues=true;
-                window.Measure(new(1200,780));window.Arrange(new(0,0,1200,780));window.UpdateLayout();
+                page.Measure(new(1200,780));page.Arrange(new(0,0,1200,780));page.UpdateLayout();
                 if(check.IsChecked!=true)throw new InvalidOperationException("异常筛选未绑定到任务模型。");
                 model.OnlyIssues=false;
                 window.UpdateLayout();
