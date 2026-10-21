@@ -17,6 +17,7 @@ if(args is ["--exit-alert-replay-installed",var replayFrom,var replayTo,var inst
 if(args is ["--exit-alert-ui"]){ExitAlertUiChecks.Run();return;}
 if(args is ["--exit-alert-installed"]){await ExitAlertInstalledProbe.Run();return;}
 if(args is ["--market-live"]){await MarketActivityChecks.RunLive(Path.Combine(Environment.CurrentDirectory,"artifacts","market-activity-live",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--market-sync-diagnostics"]){await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(Path.GetTempPath(),"CRS.MarketSyncDiagnostics",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--chart-gap-ui"]){EtfChartChecks.RunGapUi();return;}
 if(args is ["--equity-ui"]){EquityUiChecks.Run();return;}
 if(args is ["--p0-live-audit"]){await P0LiveAcceptanceChecks.Run();return;}
@@ -62,6 +63,7 @@ ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));
 ExitAlertReplayChecks.Run();
 await GapRecoveryChecks.Run(root);
 MarketActivityChecks.Run(root);
+await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
 EquityReportChecks.Run(root);
 await HistoryRangeChecks.Run(root);
