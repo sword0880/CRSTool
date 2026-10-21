@@ -43,8 +43,8 @@ internal static class WorkerStatusPreview
                         if(page.ActualWidth<=0||page.ActualHeight<=0)
                             throw new InvalidOperationException("服务状态页布局失败。");
                         var labels=Descendants(page).OfType<TextBlock>().ToArray();
-                        if(!labels.Any(x=>x.Text==sample.Label && x.IsVisible) || !labels.Any(x=>x.Text==sample.Message && x.IsVisible))
-                            throw new InvalidOperationException($"健康状态或反馈未呈现：{sample.Name}, {width}");
+                        if(!labels.Any(x=>x.Text==sample.Label && x.Visibility==Visibility.Visible) || !labels.Any(x=>x.Text==sample.Message && x.Visibility==Visibility.Visible))
+                            throw new InvalidOperationException($"健康状态或反馈未呈现：{sample.Name}, {width}; labels={string.Join(" | ",labels.Select(x=>x.Text).Where(x=>!string.IsNullOrWhiteSpace(x)).Take(16))}");
                         var bitmap=new RenderTargetBitmap((int)width,780,96,96,PixelFormats.Pbgra32);
                         bitmap.Render(page);
                         var encoder=new PngBitmapEncoder();
