@@ -1,18 +1,42 @@
-<ui:FluentWindow Icon="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu.ico" x:Class="CRS.DesktopClient.Views.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:pages="clr-namespace:CRS.DesktopClient.Views.Pages" xmlns:services="clr-namespace:CRS.DesktopClient.Services" Title="{x:Static services:ProductIdentity.Name}" Width="1280" Height="880" MinWidth="1040" MinHeight="700" WindowStartupLocation="CenterScreen" Background="{DynamicResource BrandCanvasBrush}">
+<ui:FluentWindow Icon="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu.ico" x:Class="CRS.DesktopClient.Views.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:pages="clr-namespace:CRS.DesktopClient.Views.Pages" xmlns:services="clr-namespace:CRS.DesktopClient.Services" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework" Title="{x:Static services:ProductIdentity.Name}" Width="1280" Height="880" MinWidth="1040" MinHeight="700" WindowStartupLocation="CenterScreen" Background="{DynamicResource BrandCanvasBrush}">
  <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <!-- 产品名与口号集中定义，标题区仅负责展示。 -->
-  <ui:TitleBar Title="" AutomationProperties.Name="{x:Static services:ProductIdentity.Name}" Height="64" ShowClose="True" ShowMinimize="True" ShowMaximize="True" ForceShutdown="False"/>
-  <Border x:Name="BrandHeader" Width="206" HorizontalAlignment="Left" VerticalAlignment="Center" Padding="18,0,10,0" IsHitTestVisible="False">
-   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-    <Image Source="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu_256.png" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality"/>
-    <StackPanel Grid.Column="2" VerticalAlignment="Center">
-     <TextBlock Text="{x:Static services:ProductIdentity.Name}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextPrimaryBrush}"/>
-     <TextBlock Text="{x:Static services:ProductIdentity.Slogan}" FontSize="10.5" Foreground="{DynamicResource BrandTextMutedBrush}" Margin="0,2,0,0"/>
-    </StackPanel>
-   </Grid>
-  </Border>
+  <!-- 唯一的左上角品牌行：导航折叠按钮、交付Logo和产品名；口号保留在认证页。 -->
+  <ui:TitleBar Title="" AutomationProperties.Name="{x:Static services:ProductIdentity.Name}" Height="52" ShowClose="True" ShowMinimize="True" ShowMaximize="True" ForceShutdown="False"/>
+  <!-- 标题栏仍处理窗口拖拽；只有真正的切换按钮接收鼠标事件，品牌图文可透传拖拽。 -->
+  <Grid x:Name="BrandHeader" Height="52" HorizontalAlignment="Left" VerticalAlignment="Center">
+   <Grid.Style><Style TargetType="Grid"><Setter Property="Width" Value="56"/><Style.Triggers>
+    <DataTrigger Binding="{Binding IsPaneOpen,ElementName=Navigation}" Value="True"><Setter Property="Width" Value="206"/></DataTrigger>
+   </Style.Triggers></Style></Grid.Style>
+   <Grid.ColumnDefinitions><ColumnDefinition Width="56"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Button x:Name="NavigationToggleButton" Grid.Column="0" Click="OnNavigationToggleClick" shell:WindowChrome.IsHitTestVisibleInChrome="True" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource BrandNavigationToggle}">
+     <Setter Property="ToolTip" Value="收起侧边栏"/>
+     <Setter Property="AutomationProperties.Name" Value="收起侧边栏"/>
+     <Style.Triggers><DataTrigger Binding="{Binding IsPaneOpen,ElementName=Navigation}" Value="False">
+      <Setter Property="ToolTip" Value="展开侧边栏"/>
+      <Setter Property="AutomationProperties.Name" Value="展开侧边栏"/>
+     </DataTrigger></Style.Triggers>
+    </Style></Button.Style>
+    <!-- 矢量侧栏图标不依赖第三方枚举；箭头随展开状态反向。 -->
+    <Path Width="20" Height="20" Stretch="Uniform" Stroke="{DynamicResource BrandTextSecondaryBrush}" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" IsHitTestVisible="False">
+     <Path.Style><Style TargetType="Path">
+      <Setter Property="Data" Value="M4,3 H16 Q18,3 18,5 V15 Q18,17 16,17 H4 Q2,17 2,15 V5 Q2,3 4,3 Z M8,3 V17 M14,7 L11,10 L14,13"/>
+      <Style.Triggers><DataTrigger Binding="{Binding IsPaneOpen,ElementName=Navigation}" Value="False">
+       <Setter Property="Data" Value="M4,3 H16 Q18,3 18,5 V15 Q18,17 16,17 H4 Q2,17 2,15 V5 Q2,3 4,3 Z M8,3 V17 M11,7 L14,10 L11,13"/>
+      </DataTrigger></Style.Triggers>
+     </Style></Path.Style>
+    </Path>
+   </Button>
+   <StackPanel x:Name="BrandIdentity" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" IsHitTestVisible="False">
+    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers>
+     <DataTrigger Binding="{Binding IsPaneOpen,ElementName=Navigation}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+    </Style.Triggers></Style></StackPanel.Style>
+    <Image Source="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu_256.png" Width="30" Height="30" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+    <TextBlock Text="{x:Static services:ProductIdentity.Name}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource BrandTextPrimaryBrush}"/>
+   </StackPanel>
+  </Grid>
   <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BrandBorderBrush}">
-   <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="True" IsBackButtonVisible="Collapsed" IsPaneOpen="True">
+   <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="False" IsBackButtonVisible="Collapsed" IsPaneOpen="True">
     <ui:NavigationView.MenuItems>
      <ui:NavigationViewItem Content="概览" TargetPageType="{x:Type pages:DashboardPage}" Icon="{ui:SymbolIcon Grid24}"/>
      <!-- 分类只组织导航，不持有业务状态；默认展开一组，控制菜单首屏高度。 -->
