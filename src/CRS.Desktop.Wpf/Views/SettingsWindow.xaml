@@ -24,71 +24,26 @@
      <StackPanel Margin="0,0,0,20"><TextBlock Text="{Binding SelectedSection.Breadcrumb}" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="0,0,0,12"/><TextBlock Text="{Binding SelectedSection.Title}" FontSize="26" FontWeight="SemiBold"/><TextBlock Text="{Binding SelectedSection.Description}" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/></StackPanel>
      <ScrollViewer x:Name="SectionContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
       <Border Padding="24" VerticalAlignment="Top" Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="8"><Grid IsEnabled="{Binding State.IsIdle}">
-<settings:StorageSettingsView x:Name="StorageSection">
- <settings:StorageSettingsView.Style>
-  <Style TargetType="settings:StorageSettingsView">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Style.Triggers>
-    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="storage"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-   </Style.Triggers>
-  </Style>
- </settings:StorageSettingsView.Style>
-</settings:StorageSettingsView>
-<settings:SecuritySettingsView x:Name="SecuritySection">
- <settings:SecuritySettingsView.Style>
-  <Style TargetType="settings:SecuritySettingsView">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Style.Triggers>
-    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="security"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-   </Style.Triggers>
-  </Style>
- </settings:SecuritySettingsView.Style>
-</settings:SecuritySettingsView>
-<settings:DocumentSettingsView x:Name="DocumentsSection">
- <settings:DocumentSettingsView.Style>
-  <Style TargetType="settings:DocumentSettingsView">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Style.Triggers>
-    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="documents"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-   </Style.Triggers>
-  </Style>
- </settings:DocumentSettingsView.Style>
-</settings:DocumentSettingsView>
-<settings:EmailSettingsView x:Name="NotificationsSection">
- <settings:EmailSettingsView.Style>
-  <Style TargetType="settings:EmailSettingsView">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Style.Triggers>
-    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="notifications"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-   </Style.Triggers>
-  </Style>
- </settings:EmailSettingsView.Style>
-</settings:EmailSettingsView>
-<settings:DingTalkSettingsView x:Name="DingTalkSection">
- <settings:DingTalkSettingsView.Style>
-  <Style TargetType="settings:DingTalkSettingsView">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Style.Triggers>
-    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="dingtalk"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-   </Style.Triggers>
-  </Style>
- </settings:DingTalkSettingsView.Style>
-</settings:DingTalkSettingsView>
-<settings:WeChatSettingsView x:Name="WeChatSection">
- <settings:WeChatSettingsView.Style>
-  <Style TargetType="settings:WeChatSettingsView">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Style.Triggers>
-    <DataTrigger Binding="{Binding SelectedSection.Key}" Value="wechat"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
-   </Style.Triggers>
-  </Style>
- </settings:WeChatSettingsView.Style>
-</settings:WeChatSettingsView><settings:LoggingSettingsView x:Name="LoggingSection">
- <settings:LoggingSettingsView.Style><Style TargetType="settings:LoggingSettingsView">
-  <Setter Property="Visibility" Value="Collapsed"/>
-  <Style.Triggers><DataTrigger Binding="{Binding SelectedSection.Key}" Value="logging"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
- </Style></settings:LoggingSettingsView.Style>
-</settings:LoggingSettingsView>
+<settings:SettingsSectionHost SectionKey="storage" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:StorageSettingsView x:Name="StorageSection"/>
+</settings:SettingsSectionHost>
+<settings:SettingsSectionHost SectionKey="security" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:SecuritySettingsView x:Name="SecuritySection"/>
+</settings:SettingsSectionHost>
+<settings:SettingsSectionHost SectionKey="documents" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:DocumentSettingsView x:Name="DocumentsSection"/>
+</settings:SettingsSectionHost>
+<settings:SettingsSectionHost SectionKey="notifications" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:EmailSettingsView x:Name="NotificationsSection"/>
+</settings:SettingsSectionHost>
+<settings:SettingsSectionHost SectionKey="dingtalk" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:DingTalkSettingsView x:Name="DingTalkSection"/>
+</settings:SettingsSectionHost>
+<settings:SettingsSectionHost SectionKey="wechat" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:WeChatSettingsView x:Name="WeChatSection"/>
+</settings:SettingsSectionHost><settings:SettingsSectionHost SectionKey="logging" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:LoggingSettingsView x:Name="LoggingSection"/>
+</settings:SettingsSectionHost>
       </Grid></Border>
      </ScrollViewer>
     </Grid>

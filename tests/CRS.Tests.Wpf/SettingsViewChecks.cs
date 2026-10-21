@@ -54,8 +54,12 @@ internal static class SettingsViewChecks
                             "logging"=>"LoggingSection",
                             _=>throw new Exception("出现未登记的设置页面："+section.Key)
                         };
-                        if(window.FindName(viewName) is not FrameworkElement panel || panel.Visibility!=Visibility.Visible)
+                        if(window.FindName(viewName) is not FrameworkElement panel || !panel.IsVisible)
                             throw new Exception("设置子视图未随目录显示："+section.Key);
+                        // SettingsSectionHost 只折叠非当前分类，子控件必须保留同一实例与草稿。
+                        foreach(var other in new[]{"StorageSection","SecuritySection","DocumentsSection","NotificationsSection","DingTalkSection","WeChatSection","LoggingSection"})
+                            if(other!=viewName && window.FindName(other) is FrameworkElement hidden && hidden.IsVisible)
+                                throw new Exception("非当前设置分类仍显示："+other);
                         Capture(window,Path.Combine(directory,section.Key+".png"));
                     }
                     model.SectionSearch="smtp";
