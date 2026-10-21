@@ -88,11 +88,54 @@
    </Style.Triggers></Style></Border.Style>
    <ContentControl x:Name="PluginContent"/>
   </Border>
-  <Border Grid.Row="2" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="0,1,0,0" Padding="18,10"><DockPanel>
-   <ui:Button DockPanel.Dock="Right" Content="取消操作" Command="{Binding Import.CancelCommand}" Appearance="Transparent" Margin="10,0,0,0"/>
-   <StackPanel><TextBlock Text="{Binding State.Status}" TextWrapping="Wrap" Foreground="#64748B"/>
-    <ProgressBar IsIndeterminate="True" Height="3" Margin="0,6,0,0" Visibility="{Binding State.IsBusy, Converter={StaticResource BooleanVisibility}}"/>
-   </StackPanel>
-  </DockPanel></Border>
+  <!-- 全局状态栏只展示 Worker 可验证的公开运行状态；不与当前业务页的取消令牌混用。 -->
+  <Border x:Name="ShellFooter" Grid.Row="2" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="0,1,0,0"
+          Background="{DynamicResource BrandSurfaceBrush}" Padding="12,3" MinHeight="36">
+   <Grid VerticalAlignment="Center">
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
+     <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+    </Grid.ColumnDefinitions>
+    <ui:Button x:Name="FooterHealthButton" Grid.Column="0" Appearance="Transparent"
+               Click="OnFooterServiceStatusClick" ToolTip="{Binding StatusBar.HealthDetail}"
+               AutomationProperties.Name="查看后台服务健康详情" Padding="8,3">
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <Ellipse Width="8" Height="8" Margin="0,0,7,0">
+       <Ellipse.Style>
+        <Style TargetType="Ellipse">
+         <Setter Property="Fill" Value="{DynamicResource BrandStatusWarningBrush}"/>
+         <Style.Triggers>
+          <DataTrigger Binding="{Binding StatusBar.HealthTone}" Value="Success">
+           <Setter Property="Fill" Value="{DynamicResource BrandStatusSuccessBrush}"/>
+          </DataTrigger>
+          <DataTrigger Binding="{Binding StatusBar.HealthTone}" Value="Error">
+           <Setter Property="Fill" Value="{DynamicResource BrandStatusErrorBrush}"/>
+          </DataTrigger>
+         </Style.Triggers>
+        </Style>
+       </Ellipse.Style>
+      </Ellipse>
+      <TextBlock Text="{Binding StatusBar.HealthLabel}" Foreground="{DynamicResource BrandTextPrimaryBrush}" FontSize="12" VerticalAlignment="Center"/>
+     </StackPanel>
+    </ui:Button>
+    <Border Grid.Column="1" BorderThickness="1,0,0,0" BorderBrush="{DynamicResource BrandBorderSubtleBrush}" Margin="8,4,0,4">
+     <ui:Button x:Name="FooterTasksButton" Appearance="Transparent" Click="OnFooterTaskCenterClick"
+                Content="{Binding StatusBar.TaskLabel}" ToolTip="{Binding StatusBar.TaskDetail}"
+                AutomationProperties.Name="查看后台运行与排队任务" Padding="10,3" FontSize="12"/>
+    </Border>
+    <ui:Button x:Name="FooterLastSyncButton" Grid.Column="3" Appearance="Transparent"
+               Click="OnFooterTaskCenterClick" Content="{Binding StatusBar.LastSyncLabel}"
+               ToolTip="{Binding StatusBar.LastSyncDetail}" AutomationProperties.Name="查看最近成功同步的执行记录"
+               Padding="10,3" FontSize="12"/>
+    <ui:Button x:Name="FooterIssuesButton" Grid.Column="4" Appearance="Transparent"
+               Click="OnFooterTaskCenterClick" ToolTip="{Binding StatusBar.AttentionDetail}"
+               AutomationProperties.Name="查看后台运行异常" Padding="10,3" FontSize="12">
+     <StackPanel Orientation="Horizontal">
+      <TextBlock Text="{Binding StatusBar.AttentionLabel}" Foreground="{DynamicResource BrandStatusWarningBrush}" VerticalAlignment="Center"/>
+      <TextBlock Text="  ›" Foreground="{DynamicResource BrandTextMutedBrush}" VerticalAlignment="Center"/>
+     </StackPanel>
+    </ui:Button>
+   </Grid>
+  </Border>
  </Grid>
 </ui:FluentWindow>
