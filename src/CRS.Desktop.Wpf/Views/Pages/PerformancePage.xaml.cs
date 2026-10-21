@@ -1,6 +1,5 @@
 using System.Windows.Controls;
 using System.Windows;
-using System.Windows.Data;
 using CRS.DesktopClient.ViewModels;
 
 namespace CRS.DesktopClient.Views.Pages;
@@ -14,10 +13,7 @@ public partial class PerformancePage : Page
         Unloaded+=(_,_)=>model.HideAccountDetailsCommand.Execute(null);
         Loaded+=async(_,_)=>
         {
-            // 导航页的独立视觉树找不到 NavigationView 祖先；显式绑定所属窗口的视口。
-            var owner=Window.GetWindow(this)??System.Windows.Application.Current.MainWindow;
-            if(owner?.FindName("Navigation") is FrameworkElement viewport)
-                ViewportGrid.SetBinding(HeightProperty,new Binding(nameof(ActualHeight)){Source=viewport,Converter=new Converters.NavigationViewportHeightConverter()});
+            // Grid 自动接受宿主布局尺寸；不依赖另一个控件的名称/尺寸。
             if(model.RefreshCommand.CanExecute(null))await model.RefreshCommand.ExecuteAsync(null);
         };
     }

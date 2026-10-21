@@ -1,0 +1,15 @@
+<UserControl x:Class="CRS.DesktopClient.Views.Settings.DocumentSettingsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <StackPanel>
+<TextBlock Text="解锁保险库后可管理此项设置。" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SecuritySettingsAvailable}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>   <StackPanel Margin="0,0,0,20" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}">
+
+    <TextBlock Text="统一用于所有页面的加密文档导出和解密；密码保存在加密数据库中。更改密码不会重写旧文件。" TextWrapping="Wrap" Margin="0,8"/>
+    <TextBlock Text="新密码（12—1024 个字符）"/><PasswordBox x:Name="DocumentPasswordInput" MaxLength="1024" PasswordChanged="OnDocumentPassword" Margin="0,6"/>
+    <TextBlock Text="再次输入"/><PasswordBox x:Name="DocumentConfirmationInput" MaxLength="1024" PasswordChanged="OnDocumentConfirmation" Margin="0,6"/>
+    <ui:Button Content="保存文档加密密码" Command="{Binding SaveDocumentPasswordCommand}" HorizontalAlignment="Left" Margin="0,6"/>
+    <TextBlock Text="{Binding DocumentPasswordMessage}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
+   </StackPanel>
+ </StackPanel>
+</UserControl>

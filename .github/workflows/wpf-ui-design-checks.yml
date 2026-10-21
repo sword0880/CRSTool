@@ -1,0 +1,48 @@
+name: WPF UI design checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows-ui:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Static design and plugin boundary checks
+        shell: pwsh
+        run: ./tests/Verify-WpfDesignSystem.ps1
+      - name: Restore
+        run: dotnet restore CRS.sln
+      - name: Build release
+        run: dotnet build CRS.sln -c Release --no-restore -m:1
+      - name: Verify architecture dependency constraints
+        shell: pwsh
+        run: ./tests/Verify-Architecture.ps1
+      - name: Verify settings UI and synthetic credential lifecycle
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui "$env:GITHUB_WORKSPACE/artifacts/ui-preview/settings"
+      - name: Render main-window brand preview (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --shell-brand-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/main"
+      - name: Render performance component previews (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --performance-component-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/performance"
+      - name: Render plugin-management and virtualized-grid preview (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --plugin-management-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugin-management"
+      - name: Render national-team plugin previews (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --ui-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugins"
+      - name: Upload screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpf-ui-synthetic-previews
+          path: artifacts/ui-preview/
+          if-no-files-found: warn
+          retention-days: 14

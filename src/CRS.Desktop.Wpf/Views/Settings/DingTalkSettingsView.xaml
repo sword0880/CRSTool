@@ -1,0 +1,18 @@
+<UserControl x:Class="CRS.DesktopClient.Views.Settings.DingTalkSettingsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <StackPanel>
+<StackPanel DataContext="{Binding DingTalk}">
+  <TextBlock Text="在钉钉群添加自定义机器人并启用加签。Token 是 Webhook 中 access_token 的值；不要填写完整网址。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
+  <WrapPanel Margin="0,12,0,12"><ui:Button Content="保存渠道设置" Command="{Binding SaveCommand}" Margin="0,0,8,0"/><ui:Button Content="发送测试消息" Command="{Binding TestCommand}" Margin="0,0,8,0"/><ui:Button Content="刷新" Command="{Binding ReloadCommand}"/></WrapPanel>
+  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,12"/>
+  <StackPanel IsEnabled="{Binding CanEdit}"><CheckBox Content="启用通知" IsChecked="{Binding Enabled}"/>
+   <TextBlock Text="Token（留空保持已保存值）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="DingTalkToken" PasswordChanged="OnDingTalkToken" MaxLength="512"/>
+   <CheckBox Content="清除Token" IsChecked="{Binding ClearToken}" Margin="0,8"/>
+   <TextBlock Text="加签密钥（SEC开头，留空保持）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="DingTalkSecret" PasswordChanged="OnDingTalkSecret" MaxLength="512"/><CheckBox Content="清除加签密钥" IsChecked="{Binding ClearSigningSecret}" Margin="0,8"/>
+   <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
+  </StackPanel>
+ </StackPanel>
+ </StackPanel>
+</UserControl>

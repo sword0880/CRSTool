@@ -76,5 +76,122 @@
   <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BrandBorderSubtleBrush}"/>
   <Setter Property="local:GridPresentation.UseChineseHeaders" Value="True"/><Setter Property="extensions:DataGridFilter.IsAutoFilterEnabled" Value="True"/>
  </Style>
+
+ <!-- UI-ARCH 语义控件样式：作为后续插件/主程序的稳定资源键，不替换既有隐式样式以免回归。 -->
+ <Style x:Key="UiPageRoot" TargetType="UserControl">
+  <Setter Property="Background" Value="{DynamicResource BrandCanvasBrush}"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+  <Setter Property="FontSize" Value="14"/>
+  <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+ </Style>
+ <Style x:Key="UiPageTitle" TargetType="TextBlock" BasedOn="{StaticResource PageTitle}">
+  <Setter Property="FontWeight" Value="SemiBold"/>
+ </Style>
+ <Style x:Key="UiSectionTitle" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="18"/><Setter Property="FontWeight" Value="SemiBold"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+ </Style>
+ <Style x:Key="UiBodyText" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="14"/><Setter Property="TextWrapping" Value="Wrap"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+ </Style>
+ <Style x:Key="UiHintText" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="12"/><Setter Property="TextWrapping" Value="Wrap"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextHintBrush}"/>
+ </Style>
+ <Style x:Key="UiStatusText" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="13"/><Setter Property="TextWrapping" Value="Wrap"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandStatusInfoBrush}"/>
+ </Style>
+ <Style x:Key="UiStatusWarningText" TargetType="TextBlock" BasedOn="{StaticResource UiStatusText}">
+  <Setter Property="Foreground" Value="{DynamicResource BrandStatusWarningBrush}"/>
+ </Style>
+ <Style x:Key="UiSurfaceCard" TargetType="Border" BasedOn="{StaticResource Card}">
+  <Setter Property="Padding" Value="16"/><Setter Property="CornerRadius" Value="12"/>
+ </Style>
+ <Style x:Key="UiStatusBanner" TargetType="Border">
+  <Setter Property="Background" Value="{DynamicResource BrandStatusInfoSurfaceBrush}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource BrandBorderSubtleBrush}"/>
+  <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/>
+  <Setter Property="Padding" Value="12,8"/>
+ </Style>
+ <Style x:Key="UiPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryAction}"/>
+ <Style x:Key="UiSecondaryButton" TargetType="Button" BasedOn="{StaticResource BrandButton}"/>
+ <Style x:Key="UiGhostButton" TargetType="Button" BasedOn="{StaticResource BrandButton}">
+  <Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
+ </Style>
+ <Style x:Key="UiDangerButton" TargetType="Button" BasedOn="{StaticResource BrandButton}">
+  <Setter Property="Foreground" Value="{DynamicResource BrandStatusErrorBrush}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource BrandStatusErrorBrush}"/>
+ </Style>
+ <Style x:Key="UiToolbar" TargetType="WrapPanel">
+  <Setter Property="Margin" Value="0,8,0,12"/>
+ </Style>
+ <Style x:Key="UiReadOnlyDataGrid" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+  <Setter Property="IsReadOnly" Value="True"/><Setter Property="CanUserAddRows" Value="False"/>
+  <Setter Property="CanUserDeleteRows" Value="False"/>
+  <Setter Property="extensions:DataGridFilter.IsAutoFilterEnabled" Value="False"/>
+ </Style>
+ <Style x:Key="UiFilterableDataGrid" TargetType="DataGrid" BasedOn="{StaticResource UiReadOnlyDataGrid}">
+  <Setter Property="extensions:DataGridFilter.IsAutoFilterEnabled" Value="True"/>
+ </Style>
+ <Style x:Key="UiDenseDataGrid" TargetType="DataGrid" BasedOn="{StaticResource UiReadOnlyDataGrid}">
+  <Setter Property="RowHeight" Value="32"/><Setter Property="ColumnHeaderHeight" Value="36"/>
+ </Style>
+ <Style x:Key="UiEditableDataGrid" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+  <Setter Property="IsReadOnly" Value="False"/><Setter Property="CanUserAddRows" Value="False"/>
+  <Setter Property="CanUserDeleteRows" Value="False"/>
+  <Setter Property="extensions:DataGridFilter.IsAutoFilterEnabled" Value="False"/>
+ </Style>
+ <!-- 插件管理表格复用默认 DataGrid 模板，避免局部 ControlTemplate 丢失键盘/滚动/排序行为。 -->
+ <Style x:Key="UiPluginTableHeader" TargetType="DataGridColumnHeader">
+  <Setter Property="Background" Value="{DynamicResource BrandSurfaceAltBrush}"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextSecondaryBrush}"/>
+  <Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Height" Value="38"/>
+  <Setter Property="Padding" Value="12,0"/>
+ </Style>
+ <Style x:Key="UiPluginTableRow" TargetType="DataGridRow">
+  <Setter Property="Background" Value="{DynamicResource BrandSurfaceBrush}"/>
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource BrandBorderSubtleBrush}"/>
+  <Style.Triggers>
+   <Trigger Property="AlternationIndex" Value="1"><Setter Property="Background" Value="{DynamicResource BrandSurfaceAltBrush}"/></Trigger>
+   <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource BrandHoverSurfaceBrush}"/></Trigger>
+   <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{DynamicResource BrandAccentPaleBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource BrandBorderStrongBrush}"/></Trigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="UiPluginTableCell" TargetType="DataGridCell">
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+  <Setter Property="Padding" Value="8,0"/>
+ </Style>
+ <Style x:Key="UiPluginAction" TargetType="Button" BasedOn="{StaticResource BrandButton}">
+  <Setter Property="Width" Value="36"/><Setter Property="Height" Value="36"/>
+  <Setter Property="Padding" Value="7"/>
+ </Style>
+ <!-- 插件状态以业务语义命名；颜色只在共享资源中映射，行模型不输出色值。 -->
+ <Style x:Key="UiPluginStatePill" TargetType="Border">
+  <Setter Property="Background" Value="{DynamicResource BrandStatusInfoSurfaceBrush}"/>
+  <Setter Property="CornerRadius" Value="12"/>
+  <Setter Property="Padding" Value="10,4"/>
+  <Setter Property="HorizontalAlignment" Value="Left"/>
+  <Setter Property="VerticalAlignment" Value="Center"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding StateTone}" Value="Success"><Setter Property="Background" Value="{DynamicResource BrandStatusSuccessSurfaceBrush}"/></DataTrigger>
+   <DataTrigger Binding="{Binding StateTone}" Value="Warning"><Setter Property="Background" Value="{DynamicResource BrandStatusWarningSurfaceBrush}"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="UiPluginStateText" TargetType="TextBlock">
+  <Setter Property="Foreground" Value="{DynamicResource BrandStatusInfoBrush}"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding StateTone}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource BrandStatusSuccessBrush}"/></DataTrigger>
+   <DataTrigger Binding="{Binding StateTone}" Value="Warning"><Setter Property="Foreground" Value="{DynamicResource BrandStatusWarningBrush}"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="UiPluginActionIcon" TargetType="ui:SymbolIcon">
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextMutedBrush}"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding IsNextEnabled}" Value="False"><Setter Property="Foreground" Value="{DynamicResource BrandAccentBrush}"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
  <DataTemplate DataType="{x:Type vm:ResultTable}"><DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="True"/></DataTemplate>
 </ResourceDictionary>

@@ -1,0 +1,19 @@
+<UserControl x:Class="CRS.DesktopClient.Views.Settings.SecuritySettingsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <StackPanel>
+<TextBlock Text="解锁保险库后可管理此项设置。" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding SecuritySettingsAvailable}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>   <!-- 验证方式归属当前加密保险库，只有授权会话能验证和保存。 -->
+   <StackPanel x:Name="PhoneVerificationPanel" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}" Margin="0,0,0,20">
+
+    <RadioButton x:Name="PhoneVerificationOption" GroupName="LoginVerification" Content="启用手机验证" IsChecked="{Binding PhoneVerificationEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" Margin="0,12,0,8"/>
+    <RadioButton x:Name="WindowsHelloOption" GroupName="LoginVerification" Content="使用 Windows Hello" IsChecked="{Binding WindowsHelloEnabled,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding WindowsHelloAvailable}" Margin="0,0,0,8"/>
+    <TextBlock Text="两种方式只能选择一种。未配置 Windows Hello 时，只能使用手机验证。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
+    <TextBlock Text="切换验证方式需填写主密码；当前使用手机验证时，还需手机上的新六位代码。选择 Hello 并保存后会弹出系统验证窗口。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8,0,0"/>
+    <TextBlock Text="确认修改：创建数据库时设置的主密码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityPasswordInput" PasswordChanged="OnSecurityPassword"/>
+    <StackPanel Visibility="{Binding ShowPhoneCode,Converter={StaticResource BooleanVisibility}}"><TextBlock Text="当前手机上的新六位代码" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="SecurityCodeInput" PasswordChanged="OnSecurityCode" MaxLength="6"/></StackPanel>
+    <ui:Button Content="保存验证方式" Command="{Binding SavePhoneVerificationCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
+    <TextBlock Text="{Binding SecurityMessage}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}"/>
+   </StackPanel>
+ </StackPanel>
+</UserControl>

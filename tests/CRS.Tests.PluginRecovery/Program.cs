@@ -5,6 +5,7 @@ using System.Windows;
 using CRS.PluginHost;
 using CRS.Worker.Ipc;
 using CRS.Plugins.NationalTeamWatch;
+using CRS.Tests.PluginRecovery;
 
 /// <summary>新架构只核验UI包和服务查询；旧桌面数据库升级场景由Worker恢复验证替代。</summary>
 internal static class Program
@@ -18,6 +19,19 @@ internal static class Program
         var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+        if(args is ["--ui-visual-preview",var previewDirectory])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary
+                    {Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary
+                    {Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                UiVisualPreview.Render(previewDirectory);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}
+            return;
+        }
         app.Startup+=async(_,_)=>{try{await RunAsync(args);app.Shutdown(0);}catch(Exception error){Console.Error.WriteLine(error);app.Shutdown(1);}};
         app.Run();
     }
