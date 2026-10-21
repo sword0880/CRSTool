@@ -17,4 +17,15 @@
  <SolidColorBrush x:Key="BrandTextPrimaryBrush" Color="#38251F"/>
  <SolidColorBrush x:Key="BrandTextSecondaryBrush" Color="#865F4B"/>
  <SolidColorBrush x:Key="BrandTextMutedBrush" Color="#846F60"/>
+ <!-- 语义状态色：不能将涨跌、审核与业务风险误认为品牌强调色。 -->
+ <SolidColorBrush x:Key="BrandStatusInfoBrush" Color="#475569"/>
+ <SolidColorBrush x:Key="BrandStatusInfoSurfaceBrush" Color="#F1F5F9"/>
+ <SolidColorBrush x:Key="BrandStatusSuccessBrush" Color="#166534"/>
+ <SolidColorBrush x:Key="BrandStatusSuccessSurfaceBrush" Color="#F0FDF4"/>
+ <SolidColorBrush x:Key="BrandStatusWarningBrush" Color="#92400E"/>
+ <SolidColorBrush x:Key="BrandStatusWarningSurfaceBrush" Color="#FFFBEB"/>
+ <SolidColorBrush x:Key="BrandStatusErrorBrush" Color="#B42318"/>
+ <SolidColorBrush x:Key="BrandStatusErrorSurfaceBrush" Color="#FEF2F2"/>
+ <!-- 面板说明、数据质量状态与通用标签共用的辅助文本资源。 -->
+ <SolidColorBrush x:Key="BrandTextHintBrush" Color="#64748B"/>
 </ResourceDictionary>

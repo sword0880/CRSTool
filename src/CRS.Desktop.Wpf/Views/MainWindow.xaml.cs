@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using CRS.DesktopClient.Services;
+using CRS.Plugin.Wpf;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views.Pages;
 using Wpf.Ui.Controls;
@@ -93,6 +94,8 @@ public partial class MainWindow : FluentWindow
             :System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CRS","plugins");
         try
         {
+            // 插件启动前验证视觉资源契约，阻止缺失资源的皮肤进入工作区。
+            PluginUiResources.Validate(System.Windows.Application.Current.Resources);
             if(!startupEnablement.TryGetValue(storage,out var enablement)) startupEnablement[storage]=enablement=CRS.PluginHost.PluginRuntime.ReadStartupEnablement(storage);
             plugins=new(root,storage,enablement,ValidatePluginPageAsync);await plugins.StartAsync();
             if(forceClose) {await plugins.DisposeAsync();return;}
@@ -102,7 +105,7 @@ public partial class MainWindow : FluentWindow
                 var item=CreateMenuItem(page.Contribution.Title,SymbolRegular.Apps24);item.Tag=page.Route;
                 item.Click+=(_,_)=>
                 {
-                    try {Dispatcher.VerifyAccess();OpenNavigationGroup(ExtensionsGroup);ShowHostedPage(page.Contribution.CreateView());}
+                    try {Dispatcher.VerifyAccess();PluginUiResources.Validate(System.Windows.Application.Current.Resources);OpenNavigationGroup(ExtensionsGroup);ShowHostedPage(page.Contribution.CreateView());}
                     catch(Exception error) {HidePlugin();System.Windows.MessageBox.Show(this,"插件页面无法打开；类别："+error.GetType().Name,"插件状态");}
                 };
                 pluginItems.Add(item);ExtensionsGroup.MenuItems.Add(item);
@@ -134,6 +137,7 @@ public partial class MainWindow : FluentWindow
     private async Task ValidatePluginPageAsync(CRS.PluginHost.HostedPage page,CancellationToken token)
     {
         Dispatcher.VerifyAccess();token.ThrowIfCancellationRequested();
+        PluginUiResources.Validate(System.Windows.Application.Current.Resources);
         var view=page.Contribution.CreateView();
         var probe=new System.Windows.Window {Content=view,Width=1200,Height=800,ShowActivated=false,ShowInTaskbar=false,Opacity=0,Owner=this};
         try

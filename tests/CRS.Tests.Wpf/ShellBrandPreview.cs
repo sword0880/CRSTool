@@ -20,6 +20,12 @@ internal static class ShellBrandPreview
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                // 插件视觉契约只能依赖共享 WPF 资源，缺失时加载前应明确失败。
+                CRS.Plugin.Wpf.PluginUiResources.Validate(app.Resources);
+                var rejectedMissingResources=false;
+                try { CRS.Plugin.Wpf.PluginUiResources.Validate(new ResourceDictionary()); }
+                catch(InvalidOperationException) { rejectedMissingResources=true; }
+                if(!rejectedMissingResources)throw new InvalidOperationException("插件 UI 契约未拒绝资源缺失。");
                 var window=new MainWindow(new ShellViewModel(new FakeUseCases(),new SilentInteraction()));
                 var button=window.FindName("NavigationToggleButton") as System.Windows.Controls.Button
                     ??throw new InvalidOperationException("主窗口缺少统一导航按钮。");
