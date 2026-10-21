@@ -23,6 +23,9 @@ jobs:
       - name: Verify architecture dependency constraints
         shell: pwsh
         run: ./tests/Verify-Architecture.ps1
+      - name: Verify Worker abnormal execution filter before SQL pagination and via read-only IPC
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --history-result-filter
       - name: Verify ETF market sync cooldown, empty downloads and job diagnostics
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
@@ -32,6 +35,9 @@ jobs:
       - name: Verify global shell footer uses real Worker semantics and fail-closed health
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --shell-status-checks
+      - name: Verify footer direct navigation into recent executions and anomaly filtering
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --task-center-deeplink-checks
       - name: Render main-window brand preview (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --shell-brand-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/main"
