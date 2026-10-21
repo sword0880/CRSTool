@@ -124,11 +124,11 @@
                 AutomationProperties.Name="查看后台运行与排队任务" Padding="10,3" FontSize="12"/>
     </Border>
     <ui:Button x:Name="FooterLastSyncButton" Grid.Column="3" Appearance="Transparent"
-               Click="OnFooterTaskCenterClick" Content="{Binding StatusBar.LastSyncLabel}"
+               Click="OnFooterRecentSyncClick" Content="{Binding StatusBar.LastSyncLabel}"
                ToolTip="{Binding StatusBar.LastSyncDetail}" AutomationProperties.Name="查看最近成功同步的执行记录"
                Padding="10,3" FontSize="12"/>
     <ui:Button x:Name="FooterIssuesButton" Grid.Column="4" Appearance="Transparent"
-               Click="OnFooterTaskCenterClick" ToolTip="{Binding StatusBar.AttentionDetail}"
+               Click="OnFooterIssuesClick" ToolTip="{Binding StatusBar.AttentionDetail}"
                AutomationProperties.Name="查看后台运行异常" Padding="10,3" FontSize="12">
      <StackPanel Orientation="Horizontal">
       <TextBlock Text="{Binding StatusBar.AttentionLabel}" Foreground="{DynamicResource BrandStatusWarningBrush}" VerticalAlignment="Center"/>
