@@ -25,7 +25,7 @@ internal static class ShellStatusBarChecks
             now.AddMinutes(-8),now.AddMinutes(-7),now.AddMinutes(-6),"RetryDeferred","sourceIssues=1",1);
         var snapshot=ShellStatusBarViewModel.Describe(normal,[recentFailed,recentSuccess],2,true);
         Check(snapshot.HealthTone=="Success" && snapshot.HealthLabel=="服务正常","运行中的服务显示实时绿色健康状态");
-        Check(snapshot.TaskLabel=="运行 2 · 排队 1" && snapshot.TaskDetail.Contains("持久手动命令 3"),
+        Check(snapshot.TaskLabel=="运行 2 · 排队 1 · 待执行请求 3" && snapshot.TaskDetail.Contains("待执行请求 3"),
             "调度运行与排队数使用 Worker 原值，不把手动命令重复累加");
         Check(snapshot.AttentionLabel=="运行异常 0" && snapshot.AttentionDetail.Contains("不含税务/ETF数据缺口"),
             "零运行告警只代表来源和插件健康，不声称零业务待办");

@@ -16,6 +16,11 @@ public partial class ShellStatusBarViewModel : ObservableObject
     private DispatcherTimer? timer;
     private CancellationTokenSource? polling;
     private bool refreshing;
+    private List<ExecutionRecord>? verifiedHistory;
+    private long historySampleAt;
+    private bool historyRefreshing;
+    private BackgroundResponse? latestHealth;
+    private long connectionRevision;
 
     public ShellStatusBarViewModel(BackgroundPipeClient? client = null) => this.client = client ?? new();
 
@@ -29,12 +34,12 @@ public partial class ShellStatusBarViewModel : ObservableObject
     [ObservableProperty] private string attentionLabel = "运行异常：未确认";
     [ObservableProperty] private string attentionDetail = "仅统计 Worker 的插件故障及官方来源冷却，不代表业务审核待办总数。";
 
-    /// <summary>窗口展示期间每45秒轻量轮询；实例化页面或预览时不主动建立管道连接。</summary>
+    /// <summary>每3秒更新运行/排队状态；成功同步历史仍最多每45秒读取。</summary>
     public void Start(CancellationToken lifetime)
     {
         if(timer is not null || lifetime.IsCancellationRequested)return;
         polling=CancellationTokenSource.CreateLinkedTokenSource(lifetime);
-        timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromSeconds(45)};
+        timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromSeconds(3)};
         timer.Tick+=OnTick;
         timer.Start();
         _=RefreshAsync();
@@ -44,6 +49,7 @@ public partial class ShellStatusBarViewModel : ObservableObject
     {
         if(timer is not null){timer.Stop();timer.Tick-=OnTick;timer=null;}
         polling?.Cancel();polling?.Dispose();polling=null;
+        verifiedHistory=null;
     }
 
     private async void OnTick(object? sender,EventArgs e)=>await RefreshAsync();
@@ -57,9 +63,24 @@ public partial class ShellStatusBarViewModel : ObservableObject
         {
             var health=await client.QueryAsync("GetHealth",token);
             token.ThrowIfCancellationRequested();
-            Update(Describe(health,null,0,false));
-            if(health.Code!="Ok" || health.Health?.State is not ("Running" or "Degraded" or "Maintenance"))return;
-
+            Update(Describe(health,verifiedHistory,verifiedHistory?.Count??0,verifiedHistory is not null));
+            latestHealth=health;
+            if(health.Code!="Ok" || health.Health?.State is not ("Running" or "Degraded" or "Maintenance")){verifiedHistory=null;connectionRevision++;return;}
+            if(verifiedHistory is not null && Environment.TickCount64-historySampleAt<45000)return;
+            if(!historyRefreshing)_=RefreshHistoryAsync(token,connectionRevision);
+        }
+        catch(OperationCanceledException) when(token.IsCancellationRequested){ }
+        catch(Exception)
+        {
+            if(!token.IsCancellationRequested){verifiedHistory=null;latestHealth=null;connectionRevision++;Update(Unavailable());}
+        }
+        finally{refreshing=false;}
+    }
+    private async Task RefreshHistoryAsync(CancellationToken token,long revision)
+    {
+        historyRefreshing=true;
+        try
+        {
             // 一页最多10条；至多查询3页，避免频繁跨插件获取全部历史。
             // 任务中心可查看完整分页历史，此处只给出已核实范围的最近成功时间。
             var rows=new List<ExecutionRecord>();
@@ -75,15 +96,20 @@ public partial class ShellStatusBarViewModel : ObservableObject
                 cursor=response.NextCursor;
                 if(cursor is null || rows.Any(IsSuccessfulSync))break;
             }
-            Update(Describe(health,rows,rows.Count,true));
+            if(revision!=connectionRevision || latestHealth is null)return;
+            verifiedHistory=rows;historySampleAt=Environment.TickCount64;
+            Update(Describe(latestHealth,rows,rows.Count,true));
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested){ }
         catch(Exception)
         {
-            // 连接断开或任意读取异常时不得保留旧的“服务正常/零异常”。
-            if(!token.IsCancellationRequested)Update(Unavailable());
+            if(!token.IsCancellationRequested && revision==connectionRevision)
+            {
+                verifiedHistory=null;
+                if(latestHealth is {} health)Update(Describe(health,null,0,false));
+            }
         }
-        finally{refreshing=false;}
+        finally{historyRefreshing=false;}
     }
 
     private void Update(ShellStatusSnapshot value)
@@ -120,9 +146,9 @@ public partial class ShellStatusBarViewModel : ObservableObject
         };
         var sample=health.ObservedUtc.ToString("MM-dd HH:mm:ss");
         var scheduling=health.Scheduling;
-        var tasks=scheduling is null?"运行 -- · 排队 --":$"运行 {scheduling.Running} · 排队 {scheduling.Waiting}";
+        var tasks=scheduling is null?"运行 -- · 排队 --":$"运行 {scheduling.Running} · 排队 {scheduling.Waiting} · 待执行请求 {scheduling.PendingManualCommands}";
         var taskDetail=scheduling is null?"后台未提供调度快照。":
-            $"Worker 调度快照：运行 {scheduling.Running}，等待 {scheduling.Waiting}，另有待执行的持久手动命令 {scheduling.PendingManualCommands}。";
+            $"后台调度：运行 {scheduling.Running}，排队 {scheduling.Waiting}，待执行请求 {scheduling.PendingManualCommands}。部分请求可能已在排队中，以上数量不能直接相加。";
         var hasSources=health.Sources is not null;
         var cooling=health.Sources?.Count(x=>x.State=="Cooldown")??0;
         var hasPlugins=response.Plugins is not null;

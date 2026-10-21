@@ -218,7 +218,15 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         // 新查询命令让旧服务明确返回不支持，避免忽略任务筛选后展示混合结果。
         if (request.Command is "GetHistory" or "GetFilteredHistory")
         {
-            try { var page = repository.HistoryPage(request.Cursor, request.PageSize,request.PluginId,request.JobId,request.ResultFilter); return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor, AppliedResultFilter: request.ResultFilter); }
+            try
+            {
+                var page = repository.HistoryPage(request.Cursor, request.PageSize,request.PluginId,request.JobId,request.ResultFilter);
+                var deadlines=repository.Plans().ToDictionary(x=>(x.PluginId,x.JobId),x=>x.NotBefore);
+                var pending=repository.PendingRuns().Where(x=>(request.PluginId is null || x.PluginId==request.PluginId) && (request.JobId is null || x.JobId==request.JobId))
+                    .Take(10).Select(x=>new BackgroundPendingRequest(x.RequestId,x.PluginId,x.JobId,deadlines.GetValueOrDefault((x.PluginId,x.JobId)))).ToArray();
+                return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor,
+                    AppliedResultFilter: request.ResultFilter,PendingRequests:pending);
+            }
             catch (ArgumentException) { return Reply("InvalidRequest"); }
         }
         if(request.Command=="GetExecution")

@@ -7,7 +7,20 @@ namespace CRS.DesktopClient.Views.Pages;
 /// <summary>后台服务视图只绑定 DTO，不打开服务数据库或构建后台作业。</summary>
 public partial class BackgroundServicePage : UserControl
 {
-    public BackgroundServicePage(BackgroundServiceViewModel model) { InitializeComponent(); DataContext = model; }
+    public BackgroundServicePage(BackgroundServiceViewModel model)
+    {
+        InitializeComponent(); DataContext = model;
+        var refresh=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromSeconds(3)};
+        refresh.Tick+=async (_,_)=>await model.RefreshRecentHistoryAsync();
+        Loaded+=(_,_)=>{if(TaskCenterTabs.SelectedIndex==1){refresh.Start();_ = model.RefreshRecentHistoryAsync();}};
+        Unloaded+=(_,_)=>refresh.Stop();
+        TaskCenterTabs.SelectionChanged+=(_,e)=>
+        {
+            if(e.Source!=TaskCenterTabs)return;
+            if(IsLoaded && TaskCenterTabs.SelectedIndex==1){refresh.Start();_ = model.RefreshRecentHistoryAsync();}
+            else refresh.Stop();
+        };
+    }
     /// <summary>主窗体底栏直达“最近执行”，不再默认停留在“服务计划”。</summary>
     public void ShowRecentExecutions() => TaskCenterTabs.SelectedIndex=1;
     private void OnPlanDoubleClick(object sender,MouseButtonEventArgs e)

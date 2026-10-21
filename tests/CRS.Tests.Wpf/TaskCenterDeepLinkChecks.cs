@@ -16,6 +16,9 @@ internal static class TaskCenterDeepLinkChecks
                 var app=new Application();
                 var model=new BackgroundServiceViewModel(CancellationToken.None);
                 var page=new BackgroundServicePage(model);
+                var plans=(DataGrid)page.FindName("PlansGrid");
+                if(!plans.Columns.OfType<DataGridTextColumn>().Any(x=>x.Header?.ToString()=="任务编号（英文）" && x.Binding is System.Windows.Data.Binding {Path.Path:"JobId"}))
+                    throw new InvalidOperationException("服务计划缺少英文任务编号。");
                 var window=new Window{Content=page,Width=1200,Height=780,ShowActivated=false,ShowInTaskbar=false};
                 var tabs=page.FindName("TaskCenterTabs") as TabControl
                     ?? throw new InvalidOperationException("任务中心缺少明确命名的TabControl。");

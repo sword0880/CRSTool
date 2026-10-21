@@ -21,7 +21,12 @@
   </WrapPanel>
   <TabControl x:Name="TaskCenterTabs" Grid.Row="2" Grid.RowSpan="2">
    <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron（北京时间）。" Foreground="#64748B" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
-    <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/><DataGridCheckBoxColumn Header="待重建" Binding="{Binding NeedsReconcile}"/></DataGrid.Columns>
+    <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding JobId}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/>
+     <DataGridCheckBoxColumn Header="计划待生效" Binding="{Binding NeedsReconcile}">
+      <DataGridCheckBoxColumn.HeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="ToolTip" Value="勾选表示计划已保存，后台正在应用最新配置；成功后自动取消勾选。未勾选表示配置已应用。此状态不表示任务正在运行或排队。"/></Style></DataGridCheckBoxColumn.HeaderStyle>
+      <DataGridCheckBoxColumn.CellStyle><Style TargetType="DataGridCell"><Setter Property="ToolTip" Value="勾选：计划已保存，等待后台应用，成功后自动清除。未勾选：配置已应用。无需手动操作。"/></Style></DataGridCheckBoxColumn.CellStyle>
+     </DataGridCheckBoxColumn>
+    </DataGrid.Columns>
    </DataGrid></Grid></TabItem>
    <TabItem Header="最近执行"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <!-- 筛选在服务端分页前执行，空白表示全部。 -->
@@ -36,6 +41,12 @@
       <Button Content="查看日志" Click="OnViewLog" ToolTip="查看选中执行的运行日志" Margin="0,0,0,8"/>
      </WrapPanel>
      <TextBlock Text="留空表示全部；仅异常按服务端结果过滤（含失败、延期重试、中断等），翻页仍保留筛选。来源冷却或插件启动故障可能不产生执行记录。" TextWrapping="Wrap" Foreground="#64748B"/>
+     <TextBlock Text="{Binding PendingStatus}" TextWrapping="Wrap" Margin="0,6"/>
+     <DataGrid x:Name="PendingRequestsGrid" ItemsSource="{Binding PendingRequests}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MaxHeight="120">
+      <DataGrid.Style><Style TargetType="DataGrid"><Style.Triggers><Trigger Property="HasItems" Value="False"><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></DataGrid.Style>
+      <DataGrid.Columns><DataGridTextColumn Header="等待开始的请求" Binding="{Binding RequestId}"/><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="最早执行时间（北京时间）" Binding="{Binding NotBefore,Converter={StaticResource BeijingTimestamp},TargetNullValue=等待调度}"/></DataGrid.Columns>
+     </DataGrid>
+     <TextBlock Text="首页每3秒自动刷新；翻页后保留阅读位置，点击刷新返回最新记录。" Foreground="#64748B" Margin="0,4"/>
     </StackPanel>
     <DataGrid x:Name="HistoryGrid" Grid.Row="1" ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MouseDoubleClick="OnHistoryDoubleClick" PreviewKeyDown="OnHistoryKeyDown" SelectionMode="Single">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding JobId}"/><DataGridTextColumn Header="开始时间（北京时间）" Binding="{Binding StartedUtc,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="结束时间（北京时间）" Binding="{Binding EndedUtc,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="结果" Binding="{Binding Result}"/><DataGridTextColumn Header="尝试" Binding="{Binding Attempt}"/></DataGrid.Columns>

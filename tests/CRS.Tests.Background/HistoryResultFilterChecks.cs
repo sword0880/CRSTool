@@ -68,6 +68,14 @@ internal static class HistoryResultFilterChecks
             var bad=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",
                 ResultFilter:"arbitrary"),caller,default);
             Check(bad.Code=="InvalidRequest","非法结果筛选参数经协议明确拒绝");
+            var queued=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow",plan.PluginId,plan.JobId);
+            storage.AcceptCommand(queued,"test-writer");
+            var pending=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:plan.PluginId,JobId:plan.JobId),caller,default);
+            Check(pending.PendingRequests is {Count:1} && pending.PendingRequests[0].RequestId==queued.RequestId &&
+                pending.PendingRequests[0].NotBefore==storage.Plans().Single().NotBefore,
+                "尚未开始的持久请求独立返回，不伪造执行记录");
+            var unmatched=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",JobId:"missing"),caller,default);
+            Check(unmatched.PendingRequests is {Count:0},"待执行请求同样按服务端插件和任务条件筛选");
         }
         finally{CryptographicOperations.ZeroMemory(key);}
     }
