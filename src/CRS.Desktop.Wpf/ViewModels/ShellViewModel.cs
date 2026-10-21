@@ -8,6 +8,8 @@ namespace CRS.DesktopClient.ViewModels;
 public sealed class ShellViewModel : ObservableObject
 {
     public WorkspaceState State { get; }
+    /// <summary>独立 Worker 的只读全局状态，不覆盖业务页面操作提示。</summary>
+    public ShellStatusBarViewModel StatusBar { get; } = new();
     public ImportViewModel Import { get; }
     public ResultsViewModel Results { get; }
     public HistoryViewModel History { get; }
