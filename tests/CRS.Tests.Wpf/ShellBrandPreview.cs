@@ -51,11 +51,19 @@ internal static class ShellBrandPreview
                         if(window.IsNavigationExpanded!=expanded||Math.Abs(header.ActualWidth-expected)>1
                             ||Math.Abs(pluginSurface.Margin.Left-expected)>1
                             ||brand.Visibility!=(expanded?Visibility.Visible:Visibility.Collapsed)
-                            ||brand.IsHitTestVisible||!button.IsHitTestVisible)
+                            ||brand.IsHitTestVisible||!button.IsHitTestVisible || Math.Abs(button.ActualWidth-expected)>1)
                             throw new InvalidOperationException(
                                 $"品牌栏同步失败: width={width}, scale={scale}, expandedExpected={expanded}, " +
                                 $"expandedActual={window.IsNavigationExpanded}, header={header.ActualWidth}, expected={expected}, " +
                                 $"margin={pluginSurface.Margin.Left}, brand={brand.Visibility}, hit={brand.IsHitTestVisible}, toggleHit={button.IsHitTestVisible}");
+                        // 真正执行布局后的命中测试：检查鼠标落点是否击中按钮，而非仅 RaiseEvent 模拟 Click。
+                        foreach(var clickX in (expanded ? new[]{28d,80d,156d,192d} : new[]{28d}))
+                        {
+                            var hitPoint=button.TranslatePoint(new Point(clickX,26),layout);
+                            var visual=VisualTreeHelper.HitTest(layout,hitPoint)?.VisualHit;
+                            if(!IsWithin(visual,button))
+                                throw new InvalidOperationException($"标题栏覆盖品牌按钮的鼠标命中区域: x={clickX}, width={width}, expanded={expanded}, hit={visual?.GetType().Name}");
+                        }
                         if((string?)button.ToolTip!=(expanded?"收起侧边栏":"展开侧边栏"))
                             throw new InvalidOperationException("导航按钮悬停文案与展开状态不一致。");
                         var suffix=(expanded?"": "-collapsed")+(scale==1.0?"":"-"+((int)(scale*100)).ToString());
@@ -72,10 +80,17 @@ internal static class ShellBrandPreview
                 }
                 button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,button));
                 if(!window.IsNavigationExpanded)throw new InvalidOperationException("二次折叠操作未恢复展开状态。");
-                Console.WriteLine("PASS 主窗口单行品牌栏：1040/1280/1440宽度和96/120/144 DPI位图渲染，展开与收起、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
+                Console.WriteLine("PASS 主窗口单行品牌栏：1040/1280/1440宽度和96/120/144 DPI位图渲染，展开与收起、品牌区真实视觉命中、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
             }
             catch(Exception error){failure=error;}
         });
         thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
     }
+    private static bool IsWithin(DependencyObject? node,DependencyObject expected)
+    {
+        for(var current=node;current is not null;current=VisualTreeHelper.GetParent(current))
+            if(ReferenceEquals(current,expected))return true;
+        return false;
+    }
+
 }
