@@ -27,6 +27,8 @@ internal static class ShellBrandPreview
                 catch(InvalidOperationException) { rejectedMissingResources=true; }
                 if(!rejectedMissingResources)throw new InvalidOperationException("插件 UI 契约未拒绝资源缺失。");
                 var window=new MainWindow(new ShellViewModel(new FakeUseCases(),new SilentInteraction()));
+                if(window.IsNavigationExpanded)
+                    throw new InvalidOperationException("首次主窗体没有默认收起Logo/左侧品牌区。");
                 var button=window.FindName("NavigationToggleButton") as System.Windows.Controls.Button
                     ??throw new InvalidOperationException("主窗口缺少统一导航按钮。");
                 var brand=window.FindName("BrandIdentity") as FrameworkElement
@@ -54,6 +56,8 @@ internal static class ShellBrandPreview
                         if(window.IsNavigationExpanded!=expanded)
                             button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,button));
                         surface.Measure(new(width,880));surface.Arrange(new Rect(0,0,width,880));surface.UpdateLayout();
+                        if(Math.Abs(header.ActualHeight-40)>1 || Math.Abs(button.ActualHeight-40)>1)
+                            throw new InvalidOperationException($"顶栏没有压缩到40：width={width},header={header.ActualHeight},button={button.ActualHeight}");
                         if(footer.ActualHeight is < 32 or > 60 || footerButtons.Any(x=>x.Visibility!=Visibility.Visible || x.ActualWidth<=0))
                             throw new InvalidOperationException($"全局运行状态栏未正确布局: width={width}, expanded={expanded}, footer={footer.ActualHeight}");
                         if(Math.Abs(footer.TranslatePoint(new Point(0,0),layout).Y+footer.ActualHeight-880)>2)
@@ -98,7 +102,7 @@ internal static class ShellBrandPreview
                 }
                 button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,button));
                 if(!window.IsNavigationExpanded)throw new InvalidOperationException("二次折叠操作未恢复展开状态。");
-                Console.WriteLine("PASS 主窗口品牌栏与全局Worker底栏：1040/1280/1440宽度和96/120/144 DPI位图渲染，展开与收起、品牌区真实视觉命中、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
+                Console.WriteLine("PASS 首次收起Logo、40高顶栏与全局Worker底栏：1040/1280/1440宽度和96/120/144 DPI位图渲染，展开与收起、品牌区真实视觉命中、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
             }
             catch(Exception error){failure=error;}
         });
