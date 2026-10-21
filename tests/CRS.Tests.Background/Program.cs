@@ -9,8 +9,8 @@ using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 if(args is ["--history-result-filter"])
 {
-    var root=Path.Combine(Path.GetTempPath(),"CRS.HistoryFilter",Guid.NewGuid().ToString("N"));
-    await HistoryResultFilterChecks.RunAsync(root);return;
+    var filterRoot=Path.Combine(Path.GetTempPath(),"CRS.HistoryFilter",Guid.NewGuid().ToString("N"));
+    await HistoryResultFilterChecks.RunAsync(filterRoot);return;
 }
 if(args is ["--task-storage-boundary"])
 {
