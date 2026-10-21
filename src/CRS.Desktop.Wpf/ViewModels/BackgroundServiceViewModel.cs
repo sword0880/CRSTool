@@ -29,6 +29,9 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     }
     [ObservableProperty] private string status = "正在查询独立后台服务。";
     [ObservableProperty] private string snapshotTime = "尚未取得状态快照";
+    // 状态页只消费可观察的语义状态，避免依据提示字符串或上次快照猜测服务是否在线。
+    [ObservableProperty] private string healthLabel = "等待连接";
+    [ObservableProperty] private string healthTone = "Warning";
     [ObservableProperty] private TaskDefinition? selected;
     [ObservableProperty] private string cron = "0 * * * * ?";
     [ObservableProperty] private string timeZoneId = "China Standard Time";
@@ -61,6 +64,22 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     {
         var health = await client.QueryAsync("GetHealth", lifetime);
         healthState = health.Health?.State ?? "Unknown";
+        HealthLabel = healthState switch
+        {
+            "Running" => "运行正常",
+            "StorageFault" => "后台存储故障",
+            "UnresponsivePlugin" => "插件未响应 · 正在停止",
+            _ => "状态未确认"
+        };
+        HealthTone = healthState switch
+        {
+            "Running" when health.Code == "Ok" => "Success",
+            "StorageFault" or "UnresponsivePlugin" => "Error",
+            _ => "Warning"
+        };
+        // 故障同样需要显示真实采样时刻；没有新健康采样时保留上次时间。
+        if (health.Health is { } sample)
+            SnapshotTime = "状态采样：" + sample.ObservedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") + " · " + sample.State;
         if (healthState is "StorageFault" or "UnresponsivePlugin") return;
         var plans = await client.QueryAsync("GetJobs", lifetime);
         var history = await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:appliedPlugin,JobId:appliedJob),lifetime);
@@ -78,7 +97,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
             if (!HistoryJobs.Contains(row.JobId)) HistoryJobs.Add(row.JobId);
         }
         Selected = Jobs.FirstOrDefault(x => x.PluginId == key?.PluginId && x.JobId == key.JobId) ?? Jobs.FirstOrDefault();
-        SnapshotTime = "状态采样：" + health.Health?.ObservedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") + " · " + health.Health?.State;
+
     }
     [RelayCommand]
     private Task MoreJobsAsync() => WithStatusAsync(async () =>
@@ -139,9 +158,9 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         if (Busy || lifetime.IsCancellationRequested) return;
         Busy = true;
         try { await action(); }
-        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested) { Status = "后台服务不可用或响应超时；所列内容为上次状态快照。"; }
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested) { HealthLabel = "连接超时"; HealthTone = "Warning"; Status = "后台服务不可用或响应超时；所列内容为上次状态快照。"; }
         catch (OperationCanceledException) { }
-        catch (Exception) { Status = "后台服务不可用或版本不兼容；请检查服务状态并更新到支持任务筛选的版本。所列内容为上次状态快照。"; }
+        catch (Exception) { HealthLabel = "无法确认服务状态"; HealthTone = "Warning"; Status = "后台服务不可用或版本不兼容；请检查服务状态并更新到支持任务筛选的版本。所列内容为上次状态快照。"; }
         finally { Busy = false; }
     }
 }
