@@ -44,7 +44,10 @@ foreach ($row in [regex]::Matches($document, '(?m)^\| (CRS\.[A-Za-z0-9.]+) \| ([
     $name = $row.Groups[1].Value
     if (-not $names[$name].StartsWith((Join-Path $root 'src') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { continue }
     $declared = $row.Groups[2].Value.Trim()
-    $expected = @($graph[$names[$name]] | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_) } | Sort-Object)
+    [xml]$project = Get-Content -Raw -LiteralPath $names[$name]
+    $expected = @($project.SelectNodes('//ProjectReference') |
+        Where-Object { $_.GetAttribute('ReferenceOutputAssembly') -ne 'false' } |
+        ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.Include) } | Sort-Object)
     $actual = @(if ($declared -ne '无') { $declared.Split(',').Trim() | Sort-Object })
     if (($expected -join ',') -ne ($actual -join ',')) { throw "当前架构文档的直接依赖已漂移：$name" }
 }

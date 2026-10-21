@@ -10,6 +10,8 @@
     <Title>小财牛</Title>
     <AssemblyTitle>小财牛</AssemblyTitle>
     <Description>财富有数，投资有度</Description>
+    <!-- F5 即使宿主本身未改动，也需检查并同步插件输出。 -->
+    <DisableFastUpToDateCheck Condition="'SyncDevelopmentPlugins' != 'false'">true</DisableFastUpToDateCheck>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/Brand/XiaoCaiNiu.ico" />
@@ -27,4 +29,21 @@
     <!-- 配置源归属 WPF 项目，构建与发布时都保留运行目录中的 config 子目录。 -->
     <Content Include="config/*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- 只建立构建顺序，不把业务插件加入宿主编译引用或输出根目录。 -->
+  <ItemGroup Condition="'SyncDevelopmentPlugins' != 'false'">
+    <ProjectReference Include="../Plugins/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+    <ProjectReference Include="../Plugins/CRS.Plugins.NationalTeam.Jobs/CRS.Plugins.NationalTeam.Jobs.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+    <ProjectReference Include="../Plugins/CRS.Plugins.Demo/CRS.Plugins.Demo.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+  </ItemGroup>
+  <Target Name="SyncDesktopDevelopmentPlugins" AfterTargets="Build"
+          Condition="'SyncDevelopmentPlugins' != 'false' And 'DesignTimeBuild' != 'true'">
+    <MSBuild Projects="@(ProjectReference->WithMetadataValue('DevelopmentPlugin', 'true'))"
+             Targets="GetTargetPath" Properties="Configuration=$(Configuration)"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_DevelopmentPluginAssembly" />
+    </MSBuild>
+    <WriteLinesToFile File="$(IntermediateOutputPath)development-plugin-outputs.txt"
+                      Lines="@(_DevelopmentPluginAssembly->'%(FullPath)')" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <Exec Command="&quot;$(SystemRoot)/System32/WindowsPowerShell/v1.0/powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../tests/Build-DevelopmentPlugins.ps1&quot; -AssemblyList &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)development-plugin-outputs.txt&quot; -OutputDirectory &quot;$(TargetDir)Plugins&quot;" />
+  </Target>
 </Project>

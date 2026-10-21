@@ -72,7 +72,11 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
     [xml]$project = Get-Content -Raw $projectFile.FullName
     foreach ($reference in $project.SelectNodes('//ProjectReference')) {
         if ($projectFile.FullName -notmatch '[\\/]Plugins[\\/]') {
-            Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.') "宿主/税务静态引用业务插件：$($projectFile.Name)"
+            $developmentBuildOnly = $projectFile.Name -eq 'CRS.Desktop.Wpf.csproj' -and
+                $reference.GetAttribute('ReferenceOutputAssembly') -eq 'false' -and
+                $reference.GetAttribute('Private') -eq 'false' -and
+                $reference.GetAttribute('DevelopmentPlugin') -eq 'true'
+            Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.' -or $developmentBuildOnly) "宿主/税务静态引用业务插件：$($projectFile.Name)"
         } else {
             Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
         }

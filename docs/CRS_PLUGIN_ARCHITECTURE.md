@@ -109,7 +109,7 @@ docs/
   CRS_BACKGROUND_SERVICE_DESIGN.md
 ```
 
-**修订：ETF插件在双进程方案下至少需要一个不依赖WPF的Core/Jobs组件及一个WPF UI组件**，不再要求首期只有一个业务DLL；业务Domain/Application/Data可按复杂度并入Core/Jobs程序集。一个插件是**一个发行包和一个稳定PluginId**，不等于必须是一个DLL。两个宿主只能按签名manifest动态发现入口，均不得对业务插件使用`ProjectReference`或业务类型名硬编码。
+**修订：ETF插件在双进程方案下至少需要一个不依赖WPF的Core/Jobs组件及一个WPF UI组件**，不再要求首期只有一个业务DLL；业务Domain/Application/Data可按复杂度并入Core/Jobs程序集。一个插件是**一个发行包和一个稳定PluginId**，不等于必须是一个DLL。两个宿主只能按签名manifest动态发现入口，均不得对业务插件建立编译程序集引用或硬编码业务类型名。桌面开发打包允许 `ReferenceOutputAssembly=false`、`Private=false` 的仅构建项目引用，用于保证构建顺序和自动生成开发可信包，不参与宿主编译或运行时发现。
 
 ### 2.2 依赖门禁
 

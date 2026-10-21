@@ -18,6 +18,8 @@ Worker升级专项：先构建当前Release并发布新的HeartbeatOnly测试包
 
 插件/ETF开发预览：说明与未完成门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md)。新增验证入口：`dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release`；`dotnet run --project tests/CRS.Tests.PluginHost -c Release -- artifacts/plugin-preview/Plugins`。双插件测试前用 `./tests/Publish-Plugins.ps1 -IncludeDemo` 生成全新发布目录。测试仅用合成研究数据和独立临时库，不把状态恢复测试称为断电验收。
 
+桌面日常开发：编译解决方案或 `CRS.Desktop.Wpf`（Debug/Release、VS F5 均适用）会先构建国家队双入口和 Demo 插件，再由 `Build-DevelopmentPlugins.ps1` 把完整输出、清单和 SHA256 可信索引同步到桌面输出的 `Plugins/<id>/<version>`。无需手动复制 DLL，也无需运行发布/同步脚本。纯后台 Heartbeat 不进入桌面包。更新已加载 DLL 前需停止桌面调试；复制失败会使构建失败。可用 `-p:SyncDevelopmentPlugins=false` 关闭开发同步；`Publish-Plugins.ps1` 已显式关闭此步骤并继续独立生成发行开发包。新增桌面插件时需在 WPF 项目登记同样的仅构建引用；Core 等依赖随入口输出复制。此开发哈希索引不替代生产签名发行链。
+
 覆盖率与原件导出回归已加入ETF验证：交易日历损坏不跳日、缺口分母、无日历/超界不冒充完整、待审核/拒绝分列、人工日历证据替换、同值拒绝后再提交，以及精确原字节导出、取消/损坏不覆盖目的地、私有目录保护。宿主窗口检查会实际切换所有插件页签并捕获绑定错误。
 
 敏感导出专项：`dotnet run --project tests/CRS.Tests.Infrastructure -c Release -- --sensitive-exports-only`。应用与界面回归同时覆盖本次明文声明、恢复确认及锁定取消；生产界面不开放临时目录明文特许，合成验收明确授权其隔离临时目的地。说明见 [敏感导出](../docs/implementation/SENSITIVE_EXPORT.md)。

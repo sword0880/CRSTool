@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
-dotnet publish "$repo/src/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj" -c $Configuration --no-restore -m:1 -o $destination
+dotnet publish "$repo/src/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj" -c $Configuration --no-restore -m:1 -p:SyncDevelopmentPlugins=false -o $destination
 if ($LASTEXITCODE -ne 0) { throw 'Host publish failed' }
 $definitions = @(@{Id='crs.national-team';Project='CRS.Plugins.NationalTeamWatch'})
 if ($IncludeDemo) { $definitions += @{Id='crs.demo';Project='CRS.Plugins.Demo'} }
