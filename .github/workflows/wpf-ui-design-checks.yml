@@ -29,6 +29,9 @@ jobs:
       - name: Verify settings UI and synthetic credential lifecycle
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui "$env:GITHUB_WORKSPACE/artifacts/ui-preview/settings"
+      - name: Verify global shell footer uses real Worker semantics and fail-closed health
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --shell-status-checks
       - name: Render main-window brand preview (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --shell-brand-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/main"
