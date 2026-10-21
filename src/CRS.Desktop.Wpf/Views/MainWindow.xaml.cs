@@ -117,7 +117,26 @@ public partial class MainWindow : FluentWindow
     }
     /// <summary>底部状态入口与左侧菜单共用同一任务中心及健康页，不在桌面执行后台管理命令。</summary>
     private async void OnFooterTaskCenterClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateScheduledTasksAsync();
+    private async void OnFooterRecentSyncClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateExecutionHistoryAsync(false);
+    private async void OnFooterIssuesClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateExecutionHistoryAsync(true);
     private async void OnFooterServiceStatusClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateWorkerHealthAsync();
+
+    /// <summary>右下角两个入口直达最近执行；异常模式的服务端筛选与分页由页面模型负责。</summary>
+    public async Task NavigateExecutionHistoryAsync(bool issues)
+    {
+        OpenNavigationGroup(TasksGroup);
+        if(forceClose)return;
+        try
+        {
+            backgroundServiceModel??=new(taskPageLifetime.Token);
+            var page=new BackgroundServicePage(backgroundServiceModel);
+            page.ShowRecentExecutions();
+            ShowHostedPage(page);
+            await backgroundServiceModel.OpenExecutionHistoryAsync(issues);
+        }
+        catch(OperationCanceledException) { /* 关闭或锁定时不继续查询。 */ }
+        catch(Exception error) {if(!forceClose)System.Windows.MessageBox.Show(this,"最近执行记录暂不可用；类别："+error.GetType().Name,"任务中心");}
+    }
 
     public async Task NavigateWorkerHealthAsync()
     {
