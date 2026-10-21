@@ -41,6 +41,7 @@
 - [x] 设置页首个非敏感子视图：将日志设置拆为 `Views/Settings/LoggingSettingsView`，继承 `SettingsViewModel` 并继续由 `SettingsWindow` 的统一保存按钮提交；设置窗口验证工具检查子视图名称与共享主题加载。
 - [x] 合成截图发现 DatePicker 在 130–140px 宽度下按默认长格式显示星期几，未显示日期。ETF / 直接持股 / 减持预警共 13 个日期控件强制 `SelectedDateFormat="Short"`；`Verify-WpfDesignSystem.ps1` 阻止日后新增长日期格式。
 - [ ] **其余设置页拆分**：存储、安全与 TOTP、文档口令、邮件、钉钉、企业微信分批拆成独立 UserControl，并逐步切换至 SettingsSectionHost。需要先把密码框的 `PasswordChanged` 回调和锁定后的清理职责拆为明确的安全接口；不得丢失 `ClearSecurityInputs`、`ClearDocumentInputs`、`ClearEmailInput`、`ClearDingTalkInputs`、`ClearWeChatInputs`，也不得重建时复用明文凭证。
+- [x] 绩效组件真实合成截图发现空数据表的自动列宽仅能显示单个汉字，已为两张只读表设置语义样式、表头高度及有下限的星号/固定列宽；组件预览新增实际列宽断言（不得小于 70 DIP）。
 - [x] 绩效页将“原币资产组成”和“绩效历史”拆为独立只读 `PerformanceExposureView`、`PerformanceHistoryView`，复用原 `PerformanceViewModel` 的冻结结果与历史命令；CI 新增合成空状态宽度与数据绑定检查。
 - [ ] 绩效页其余账户范围、图表、补录和资金流继续抽取；须先做控件焦点、命令和数据权限验证。
 - [ ] 插件管理页在 Windows 上检查表格排序/键盘选中/虚拟化以及鼠标焦点；若默认模板带来变化，先修复公共样式再合并。

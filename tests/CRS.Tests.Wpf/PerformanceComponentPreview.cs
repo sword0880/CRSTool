@@ -39,6 +39,11 @@ internal static class PerformanceComponentPreview
                         var table=Find<DataGrid>(view)??throw new InvalidOperationException("绩效子视图缺少绑定表格："+name);
                         if(table.Columns.Count<5||table.ItemsSource is null)
                             throw new InvalidOperationException("绩效子视图丢失表格列或 ItemsSource："+name);
+                        // 空状态不能把表头自动压缩为单个汉字；列可水平滚动但文字须可辨。
+                        var narrow=table.Columns.Where(column=>column.MinWidth<70 || column.ActualWidth<70).ToArray();
+                        if(narrow.Length>0)
+                            throw new InvalidOperationException("绩效 "+name+" 列宽过窄："+
+                                string.Join("，",narrow.Select(c=>$"{c.Header}:{c.ActualWidth:F0}/{c.MinWidth:F0}")));
                         var image=new RenderTargetBitmap(width,600,96,96,PixelFormats.Pbgra32);
                         image.Render(root);
                         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));
