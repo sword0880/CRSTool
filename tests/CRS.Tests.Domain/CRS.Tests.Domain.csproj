@@ -3,7 +3,8 @@
  <ItemGroup><ProjectReference Include="../../src/CRS.Domain/CRS.Domain.csproj"/></ItemGroup>
  <ItemGroup><Content Include="Fixtures/performance-v1.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Fixtures/performance-v1.json')"/></ItemGroup>
  <ItemGroup>
-  <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
-  <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
+  <!-- VS 的 MSBuildSDKsPath 指向 VS 自身目录；按所选 .NET SDK 定位供 net10.0 测试运行的 Roslyn。 -->
+  <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(NetCoreRoot)sdk/$(NETCoreSdkVersion)/Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
+  <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(NetCoreRoot)sdk/$(NETCoreSdkVersion)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
  </ItemGroup>
 </Project>
