@@ -35,13 +35,13 @@ public sealed partial class EtfWorkspace
             {
                 var trading=await RunAsync(()=>repository!.IsReviewedTradingDay(market,day),token);
                 if(trading==false){closed++;await RunAsync(()=>{repository!.SaveMarketActivity(market,day,null);return true;},token);continue;}
-                await ReportAsync(new("SourceStarted",day,market));MarketActivitySource? source=null;sourceCalls++;
+                await ReportAsync(new("SourceStarted",day,market));MarketActivitySource? source=null;sourceCalls++;var abortForCooldown=false;
                 try {source=await activitySource.FetchAsync(market,day,token);}
                 catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
                 catch(Exception error)
                 {
                     // 错误只输出有限分类，不将任意官网正文、请求地址或隐私数据写入执行检查点。
-                    firstFailure??=error switch
+                    var failureCode=error switch
                     {
                         TimeoutException => "Timeout",
                         HttpRequestException => "HttpRequest",
@@ -50,15 +50,17 @@ public sealed partial class EtfWorkspace
                         _ when error.GetType().Name=="SourceBudgetUnavailableException" => "SourceBudgetUnavailable",
                         _ => error.GetType().Name
                     };
+                    firstFailure??=failureCode;
+                    abortForCooldown=failureCode is "SourceCooldown" or "SourceBudgetUnavailable";
                     issues++;contiguous=false;await ReportAsync(new("SourceFailed",day,market));
                 }
                 await RunAsync(()=>{repository!.SaveMarketActivity(market,day,source);return true;},token);
                 // 共享来源额度已冷却时立即结束本轮，避免数十天假装“已尝试下载”
                 // 并把所有尚未查询的交易日写成失败。保留已经提交的原件与单日诊断。
-                if(firstFailure is "SourceCooldown" or "SourceBudgetUnavailable")
+                if(abortForCooldown)
                 {
                     await ReportAsync(new("SourceCoolingDown",day,market));
-                    return new(days,issues,received,sourceCalls,closed,empty,firstFailure,HasMore:true);
+                    return new(days,issues,received,sourceCalls,closed,empty,"SourceCooldown",HasMore:true);
                 }
                 if(source is not null)
                 {
