@@ -23,6 +23,7 @@ public partial class MainWindow : FluentWindow
     public void PrepareLock()
     {
         forceClose=true;
+        if(DataContext is ShellViewModel activeShell)activeShell.StatusBar.Stop();
         taskPageLifetime.Cancel();
         plugins?.Cancel(); HidePlugin();
         // 换手机限制会话与系统锁屏可能先后触发，已清理窗口应允许重复关闭。
@@ -50,18 +51,12 @@ public partial class MainWindow : FluentWindow
         foreach(var item in Navigation.FooterMenuItems.OfType<NavigationViewItem>().Where(x=>x.TargetPageType is not null)) item.Click+=(_,_)=>HidePlugin();
         // 独立服务入口不依赖桌面插件成功加载；服务缺失也不影响税务和绩效页面。
         var backgroundServiceItem=CreateMenuItem("后台服务状态",SymbolRegular.Server24);
-        backgroundServiceItem.Click+=async (_,_)=>
-        {
-            OpenNavigationGroup(TasksGroup);
-            backgroundServiceModel??=new(taskPageLifetime.Token);
-            ShowHostedPage(new WorkerStatusPage(backgroundServiceModel));
-            await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
-        };
+        backgroundServiceItem.Click+=async (_,_)=>await NavigateWorkerHealthAsync();
         TasksGroup.MenuItems.Add(backgroundServiceItem);
         var taskCenter=CreateMenuItem("任务中心",SymbolRegular.CalendarClock24);
         taskCenter.Click+=async (_,_)=>await NavigateScheduledTasksAsync();TasksGroup.MenuItems.Insert(0,taskCenter);
-        Loaded+=(_,_)=>{pluginStartup=StartPluginsAsync();};
-        Closed+=async (_,_)=> {forceClose=true;taskPageLifetime.Cancel();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
+        Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
+        Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();taskPageLifetime.Cancel();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
     }
     /// <summary>扩展页与内置页互斥显示；隐藏原内容但保留布局，避免收窄侧栏露出旧页面。</summary>
     private void ShowHostedPage(System.Windows.UIElement page)
@@ -120,6 +115,24 @@ public partial class MainWindow : FluentWindow
         // 展示与操作统一使用宿主状态，不按具体插件编写分支。
         ShowHostedPage(new PluginManagementPage(plugins!.Statuses,plugins.SetEnabledForNextStart,plugins.IsEnabledForNextStart));
     }
+    /// <summary>底部状态入口与左侧菜单共用同一任务中心及健康页，不在桌面执行后台管理命令。</summary>
+    private async void OnFooterTaskCenterClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateScheduledTasksAsync();
+    private async void OnFooterServiceStatusClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateWorkerHealthAsync();
+
+    public async Task NavigateWorkerHealthAsync()
+    {
+        OpenNavigationGroup(TasksGroup);
+        if(forceClose)return;
+        try
+        {
+            backgroundServiceModel??=new(taskPageLifetime.Token);
+            ShowHostedPage(new WorkerStatusPage(backgroundServiceModel));
+            await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
+        }
+        catch(OperationCanceledException) { /* 锁定/退出时不回写。 */ }
+        catch(Exception error) {if(!forceClose)System.Windows.MessageBox.Show(this,"服务状态暂不可用；类别："+error.GetType().Name,"后台服务");}
+    }
+
     public async Task NavigateScheduledTasksAsync()
     {
         OpenNavigationGroup(TasksGroup);
@@ -193,7 +206,7 @@ public partial class MainWindow : FluentWindow
         if(forceClose) return;
         var shell = (ShellViewModel)DataContext;
         if (Environment.GetCommandLineArgs().Contains("--smoke-test")) { shell.Import.Token = ""; return; }
-        if (shell.State.IsBusy) { e.Cancel = true; System.Windows.MessageBox.Show(this, "请等待操作结束，或先取消当前操作。", "操作正在进行"); }
+        if (shell.State.IsBusy) { e.Cancel = true; System.Windows.MessageBox.Show(this, "请等待当前前台操作结束，或返回执行该操作的页面进行取消。", "操作正在进行"); }
         else shell.Import.Token = "";
     }
 }
