@@ -53,6 +53,13 @@ public sealed partial class EtfWorkspace
                     issues++;contiguous=false;await ReportAsync(new("SourceFailed",day,market));
                 }
                 await RunAsync(()=>{repository!.SaveMarketActivity(market,day,source);return true;},token);
+                // 共享来源额度已冷却时立即结束本轮，避免数十天假装“已尝试下载”
+                // 并把所有尚未查询的交易日写成失败。保留已经提交的原件与单日诊断。
+                if(firstFailure is "SourceCooldown" or "SourceBudgetUnavailable")
+                {
+                    await ReportAsync(new("SourceCoolingDown",day,market));
+                    return new(days,issues,received,sourceCalls,closed,empty,firstFailure,HasMore:true);
+                }
                 if(source is not null)
                 {
                     if(source.Observation is not null)received++;
