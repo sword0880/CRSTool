@@ -14,7 +14,7 @@ internal static class UiVisualPreview
 {
     public static void Render(string directory)
     {
-        PluginUiResources.Validate(Application.Current.Resources);
+        PluginUiResources.Validate(System.Windows.Application.Current.Resources);
         Directory.CreateDirectory(directory);
         var frames=0;
         var workspace=new WorkerEtfWorkspace();
@@ -36,7 +36,7 @@ internal static class UiVisualPreview
                 var view=factory();
                 var root=new Border
                 {
-                    Background=(Brush)Application.Current.FindResource("BrandCanvasBrush"),
+                    Background=(Brush)System.Windows.Application.Current.FindResource("BrandCanvasBrush"),
                     Child=view
                 };
                 root.Measure(new Size(width,height));

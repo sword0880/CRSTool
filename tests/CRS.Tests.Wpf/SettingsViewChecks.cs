@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using CRS.Application.Abstractions;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views;
+using CRS.DesktopClient.Views.Settings;
 
 /// <summary>使用隔离设置替身渲染真实窗口，不访问个人数据库或发送通知。</summary>
 internal static class SettingsViewChecks
@@ -18,12 +19,13 @@ internal static class SettingsViewChecks
             var app=new System.Windows.Application();
             app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
             app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
-            app.Resources["BooleanVisibility"]=new BooleanToVisibilityConverter();
-            var label=new Style(typeof(TextBlock));label.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(0,12,0,6)));
-            app.Resources["InputLabel"]=label;
+            app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+            app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
             var vault=new VaultInteractionChecks.FakeVault{HelloSupported=true};vault.CompleteEnrollmentAsync(true).GetAwaiter().GetResult();
             var model=new SettingsViewModel(new WorkspaceState(new SettingsUseCases(),new SilentInteraction()),new Settings(),vault);
             var window=new SettingsWindow(model);
+            if(window.FindName("LoggingSection") is not LoggingSettingsView)
+                throw new InvalidOperationException("日志设置未采用独立子视图。");
             window.Loaded+=async(_,_)=>
             {
                 try

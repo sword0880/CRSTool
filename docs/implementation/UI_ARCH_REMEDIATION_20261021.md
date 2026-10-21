@@ -38,7 +38,8 @@
 - [x] 绩效页不再通过 `FindName("Navigation")` 从主窗口检索高度；内部 Grid 改为伸展布局。
 - [x] 插件管理页移除重复定义的四套页面级 ControlTemplate；表格行、列头、单元格、操作按钮迁移到 `SharedStyles.xaml` 语义样式，保留默认控件模板。
 - [x] 设置页基础标题、提示文字和白色面板接入共享样式/颜色。
-- [ ] **设置页拆分**：存储、安全与 TOTP、文档口令、邮件、钉钉、企业微信、日志拆成多个独立 UserControl，以 SettingsSectionHost 切换。需要先把密码框的 `PasswordChanged` 回调和锁定后的清理职责拆为明确的安全接口；不得丢失 `ClearSecurityInputs`、`ClearDocumentInputs`、`ClearEmailInput`、`ClearDingTalkInputs`、`ClearWeChatInputs`，也不得重建时复用明文凭证。
+- [x] 设置页首个非敏感子视图：将日志设置拆为 `Views/Settings/LoggingSettingsView`，继承 `SettingsViewModel` 并继续由 `SettingsWindow` 的统一保存按钮提交；设置窗口验证工具检查子视图名称与共享主题加载。
+- [ ] **其余设置页拆分**：存储、安全与 TOTP、文档口令、邮件、钉钉、企业微信分批拆成独立 UserControl，并逐步切换至 SettingsSectionHost。需要先把密码框的 `PasswordChanged` 回调和锁定后的清理职责拆为明确的安全接口；不得丢失 `ClearSecurityInputs`、`ClearDocumentInputs`、`ClearEmailInput`、`ClearDingTalkInputs`、`ClearWeChatInputs`，也不得重建时复用明文凭证。
 - [ ] 绩效页进一步拆出账户范围、图表、补录、资金流和历史的模板/子视图；在确立数据上下文和尺寸回归后实施。
 - [ ] 插件管理页在 Windows 上检查表格排序/键盘选中/虚拟化以及鼠标焦点；若默认模板带来变化，先修复公共样式再合并。
 
