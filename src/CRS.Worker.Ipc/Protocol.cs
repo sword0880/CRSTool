@@ -7,7 +7,7 @@ namespace CRS.Worker.Ipc;
 /// <summary>协议只接受固定命令和标量参数，不接收路径、类型名或客户端自报权限。</summary>
 public sealed record BackgroundRequest(int ProtocolVersion, Guid RequestId, string Command,
     string? PluginId = null, string? JobId = null, string? Cron = null, string? TimeZoneId = null,
-    long? ExpectedRevision = null, string? Cursor = null, int PageSize = 10, Guid? RelatedRequestId = null,string? Payload=null,string? ExecutionId=null);
+    long? ExpectedRevision = null, string? Cursor = null, int PageSize = 10, Guid? RelatedRequestId = null,string? Payload=null,string? ExecutionId=null,string? ResultFilter=null);
 public sealed record BackgroundPluginScheduling(string PluginId, int MaxConcurrency, int Running, int Waiting);
 public sealed record BackgroundScheduling(int MaxConcurrency, int Running, int Waiting, int MaxPendingPerPlugin, long CoalescedTriggers,
     long CapacityDeferredTriggers, int PendingManualCommands = 0, IReadOnlyList<BackgroundPluginScheduling>? Plugins = null);
@@ -23,7 +23,7 @@ public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, D
 public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, string Code,
     BackgroundHealth? Health = null, IReadOnlyList<TaskDefinition>? Jobs = null,
     IReadOnlyList<ExecutionRecord>? History = null, string? NextCursor = null,
-    CommandReceipt? Receipt = null, IReadOnlyList<BackgroundPluginStatus>? Plugins = null,string? Payload=null,ExecutionRecord? Execution=null);
+    CommandReceipt? Receipt = null, IReadOnlyList<BackgroundPluginStatus>? Plugins = null,string? Payload=null,ExecutionRecord? Execution=null,string? AppliedResultFilter=null);
 
 /// <summary>分页与持久命令状态属于第二版协议；旧客户端明确拒绝，固定管道名保持可诊断。</summary>
 public static class WorkerProtocol { public const int Version = 2; }
