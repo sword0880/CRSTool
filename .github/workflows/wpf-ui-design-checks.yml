@@ -20,6 +20,12 @@ jobs:
         run: dotnet restore CRS.sln
       - name: Build release
         run: dotnet build CRS.sln -c Release --no-restore -m:1
+      - name: Verify architecture dependency constraints
+        shell: pwsh
+        run: ./tests/Verify-Architecture.ps1
+      - name: Verify settings UI and synthetic credential lifecycle
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui "$env:GITHUB_WORKSPACE/artifacts/ui-preview/settings"
       - name: Render main-window brand preview (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --shell-brand-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/main"

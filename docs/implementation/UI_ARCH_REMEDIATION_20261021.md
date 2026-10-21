@@ -53,6 +53,7 @@
 - `tests/CRS.Tests.Wpf --shell-brand-preview <目录>`：主窗口 1040 / 1280 / 1440 宽度、展开/折叠，96 / 120 / 144 DPI 位图。
 - `tests/CRS.Tests.PluginRecovery --ui-visual-preview <目录>`：ETF、直接持股、减持预警三种空状态插件 UI，三宽三 DPI，禁用 Loaded 取数，不连接 Worker。
 - `.github/workflows/wpf-ui-design-checks.yml`：Windows .NET10 静态检查、解决方案编译、合成视觉预览与截图 Artifact。当前无人工审核批准的黄金截图，**只生成可审阅图片，不做未经校准的像素差 CI 阻断**。
+- Windows CI 同时执行 `Verify-Architecture.ps1` 与 `CRS.Tests.Wpf --settings-ui` 的合成凭证操作与视觉验收；后者仅使用测试替身，但不能替代实际锁屏、窗口拖拽和人工凭证操作。
 - [ ] 增加真实 Windows 会话回归：100% / 125% / 150% 的系统缩放及多显示器切换、窗口最大化、导航收起/展开、键盘 Tab/focus、表格读写/筛选/排序、嵌套滚轮、图表重置、长中文文本、空/忙/错/数据质量状态、插件停止/重载/升级、设置关闭/锁屏后的秘密清理。
 - [x] 已取得首轮绿色 Windows Actions（commit `04a2edb`），编译、主窗口和三类国家队插件合成截图通过；抽取绩效只读子视图后新增同类预览（commit `1b19ad1`），截图继续可供人工复核。
 - [ ] CI 首次执行成功后筛选并批准黄金截图，设定可维护的差异门槛；不依赖单纯像素变化判断所有交互正确。
