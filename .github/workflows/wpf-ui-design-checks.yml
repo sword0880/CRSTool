@@ -32,6 +32,9 @@ jobs:
       - name: Render performance component previews (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --performance-component-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/performance"
+      - name: Render plugin-management and virtualized-grid preview (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --plugin-management-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugin-management"
       - name: Render national-team plugin previews (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --ui-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugins"

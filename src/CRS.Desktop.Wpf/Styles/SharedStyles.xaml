@@ -168,5 +168,30 @@
   <Setter Property="Width" Value="36"/><Setter Property="Height" Value="36"/>
   <Setter Property="Padding" Value="7"/>
  </Style>
+ <!-- 插件状态以业务语义命名；颜色只在共享资源中映射，行模型不输出色值。 -->
+ <Style x:Key="UiPluginStatePill" TargetType="Border">
+  <Setter Property="Background" Value="{DynamicResource BrandStatusInfoSurfaceBrush}"/>
+  <Setter Property="CornerRadius" Value="12"/>
+  <Setter Property="Padding" Value="10,4"/>
+  <Setter Property="HorizontalAlignment" Value="Left"/>
+  <Setter Property="VerticalAlignment" Value="Center"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding StateTone}" Value="Success"><Setter Property="Background" Value="{DynamicResource BrandStatusSuccessSurfaceBrush}"/></DataTrigger>
+   <DataTrigger Binding="{Binding StateTone}" Value="Warning"><Setter Property="Background" Value="{DynamicResource BrandStatusWarningSurfaceBrush}"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="UiPluginStateText" TargetType="TextBlock">
+  <Setter Property="Foreground" Value="{DynamicResource BrandStatusInfoBrush}"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding StateTone}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource BrandStatusSuccessBrush}"/></DataTrigger>
+   <DataTrigger Binding="{Binding StateTone}" Value="Warning"><Setter Property="Foreground" Value="{DynamicResource BrandStatusWarningBrush}"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="UiPluginActionIcon" TargetType="ui:SymbolIcon">
+  <Setter Property="Foreground" Value="{DynamicResource BrandTextMutedBrush}"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding IsNextEnabled}" Value="False"><Setter Property="Foreground" Value="{DynamicResource BrandAccentBrush}"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
  <DataTemplate DataType="{x:Type vm:ResultTable}"><DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="True"/></DataTemplate>
 </ResourceDictionary>

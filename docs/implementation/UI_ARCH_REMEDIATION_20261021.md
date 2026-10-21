@@ -49,7 +49,9 @@
 - [x] 绩效工作台、净值曲线与指数、资料补录、资金流与异常检查分别抽出 `PerformanceWorkbenchView`、`PerformanceChartsView`、`PerformanceManualEntryView`、`PerformanceFlowsView`。父 `PerformancePage.xaml` 仅组织页签与顶部操作，不复制计算命令或历史状态；子视图统一继承 `PerformanceViewModel`。
 - [x] 合成绩效组件预览扩展为六类子视图（包括已抽出的资产组成/历史），对双表绑定、日期控件、图表子页签以及 1040/1280/1440 宽度进行检查；新的业务只读表显式选择 `UiReadOnlyDataGrid`。
 - [ ] 绩效工作台深层账户选择/导出栏和复杂补录面板可以按复用需求继续细分，但**需要先保留页面视图的焦点、账户完整信息显示/隐藏与取消命令回归**，不能以 XAML 缩短作为理由修改 VM 的计算与数据权限。
-- [ ] 插件管理页在 Windows 上检查表格排序/键盘选中/虚拟化以及鼠标焦点；若默认模板带来变化，先修复公共样式再合并。
+- [x] 插件管理页将状态颜色从 `PluginManagementRow` 的十六进制值移到 `UiPluginStatePill` / `UiPluginStateText` / `UiPluginActionIcon` 共享样式。行模型只输出 `StateTone` 与 `IsNextEnabled`，不再从 `Application.Current` 查询画刷；主表显式开启行回收虚拟化、整行选择并保留产品设计要求的只读/禁止排序。
+- [x] 添加 80 行合成插件状态下的宽度/行选择/禁排序/虚拟化/启停保存回调截图和回归命令 `--plugin-management-preview`。
+- [ ] **实机验收仍必要**：鼠标/键盘焦点切换、表头真实可读性、插件升级/卸载时快照刷新、选中行与禁用按钮的视觉表现；合成截图不等于键盘事件回放。
 
 ## 阶段四：长期质量门禁（CI/截图基础已实现，未验证通过）
 

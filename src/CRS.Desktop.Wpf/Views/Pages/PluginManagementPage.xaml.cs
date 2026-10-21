@@ -44,16 +44,16 @@ public sealed class PluginManagementRow : ObservableObject
         PluginState.Discovered => "已发现", PluginState.Verified => "已验证", PluginState.Loaded => "已加载",
         PluginState.Stopping => "停止中", _ => "已停止"
     };
-    public string StateForeground => status.State == PluginState.Started ? "#15803D" : status.State == PluginState.Failed ? "#B45309" : "#64748B";
-    public string StateBackground => status.State == PluginState.Started ? "#F0FDF4" : status.State == PluginState.Failed ? "#FFFBEB" : "#F1F5F9";
+    // 业务层仅公开状态语义；颜色由共享 WPF 资源映射，不再保留多份 HEX 颜色。
+    public string StateTone => status.State switch
+    {
+        PluginState.Started => "Success", PluginState.Failed => "Warning", _ => "Info"
+    };
     public string NextLabel => failure ?? (nextEnabled == (status.State != PluginState.Disabled) ? nextEnabled ? "启用" : "禁用" : nextEnabled ? "待启用 · 重启后生效" : "待禁用 · 重启后生效");
     public string Detail => string.Join("\n", new[] { failure, status.Error, status.RecoveryMessage }.Where(text => !string.IsNullOrWhiteSpace(text)));
     public string ActionLabel => nextEnabled ? "下次启动禁用" : "下次启动启用";
     public SymbolRegular ActionIcon => nextEnabled ? SymbolRegular.Pause24 : SymbolRegular.Play24;
-    // 操作图标使用全局品牌颜色，不在代码里引入另一份蓝色常量。
-    public System.Windows.Media.Brush ActionForeground =>
-        System.Windows.Application.Current.TryFindResource(nextEnabled ? "BrandTextMutedBrush" : "BrandAccentBrush") as System.Windows.Media.Brush
-        ?? System.Windows.Media.Brushes.Gray;
+    public bool IsNextEnabled => nextEnabled;
     public IRelayCommand ToggleCommand { get; }
 
     public PluginManagementRow(PluginStatus status, Action<string, bool> save, bool nextEnabled)
@@ -66,7 +66,7 @@ public sealed class PluginManagementRow : ObservableObject
     {
         try { save(Id, !nextEnabled); nextEnabled = !nextEnabled; failure = null; }
         catch { failure = "保存失败，请重试"; }
-        foreach (var property in new[] { nameof(NextLabel), nameof(Detail), nameof(ActionLabel), nameof(ActionIcon), nameof(ActionForeground) })
+        foreach (var property in new[] { nameof(NextLabel), nameof(Detail), nameof(ActionLabel), nameof(ActionIcon), nameof(IsNextEnabled) })
             OnPropertyChanged(property);
     }
 }

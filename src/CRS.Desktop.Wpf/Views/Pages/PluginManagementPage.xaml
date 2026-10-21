@@ -15,11 +15,11 @@
     <StackPanel Grid.Column="2"><TextBlock Text="异常" Foreground="{DynamicResource BrandTextSecondaryBrush}"/><TextBlock Text="{Binding Failed}" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandStatusWarningBrush}" Margin="0,4"/></StackPanel>
    </Grid>
   </Border>
-  <Border Grid.Row="2" Background="White" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="18">
+  <Border Grid.Row="2" Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="18">
    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <DockPanel Margin="0,0,0,12"><TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" Foreground="{DynamicResource BrandTextHintBrush}"/><TextBlock Text="官方预装插件" FontSize="18" FontWeight="SemiBold"/></DockPanel>
     <ProgressBar Grid.Row="1" Height="5" Minimum="0" Maximum="{Binding ChartMaximum,Mode=OneWay}" Value="{Binding Running,Mode=OneWay}" Foreground="{DynamicResource BrandAccentBrush}" Background="{DynamicResource BrandBorderBrush}" ToolTip="{Binding RunningLabel}" Margin="0,0,0,16"/>
-    <DataGrid x:Name="PluginTable" Grid.Row="2" ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False" CanUserSortColumns="False" HeadersVisibility="Column" GridLinesVisibility="None" RowHeaderWidth="0" BorderThickness="0" Background="White" RowHeight="88" HorizontalScrollBarVisibility="Disabled" SelectionMode="Single" SelectionUnit="FullRow" AlternationCount="2" ColumnHeaderStyle="{DynamicResource UiPluginTableHeader}" RowStyle="{DynamicResource UiPluginTableRow}" CellStyle="{DynamicResource UiPluginTableCell}">
+    <DataGrid x:Name="PluginTable" Grid.Row="2" ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False" CanUserSortColumns="False" HeadersVisibility="Column" GridLinesVisibility="None" RowHeaderWidth="0" BorderThickness="0" Background="{DynamicResource BrandSurfaceBrush}" RowHeight="88" HorizontalScrollBarVisibility="Disabled" SelectionMode="Single" SelectionUnit="FullRow" AlternationCount="2" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" AutomationProperties.Name="插件运行状态表格" ColumnHeaderStyle="{DynamicResource UiPluginTableHeader}" RowStyle="{DynamicResource UiPluginTableRow}" CellStyle="{DynamicResource UiPluginTableCell}">
      <DataGrid.Columns>
       <DataGridTemplateColumn Header="插件" Width="2*" MinWidth="190"><DataGridTemplateColumn.CellTemplate><DataTemplate>
        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0"><Border Background="{DynamicResource BrandAccentPaleBrush}" CornerRadius="9" Padding="10" Margin="0,0,12,0"><ui:SymbolIcon Symbol="Apps24" FontSize="22" Foreground="{DynamicResource BrandAccentBrush}"/></Border>
@@ -28,14 +28,14 @@
       </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
       <DataGridTextColumn Header="版本" Binding="{Binding Version}" Width="78"><DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="Foreground" Value="#475569"/></Style></DataGridTextColumn.ElementStyle></DataGridTextColumn>
       <DataGridTemplateColumn Header="当前状态" Width="100"><DataGridTemplateColumn.CellTemplate><DataTemplate>
-       <Border Background="{Binding StateBackground}" CornerRadius="12" Padding="10,4" HorizontalAlignment="Left" VerticalAlignment="Center"><TextBlock Text="{Binding StateLabel}" Foreground="{Binding StateForeground}"/></Border>
+       <Border Style="{DynamicResource UiPluginStatePill}"><TextBlock Text="{Binding StateLabel}" Style="{DynamicResource UiPluginStateText}"/></Border>
       </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
       <DataGridTemplateColumn Header="下次启动" Width="*" MinWidth="160"><DataGridTemplateColumn.CellTemplate><DataTemplate>
        <TextBlock Text="{Binding NextLabel}" ToolTip="{Binding Detail}" Foreground="{DynamicResource BrandTextHintBrush}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="8,0"/>
       </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
       <DataGridTemplateColumn Header="操作" Width="64"><DataGridTemplateColumn.CellTemplate><DataTemplate>
        <!-- 图标表达下一步动作，提示和无障碍名称使用相同中文。 -->
-       <Button Style="{DynamicResource UiPluginAction}" Command="{Binding ToggleCommand}" ToolTip="{Binding ActionLabel}" AutomationProperties.Name="{Binding ActionLabel}" Width="36" Height="36" Padding="7" HorizontalAlignment="Center" VerticalAlignment="Center"><ui:SymbolIcon Symbol="{Binding ActionIcon}" FontSize="20" Foreground="{Binding ActionForeground}"/></Button>
+       <Button Style="{DynamicResource UiPluginAction}" Command="{Binding ToggleCommand}" ToolTip="{Binding ActionLabel}" AutomationProperties.Name="{Binding ActionLabel}" Width="36" Height="36" Padding="7" HorizontalAlignment="Center" VerticalAlignment="Center"><ui:SymbolIcon Symbol="{Binding ActionIcon}" FontSize="20" Style="{DynamicResource UiPluginActionIcon}"/></Button>
       </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
      </DataGrid.Columns>
     </DataGrid>
