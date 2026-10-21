@@ -30,15 +30,17 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     private string rawPath="";
     private Func<BackgroundProgress,Task>? progress;
     private DateOnly? progressDate;
+    private int httpRequestsStarted;
     /// <summary>每次任务独立绑定宿主进度，结束后移除，不能将下一次采集归到旧执行。</summary>
     public async Task<BackgroundJobResult> ExecuteWithProgressAsync(string jobId,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)
     {
-        progress=report;progressDate=null;
+        progress=report;progressDate=null;Interlocked.Exchange(ref httpRequestsStarted,0);
         try{return await ExecuteAsync(jobId,payload,token,commandId);}
         finally{progress=null;progressDate=null;}
     }
     private Task ReportAsync(EtfProgress value)
     {
+        if(value.Stage=="RequestStarted")Interlocked.Increment(ref httpRequestsStarted);
         if(value.Date is { } date)progressDate=date;
         return progress?.Invoke(new(value.Stage,value.Date??progressDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until))??Task.CompletedTask;
     }
@@ -146,11 +148,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     {
                         if(request.From is null || request.To is null)throw new InvalidDataException("请填写完整成交统计日期区间。");
                         var manualActivity=await workspace!.SyncMarketActivityReportAsync(request.From.Value,request.To.Value,token);
-                        return new(manualActivity.SourceIssues>0?"RetryDeferred":manualActivity.ReceivedRows==0?"NotPublished":"Succeeded",
-                            $"days={manualActivity.QueriedDays};sourceIssues={manualActivity.SourceIssues};rows={manualActivity.ReceivedRows}",TimeSpan.FromMinutes(30));
+                        return new(manualActivity.SourceIssues>0 || manualActivity.HasMore?"RetryDeferred":manualActivity.ReceivedRows==0?"NotPublished":"Succeeded",
+                            ActivityCheckpoint(manualActivity),TimeSpan.FromMinutes(30));
                     }
                     return new(activity.SourceIssues>0 || activity.HasMore?"RetryDeferred":activity.ReceivedRows==0?"NotPublished":"Succeeded",
-                        $"days={activity.QueriedDays};sourceIssues={activity.SourceIssues};rows={activity.ReceivedRows}",activity.SourceIssues==0 && activity.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
+                        ActivityCheckpoint(activity),activity.SourceIssues==0 && activity.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
                 case "official-share-sync" when request.Operation=="sync":
                     if(!(await workspace!.ConfigurationAsync(token)).Any(x=>x.Active))return BackgroundJobResult.Success("monitoring=NoActiveEtfs");
                     var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
@@ -177,6 +179,12 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         }
         finally{serial.Release();}
     }
+
+    /// <summary>写入任务执行检查点：实际 HTTP 开始次数与调用来源适配器次数分开，不能将零行或冷却伪装成下载成功。</summary>
+    private string ActivityCheckpoint(MarketActivitySyncReport result) =>
+        $"days={result.QueriedDays};sourceCalls={result.RequestedSources};httpStarted={Volatile.Read(ref httpRequestsStarted)};" +
+        $"closedSources={result.ClosedSources};emptySources={result.EmptySources};sourceIssues={result.SourceIssues};" +
+        $"rows={result.ReceivedRows};firstFailure={result.FirstFailureCode??"None"};hasMore={result.HasMore}";
 
     /// <summary>只读白名单不含审核、采集、文件写入或任意文件路径，普通用户只能读取公开研究结果。</summary>
     public async Task<string> QueryAsync(string payload,CancellationToken token)
