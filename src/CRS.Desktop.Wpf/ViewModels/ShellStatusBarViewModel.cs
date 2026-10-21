@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 using System.Windows.Threading;
+using System.IO;
 
 namespace CRS.DesktopClient.ViewModels;
 
