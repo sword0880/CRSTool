@@ -52,7 +52,10 @@ internal static class ShellBrandPreview
                             ||Math.Abs(pluginSurface.Margin.Left-expected)>1
                             ||brand.Visibility!=(expanded?Visibility.Visible:Visibility.Collapsed)
                             ||brand.IsHitTestVisible||!button.IsHitTestVisible)
-                            throw new InvalidOperationException("品牌栏折叠状态、插件偏移、拖拽穿透或按钮命中区域未同步。");
+                            throw new InvalidOperationException(
+                                $"品牌栏同步失败: width={width}, scale={scale}, expandedExpected={expanded}, " +
+                                $"expandedActual={window.IsNavigationExpanded}, header={header.ActualWidth}, expected={expected}, " +
+                                $"margin={pluginSurface.Margin.Left}, brand={brand.Visibility}, hit={brand.IsHitTestVisible}, toggleHit={button.IsHitTestVisible}");
                         if((string?)button.ToolTip!=(expanded?"收起侧边栏":"展开侧边栏"))
                             throw new InvalidOperationException("导航按钮悬停文案与展开状态不一致。");
                         var suffix=(expanded?"": "-collapsed")+(scale==1.0?"":"-"+((int)(scale*100)).ToString());
