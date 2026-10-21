@@ -1,3 +1,13 @@
+## UI-ARCH 统一视觉回归（Windows）
+
+```powershell
+./tests/Verify-WpfDesignSystem.ps1
+dotnet run --project tests/CRS.Tests.Wpf -c Release -- --shell-brand-preview artifacts/ui-preview/main
+dotnet run --project tests/CRS.Tests.PluginRecovery -c Release -- --ui-visual-preview artifacts/ui-preview/plugins
+```
+
+第一条检查 XAML 完整性、共享品牌/语义资源是否存在、旧页面硬编码颜色总数不能增长、插件不能反向引用桌面项目；现存遗留次数见 `tests/wpf-color-baseline.json`。后两条对 1040/1280/1440 宽度与 96/120/144 DPI 位图进行**合成布局**渲染。插件预览不会发起 Worker 查询，也不代表真正的数据状态或 Windows per-monitor DPI 验收。PR 的 Windows Actions 截图存档供人工复核；真实键盘、焦点、拖拽和锁屏凭证生命周期仍须实测。设计与待办见 `docs/implementation/UI_ARCH_REMEDIATION_20261021.md`。
+
 # CRS 验证项目
 
 2026-10-19减持预警增量：先完整构建，再运行NationalTeamWatch的 `--exit-alerts`（纯规则、加密事件/Outbox事务、进程重建、历史修订回算及真实后台入口的假渠道投递）及 `--exit-alert-ui`（真实WPF窗口和合成截图）。Background的 `--notifications` 验证公共渠道、受保护邮件配置及管理授权。完整WorkerEtf隔离包套件增加真实命名管道的预警、证据、订阅和默认停用渠道检查。这些均不连接真实收件人，不能替代真实SMTP、ETF公告黄金样本、历史回测、250日覆盖或连续20日采集验收；详见[实施记录](../docs/implementation/NATIONAL_TEAM_EXIT_ALERT_IMPLEMENTATION_20261019.md)。

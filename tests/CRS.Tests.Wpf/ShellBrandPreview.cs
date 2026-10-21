@@ -38,7 +38,8 @@ internal static class ShellBrandPreview
                 var layout=(FrameworkElement)window.Content;window.Content=null;layout.DataContext=window.DataContext;
                 var surface=new System.Windows.Controls.Border{Background=(Brush)app.FindResource("BrandCanvasBrush"),Child=layout};
                 Directory.CreateDirectory(directory);
-                foreach(var width in new[]{1280,1040})
+                foreach(var width in new[]{1040,1280,1440})
+                foreach(var scale in new[]{1.0,1.25,1.5})
                 {
                     foreach(var expanded in new[]{true,false})
                     {
@@ -54,11 +55,11 @@ internal static class ShellBrandPreview
                             throw new InvalidOperationException("品牌栏折叠状态、插件偏移、拖拽穿透或按钮命中区域未同步。");
                         if((string?)button.ToolTip!=(expanded?"收起侧边栏":"展开侧边栏"))
                             throw new InvalidOperationException("导航按钮悬停文案与展开状态不一致。");
-                        var suffix=expanded?"": "-collapsed";
-                        var bitmap=new RenderTargetBitmap(width,180,96,96,PixelFormats.Pbgra32);bitmap.Render(surface);
+                        var suffix=(expanded?"": "-collapsed")+(scale==1.0?"":"-"+((int)(scale*100)).ToString());
+                        var bitmap=new RenderTargetBitmap((int)(width*scale),(int)(180*scale),96*scale,96*scale,PixelFormats.Pbgra32);bitmap.Render(surface);
                         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
                         using var output=File.Create(Path.Combine(directory,$"brand-header-{width}{suffix}.png"));encoder.Save(output);
-                        if(width==1280)
+                        if(width==1280 && scale==1.0)
                         {
                             var detail=new RenderTargetBitmap(412,128,192,192,PixelFormats.Pbgra32);detail.Render(surface);
                             var closeup=new PngBitmapEncoder();closeup.Frames.Add(BitmapFrame.Create(detail));
@@ -68,7 +69,7 @@ internal static class ShellBrandPreview
                 }
                 button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,button));
                 if(!window.IsNavigationExpanded)throw new InvalidOperationException("二次折叠操作未恢复展开状态。");
-                Console.WriteLine("PASS 主窗口单行品牌栏：1280/1040宽度展开与收起、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
+                Console.WriteLine("PASS 主窗口单行品牌栏：1040/1280/1440宽度和96/120/144 DPI位图渲染，展开与收起、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
             }
             catch(Exception error){failure=error;}
         });

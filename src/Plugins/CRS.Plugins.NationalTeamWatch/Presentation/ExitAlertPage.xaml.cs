@@ -5,10 +5,11 @@ namespace CRS.Plugins.NationalTeamWatch.Presentation;
 /// <summary>只绑定视图及打开经白名单核验的官方HTTPS原件。</summary>
 public partial class ExitAlertPage:UserControl
 {
-    public ExitAlertPage()
+    public ExitAlertPage():this(true){}
+    public ExitAlertPage(bool loadOnStart)
     {
         InitializeComponent();
-        Loaded+=async(_,_)=>{if(DataContext is ExitAlertViewModel model)await model.RefreshCommand.ExecuteAsync(null);};
+        if(loadOnStart)Loaded+=async(_,_)=>{if(DataContext is ExitAlertViewModel model)await model.RefreshCommand.ExecuteAsync(null);};
     }
     private void OnOpenSource(object sender,System.Windows.Navigation.RequestNavigateEventArgs e)
     {
