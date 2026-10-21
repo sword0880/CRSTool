@@ -6,7 +6,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>公开研究数据仓储；追加修订并保留来源，不接触私人税务库。</summary>
-public sealed partial class MarketRepository : IMarketRepository
+public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRepository
 {
     private readonly SqliteConnection db;
     private readonly RawEvidenceStore raw;
@@ -226,6 +226,10 @@ public sealed partial class MarketRepository : IMarketRepository
     public List<EtfHistoryPoint> History(EtfKey? key)
     {
         ValidateEvidence();
+        return ReadHistory(key);
+    }
+    private List<EtfHistoryPoint> ReadHistory(EtfKey? key)
+    {
         var keys=key is null?Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToArray():[key];
         return EtfHistory.Calculate(keys.Select(k=>
         {
@@ -318,6 +322,10 @@ public sealed partial class MarketRepository : IMarketRepository
     public List<EtfSummary> Overview()
     {
         ValidateEvidence();
+        return ReadOverview();
+    }
+    private List<EtfSummary> ReadOverview()
+    {
         var securities=new List<(string Market,string Ticker,string Name,string Index,string Label)>();
         using(var command=Command("SELECT s.market,s.ticker,s.name,s.index_group,w.review_status FROM security_master s JOIN watchlist_membership w USING(market,ticker) WHERE w.active=1"))
         using(var reader=command.ExecuteReader()) while(reader.Read()) securities.Add((reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4)));

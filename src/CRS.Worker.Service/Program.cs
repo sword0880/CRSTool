@@ -40,9 +40,6 @@ if (console)
     trust = Path.GetFullPath(Option("--trust", trust));
 }
 else if (args.Length != 0) throw new ArgumentException("服务安装模式不接受自定义路径或身份参数。");
-StorageSecurity.Prepare(data, console);
-// 文件独占租约与实际数据库目录绑定，SCM 别名或手动控制台启动也不能形成双写。
-using var ownership = new FileStream(Path.Combine(data, "owner.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = [], ContentRootPath = AppContext.BaseDirectory });
 builder.Services.AddWindowsService(options => options.ServiceName = "CRSBackgroundService");
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(30));
@@ -66,6 +63,10 @@ namespace CRS.Worker.Service
             byte[]? key = null;
             try
             {
+                // 先由Generic Host接入SCM，再扫描完整权限树；大备份不能耗尽SCM的30秒接入期限。
+                // 权限检查仍先于租约、密钥和数据库打开，独占租约持续覆盖整个服务会话。
+                StorageSecurity.Prepare(locations.Data,locations.Console);
+                using var ownership=new FileStream(Path.Combine(locations.Data,"owner.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
                 // 在Generic Host已接入SCM后核验较大的快照，仍先于密钥、迁移及插件打开。
                 // 未解决状态非零停止；候选先持久标记风险，不能凭未观察到写入自动回退。
                 new WorkerUpgradeJournal(locations.Data).BeforeStorageOpen(AppContext.BaseDirectory);

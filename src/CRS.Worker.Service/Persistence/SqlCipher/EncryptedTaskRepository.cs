@@ -279,6 +279,15 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             }
         });
     }
+    public CommandReceipt? ReadCommandState(Guid request)=>Persist<CommandReceipt?>(()=>
+    {
+        lock(gate)
+        {
+            using var query=Command("SELECT state,code,execution FROM command_request WHERE request=$r",("$r",request.ToString("N")));
+            using var row=query.ExecuteReader();
+            return row.Read()?new(request,row.GetString(0),row.GetString(1),row.IsDBNull(2)?null:row.GetString(2)):null;
+        }
+    });
     public CommandReceipt AcceptCommand(BackgroundRequest request, string sid)
     {
         return Persist<CommandReceipt>(() =>

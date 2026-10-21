@@ -17,6 +17,7 @@ internal static class EtfConfigurationUiChecks
         var thread=new Thread(()=>
         {
             var application=new System.Windows.Application();
+            application.Resources["BooleanVisibility"]=new BooleanToVisibilityConverter();
             application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
             application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
             using var lifetime=new CancellationTokenSource();
@@ -57,6 +58,7 @@ internal static class EtfConfigurationUiChecks
         var thread=new Thread(()=>
         {
             var application=new System.Windows.Application();
+            application.Resources["BooleanVisibility"]=new BooleanToVisibilityConverter();
             application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
             application.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
             using var lifetime=new CancellationTokenSource();
@@ -98,7 +100,7 @@ internal static class EtfConfigurationUiChecks
                     if(model.Series.Length!=1 || !model.ChartStatus.Contains("510300"))throw new InvalidOperationException($"真实表格选择没有自动加载历史：{model.ChartStatus}；序列={model.Series.Length}；所选={model.Selected?.Ticker}。");
                     model.AllEtfs=true;await model.HistoryLoadTask;
                     if(model.Series.Length!=1 || !model.ChartStatus.Contains("全部监控ETF") || !model.ChartStatus.Contains("不可计算"))throw new InvalidOperationException("真实后台汇总或缺口提示失败。");
-                    ((ScrollViewer)page.FindName("PageScroll")).ScrollToEnd();
+                    ((FrameworkElement)page.FindName("ComparisonPanel")).BringIntoView();
                     await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();
                     var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);

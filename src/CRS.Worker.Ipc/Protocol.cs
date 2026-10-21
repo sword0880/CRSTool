@@ -10,6 +10,9 @@ public sealed record BackgroundRequest(int ProtocolVersion, Guid RequestId, stri
     long? ExpectedRevision = null, string? Cursor = null, int PageSize = 10, Guid? RelatedRequestId = null,string? Payload=null,string? ExecutionId=null,string? ResultFilter=null);
 public sealed record BackgroundPluginScheduling(string PluginId, int MaxConcurrency, int Running, int Waiting);
 public sealed record BackgroundPendingRequest(Guid RequestId, string PluginId, string JobId, DateTimeOffset? NotBefore=null);
+public sealed record BackgroundTaskActivityRow(string PluginId,string JobId,string Name,string State,string Reason,
+    Guid? RequestId=null,string? ExecutionId=null,DateTimeOffset? StartedAt=null,DateTimeOffset? NotBefore=null,int? QueuePosition=null);
+public sealed record BackgroundTaskActivity(DateTimeOffset ObservedAt,IReadOnlyList<BackgroundTaskActivityRow> Rows,int Running,int Waiting,int Pending);
 public sealed record BackgroundScheduling(int MaxConcurrency, int Running, int Waiting, int MaxPendingPerPlugin, long CoalescedTriggers,
     long CapacityDeferredTriggers, int PendingManualCommands = 0, IReadOnlyList<BackgroundPluginScheduling>? Plugins = null);
 [method:System.Text.Json.Serialization.JsonConstructor]
@@ -26,8 +29,13 @@ public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, str
     BackgroundHealth? Health = null, IReadOnlyList<TaskDefinition>? Jobs = null,
     IReadOnlyList<ExecutionRecord>? History = null, string? NextCursor = null,
     CommandReceipt? Receipt = null, IReadOnlyList<BackgroundPluginStatus>? Plugins = null,string? Payload=null,ExecutionRecord? Execution=null,string? AppliedResultFilter=null,
-    IReadOnlyList<BackgroundPendingRequest>? PendingRequests=null)
+    IReadOnlyList<BackgroundPendingRequest>? PendingRequests=null,BackgroundTaskActivity? TaskActivity=null)
 {
+    public BackgroundResponse(int protocolVersion,Guid requestId,string code,BackgroundHealth? health,
+        IReadOnlyList<TaskDefinition>? jobs,IReadOnlyList<ExecutionRecord>? history,string? nextCursor,CommandReceipt? receipt,
+        IReadOnlyList<BackgroundPluginStatus>? plugins,string? payload,ExecutionRecord? execution,string? appliedResultFilter,
+        IReadOnlyList<BackgroundPendingRequest>? pendingRequests)
+        :this(protocolVersion,requestId,code,health,jobs,history,nextCursor,receipt,plugins,payload,execution,appliedResultFilter,pendingRequests,null){}
     // 保留已有二进制调用者的构造签名；旧JSON缺少待执行请求字段时保持未知。
     public BackgroundResponse(int protocolVersion,Guid requestId,string code,BackgroundHealth? health,
         IReadOnlyList<TaskDefinition>? jobs,IReadOnlyList<ExecutionRecord>? history,string? nextCursor,CommandReceipt? receipt,

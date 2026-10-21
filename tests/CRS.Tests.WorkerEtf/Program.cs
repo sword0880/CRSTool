@@ -11,6 +11,8 @@ using Microsoft.Data.Sqlite;
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
 if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
+if(args is ["--query-cancellation"]){await EtfQueryCancellationChecks.RunAsync();return;}
+if(args is ["--cooling-progress"]){await CoolingProgressChecks.RunAsync();return;}
 if(args is ["--initial-directory"]){InitialEtfDirectoryChecks.Run();return;}
 if(args is ["--raw-batch"]){RawEvidenceReadChecks.Run();return;}
 if(args is ["--raw-read-profile",var rawRoot]){RawEvidenceReadChecks.Profile(rawRoot);return;}
@@ -143,10 +145,17 @@ Process Start()
     foreach(var value in new[]{"--console","--data",data,"--plugins",plugins,"--trust",trust,"--pipe",pipe})info.ArgumentList.Add(value);
     var process=Process.Start(info)!;process.OutputDataReceived+=(_,_)=>{};process.ErrorDataReceived+=(_,_)=>{};process.BeginOutputReadLine();process.BeginErrorReadLine();return process;
 }
+Task WaitForService(Process process)=>Until(async()=>
+{
+    if(process.HasExited)throw new InvalidOperationException("隔离Worker启动失败，退出码："+process.ExitCode);
+    try{return (await Query("GetHealth")).Health is not null;}
+    catch(BackgroundServiceException error) when(error.Code=="ServiceUnavailable"){return false;}
+});
 using(var service=Start())
 {
     try
     {
+        await WaitForService(service);
         var health=await Query("GetHealth");Check(health.Health?.State=="Running","真实独立服务加载ETF后台入口");
         if(chartOnly)
         {
@@ -162,6 +171,8 @@ using(var service=Start())
         Check(basketHistory.Count>0 && basketHistory.All(x=>x.Total==5 && x.Covered==5 && x.Shares>0 && x.DeltaShares is null),"全部ETF历史经真实分页返回同日总和，无日历不计算净变化");
         var singleHistory=await ui.HistoryAsync(new("SSE","510300"),default);
         Check(singleHistory.Count==basketHistory.Count && singleHistory.All(x=>x.Total==1 && x.Covered==1 && x.Shares>0),"单只ETF历史使用独立口径");
+        var dashboard=await ui.DashboardAsync(null,default);
+        Check(dashboard is not null&&dashboard.Overview.Count==5&&dashboard.History.SequenceEqual(basketHistory)&&dashboard.Activity.Any(x=>x.State=="Complete"),"整页合并查询经真实Worker及快照分页返回与独立查询一致的表格和图表");
         var acceptanceThrough=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime).AddDays(-1);
         var acceptance=await ui.AcceptanceAsync(acceptanceThrough,default);
         Check(acceptance.Count==5&&acceptance.All(x=>!x.DataAcceptancePassed&&!x.CalendarVerified),"生产验收查询经真实管道返回，无日历时不得批准250日或连续20日");
@@ -248,6 +259,7 @@ using(var service=Start())
 {
     try
     {
+        await WaitForService(service);
         await Query("GetHealth");var plans=(await Query("GetJobs")).Jobs!;
         Check(plans.Single(x=>x.JobId=="official-share-sync") is{Enabled:false,Cron:"0/2 * * * * ?"},"强杀重启后保留采集计划与暂停状态");
         Check((await ui.OverviewAsync(default)).Count==6,"重启后保留独立加密库和服务端池变更");
@@ -268,11 +280,21 @@ try
 }
 finally{CryptographicOperations.ZeroMemory(master);if(marketKey is not null)CryptographicOperations.ZeroMemory(marketKey);}
 // 原有恢复/去重验收完成后，再在同一隔离服务验证可编辑配置，不改动用户监控池。
+// 配置排队用人为阻塞HTTP作断言；先停用隔离库中的自动启动任务，防止其它采集抢先进入同一个阻塞点。
+// 保留NotBefore，仍检验手动运行不会继承旧定时任务退避。
+master=ServiceKey.Open(data);
+try
+{
+    using var scheduler=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"scheduler-config.db"),Password=Convert.ToHexString(master),Pooling=false}.ToString());scheduler.Open();
+    using var disable=scheduler.CreateCommand();disable.CommandText="UPDATE task SET enabled=0,reconcile=1";disable.ExecuteNonQuery();
+}
+finally{CryptographicOperations.ZeroMemory(master);}
 using(var service=Start())
 {
     var hold=Path.Combine(data,"plugins","crs.national-team","http-hold.fixture");
     try
     {
+        await WaitForService(service);
         await Query("GetHealth");var configurations=await ui.ConfigurationAsync(default);
         Check(configurations.Count>=24 && configurations.Any(x=>x.Ticker=="510500" && !x.Active),"服务分页返回参考候选及停用ETF，不自动加入监控池");
         var existing=configurations.Single(x=>x.Ticker=="510900");

@@ -11,18 +11,21 @@ public partial class BackgroundServicePage : UserControl
     {
         InitializeComponent(); DataContext = model;
         var refresh=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromSeconds(3)};
-        refresh.Tick+=async (_,_)=>await model.RefreshRecentHistoryAsync();
-        Loaded+=(_,_)=>{if(TaskCenterTabs.SelectedIndex==1){refresh.Start();_ = model.RefreshRecentHistoryAsync();}};
+        async Task RefreshVisibleAsync()
+        {if(TaskCenterTabs.SelectedIndex==2)await model.RefreshTaskActivityAsync();else if(TaskCenterTabs.SelectedIndex==1)await model.RefreshRecentHistoryAsync();}
+        refresh.Tick+=async (_,_)=>await RefreshVisibleAsync();
+        Loaded+=(_,_)=>{if(TaskCenterTabs.SelectedIndex is 1 or 2){refresh.Start();_ = RefreshVisibleAsync();}};
         Unloaded+=(_,_)=>refresh.Stop();
         TaskCenterTabs.SelectionChanged+=(_,e)=>
         {
             if(e.Source!=TaskCenterTabs)return;
-            if(IsLoaded && TaskCenterTabs.SelectedIndex==1){refresh.Start();_ = model.RefreshRecentHistoryAsync();}
+            if(IsLoaded && TaskCenterTabs.SelectedIndex is 1 or 2){refresh.Start();_ = RefreshVisibleAsync();}
             else refresh.Stop();
         };
     }
     /// <summary>主窗体底栏直达“最近执行”，不再默认停留在“服务计划”。</summary>
     public void ShowRecentExecutions() => TaskCenterTabs.SelectedIndex=1;
+    public void ShowCurrentTasks()=>TaskCenterTabs.SelectedIndex=2;
     private void OnPlanDoubleClick(object sender,MouseButtonEventArgs e)
     {
         if(e.OriginalSource is DependencyObject origin && ItemsControl.ContainerFromElement(PlansGrid,origin) is DataGridRow {Item:TaskDefinition plan})OpenPlan(plan);

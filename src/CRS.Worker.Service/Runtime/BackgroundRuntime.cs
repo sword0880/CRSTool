@@ -111,7 +111,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                 await scheduler!.UnscheduleJob(TriggerKey(key, "manual"), token);
                 await scheduler.ScheduleJob(TriggerBuilder.Create().WithIdentity(TriggerKey(key, "manual")).ForJob(key)
                     .UsingJobData("manual", nonce).UsingJobData("request", pending.RequestId.ToString("N"))
-                    .StartAt(plan.NotBefore > CRS.Timing.BeijingClock.Now ? plan.NotBefore.Value : CRS.Timing.BeijingClock.Now).Build(), cancellationToken: token);
+                    .StartAt(ManualNotBefore(pending.RequestId,plan) is {} deadline && deadline>CRS.Timing.BeijingClock.Now?deadline:CRS.Timing.BeijingClock.Now).Build(), cancellationToken: token);
             }
             catch { queued.Remove(key); throw; }
         }
@@ -137,7 +137,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try
         {
             var response = await HandleCoreAsync(request, caller, token);
-            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetFilteredHistory" or "GetExecution" or "GetCommand" or "QueryPlugin"))
+            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetFilteredHistory" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
                 repository.Audit(caller.Sid, request.RequestId, request.Command, response.Code);
             return response;
         }
@@ -205,6 +205,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, CRS.Timing.BeijingClock.Now, Environment.ProcessId,
                 SchedulingSnapshot(),sourceHealth), Plugins: catalog.Statuses.ToArray());
         }
+        if(request.Command=="GetTaskActivity")return TaskActivityPage(request,caller);
         if (fault is not null) return Reply(fault);
         if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
         if (request.PageSize is < 1 or > 10) return Reply("InvalidRequest");
@@ -223,7 +224,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                 var page = repository.HistoryPage(request.Cursor, request.PageSize,request.PluginId,request.JobId,request.ResultFilter);
                 var deadlines=repository.Plans().ToDictionary(x=>(x.PluginId,x.JobId),x=>x.NotBefore);
                 var pending=repository.PendingRuns().Where(x=>(request.PluginId is null || x.PluginId==request.PluginId) && (request.JobId is null || x.JobId==request.JobId))
-                    .Take(10).Select(x=>new BackgroundPendingRequest(x.RequestId,x.PluginId,x.JobId,deadlines.GetValueOrDefault((x.PluginId,x.JobId)))).ToArray();
+                    .Take(10).Select(x=>new BackgroundPendingRequest(x.RequestId,x.PluginId,x.JobId,
+                        repository.ReadCommandState(x.RequestId)?.Code=="RetryDeferred"?deadlines.GetValueOrDefault((x.PluginId,x.JobId)):null)).ToArray();
                 return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor,
                     AppliedResultFilter: request.ResultFilter,PendingRequests:pending);
             }
@@ -321,12 +323,14 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             }
             else if (!plan.Enabled || invocation.Revision != plan.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 || repository.PendingRuns().Any(x=>x.PluginId==plan.PluginId&&x.JobId==plan.JobId)) return;
-            if (plan.NotBefore > CRS.Timing.BeijingClock.Now) return;
+            if (request is null && plan.NotBefore > CRS.Timing.BeijingClock.Now
+                || request is {} delayed && ManualNotBefore(delayed,plan)>CRS.Timing.BeijingClock.Now) return;
             source = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, cancellationToken);
             source.CancelAfter(executionTimeout ?? TimeSpan.FromMinutes(15));
             if(request is { } requestId)payload=repository.ReadCommand(requestId).Payload;
             execution = repository.Begin(plan, invocation.ScheduledUtc, request);
             running.Add(key, source);
+            runningExecutions[key]=(execution,request);
         }
         catch (Exception error) when (StorageError(error)) { source?.Dispose(); await TripFaultAsync("StorageFault"); return; }
         finally { gate.Release(); }
@@ -366,7 +370,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             await ScheduleRetryAsync(updated, CancellationToken.None);
         }
         catch (Exception error) when (StorageError(error)) { await TripFaultAsync("StorageFault"); }
-        finally { running.Remove(key); source.Dispose(); gate.Release(); }
+        finally { running.Remove(key);runningExecutions.Remove(key); source.Dispose(); gate.Release(); }
         if(request is not null && result.Status=="RetryDeferred")await ReconcileAsync(CancellationToken.None);
     }
     /// <summary>阶段记录与控制查询共享短数据库门槛，落盘失败立即停止采集，避免产生虚假进度。</summary>

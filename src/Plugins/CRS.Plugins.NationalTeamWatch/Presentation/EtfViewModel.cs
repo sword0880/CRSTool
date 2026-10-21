@@ -47,6 +47,8 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     public Task EvidenceLoadTask {get;private set;}=Task.CompletedTask;
     private int evidenceVersion;
     private int chartVersion;
+    private CancellationTokenSource? chartRead;
+    private CancellationTokenSource? evidenceRead;
     private bool refreshingRows;
     [ObservableProperty] private LiveChartsCore.SkiaSharpView.Axis[] xAxes=[];
     [ObservableProperty] private string market="SSE";
@@ -123,6 +125,7 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     {
         await RefreshConfigurationAsync(token);
         Status=$"ETF清单已读取 {Configurations.Count} 项，正在读取份额概览…";
+        if(await TryRefreshDashboardAsync(token))return;
         var rows=await workspace.OverviewAsync(token);token.ThrowIfCancellationRequested();
         var selectedKey=Selected is {} current?new EtfKey(current.Market,current.Ticker):null;
         refreshingRows=true;
@@ -138,16 +141,20 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     /// <summary>只读取当前证券的证据；选择变化时立即清空旧数据，并拒绝迟到的查询结果。</summary>
     private async Task LoadEvidenceAsync(CancellationToken token)
     {
+        evidenceRead?.Cancel();
+        using var read=CancellationTokenSource.CreateLinkedTokenSource(token,lifetime);evidenceRead=read;
+        token=read.Token;
         var version=++evidenceVersion;Evidence.Clear();SelectedEvidence=null;
-        if(Selected is not {} row||token.IsCancellationRequested)return;
         try
         {
+            if(Selected is not {} row||token.IsCancellationRequested)return;
             var evidence=await workspace.EvidenceAsync(new EtfKey(row.Market,row.Ticker),token);
             if(version!=evidenceVersion||token.IsCancellationRequested)return;
             foreach(var item in evidence)Evidence.Add(item);
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested) { }
         catch(Exception error){if(version==evidenceVersion)Status="证据读取失败："+error.GetType().Name;}
+        finally{if(ReferenceEquals(evidenceRead,read))evidenceRead=null;}
     }
     /// <summary>编辑配置只刷新目录与概览，避免每次保存都重新下载全部历史证据。</summary>
     private async Task RefreshConfigurationAsync(CancellationToken token,EtfKey? select=null)
@@ -196,26 +203,28 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
     [RelayCommand] private Task ShowHistory()=>HistoryLoadTask=LoadHistoryAsync();
     private async Task LoadHistoryAsync()
     {
+        chartRead?.Cancel();
+        using var read=CancellationTokenSource.CreateLinkedTokenSource(lifetime);chartRead=read;
+        var token=read.Token;
         var version=++chartVersion;
         historyPoints=[];hasHistory=false;RebuildComparison();
-        if(lifetime.IsCancellationRequested)return;
-        if(!AllEtfs && Selected is null){ChartStatus="选择ETF即可自动加载图表。";return;}
-        var title=AllEtfs?"全部监控ETF（固定当前篮子）":$"{Selected!.Ticker} {Selected.Name}";
-        var key=AllEtfs?null:new EtfKey(Selected!.Market,Selected.Ticker);
-        ChartStatus=title+" · 正在加载…";
         try
         {
-            var points=await workspace.HistoryAsync(key,lifetime);
-            if(version!=chartVersion || lifetime.IsCancellationRequested)return;
-            historyPoints=points;hasHistory=true;RebuildComparison();
-            var latest=points.LastOrDefault();
-            ChartStatus=title+(latest is null?" · 暂无历史数据":$" · 截至 {latest.Date:yyyy-MM-dd} · 有效 {latest.Covered}/{latest.Total} 只 · 净变化 {(latest.DeltaShares is {} delta?delta.ToString("+#,##0;-#,##0;0"):"不可计算")}")+"。正值为份额净增加，负值为净减少；折线连接有效观测点，空缺日期不补值；缺份额或日历时净变化不可计算。份额相加不代表资金金额或国家队实际买卖。";
+            if(token.IsCancellationRequested)return;
+            if(!AllEtfs && Selected is null){ChartStatus="选择ETF即可自动加载图表。";return;}
+            var title=ComparisonTitle;
+            var key=AllEtfs?null:new EtfKey(Selected!.Market,Selected.Ticker);
+            ChartStatus=title+" · 正在加载…";
+            var points=await workspace.HistoryAsync(key,token);
+            if(version!=chartVersion || token.IsCancellationRequested)return;
+            ApplyHistory(points,title);
         }
-        catch(OperationCanceledException) when(lifetime.IsCancellationRequested) { }
+        catch(OperationCanceledException) when(token.IsCancellationRequested) { }
         catch(Exception error)
         {
             if(version==chartVersion)ChartStatus="图表加载失败："+(error is InvalidDataException?error.Message:"请确认后台服务已更新且可连接（"+error.GetType().Name+"）。");
         }
+        finally{if(ReferenceEquals(chartRead,read))chartRead=null;}
     }
     /// <summary>界面只展示后台覆盖判定；250日是一期目标，不能把尚未登记的日历当成已覆盖。</summary>
     [RelayCommand] private Task ShowCoverage()=>ExecuteAsync(async token=>

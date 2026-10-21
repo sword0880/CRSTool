@@ -42,7 +42,9 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     {
         if(value.Stage=="RequestStarted")Interlocked.Increment(ref httpRequestsStarted);
         if(value.Date is { } date)progressDate=date;
-        return progress?.Invoke(new(value.Stage,value.Date??progressDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until))??Task.CompletedTask;
+        // 应用用例的终止阶段映射到宿主已发布的冷却阶段，兼容日志白名单与现有客户端。
+        var stage=value.Stage=="SourceCoolingDown"?"Cooldown":value.Stage;
+        return progress?.Invoke(new(stage,value.Date??progressDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until))??Task.CompletedTask;
     }
 
     /// <summary>默认仅自动采集，审核和池变更只接受管理员的持久手动命令。</summary>
@@ -199,6 +201,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             foreach(var id in snapshots.Where(x=>x.Value.Until<CRS.Timing.BeijingClock.Now).Select(x=>x.Key).ToArray())snapshots.Remove(id);
             foreach(var id in exports.Where(x=>x.Value.Until<CRS.Timing.BeijingClock.Now).Select(x=>x.Key).ToArray())exports.Remove(id);
             if(request.Operation=="status")return JsonSerializer.Serialize(workspace!.NetworkStatus);
+            if(request.Operation=="release-query")
+            {
+                if(request.Snapshot is {} released)snapshots.Remove(released);
+                return JsonSerializer.Serialize("Released");
+            }
             if(request.Operation=="export")return await ExportAsync(request,token);
             var canonical=JsonSerializer.Serialize(request with{Offset=0,Snapshot=null});
             if(request.Snapshot is { } existing)
@@ -228,6 +235,15 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "alert-documents":rows=(await workspace!.AlertDocumentsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "alert-metadata":rows=(await workspace!.AlertMetadataAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "alert-holdings":rows=(await workspace!.NamedEtfHoldingsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "dashboard":
+                    if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
+                    var dashboard=await workspace!.DashboardAsync(request.Market is null?null:Key(request),token)
+                        ??throw new ArgumentException("存储提供器不支持整页读取。");
+                    metadata=JsonSerializer.Serialize(workspace.NetworkStatus);
+                    rows=dashboard.Overview.Select(x=>new EtfDashboardRow(Overview:x))
+                        .Concat(dashboard.History.Select(x=>new EtfDashboardRow(History:x)))
+                        .Concat(dashboard.Activity.Select(x=>new EtfDashboardRow(Activity:x)))
+                        .Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "overview":rows=(await workspace!.OverviewAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "configuration":rows=(await workspace!.ConfigurationAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 case "equity-watchlist":rows=(await workspace!.EquityWatchlistAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
@@ -257,6 +273,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     metadata=JsonSerializer.Serialize(coverage with{Days=[]});rows=coverage.Days.Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
                 default:throw new ArgumentException("不支持此公开查询。");
             }
+            token.ThrowIfCancellationRequested();
             if(rows.Length>10000 || rows.Sum(x=>x.Length)>2*1024*1024 || snapshots.Count>=8)throw new ArgumentException("查询快照额度已满，请稍后刷新。");
             rows=rows.Select(BeijingQueryTimes.Normalize).ToArray();
             if(metadata is not null)metadata=BeijingQueryTimes.Normalize(metadata);

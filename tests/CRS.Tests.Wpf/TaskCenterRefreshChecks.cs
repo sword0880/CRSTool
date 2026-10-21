@@ -18,7 +18,7 @@ internal static class TaskCenterRefreshChecks
             await control.HealthRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
             if(model.History.Count!=1 || model.History[0].Result!="Running" || model.PendingRequests.Count!=1 || refresh.IsCompleted)
                 throw new Exception("慢健康查询仍阻挡运行记录或待执行请求显示。");
-            if(control.Calls.First()!="GetFilteredHistory")throw new Exception("历史查询不是首个请求。");
+            if(control.Calls.TakeWhile(x=>x!="GetFilteredHistory").Any(x=>x is "GetHealth" or "GetJobs"))throw new Exception("历史查询仍等待健康或计划。");
             control.ReleaseHealth.TrySetResult();await refresh;
             var healthCount=control.Calls.Count(x=>x=="GetHealth");
             control.Record=control.Record with{EndedUtc=DateTimeOffset.UtcNow,Result="Succeeded"};

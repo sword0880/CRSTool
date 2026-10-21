@@ -53,7 +53,10 @@ public sealed partial class MarketRepository
     }
     public List<MarketActivityPoint> MarketActivity()
     {
-        ValidateEvidence();
+        ValidateEvidence();return ReadMarketActivity();
+    }
+    private List<MarketActivityPoint> ReadMarketActivity()
+    {
         var attempts=new Dictionary<(string Market,DateOnly Date),string>();
         using(var command=Command("SELECT market,trade_date,state FROM market_activity_attempt ORDER BY trade_date"))
         using(var reader=command.ExecuteReader())while(reader.Read())attempts.Add((reader.GetString(0),DateOnly.ParseExact(reader.GetString(1),"yyyy-MM-dd",CultureInfo.InvariantCulture)),reader.GetString(2));

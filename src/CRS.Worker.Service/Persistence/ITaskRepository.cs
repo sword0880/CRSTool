@@ -24,6 +24,8 @@ public interface ITaskRepository
     void Audit(string sid, Guid request, string command, string result);
     CommandReceipt? FindCommand(Guid request, string sid);
     BackgroundRequest ReadCommand(Guid request);
+    /// <summary>仅供后台调度读取已受理命令的状态，不能作为跨调用者公开查询。</summary>
+    CommandReceipt? ReadCommandState(Guid request);
     CommandReceipt AcceptCommand(BackgroundRequest request, string sid);
     void CompleteCommand(Guid request, string code);
     List<(Guid RequestId, string PluginId, string JobId)> PendingRuns();

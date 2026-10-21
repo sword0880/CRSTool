@@ -159,7 +159,7 @@ public partial class MainWindow : FluentWindow
         try
         {
             backgroundServiceModel??=new(taskPageLifetime.Token);
-            ShowHostedPage(new BackgroundServicePage(backgroundServiceModel));
+            var page=new BackgroundServicePage(backgroundServiceModel);page.ShowCurrentTasks();ShowHostedPage(page);
             await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
         }
         catch(OperationCanceledException){ /* 锁定或关闭后不回写页面。 */ }

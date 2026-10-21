@@ -8,6 +8,24 @@ using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
+if(args is ["--manual-immediate"])
+{
+    var manualRoot=Path.Combine(Path.GetTempPath(),"CRS.ManualImmediate",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(manualRoot);
+    var manualKey=RandomNumberGenerator.GetBytes(32);
+    try{await TaskActivityTests.ManualImmediateChecks.RunAsync(manualRoot,manualKey);}finally{CryptographicOperations.ZeroMemory(manualKey);}return;
+}
+if(args is ["--task-activity-probe"])
+{
+    var activityClient=new BackgroundPipeClient();string? activityCursor=null;
+    do
+    {
+        var page=await activityClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",Cursor:activityCursor));
+        Console.WriteLine(JsonSerializer.Serialize(page));
+        if(page.Code!="Ok"||page.TaskActivity is null){Environment.ExitCode=1;break;}
+        activityCursor=page.NextCursor;
+    }while(activityCursor is not null);
+    return;
+}
 if(args is ["--history-result-filter"])
 {
     var filterRoot=Path.Combine(Path.GetTempPath(),"CRS.HistoryFilter",Guid.NewGuid().ToString("N"));

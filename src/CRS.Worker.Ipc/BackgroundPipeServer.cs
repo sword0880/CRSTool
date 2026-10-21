@@ -16,7 +16,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly object rateGate = new();
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings"];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings"];
     private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings"];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)
@@ -71,12 +71,33 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         });
         if (caller is null) throw new UnauthorizedAccessException();
         var invalid = Limit(caller, management) ?? Validate(request, caller, management);
-        var response = invalid is null ? await ExecuteRequestAsync(request,caller,token) : new BackgroundResponse(WorkerProtocol.Version, request.RequestId, invalid);
+        var response = invalid is null ? request.Command=="QueryPlugin"?
+            await ExecuteConnectedQueryAsync(pipe,request,caller,token):await ExecuteRequestAsync(request,caller,token)
+            : new BackgroundResponse(WorkerProtocol.Version, request.RequestId, invalid);
         if (invalid is not (null or "RateLimited" or "Busy") && Writes.Contains(request.Command)) await control.HandleAsync(request with { Command = "AuditDenied" }, caller, token);
         // 消息上限是最后防线；超限返回协议错误，不把服务伪装成断线。
         if (JsonSerializer.SerializeToUtf8Bytes(response).Length > 131072) response = new(WorkerProtocol.Version, request.RequestId, "PayloadTooLarge");
         using var replying=CancellationTokenSource.CreateLinkedTokenSource(token);replying.CancelAfter(TimeSpan.FromSeconds(3));
         await Framing.WriteAsync(pipe, response, replying.Token);
+    }
+    private async Task<BackgroundResponse> ExecuteConnectedQueryAsync(NamedPipeServerStream pipe,BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
+    {
+        using var disconnected=CancellationTokenSource.CreateLinkedTokenSource(token);
+        using var watching=CancellationTokenSource.CreateLinkedTokenSource(token);
+        var watch=WatchAsync();
+        try{return await ExecuteRequestAsync(request,caller,disconnected.Token);}
+        finally{watching.Cancel();await watch;}
+        async Task WatchAsync()
+        {
+            try
+            {
+                // 一个连接只有一条请求；读到EOF或多余数据时，停止已无人等待的只读查询。
+                await pipe.ReadExactlyAsync(new byte[1],watching.Token);
+                disconnected.Cancel();
+            }
+            catch(OperationCanceledException) when(watching.IsCancellationRequested){}
+            catch(IOException){disconnected.Cancel();}
+        }
     }
     private async Task<BackgroundResponse> ExecuteRequestAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
     {

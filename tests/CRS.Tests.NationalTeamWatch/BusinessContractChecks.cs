@@ -43,6 +43,10 @@ internal static class BusinessContractChecks
             catch(ArgumentException){Check(true,"未知查询操作沿白名单拒绝");}
             var reply=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(await session.QueryAsync("{\"Operation\":\"configuration\"}",default));
             Check(reply.ContractVersion==1&&JsonSerializer.Deserialize<JsonElement[]>(reply.Items)!.Length>0,"拒绝之后旧版查询仍能返回已提交完整分页");
+            var released=await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("release-query",Snapshot:reply.Snapshot)),default);
+            Check(JsonSerializer.Deserialize<string>(released)=="Released","取消分页可主动释放公开快照额度");
+            try{await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("configuration",Offset:10,Snapshot:reply.Snapshot)),default);throw new Exception("已释放快照仍可继续读取");}
+            catch(ArgumentException){Check(true,"已释放快照不能被重用");}
         }
         var future=Path.Combine(root,"future-schema");Directory.CreateDirectory(future);SQLitePCL.Batteries_V2.Init();
         using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(future,"market.db"),Password=Convert.ToHexString(TestMarketData.Key)}.ToString()))

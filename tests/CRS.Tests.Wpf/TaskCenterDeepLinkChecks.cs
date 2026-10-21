@@ -24,6 +24,10 @@ internal static class TaskCenterDeepLinkChecks
                     ?? throw new InvalidOperationException("任务中心缺少明确命名的TabControl。");
                 // 尚未Loaded的TabControl允许 SelectedIndex=-1，呈现后才会自动选中首个页签。
                 if(tabs.SelectedIndex is not (-1 or 0))throw new InvalidOperationException("任务中心初始页签异常。");
+                page.ShowCurrentTasks();
+                if(tabs.SelectedIndex!=2||(tabs.SelectedItem as TabItem)?.Header?.ToString()!="当前任务"||
+                    page.FindName("RunningTasksGrid") is not DataGrid||page.FindName("WaitingTasksGrid") is not DataGrid||page.FindName("PendingTasksGrid") is not DataGrid)
+                    throw new InvalidOperationException("当前任务缺少运行、排队和待执行三张表。");
                 page.ShowRecentExecutions();
                 if(tabs.SelectedIndex!=1 || (tabs.SelectedItem as TabItem)?.Header?.ToString()!="最近执行")
                     throw new InvalidOperationException("右下角直达未选中最近执行页签。");

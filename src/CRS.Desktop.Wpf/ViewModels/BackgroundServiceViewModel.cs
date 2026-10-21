@@ -91,7 +91,9 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     {
         // 首先发布历史页；健康检查或计划读取缓慢不能挡住正在运行的记录。
         historyPaged=false;
+        var activity=RefreshTaskActivityAsync();
         await LoadHistoryAsync();
+        await activity;
         var health = await client.QueryAsync("GetHealth", lifetime);
         healthState = health.Health?.State ?? "Unknown";
         HealthLabel = healthState switch
@@ -142,7 +144,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
             else {var index=History.IndexOf(existing);if(existing!=rows[i])History[index]=rows[i];if(index!=i)History.Move(index,i);}
         }
         PendingRequests.Clear();foreach(var row in history.PendingRequests??[])PendingRequests.Add(row);
-        PendingStatus=history.PendingRequests is null?"后台尚未提供待执行请求信息；请更新配套服务。":PendingRequests.Count==0?"当前筛选下没有等待开始的手动请求。":"以下请求已受理，正在等待同插件前序任务或重试期限；开始后会出现在执行记录中。";
+        PendingStatus=history.PendingRequests is null?"后台尚未提供待执行请求信息；请更新配套服务。":PendingRequests.Count==0?"当前筛选下没有等待开始的手动请求。":"以下请求已受理；到“当前任务”查看执行中、排队和等待原因。首次手动请求直接调度，已经延期重试的请求按所列时间重试。";
         UpdateHistorySuggestions();
     }
     private void UpdateHistorySuggestions()

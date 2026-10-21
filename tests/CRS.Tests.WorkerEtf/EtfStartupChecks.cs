@@ -16,6 +16,7 @@ internal static class EtfStartupChecks
         var thread=new Thread(()=>
         {
             var app=new System.Windows.Application();
+            app.Resources["BooleanVisibility"]=new System.Windows.Controls.BooleanToVisibilityConverter();
             app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
             app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
             app.Dispatcher.InvokeAsync(async()=>

@@ -4,6 +4,7 @@ using System.Security.Principal;
 using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
+using TaskActivityTests;
 
 /// <summary>真实Quartz与多Job插件验证吞吐隔离；所有阻塞点由测试目录文件控制。</summary>
 internal static class WorkerSchedulingChecks
@@ -22,7 +23,7 @@ internal static class WorkerSchedulingChecks
     public static async Task RunAsync(string root)
     {
         var key = RandomNumberGenerator.GetBytes(32);
-        try { Settings(root); await Isolation(root, key); await Parallel(root, key); await DeferredCommand(root,key); }
+        try { Settings(root); await Isolation(root, key); await Parallel(root, key); await DeferredCommand(root,key); await ManualImmediateChecks.RunAsync(root,key); }
         finally { CryptographicOperations.ZeroMemory(key); }
         Console.WriteLine($"Worker公平调度通过：{passed}项。");
     }

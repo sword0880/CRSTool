@@ -12,6 +12,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     private const string Plugin="crs.national-team";
     private readonly BackgroundPipeClient client=connection??new();
     private BackgroundRequest? uncertain;
+    private readonly SemaphoreSlim queryGate=new(1,1);
     public string NetworkStatus{get;private set;}="公开采集由独立后台服务执行，关闭桌面后继续运行。";
     public bool CanManage=>new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
 
@@ -30,23 +31,40 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     }
     private async Task<T> QueryAsync<T>(EtfRequest query,CancellationToken token)
     {
-        var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:JsonSerializer.Serialize(query)),token);
-        if(reply.Code!="Ok" || reply.Payload is null)throw new InvalidDataException("后台查询失败："+reply.Code+"；请确认服务和ETF后台插件已安装。");
-        try{return EtfBusinessProtocol.ReadResponse<T>(reply.Payload);}
-        catch(EtfContractException error){throw new InvalidDataException("ETF业务契约校验失败："+error.Code+"；请核对桌面与后台插件版本。",error);}
+        // 本客户端先排队，避免并行图表/证据查询不断触发 PluginBusy 并耗尽管道配额。
+        await queryGate.WaitAsync(token);
+        try
+        {
+            var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:JsonSerializer.Serialize(query)),token);
+            if(query.Operation=="dashboard"&&reply.Code=="UnknownQuery")throw new UnsupportedDashboardException();
+            if(reply.Code!="Ok" || reply.Payload is null)throw new InvalidDataException("后台查询失败："+reply.Code+"；请确认服务和ETF后台插件已安装。");
+            try{return EtfBusinessProtocol.ReadResponse<T>(reply.Payload);}
+            catch(EtfContractException error){throw new InvalidDataException("ETF业务契约校验失败："+error.Code+"；请核对桌面与后台插件版本。",error);}
+        }
+        finally{queryGate.Release();}
     }
     /// <summary>同一次读取沿用快照，任何分页失败都不把半份结果交给页面。</summary>
     private async Task<(List<T> Rows,string? Metadata)> ReadPagesAsync<T>(EtfRequest query,CancellationToken token)
     {
         var rows=new List<T>();string? metadata=null;
-        while(true)
+        string? snapshot=null;
+        try
         {
-            var page=await QueryAsync<EtfQueryPage>(query,token);
-            rows.AddRange(JsonSerializer.Deserialize<List<T>>(page.Items)??throw new InvalidDataException("分页为空。"));metadata??=page.Metadata;
-            if(rows.Count>10000)throw new InvalidDataException("查询行数超限。");
-            if(page.NextOffset is not { } next)return(rows,metadata);
-            if(next<=query.Offset)throw new InvalidDataException("分页游标未前进。");
-            query=query with{Snapshot=page.Snapshot,Offset=next};
+            while(true)
+            {
+                var page=await QueryAsync<EtfQueryPage>(query,token);
+                snapshot=page.Snapshot;
+                rows.AddRange(JsonSerializer.Deserialize<List<T>>(page.Items)??throw new InvalidDataException("分页为空。"));metadata??=page.Metadata;
+                if(rows.Count>10000)throw new InvalidDataException("查询行数超限。");
+                if(page.NextOffset is not { } next)return(rows,metadata);
+                if(next<=query.Offset)throw new InvalidDataException("分页游标未前进。");
+                query=query with{Snapshot=page.Snapshot,Offset=next};
+            }
+        }
+        catch(OperationCanceledException) when(token.IsCancellationRequested)
+        {
+            if(snapshot is not null)_=ReleaseSnapshotAsync(snapshot);
+            throw;
         }
     }
     public async Task<List<EtfSummary>> OverviewAsync(CancellationToken token)

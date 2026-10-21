@@ -348,6 +348,7 @@ internal static class WorkerRemediationChecks
         public void Audit(string s, Guid id, string c, string r) { Fail("Audit"); inner.Audit(s, id, c, r); }
         public CommandReceipt? FindCommand(Guid id, string s) => inner.FindCommand(id, s);
         public BackgroundRequest ReadCommand(Guid id)=>inner.ReadCommand(id);
+        public CommandReceipt? ReadCommandState(Guid id)=>inner.ReadCommandState(id);
         public CommandReceipt AcceptCommand(BackgroundRequest r, string s) => inner.AcceptCommand(r, s);
         public void CompleteCommand(Guid id, string c) => inner.CompleteCommand(id, c);
         public List<(Guid RequestId, string PluginId, string JobId)> PendingRuns() => inner.PendingRuns();
