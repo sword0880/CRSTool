@@ -39,6 +39,7 @@
 - [x] 插件管理页移除重复定义的四套页面级 ControlTemplate；表格行、列头、单元格、操作按钮迁移到 `SharedStyles.xaml` 语义样式，保留默认控件模板。
 - [x] 设置页基础标题、提示文字和白色面板接入共享样式/颜色。
 - [x] 设置页首个非敏感子视图：将日志设置拆为 `Views/Settings/LoggingSettingsView`，继承 `SettingsViewModel` 并继续由 `SettingsWindow` 的统一保存按钮提交；设置窗口验证工具检查子视图名称与共享主题加载。
+- [x] 合成截图发现 DatePicker 在 130–140px 宽度下按默认长格式显示星期几，未显示日期。ETF / 直接持股 / 减持预警共 13 个日期控件强制 `SelectedDateFormat="Short"`；`Verify-WpfDesignSystem.ps1` 阻止日后新增长日期格式。
 - [ ] **其余设置页拆分**：存储、安全与 TOTP、文档口令、邮件、钉钉、企业微信分批拆成独立 UserControl，并逐步切换至 SettingsSectionHost。需要先把密码框的 `PasswordChanged` 回调和锁定后的清理职责拆为明确的安全接口；不得丢失 `ClearSecurityInputs`、`ClearDocumentInputs`、`ClearEmailInput`、`ClearDingTalkInputs`、`ClearWeChatInputs`，也不得重建时复用明文凭证。
 - [x] 绩效页将“原币资产组成”和“绩效历史”拆为独立只读 `PerformanceExposureView`、`PerformanceHistoryView`，复用原 `PerformanceViewModel` 的冻结结果与历史命令；CI 新增合成空状态宽度与数据绑定检查。
 - [ ] 绩效页其余账户范围、图表、补录和资金流继续抽取；须先做控件焦点、命令和数据权限验证。
@@ -52,6 +53,7 @@
 - `tests/CRS.Tests.PluginRecovery --ui-visual-preview <目录>`：ETF、直接持股、减持预警三种空状态插件 UI，三宽三 DPI，禁用 Loaded 取数，不连接 Worker。
 - `.github/workflows/wpf-ui-design-checks.yml`：Windows .NET10 静态检查、解决方案编译、合成视觉预览与截图 Artifact。当前无人工审核批准的黄金截图，**只生成可审阅图片，不做未经校准的像素差 CI 阻断**。
 - [ ] 增加真实 Windows 会话回归：100% / 125% / 150% 的系统缩放及多显示器切换、窗口最大化、导航收起/展开、键盘 Tab/focus、表格读写/筛选/排序、嵌套滚轮、图表重置、长中文文本、空/忙/错/数据质量状态、插件停止/重载/升级、设置关闭/锁屏后的秘密清理。
+- [x] 已取得首轮绿色 Windows Actions（commit `04a2edb`），编译、主窗口和三类国家队插件合成截图通过；抽取绩效只读子视图后新增同类预览（commit `1b19ad1`），截图继续可供人工复核。
 - [ ] CI 首次执行成功后筛选并批准黄金截图，设定可维护的差异门槛；不依赖单纯像素变化判断所有交互正确。
 
 ### Windows 建议验收命令

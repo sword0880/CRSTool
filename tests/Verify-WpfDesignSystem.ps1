@@ -33,6 +33,14 @@ foreach($file in $files) {
     if($hardcoded -gt $legacyAllowance) {
         $failures.Add("新增硬编码颜色：$relative，现有 $hardcoded / 基线 $legacyAllowance")
     }
+    # 表格工具区的窄日期选择器必须显示可读的年月日，禁止退回默认长日期格式。
+    if($relative -like 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/*.xaml') {
+        foreach($datePicker in [regex]::Matches($source,'<DatePicker\b[^>]*>')) {
+            if($datePicker.Value -notmatch 'SelectedDateFormat="Short"') {
+                $failures.Add("插件日期控件未指定短日期格式：$relative")
+            }
+        }
+    }
     foreach($found in [regex]::Matches($source,'\{(?:DynamicResource|StaticResource)\s+((?:Brand|Ui)[A-Za-z0-9]+)\}')) {
         $key = $found.Groups[1].Value
         if(-not $defined.Contains($key)) { $failures.Add("共享视觉资源键不存在：$relative -> $key") }
@@ -55,4 +63,4 @@ if($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Error $_ }
     throw "WPF 视觉规范静态检查失败：$($failures.Count) 项。"
 }
-Write-Host "PASS WPF 视觉规范：$($files.Count) 个 XAML XML、共享资源键、硬编码颜色基线与插件依赖边界。"
+Write-Host "PASS WPF 视觉规范：$($files.Count) 个 XAML XML、共享资源键、硬编码颜色基线、日期控件规范与插件依赖边界。"
