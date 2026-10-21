@@ -35,6 +35,13 @@ internal static class ShellBrandPreview
                     ??throw new InvalidOperationException("主窗口缺少统一标题栏布局。");
                 var pluginSurface=window.FindName("PluginSurface") as FrameworkElement
                     ??throw new InvalidOperationException("主窗口缺少插件承载区域。");
+                var footer=window.FindName("ShellFooter") as FrameworkElement
+                    ??throw new InvalidOperationException("主窗口缺少全局 Worker 状态栏。");
+                var footerButtons=new[]
+                {
+                    "FooterHealthButton","FooterTasksButton","FooterLastSyncButton","FooterIssuesButton"
+                }.Select(name=>window.FindName(name) as System.Windows.Controls.Button
+                    ??throw new InvalidOperationException("全局状态栏缺少可用入口："+name)).ToArray();
                 var layout=(FrameworkElement)window.Content;window.Content=null;layout.DataContext=window.DataContext;
                 var surface=new System.Windows.Controls.Border{Background=(Brush)app.FindResource("BrandCanvasBrush"),Child=layout};
                 Directory.CreateDirectory(directory);
@@ -47,6 +54,10 @@ internal static class ShellBrandPreview
                         if(window.IsNavigationExpanded!=expanded)
                             button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,button));
                         surface.Measure(new(width,880));surface.Arrange(new Rect(0,0,width,880));surface.UpdateLayout();
+                        if(footer.ActualHeight is < 32 or > 60 || footerButtons.Any(x=>x.Visibility!=Visibility.Visible || x.ActualWidth<=0))
+                            throw new InvalidOperationException($"全局运行状态栏未正确布局: width={width}, expanded={expanded}, footer={footer.ActualHeight}");
+                        if(Math.Abs(footer.TranslatePoint(new Point(0,0),layout).Y+footer.ActualHeight-880)>2)
+                            throw new InvalidOperationException("底部状态栏未固定在主窗口底边。");
                         var expected=expanded?206:56;
                         if(window.IsNavigationExpanded!=expanded||Math.Abs(header.ActualWidth-expected)>1
                             ||Math.Abs(pluginSurface.Margin.Left-expected)>1
@@ -70,6 +81,13 @@ internal static class ShellBrandPreview
                         var bitmap=new RenderTargetBitmap((int)(width*scale),(int)(180*scale),96*scale,96*scale,PixelFormats.Pbgra32);bitmap.Render(surface);
                         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
                         using var output=File.Create(Path.Combine(directory,$"brand-header-{width}{suffix}.png"));encoder.Save(output);
+                        if(width==1280 && scale==1.0 && expanded)
+                        {
+                            var full=new RenderTargetBitmap(1280,880,96,96,PixelFormats.Pbgra32);
+                            full.Render(surface);
+                            var footerShot=new PngBitmapEncoder();footerShot.Frames.Add(BitmapFrame.Create(full));
+                            using var footerImage=File.Create(Path.Combine(directory,"shell-footer-1280.png"));footerShot.Save(footerImage);
+                        }
                         if(width==1280 && scale==1.0)
                         {
                             var detail=new RenderTargetBitmap(412,128,192,192,PixelFormats.Pbgra32);detail.Render(surface);
@@ -80,7 +98,7 @@ internal static class ShellBrandPreview
                 }
                 button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,button));
                 if(!window.IsNavigationExpanded)throw new InvalidOperationException("二次折叠操作未恢复展开状态。");
-                Console.WriteLine("PASS 主窗口单行品牌栏：1040/1280/1440宽度和96/120/144 DPI位图渲染，展开与收起、品牌区真实视觉命中、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
+                Console.WriteLine("PASS 主窗口品牌栏与全局Worker底栏：1040/1280/1440宽度和96/120/144 DPI位图渲染，展开与收起、品牌区真实视觉命中、唯一折叠按钮、插件偏移、品牌图文和恢复操作。");
             }
             catch(Exception error){failure=error;}
         });
