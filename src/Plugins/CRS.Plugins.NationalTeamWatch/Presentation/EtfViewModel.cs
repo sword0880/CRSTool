@@ -107,6 +107,15 @@ public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lif
         Busy=true; operation=CancellationTokenSource.CreateLinkedTokenSource(lifetime,cancellationToken);
         try {await work(operation.Token);}
         catch(OperationCanceledException) {Status="已停止等待；服务已接受的任务可能继续运行，请在任务管理中查询或取消。";}
+        catch(MissingMethodException error)
+        {
+            // 保留缺失的方法签名（不回显堆栈、路径、令牌或原始HTTP内容），
+            // 帮助分辨插件/核心契约冲突与图表依赖问题，而非只有异常类型。
+            var signature=error.Message.Replace("\r"," ").Replace("\n"," ");
+            if(signature.Length>300)signature=signature[..300]+"…";
+            Status="组件方法接口不匹配："+signature+
+                "。请先关闭全部小财牛进程，再使用同一构建的完整安装包更新桌面程序及国家队插件；禁止仅覆盖某个DLL。";
+        }
         catch(Exception error) {Status=error is InvalidDataException or CRS.Worker.Ipc.BackgroundServiceException?error.Message:"操作失败；类别："+error.GetType().Name;}
         finally {operation.Dispose();operation=null;Busy=false;}
     }
