@@ -29,7 +29,7 @@
       <ComboBox Width="220" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryPlugins}" Text="{Binding HistoryPlugin,UpdateSourceTrigger=PropertyChanged}" ToolTip="留空显示全部插件，或输入插件编号" Margin="0,0,16,8"/>
       <TextBlock Text="任务" VerticalAlignment="Center" Margin="0,0,8,0"/>
       <ComboBox Width="240" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryJobs}" Text="{Binding HistoryJob,UpdateSourceTrigger=PropertyChanged}" ToolTip="留空显示全部任务，或输入任务编号" Margin="0,0,12,8"/>
-      <CheckBox Content="仅异常" IsChecked="{Binding OnlyIssues}" VerticalAlignment="Center" Margin="0,0,12,8" ToolTip="服务端筛选非成功、非运行、非主动取消的异常执行；来源冷却或插件启动异常不一定有执行记录。"/>
+      <CheckBox x:Name="OnlyIssuesCheckBox" Content="仅异常" IsChecked="{Binding OnlyIssues}" VerticalAlignment="Center" Margin="0,0,12,8" ToolTip="服务端筛选非成功、非运行、非主动取消的异常执行；来源冷却或插件启动异常不一定有执行记录。"/>
       <Button Content="应用筛选" Command="{Binding FilterHistoryCommand}" Margin="0,0,12,8"/>
       <Button Content="查看日志" Click="OnViewLog" ToolTip="查看选中执行的运行日志" Margin="0,0,0,8"/>
      </WrapPanel>
