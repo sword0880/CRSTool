@@ -46,7 +46,9 @@
 - [ ] **SettingsSectionHost 进一步统一**：当前仍使用已验证的每页 `DataTrigger Visibility`，待 UI 截图确认后考虑集中为宿主策略；不可牺牲隐藏状态的密码草稿与凭证清理。
 - [x] 绩效组件真实合成截图发现空数据表的自动列宽仅能显示单个汉字，已为两张只读表设置语义样式、表头高度及有下限的星号/固定列宽；组件预览新增实际列宽断言（不得小于 70 DIP）。
 - [x] 绩效页将“原币资产组成”和“绩效历史”拆为独立只读 `PerformanceExposureView`、`PerformanceHistoryView`，复用原 `PerformanceViewModel` 的冻结结果与历史命令；CI 新增合成空状态宽度与数据绑定检查。
-- [ ] 绩效页其余账户范围、图表、补录和资金流继续抽取；须先做控件焦点、命令和数据权限验证。
+- [x] 绩效工作台、净值曲线与指数、资料补录、资金流与异常检查分别抽出 `PerformanceWorkbenchView`、`PerformanceChartsView`、`PerformanceManualEntryView`、`PerformanceFlowsView`。父 `PerformancePage.xaml` 仅组织页签与顶部操作，不复制计算命令或历史状态；子视图统一继承 `PerformanceViewModel`。
+- [x] 合成绩效组件预览扩展为六类子视图（包括已抽出的资产组成/历史），对双表绑定、日期控件、图表子页签以及 1040/1280/1440 宽度进行检查；新的业务只读表显式选择 `UiReadOnlyDataGrid`。
+- [ ] 绩效工作台深层账户选择/导出栏和复杂补录面板可以按复用需求继续细分，但**需要先保留页面视图的焦点、账户完整信息显示/隐藏与取消命令回归**，不能以 XAML 缩短作为理由修改 VM 的计算与数据权限。
 - [ ] 插件管理页在 Windows 上检查表格排序/键盘选中/虚拟化以及鼠标焦点；若默认模板带来变化，先修复公共样式再合并。
 
 ## 阶段四：长期质量门禁（CI/截图基础已实现，未验证通过）
