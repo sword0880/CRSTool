@@ -7,6 +7,7 @@ using CRS.DesktopClient.ViewModels;
 if(args is ["--cron"]){CronEditorChecks.Run();return;}
 if(args is ["--settings-ui",var settingsDirectory]){SettingsViewChecks.Run(settingsDirectory);return;}
 if(args is ["--shell-brand-preview",var brandDirectory]){ShellBrandPreview.Run(brandDirectory);return;}
+if(args is ["--worker-status-preview",var workerDirectory]){WorkerStatusPreview.Run(workerDirectory);return;}
 if(args is ["--performance-component-preview",var componentDirectory]){PerformanceComponentPreview.Run(componentDirectory);return;}
 if(args is ["--plugin-management-preview",var pluginManagementDirectory]){PluginManagementPreview.Run(pluginManagementDirectory);return;}
 if(args is ["--execution-log-ui",var logScreenshot]){ExecutionLogViewChecks.Run(logScreenshot);return;}
