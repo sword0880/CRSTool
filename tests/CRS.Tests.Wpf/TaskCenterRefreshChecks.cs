@@ -16,13 +16,19 @@ internal static class TaskCenterRefreshChecks
             var model=new BackgroundServiceViewModel(stop.Token,new BackgroundPipeClient(pipe));
             var refresh=model.RefreshCommand.ExecuteAsync(null);
             await control.HealthRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            if(model.History.Count!=1 || model.History[0].Result!="Running" || model.PendingRequests.Count!=1 || refresh.IsCompleted)
-                throw new Exception("慢健康查询仍阻挡运行记录或待执行请求显示。");
-            if(control.Calls.TakeWhile(x=>x!="GetHistoryByDate").Any(x=>x is "GetHealth" or "GetJobs"))throw new Exception("历史查询仍等待健康或计划。");
+            if(model.History.Count!=0 || control.Calls.Contains("GetHistoryByDate") || refresh.IsCompleted)
+                throw new Exception("状态刷新自动读取了执行记录。");
             control.ReleaseHealth.TrySetResult();await refresh;
             var healthCount=control.Calls.Count(x=>x=="GetHealth");
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            if(model.History.Single().Result!="Running"||model.PendingRequests.Count!=1)throw new Exception("手动查询没有显示记录与待执行请求。");
             control.Record=control.Record with{EndedUtc=DateTimeOffset.UtcNow,Result="Succeeded"};
-            await model.RefreshRecentHistoryAsync();
+            var historyCount=control.Calls.Count(x=>x=="GetHistoryByDate");
+            await model.RefreshCommand.ExecuteAsync(null);
+            if(model.History.Single().Result!="Running"||control.Calls.Count(x=>x=="GetHistoryByDate")!=historyCount)
+                throw new Exception("刷新状态覆盖了手动查询的记录。");
+            healthCount=control.Calls.Count(x=>x=="GetHealth");
+            await model.FilterHistoryCommand.ExecuteAsync(null);
             if(model.History.Single().Result!="Succeeded" || control.Calls.Count(x=>x=="GetHealth")!=healthCount)
                 throw new Exception("执行首页刷新仍依赖健康/计划查询或未更新结果。");
             model.HistoryJob="missing";await model.FilterHistoryCommand.ExecuteAsync(null);
@@ -30,7 +36,7 @@ internal static class TaskCenterRefreshChecks
             control.ProvidePending=false;model.HistoryJob="";await model.FilterHistoryCommand.ExecuteAsync(null);
             if(!model.PendingStatus.Contains("尚未提供"))throw new Exception("旧服务缺少排队字段被当作零。");
             await FooterRefreshAsync(control,new BackgroundPipeClient(pipe),stop.Token);
-            Console.WriteLine("PASS 执行记录：慢健康不挡首屏、运行与待执行分别显示、自动刷新和空筛选清理。");
+            Console.WriteLine("PASS 执行记录：仅手动查询、状态刷新不覆盖历史、运行与待执行分别显示、空筛选清理。");
         }
         finally{control.ReleaseHealth.TrySetResult();stop.Cancel();try{await listening;}catch(OperationCanceledException){}}
     }

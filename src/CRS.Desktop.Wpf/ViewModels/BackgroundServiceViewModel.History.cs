@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
@@ -7,15 +6,11 @@ namespace CRS.DesktopClient.ViewModels;
 
 public partial class BackgroundServiceViewModel
 {
-    [ObservableProperty] private DateTime? historyDate=CRS.Timing.BeijingClock.Now.Date;
-    [ObservableProperty] private string historySummary="默认查询北京时间当天的执行记录。";
-    private DateOnly appliedHistoryDate=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
-    [RelayCommand] private async Task TodayHistoryAsync()
-    {HistoryDate=CRS.Timing.BeijingClock.Now.Date;await FilterHistoryAsync();}
-    /// <summary>历史日期保留查询结果；今天的记录自动刷新。</summary>
-    public Task RefreshRecentHistoryAsync()=>Busy||lifetime.IsCancellationRequested||
-        appliedHistoryDate!=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime)
-        ?Task.CompletedTask:WithStatusAsync(LoadHistoryAsync);
+    [ObservableProperty] private DateTime? historyStartDate=CRS.Timing.BeijingClock.Today;
+    [ObservableProperty] private DateTime? historyEndDate=CRS.Timing.BeijingClock.Today;
+    [ObservableProperty] private string historySummary="默认选择北京时间当天，请点击“查询记录”。";
+    private DateOnly appliedHistoryStartDate;
+    private DateOnly appliedHistoryEndDate;
 
     private async Task LoadHistoryAsync()
     {
@@ -23,7 +18,7 @@ public partial class BackgroundServiceViewModel
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
         var (rows,pending)=await ReadHistoryPagesAsync(deadline.Token);
         lifetime.ThrowIfCancellationRequested();
-        // 收齐当天结果后更新，失败不展示半份记录；保留现有选中行以便查看日志。
+        // 收齐整个日期范围后更新，失败不展示半份记录。
         var ids=rows.Select(x=>x.ExecutionId).ToHashSet();
         for(var i=History.Count-1;i>=0;i--)if(!ids.Contains(History[i].ExecutionId))History.RemoveAt(i);
         for(var i=0;i<rows.Count;i++)
@@ -34,29 +29,36 @@ public partial class BackgroundServiceViewModel
         }
         PendingRequests.Clear();foreach(var row in pending??[])PendingRequests.Add(row);
         PendingStatus=pending is null?"后台尚未提供待执行请求信息。":pending.Count==0?"当前筛选下没有待执行的手动请求。":"当前待执行请求（与记录日期无关）；详情请到“当前任务”查看。";
-        HistorySummary=$"{appliedHistoryDate:yyyy-MM-dd}（北京时间） · 共 {rows.Count} 条执行记录";
+        HistorySummary=$"{appliedHistoryStartDate:yyyy-MM-dd} 至 {appliedHistoryEndDate:yyyy-MM-dd}（北京时间） · 共 {rows.Count} 条执行记录";
         UpdateHistorySuggestions();
     }
     private async Task<(List<ExecutionRecord> Rows,IReadOnlyList<BackgroundPendingRequest>? Pending)> ReadHistoryPagesAsync(CancellationToken token)
     {
-        var date=appliedHistoryDate.ToString("yyyy-MM-dd");
-        var rows=new List<ExecutionRecord>();var cursors=new HashSet<string>();var ids=new HashSet<string>();
-        IReadOnlyList<BackgroundPendingRequest>? pending=null;string? cursor=null;
-        do
+        var rows=new List<ExecutionRecord>();var ids=new HashSet<string>();
+        IReadOnlyList<BackgroundPendingRequest>? pending=null;var firstPage=true;
+        // 沿用已安装后台的按日接口，逐日收齐所有分页；不在当前页上模拟范围筛选。
+        for(var day=appliedHistoryEndDate;;day=day.AddDays(-1))
         {
-            var page=await ReadHistoryPageAsync(date,cursor,token);
-            if(cursor is null)pending=page.PendingRequests;
-            foreach(var row in page.History??[])
+            var date=day.ToString("yyyy-MM-dd");
+            var cursors=new HashSet<string>();string? cursor=null;
+            do
             {
-                if(DateOnly.FromDateTime(row.StartedUtc.DateTime)!=appliedHistoryDate||
-                    appliedResultFilter=="Issues"&&!IsIssueResult(row.Result)||!ids.Add(row.ExecutionId))
-                    throw new System.IO.InvalidDataException("后台执行记录与查询条件不一致，请核对前后台版本。");
-                rows.Add(row);
-            }
-            cursor=page.NextCursor;
-            if(rows.Count>4096||cursor is not null&&!cursors.Add(cursor))throw new System.IO.InvalidDataException("执行记录分页无效。");
-        }while(cursor is not null);
-        return(rows,pending);
+                var page=await ReadHistoryPageAsync(date,cursor,token);
+                if(firstPage){pending=page.PendingRequests;firstPage=false;}
+                foreach(var row in page.History??[])
+                {
+                    if(DateOnly.FromDateTime(CRS.Timing.BeijingClock.Normalize(row.StartedUtc).DateTime)!=day||
+                        appliedResultFilter=="Issues"&&!IsIssueResult(row.Result)||!ids.Add(row.ExecutionId))
+                        throw new System.IO.InvalidDataException("后台执行记录与查询条件不一致，请核对前后台版本。");
+                    rows.Add(row);
+                }
+                cursor=page.NextCursor;
+                if(rows.Count>4096)throw new System.IO.InvalidDataException("记录数量超出单次查询上限，请缩小日期范围。");
+                if(cursor is not null&&!cursors.Add(cursor))throw new System.IO.InvalidDataException("执行记录分页无效。");
+            }while(cursor is not null);
+            if(day==appliedHistoryStartDate)break;
+        }
+        return(rows.OrderByDescending(x=>x.StartedUtc).ToList(),pending);
     }
     private async Task<BackgroundResponse> ReadHistoryPageAsync(string date,string? cursor,CancellationToken token)
     {

@@ -18,11 +18,11 @@ public partial class MainWindow : FluentWindow
     private static readonly Dictionary<string,IReadOnlySet<string>> startupEnablement=[];
     public event Action? SecurityRequested;
     public event Action? LockRequested;
-    private void OnLock(object sender,System.Windows.RoutedEventArgs e)=>LockRequested?.Invoke();
+    private void OnLock(object sender,System.Windows.RoutedEventArgs e){CloseCompactNavigation();LockRequested?.Invoke();}
     /// <summary>安全锁定独立于普通关闭，取消请求、清空令牌并解除敏感页面引用。</summary>
     public void PrepareLock()
     {
-        forceClose=true;
+        forceClose=true;CloseCompactNavigation();
         if(DataContext is ShellViewModel activeShell)activeShell.StatusBar.Stop();
         taskPageLifetime.Cancel();
         plugins?.Cancel(); HidePlugin();
@@ -43,7 +43,7 @@ public partial class MainWindow : FluentWindow
     };
     public MainWindow(ShellViewModel shell)
     {
-        InitializeComponent(); DataContext = shell; Navigation.SetPageProviderService(new PageProvider(shell));
+        InitializeComponent(); StartupWindowSizing.Attach(this); DataContext = shell; Navigation.SetPageProviderService(new PageProvider(shell));
         shell.NavigateRequested += page => Navigate(page);
         Loaded += (_, _) => Navigate("dashboard"); Closing += OnClosing;
         // 子菜单也要接回普通页面，避免插件遮罩挡住切换后的业务内容。
@@ -55,6 +55,7 @@ public partial class MainWindow : FluentWindow
         TasksGroup.MenuItems.Add(backgroundServiceItem);
         var taskCenter=CreateMenuItem("任务中心",SymbolRegular.CalendarClock24);
         taskCenter.Click+=async (_,_)=>await NavigateScheduledTasksAsync();TasksGroup.MenuItems.Insert(0,taskCenter);
+        InitializeCompactNavigation();
         Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
         Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();taskPageLifetime.Cancel();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
     }
@@ -103,10 +104,10 @@ public partial class MainWindow : FluentWindow
                     try {Dispatcher.VerifyAccess();PluginUiResources.Validate(System.Windows.Application.Current.Resources);OpenNavigationGroup(ExtensionsGroup);ShowHostedPage(page.Contribution.CreateView());}
                     catch(Exception error) {HidePlugin();System.Windows.MessageBox.Show(this,"插件页面无法打开；类别："+error.GetType().Name,"插件状态");}
                 };
-                pluginItems.Add(item);ExtensionsGroup.MenuItems.Add(item);
+                RegisterNavigationLeaf(item);pluginItems.Add(item);ExtensionsGroup.MenuItems.Add(item);
             }
             var management=CreateMenuItem("插件管理",SymbolRegular.Settings24);management.ToolTip="插件管理：启停在重新启动后生效";
-            management.Click+=(_,_)=>{OpenNavigationGroup(ExtensionsGroup);ShowPluginManagement();};pluginItems.Add(management);ExtensionsGroup.MenuItems.Add(management);
+            management.Click+=(_,_)=>{OpenNavigationGroup(ExtensionsGroup);ShowPluginManagement();};RegisterNavigationLeaf(management);pluginItems.Add(management);ExtensionsGroup.MenuItems.Add(management);
         }
         catch(Exception error) {System.Windows.MessageBox.Show(this,"插件宿主不可用，现有工作区可继续使用；类别："+error.GetType().Name,"插件状态");}
     }
@@ -132,6 +133,7 @@ public partial class MainWindow : FluentWindow
             var page=new BackgroundServicePage(backgroundServiceModel);
             page.ShowRecentExecutions();
             ShowHostedPage(page);
+            SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"任务中心")));
             await backgroundServiceModel.OpenExecutionHistoryAsync(issues);
         }
         catch(OperationCanceledException) { /* 关闭或锁定时不继续查询。 */ }
@@ -146,6 +148,7 @@ public partial class MainWindow : FluentWindow
         {
             backgroundServiceModel??=new(taskPageLifetime.Token);
             ShowHostedPage(new WorkerStatusPage(backgroundServiceModel));
+            SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"后台服务状态")));
             await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
         }
         catch(OperationCanceledException) { /* 锁定/退出时不回写。 */ }
@@ -160,6 +163,7 @@ public partial class MainWindow : FluentWindow
         {
             backgroundServiceModel??=new(taskPageLifetime.Token);
             var page=new BackgroundServicePage(backgroundServiceModel);page.ShowCurrentTasks();ShowHostedPage(page);
+            SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"任务中心")));
             await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
         }
         catch(OperationCanceledException){ /* 锁定或关闭后不回写页面。 */ }
@@ -186,8 +190,13 @@ public partial class MainWindow : FluentWindow
         if (!PageTypes.TryGetValue(key, out var type)) return false;
         foreach(var group in Navigation.MenuItems.OfType<NavigationViewItem>().Where(x=>x.MenuItems.OfType<NavigationViewItem>().Any(child=>child.TargetPageType==type)))
             OpenNavigationGroup(group);
-        if (Navigation.SelectedItem is NavigationViewItem item && item.TargetPageType == type) return true;
-        return Navigation.Navigate(type);
+        CloseCompactNavigation();
+        var target=NavigationEntries().FirstOrDefault(x=>x.TargetPageType==type);
+        if (Navigation.SelectedItem is NavigationViewItem item && item.TargetPageType == type)
+        {if(target is not null)SetActiveNavigationItem(target);return true;}
+        var navigated=Navigation.Navigate(type);
+        if(navigated&&target is not null)SetActiveNavigationItem(target);
+        return navigated;
     }
     public bool IsNavigationExpanded { get => Navigation.IsPaneOpen; set => Navigation.IsPaneOpen = value; }
     /// <summary>动态入口与静态菜单使用相同图标和悬停标题。</summary>
@@ -199,10 +208,11 @@ public partial class MainWindow : FluentWindow
     /// <summary>点击分类只改变展开状态；子项的冒泡点击不再次折叠分类。</summary>
     private void OnNavigationGroupClick(object sender,System.Windows.RoutedEventArgs e)
     {
-        if(!ReferenceEquals(e.Source,sender) || sender is not NavigationViewItem group || !group.IsExpanded)return;
-        OpenNavigationGroup(group);
+        if(!ReferenceEquals(e.Source,sender) || sender is not NavigationViewItem group)return;
+        if(!Navigation.IsPaneOpen){ToggleCompactNavigation(group);e.Handled=true;return;}
+        CloseCompactNavigation();if(group.IsExpanded)OpenNavigationGroup(group);
     }
-    /// <summary>展开当前分类并收起其余分类，侧栏收窄时由控件显示子项弹出菜单。</summary>
+    /// <summary>展开当前分类并收起其余分类，折叠态不改变内容区宽度。</summary>
     private void OpenNavigationGroup(NavigationViewItem selected)
     {
         foreach(var group in Navigation.MenuItems.OfType<NavigationViewItem>().Where(x=>x.MenuItems.Count>0))
@@ -215,6 +225,7 @@ public partial class MainWindow : FluentWindow
     }
     private void OnSettings(object sender, System.Windows.RoutedEventArgs e)
     {
+        CloseCompactNavigation();
         var shell = (ShellViewModel)DataContext;
         if (!shell.State.IsIdle || shell.Settings is null) return;
         try { shell.Settings.Reload(); var dialog=new SettingsWindow(shell.Settings) { Owner = this };dialog.ShowDialog();if(dialog.RequiresPhoneEnrollment) LockRequested?.Invoke();else if(dialog.OpenDatabaseManagement) SecurityRequested?.Invoke(); }

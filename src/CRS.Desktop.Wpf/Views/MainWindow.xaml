@@ -4,7 +4,7 @@
    <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="False" IsBackButtonVisible="Collapsed" IsPaneOpen="False">
     <ui:NavigationView.MenuItems>
      <ui:NavigationViewItem Content="概览" TargetPageType="{x:Type pages:DashboardPage}" Icon="{ui:SymbolIcon Grid24}"/>
-     <!-- 分类只组织导航，不持有业务状态；首次打开默认折叠，点击后展开。 -->
+     <!-- 分类只组织导航；折叠态使用分类浮层，展开态使用内联菜单树。 -->
      <ui:NavigationViewItem x:Name="InvestmentGroup" Content="投资与数据" Icon="{ui:SymbolIcon Money24}" IsExpanded="False" Click="OnNavigationGroupClick" ToolTip="投资与数据">
       <ui:NavigationViewItem.MenuItems>
        <ui:NavigationViewItem Content="投资绩效" TargetPageType="{x:Type pages:PerformancePage}" Icon="{ui:SymbolIcon Money24}"/>

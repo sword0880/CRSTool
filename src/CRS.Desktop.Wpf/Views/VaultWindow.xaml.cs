@@ -12,7 +12,7 @@ public partial class VaultWindow : Window
     private readonly System.Windows.Threading.DispatcherTimer expiry;
     public VaultWindow(VaultViewModel model)
     {
-        InitializeComponent(); this.model=model; DataContext=model;
+        InitializeComponent(); CRS.DesktopClient.Services.StartupWindowSizing.Attach(this); this.model=model; DataContext=model;
         model.Ready+=Ready; model.PropertyChanged+=Changed; model.SensitiveCleared+=Clear;
         expiry=new(TimeSpan.FromSeconds(5),System.Windows.Threading.DispatcherPriority.Background,(_,_)=>model.CheckAuthenticationExpiry(),Dispatcher);
         Closed+=(_,_)=> {expiry.Stop(); model.Ready-=Ready; model.PropertyChanged-=Changed; model.SensitiveCleared-=Clear; Clear(); model.ClearSensitiveDisplay();};

@@ -69,6 +69,8 @@ dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --futu
 
 WPF 窗口检查会导航十个页面、检查绑定错误、历史 / 复核 / Excel 导出、取消不保存及输入清理。窗口检查还验证折叠菜单、设置窗口保存和最小窗口尺寸下的历史分页栏；传入 --image 的绝对 PNG 路径可输出折叠、设置、概览、导入、税务和历史截图。
 
+`dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --compact-navigation artifacts/compact-navigation` 使用合成窗口检查分类浮层、选页关闭、当前分类/页面标识、Esc/方向键、展开态菜单树、动态入口、禁用状态及锁定清理，并输出浮层与折叠主窗体截图。不加载正式插件或连接个人保险库；分类控件执行真实 OnClick，菜单项使用自动化调用，鼠标/键盘采用路由事件，不代表物理输入回放或跨显示器验收。
+
 携带 IBKR fixture 的窗口检查还会执行原件摘要校验、冻结口径复算另存、父运行及取消不保存验证；汇率页面检查数值调整和手动输入后读取。
 
 该窗口流程还会勾选 IBKR 与富途来源任务、确认归属并执行年度汇总，验证另存、清空选择、导航及来源表格；截图包括年度汇总选择和结果。

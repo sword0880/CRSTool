@@ -12,14 +12,14 @@ public partial class BackgroundServicePage : UserControl
         InitializeComponent(); DataContext = model;
         var refresh=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromSeconds(3)};
         async Task RefreshVisibleAsync()
-        {if(TaskCenterTabs.SelectedIndex==2)await model.RefreshTaskActivityAsync();else if(TaskCenterTabs.SelectedIndex==1)await model.RefreshRecentHistoryAsync();}
+        {if(TaskCenterTabs.SelectedIndex==2)await model.RefreshTaskActivityAsync();}
         refresh.Tick+=async (_,_)=>await RefreshVisibleAsync();
-        Loaded+=(_,_)=>{if(TaskCenterTabs.SelectedIndex is 1 or 2){refresh.Start();_ = RefreshVisibleAsync();}};
+        Loaded+=(_,_)=>{if(TaskCenterTabs.SelectedIndex==2){refresh.Start();_ = RefreshVisibleAsync();}};
         Unloaded+=(_,_)=>refresh.Stop();
         TaskCenterTabs.SelectionChanged+=(_,e)=>
         {
             if(e.Source!=TaskCenterTabs)return;
-            if(IsLoaded && TaskCenterTabs.SelectedIndex is 1 or 2){refresh.Start();_ = RefreshVisibleAsync();}
+            if(IsLoaded && TaskCenterTabs.SelectedIndex==2){refresh.Start();_ = RefreshVisibleAsync();}
             else refresh.Stop();
         };
     }

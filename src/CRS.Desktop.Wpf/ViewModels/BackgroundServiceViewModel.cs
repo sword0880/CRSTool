@@ -51,13 +51,19 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     [RelayCommand]
     private Task FilterHistoryAsync() => WithStatusAsync(async () =>
     {
-        if(HistoryDate is not {} day){History.Clear();HistorySummary="请选择查询日期。";Status=HistorySummary;return;}
-        appliedHistoryDate=DateOnly.FromDateTime(day);
+        if(HistoryStartDate is not {} start||HistoryEndDate is not {} end||start.Date>end.Date)
+        {
+            History.Clear();PendingRequests.Clear();PendingStatus="尚未查询等待开始的请求。";
+            HistorySummary=HistoryStartDate is null||HistoryEndDate is null?"请选择开始日期和结束日期。":"开始日期不能晚于结束日期。";
+            Status=HistorySummary;return;
+        }
+        appliedHistoryStartDate=DateOnly.FromDateTime(start);
+        appliedHistoryEndDate=DateOnly.FromDateTime(end);
         appliedPlugin = string.IsNullOrWhiteSpace(HistoryPlugin) ? null : HistoryPlugin.Trim();
         appliedJob = string.IsNullOrWhiteSpace(HistoryJob) ? null : HistoryJob.Trim();
         appliedResultFilter = OnlyIssues ? "Issues" : null;
         History.Clear();PendingRequests.Clear();
-        Status="正在查询执行记录和等待开始的请求……";HistorySummary=$"正在查询 {appliedHistoryDate:yyyy-MM-dd} 的记录……";
+        Status="正在查询执行记录和等待开始的请求……";HistorySummary=$"正在查询 {appliedHistoryStartDate:yyyy-MM-dd} 至 {appliedHistoryEndDate:yyyy-MM-dd} 的记录……";
         await LoadHistoryAsync();
         Status = OnlyIssues
             ? History.Count==0
@@ -75,10 +81,11 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         }
         lifetime.ThrowIfCancellationRequested();
         HistoryPlugin="";
-        HistoryDate=CRS.Timing.BeijingClock.Now.Date;
+        HistoryStartDate=HistoryEndDate=CRS.Timing.BeijingClock.Today;
         HistoryJob="";
         OnlyIssues=issues;
-        await FilterHistoryCommand.ExecuteAsync(null);
+        History.Clear();PendingRequests.Clear();PendingStatus="尚未查询等待开始的请求。";
+        HistorySummary="默认选择北京时间当天，请点击“查询记录”。";
     }
 
     public bool CanChangeHistory=>!Busy;
@@ -93,10 +100,8 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         { "Running" => "后台服务正常；公开任务独立于窗口与税务登录运行。", "StorageFault" => "后台存储故障，已停止新任务；请修复并重启服务核验。", "UnresponsivePlugin" => "插件未响应取消，服务正在安全停止。", _ => "后台服务状态异常：" + healthState }; });
     private async Task LoadAsync()
     {
-        // 首先发布历史页；健康检查或计划读取缓慢不能挡住正在运行的记录。
-
+        // 状态刷新不查询执行记录；历史只由用户的“查询记录”命令读取。
         var activity=RefreshTaskActivityAsync();
-        await LoadHistoryAsync();
         await activity;
         var health = await client.QueryAsync("GetHealth", lifetime);
         healthState = health.Health?.State ?? "Unknown";

@@ -32,7 +32,7 @@ internal static class ExecutionLogViewChecks
             {
                 try
                 {
-                    model.HistoryDate=control.Record.StartedUtc.Date;await model.FilterHistoryCommand.ExecuteAsync(null);
+                    model.HistoryStartDate=model.HistoryEndDate=control.Record.StartedUtc.Date;await model.FilterHistoryCommand.ExecuteAsync(null);
                     var plan=control.Plan;model.Jobs.Add(plan);model.Selected=plan;
                     var edit=new ScheduleEditViewModel(model,plan);
                     var scheduleDialog=new ScheduleEditWindow(edit){Owner=parent};scheduleDialog.Show();parent.UpdateLayout();

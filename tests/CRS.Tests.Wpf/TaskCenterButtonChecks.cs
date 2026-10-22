@@ -13,6 +13,7 @@ internal static class TaskCenterButtonChecks
         {
             var model=new BackgroundServiceViewModel(stop.Token,new(pipe));
             await model.RefreshCommand.ExecuteAsync(null);
+            await model.FilterHistoryCommand.ExecuteAsync(null);
             Check(model.History.Count==2&&model.HasMoreJobs&&!model.HasUnconfirmedRequest,"分页有下一页才提供入口，正常连接无确认提示");
             await model.MoreJobsCommand.ExecuteAsync(null);
             Check(model.History.Count==2&&model.Jobs.Count==2&&!model.HasMoreJobs,"读完下一页后隐藏入口且不漏数据");
