@@ -41,9 +41,8 @@ internal static class Program
                 lifecycleTimeout: TimeSpan.FromSeconds(15),
                 onUnresponsive: () => Environment.Exit(2));
             await catalog.LoadAsync(root, trustFile, CancellationToken.None);
-            if (catalog.Statuses.Count != 1
-                || catalog.Statuses[0] is not { State: "Started" } status
-                || status.PluginId != pluginId)
+            var status = catalog.Statuses.SingleOrDefault(x => x.PluginId == pluginId);
+            if (catalog.Statuses.Count != 1 || status?.State != "Started")
                 throw new InvalidDataException("Runner plugin failed startup.");
 
             using var input = Console.OpenStandardInput();
