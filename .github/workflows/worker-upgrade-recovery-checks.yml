@@ -1,0 +1,89 @@
+name: Worker upgrade and recovery checks
+
+on:
+  pull_request:
+    paths:
+      - 'src/CRS.Worker.Service/**'
+      - 'src/CRS.Worker.Ipc/**'
+      - 'src/CRS.Worker.PluginHost/**'
+      - 'src/CRS.Security/**'
+      - 'src/CRS.Infrastructure/**'
+      - 'src/CRS.Notifications/**'
+      - 'tools/background/**'
+      - 'tests/CRS.Tests.Background/**'
+      - 'tests/Test-WorkerMaintenance.ps1'
+      - 'tests/Test-WorkerUpgradeTransactions.ps1'
+      - '.github/workflows/worker-upgrade-recovery-checks.yml'
+      - 'Directory.Packages.props'
+      - 'global.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-upgrade-recovery:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore Worker recovery tests
+        run: dotnet restore tests/CRS.Tests.Background/CRS.Tests.Background.csproj
+      - name: Build Worker recovery tests
+        run: dotnet build tests/CRS.Tests.Background/CRS.Tests.Background.csproj -c Release --no-restore -m:1
+      - name: Verify maintenance snapshot and C# startup interop
+        shell: pwsh
+        run: ./tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop
+      - name: Verify injected upgrade interruption and recovery matrix
+        shell: pwsh
+        run: ./tests/Test-WorkerUpgradeTransactions.ps1
+      - name: Prepare isolated Worker process fixture
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE 'tests/CRS.Tests.Background/bin/Release/net10.0-windows'
+          if (-not (Test-Path -LiteralPath (Join-Path $source 'CRS.Worker.Service.exe'))) {
+            throw 'Worker recovery test output is missing CRS.Worker.Service.exe.'
+          }
+          $fixture = Join-Path $env:RUNNER_TEMP 'worker-upgrade-fixture'
+          if (Test-Path -LiteralPath $fixture) { throw 'Worker fixture path already exists.' }
+          New-Item -ItemType Directory -Path $fixture | Out-Null
+          Get-ChildItem -LiteralPath $source -Force | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $fixture -Recurse -Force
+          }
+          [IO.File]::WriteAllText((Join-Path $fixture 'release.json'),
+            '{"format":1,"product":"CRS.Worker.Service","version":"2.0.0","files":{}}',
+            [Text.UTF8Encoding]::new($false))
+          $pluginDirectory = Join-Path $fixture 'Plugins/crs.fixture/1.0.0'
+          New-Item -ItemType Directory -Path $pluginDirectory -Force | Out-Null
+          $pluginAssembly = Join-Path $fixture 'CRS.Worker.FixturePlugin.dll'
+          if (-not (Test-Path -LiteralPath $pluginAssembly)) {
+            throw 'Worker upgrade fixture is missing CRS.Worker.FixturePlugin.dll.'
+          }
+          Copy-Item -LiteralPath $pluginAssembly -Destination $pluginDirectory
+          $manifest = @{
+            id = 'crs.fixture'
+            version = '1.0.0'
+            hostContract = '2.0'
+            backgroundEntry = @{ assembly = 'CRS.Worker.FixturePlugin.dll'; type = 'CRS.Worker.FixturePlugin.GoodEntry' }
+          }
+          [IO.File]::WriteAllText((Join-Path $pluginDirectory 'plugin.json'),
+            (ConvertTo-Json -InputObject $manifest -Depth 5 -Compress), [Text.UTF8Encoding]::new($false))
+          $files = @{}
+          Get-ChildItem -LiteralPath $pluginDirectory -File | ForEach-Object {
+            $files[$_.Name] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+          }
+          $trustedPackages = @(@{
+            id = 'crs.fixture'; version = '1.0.0'; directory = 'crs.fixture/1.0.0'; files = $files
+          })
+          [IO.File]::WriteAllText((Join-Path $fixture 'trusted-background-plugins.json'),
+            (ConvertTo-Json -InputObject $trustedPackages -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+          Write-Output 'Synthetic plugin and release metadata are isolated to RUNNER_TEMP and are not a distributable package.'
+      - name: Verify real Worker process startup and upgrade journal guard
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'worker-upgrade-fixture'
+          & dotnet (Join-Path $fixture 'CRS.Tests.Background.dll') --upgrade-only $fixture
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated Worker upgrade/startup regression failed.' }
