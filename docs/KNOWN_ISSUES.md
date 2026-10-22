@@ -1,6 +1,6 @@
 # 当前问题与验收缺口
 
-2026-10-23 P1-07：新增[Worker 后台插件进程隔离设计](architecture/WORKER_PLUGIN_PROCESS_ISOLATION.md)。当前仅完成威胁模型和分阶段方案，PluginRunner/Windows 身份隔离尚未实现；同进程插件仍属受信代码，不是沙箱。
+2026-10-23 P1-07：新增[Worker 后台插件进程隔离设计](architecture/WORKER_PLUGIN_PROCESS_ISOLATION.md)及仅供测试的 stdio PluginRunner 原型。原型未接入生产 Worker；生产插件仍在同一进程/令牌中运行，Windows 身份、ACL、Job Object、能力 Broker 和网络隔离未实现。P1-07仍未关闭。
 
 监控08:27已完成24只实机缺口清单：11只满足250个有效交易日，其余236～249日，历史待审修订40条；08:40后续只读快照为17只满足250日，连续20日仍无标的通过。两份报告保留各自时点。官方口径仅按已核验区间逐项登记，不能替代最新区间或具名ETF黄金样本。完整结果、原件下载阻断和维护恢复限制见[最新核验记录](implementation/MONITOR_READINESS_20261020.md)；下文25条早期份额事实不是当前覆盖数。
 
