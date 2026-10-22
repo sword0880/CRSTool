@@ -46,7 +46,8 @@ internal static class ScopedEvidenceChecks
         using(var attemptLock=new FileStream(Path.Combine(rawPath,attemptHash+".raw"),FileMode.Open,FileAccess.Read,FileShare.None))
         {
             try{repository.Coverage(key,day,day);throw new Exception("覆盖查询放行了已被当前采集阶段引用的锁定原件");}
-            catch(InvalidDataException){Check(true,"覆盖查询继续核验最新采集尝试所引用的原件");}
+            catch(Exception error) when(error is IOException or InvalidDataException)
+            {Check(true,"覆盖查询继续核验最新采集尝试所引用的原件");}
         }
         File.WriteAllText(Path.Combine(rawPath,hash+".raw"),"tampered");
         var beforeDamagedQuery=Changes();
