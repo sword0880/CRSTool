@@ -41,9 +41,9 @@ internal static class ScopedEvidenceChecks
         }
         // Coverage 还会展示最新采集尝试引用的原件；该依赖必须纳入校验，不能因缩小份额范围而漏检。
         var attemptHash=raw.Save("collection attempt evidence"u8.ToArray());
-        repository.RecordFetch(attemptHash,"https://www.sse.com.cn/attempt-fetch");
+        var attemptFetchId=repository.RecordFetch(attemptHash,"https://www.sse.com.cn/attempt-fetch");
         var attemptId=repository.BeginCollection(key,day);
-        repository.RecordCollection(attemptId,"RawSaved","RawSaved",attemptHash);
+        repository.RecordCollection(attemptId,"RawSaved","RawSaved",attemptFetchId);
         using(var attemptLock=new FileStream(Path.Combine(rawPath,attemptHash+".raw"),FileMode.Open,FileAccess.Read,FileShare.None))
         {
             try{repository.Coverage(key,day,day);throw new Exception("覆盖查询放行了已被当前采集阶段引用的锁定原件");}
