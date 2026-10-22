@@ -30,7 +30,7 @@ internal static class WorkerUpgradeChecks
         try
         {
             using var repository = new EncryptedTaskRepository(Path.Combine(data, "scheduler-config.db"), key);
-            repository.RegisterDefault("crs.heartbeat", new BackgroundJobDescriptor("heartbeat", "升级前心跳", "0 0 0 1 1 ?", "China Standard Time", false));
+            repository.RegisterDefault("crs.fixture", new BackgroundJobDescriptor("one", "升级前心跳", "0 0 0 1 1 ?", "China Standard Time", false));
             var plan = repository.Plans().Single();
             var execution = repository.Begin(plan, DateTimeOffset.UtcNow);
             repository.End(execution, plan, BackgroundJobResult.Success("before-upgrade"));
@@ -121,7 +121,10 @@ internal static class WorkerUpgradeChecks
             {
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                 var health = await client.QueryAsync("GetHealth", deadline.Token);
-                Check(health.Health?.State == "Running" && new WorkerUpgradeJournal(data).Read() is { Stage: "Healthy", NewFactsPossible: true }, "真实Worker健康端点出现前风险与就绪阶段已持久化");
+                var journal = new WorkerUpgradeJournal(data).Read();
+                var diagnostics = $"code={health.Code}; health={health.Health?.State ?? "<null>"}; journal={journal?.Stage ?? "<null>"}; newFacts={journal?.NewFactsPossible}; exited={candidate.HasExited}; exitCode={(candidate.HasExited ? candidate.ExitCode : 0)}";
+                Check(health.Health?.State == "Running" && journal is { Stage: "Healthy", NewFactsPossible: true },
+                    "真实Worker健康端点出现前风险与就绪阶段已持久化 (" + diagnostics + ")");
                 var history = await client.QueryAsync("GetHistory");
                 Check(history.History!.Any(x => x.Checkpoint == "before-upgrade"), "候选启动保留旧执行事实");
             }
