@@ -7,7 +7,7 @@ on:
       - 'src/CRS.Worker.PluginHost/**'
       - 'src/CRS.Worker.Abstractions/**'
       - 'tests/CRS.Tests.Background/**'
-      - 'tests/Verify-Architecture.ps1'
+      - 'tests/Verify-ProjectGraph.ps1'
       - 'docs/architecture/CURRENT_ARCHITECTURE.md'
       - 'tests/fixtures/CRS.Worker.FixturePlugin/**'
       - '.github/workflows/worker-plugin-runner-prototype.yml'
@@ -34,9 +34,9 @@ jobs:
         run: dotnet build tests/CRS.Tests.Background/CRS.Tests.Background.csproj -c Release --no-restore -m:1
       - name: Build isolated PluginRunner prototype
         run: dotnet build src/CRS.Worker.PluginRunner/CRS.Worker.PluginRunner.csproj -c Release -m:1
-      - name: Verify architecture dependency boundaries
+      - name: Verify solution project graph and documented dependencies
         shell: pwsh
-        run: ./tests/Verify-Architecture.ps1
+        run: ./tests/Verify-ProjectGraph.ps1
       - name: Verify separate process execution and framed protocol
         shell: pwsh
         run: |
