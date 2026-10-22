@@ -96,13 +96,13 @@ internal static class Program
                                 {
                                     var updates = new List<BackgroundProgress>(8);
                                     var truncated = false;
-                                    var result = await progressSession.ExecuteWithProgressAsync(request.JobId, request.Payload, progress =>
+                                    var progressResult = await progressSession.ExecuteWithProgressAsync(request.JobId, request.Payload, progress =>
                                     {
                                         if (updates.Count < 64) updates.Add(progress);
                                         else truncated = true;
                                         return Task.CompletedTask;
                                     }, CancellationToken.None, request.RequestId);
-                                    response = new(ProtocolVersion, request.RequestId, "Ok", Result: result,
+                                    response = new(ProtocolVersion, request.RequestId, "Ok", Result: progressResult,
                                         Progress: updates, ProgressTruncated: truncated);
                                     break;
                                 }
