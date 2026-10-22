@@ -37,6 +37,7 @@ internal static class ScopedEvidenceChecks
             _=repository.History(null);Check(true,"全池历史不扫描未关联的孤立抓取");
             Check(repository.PointsForKeys([key,other]).Count==2,"批量份额查询不扫描未关联的孤立抓取");
             Check(repository.Evidence().Count==2,"全池证据核验份额事实，但不扫描未关联的孤立抓取");
+            _=repository.Coverage(key,day,day);Check(true,"单证券覆盖不被孤立抓取阻断");
         }
         // Coverage 还会展示最新采集尝试引用的原件；该依赖必须纳入校验，不能因缩小份额范围而漏检。
         var attemptHash=raw.Save("collection attempt evidence"u8.ToArray());
