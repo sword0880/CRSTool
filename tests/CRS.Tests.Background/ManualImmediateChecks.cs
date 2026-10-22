@@ -49,6 +49,25 @@ internal static class ManualImmediateChecks
                 if(Environment.TickCount64>until)throw new Exception("排队快照未出现");await Task.Delay(25);
             }while(true);
             var observed=first.TaskActivity!.ObservedAt;var rows=first.TaskActivity.Rows.ToList();
+            // 客户端不断刷新但未读取后续页，不能长期阻塞其他用户的任务快照。
+            string? obsoleteCursor=null;
+            for(var i=0;i<12;i++)
+            {
+                var flood=await runtime.HandleAsync(
+                    new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",PageSize:1),
+                    caller with{Sid="abandoned-reader"},default);
+                if(i==0)obsoleteCursor=flood.NextCursor;
+                if(flood.Code!="Ok"||flood.NextCursor is null)
+                    throw new Exception("中断分页的客户端仍需获得可用的新快照。");
+            }
+            Check(obsoleteCursor is not null &&
+                (await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",
+                    Cursor:obsoleteCursor),caller with{Sid="abandoned-reader"},default)).Code=="SnapshotExpired",
+                "重复放弃分页只淘汰本用户旧游标，客户端明确获知需刷新");
+            Check((await runtime.HandleAsync(
+                new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",PageSize:1),
+                caller with{Sid="independent-reader",CanManage=false},default)).Code=="Ok",
+                "中断分页不能耗尽全局快照配额妨碍其他用户");
             File.Delete(hold);var cursor=first.NextCursor;
             while(cursor is not null)
             {

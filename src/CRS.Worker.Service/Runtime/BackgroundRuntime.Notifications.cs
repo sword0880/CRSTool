@@ -44,7 +44,16 @@ public sealed partial class BackgroundRuntime
             try
             {
                 // 仅记录动作与结果分类，不记录口令、Payload或第三方异常正文。
-                if(request.Command is not ("GetEmailSettings" or "GetWebhookSettings"))repository.Audit(caller.Sid,request.RequestId,request.Command,result);
+                // 通知操作可能已提交到外部提供方，审计写入失败不得继续报告 Worker 健康。
+                if(request.Command is not ("GetEmailSettings" or "GetWebhookSettings"))
+                {
+                    try { repository.Audit(caller.Sid,request.RequestId,request.Command,result); }
+                    catch(Exception error) when(StorageError(error))
+                    {
+                        await TripFaultAsync("StorageFault");
+                        throw; // 保留响应结果未知语义，禁止上层自动重试通知。
+                    }
+                }
             }
             finally{activeQueries.Remove(completed);completed.TrySetResult();gate.Release();}
         }
