@@ -13,7 +13,9 @@ internal static class RunnerProcessChecks
 
     private sealed record Request(int ProtocolVersion, Guid RequestId, string Command, string? JobId = null, string? Payload = null);
     private sealed record Response(int ProtocolVersion, Guid RequestId, string Code,
-        IReadOnlyList<BackgroundJobDescriptor>? Jobs = null, BackgroundJobResult? Result = null, string? Payload = null, string? ErrorType = null);
+        IReadOnlyList<BackgroundJobDescriptor>? Jobs = null, BackgroundJobResult? Result = null,
+        IReadOnlyList<BackgroundProgress>? Progress = null, bool ProgressTruncated = false,
+        string? Payload = null, string? ErrorType = null);
 
     private static void Check(bool value, string name)
     {
@@ -54,8 +56,9 @@ internal static class RunnerProcessChecks
                 "Runner 在独立进程中加载受信插件并返回任务描述");
 
             var execute = await ExchangeAsync(process, new(ProtocolVersion, Guid.NewGuid(), "Execute", "one"), deadline.Token);
-            Check(execute.Code == "Ok" && execute.Result?.Status == "Succeeded",
-                "Runner 执行任务并返回有界结果 DTO");
+            Check(execute.Code == "Ok" && execute.Result?.Status == "Succeeded"
+                && execute.Progress?.Count == 1 && !execute.ProgressTruncated,
+                "Runner 执行任务并返回有界结果及进度 DTO");
 
             var query = await ExchangeAsync(process, new(ProtocolVersion, Guid.NewGuid(), "Query", Payload: "ok"), deadline.Token);
             Check(query.Code == "Ok" && query.Payload == "fixture-query-ok",
