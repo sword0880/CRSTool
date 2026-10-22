@@ -1,0 +1,42 @@
+name: Worker PluginRunner prototype
+
+on:
+  pull_request:
+    paths:
+      - 'src/CRS.Worker.PluginRunner/**'
+      - 'src/CRS.Worker.PluginHost/**'
+      - 'src/CRS.Worker.Abstractions/**'
+      - 'tests/CRS.Tests.Background/**'
+      - 'tests/fixtures/CRS.Worker.FixturePlugin/**'
+      - '.github/workflows/worker-plugin-runner-prototype.yml'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runner-process-prototype:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore background test fixtures
+        run: dotnet restore tests/CRS.Tests.Background/CRS.Tests.Background.csproj
+      - name: Build background test fixtures
+        run: dotnet build tests/CRS.Tests.Background/CRS.Tests.Background.csproj -c Release --no-restore -m:1
+      - name: Build isolated PluginRunner prototype
+        run: dotnet build src/CRS.Worker.PluginRunner/CRS.Worker.PluginRunner.csproj -c Release -m:1
+      - name: Verify separate process execution and framed protocol
+        shell: pwsh
+        run: |
+          $tests = Join-Path $env:GITHUB_WORKSPACE 'tests/CRS.Tests.Background/bin/Release/net10.0-windows/CRS.Tests.Background.dll'
+          $runner = Join-Path $env:GITHUB_WORKSPACE 'src/CRS.Worker.PluginRunner/bin/Release/net10.0-windows/CRS.Worker.PluginRunner.dll'
+          if (-not (Test-Path -LiteralPath $runner)) { throw 'PluginRunner prototype output is missing.' }
+          & dotnet $tests --runner-process $runner
+          if ($LASTEXITCODE -ne 0) { throw 'PluginRunner process prototype checks failed.' }
