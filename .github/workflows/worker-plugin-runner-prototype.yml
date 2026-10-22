@@ -16,6 +16,10 @@ on:
       - 'global.json'
   workflow_dispatch:
 
+concurrency:
+  group: worker-plugin-runner-\${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
