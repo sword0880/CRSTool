@@ -4,6 +4,25 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 public sealed partial class MarketRepository
 {
+    /// <summary>按原件和当前有效修订恢复市场/日期进度；冲突、损坏或待拒绝事实不能作为已完成跳过。</summary>
+    public HashSet<(string Market,DateOnly Date)> VerifiedMarketActivityDates(DateOnly from,DateOnly to)
+    {
+        var rows=new List<(string Market,DateOnly Date,decimal Amount,decimal Volume,string Hash,string Original,bool Valid)>();
+        using(var command=Command("""
+            SELECT o.market,o.trade_date,o.amount_yuan,o.volume_shares,f.sha256,f.original_sha256,
+                NOT EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=o.fetch_id AND q.rule_id='Q15' AND q.status='Open')
+            FROM market_activity_observation o JOIN source_fetch f USING(fetch_id)
+            WHERE o.trade_date BETWEEN $from AND $to
+                AND NOT EXISTS(SELECT 1 FROM market_activity_review r WHERE r.fetch_id=o.fetch_id AND r.decision='Rejected')
+            """,("$from",from.ToString("yyyy-MM-dd")),("$to",to.ToString("yyyy-MM-dd"))))
+        using(var reader=command.ExecuteReader())while(reader.Read())
+            rows.Add((reader.GetString(0),DateOnly.ParseExact(reader.GetString(1),"yyyy-MM-dd",CultureInfo.InvariantCulture),
+                decimal.Parse(reader.GetString(2),CultureInfo.InvariantCulture),decimal.Parse(reader.GetString(3),CultureInfo.InvariantCulture),
+                reader.GetString(4),reader.GetString(5),reader.GetInt32(6)==1));
+        var verified=raw.VerifyMany(rows.SelectMany(x=>new[]{x.Hash,x.Original}),operationCancellation);
+        return rows.GroupBy(x=>(x.Market,x.Date)).Where(group=>group.All(x=>x.Valid&&verified[x.Hash]&&verified[x.Original])
+            &&group.Select(x=>(x.Amount,x.Volume)).Distinct().Count()==1).Select(x=>x.Key).ToHashSet();
+    }
     private void InitializeActivityReviewSchema()=>Execute("CREATE TABLE IF NOT EXISTS market_activity_review(fetch_id TEXT PRIMARY KEY REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS market_activity_review_audit(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL);");
     public List<MarketActivityRevision> MarketActivityRevisions()
     {

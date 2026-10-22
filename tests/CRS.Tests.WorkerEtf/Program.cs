@@ -14,6 +14,62 @@ if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
 if(args is ["--query-cancellation"]){await EtfQueryCancellationChecks.RunAsync();return;}
 if(args is ["--cooling-progress"]){await CoolingProgressChecks.RunAsync();return;}
 if(args is ["--manual-receipts"]){await EtfManualReceiptChecks.RunAsync();return;}
+if(args is ["--market-request-probe",var receiptId])
+{
+    var receiptClient=new BackgroundPipeClient();
+    var receiptReply=await receiptClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:Guid.Parse(receiptId)));
+    Console.WriteLine(JsonSerializer.Serialize(receiptReply));
+    if(receiptReply.Receipt?.ExecutionId is {} receiptExecution)
+        Console.WriteLine(JsonSerializer.Serialize(await receiptClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:receiptExecution))));
+    return;
+}
+if(args is ["--market-backfill-live",var repairFrom,var repairTo])
+{
+    var from=DateOnly.ParseExact(repairFrom,"yyyy-MM-dd");var to=DateOnly.ParseExact(repairTo,"yyyy-MM-dd");
+    var repairClient=new BackgroundPipeClient();
+    var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team","market-activity-sync",
+        Payload:JsonSerializer.Serialize(new EtfRequest("market-sync",From:from,To:to)));
+    var response=await repairClient.SendAsync(request);Console.WriteLine(JsonSerializer.Serialize(new{From=from,To=to,response.Code,response.Receipt}));
+    if(response.Code!="Accepted"){Environment.ExitCode=1;return;}
+    var timer=Stopwatch.StartNew();
+    while(timer.Elapsed<TimeSpan.FromMinutes(2))
+    {
+        var state=await repairClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId));
+        if(state.Receipt is{State:"Completed"}||state.Receipt is{Code:"RetryDeferred"})
+        {
+            Console.WriteLine(JsonSerializer.Serialize(state));
+            if(state.Receipt?.ExecutionId is {} id)Console.WriteLine(JsonSerializer.Serialize(await repairClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:id))));
+            if(state.Receipt is not{State:"Completed",Code:"Succeeded"})Environment.ExitCode=2;return;
+        }
+        await Task.Delay(1000);
+    }
+    Console.WriteLine(JsonSerializer.Serialize(new{Status="Unconfirmed",request.RequestId}));Environment.ExitCode=2;return;
+}
+if(args is ["--market-coverage-probe",var activityFromText,var activityToText])
+{
+    // 仅回读正式服务已提交的成交事实，不触发补采或访问服务数据库。
+    var from=DateOnly.ParseExact(activityFromText,"yyyy-MM-dd");
+    var to=DateOnly.ParseExact(activityToText,"yyyy-MM-dd");
+    if(from>to||to.DayNumber-from.DayNumber>400)throw new ArgumentException("覆盖查询必须为不超过400个自然日的正向区间。");
+    try
+    {
+    var reader=new WorkerEtfWorkspace();
+    var points=(await reader.MarketActivityAsync(default)).Where(x=>x.Date>=from&&x.Date<=to).ToArray();
+    var revisions=(await reader.MarketActivityRevisionsAsync(default)).Where(x=>x.Date>=from&&x.Date<=to).ToArray();
+    Console.WriteLine(JsonSerializer.Serialize(new{From=from,To=to,Days=points.Length,
+        States=points.GroupBy(x=>x.State).ToDictionary(x=>x.Key,x=>x.Count()),
+        Gaps=points.Where(x=>x.State is not ("Complete" or "Closed")).Select(x=>new{x.Date,x.State,
+            Markets=revisions.Where(r=>r.Date==x.Date).Select(r=>r.Market).Distinct().ToArray()}),
+        MissingDates=Enumerable.Range(0,to.DayNumber-from.DayNumber+1).Select(i=>from.AddDays(i)).Except(points.Select(x=>x.Date)),
+        Markets=revisions.GroupBy(x=>x.Market).ToDictionary(x=>x.Key,x=>x.Select(r=>r.Date).Distinct().Count())}));
+    }
+    catch(BackgroundServiceException error)
+    {
+        Console.WriteLine(JsonSerializer.Serialize(new{From=from,To=to,Status="Unavailable",error.Code}));
+        Environment.ExitCode=1;
+    }
+    return;
+}
 if(args is ["--collection-attempt-probe",var probeMarket,var probeTicker,var probeFrom,var probeTo])
 {
     // 只读正式采集台账，不重新发起采集或读取密钥。

@@ -41,6 +41,7 @@ public interface IMarketRepository : IDisposable
     List<EtfAcceptance> Acceptance(EtfKey key,DateOnly through)=>Acceptance(through).Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker).ToList();
     List<EtfSummary> Overview();
     List<MarketActivityPoint> MarketActivity()=>throw new NotSupportedException();
+    HashSet<(string Market,DateOnly Date)> VerifiedMarketActivityDates(DateOnly from,DateOnly to)=>[];
     void SaveMarketActivity(string market,DateOnly day,MarketActivitySource? source)=>throw new NotSupportedException();
     DateOnly? ReadMarketActivityCursor()=>null;
     void RecordMarketActivityCursor(DateOnly day)=>throw new NotSupportedException();

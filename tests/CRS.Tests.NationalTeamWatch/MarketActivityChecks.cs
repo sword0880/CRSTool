@@ -79,13 +79,60 @@ internal static class MarketActivityChecks
 
         var cooled=await Collect("cooled",new FixtureActivitySource((_,_)=>
             throw new InvalidOperationException("来源冷却中，最早重试时间2026-10-22。")),Day,Day.AddDays(5));
-        Check(cooled is {QueriedDays:0,RequestedSources:1,ReceivedRows:0,SourceIssues:1,FirstFailureCode:"SourceCooldown",HasMore:true},
-            "来源冷却即停，不把剩余5天记录成已经访问官方来源");
+        Check(cooled is {QueriedDays:6,RequestedSources:2,ReceivedRows:0,SourceIssues:2,FirstFailureCode:"SourceCooldown",HasMore:true},
+            "每个冷却市场仅尝试一次，不把后续日期记录为已请求");
 
         var unavailable=await Collect("source-invalid",new FixtureActivitySource((_,_)=>
             throw new InvalidDataException("官方成交统计响应失败。")),Day,Day);
         Check(unavailable is {QueriedDays:1,RequestedSources:2,ReceivedRows:0,SourceIssues:2,FirstFailureCode:"InvalidOfficialResponse"},
             "官方返回异常不冒充已成功下载成交额");
+        await RunResumeChecks(root);
+    }
+
+    private static async Task RunResumeChecks(string root)
+    {
+        var directory=Path.Combine(root,"durable-resume");var raw=new RawEvidenceStore(Path.Combine(directory,"raw"));
+        var calls=new List<(string Market,DateOnly Date)>();var missing=(Market:"SSE",Date:Day.AddDays(1));
+        MarketActivitySource Value(string market,DateOnly day)=>new(OfficialMarketActivitySource.Request(market,day),
+            Encoding.UTF8.GetBytes($"fixture-{market}-{day}"),market,day,new(market,day,100,200));
+        async Task<MarketActivitySyncReport> Run(IMarketActivitySource source)
+        {
+            // 每轮重建会话，证明续采依据落盘事实，服务重启不丢失进度。
+            await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
+            await workspace.InitializeAsync(default);workspace.SetMarketActivitySource(source);
+            return await workspace.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
+        }
+        var first=await Run(new FixtureActivitySource((market,day)=>
+        {calls.Add((market,day));if((market,day)==missing)throw new System.Text.Json.JsonException("synthetic malformed response");return Value(market,day);}));
+        Check(first is {ReceivedRows:5,SourceIssues:1}&&first.FirstFailureDate==missing.Date&&first.FirstFailureMarket==missing.Market,
+            "局部解析失败仍保存其余5条，检查点保留失败市场日期");
+        calls.Clear();var second=await Run(new FixtureActivitySource((market,day)=>{calls.Add((market,day));return Value(market,day);}));
+        Check(calls.SequenceEqual([missing])&&second is{ReceivedRows:1,ExistingSources:5,SourceIssues:0,HasMore:false},
+            "会话重建后只请求唯一缺口，不重采已提交的5个市场日期");
+        calls.Clear();var third=await Run(new FixtureActivitySource((market,day)=>{calls.Add((market,day));throw new Exception("不应再次请求");}));
+        Check(calls.Count==0&&third is{ReceivedRows:0,ExistingSources:6,SourceIssues:0},"重复历史请求全部复用已核验事实");
+
+        var until=DateTimeOffset.UtcNow.AddHours(2);var progress=new List<EtfProgress>();
+        var coldRoot=Path.Combine(root,"independent-markets");var coldRaw=new RawEvidenceStore(Path.Combine(coldRoot,"raw"));
+        await using(var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(coldRoot,"data"),coldRaw),coldRaw))
+        {
+            await workspace.InitializeAsync(default);workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});calls.Clear();
+            workspace.SetMarketActivitySource(new FixtureActivitySource((market,day)=>
+            {calls.Add((market,day));if(market=="SSE")throw new CRS.Worker.Abstractions.SourceBudgetUnavailableException("SourceCooldown",until);return Value(market,day);}));
+            var cold=await workspace.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
+            Check(calls.Count(x=>x.Market=="SSE")==1&&calls.Count(x=>x.Market=="SZSE")==3&&cold is{ReceivedRows:3,HasMore:true},
+                "沪市冷却只请求一次，深市全部日期继续采集");
+            Check(cold.RetryAt==until&&progress.Last() is{Stage:"SourceCoolingDown",Until:{} deadline}&&deadline==until,
+                "实际来源冷却期限贯穿结果及最终进度，末尾不丢失Until");
+        }
+        using var repository=TestMarketData.Open(Path.Combine(directory,"data"),raw);
+        var original=Value("SSE",Day);
+        repository.SaveMarketActivity("SSE",Day,original with{Content=Encoding.UTF8.GetBytes("conflicting-revision"),Observation=original.Observation! with{AmountYuan=999}});
+        Check(!repository.VerifiedMarketActivityDates(Day,Day).Contains(("SSE",Day)),"冲突修订不能被续采认定为已完成");
+        var conflictResult=await Run(new FixtureActivitySource(Value));
+        Check(conflictResult is{SourceIssues:1,FirstFailureCode:"ObservationUnverified"},"冲突未审核时重下载同值也不能返回采集成功");
+        var hash=Convert.ToHexString(SHA256.HashData(Value("SZSE",Day).Content));File.WriteAllText(Path.Combine(directory,"raw",hash+".raw"),"tampered");
+        Check(!repository.VerifiedMarketActivityDates(Day,Day).Contains(("SZSE",Day)),"原件损坏不能被续采跳过");
     }
 
     private sealed class FixtureActivitySource(Func<string,DateOnly,MarketActivitySource> next):IMarketActivitySource

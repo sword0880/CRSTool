@@ -150,11 +150,9 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     {
                         if(request.From is null || request.To is null)throw new InvalidDataException("请填写完整成交统计日期区间。");
                         var manualActivity=await workspace!.SyncMarketActivityReportAsync(request.From.Value,request.To.Value,token);
-                        return new(manualActivity.SourceIssues>0 || manualActivity.HasMore?"RetryDeferred":manualActivity.ReceivedRows==0?"NotPublished":"Succeeded",
-                            ActivityCheckpoint(manualActivity),TimeSpan.FromMinutes(30));
+                        return ActivityResult(manualActivity);
                     }
-                    return new(activity.SourceIssues>0 || activity.HasMore?"RetryDeferred":activity.ReceivedRows==0?"NotPublished":"Succeeded",
-                        ActivityCheckpoint(activity),activity.SourceIssues==0 && activity.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
+                    return ActivityResult(activity);
                 case "official-share-sync" when request.Operation=="sync":
                     if(!(await workspace!.ConfigurationAsync(token)).Any(x=>x.Active))return BackgroundJobResult.Success("monitoring=NoActiveEtfs");
                     var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
@@ -186,7 +184,16 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     private string ActivityCheckpoint(MarketActivitySyncReport result) =>
         $"days={result.QueriedDays};sourceCalls={result.RequestedSources};httpStarted={Volatile.Read(ref httpRequestsStarted)};" +
         $"closedSources={result.ClosedSources};emptySources={result.EmptySources};sourceIssues={result.SourceIssues};" +
-        $"rows={result.ReceivedRows};firstFailure={result.FirstFailureCode??"None"};hasMore={result.HasMore}";
+        $"rows={result.ReceivedRows};existingSources={result.ExistingSources};firstFailure={result.FirstFailureCode??"None"};"+
+        $"failureDate={result.FirstFailureDate:yyyy-MM-dd};failureMarket={result.FirstFailureMarket??"None"};retryAt={result.RetryAt:O};hasMore={result.HasMore}";
+
+    private BackgroundJobResult ActivityResult(MarketActivitySyncReport result)
+    {
+        var retry=result.RetryAt is {} until?until-CRS.Timing.BeijingClock.Now:
+            result.SourceIssues==0&&result.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(5);
+        return new(result.SourceIssues>0||result.HasMore?"RetryDeferred":result.ReceivedRows+result.ExistingSources==0?"NotPublished":"Succeeded",
+            ActivityCheckpoint(result),retry<TimeSpan.FromSeconds(30)?TimeSpan.FromSeconds(30):retry);
+    }
 
     /// <summary>只读白名单不含审核、采集、文件写入或任意文件路径，普通用户只能读取公开研究结果。</summary>
     public async Task<string> QueryAsync(string payload,CancellationToken token)

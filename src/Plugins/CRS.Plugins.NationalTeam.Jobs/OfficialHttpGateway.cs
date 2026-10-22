@@ -14,6 +14,11 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     private readonly IBackgroundSourceContext? sources;
     private readonly HashSet<string> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim gate = new(1);
+    public DateTimeOffset? RetryAt(Uri uri)
+    {
+        var blocked=policy.Read(uri.Host).Blocked;
+        return blocked>CRS.Timing.BeijingClock.Now?blocked:null;
+    }
     public void RejectContract(Uri uri)
     {
         sources?.ReportSourceFailure(uri.Host,0);
@@ -106,13 +111,15 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
             {
                 Failure(uri,0,lease);
                 await ReportAsync("RequestTimedOut",uri,until:policy.Read(uri.Host).Blocked);
-                throw new TimeoutException("官方来源响应超时，已进入持久退避。");
+                var failure=new TimeoutException("官方来源响应超时，已进入持久退避。");
+                failure.Data["SourceRetryAt"]=policy.Read(uri.Host).Blocked;throw failure;
             }
             catch (HttpRequestException)
             {
                 Failure(uri,0,lease);
                 await ReportAsync("RequestFailed",uri,until:policy.Read(uri.Host).Blocked);
-                throw new HttpRequestException("官方来源连接失败，已进入持久退避。");
+                var failure=new HttpRequestException("官方来源连接失败，已进入持久退避。");
+                failure.Data["SourceRetryAt"]=policy.Read(uri.Host).Blocked;throw failure;
             }
         }
         finally { gate.Release(); }

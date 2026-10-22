@@ -17,7 +17,12 @@ public sealed class OfficialMarketActivitySource(IPluginHttpGateway http):IMarke
     public async Task<MarketActivitySource> FetchAsync(string market,DateOnly day,CancellationToken token)
     {
         var uri=Request(market,day);var response=await http.GetAsync(uri,token);token.ThrowIfCancellationRequested();
-        if(response.StatusCode!=200)throw new InvalidDataException("官方成交统计响应失败。");
+        if(response.StatusCode!=200)
+        {
+            var error=new InvalidDataException("官方成交统计响应失败。");
+            if(http is CRS.Plugins.NationalTeam.Jobs.OfficialHttpGateway gateway&&gateway.RetryAt(uri) is {} until)error.Data["SourceRetryAt"]=until;
+            throw error;
+        }
         return new(uri,response.Content,market,day,Parse(market,day,response.Content));
     }
     private static string Text(JsonElement value)=>value.ToString();
