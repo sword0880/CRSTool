@@ -56,10 +56,31 @@ jobs:
           [IO.File]::WriteAllText((Join-Path $fixture 'release.json'),
             '{"format":1,"product":"CRS.Worker.Service","version":"2.0.0","files":{}}',
             [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText((Join-Path $fixture 'trusted-background-plugins.json'), '[]',
-            [Text.UTF8Encoding]::new($false))
-          New-Item -ItemType Directory -Path (Join-Path $fixture 'Plugins') -Force | Out-Null
-          Write-Output 'Synthetic release metadata is isolated to RUNNER_TEMP and is not a distributable package.'
+          $pluginDirectory = Join-Path $fixture 'Plugins/crs.fixture/1.0.0'
+          New-Item -ItemType Directory -Path $pluginDirectory -Force | Out-Null
+          $pluginAssembly = Join-Path $fixture 'CRS.Worker.FixturePlugin.dll'
+          if (-not (Test-Path -LiteralPath $pluginAssembly)) {
+            throw 'Worker upgrade fixture is missing CRS.Worker.FixturePlugin.dll.'
+          }
+          Copy-Item -LiteralPath $pluginAssembly -Destination $pluginDirectory
+          $manifest = @{
+            id = 'crs.fixture'
+            version = '1.0.0'
+            hostContract = '2.0'
+            backgroundEntry = @{ assembly = 'CRS.Worker.FixturePlugin.dll'; type = 'CRS.Worker.FixturePlugin.GoodEntry' }
+          }
+          [IO.File]::WriteAllText((Join-Path $pluginDirectory 'plugin.json'),
+            (ConvertTo-Json -InputObject $manifest -Depth 5 -Compress), [Text.UTF8Encoding]::new($false))
+          $files = @{}
+          Get-ChildItem -LiteralPath $pluginDirectory -File | ForEach-Object {
+            $files[$_.Name] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+          }
+          $trustedPackages = @(@{
+            id = 'crs.fixture'; version = '1.0.0'; directory = 'crs.fixture/1.0.0'; files = $files
+          })
+          [IO.File]::WriteAllText((Join-Path $fixture 'trusted-background-plugins.json'),
+            (ConvertTo-Json -InputObject $trustedPackages -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+          Write-Output 'Synthetic plugin and release metadata are isolated to RUNNER_TEMP and are not a distributable package.'
       - name: Verify real Worker process startup and upgrade journal guard
         shell: pwsh
         run: |
