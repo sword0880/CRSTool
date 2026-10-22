@@ -29,7 +29,14 @@ public sealed partial class BackgroundRuntime
         }
         else
         {
-            if(activitySnapshots.Count>=8)return Error("SnapshotLimit");
+            // 一名调用者中断分页后不得耗尽全局快照配额、阻止其他用户查看任务。
+            // 淘汰仅影响旧游标（下次返回 SnapshotExpired），不影响已持久化的任务或执行记录。
+            var own = activitySnapshots.Where(x => x.Value.Sid == caller.Sid)
+                .OrderBy(x => x.Value.Until).FirstOrDefault();
+            if (activitySnapshots.Count(x => x.Value.Sid == caller.Sid) >= 2)
+                activitySnapshots.Remove(own.Key);
+            if (activitySnapshots.Count >= 8)
+                activitySnapshots.Remove(activitySnapshots.OrderBy(x => x.Value.Until).First().Key);
             snapshot=CaptureActivity(now);id=Guid.NewGuid().ToString("N");
             if(snapshot.Rows.Count>4096)return Error("ActivityLimit");
             activitySnapshots.Add(id,(caller.Sid,now.AddMinutes(1),snapshot));
