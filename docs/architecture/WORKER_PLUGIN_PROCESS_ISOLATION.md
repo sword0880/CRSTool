@@ -1,6 +1,6 @@
 # Worker 后台插件进程隔离设计
 
-状态：**Proposed / 威胁模型与实施顺序已定义，尚未实现 PluginRunner，不构成安全隔离承诺**（2026-10-23）
+状态：**Proposed / 威胁模型已定义；存在仅供测试的 stdio PluginRunner 原型，未集成生产 Worker，不构成安全隔离承诺**（2026-10-23）
 
 范围：CRSTool 的 Windows Service、后台插件加载/执行、内部 IPC、插件私有数据、通知和来源预算。此文档是 P1-07 的设计入口，不授权立即改变正式服务、数据目录、密钥、插件 ID/Job ID、持久化 Schema 或现有桌面 Worker IPC。
 
@@ -132,4 +132,4 @@ flowchart LR
 
 ## 11. 当前结论
 
-本设计明确了迁移顺序与安全边界，但**没有实现独立 PluginRunner**。现有生产运行路径仍是受信插件在 Worker 内加载。P1-07 保持 Open；在完成阶段 A/B 和 Windows 身份原型前，不将进程隔离写成已交付功能。
+本设计明确了迁移顺序与安全边界。新增的 stdio PluginRunner 仅验证受信夹具在独立进程中的加载、Describe/Execute/Query、帧长度、协议版本拒绝和正常退出；**Worker Service 尚未启动它，生产插件仍在 Worker 进程内加载**。该原型没有生产 Named Pipe、取消多路复用、能力 Broker、Job Object、独立 Windows 身份、目录 ACL 或网络隔离。P1-07 保持 Open；不得将此原型写成已交付的故障隔离或安全沙箱。
