@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CRS.Worker.PluginRunner</AssemblyName>
+    <RootNamespace>CRS.Worker.PluginRunner</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CRS.Worker.PluginHost/CRS.Worker.PluginHost.csproj" />
+  </ItemGroup>
+</Project>

@@ -109,11 +109,12 @@ if(args is ["--upgrade-guard-probe", var guardData, var guardProgram])
     new WorkerUpgradeJournal(Path.GetFullPath(guardData)).BeforeStorageOpen(Path.GetFullPath(guardProgram));
     Console.WriteLine("PASS 升级互操作：PowerShell日志与快照通过C#启动门禁。");return;
 }
+if(args is ["--runner-process", var runnerDll]){await RunnerProcessChecks.RunAsync(runnerDll);return;}
 if(args is ["--upgrade-only", var upgradePackage])
 {
     var upgradeRoot=Path.Combine(Path.GetTempPath(),"CRS.Worker.Upgrade.Tests",Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(upgradeRoot);
-    await WorkerUpgradeChecks.RunAsync(upgradeRoot,Path.GetFullPath(upgradePackage));return;
+    await WorkerUpgradeChecks.RunAsync(upgradeRoot,Path.GetFullPath(upgradePackage),"crs.fixture","one");return;
 }
 if(args is ["--scheduling-only"])
 {

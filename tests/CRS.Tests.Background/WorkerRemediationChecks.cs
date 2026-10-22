@@ -169,6 +169,27 @@ internal static class WorkerRemediationChecks
             Check(repository.History().Count == count, operation + " 故障不会被重建循环静默放行");
             if (operation == "Audit") Check(repository.Plans().First(x => x.JobId == "one").Revision == 2, "配置已提交但响应不确定时保留原修订");
         }
+        // 通知设置/测试有独立异步入口；即使通知适配器已返回，审计落盘错误也须触发故障状态。
+        foreach(var providerFailure in new[]{false,true})
+        {
+            using var repository=new EncryptedTaskRepository(Path.Combine(root,"notification-audit-"+providerFailure+".db"),key);
+            var failing=new FaultRepository(repository){Failure="Audit",ProviderFailure=providerFailure};
+            var directory=Path.Combine(root,"notification-audit-settings-"+providerFailure);
+            Directory.CreateDirectory(directory);
+            var email=new CRS.Notifications.EmailNotificationService(directory);
+            var notifier=new WorkerNotificationGateway(email,
+                new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email)]));
+            await using var runtime=new BackgroundRuntime(failing,catalog,notifications:notifier);
+            await runtime.StartAsync(default);
+            var uncertain=false;
+            try { await runtime.HandleAsync(Request("TestEmailSettings"),Admin,default); }
+            catch(Exception error) when(error is IOException or System.Data.Common.DbException) { uncertain=true; }
+            Check(uncertain,"通知操作审计写入失败不伪造成功回执");
+            var health=await runtime.HandleAsync(Request("GetHealth"),Admin,default);
+            Check(health.Health?.State=="StorageFault","通知操作审计写入失败同步触发健康故障");
+            Check((await runtime.HandleAsync(Request("RunNow"),Admin,default)).Code=="StorageFault",
+                "通知审计故障之后不再受理新的手动任务");
+        }
     }
     private static async Task PagingAndCapacityAsync(string root, BackgroundPluginCatalog catalog, byte[] key)
     {

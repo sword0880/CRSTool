@@ -18,6 +18,8 @@ public sealed class DiagnosticQueryEntry:IBackgroundPluginEntry
     }
 }
 public sealed class GoodEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Good"); }
+/// <summary>验证 PluginRunner 插件日志不能污染 stdout 上的二进制帧协议。</summary>
+public sealed class ConsoleWritingEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("ConsoleWriting"); }
 // 故障消息仅含合成敏感标记，用于确认公开执行日志只持久化异常分类。
 public sealed class BadJobEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadJob"); }
 public sealed class BadStartEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadStart"); }
@@ -78,6 +80,7 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
         : [new("one", "夹具一", mode == "BadSchedule" ? "bad-cron" : "0 0 0 1 1 ?", "China Standard Time", false), new("two", "夹具二", "0 0 0 1 1 ?", "China Standard Time", false)];
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
+        if (mode == "ConsoleWriting") Console.WriteLine("synthetic plugin startup log");
         if (mode == "BadStart") throw new InvalidOperationException("仅测试初始化故障");
         if (mode == "HangingStart") await Task.Delay(Timeout.InfiniteTimeSpan);
     }
@@ -88,6 +91,7 @@ internal sealed class Session(string mode) : IBackgroundPluginSession,IProgressB
         do { observed = Volatile.Read(ref maximum); } while (current > observed && Interlocked.CompareExchange(ref maximum, current, observed) != observed);
         try
         {
+            if(mode=="ConsoleWriting") Console.WriteLine("synthetic plugin execution log");
             if(mode=="BadJob")throw new InvalidOperationException("synthetic-secret-not-for-public-log");
             var hold = Environment.GetEnvironmentVariable("CRS_WORKER_TEST_HOLD");
             if ((jobId == "one" || mode == "Parallel") && hold is not null)

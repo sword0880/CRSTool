@@ -19,6 +19,7 @@
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
 | CRS.Worker.Abstractions | CRS.Time | 后台会话、任务、查询及存储上下文契约 |
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
+| CRS.Worker.PluginRunner | CRS.Worker.PluginHost | 测试原型：stdio 帧协议；未由 Worker Service 启动，不是生产执行路径 |
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Named Pipes、Windows 身份授权及请求协议 |
 | CRS.Notifications | CRS.Time | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
@@ -78,7 +79,7 @@ Worker维护由`tools/background/Upgrade-Service.ps1`、`Recover-Service.ps1`及
 
 后台加载顺序：管理员控制的信任索引 → 完整包文件哈希/契约/依赖核验 → 加载入口 → Start → 独立注册查询会话 → DescribeJobs → 注册持久计划 → Quartz。纯查询插件允许 DescribeJobs 为空。单包初始化失败隔离；不响应取消的插件由正式宿主终止进程保护存储。停止先撤销请求、进入维护，取消并排空查询和任务，再释放会话、连接和密钥。插件查询不持 Worker 全局锁，同插件仅允许一个在途查询，超额返回 PluginBusy；普通查询异常不冒充任务仓储全局故障。
 
-当前插件是**受信任同进程代码，不是沙箱**。ALC 和哈希不限制操作系统权限。生产安装器要求外部指定发布者并验证 CMS 发行签名；开发包需显式豁免。运行时信任索引依赖管理员保护，尚未形成完整的签名轮换及第三方隔离体系。任何第三方支持须另行评审。
+当前插件是**受信任同进程代码，不是沙箱**。ALC 和哈希不限制操作系统权限。生产安装器要求外部指定发布者并验证 CMS 发行签名；开发包需显式豁免。运行时信任索引依赖管理员保护，尚未形成完整的签名轮换及第三方隔离体系。任何第三方支持须另行评审。 分阶段隔离提案见[Worker 后台插件进程隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)。新增 PluginRunner 仅为 stdio 原型，当前生产 Worker 仍在进程内加载插件；该原型不提供生产管道、能力代理或 OS 安全沙箱。
 
 ## 后台并发与等待预算
 

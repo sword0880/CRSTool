@@ -94,7 +94,7 @@ foreach($sourceDir in @('src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation'
 }
 Write-Output '插件契约、宿主与业务插件依赖门禁通过。'
 # 后台链路必须可以脱离 WindowsDesktop/WPF 和个人税务程序集发布。
-foreach($name in @('Abstractions','PluginHost','Ipc','Service')){
+foreach($name in @('Abstractions','PluginHost','Ipc','Service','PluginRunner')){
     $path=Join-Path $RepositoryRoot "src/CRS.Worker.$name/CRS.Worker.$name.csproj"
     [xml]$project=Get-Content -Raw $path
     Assert-Boundary ($null -eq $project.SelectSingleNode('//UseWPF | //UseWindowsForms')) "后台项目引用桌面框架：$name"

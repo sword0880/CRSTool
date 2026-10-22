@@ -23,14 +23,14 @@ internal static class WorkerUpgradeChecks
         { Check(true, name); return; }
         throw new InvalidOperationException("未拒绝：" + name);
     }
-    private static WorkerUpgradeRecord Seed(string data, string program)
+    private static WorkerUpgradeRecord Seed(string data, string program, string pluginId, string jobId)
     {
         StorageSecurity.Prepare(data, true);
         var key = ServiceKey.Open(data);
         try
         {
             using var repository = new EncryptedTaskRepository(Path.Combine(data, "scheduler-config.db"), key);
-            repository.RegisterDefault("crs.heartbeat", new BackgroundJobDescriptor("heartbeat", "升级前心跳", "0 0 0 1 1 ?", "China Standard Time", false));
+            repository.RegisterDefault(pluginId, new BackgroundJobDescriptor(jobId, "升级前心跳", "0 0 0 1 1 ?", "China Standard Time", false));
             var plan = repository.Plans().Single();
             var execution = repository.Begin(plan, DateTimeOffset.UtcNow);
             repository.End(execution, plan, BackgroundJobResult.Success("before-upgrade"));
@@ -56,10 +56,10 @@ internal static class WorkerUpgradeChecks
         record = record with { BackupManifestHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest))) };
         Save(data, record); return record;
     }
-    public static async Task RunAsync(string root, string program)
+    public static async Task RunAsync(string root, string program, string pluginId = "crs.heartbeat", string jobId = "heartbeat")
     {
         var data = Path.Combine(root, "upgrade-state");
-        var record = Seed(data, program); var journal = new WorkerUpgradeJournal(data);
+        var record = Seed(data, program, pluginId, jobId); var journal = new WorkerUpgradeJournal(data);
         var database = Path.Combine(data, "scheduler-config.db"); var keyPath = Path.Combine(data, "service-key.dpapi");
         var dbHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(database)));
         var keyHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(keyPath)));
@@ -92,7 +92,7 @@ internal static class WorkerUpgradeChecks
         Save(data, record with { Stage = "RolledBack", PreviousReleaseHash = WorkerUpgradeJournal.ReleaseHash(previous) });
         journal.BeforeStorageOpen(previous);
         Check(journal.Read()!.Stage == "RolledBack", "无新事实且原发行相符才允许回退启动");
-        await ProcessStagesAsync(root, program);
+        await ProcessStagesAsync(root, program, pluginId, jobId);
         Console.WriteLine($"Worker升级启动专项通过：{passed}项。");
     }
     private static Process Launch(string program, string data, string pipe)
@@ -104,9 +104,9 @@ internal static class WorkerUpgradeChecks
         process.OutputDataReceived += (_, _) => { }; process.ErrorDataReceived += (_, _) => { };
         process.BeginOutputReadLine(); process.BeginErrorReadLine(); return process;
     }
-    private static async Task ProcessStagesAsync(string root, string program)
+    private static async Task ProcessStagesAsync(string root, string program, string pluginId, string jobId)
     {
-        var data = Path.Combine(root, "upgrade-process"); var record = Seed(data, program);
+        var data = Path.Combine(root, "upgrade-process"); var record = Seed(data, program, pluginId, jobId);
         var pipe = "CRS.Worker.Upgrade." + Guid.NewGuid().ToString("N");
         using (var blocked = Launch(program, data, pipe))
         {
@@ -121,7 +121,10 @@ internal static class WorkerUpgradeChecks
             {
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                 var health = await client.QueryAsync("GetHealth", deadline.Token);
-                Check(health.Health?.State == "Running" && new WorkerUpgradeJournal(data).Read() is { Stage: "Healthy", NewFactsPossible: true }, "真实Worker健康端点出现前风险与就绪阶段已持久化");
+                var journal = new WorkerUpgradeJournal(data).Read();
+                var diagnostics = $"code={health.Code}; health={health.Health?.State ?? "<null>"}; journal={journal?.Stage ?? "<null>"}; newFacts={journal?.NewFactsPossible}; exited={candidate.HasExited}; exitCode={(candidate.HasExited ? candidate.ExitCode : 0)}";
+                Check(health.Health?.State == "Running" && journal is { Stage: "Healthy", NewFactsPossible: true },
+                    "真实Worker健康端点出现前风险与就绪阶段已持久化 (" + diagnostics + ")");
                 var history = await client.QueryAsync("GetHistory");
                 Check(history.History!.Any(x => x.Checkpoint == "before-upgrade"), "候选启动保留旧执行事实");
             }
