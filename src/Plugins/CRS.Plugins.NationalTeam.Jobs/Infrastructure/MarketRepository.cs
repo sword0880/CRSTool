@@ -197,7 +197,8 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<EvidenceRow> Evidence()
     {
-        ValidateEvidence();
+        // 全池证据只依赖份额/日历/市场活跃度事实；孤立的原始抓取不能阻断仪表盘查询。
+        ValidateEvidence(dashboardOnly:true);
         return ReadEvidence();
     }
     /// <summary>先过滤证券再返回证据，单只历史不会挤占全池查询的分页容量。</summary>
@@ -211,7 +212,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<DateOnly> Calendar(string market)
     {
-        ValidateEvidence();
+        ValidateEvidence(dashboardOnly:true);
         var calendar=ReadCalendar(market);
         // 不能删除单个损坏日期，否则跨日变化可能被误算为相邻交易日变化。
         return calendar.All(x=>x.Valid)?calendar.Select(x=>x.Date).ToList():[];
@@ -225,7 +226,8 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<EtfHistoryPoint> History(EtfKey? key)
     {
-        ValidateEvidence();
+        if(key is { } specific) ValidateEvidence(specific,includeCalendar:true);
+        else ValidateEvidence(dashboardOnly:true);
         return ReadHistory(key);
     }
     private List<EtfHistoryPoint> ReadHistory(EtfKey? key)
@@ -245,7 +247,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     /// <summary>原件核验仅在本次批查询内共享；下次查询仍重新读取，不能跨查询缓存损坏结果。</summary>
     public Dictionary<EtfKey,List<SharePoint>> PointsForKeys(IReadOnlyList<EtfKey> keys)
-    {ValidateEvidence();return keys.ToDictionary(x=>x,ReadPoints);}
+    {ValidateEvidence(dashboardOnly:true);return keys.ToDictionary(x=>x,ReadPoints);}
     private List<SharePoint> ReadPoints(EtfKey key)
     {
         using var command=Command("""
@@ -327,7 +329,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<EtfSummary> Overview()
     {
-        ValidateEvidence();
+        ValidateEvidence(dashboardOnly:true);
         return ReadOverview();
     }
     private List<EtfSummary> ReadOverview()
@@ -350,10 +352,10 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         // 分母取自日历，不能从现有份额记录反推“应有日期”并掩盖缺口。
         if(from>to)throw new InvalidDataException("覆盖区间的开始日期不能晚于结束日期。");
         if(Convert.ToInt32(Scalar("SELECT count(*) FROM security_master WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker)))!=1)throw new InvalidDataException("证券未登记。");
-        ValidateEvidence();
+        ValidateEvidence(key,includeCalendar:true);
         var calendar=ReadCalendar(key.Market);var range=calendar.Where(x=>x.Date>=from && x.Date<=to).ToList();
         var points=ReadPoints(key).ToDictionary(x=>x.Date);
-        var evidence=ReadEvidence().Where(x=>x.Market==key.Market && x.Ticker==key.Ticker).GroupBy(x=>DateOnly.ParseExact(x.TradeDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)).ToDictionary(x=>x.Key,x=>x.ToList());
+        var evidence=ReadEvidence(key).GroupBy(x=>DateOnly.ParseExact(x.TradeDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)).ToDictionary(x=>x.Key,x=>x.ToList());
         var rows=new List<CoverageDay>();
         var allAttempts=CollectionAttempts(key,from,to);
         var attempts=allAttempts.GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.First());
