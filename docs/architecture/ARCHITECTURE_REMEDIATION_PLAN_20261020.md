@@ -17,7 +17,7 @@ ARCH-206（P1-06）已新增插件独立V1契约、未知版本拒绝和旧请�
 
 ARCH-207（P1-07）已补阶段诊断、失控后不可复用/释放的终止状态、Worker健康拒绝及四阶段真实退出夹具；隔离专项29条通过。SCM/生产恢复门槛仍开放，状态为实施及隔离验证，详见续记。
 
-2026-10-23 P1-07后续：新增[Worker 后台插件进程隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)，明确“进程故障隔离”与“OS安全隔离”是两类目标，并规定分阶段实施及 Windows 身份/ACL 门槛。当前仅完成设计提案，未实现 PluginRunner；P1-07仍为 Open，不得宣称沙箱或第三方插件安全隔离已交付。
+2026-10-23 P1-07后续：新增[Worker 后台插件进程隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)，并添加 stdio 帧协议的测试用 PluginRunner 原型。原型只在独立进程中执行合成夹具，未由 Worker Service 启动；生产管道、取消多路复用、能力 Broker、Job Object 和 OS 权限隔离仍未实现。P1-07仍为 Open，不得宣称沙箱或第三方插件安全隔离已交付。
 
 ARCH-208（P1-08）In Progress：IBKR原件结构读取已统一为不可变来源事实，税务/绩效及账号投影已接入，同步绩效不再重读XML。绩效新导入/新历史已保存实际读取与投影版本并兼容旧记录；IBKR及Futu税务新历史均已接入显式版本审计（含富途交易/收入Excel/PDF）；完整类型化账本、跨版本投影差异和独立真实Golden仍开放，见[来源事实边界](BROKER_SOURCE_FACTS.md)及续记。
 
