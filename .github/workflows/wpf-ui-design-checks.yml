@@ -26,6 +26,9 @@ jobs:
       - name: Verify Worker abnormal execution filter before SQL pagination and via read-only IPC
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --history-result-filter
+      - name: Verify abandoned task-activity snapshot fairness and manual dispatch
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --manual-immediate
       - name: Verify ETF market sync cooldown, empty downloads and job diagnostics
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
