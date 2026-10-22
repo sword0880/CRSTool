@@ -8,6 +8,7 @@ on:
       - 'src/CRS.Worker.Abstractions/**'
       - 'tests/CRS.Tests.Background/**'
       - 'tests/Verify-Architecture.ps1'
+      - 'docs/architecture/CURRENT_ARCHITECTURE.md'
       - 'tests/fixtures/CRS.Worker.FixturePlugin/**'
       - '.github/workflows/worker-plugin-runner-prototype.yml'
       - 'Directory.Build.props'
