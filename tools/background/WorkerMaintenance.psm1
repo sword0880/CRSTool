@@ -192,6 +192,9 @@ function Switch-WorkerPackage([string]$Data, [string]$Program, [hashtable]$Recor
 }
 function Restore-WorkerPrevious([string]$Data, [string]$Program, [hashtable]$Record, [scriptblock]$Checkpoint=$null) {
     if ($Record.NewFactsPossible) { throw '候选可能已写入新事实，禁止回退或覆盖旧数据库。' }
+    # 备份完成后的回退必须确认当前原件仍与停机快照一致；
+    # 文件遭删除、追加或篡改时保留现场，不切换代码代次。
+    if ($Record.BackupManifestHash) { Assert-WorkerLiveDataMatchesSnapshot $Data $Record }
     $paths = Get-WorkerUpgradePaths $Program $Record
     # 回退改名中断后Failed目录可能已存在；核对指纹后继续，不覆盖或删除任何代次。
     if(Test-Path -LiteralPath $paths.Failed){
