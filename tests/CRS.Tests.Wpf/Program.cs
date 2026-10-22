@@ -5,6 +5,7 @@ using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
 // 独立窗口验收只查询公开后台任务，不创建或解锁个人保险库。
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
+if(args is ["--market-log"]){MarketExecutionLogChecks.Run();return;}
 if(args is ["--history-date"]){await HistoryDateChecks.RunAsync();return;}
 if(args is ["--cron"]){CronEditorChecks.Run();return;}
 if(args is ["--settings-ui",var settingsDirectory]){SettingsViewChecks.Run(settingsDirectory);return;}

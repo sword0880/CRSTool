@@ -3,6 +3,20 @@ namespace CRS.Worker.FixturePlugin;
 
 /// <summary>真实加载的多任务与生命周期故障夹具，所有副作用限定在测试显式给定的目录。</summary>
 public sealed class QueryOnlyEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("QueryOnly"); }
+public sealed class DiagnosticQueryEntry:IBackgroundPluginEntry
+{
+    public IBackgroundPluginSession CreateSession()=>new DiagnosticSession();
+    private sealed class DiagnosticSession:IBackgroundPluginSession,IBackgroundQuerySession,IBackgroundQueryDiagnosticsSession
+    {
+        public string QueryOperation(string payload)=>payload=="safe"?"market-activity":"https://private.example/?secret=fixture";
+        public async Task<string> QueryAsync(string payload,CancellationToken token){await Task.Delay(Timeout.Infinite,token);return "unreachable";}
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>[];
+        public ValueTask StartAsync(CancellationToken token)=>ValueTask.CompletedTask;
+        public Task<BackgroundJobResult> ExecuteAsync(string job,CancellationToken token)=>throw new NotSupportedException();
+        public ValueTask StopAsync(CancellationToken token)=>ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
+    }
+}
 public sealed class GoodEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("Good"); }
 // 故障消息仅含合成敏感标记，用于确认公开执行日志只持久化异常分类。
 public sealed class BadJobEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("BadJob"); }

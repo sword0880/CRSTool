@@ -19,7 +19,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         token.ThrowIfCancellationRequested();var previous=operationCancellation;operationCancellation=token;
         // 哈希循环之外，SQLite执行期间也必须可中断；串行门槛保证不会取消另一个用例。
         using var interrupt=token.Register(()=>SQLitePCL.raw.sqlite3_interrupt(db.Handle));
-        try{token.ThrowIfCancellationRequested();return work();}
+        try{token.ThrowIfCancellationRequested();var result=work();token.ThrowIfCancellationRequested();return result;}
         catch(SqliteException error) when(error.SqliteErrorCode==9&&token.IsCancellationRequested)
         {throw new OperationCanceledException("市场查询已取消。",error,token);}
         catch(SqliteException error){throw new IOException("插件市场仓储操作失败。",error);}
@@ -90,7 +90,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         beforeWrite?.Invoke();Execute("INSERT INTO worker_sync_cursor VALUES(1,$d) ON CONFLICT(id) DO UPDATE SET checked_through=max(checked_through,excluded.checked_through)",("$d",day.ToString("yyyy-MM-dd")));
     }
     private SqliteCommand Command(string sql, params (string, object?)[] args)
-    { var command = db.CreateCommand(); command.CommandText = sql; foreach (var (key,value) in args) command.Parameters.AddWithValue(key,value??DBNull.Value); return command; }
+    { operationCancellation.ThrowIfCancellationRequested();var command = db.CreateCommand(); command.CommandText = sql; foreach (var (key,value) in args) command.Parameters.AddWithValue(key,value??DBNull.Value); return command; }
     private void Execute(string sql, params (string, object?)[] args) { using var command = Command(sql,args); command.ExecuteNonQuery(); }
     private object? Scalar(string sql, params (string, object?)[] args) { using var command = Command(sql,args); return command.ExecuteScalar(); }
     private static string Decimal(decimal value) => value.ToString(CultureInfo.InvariantCulture);
@@ -256,9 +256,9 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         while(reader.Read()) rows.Add(new(DateOnly.ParseExact(reader.GetString(0),"yyyy-MM-dd",CultureInfo.InvariantCulture),decimal.Parse(reader.GetString(1),CultureInfo.InvariantCulture),null,reader.GetString(2))); return rows;
     }
     /// <summary>纯只读完整性核验：发现未受信原件时拒绝返回可能误导的金融结果，不修改质量状态。</summary>
-    private void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false)
+    private void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false)
     {
-        var (bad,_) = ScanEvidence(shareKey,includeCalendar);
+        var (bad,_) = ScanEvidence(shareKey,includeCalendar,activityOnly,dashboardOnly);
         if(bad.Count==0)return;
         // 已由后台作业标记 Q15 的原件交给各只读查询的现有 SQL 过滤/标红；
         // 后台尚未登记的新损坏必须失败关闭，不能在查询时偷偷写状态。
@@ -269,16 +269,22 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
             throw new InvalidDataException("Evidence integrity failure; background reconciliation required.");
     }
     /// <summary>读取原始字节和规范化字节的哈希；仅在本次操作中缓存相同哈希的结果。</summary>
-    private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false)
+    private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false)
     {
         var bad=new List<string>();var good=new List<string>();
         var fetches=new List<(string Id,string Hash,string Original)>();
         using(var command=Command("""
             SELECT fetch_id,sha256,original_sha256 FROM source_fetch
-            WHERE $market IS NULL OR fetch_id IN(SELECT fetch_id FROM share_observation_revision WHERE market=$market AND ticker=$ticker)
+            WHERE ($activity=0 OR fetch_id IN(SELECT fetch_id FROM market_activity_observation)
+                OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day))
+            AND ($dashboard=0 OR fetch_id IN(SELECT fetch_id FROM share_observation_revision)
+                OR fetch_id IN(SELECT fetch_id FROM market_activity_observation)
+                OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day)
+                OR fetch_id IN(SELECT fetch_id FROM trading_day))
+            AND ($market IS NULL OR fetch_id IN(SELECT fetch_id FROM share_observation_revision WHERE market=$market AND ticker=$ticker)
             OR ($calendar=1 AND (fetch_id IN(SELECT fetch_id FROM trading_day WHERE market=$market)
-                OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day WHERE market=$market)))
-            """,("$market",shareKey?.Market),("$ticker",shareKey?.Ticker),("$calendar",includeCalendar?1:0)))
+                OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day WHERE market=$market))))
+            """,("$market",shareKey?.Market),("$ticker",shareKey?.Ticker),("$calendar",includeCalendar?1:0),("$activity",activityOnly?1:0),("$dashboard",dashboardOnly?1:0)))
         using(var reader=command.ExecuteReader())
             while(reader.Read())
             {

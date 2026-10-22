@@ -35,20 +35,37 @@ internal static class CoolingProgressChecks
                 throw new Exception("来源冷却期限未用于持久重试时间，或最终进度丢失Until。");
             Console.WriteLine("PASS 实际后台进度链路：来源冷却写入合法阶段，保留同一延期请求，不再因日志校验抛ArgumentException。");
             var successContext=new Context(Path.Combine(root,"complete-plugin"),key);var counter=new ActivityGateway();
+            execution=repository.Begin(plan,CRS.Timing.BeijingClock.Now,null);
             var completedPayload=JsonSerializer.Serialize(new EtfRequest("market-sync",From:new(2026,10,13),To:new(2026,10,13)));
             await using(var first=new NationalTeamBackgroundSession(successContext,counter))
             {
                 await first.StartAsync(default);
-                if((await first.ExecuteAsync("market-activity-sync",completedPayload,default)).Status!="Succeeded"||counter.Calls!=2)
+                var measured=new List<BackgroundProgress>();
+                if((await first.ExecuteWithProgressAsync("market-activity-sync",completedPayload,p=>
+                    {repository.AppendProgress(execution,p);measured.Add(p);return Task.CompletedTask;},default)).Status!="Succeeded"||counter.Calls!=2)
                     throw new Exception("初次双市场成交采集未成功。");
+                if(measured.Single(x=>x.Stage=="MarketDayCompleted") is not{Received:2,Reused:0,Closed:0,Empty:0,Deferred:0,Issues:0}
+                    ||measured.Last() is not{Stage:"MarketRangeCompleted",Received:2})throw new Exception("实际成交日计数或持久化错误。");
             }
             await using(var restored=new NationalTeamBackgroundSession(successContext,counter))
             {
-                await restored.StartAsync(default);var reused=await restored.ExecuteAsync("market-activity-sync",completedPayload,default);
+                await restored.StartAsync(default);var measured=new List<BackgroundProgress>();
+                var reused=await restored.ExecuteWithProgressAsync("market-activity-sync",completedPayload,p=>
+                    {repository.AppendProgress(execution,p);measured.Add(p);return Task.CompletedTask;},default);
                 if(reused.Status!="Succeeded"||counter.Calls!=2||reused.Checkpoint?.Contains("existingSources=2")!=true)
                     throw new Exception("全区间已核验后仍请求官网或错误返回NotPublished。");
+                if(measured.Single(x=>x.Stage=="MarketDayCompleted") is not{Received:0,Reused:2,Closed:0,Empty:0,Deferred:0,Issues:0}
+                    ||measured.Count(x=>x.Stage=="MarketReused")!=2)throw new Exception("复用记录被误报新增或计数丢失。");
             }
-            Console.WriteLine("PASS 实际后台回执：会话重建后全区间已存在时零新增HTTP，返回Succeeded而非NotPublished。");
+            var persisted=repository.FindExecution(execution)!.Progress!;
+            if(!persisted.Any(x=>x.Detail is{Stage:"MarketDayCompleted",Received:2})||!persisted.Any(x=>x.Detail is{Stage:"MarketDayCompleted",Received:0,Reused:2}))
+                throw new Exception("真实收到或复用计数未跨持久化保留。");
+            foreach(var invalid in new[]{new BackgroundProgress("MarketDayCompleted"){Reused=-1},new BackgroundProgress("MarketRangeCompleted")})
+            {
+                try{repository.AppendProgress(execution,invalid);throw new Exception("非法或未测量的成交汇总被接受。");}
+                catch(ArgumentException){}
+            }
+            Console.WriteLine("PASS 实际后台进度持久化：首轮收到2条、重建后复用2条且零HTTP；非法或缺失计数拒绝写入。");
         }
         finally{CryptographicOperations.ZeroMemory(key);}
     }

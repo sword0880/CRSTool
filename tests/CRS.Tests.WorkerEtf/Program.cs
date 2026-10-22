@@ -12,8 +12,25 @@ using Microsoft.Data.Sqlite;
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
 if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
 if(args is ["--query-cancellation"]){await EtfQueryCancellationChecks.RunAsync();return;}
+if(args is ["--market-query-reliability"]){await MarketQueryReliabilityChecks.RunAsync();return;}
 if(args is ["--cooling-progress"]){await CoolingProgressChecks.RunAsync();return;}
 if(args is ["--manual-receipts"]){await EtfManualReceiptChecks.RunAsync();return;}
+if(args is ["--installed-dashboard-probe"])
+{
+    var dashboardTimer=Stopwatch.StartNew();var dashboardClient=new BackgroundPipeClient();
+    var before=await dashboardClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"));
+    try
+    {
+        var dashboard=await new WorkerEtfWorkspace(dashboardClient).DashboardAsync(null,default);
+        if(dashboard is null)throw new InvalidDataException("正式后台尚不支持整页查询。");
+        var after=await dashboardClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"));
+        if(after.Health?.State!="Running"||before.Health?.ProcessId!=after.Health.ProcessId)throw new InvalidDataException("整页查询期间服务健康或进程改变。");
+        Console.WriteLine(JsonSerializer.Serialize(new{State=after.Health.State,after.Health.ProcessId,Overview=dashboard.Overview.Count,History=dashboard.History.Count,Activity=dashboard.Activity.Count,ElapsedMs=dashboardTimer.ElapsedMilliseconds}));
+    }
+    catch(Exception error)
+    {Console.WriteLine(JsonSerializer.Serialize(new{Status="Unavailable",Category=error.GetType().Name,Code=(error as BackgroundServiceException)?.Code,ElapsedMs=dashboardTimer.ElapsedMilliseconds}));Environment.ExitCode=1;}
+    return;
+}
 if(args is ["--market-request-probe",var receiptId])
 {
     var receiptClient=new BackgroundPipeClient();

@@ -209,3 +209,7 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 `CRS.Tests.WorkerEtf --startup-ui` 验证真实插件会话启动不等待数据、页面首次刷新去重、受控慢查询超过15秒、失败提示与重试。`--ipc-boundaries`已增至12项，补充等待响应期间的调用方取消。
 `CRS.Tests.PluginHost --load-probe <Plugins目录> [--host-assemblies <桌面输出目录>]` 用真实PluginRuntime校验信任清单、依赖、入口、会话和页面构造/布局；可预载桌面通信依赖以排查默认上下文冲突。使用新建隔离存储，不读取真实保险库，不显示窗口、不触发页面Loaded或后台查询，不能替代数据刷新验收。
 `CRS.Tests.WorkerEtf --initial-directory`验证24只初始化目录、重建、保留用户配置和缺事实保持空值；`--startup-ui`现含9项，增加慢概览不阻塞清单和失败不清空清单。`--raw-batch`验证每次重新核验、缺失/篡改和取消；`--raw-read-profile <原件目录>`只读A/B对比旧串行和新批校验，输出数量、时间和结果一致性。`--installed-directory-probe`只读核对实际后台的内置目录缺项数。
+
+成交日志/查询取消：`CRS.Tests.Wpf --market-log`检查旧历史缺失计数、新收到/复用计数和ETF计数兼容；`CRS.Tests.WorkerEtf --cooling-progress`验证真实插件进度进入加密任务仓储、分类计数持久化及缺失/负数拒绝。`--raw-batch`另含正在等待的异步文件读取取消、句柄释放和I/O失败不返回部分结果；`--market-query-reliability`验证真实仓储查询取消释放门槛后采集继续、成交证据扫描范围、完整巡检仍发现无关损坏以及整页只读事务不抢占写锁。全部为隔离数据，不代表正式服务未发生中断。`CRS.Tests.Background --lifecycle-only`另检查操作级诊断、耗时及URL/参数拒绝，保留原有失控退出回归。
+
+`CRS.Tests.WorkerEtf --installed-dashboard-probe`只读调用正式主页面的整页分页查询，输出概览/历史/成交行数、总时间，并要求查询前后健康Running及同一进程；失败输出Unavailable/分类，不把失败解释成空集合。繁忙时可能超时，不代表采集已中断。

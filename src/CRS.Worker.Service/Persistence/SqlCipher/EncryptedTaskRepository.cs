@@ -230,8 +230,11 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
     {
         Persist(() =>
         {
-            if(progress.Stage is not ("RangeStarted" or "DayStarted" or "SourceStarted" or "SourceParsed" or "SourceFailed" or "RequestStarted" or "ResponseReceived" or "RequestFailed" or "RequestTimedOut" or "RateWait" or "Cooldown" or "DayCommitted" or "RangeCompleted" or "ReportIndexPage" or "ReportIndexCommitted")
-                || progress.Market is not (null or "SSE" or "SZSE") || progress.Received<0 || progress.Added<0 || progress.Duplicates<0 || progress.Pending<0 || progress.HttpStatus is <100 or >599)throw new ArgumentException("进度格式无效。");
+            if(progress.Stage is not ("RangeStarted" or "DayStarted" or "SourceStarted" or "SourceParsed" or "SourceFailed" or "RequestStarted" or "ResponseReceived" or "RequestFailed" or "RequestTimedOut" or "RateWait" or "Cooldown" or "DayCommitted" or "RangeCompleted" or "ReportIndexPage" or "ReportIndexCommitted"
+                    or "MarketClosed" or "MarketReused" or "MarketNoData" or "MarketDayCompleted" or "MarketRangeCompleted")
+                || progress.Market is not (null or "SSE" or "SZSE") || progress.Received<0 || progress.Added<0 || progress.Duplicates<0 || progress.Pending<0 || progress.HttpStatus is <100 or >599
+                || progress.Reused<0 || progress.Closed<0 || progress.Empty<0 || progress.Deferred<0 || progress.Issues<0
+                || (progress.Stage is "MarketDayCompleted" or "MarketRangeCompleted") && (progress.Reused is null || progress.Closed is null || progress.Empty is null || progress.Deferred is null || progress.Issues is null))throw new ArgumentException("进度格式无效。");
             lock(gate)
             {
                 using var transaction=db.BeginTransaction();

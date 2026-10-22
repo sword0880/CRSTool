@@ -26,7 +26,7 @@ public sealed partial class MarketRepository
     private void InitializeActivityReviewSchema()=>Execute("CREATE TABLE IF NOT EXISTS market_activity_review(fetch_id TEXT PRIMARY KEY REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS market_activity_review_audit(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL);");
     public List<MarketActivityRevision> MarketActivityRevisions()
     {
-        ValidateEvidence();var result=new List<MarketActivityRevision>();
+        ValidateEvidence(activityOnly:true);var result=new List<MarketActivityRevision>();
         using var command=Command("SELECT o.fetch_id,o.market,o.trade_date,o.amount_yuan,o.volume_shares,coalesce(r.decision,'Unreviewed'),f.source_url,f.retrieved_utc FROM market_activity_observation o JOIN source_fetch f ON f.fetch_id=o.fetch_id LEFT JOIN market_activity_review r ON r.fetch_id=o.fetch_id ORDER BY o.trade_date DESC,f.retrieved_utc DESC");using var reader=command.ExecuteReader();
         while(reader.Read())result.Add(new(reader.GetString(0),reader.GetString(1),DateOnly.Parse(reader.GetString(2),CultureInfo.InvariantCulture),decimal.Parse(reader.GetString(3),CultureInfo.InvariantCulture),decimal.Parse(reader.GetString(4),CultureInfo.InvariantCulture),reader.GetString(5),reader.GetString(6),reader.GetString(7)));return result;
     }
@@ -72,7 +72,7 @@ public sealed partial class MarketRepository
     }
     public List<MarketActivityPoint> MarketActivity()
     {
-        ValidateEvidence();return ReadMarketActivity();
+        ValidateEvidence(activityOnly:true);return ReadMarketActivity();
     }
     private List<MarketActivityPoint> ReadMarketActivity()
     {

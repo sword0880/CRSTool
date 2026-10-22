@@ -35,7 +35,16 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     {
         EnsureResponsive();
         if(!querySessions.TryGetValue(plugin,out var session))throw new ArgumentException("插件不支持查询。");
-        string result="";await InvokeAsync(plugin,"Query",async cancellation=>result=await session.QueryAsync(payload,cancellation),token);
+        var phase="Query";
+        var watch=System.Diagnostics.Stopwatch.StartNew();string result="";
+        try{await InvokeAsync(plugin,"Query",async cancellation=>
+        {
+            // 诊断扩展也是插件代码，必须在同一有界生命周期内调用。
+            var operation=session is IBackgroundQueryDiagnosticsSession diagnostic?diagnostic.QueryOperation(payload):null;
+            if(operation is not null&&Regex.IsMatch(operation,"^[a-z][a-z0-9-]{0,39}$",RegexOptions.CultureInvariant))phase="Query."+operation;
+            cancellation.ThrowIfCancellationRequested();result=await session.QueryAsync(payload,cancellation);
+        },token,()=>phase);}
+        finally{if(watch.ElapsedMilliseconds>=1000)ReportLifecycle(plugin,phase,"ElapsedMs="+watch.ElapsedMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));}
         if(System.Text.Encoding.UTF8.GetByteCount(result)>48000)throw new InvalidDataException("业务查询响应超限。");
         return result;
     }
@@ -132,7 +141,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     {
         try{lifecycleDiagnostic?.Invoke(plugin,phase,code);}catch(Exception){ /* 诊断失败不能跳过退出保护。 */ }
     }
-    private async Task InvokeAsync(string plugin,string phase,Func<CancellationToken, Task> work, CancellationToken token)
+    private async Task InvokeAsync(string plugin,string phase,Func<CancellationToken, Task> work, CancellationToken token,Func<string>? diagnosticPhase=null)
     {
         EnsureResponsive();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -149,7 +158,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
                     _ = task.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
                     var failure=new PluginLifecycleTimeoutException(plugin,phase);
                     Interlocked.CompareExchange(ref terminalFault,failure,null);
-                    ReportLifecycle(plugin,phase,"CancellationGraceExceeded");
+                    ReportLifecycle(plugin,diagnosticPhase?.Invoke()??phase,"CancellationGraceExceeded");
                     try{onUnresponsive?.Invoke();}catch(Exception){ /* 回调失败仍保留终止状态。 */ }
                     throw failure;
                 }
@@ -160,7 +169,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
         catch(PluginLifecycleTimeoutException){throw;}
         catch(Exception error)
         {
-            ReportLifecycle(plugin,phase,error is OperationCanceledException
+            ReportLifecycle(plugin,diagnosticPhase?.Invoke()??phase,error is OperationCanceledException
                 ?token.IsCancellationRequested?"CallerCanceled":"TimeoutCanceled":error.GetType().Name);
             throw;
         }

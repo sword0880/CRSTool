@@ -31,7 +31,7 @@ public sealed partial class EtfWorkspace
         // 手动历史请求按事实续采；自动近段采集保留原有的官方修订发现能力。
         var existing=track?new HashSet<(string Market,DateOnly Date)>():await RunAsync(()=>repository!.VerifiedMarketActivityDates(from,to),token);
         var downloaded=new HashSet<(string Market,DateOnly Date)>();
-        int issues=0,received=0,days=0,sourceCalls=0,closed=0,empty=0,skipped=0;
+        int issues=0,received=0,days=0,sourceCalls=0,closed=0,empty=0,skipped=0,deferred=0;
         string? firstFailure=null,firstMarket=null;DateOnly? firstDate=null;
         var contiguous=true;var blocked=new Dictionary<string,(DateTimeOffset? Until,DateOnly Date)>();
         var retryByMarket=new Dictionary<string,DateTimeOffset>();
@@ -47,14 +47,17 @@ public sealed partial class EtfWorkspace
         }
         for(var day=from;day<=to;day=day.AddDays(1))
         {
+            var beforeReceived=received;var beforeIssues=issues;var beforeClosed=closed;
+            var beforeEmpty=empty;var beforeSkipped=skipped;var beforeDeferred=deferred;
             token.ThrowIfCancellationRequested();await ReportAsync(new("DayStarted",day));
             foreach(var market in new[]{"SSE","SZSE"})
             {
                 var trading=await RunAsync(()=>repository!.IsReviewedTradingDay(market,day),token);
-                if(trading==false){closed++;await RunAsync(()=>{repository!.SaveMarketActivity(market,day,null);return true;},token);continue;}
-                if(existing.Contains((market,day))){skipped++;continue;}
+                if(trading==false)
+                {closed++;await RunAsync(()=>{repository!.SaveMarketActivity(market,day,null);return true;},token);await ReportAsync(new("MarketClosed",day,market));continue;}
+                if(existing.Contains((market,day))){skipped++;await ReportAsync(new("MarketReused",day,market));continue;}
                 // 冷却只阻止同一来源；不把尚未请求的其他日期写成失败，也不阻塞另一市场。
-                if(blocked.ContainsKey(market)){contiguous=false;continue;}
+                if(blocked.ContainsKey(market)){contiguous=false;deferred++;continue;}
                 await ReportAsync(new("SourceStarted",day,market));MarketActivitySource? source=null;sourceCalls++;
                 try {source=await activitySource.FetchAsync(market,day,token);}
                 catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
@@ -86,21 +89,24 @@ public sealed partial class EtfWorkspace
                     {
                         empty++;
                         if(trading==true)Failure("OpenDayNoOfficialData",day,market);
+                        await ReportAsync(new("MarketNoData",day,market));
                     }
                     await ReportAsync(new("SourceParsed",day,market,Received:source.Observation is null?0:1));
                 }
             }
             if(track && contiguous)await RunAsync(()=>{repository!.RecordMarketActivityCursor(day);return true;},token);
-            days++;await ReportAsync(new("DayCommitted",day));
+            days++;await ReportAsync(new("MarketDayCompleted",day,Received:received-beforeReceived)
+                {Reused=skipped-beforeSkipped,Closed=closed-beforeClosed,Empty=empty-beforeEmpty,
+                Deferred=deferred-beforeDeferred,Issues=issues-beforeIssues});
         }
         // 冲突/损坏事实即使重新下载了同值也不能冒充已核验完成。
         var verified=await RunAsync(()=>repository!.VerifiedMarketActivityDates(from,to),token);
         foreach(var missing in downloaded.Except(verified))Failure("ObservationUnverified",missing.Date,missing.Market);
+        await ReportAsync(new("MarketRangeCompleted",to,Received:received){Reused=skipped,Closed=closed,Empty=empty,Deferred=deferred,Issues=issues});
         if(blocked.Count>0)
         {
             var last=blocked.OrderBy(x=>x.Value.Until??retryAt).First();await ReportAsync(new("SourceCoolingDown",last.Value.Date,last.Key,Until:retryAt));
         }
-        else await ReportAsync(new("RangeCompleted",to,Received:received));
         return Result(blocked.Count>0);
     }
 }

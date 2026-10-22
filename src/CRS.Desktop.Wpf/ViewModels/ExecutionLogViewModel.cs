@@ -89,7 +89,7 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
         lines.Add("");lines.Add("仅显示后台服务已保存的执行信息；未记录的逐步调试日志无法补查。");
         FullLogText=string.Join(Environment.NewLine,lines);
         displayLines.Clear();
-        var issueSequences=record.Progress?.Where(x=>x.Detail.Stage is "SourceFailed" or "RequestTimedOut" or "RequestFailed" or "RateWait" or "Cooldown").Select(x=>x.Sequence).ToHashSet() ?? [];
+        var issueSequences=record.Progress?.Where(x=>x.Detail.Stage is "SourceFailed" or "RequestTimedOut" or "RequestFailed" or "RateWait" or "Cooldown" or "MarketNoData").Select(x=>x.Sequence).ToHashSet() ?? [];
         foreach(var line in lines)
         {
             var marker=line.IndexOf("] #",StringComparison.Ordinal);
@@ -100,22 +100,30 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
     /// <summary>按结构化白名单翻译进度，始终区分来源行数与真实提交数量。</summary>
-    private static string DescribeProgress(BackgroundProgress value)
+    private string DescribeProgress(BackgroundProgress value)
     {
         var scope=$"{value.Date:yyyy-MM-dd} {value.Market}".Trim();
         var counts=$"收到{value.Received}条；新增已接受{value.Added}条，重复跳过{value.Duplicates}条，新增待审核{value.Pending}条";
         var stage=value.Stage switch
         {
             "RangeStarted"=>"开始区间采集", "DayStarted"=>"开始查询日期", "SourceStarted"=>"开始读取官方来源",
-            "SourceParsed"=>$"来源解析完成：{value.Received}条（含非监控证券，写入时过滤）", "SourceFailed"=>"来源未完成，未将失败当作零份额",
+            "SourceParsed"=>record.JobId=="market-activity-sync"?$"来源解析完成：{value.Received}条市场日成交记录":$"来源解析完成：{value.Received}条（含非监控证券，写入时过滤）",
+            "SourceFailed"=>record.JobId=="market-activity-sync"?"成交来源未完成，未将失败当作零成交":"来源未完成，未将失败当作零份额",
             "RequestStarted"=>"发起HTTPS请求（响应头和正文共用20秒期限）", "ResponseReceived"=>$"收到HTTP {value.HttpStatus}响应头，继续读取和校验正文",
             "RequestTimedOut"=>"请求超过20秒期限，已登记重试退避", "RequestFailed"=>"网络连接失败，已登记重试退避", "RateWait"=>"按来源间隔等待", "Cooldown"=>"来源冷却，停止本次网络请求",
-            "DayCommitted"=>"当日写入完成 · "+counts, "RangeCompleted"=>"区间查询结束 · "+counts,
+            "DayCommitted"=>record.JobId=="market-activity-sync"?"日期处理结束（旧版未记录当日计数）":"当日写入完成 · "+counts,
+            "RangeCompleted"=>record.JobId=="market-activity-sync"?$"区间处理结束 · 本轮收到{value.Received}条市场日记录（其余计数未记录）":"区间查询结束 · "+counts,
+            "MarketClosed"=>"已核验休市，未发起下载", "MarketReused"=>"复用已有完整原件与已核验成交记录，未重复下载",
+            "MarketNoData"=>"官方本次未返回成交记录（不作为零成交）",
+            "MarketDayCompleted"=>"日期处理结束 · "+MarketCounts(value), "MarketRangeCompleted"=>"区间处理结束 · "+MarketCounts(value),
             "ReportIndexPage"=>$"官方报告目录分页解析完成：{value.Received}份全文线索（PDF尚未核验）",
             "ReportIndexCommitted"=>$"官方报告目录已完整存证：{value.Added}页；持股和报告期仍须核验", _=>"未知阶段"
         };
         return scope+" · "+stage+(value.Until is { } until?$"；最早继续时间 {Time(until)}（北京时间）":"");
     }
+    private static string MarketCounts(BackgroundProgress value)=>
+        $"收到{value.Received}条市场日记录；复用{Count(value.Reused)}条，休市{Count(value.Closed)}个市场日，空响应{Count(value.Empty)}次，冷却未请求{Count(value.Deferred)}个市场日，来源问题{Count(value.Issues)}项（收到不等于新增）";
+    private static string Count(int? value)=>value?.ToString(CultureInfo.InvariantCulture)??"未记录";
     private static string ResultLabel(string value)=>value switch
     {
         "Running"=>"进行中", "Succeeded"=>"成功", "Rejected"=>"请求未接受", "Failed"=>"失败", "Cancelled"=>"已取消", "Interrupted"=>"执行中断",

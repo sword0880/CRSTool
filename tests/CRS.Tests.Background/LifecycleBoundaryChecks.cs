@@ -41,6 +41,15 @@ internal static class LifecycleBoundaryChecks
             catch(OperationCanceledException){Check(!catalog.RequiresProcessRestart,"协作收尾后拒绝迟到成功，不强制重启");}
         }
         await RuntimeHealth(root);
+        var diagnostic=WorkerRemediationChecks.Package(root,("crs.diagnostic","DiagnosticQueryEntry"));var diagnostics=new List<string>();
+        await using(var catalog=new BackgroundPluginCatalog(TimeSpan.FromMilliseconds(1100),lifecycleDiagnostic:(_,phase,code)=>diagnostics.Add(phase+":"+code)))
+        {
+            await catalog.LoadAsync(diagnostic.Root,diagnostic.Trust,default);
+            foreach(var payload in new[]{"safe","unsafe"})
+            {try{await catalog.QueryAsync("crs.diagnostic",payload,default);throw new Exception("未取消诊断查询。");}catch(OperationCanceledException){}}
+            Check(diagnostics.Contains("Query.market-activity:TimeoutCanceled")&&diagnostics.Any(x=>x.StartsWith("Query.market-activity:ElapsedMs=")),"慢查询保留业务操作及耗时分类");
+            Check(diagnostics.Contains("Query:TimeoutCanceled")&&!diagnostics.Any(x=>x.Contains("secret")||x.Contains("https"))&&!catalog.RequiresProcessRestart,"诊断拒绝URL/参数，协作取消不触发进程退出");
+        }
         var completedTimeout=WorkerRemediationChecks.Package(root,("crs.timeout","TimeoutOnCancelQueryEntry"));
         await using(var catalog=new BackgroundPluginCatalog(TimeSpan.FromMilliseconds(300)))
         {

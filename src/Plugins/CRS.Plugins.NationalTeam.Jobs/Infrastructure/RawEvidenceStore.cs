@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using CRS.Plugins.NationalTeamWatch.Application;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>SHA-256内容寻址存证；保存、核验和导出均保留原始字节。</summary>
-public sealed class RawEvidenceStore(string root,Action? beforeWrite=null) : IRawEvidenceStore
+public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<string,Stream>? openRead=null) : IRawEvidenceStore
 {
     /// <summary>只导出已经复核哈希的字节；先写同目录临时文件，取消或失败不覆盖已有目标。</summary>
     public async Task ExportVerifiedAsync(string hash,string destination,IReadOnlyList<string> protectedDirectories,CancellationToken cancellationToken)
@@ -54,15 +54,28 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null) : IRa
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
         return hash;
     }
-    public bool Verify(string hash)
+    public bool Verify(string hash)=>VerifyAsync(hash,CancellationToken.None).GetAwaiter().GetResult();
+    private async Task<bool> VerifyAsync(string hash,CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         if (hash.Length != 64 || !hash.All(Uri.IsHexDigit)) return false;
         var path = Path.Combine(root, hash + ".raw");
         try
         {
-            // 在同一个只读句柄上检查大小并校验，避免每份原件重复查询目录和文件信息。
-            using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,4096,FileOptions.SequentialScan);
-            return stream.Length<=8*1024*1024 && Convert.ToHexString(SHA256.HashData(stream))==hash;
+            // 同一句柄逐块异步读取；取消能中断正在等待的文件读取，而不只在文件之间检查。
+            await using var stream=openRead?.Invoke(path)??new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,16384,FileOptions.Asynchronous|FileOptions.SequentialScan);
+            if(stream.Length>8*1024*1024)return false;
+            using var digest=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            var buffer=new byte[16384];var total=0;
+            while(true)
+            {
+                var read=await stream.ReadAsync(buffer.AsMemory(),token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();if(read==0)break;
+                total+=read;if(total>8*1024*1024)return false;
+                digest.AppendData(buffer,0,read);
+            }
+            token.ThrowIfCancellationRequested();
+            return Convert.ToHexString(digest.GetHashAndReset())==hash;
         }
         catch(FileNotFoundException){return false;}
         catch(DirectoryNotFoundException){return false;}
@@ -71,15 +84,12 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null) : IRa
     public IReadOnlyDictionary<string,bool> VerifyMany(IEnumerable<string> hashes,CancellationToken token)
     {
         var results=new System.Collections.Concurrent.ConcurrentDictionary<string,bool>(StringComparer.Ordinal);
-        var failures=new System.Collections.Concurrent.ConcurrentQueue<Exception>();
-        Parallel.ForEach(hashes.Distinct(StringComparer.Ordinal),new ParallelOptions{MaxDegreeOfParallelism=4,CancellationToken=token},(hash,state)=>
-        {
-            try{token.ThrowIfCancellationRequested();results[hash]=Verify(hash);}
-            catch(Exception error) when(error is IOException or UnauthorizedAccessException)
-            {failures.Enqueue(error);state.Stop();}
-        });
         token.ThrowIfCancellationRequested();
-        if(failures.TryDequeue(out var failure))System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        Parallel.ForEachAsync(hashes.Distinct(StringComparer.Ordinal),
+            new ParallelOptions{MaxDegreeOfParallelism=4,CancellationToken=token},
+            async(hash,cancellation)=>results[hash]=await VerifyAsync(hash,cancellation).ConfigureAwait(false))
+            .GetAwaiter().GetResult();
+        token.ThrowIfCancellationRequested();
         return results;
     }
 }

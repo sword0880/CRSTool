@@ -2,7 +2,14 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
 /// <summary>公开采集阶段，不含原件、凭据、任意异常消息或完整请求URL。</summary>
-public sealed record EtfProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null);
+public sealed record EtfProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null)
+{
+    public int? Reused {get;init;}
+    public int? Closed {get;init;}
+    public int? Empty {get;init;}
+    public int? Deferred {get;init;}
+    public int? Issues {get;init;}
+}
 public sealed record ShareImportOutcome(int Added,int Duplicates,int Pending);
 /// <summary>已核验交易日上的真实缺口，末次尝试用于持久冷却与公平排序。</summary>
 public sealed record ShareGap(EtfKey Key,DateOnly Date,DateTimeOffset? LastAttempt);

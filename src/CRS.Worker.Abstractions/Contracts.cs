@@ -42,7 +42,15 @@ public sealed record ExecutionRecord(string ExecutionId, string PluginId, string
     string Result, string? Checkpoint, int Attempt, IReadOnlyList<ExecutionProgressEvent>? Progress=null);
 
 /// <summary>仅传递白名单阶段及公开标量，不记录URL参数、响应正文或异常消息。</summary>
-public sealed record BackgroundProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null);
+public sealed record BackgroundProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null)
+{
+    // 保留既有构造与解构签名；旧插件可继续使用原契约，缺少的新计数表示未记录。
+    public int? Reused {get;init;}
+    public int? Closed {get;init;}
+    public int? Empty {get;init;}
+    public int? Deferred {get;init;}
+    public int? Issues {get;init;}
+}
 public sealed record ExecutionProgressEvent(long Sequence,DateTimeOffset Utc,BackgroundProgress Detail);
 /// <summary>可选进度端口；宿主为每次执行创建回调并立即持久化，旧插件仍按原接口运行。</summary>
 public interface IProgressBackgroundSession
@@ -76,4 +84,9 @@ public interface IParameterizedBackgroundSession
 public interface IBackgroundQuerySession
 {
     Task<string> QueryAsync(string payload,CancellationToken token);
+}
+/// <summary>可选的有限查询操作名称；不输出参数、证券代码、URL或任意异常消息。</summary>
+public interface IBackgroundQueryDiagnosticsSession
+{
+    string QueryOperation(string payload);
 }

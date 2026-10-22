@@ -59,10 +59,16 @@ internal static class MarketActivityChecks
             var raw=new RawEvidenceStore(Path.Combine(directory,"raw"));
             await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
             await workspace.InitializeAsync(CancellationToken.None);
+            var progress=new List<EtfProgress>();workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});
             workspace.SetMarketActivitySource(source);
             var result=await workspace.SyncMarketActivityReportAsync(from,to,CancellationToken.None);
             var rows=await workspace.MarketActivityAsync(CancellationToken.None);
             Check(rows.Count==result.QueriedDays || result.HasMore,"记录的完成天数与已登记尝试一致："+name);
+            var totals=progress.Single(x=>x.Stage=="MarketRangeCompleted");var daily=progress.Where(x=>x.Stage=="MarketDayCompleted").ToArray();
+            Check(daily.Length==result.QueriedDays&&daily.Sum(x=>x.Received)==result.ReceivedRows&&totals.Received==result.ReceivedRows
+                &&totals.Reused==result.ExistingSources&&totals.Closed==result.ClosedSources&&totals.Empty==result.EmptySources
+                &&totals.Issues==result.SourceIssues&&daily.Sum(x=>x.Deferred)==totals.Deferred,"当日及区间分类计数准确："+name);
+            if(name=="cooled")Check(totals.Deferred==10,"未发起请求的冷却日期明确计为待重试");
             return result;
         }
 

@@ -17,7 +17,7 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
 public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null,
     string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null):IBackgroundPluginSession,
-    IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession
+    IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession
 {
     private readonly SemaphoreSlim serial=new(1);
     private readonly SemaphoreSlim queries=new(1);
@@ -44,7 +44,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         if(value.Date is { } date)progressDate=date;
         // 应用用例的终止阶段映射到宿主已发布的冷却阶段，兼容日志白名单与现有客户端。
         var stage=value.Stage=="SourceCoolingDown"?"Cooldown":value.Stage;
-        return progress?.Invoke(new(stage,value.Date??progressDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until))??Task.CompletedTask;
+        return progress?.Invoke(new(stage,value.Date??progressDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until)
+            {Reused=value.Reused,Closed=value.Closed,Empty=value.Empty,Deferred=value.Deferred,Issues=value.Issues})??Task.CompletedTask;
     }
 
     /// <summary>默认仅自动采集，审核和池变更只接受管理员的持久手动命令。</summary>
@@ -195,10 +196,26 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             ActivityCheckpoint(result),retry<TimeSpan.FromSeconds(30)?TimeSpan.FromSeconds(30):retry);
     }
 
+    public string QueryOperation(string payload)
+    {
+        try
+        {
+            var operation=Parse(payload).Operation;
+            return operation is "status" or "release-query" or "export" or "dashboard" or "overview" or "configuration"
+                or "history" or "evidence" or "points" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
+                or "equity-watchlist" or "equity-holdings" or "equity-disclosures" or "equity-events" or "equity-reports"
+                or "alert-overview" or "alert-configuration" or "alert-events" or "alert-event" or "alert-event-version" or "alert-inputs"
+                or "alert-changes" or "alert-outbox" or "alert-deliveries" or "alert-channels" or "alert-documents" or "alert-metadata" or "alert-holdings"
+                ?operation:"unknown";
+        }
+        catch(EtfContractException){return "invalid";}
+    }
+
     /// <summary>只读白名单不含审核、采集、文件写入或任意文件路径，普通用户只能读取公开研究结果。</summary>
     public async Task<string> QueryAsync(string payload,CancellationToken token)
     {
         // 网络采集等待期间仍可查询已提交事实；数据库访问由 workspace 自身串行化。
+        string SerializeRow<T>(T value){token.ThrowIfCancellationRequested();return JsonSerializer.Serialize(value);}
         EtfRequest request;
         try{request=Parse(payload);}
         catch(EtfContractException error){return JsonSerializer.Serialize(new EtfContractFailure(error.Code));}
@@ -226,22 +243,22 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             {
                 case "alert-overview":rows=[JsonSerializer.Serialize(await workspace!.AlertOverviewAsync(token))];break;
                 case "alert-configuration":rows=[JsonSerializer.Serialize(await workspace!.AlertConfigurationAsync(token))];break;
-                case "alert-events":rows=(await workspace!.AlertEventsAsync(request.AlertFilter??new(),token)).Select(x=>JsonSerializer.Serialize(x with{RevisionIds=[],HistoricalRevisionIds=null})).ToArray();break;
+                case "alert-events":rows=(await workspace!.AlertEventsAsync(request.AlertFilter??new(),token)).Select(x=>SerializeRow(x with{RevisionIds=[],HistoricalRevisionIds=null})).ToArray();break;
                 case "alert-event":rows=[JsonSerializer.Serialize((await workspace!.AlertEventAsync(request.Revision??"",token)) with{RevisionIds=[],HistoricalRevisionIds=null})];break;
                 case "alert-event-version":
                     if(!int.TryParse(request.Name,out var sequence)||sequence<1)throw new InvalidDataException("历史变更序号无效。");
                     rows=[JsonSerializer.Serialize((await workspace!.AlertEventVersionAsync(request.Revision??"",sequence,token)) with{RevisionIds=[],HistoricalRevisionIds=null})];break;
                 case "alert-inputs":
                     int? inputSequence=request.Name is null?null:int.TryParse(request.Name,out var parsedSequence)&&parsedSequence>0?parsedSequence:throw new InvalidDataException("历史输入版本无效。");
-                    rows=(await workspace!.AlertInputsAsync(request.Revision??"",inputSequence,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "alert-changes":rows=(await workspace!.AlertChangesAsync(request.Revision??"",token)).Select(x=>JsonSerializer.Serialize(x with{Payload=""})).ToArray();break;
-                case "alert-outbox":rows=(request.AlertFilter is null?await workspace!.AlertOutboxAsync(token):await workspace!.AlertOutboxAsync(request.AlertFilter,token)).Select(x=>JsonSerializer.Serialize(x with{Body=""})).ToArray();break;
-                case "alert-deliveries":rows=(await workspace!.AlertDeliveriesAsync(request.Revision??"",token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                    rows=(await workspace!.AlertInputsAsync(request.Revision??"",inputSequence,token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "alert-changes":rows=(await workspace!.AlertChangesAsync(request.Revision??"",token)).Select(x=>SerializeRow(x with{Payload=""})).ToArray();break;
+                case "alert-outbox":rows=(request.AlertFilter is null?await workspace!.AlertOutboxAsync(token):await workspace!.AlertOutboxAsync(request.AlertFilter,token)).Select(x=>SerializeRow(x with{Body=""})).ToArray();break;
+                case "alert-deliveries":rows=(await workspace!.AlertDeliveriesAsync(request.Revision??"",token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "alert-channels":
                     rows=context is IBackgroundNotificationContext notificationContext?(await notificationContext.NotificationChannelsAsync(token)).Select(x=>JsonSerializer.Serialize(new AlertChannel(x.Id,x.Name,x.Enabled,x.Configured))).ToArray():[];break;
-                case "alert-documents":rows=(await workspace!.AlertDocumentsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "alert-metadata":rows=(await workspace!.AlertMetadataAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "alert-holdings":rows=(await workspace!.NamedEtfHoldingsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                case "alert-documents":rows=(await workspace!.AlertDocumentsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "alert-metadata":rows=(await workspace!.AlertMetadataAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "alert-holdings":rows=(await workspace!.NamedEtfHoldingsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "dashboard":
                     if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
                     var dashboard=await workspace!.DashboardAsync(request.Market is null?null:Key(request),token)
@@ -250,41 +267,42 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     rows=dashboard.Overview.Select(x=>new EtfDashboardRow(Overview:x))
                         .Concat(dashboard.History.Select(x=>new EtfDashboardRow(History:x)))
                         .Concat(dashboard.Activity.Select(x=>new EtfDashboardRow(Activity:x)))
-                        .Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "overview":rows=(await workspace!.OverviewAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "configuration":rows=(await workspace!.ConfigurationAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "equity-watchlist":rows=(await workspace!.EquityWatchlistAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "equity-holdings":rows=(await workspace!.EquityHoldingsAsync(request.Search,request.Institution,request.Nature,request.Favorites,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "equity-disclosures":rows=(await workspace!.EquityDisclosuresAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "equity-events":rows=(await workspace!.EquityEventsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "equity-reports":rows=(await workspace!.EquityReportsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                        .Select(x=>SerializeRow(x)).ToArray();break;
+                case "overview":rows=(await workspace!.OverviewAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "configuration":rows=(await workspace!.ConfigurationAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "equity-watchlist":rows=(await workspace!.EquityWatchlistAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "equity-holdings":rows=(await workspace!.EquityHoldingsAsync(request.Search,request.Institution,request.Nature,request.Favorites,token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "equity-disclosures":rows=(await workspace!.EquityDisclosuresAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "equity-events":rows=(await workspace!.EquityEventsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "equity-reports":rows=(await workspace!.EquityReportsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "evidence":
                     // 按证券过滤必须发生在快照分页和容量校验之前。
-                    rows=(request.Market is null&&request.Ticker is null?await workspace!.EvidenceAsync(token):await workspace!.EvidenceAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                    rows=(request.Market is null&&request.Ticker is null?await workspace!.EvidenceAsync(token):await workspace!.EvidenceAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "history":
                     if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
-                    rows=(await workspace!.HistoryAsync(request.Market is null?null:Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "market-activity":rows=(await workspace!.MarketActivityAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "activity-revisions":rows=(await workspace!.MarketActivityRevisionsAsync(token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
-                case "points":rows=(await workspace!.PointsAsync(Key(request),token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                    rows=(await workspace!.HistoryAsync(request.Market is null?null:Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "market-activity":rows=(await workspace!.MarketActivityAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "activity-revisions":rows=(await workspace!.MarketActivityRevisionsAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "points":rows=(await workspace!.PointsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "collection-attempts":
                     if(request.From is null||request.To is null||request.To<request.From||request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new InvalidDataException("采集查询区间必须不超过400个自然日。");
-                    rows=(await workspace!.CollectionAttemptsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                    rows=(await workspace!.CollectionAttemptsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "acceptance":
                     if(request.To is null)throw new InvalidDataException("验收需要截至日期。");
                     rows=(request.Market is null&&request.Ticker is null?await workspace!.AcceptanceAsync(request.To.Value,token)
-                        :await workspace!.AcceptanceAsync(Key(request),request.To.Value,token)).Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                        :await workspace!.AcceptanceAsync(Key(request),request.To.Value,token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "coverage":
                     if(request.From is null || request.To is null || request.To<request.From || request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new ArgumentException("覆盖区间超限。");
                     var coverage=await workspace!.CoverageAsync(Key(request),request.From.Value,request.To.Value,token);
-                    metadata=JsonSerializer.Serialize(coverage with{Days=[]});rows=coverage.Days.Select(x=>JsonSerializer.Serialize(x)).ToArray();break;
+                    metadata=JsonSerializer.Serialize(coverage with{Days=[]});rows=coverage.Days.Select(x=>SerializeRow(x)).ToArray();break;
                 default:throw new ArgumentException("不支持此公开查询。");
             }
             token.ThrowIfCancellationRequested();
             if(rows.Length>10000 || rows.Sum(x=>x.Length)>2*1024*1024 || snapshots.Count>=8)throw new ArgumentException("查询快照额度已满，请稍后刷新。");
-            rows=rows.Select(BeijingQueryTimes.Normalize).ToArray();
+            rows=rows.Select(row=>{token.ThrowIfCancellationRequested();return BeijingQueryTimes.Normalize(row);}).ToArray();
             if(metadata is not null)metadata=BeijingQueryTimes.Normalize(metadata);
             if(rows.Sum(x=>x.Length)>2*1024*1024)throw new ArgumentException("查询快照超过时间元数据归一后的限额。");
+            token.ThrowIfCancellationRequested();
             var snapshot=Guid.NewGuid().ToString("N");snapshots.Add(snapshot,(CRS.Timing.BeijingClock.Now.AddMinutes(10),canonical,rows,metadata));
             return Page(snapshot,rows,metadata,request);
         }
