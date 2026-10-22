@@ -38,6 +38,16 @@ internal static class ScopedEvidenceChecks
             Check(repository.PointsForKeys([key,other]).Count==2,"批量份额查询不扫描未关联的孤立抓取");
             Check(repository.Evidence().Count==2,"全池证据核验份额事实，但不扫描未关联的孤立抓取");
         }
+        // Coverage 还会展示最新采集尝试引用的原件；该依赖必须纳入校验，不能因缩小份额范围而漏检。
+        var attemptHash=raw.Save("collection attempt evidence"u8.ToArray());
+        repository.RecordFetch(attemptHash,"https://www.sse.com.cn/attempt-fetch");
+        var attemptId=repository.BeginCollection(key,day);
+        repository.RecordCollection(attemptId,"RawSaved","RawSaved",attemptHash);
+        using(var attemptLock=new FileStream(Path.Combine(rawPath,attemptHash+".raw"),FileMode.Open,FileAccess.Read,FileShare.None))
+        {
+            try{repository.Coverage(key,day,day);throw new Exception("覆盖查询放行了已被当前采集阶段引用的锁定原件");}
+            catch(InvalidDataException){Check(true,"覆盖查询继续核验最新采集尝试所引用的原件");}
+        }
         File.WriteAllText(Path.Combine(rawPath,hash+".raw"),"tampered");
         var beforeDamagedQuery=Changes();
         try{repository.Points(key);throw new Exception("已损坏原件被读查询放行");}
