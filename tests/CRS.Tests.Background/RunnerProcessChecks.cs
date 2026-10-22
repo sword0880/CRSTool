@@ -29,7 +29,7 @@ internal static class RunnerProcessChecks
         Process? process = null;
         try
         {
-            var package = WorkerRemediationChecks.Package(root, ("crs.fixture", "GoodEntry"));
+            var package = WorkerRemediationChecks.Package(root, ("crs.fixture", "ConsoleWritingEntry"));
             var start = new ProcessStartInfo("dotnet")
             {
                 UseShellExecute = false,
@@ -74,6 +74,9 @@ internal static class RunnerProcessChecks
             Check(shutdown.Code == "Ok", "显式关闭命令收到确认");
             await process.WaitForExitAsync(deadline.Token);
             var stderr = await stderrTask;
+            Check(stderr.Contains("synthetic plugin startup log", StringComparison.Ordinal)
+                && stderr.Contains("synthetic plugin execution log", StringComparison.Ordinal),
+                "插件标准输出被重定向到 stderr，不污染协议帧");
             Check(process.ExitCode == 0, "Runner 正常释放插件并退出（stderr 类别长度=" + stderr.Length + "）");
             Console.WriteLine("PluginRunner 原型进程验收通过：" + passed + " 项。此原型只验证进程故障域与协议帧，不代表 OS 安全沙箱。");
         }
