@@ -92,10 +92,18 @@ internal static class Program
                                     response = Reply(request, "UnknownJob");
                                     break;
                                 }
-                                // Progress-capable sessions need the brokered progress RPC; do not silently drop progress.
-                                if (job.Session is IProgressBackgroundSession)
+                                if (job.Session is IProgressBackgroundSession progressSession)
                                 {
-                                    response = Reply(request, "UnsupportedCapability");
+                                    var updates = new List<BackgroundProgress>(8);
+                                    var truncated = false;
+                                    var result = await progressSession.ExecuteWithProgressAsync(request.JobId, request.Payload, progress =>
+                                    {
+                                        if (updates.Count < 64) updates.Add(progress);
+                                        else truncated = true;
+                                        return Task.CompletedTask;
+                                    }, CancellationToken.None, request.RequestId);
+                                    response = new(ProtocolVersion, request.RequestId, "Ok", Result: result,
+                                        Progress: updates, ProgressTruncated: truncated);
                                     break;
                                 }
                                 var result = job.Session is IParameterizedBackgroundSession parameterized
@@ -194,4 +202,5 @@ internal sealed record RunnerRequest(int ProtocolVersion, Guid RequestId, string
     string? JobId = null, string? Payload = null);
 internal sealed record RunnerResponse(int ProtocolVersion, Guid RequestId, string Code,
     IReadOnlyList<BackgroundJobDescriptor>? Jobs = null, BackgroundJobResult? Result = null,
+    IReadOnlyList<BackgroundProgress>? Progress = null, bool ProgressTruncated = false,
     string? Payload = null, string? ErrorType = null);
