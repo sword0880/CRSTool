@@ -31,6 +31,8 @@ internal static class TaskCenterDeepLinkChecks
                 page.ShowRecentExecutions();
                 if(tabs.SelectedIndex!=1 || (tabs.SelectedItem as TabItem)?.Header?.ToString()!="执行记录")
                     throw new InvalidOperationException("右下角直达未选中执行记录页签。");
+                if(page.FindName("HistoryDatePicker") is not DatePicker||page.FindName("MoreRecordsButton") is not null)
+                    throw new InvalidOperationException("执行记录未替换为日期查询入口。");
                 var check=page.FindName("OnlyIssuesCheckBox") as CheckBox
                     ?? throw new InvalidOperationException("执行记录缺少异常筛选控件。");
                 model.OnlyIssues=true;

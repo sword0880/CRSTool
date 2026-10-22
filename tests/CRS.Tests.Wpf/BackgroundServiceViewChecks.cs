@@ -31,7 +31,6 @@ internal static class BackgroundServiceViewChecks
                     model.HistoryPlugin=sample.PluginId; model.HistoryJob=sample.JobId;
                     await model.FilterHistoryCommand.ExecuteAsync(null);
                     if(model.History.Count==0 || model.History.Any(x=>x.PluginId!=sample.PluginId || x.JobId!=sample.JobId)) throw new InvalidOperationException("组合筛选未生效。");
-                    await model.MoreHistoryCommand.ExecuteAsync(null);
                     if(model.History.Any(x=>x.PluginId!=sample.PluginId || x.JobId!=sample.JobId)) throw new InvalidOperationException("翻页丢失筛选条件。");
                     model.HistoryJob="no-such-job"; await model.FilterHistoryCommand.ExecuteAsync(null);
                     if(model.History.Count!=0) throw new InvalidOperationException("零匹配仍显示旧历史。");
@@ -44,7 +43,7 @@ internal static class BackgroundServiceViewChecks
                     var labels = new HashSet<string> { "刷新状态", "立即执行", "暂停", "恢复", "取消执行" };
                     var buttons = Descendants(page).OfType<Button>().Where(x => x.Content is string label && labels.Contains(label)).ToArray();
                     if (buttons.Length != 5 || buttons.Any(x => !x.IsVisible || x.ActualWidth <= 0 || x.TranslatePoint(new(0, 0), window).Y > window.ActualHeight - 50)) throw new InvalidOperationException("首屏后台服务操作不可见；已找到操作数：" + buttons.Length);
-                    if(((FrameworkElement)page.FindName("MoreRecordsButton")).IsVisible!=model.HasMoreHistory||
+                    if(page.FindName("MoreRecordsButton") is not null||
                         ((FrameworkElement)page.FindName("ConfirmRequestButton")).IsVisible)
                         throw new InvalidOperationException("分页或重新确认按钮显示条件错误。");
                     var image = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);

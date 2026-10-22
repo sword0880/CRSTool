@@ -32,6 +32,7 @@ internal static class ExecutionLogViewChecks
             {
                 try
                 {
+                    model.HistoryDate=control.Record.StartedUtc.Date;await model.FilterHistoryCommand.ExecuteAsync(null);
                     var plan=control.Plan;model.Jobs.Add(plan);model.Selected=plan;
                     var edit=new ScheduleEditViewModel(model,plan);
                     var scheduleDialog=new ScheduleEditWindow(edit){Owner=parent};scheduleDialog.Show();parent.UpdateLayout();
@@ -188,7 +189,9 @@ internal static class ExecutionLogViewChecks
             if(request.Command=="ChangeSchedule"){LastSchedule=request;return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,ScheduleCode));}
             if(request.Command=="GetHealth")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,Environment.ProcessId)));
             if(request.Command=="GetJobs")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[Plan]));
+            if(request.Command=="GetTaskActivity")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",TaskActivity:new(CRS.Timing.BeijingClock.Now,[],0,0,0)));
             if(request.Command=="GetFilteredHistory")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",History:[Record]));
+            if(request.Command=="GetHistoryByDate")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",History:[Record],Payload:request.Payload));
             if(request.Command!="GetExecution" || request.ExecutionId!=Record.ExecutionId)throw new InvalidOperationException("日志查询串到了其它执行或命令。");
             return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,Code,Execution:Code=="Ok"?Record:null));
         }

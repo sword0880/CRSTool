@@ -8,6 +8,19 @@ using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
+if(args is ["--history-date"]){await HistoryDateChecks.RunAsync();return;}
+if(args is ["--history-date-probe",var dateText])
+{
+    var dateClient=new BackgroundPipeClient();string? dateCursor=null;
+    do
+    {
+        var reply=await dateClient.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHistoryByDate",Payload:dateText,Cursor:dateCursor,PageSize:50));
+        Console.WriteLine(JsonSerializer.Serialize(reply));
+        if(reply.Code!="Ok"||reply.Payload!=dateText){Environment.ExitCode=1;break;}
+        dateCursor=reply.NextCursor;
+    }while(dateCursor is not null);
+    return;
+}
 if(args is ["--job-probe",var probePlugin,var probeJob])
 {
     // 只读诊断指定任务；不触发采集，不直接访问正式服务数据库。

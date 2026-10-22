@@ -13,9 +13,9 @@ internal static class TaskCenterButtonChecks
         {
             var model=new BackgroundServiceViewModel(stop.Token,new(pipe));
             await model.RefreshCommand.ExecuteAsync(null);
-            Check(model.HasMoreHistory&&model.HasMoreJobs&&!model.HasUnconfirmedRequest,"分页有下一页才提供入口，正常连接无确认提示");
-            await model.MoreHistoryCommand.ExecuteAsync(null);await model.MoreJobsCommand.ExecuteAsync(null);
-            Check(model.History.Count==2&&model.Jobs.Count==2&&!model.HasMoreHistory&&!model.HasMoreJobs,"读完下一页后隐藏入口且不漏数据");
+            Check(model.History.Count==2&&model.HasMoreJobs&&!model.HasUnconfirmedRequest,"分页有下一页才提供入口，正常连接无确认提示");
+            await model.MoreJobsCommand.ExecuteAsync(null);
+            Check(model.History.Count==2&&model.Jobs.Count==2&&!model.HasMoreJobs,"读完下一页后隐藏入口且不漏数据");
             await model.RunNowCommand.ExecuteAsync(null);
             Check(model.HasUnconfirmedRequest,"后台已受理但连接断开时显示重新确认入口");
             await model.PauseCommand.ExecuteAsync(null);
@@ -45,7 +45,7 @@ internal static class TaskCenterButtonChecks
                 "GetHealth"=>new(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",now,now,1)),
                 "GetJobs"=>new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[new("plugin",request.Cursor is null?"one":"two","任务","0 * * * * ?","China Standard Time",true,1,false)],NextCursor:request.Cursor is null?"plans-2":null),
                 "GetTaskActivity"=>new(WorkerProtocol.Version,request.RequestId,"Ok",TaskActivity:new(now,[],0,0,0)),
-                "GetFilteredHistory"=>new(WorkerProtocol.Version,request.RequestId,"Ok",History:[new(request.Cursor is null?"one":"two","plugin","one",now,now,now,"Succeeded",null,1)],NextCursor:request.Cursor is null?"history-2":null,PendingRequests:[]),
+                "GetHistoryByDate"=>new(WorkerProtocol.Version,request.RequestId,"Ok",History:[new(request.Cursor is null?"one":"two","plugin","one",now,now,now,"Succeeded",null,1)],NextCursor:request.Cursor is null?"history-2":null,PendingRequests:[],Payload:request.Payload),
                 _=>throw new Exception("非预期命令："+request.Command)
             };
             return Task.FromResult(response);

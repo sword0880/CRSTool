@@ -18,7 +18,7 @@ internal static class TaskCenterRefreshChecks
             await control.HealthRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
             if(model.History.Count!=1 || model.History[0].Result!="Running" || model.PendingRequests.Count!=1 || refresh.IsCompleted)
                 throw new Exception("慢健康查询仍阻挡运行记录或待执行请求显示。");
-            if(control.Calls.TakeWhile(x=>x!="GetFilteredHistory").Any(x=>x is "GetHealth" or "GetJobs"))throw new Exception("历史查询仍等待健康或计划。");
+            if(control.Calls.TakeWhile(x=>x!="GetHistoryByDate").Any(x=>x is "GetHealth" or "GetJobs"))throw new Exception("历史查询仍等待健康或计划。");
             control.ReleaseHealth.TrySetResult();await refresh;
             var healthCount=control.Calls.Count(x=>x=="GetHealth");
             control.Record=control.Record with{EndedUtc=DateTimeOffset.UtcNow,Result="Succeeded"};
@@ -86,7 +86,7 @@ internal static class TaskCenterRefreshChecks
             if(BlockHistory)await ReleaseHistory.Task.WaitAsync(token);
             var match=request.JobId is null || request.JobId==Record.JobId;
             return new(WorkerProtocol.Version,request.RequestId,"Ok",History:match?[Record]:[],AppliedResultFilter:request.ResultFilter,
-                PendingRequests:!ProvidePending?null:match?[new(Guid.NewGuid(),Record.PluginId,Record.JobId)]:[]);
+                PendingRequests:!ProvidePending?null:match?[new(Guid.NewGuid(),Record.PluginId,Record.JobId)]:[],Payload:request.Payload);
         }
     }
 }

@@ -137,7 +137,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try
         {
             var response = await HandleCoreAsync(request, caller, token);
-            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetFilteredHistory" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
+            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
                 repository.Audit(caller.Sid, request.RequestId, request.Command, response.Code);
             return response;
         }
@@ -208,7 +208,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         if(request.Command=="GetTaskActivity")return TaskActivityPage(request,caller);
         if (fault is not null) return Reply(fault);
         if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
-        if (request.PageSize is < 1 or > 10) return Reply("InvalidRequest");
+        if (request.PageSize < 1 || request.PageSize > (request.Command=="GetHistoryByDate"?50:10)) return Reply("InvalidRequest");
         if (request.Command == "GetJobs")
         {
             var plans = repository.Plans().Where(x=>!catalog.Jobs.Any(job=>job.PluginId==x.PluginId && job.Descriptor.JobId==x.JobId && job.Descriptor.ManualOnly))
@@ -217,17 +217,29 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: page, NextCursor: plans.Length > page.Length ? page[^1].PluginId + ":" + page[^1].JobId : null);
         }
         // 新查询命令让旧服务明确返回不支持，避免忽略任务筛选后展示混合结果。
-        if (request.Command is "GetHistory" or "GetFilteredHistory")
+        if (request.Command is "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate")
         {
             try
             {
-                var page = repository.HistoryPage(request.Cursor, request.PageSize,request.PluginId,request.JobId,request.ResultFilter);
+                DateOnly? date=null;
+                if(request.Command=="GetHistoryByDate")
+                {
+                    if(!DateOnly.TryParseExact(request.Payload,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None,out var parsed))return Reply("InvalidRequest");
+                    date=parsed;
+                }
+                var size=request.PageSize;
+                var page = repository.HistoryPage(request.Cursor,size,request.PluginId,request.JobId,request.ResultFilter,date);
                 var deadlines=repository.Plans().ToDictionary(x=>(x.PluginId,x.JobId),x=>x.NotBefore);
                 var pending=repository.PendingRuns().Where(x=>(request.PluginId is null || x.PluginId==request.PluginId) && (request.JobId is null || x.JobId==request.JobId))
                     .Take(10).Select(x=>new BackgroundPendingRequest(x.RequestId,x.PluginId,x.JobId,
                         repository.ReadCommandState(x.RequestId)?.Code=="RetryDeferred"?deadlines.GetValueOrDefault((x.PluginId,x.JobId)):null)).ToArray();
-                return new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor,
-                    AppliedResultFilter: request.ResultFilter,PendingRequests:pending);
+                BackgroundResponse Result()=>new(WorkerProtocol.Version, request.RequestId, "Ok", History: page.Rows, NextCursor: page.NextCursor,
+                    AppliedResultFilter: request.ResultFilter,PendingRequests:pending,Payload:date?.ToString("yyyy-MM-dd"));
+                // 较长检查点按实际消息大小缩小内部批次，保持128KiB帧限制。
+                while(date is not null&&page.Rows.Count>1&&System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Result()).Length>110000)
+                    page=repository.HistoryPage(request.Cursor,size=Math.Max(1,size/2),request.PluginId,request.JobId,request.ResultFilter,date);
+                return Result();
             }
             catch (ArgumentException) { return Reply("InvalidRequest"); }
         }

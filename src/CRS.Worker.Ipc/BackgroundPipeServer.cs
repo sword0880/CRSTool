@@ -16,7 +16,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly object rateGate = new();
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings"];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings"];
     private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings"];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)
@@ -125,7 +125,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         if (!Reads.Contains(request.Command) && !Writes.Contains(request.Command)) return "UnknownCommand";
         // 邮件设置单独有界；业务插件参数仍保持原4096字符上限。
         var payloadLimit=request.Command=="SaveEmailSettings"?8192:4096;
-        if (request.PluginId?.Length > 80 || request.JobId?.Length > 80 || request.Cron?.Length > 120 || request.TimeZoneId?.Length > 100 || request.Cursor?.Length > 200 || request.Payload?.Length>payloadLimit || request.ExecutionId?.Length>32 || request.PageSize is < 1 or > 10) return "InvalidRequest";
+        if (request.PluginId?.Length > 80 || request.JobId?.Length > 80 || request.Cron?.Length > 120 || request.TimeZoneId?.Length > 100 || request.Cursor?.Length > 200 || request.Payload?.Length>payloadLimit || request.ExecutionId?.Length>32 || request.PageSize < 1 || request.PageSize > (request.Command=="GetHistoryByDate"?50:10)) return "InvalidRequest";
         if (Writes.Contains(request.Command) && (!caller.CanManage || !management)) return "Forbidden";
         return null;
     }

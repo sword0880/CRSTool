@@ -342,15 +342,15 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
         });
     }
     // 插件及任务条件先于游标分页，查询值全部参数化。
-    public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null,string? job=null,string? resultFilter=null)
+    public (List<ExecutionRecord> Rows, string? NextCursor) HistoryPage(string? cursor, int pageSize,string? plugin=null,string? job=null,string? resultFilter=null,DateOnly? date=null)
     {
         return Persist<(List<ExecutionRecord> Rows, string? NextCursor)>(() =>
         {
-            if (pageSize is < 1 or > 10 || resultFilter is not (null or "Issues") || (cursor is not null && (!long.TryParse(cursor, out var sequence) || sequence <= 0))) throw new ArgumentException("历史分页或结果筛选参数无效。");
+            if (pageSize < 1 || pageSize > (date is null?10:50) || resultFilter is not (null or "Issues") || (cursor is not null && (!long.TryParse(cursor, out var sequence) || sequence <= 0))) throw new ArgumentException("历史日期、分页或结果筛选参数无效。");
             lock (gate)
             {
                 // 结果筛选必须在分页 SQL 前执行；不得对当前可见10条做客户端筛选，避免翻页漏掉历史异常。
-                using var query = Command("SELECT rowid,* FROM execution WHERE rowid<$before AND ($plugin IS NULL OR plugin=$plugin) AND ($job IS NULL OR job=$job) AND ($issues=0 OR result NOT IN ('Succeeded','NotPublished','Running','Cancelled')) ORDER BY rowid DESC LIMIT $limit", ("$before", cursor is null ? long.MaxValue : long.Parse(cursor, CultureInfo.InvariantCulture)), ("$limit", pageSize + 1),("$plugin",plugin),("$job",job),("$issues",resultFilter=="Issues"?1:0));
+                using var query = Command("SELECT rowid,* FROM execution WHERE rowid<$before AND ($plugin IS NULL OR plugin=$plugin) AND ($job IS NULL OR job=$job) AND ($issues=0 OR result NOT IN ('Succeeded','NotPublished','Running','Cancelled')) AND ($date IS NULL OR substr(started,1,10)=$date) ORDER BY rowid DESC LIMIT $limit", ("$before", cursor is null ? long.MaxValue : long.Parse(cursor, CultureInfo.InvariantCulture)), ("$limit", pageSize + 1),("$plugin",plugin),("$job",job),("$issues",resultFilter=="Issues"?1:0),("$date",date?.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
                 using var reader = query.ExecuteReader(); var rows = new List<ExecutionRecord>(); string? last = null; var more = false;
                 while (reader.Read())
                 {

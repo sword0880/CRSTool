@@ -12,16 +12,13 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     private readonly BackgroundPipeClient client = serviceClient ?? new();
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUnconfirmedRequest))] private BackgroundRequest? uncertainRequest;
     private string healthState = "Unknown";
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasMoreHistory))] private string? historyCursor;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasMoreJobs))] private string? jobsCursor;
-    public bool HasMoreHistory=>HistoryCursor is not null;
     public bool HasMoreJobs=>JobsCursor is not null;
     public bool HasUnconfirmedRequest=>UncertainRequest is not null&&!Busy;
     public ObservableCollection<TaskDefinition> Jobs { get; } = [];
     public ObservableCollection<ExecutionRecord> History { get; } = [];
     public ObservableCollection<BackgroundPendingRequest> PendingRequests { get; } = [];
     [ObservableProperty] private string pendingStatus="尚未查询等待开始的请求。";
-    private bool historyPaged;
     /// <summary>日志始终绑定某次执行，查询管道与主页面共用同一服务和会话取消令牌。</summary>
     public ExecutionLogViewModel CreateExecutionLog(ExecutionRecord record)=>new(record,client,lifetime);
     public CancellationToken Lifetime=>lifetime;
@@ -42,9 +39,9 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     [ObservableProperty] private string cron = "0 * * * * ?";
     [ObservableProperty] private string timeZoneId = "China Standard Time";
     [ObservableProperty] private bool busy;
-    [ObservableProperty] private string historyPlugin = "crs.national-team";
+    [ObservableProperty] private string historyPlugin = "";
     [ObservableProperty] private string historyJob = "";
-    private string? appliedPlugin = "crs.national-team";
+    private string? appliedPlugin;
     private string? appliedJob;
     private string? appliedResultFilter;
     [ObservableProperty] private bool onlyIssues;
@@ -54,17 +51,19 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     [RelayCommand]
     private Task FilterHistoryAsync() => WithStatusAsync(async () =>
     {
+        if(HistoryDate is not {} day){History.Clear();HistorySummary="请选择查询日期。";Status=HistorySummary;return;}
+        appliedHistoryDate=DateOnly.FromDateTime(day);
         appliedPlugin = string.IsNullOrWhiteSpace(HistoryPlugin) ? null : HistoryPlugin.Trim();
         appliedJob = string.IsNullOrWhiteSpace(HistoryJob) ? null : HistoryJob.Trim();
         appliedResultFilter = OnlyIssues ? "Issues" : null;
-        HistoryCursor = null; historyPaged=false;History.Clear();PendingRequests.Clear();
-        Status="正在查询执行记录和等待开始的请求……";
+        History.Clear();PendingRequests.Clear();
+        Status="正在查询执行记录和等待开始的请求……";HistorySummary=$"正在查询 {appliedHistoryDate:yyyy-MM-dd} 的记录……";
         await LoadHistoryAsync();
         Status = OnlyIssues
             ? History.Count==0
                 ? "异常执行筛选已启用，但没有匹配记录。来源冷却或插件启动失败可能没有执行记录，请查看后台服务状态。"
-                : "已按异常执行结果筛选，翻页继续保留条件。"
-            : "已按插件和任务筛选执行记录。";
+                : "已按日期、插件和任务筛选异常记录。"
+            : HistorySummary;
     });
     /// <summary>底栏直达执行记录；正在刷新时排队应用导航条件，避免忙碌状态吞掉用户点击。</summary>
     public async Task OpenExecutionHistoryAsync(bool issues)
@@ -75,7 +74,8 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
             await Task.Delay(80,lifetime);
         }
         lifetime.ThrowIfCancellationRequested();
-        HistoryPlugin=issues?"":"crs.national-team";
+        HistoryPlugin="";
+        HistoryDate=CRS.Timing.BeijingClock.Now.Date;
         HistoryJob="";
         OnlyIssues=issues;
         await FilterHistoryCommand.ExecuteAsync(null);
@@ -94,7 +94,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     private async Task LoadAsync()
     {
         // 首先发布历史页；健康检查或计划读取缓慢不能挡住正在运行的记录。
-        historyPaged=false;
+
         var activity=RefreshTaskActivityAsync();
         await LoadHistoryAsync();
         await activity;
@@ -125,32 +125,6 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         UpdateHistorySuggestions();
         Selected = Jobs.FirstOrDefault(x => x.PluginId == key?.PluginId && x.JobId == key.JobId) ?? Jobs.FirstOrDefault();
     }
-    /// <summary>仅在执行记录首页自动刷新；翻页后保留用户正在阅读的历史。</summary>
-    public Task RefreshRecentHistoryAsync()=>Busy || historyPaged || lifetime.IsCancellationRequested ? Task.CompletedTask : WithStatusAsync(LoadHistoryAsync);
-    private async Task LoadHistoryAsync()
-    {
-        var history = await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",PluginId:appliedPlugin,JobId:appliedJob,ResultFilter:appliedResultFilter),lifetime);
-        lifetime.ThrowIfCancellationRequested();
-        if (history.Code == "UnknownCommand") { Status = "后台服务版本不支持插件和任务组合筛选，请更新服务。"; throw new InvalidOperationException("服务不支持历史筛选。"); }
-        if (history.Code != "Ok") throw new InvalidOperationException("历史读取失败："+history.Code);
-        // 旧Worker会忽略新增字段，因此要求明确回执；不能把普通记录混成异常记录。
-        if(appliedResultFilter is not null && history.AppliedResultFilter!=appliedResultFilter)
-            throw new System.IO.InvalidDataException("后台服务版本不支持异常筛选，请更新配套 Windows Service。");
-        if(appliedResultFilter=="Issues" && (history.History??[]).Any(x=>!IsIssueResult(x.Result)))
-            throw new System.IO.InvalidDataException("后台异常筛选返回正常执行记录，请核对前后台版本。");
-        HistoryCursor = history.NextCursor;
-        var rows=history.History??[];
-        for(var i=History.Count-1;i>=0;i--)if(!rows.Any(x=>x.ExecutionId==History[i].ExecutionId))History.RemoveAt(i);
-        for(var i=0;i<rows.Count;i++)
-        {
-            var existing=History.FirstOrDefault(x=>x.ExecutionId==rows[i].ExecutionId);
-            if(existing is null)History.Insert(i,rows[i]);
-            else {var index=History.IndexOf(existing);if(existing!=rows[i])History[index]=rows[i];if(index!=i)History.Move(index,i);}
-        }
-        PendingRequests.Clear();foreach(var row in history.PendingRequests??[])PendingRequests.Add(row);
-        PendingStatus=history.PendingRequests is null?"后台尚未提供待执行请求信息；请更新配套服务。":PendingRequests.Count==0?"当前筛选下没有等待开始的手动请求。":"以下请求已受理；到“当前任务”查看执行中、排队和等待原因。首次手动请求直接调度，已经延期重试的请求按所列时间重试。";
-        UpdateHistorySuggestions();
-    }
     private void UpdateHistorySuggestions()
     {
         // 建议保留已见过的任务；空白表示全部，也可输入未加载的历史编号。
@@ -168,21 +142,6 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         if (response.Code != "Ok") { Status = "计划读取失败：" + response.Code; return; }
         foreach (var row in response.Jobs ?? []) if (!Jobs.Any(x => x.PluginId == row.PluginId && x.JobId == row.JobId)) Jobs.Add(row);
         JobsCursor = response.NextCursor; Status = JobsCursor is null ? "已读取全部计划。" : "已加载下一页计划。";
-    });
-    [RelayCommand]
-    private Task MoreHistoryAsync() => WithStatusAsync(async () =>
-    {
-        if (HistoryCursor is null) { Status = "没有更多执行记录。"; return; }
-        var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetFilteredHistory", PluginId:appliedPlugin,JobId:appliedJob,Cursor: HistoryCursor,ResultFilter:appliedResultFilter), lifetime);
-        if (response.Code != "Ok") { Status = "历史读取失败：" + response.Code; return; }
-        if(appliedResultFilter is not null && (response.AppliedResultFilter!=appliedResultFilter || (response.History??[]).Any(x=>!IsIssueResult(x.Result))))
-        {
-            Status="后台未正确应用异常筛选；请更新服务并重新查询。";
-            History.Clear();HistoryCursor=null;return;
-        }
-        foreach (var row in response.History ?? []) if (!History.Any(x => x.ExecutionId == row.ExecutionId)) History.Add(row);
-        HistoryCursor = response.NextCursor; Status = HistoryCursor is null ? "已读取全部可用历史。" : "已加载下一页历史。";
-        historyPaged=true;
     });
     public static bool IsIssueResult(string result) =>
         result is not ("Succeeded" or "NotPublished" or "Running" or "Cancelled");
@@ -233,7 +192,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         catch (System.IO.InvalidDataException error)
         {
             Status=error.Message;HealthLabel="状态未确认";HealthTone="Warning";
-            History.Clear();PendingRequests.Clear();PendingStatus="待执行请求未确认。";HistoryCursor=null;
+            History.Clear();PendingRequests.Clear();PendingStatus="待执行请求未确认。";HistorySummary="执行记录未确认，请重新查询。";
         }
         catch (Exception) { HealthLabel = "无法确认服务状态"; HealthTone = "Warning";PendingStatus="待执行请求未确认；列表为上次快照。"; Status = "后台服务不可用或版本不兼容；请检查服务状态并更新到支持任务筛选的版本。所列内容为上次状态快照。"; }
         finally { Busy = false; }
