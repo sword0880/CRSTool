@@ -20,6 +20,12 @@ internal static class Program
     {
         try
         {
+            // Reserve stdout exclusively for framed protocol bytes before plugin startup.
+            // Plugin/host logs go to stderr and can never corrupt the first response frame.
+            using var input = Console.OpenStandardInput();
+            using var output = Console.OpenStandardOutput();
+            Console.SetOut(Console.Error);
+
             var root = Path.GetFullPath(Option(args, "--plugin-root"));
             var trustFile = Path.GetFullPath(Option(args, "--trust-file"));
             var pluginId = Option(args, "--plugin-id");
@@ -45,8 +51,6 @@ internal static class Program
             if (catalog.Statuses.Count != 1 || status?.State != "Started")
                 throw new InvalidDataException("Runner plugin failed startup.");
 
-            using var input = Console.OpenStandardInput();
-            using var output = Console.OpenStandardOutput();
             while (true)
             {
                 var request = await ReadRequestAsync(input, CancellationToken.None);
