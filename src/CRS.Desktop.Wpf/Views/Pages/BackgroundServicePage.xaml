@@ -25,7 +25,7 @@
    </StackPanel>
   </WrapPanel>
   <TabControl x:Name="TaskCenterTabs" Grid.Row="2" Grid.RowSpan="2">
-   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron（北京时间）。" Foreground="#64748B" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron（北京时间）。" Foreground="{DynamicResource BrandTextSecondaryBrush}" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
     <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding JobId}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/>
      <DataGridCheckBoxColumn Header="计划待生效" Binding="{Binding NeedsReconcile}">
       <DataGridCheckBoxColumn.HeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="ToolTip" Value="勾选表示计划已保存，后台正在应用最新配置；成功后自动取消勾选。未勾选表示配置已应用。此状态不表示任务正在运行或排队。"/></Style></DataGridCheckBoxColumn.HeaderStyle>
@@ -51,7 +51,7 @@
       <Button Content="查询记录" Command="{Binding FilterHistoryCommand}" Margin="0,0,12,8"/>
       <Button Content="查看日志" Click="OnViewLog" ToolTip="查看选中执行的运行日志" Margin="0,0,0,8"/>
      </WrapPanel>
-     <TextBlock Text="按北京时间的执行开始日期查询，包含开始和结束日期；插件和任务留空表示全部。仅异常包含失败、延期重试、中断等结果。" TextWrapping="Wrap" Foreground="#64748B"/>
+     <TextBlock Text="按北京时间的执行开始日期查询，包含开始和结束日期；插件和任务留空表示全部。仅异常包含失败、延期重试、中断等结果。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextSecondaryBrush}"/>
      <TextBlock Text="{Binding PendingStatus}" TextWrapping="Wrap" Margin="0,6"/>
      <DataGrid x:Name="PendingRequestsGrid" ItemsSource="{Binding PendingRequests}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MaxHeight="120">
       <DataGrid.Style><Style TargetType="DataGrid"><Style.Triggers><Trigger Property="HasItems" Value="False"><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></DataGrid.Style>
@@ -65,7 +65,7 @@
    </DataGrid></Grid></TabItem>
    <TabItem Header="当前任务"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="0,8,0,0">
     <TextBlock Text="{Binding ActivityStatus}" TextWrapping="Wrap" Margin="0,0,0,8"/>
-    <TextBlock Text="显示全部插件，每3秒刷新，不受执行记录的筛选或翻页影响。首次手动请求直接调度；插件已有任务时排队；来源限制导致的重试会显示等待时间。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,10"/>
+    <TextBlock Text="显示全部插件，每3秒刷新，不受执行记录的筛选或翻页影响。首次手动请求直接调度；插件已有任务时排队；来源限制导致的重试会显示等待时间。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextSecondaryBrush}" Margin="0,0,0,10"/>
     <TextBlock Text="执行中的任务" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,6"/>
     <DataGrid x:Name="RunningTasksGrid" ItemsSource="{Binding RunningTasks}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MaxHeight="180" MinHeight="70">
      <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding Row.PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Row.Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding Row.JobId}"/><DataGridTextColumn Header="开始时间（北京时间）" Binding="{Binding Row.StartedAt,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="当前进展" Binding="{Binding ReasonText}"/><DataGridTextColumn Header="来源等待至（北京时间）" Binding="{Binding Row.NotBefore,Converter={StaticResource BeijingTimestamp}}"/><DataGridTextColumn Header="执行编号" Binding="{Binding Row.ExecutionId}"/></DataGrid.Columns>
@@ -75,7 +75,7 @@
      <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding Row.PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Row.Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding Row.JobId}"/><DataGridTextColumn Header="插件内顺序" Binding="{Binding Row.QueuePosition}"/><DataGridTextColumn Header="等待原因" Binding="{Binding ReasonText}"/><DataGridTextColumn Header="请求编号" Binding="{Binding Row.RequestId}"/></DataGrid.Columns>
     </DataGrid>
     <TextBlock Text="待执行的请求" FontSize="16" FontWeight="SemiBold" Margin="0,14,0,6"/>
-    <TextBlock Text="这里只列尚未进入执行队列的请求，已经排队的请求显示在上表；最早执行时间表示重试期限，实际开始还取决于执行名额。" TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,6"/>
+    <TextBlock Text="这里只列尚未进入执行队列的请求，已经排队的请求显示在上表；最早执行时间表示重试期限，实际开始还取决于执行名额。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextSecondaryBrush}" Margin="0,0,0,6"/>
     <DataGrid x:Name="PendingTasksGrid" ItemsSource="{Binding PendingTasks}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MaxHeight="180" MinHeight="70">
      <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding Row.PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Row.Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding Row.JobId}"/><DataGridTextColumn Header="等待原因" Binding="{Binding ReasonText}"/><DataGridTextColumn Header="最早执行时间（北京时间）" Binding="{Binding EarliestText}"/><DataGridTextColumn Header="请求编号" Binding="{Binding Row.RequestId}"/></DataGrid.Columns>
     </DataGrid>
