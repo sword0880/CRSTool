@@ -46,7 +46,8 @@ public sealed partial class VaultManager : IVaultStorageBackend
     public IPerformanceUseCases CreatePerformanceUseCases(bool online=true)=>backend.CreatePerformanceUseCases(online);
     public Action<Action> CaptureGuard()=>backend.CaptureGuard();
     public void Execute(Action action)=>backend.Execute(action);
-    public void ImportSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null)=>backend.ImportSharedPerformance(input,broker,cancellation,originalSession,sourceFacts);
+    public PerformanceDocument PrepareSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null)=>backend.PrepareSharedPerformance(input,broker,cancellation,originalSession,sourceFacts);
+    public void CommitCalculation(CalculationResult result,IReadOnlyList<PerformanceDocument> documents,Action<Action> originalSession,CancellationToken token)=>backend.CommitCalculation(result,documents,originalSession,token);
     public void Lock()=>backend.Lock();
     public void Dispose()=>backend.Dispose();
 }

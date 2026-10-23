@@ -23,6 +23,15 @@ jobs:
       - name: Verify architecture dependency constraints
         shell: pwsh
         run: ./tests/Verify-Architecture.ps1
+      - name: Verify atomic tax and performance import commits
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --calculation-commit
+      - name: Verify independent market query snapshots and writer isolation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --read-isolation
+      - name: Verify supervised plugin fault isolation and durable execution
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --supervised-plugins
       - name: Verify Worker abnormal execution filter before SQL pagination and via read-only IPC
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --history-result-filter

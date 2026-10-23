@@ -65,13 +65,13 @@ namespace CRS.Worker.Service
             {
                 // 先由Generic Host接入SCM，再扫描完整权限树；大备份不能耗尽SCM的30秒接入期限。
                 // 权限检查仍先于租约、密钥和数据库打开，独占租约持续覆盖整个服务会话。
-                StorageSecurity.Prepare(locations.Data,locations.Console);
+                StorageSecurity.Prepare(locations.Data,locations.Console,stoppingToken);
                 using var ownership=new FileStream(Path.Combine(locations.Data,"owner.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
                 // 在Generic Host已接入SCM后核验较大的快照，仍先于密钥、迁移及插件打开。
                 // 未解决状态非零停止；候选先持久标记风险，不能凭未观察到写入自动回退。
                 new WorkerUpgradeJournal(locations.Data).BeforeStorageOpen(AppContext.BaseDirectory);
                 key = ServiceKey.Open(locations.Data);
-                StorageSecurity.Validate(locations.Data, locations.Console); // 新建密钥也须满足数据树权限策略。
+                StorageSecurity.Validate(locations.Data, locations.Console,stoppingToken); // 新建密钥也须满足数据树权限策略。
                 using var repository = new EncryptedTaskRepository(Path.Combine(locations.Data, "scheduler-config.db"), key);
                 // 公共通知组件在组合根装配，宿主不包含SMTP实现或业务风险规则。
                 var email=new CRS.Notifications.EmailNotificationService(locations.Data);
@@ -84,12 +84,18 @@ namespace CRS.Worker.Service
                 await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () =>
                     {try{diagnostics.Write("PluginUnresponsive","service","CancellationGraceExceeded");}finally{Environment.Exit(2);}},
                     hostContext:id=>new WorkerPluginContext(id,locations.Data,key,notifications,sources),
-                    lifecycleDiagnostic:(plugin,phase,code)=>diagnostics.Write("PluginLifecycle",plugin,phase+"."+code));
+                    lifecycleDiagnostic:(plugin,phase,code)=>diagnostics.Write("PluginLifecycle",plugin,phase+"."+code),
+                    processSessions:package=>new IsolatedPluginSession(
+                        Path.Combine(AppContext.BaseDirectory,"Runner","CRS.Worker.PluginRunner.exe"),locations.Plugins,locations.Trust,package,
+                        new WorkerPluginContext(package.Id,locations.Data,key,notifications,sources),
+                        (plugin,phase,code)=>diagnostics.Write("PluginLifecycle",plugin,phase+"."+code)));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
                     executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources);
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                var securityTask=StorageSecurity.MonitorAsync(locations.Data,locations.Console,
+                    count=>diagnostics.Write("StorageCapacityWarning","service","Entries="+count),listeners.Token);
                 try
                 {
                     await runtime.StartAsync(stoppingToken);
@@ -102,7 +108,7 @@ namespace CRS.Worker.Service
                     while (await interval.WaitForNextTickAsync(stoppingToken))
                     {
                         if (pipeTask.IsCompleted) await pipeTask; // 管道监听异常必须进入 SCM 失败恢复，不能假装健康。
-                        StorageSecurity.Validate(locations.Data, locations.Console); // 发现运行中 ACL 漂移就进入停止清理，不继续调度。
+                        if(securityTask.IsCompleted)await securityTask;
                         await runtime.ReconcileAsync(stoppingToken);
                     }
                 }
@@ -114,6 +120,7 @@ namespace CRS.Worker.Service
                     try
                     {
                         if (pipeTask is not null) try { await pipeTask; } catch (OperationCanceledException) { }
+                        try{await securityTask;}catch(OperationCanceledException) when(listeners.IsCancellationRequested){}
                     }
                     finally
                     {

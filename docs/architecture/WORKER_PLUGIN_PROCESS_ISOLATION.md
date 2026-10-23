@@ -1,6 +1,6 @@
 # Worker 后台插件进程隔离设计
 
-状态：**Proposed / 威胁模型已定义；存在仅供测试的 stdio PluginRunner 原型，未集成生产 Worker，不构成安全隔离承诺**（2026-10-23）
+状态：**第一方进程故障隔离已接入正式源码组合根，工作区验证中；未替换已安装服务，不构成OS权限沙箱**（2026-10-23）。本轮采用父子进程私有继承stdio及独立V2双向协议，实现上下文/进度/通知/来源代理和Job Object监督；旧V1原型保留测试入口。下文保留分阶段目标及OS安全隔离门槛，实际接线与证据以[四项整改记录](../implementation/ARCH_OPTIMIZATION_20261023.md)为准。
 
 范围：CRSTool 的 Windows Service、后台插件加载/执行、内部 IPC、插件私有数据、通知和来源预算。此文档是 P1-07 的设计入口，不授权立即改变正式服务、数据目录、密钥、插件 ID/Job ID、持久化 Schema 或现有桌面 Worker IPC。
 
@@ -15,7 +15,7 @@
 
 第一阶段只承诺故障隔离，不宣称沙箱。第三方/不受信插件在第二阶段的 Windows 身份、ACL、网络与密钥边界通过安全评审前不开放。
 
-## 2. 当前事实与风险
+## 2. 整改前事实与风险
 
 源码：`src/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`、`src/CRS.Worker.Service/Program.cs`、`src/CRS.Worker.Service/Hosting/WorkerPluginContext.cs`、`src/CRS.Worker.Abstractions/Contracts.cs`。
 

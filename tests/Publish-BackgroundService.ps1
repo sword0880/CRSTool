@@ -7,6 +7,7 @@ New-Item -ItemType Directory -Path $output | Out-Null
 # 框架依赖、非裁剪发行；后台包不能携带 WPF 运行时。
 & dotnet publish (Join-Path $repository 'src/CRS.Worker.Service') -c $Configuration --no-self-contained -o $output -p:NuGetAudit=false --no-restore -m:1
 if($LASTEXITCODE -ne 0){throw '服务发布失败。'}
+if(-not(Test-Path -LiteralPath (Join-Path $output 'Runner/CRS.Worker.PluginRunner.exe'))){throw '发行包缺少插件监督进程。'}
 $package=Join-Path $output 'Plugins/crs.heartbeat/2.0.0'
 & dotnet publish (Join-Path $repository 'src/Plugins/CRS.Plugins.Heartbeat') -c $Configuration --no-self-contained -o $package -p:NuGetAudit=false --no-restore -m:1
 if($LASTEXITCODE -ne 0){throw '心跳插件发布失败。'}

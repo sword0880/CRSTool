@@ -39,6 +39,11 @@ public sealed class LocalStore : ICalculationRepository
     /// <summary>在事务中保存计算结果和可用结转，参数化写入避免说明文本改变 SQL。</summary>
     public void Save(CalculationResult r)
     {
+        using var lease=session.Enter();using var c=Open();using var tx=c.BeginTransaction();
+        Save(c,tx,r);tx.Commit();
+    }
+    internal void Save(SqliteConnection c,SqliteTransaction tx,CalculationResult r)
+    {
         // 所有历史入口都冻结结果，人工复核通过独立表另存，不改写核算事实。
         r.Freeze();
         // 无效大载荷应在生成封存编码前被拒绝，而不是先复制整个载荷再检查。
@@ -46,8 +51,6 @@ public sealed class LocalStore : ICalculationRepository
         r.SealForPersistence(RunEvidenceSeal.AssemblyHash(typeof(LocalStore).Assembly.Location));
         var payload = PersistedResultLimits.Encode(r);
         // 整个事务受解锁会话门闩保护，锁定后旧后台任务无法追加结果。
-        using var lease=session.Enter();
-        using var c = Open(); using var tx = c.BeginTransaction();
         // 复算只能追加到已存在的父运行，避免保存断链历史或覆盖原任务。
         if (r.ParentSnapshotId is { } parent && (parent == r.SnapshotId
             || c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations WHERE id=@Parent AND year=@Year", new { Parent = parent, r.Year }, tx) != 1))
@@ -66,7 +69,6 @@ public sealed class LocalStore : ICalculationRepository
         if (c.ExecuteScalar<long>("PRAGMA page_count",transaction:tx) * c.ExecuteScalar<long>("PRAGMA page_size",transaction:tx)
             > ChunkedVaultBackup.MaxDatabaseBytes)
             throw new CrsException("保存后数据库会超过 2 GiB 备份上限，本次任务已取消，原历史保留。");
-        tx.Commit();
     }
     /// <summary>保留最近任务查询，完整历史由分页入口提供。</summary>
     public List<HistoryItem> History() => QueryHistory(1, 100).Rows;

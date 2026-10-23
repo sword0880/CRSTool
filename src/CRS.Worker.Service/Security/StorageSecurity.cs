@@ -5,12 +5,12 @@ namespace CRS.Worker.Service;
 /// <summary>机器 DPAPI 依赖文件 ACL；开发控制台也必须封闭密钥目录。</summary>
 public static class StorageSecurity
 {
-    private const int MaximumEntries = 100000;
+    public const long CapacityWarningEntries = 80000;
     private static readonly SecurityIdentifier SystemSid = new(WellKnownSidType.LocalSystemSid, null);
     private static readonly SecurityIdentifier AdminSid = new(WellKnownSidType.BuiltinAdministratorsSid, null);
 
     /// <summary>开发目录可初始化权限；正式目录必须由安装器建立，启动时只验证。</summary>
-    public static void Prepare(string directory, bool console)
+    public static void Prepare(string directory, bool console,CancellationToken token=default)
     {
         RejectLinks(directory);
         if (console)
@@ -22,12 +22,14 @@ public static class StorageSecurity
                 security.AddAccessRule(new(sid, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
             new DirectoryInfo(directory).SetAccessControl(security);
         }
-        Validate(directory, console);
+        Validate(directory, console,token);
     }
 
     /// <summary>检查整棵数据树，包含受保护子项；不替管理员自动修复漂移后的权限。</summary>
-    public static void Validate(string directory, bool console)
+    public static void Validate(string directory, bool console,CancellationToken token=default)=>Scan(directory,console,token);
+    public static long Scan(string directory,bool console,CancellationToken token=default)
     {
+        token.ThrowIfCancellationRequested();
         RejectLinks(directory);
         if (!Directory.Exists(directory)) throw new StorageSecurityException();
         var identity = console ? WindowsIdentity.GetCurrent().User! :
@@ -47,18 +49,42 @@ public static class StorageSecurity
         RequireInheritedAccess(rootSecurity, AdminSid, FileSystemRights.FullControl);
         RequireInheritedAccess(rootSecurity, identity, console ? FileSystemRights.FullControl : FileSystemRights.Modify);
         var pending = new Stack<DirectoryInfo>(); pending.Push(root);
-        var visited = 0;
+        long visited = 0;
         while (pending.TryPop(out var parent))
-            foreach (var entry in parent.EnumerateFileSystemInfos())
+        {
+            try
             {
-                if (++visited > MaximumEntries || (entry.Attributes & FileAttributes.ReparsePoint) != 0)
-                    throw new StorageSecurityException();
-                if (entry is DirectoryInfo child)
+                foreach (var entry in parent.EnumerateFileSystemInfos())
                 {
-                    ValidateAcl(child.GetAccessControl(), allowed, owners); pending.Push(child);
+                    token.ThrowIfCancellationRequested();visited++;
+                    try
+                    {
+                        if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)throw new StorageSecurityException();
+                        if (entry is DirectoryInfo child)
+                        {ValidateAcl(child.GetAccessControl(), allowed, owners); pending.Push(child);}
+                        else ValidateAcl(((FileInfo)entry).GetAccessControl(), allowed, owners);
+                    }
+                    // 原件临时文件/WAL可在枚举后正常消失；只忽略已确认不存在的项，权限异常仍拒绝。
+                    catch(FileNotFoundException) when(!Path.Exists(entry.FullName)){}
+                    catch(DirectoryNotFoundException) when(!Path.Exists(entry.FullName)){}
                 }
-                else ValidateAcl(((FileInfo)entry).GetAccessControl(), allowed, owners);
             }
+            catch(DirectoryNotFoundException) when(parent.FullName!=root.FullName&&!Directory.Exists(parent.FullName)){}
+        }
+        return visited;
+    }
+
+    /// <summary>每次仅有一轮独立巡检，不占调度协调循环；合法文件增长只预警，权限漂移仍使宿主停止。</summary>
+    public static async Task MonitorAsync(string directory,bool console,Action<long> capacityWarning,CancellationToken token,TimeSpan? frequency=null)
+    {
+        var warned=false;
+        using var interval=new PeriodicTimer(frequency??TimeSpan.FromSeconds(30));
+        while(await interval.WaitForNextTickAsync(token))
+        {
+            var count=await Task.Run(()=>Scan(directory,console,token),token).ConfigureAwait(false);
+            if(count>=CapacityWarningEntries&&!warned){capacityWarning(count);warned=true;}
+            if(count<CapacityWarningEntries)warned=false;
+        }
     }
 
     /// <summary>任何额外主体的允许 ACE 都可能泄露机器 DPAPI 密文；空 DACL 同样拒绝。</summary>

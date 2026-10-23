@@ -34,7 +34,7 @@ Worker 全局并发为 8 时，NationalTeam 总并发为 4：
 
 完整服务化夹具透传生产分组声明，配置保存断言改为“网络仍阻塞时经管理组完成”，同时保留旧修订拒绝和事实完整性检查。包中 Service、Abstractions、PluginHost、NationalTeam 完整双入口必须配套，不能只复制 Jobs 程序集到旧宿主。
 
-证据目录：`artifacts/national-team-concurrency-20261023/`。源码与合成来源回归不等于真实官网长期运行、正式服务部署或真实金融数据验收；本轮不替换已安装服务。
+证据目录：`artifacts/national-team-concurrency-20261023/`。源码与合成来源回归不等于真实官网长期运行、正式服务部署或真实金融数据验收。源码整改阶段未替换已安装服务；用户随后要求继续，已完成本机正式 Worker 更新，现场并发、数据保留及未通过的整页查询项见 [本机更新与现场验收](../validation/NATIONAL_TEAM_CONCURRENCY_INSTALLED_20261023.md)。
 
 本轮最终验证（均退出码 0）：
 

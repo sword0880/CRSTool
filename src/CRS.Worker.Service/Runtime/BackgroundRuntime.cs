@@ -34,7 +34,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try { _ = new CronExpression(cron); } catch (FormatException) { throw new ArgumentException("Cron 不合法。"); }
         TimeZoneInfo.FindSystemTimeZoneById(zone);
     }
-    private bool HasHandler(TaskDefinition plan) => catalog.Jobs.Any(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
+    private bool HasHandler(TaskDefinition plan) => catalog.CanDispatch(plan.PluginId)&&catalog.Jobs.Any(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
     private async Task TripFaultAsync(string state)
     {
         fault ??= state;
@@ -385,7 +385,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         {
             result=new("Cancelled");
             var drained=Task.WhenAll(work,source.Callbacks);
-            try { await drained.WaitAsync(TimeSpan.FromSeconds(2)); }
+            try { await drained.WaitAsync(TimeSpan.FromSeconds(handler.Session is IsolatedPluginSession?5:2)); }
             catch (TimeoutException) when(!drained.IsCompleted)
             {
                 await gate.WaitAsync(CancellationToken.None);
@@ -397,9 +397,11 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             catch (Exception) { }
             // 令牌取消不是业务回滚证明；收尾完成后保留插件实际返回的结果。
             if(work.IsCompletedSuccessfully)result=work.Result;
-            else if(work.IsFaulted)result=new("Failed","error="+work.Exception!.GetBaseException().GetType().Name);
+            else if(work.IsFaulted)result=work.Exception!.GetBaseException() is RunnerOutcomeUnknownException
+                ?new("Failed","RunnerOutcomeUnknown"):new("Failed","error="+work.Exception.GetBaseException().GetType().Name);
         }
         // 仅记录异常类型，不能把插件异常消息中的凭据、地址参数或本机路径写入公开日志。
+        catch (RunnerOutcomeUnknownException) {result=new("Failed","RunnerOutcomeUnknown");}
         catch (Exception error) { result = new("Failed","error="+error.GetType().Name[..Math.Min(error.GetType().Name.Length,128)]); }
         if (result.Status is not ("Succeeded" or "NotPublished" or "AccessBlocked" or "SourceSchemaChanged" or "RetryDeferred" or "Rejected" or "Failed" or "Cancelled") || result.Checkpoint?.Length > 1024) result = new("Failed");
         await gate.WaitAsync(CancellationToken.None);

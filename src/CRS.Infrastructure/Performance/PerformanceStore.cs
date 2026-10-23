@@ -121,14 +121,31 @@ internal sealed class PerformanceStore : IPerformanceStore
     }
     public bool Import(PerformanceDocument document)
     {
+        using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();
+        var added=Import(c,tx,document);tx.Commit();return added;
+    }
+    internal bool Import(Microsoft.Data.Sqlite.SqliteConnection c,Microsoft.Data.Sqlite.SqliteTransaction tx,PerformanceDocument document)
+    {
         if(document.Hash!=PerformanceCodec.Hash(document.Raw) || document.Raw.Length is <=0 or >25*1024*1024)throw new CrsException("绩效原件摘要或大小不一致。");
         ValidateProvenance(document);
-        var encoded=PerformanceCodec.Encode(document.Data);using var lease=session.Enter();using var c=session.Open();using var tx=c.BeginTransaction();
+        var encoded=PerformanceCodec.Encode(document.Data);
         var exists=c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents WHERE hash=@Hash",document,tx)>0;
         if(exists && document.Format!="YahooChartJSON")return false;
         if(!exists && (c.ExecuteScalar<int>("SELECT COUNT(*) FROM performance_documents",transaction:tx)>=500 || c.ExecuteScalar<long>("SELECT COALESCE(SUM(length(data)),0) FROM performance_documents",transaction:tx)+encoded.Length>128L*1024*1024))throw new CrsException("导入后绩效工作区会超过限额。");
         // 导入预检在同一事务中完成，冲突或重复成交现金汇总不留下半份资料。
         var currentSettings=ReadSettings(c,tx);var excluded=currentSettings.Sources.OrderBy(s=>s.CreatedAt).GroupBy(s=>s.Hash).Where(g=>!g.Last().Included).Select(g=>g.Key).ToHashSet();
+        currentSettings=PrepareIndexReplacement(c,tx,document,currentSettings,excluded);
+        var previous=c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents",transaction:tx).Where(r=>!excluded.Contains(r.Hash)).Select(r=>PerformanceCodec.Decode<PerformanceData>(r.Data));
+        var merged=Merge(previous.Append(document.Data));
+        ValidateMergedImport(merged);
+        if(!exists)c.Execute("INSERT INTO performance_documents VALUES(@Hash,@Name,@Format,@Raw,@data)",new{document.Hash,document.Name,document.Format,document.Raw,data=encoded},tx);
+        SaveProvenance(c,tx,document,currentSettings,exists);
+        Capacity(c,tx);return !exists;
+    }
+    /// <summary>仅在线指数更新需要调整来源选择；仍在调用者的同一事务中保留旧响应。</summary>
+    private static Settings PrepareIndexReplacement(Microsoft.Data.Sqlite.SqliteConnection c,Microsoft.Data.Sqlite.SqliteTransaction tx,
+        PerformanceDocument document,Settings currentSettings,HashSet<string> excluded)
+    {
         if(document.Format=="YahooChartJSON")
         {
             var symbol=document.Data.Prices.First(p=>p.Market=="INDEX").Security;
@@ -138,14 +155,14 @@ internal sealed class PerformanceStore : IPerformanceStore
             if(excluded.Remove(document.Hash))currentSettings=currentSettings with{Sources=[..currentSettings.Sources,new(document.Hash,true,"重新使用已缓存的指数响应。",CRS.Timing.BeijingClock.Now)]};
             c.Execute("UPDATE performance_settings SET payload=@payload WHERE id=1",new{payload=EncodeSettings(currentSettings)},tx);
         }
-        var previous=c.Query<(string Hash,byte[] Data)>("SELECT hash,data FROM performance_documents",transaction:tx).Where(r=>!excluded.Contains(r.Hash)).Select(r=>PerformanceCodec.Decode<PerformanceData>(r.Data));
-        var merged=Merge(previous.Append(document.Data));
+        return currentSettings;
+    }
+    /// <summary>复用既有资料一致性与规模约束，不改变金额、成本或绩效算法。</summary>
+    private static void ValidateMergedImport(PerformanceData merged)
+    {
         if(merged.Events.Any(e=>!merged.Accounts.Any(a=>a.Id==e.AccountId)) || merged.Valuations.Any(v=>!merged.Accounts.Any(a=>a.Id==v.AccountId)) || merged.Coverage.Any(v=>!merged.Accounts.Any(a=>a.Id==v.AccountId)))throw new CrsException("补录资料引用了不存在的账户，请先登记或导入账户。");
         if(merged.Accounts.Length>100 || merged.Events.Length>20000 || merged.Valuations.Length>20000 || merged.Prices.Length>50000 || merged.Fx.Length>50000)throw new CrsException("合并后的绩效资料超过集合限额。");
         if(merged.Accounts.Length>0)_=PerformanceCalculator.Calculate(merged,new(merged.Accounts.Select(a=>a.Id).ToArray(),new(2000,1,1),new(2000,1,2)));
-        if(!exists)c.Execute("INSERT INTO performance_documents VALUES(@Hash,@Name,@Format,@Raw,@data)",new{document.Hash,document.Name,document.Format,document.Raw,data=encoded},tx);
-        SaveProvenance(c,tx,document,currentSettings,exists);
-        Capacity(c,tx);tx.Commit();return !exists;
     }
     private static List<PerformanceData> ReadDocuments(Microsoft.Data.Sqlite.SqliteConnection c,Microsoft.Data.Sqlite.SqliteTransaction tx,Settings settings,HashSet<string> excluded)
     {

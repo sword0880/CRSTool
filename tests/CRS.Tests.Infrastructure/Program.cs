@@ -2,6 +2,7 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--calculation-commit"]){await CalculationCommitChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.CalculationCommit",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--futu-tax-provenance"]){await FutuTaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.FutuTaxProvenance",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--compare-futu-tax-before",var futuBaseline]){await FutuTaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.FutuTaxBefore",Guid.NewGuid().ToString("N")),futuBaseline);return;}
 if(args is ["--tax-provenance"]){await TaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.TaxProvenance",Guid.NewGuid().ToString("N")));return;}
@@ -60,6 +61,7 @@ await LocalKeyChecks.RunAsync(root);
 await PhoneSettingsChecks.RunAsync(root);
 await WindowsHelloChecks.RunAsync(root);
 await PerformanceChecks.RunAsync(root);
+await CalculationCommitChecks.RunAsync(Path.Combine(root,"calculation-commit"));
 await ExportChecks.RunAsync(root);
 await SensitiveExportChecks.RunAsync(root);
 await EncryptedExportChecks.RunAsync(root);

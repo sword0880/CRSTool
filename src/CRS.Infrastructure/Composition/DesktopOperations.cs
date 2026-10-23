@@ -18,12 +18,25 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public IExchangeRateProvider LoadRates() => new ExchangeRates(ConfigPath);
     /// <summary>装配年度计算所需基础设施。</summary>
     public CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025)
-        =>CalculationServices.Create(rates,broker,year,vault is null?null:(input,token,warnings,facts)=>
+        =>CalculationServices.Create(rates,broker,year);
+    public IDesktopCalculationSession BeginCalculation(IExchangeRateProvider rates,string broker,int year)
+    {
+        if(vault is null)return new DesktopCalculationSession(CreateCalculator(rates,broker,year),
+            (result,token)=>{token.ThrowIfCancellationRequested();repository.Save(result);});
+        var prepared=new List<CRS.Application.Performance.PerformanceDocument>();
+        long stagedBytes=0;
+        var calculator=CalculationServices.Create(rates,broker,year,(input,token,_,facts)=>
         {
             token.ThrowIfCancellationRequested();
-            try {vault.ImportSharedPerformance(input,broker,token,guard!,facts);}
-            catch(CrsException ex) {token.ThrowIfCancellationRequested();warnings.Add("证券流水已导入，但该报表的绩效资料同步未完成："+ex.Message);}
+            if(prepared.Any(x=>x.Hash==input.Sha256))return;
+            var document=vault.PrepareSharedPerformance(input,broker,token,guard!,facts);
+            stagedBytes+=document.Raw.LongLength+PerformanceCodec.Encode(document.Data).LongLength;
+            if(stagedBytes>128L*1024*1024)throw new CrsException("本次税务与绩效联合导入超过128MiB准备限额，请缩小导入批次。");
+            prepared.Add(document);
         });
+        return new DesktopCalculationSession(calculator,(result,token)=>vault.CommitCalculation(result,prepared,guard!,token),
+            ()=>{foreach(var document in prepared)System.Security.Cryptography.CryptographicOperations.ZeroMemory(document.Raw);prepared.Clear();});
+    }
     /// <summary>只读取本地查询 ID，不读取服务令牌。</summary>
     public string ReadQueryId() => FlexConfiguration.ReadQueryId(ConfigPath);
     /// <summary>读取并验证本地结转。</summary>

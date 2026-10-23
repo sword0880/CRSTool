@@ -213,3 +213,7 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 成交日志/查询取消：`CRS.Tests.Wpf --market-log`检查旧历史缺失计数、新收到/复用计数和ETF计数兼容；`CRS.Tests.WorkerEtf --cooling-progress`验证真实插件进度进入加密任务仓储、分类计数持久化及缺失/负数拒绝。`--raw-batch`另含正在等待的异步文件读取取消、句柄释放和I/O失败不返回部分结果；`--market-query-reliability`验证真实仓储查询取消释放门槛后采集继续、成交证据扫描范围、完整巡检仍发现无关损坏以及整页只读事务不抢占写锁。全部为隔离数据，不代表正式服务未发生中断。`CRS.Tests.Background --lifecycle-only`另检查操作级诊断、耗时及URL/参数拒绝，保留原有失控退出回归。
 
 `CRS.Tests.WorkerEtf --installed-dashboard-probe`只读调用正式主页面的整页分页查询，输出概览/历史/成交行数、总时间，并要求查询前后健康Running及同一进程；失败输出Unavailable/分类，不把失败解释成空集合。繁忙时可能超时，不代表采集已中断。
+
+## 2026-10-23架构四项整改专项
+
+当前Release构建后可分别运行Infrastructure的--calculation-commit、NationalTeamWatch的--read-isolation、Background的--supervised-plugins与--storage-growth。均使用合成资料和隔离目录；storage-growth会创建101000个空文件，需预留目录容量和测试时间。受限环境将TEMP/TMP指向工作区独立artifacts目录。监督专项使用真实子进程、Job Object和持久回执，不操作已安装服务。范围见[实施记录](../docs/implementation/ARCH_OPTIMIZATION_20261023.md)。

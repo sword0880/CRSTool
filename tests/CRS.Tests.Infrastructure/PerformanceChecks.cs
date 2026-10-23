@@ -39,11 +39,12 @@ internal static class PerformanceChecks
             File.WriteAllText(sharedPath,"<FlexQueryResponse type=\"AF\"><FlexStatements><FlexStatement accountId=\"SHARED\" fromDate=\"20250101\" toDate=\"20251231\"><Trades/><CashTransactions/><OpenPositions/></FlexStatement></FlexStatements></FlexQueryResponse>");
             var originalHash=FrozenInput.Read(sharedPath).Sha256;
             var sharedOperations=new DesktopOperations(sharedVault.Repository,"",sharedVault);
-            var parsed=sharedOperations.CreateCalculator(new SharedRates()).Calculate([sharedPath],2025,true,true);
+            using var sharedImport=sharedOperations.BeginCalculation(new SharedRates(),"IBKR",2025);
+            var parsed=sharedImport.Calculator.Calculate([sharedPath],2025,true,true);sharedImport.Commit(parsed,default);
             var shared=await sharedCases.LoadAsync();
             if(shared.AccountIdentities.Single().AccountNumber!="SHARED")throw new Exception("IBKR 展示账号未从真实原件取得。");
             if(shared.Data.Accounts.Length!=1 || shared.Sources.Single().Hash!=originalHash || !parsed.Sources.Any(s=>s.Sha256.Equals(originalHash,StringComparison.OrdinalIgnoreCase))) throw new Exception("证券流水与绩效没有共用同一份原件。");
-            sharedOperations.CreateCalculator(new SharedRates()).Calculate([sharedPath],2025,true,true);
+            using(var repeat=sharedOperations.BeginCalculation(new SharedRates(),"IBKR",2025)){var repeated=repeat.Calculator.Calculate([sharedPath],2025,true,true);repeat.Commit(repeated,default);}
             if((await sharedCases.LoadAsync()).Sources.Length!=1) throw new Exception("重算证券流水重复导入了绩效资料。");
         }
         var json=JsonSerializer.Serialize(Fixture(),Json);

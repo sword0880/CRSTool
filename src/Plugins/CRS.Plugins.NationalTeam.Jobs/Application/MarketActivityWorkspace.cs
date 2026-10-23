@@ -5,8 +5,8 @@ public sealed partial class EtfWorkspace
 {
     private IMarketActivitySource? activitySource;
     public void SetMarketActivitySource(IMarketActivitySource source)=>activitySource=source;
-    public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>RunAsync(()=>repository!.MarketActivity(),token);
-    public Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>RunAsync(()=>repository!.MarketActivityRevisions(),token);
+    public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>ReadAsync(current=>current.MarketActivity(),token);
+    public Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>ReadAsync(current=>current.MarketActivityRevisions(),token);
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token)=>ReviewMarketActivityAsync(id,accept,reviewer,token,null);
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.ReviewMarketActivity(id,accept,reviewer,commandId);return true;},token);
     public async Task<MarketActivitySyncReport> SyncRecentMarketActivityAsync(CancellationToken token)

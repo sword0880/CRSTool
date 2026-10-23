@@ -6,9 +6,7 @@ using CRS.Worker.PluginHost;
 namespace CRS.Worker.PluginRunner;
 
 /// <summary>
-/// Experimental stdio-framed runner for the process-isolation spike only.
-/// Production Worker does not launch this process. Stdio is used here to prove
-/// bounded serialization and lifecycle ownership before choosing production IPC.
+/// 进程入口：正式宿主使用--supervised进入V2监督协议；无该参数时保留旧V1原型供兼容测试。
 /// </summary>
 internal static class Program
 {
@@ -18,6 +16,7 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        if(args.Contains("--supervised",StringComparer.Ordinal))return await SupervisedRunner.RunAsync(args);
         try
         {
             // Reserve stdout exclusively for framed protocol bytes before plugin startup.

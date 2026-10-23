@@ -34,6 +34,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         // 共用宿主锁定的原生提供器版本，但不共用税务连接或加密密钥。
         SQLitePCL.Batteries_V2.Init();
         db = new(new SqliteConnectionStringBuilder { DataSource = Path.Combine(dataPath, "market.db"), Password=Convert.ToHexString(encryptionKey),Pooling = false }.ToString()); db.Open();
+        readConnectionString=new SqliteConnectionStringBuilder(db.ConnectionString){Mode=SqliteOpenMode.ReadOnly}.ToString();
         Execute("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
         var version = Convert.ToInt32(Scalar("PRAGMA user_version;"));
         // 测试阶段直接使用Worker专用格式，不把旧桌面库或旧测试格式当作当前数据。
@@ -62,6 +63,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
             CREATE INDEX IF NOT EXISTS ix_etf_collection_transition ON etf_collection_transition(attempt_id,sequence);
             CREATE TABLE IF NOT EXISTS trading_day(market TEXT,trade_date TEXT,fetch_id TEXT NOT NULL,PRIMARY KEY(market,trade_date),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             CREATE TABLE IF NOT EXISTS share_observation_revision(revision_id TEXT PRIMARY KEY,market TEXT,ticker TEXT,trade_date TEXT,total_shares TEXT NOT NULL,original_value TEXT NOT NULL,original_unit TEXT NOT NULL,fetch_id TEXT NOT NULL,revision_no INTEGER NOT NULL,accepted_at TEXT,first_seen TEXT NOT NULL,status TEXT NOT NULL,supersedes_id TEXT,UNIQUE(market,ticker,trade_date,revision_no),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
+            CREATE INDEX IF NOT EXISTS ix_share_evidence_date ON share_observation_revision(trade_date DESC,revision_no DESC,revision_id);
             CREATE TABLE IF NOT EXISTS share_accepted_current(market TEXT,ticker TEXT,trade_date TEXT,revision_id TEXT NOT NULL,PRIMARY KEY(market,ticker,trade_date),FOREIGN KEY(revision_id) REFERENCES share_observation_revision(revision_id));
             CREATE TABLE IF NOT EXISTS quality_issue(id TEXT PRIMARY KEY,rule_id TEXT NOT NULL,rule_version TEXT NOT NULL,target_id TEXT NOT NULL,severity TEXT NOT NULL,status TEXT NOT NULL,evidence_id TEXT NOT NULL,reviewer TEXT,decision_time TEXT);
             CREATE INDEX IF NOT EXISTS ix_quality_evidence_rule_status ON quality_issue(evidence_id,rule_id,status);
@@ -203,11 +205,11 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     /// <summary>先过滤证券再返回证据，单只历史不会挤占全池查询的分页容量。</summary>
     public List<EvidenceRow> Evidence(EtfKey key){ValidateEvidence(key);return ReadEvidence(key);}
-    private List<EvidenceRow> ReadEvidence(EtfKey? key=null)
+    private List<EvidenceRow> ReadEvidence(EtfKey? key=null,DateOnly? from=null,DateOnly? to=null,int maximumRows=-1)
     {
-        using var command=Command("SELECT r.revision_id,r.market,r.ticker,r.trade_date,r.total_shares,CASE WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open') THEN 'Critical' ELSE r.status END,r.revision_no,f.sha256,f.original_sha256,f.source_url,f.retrieved_utc,r.first_seen,r.accepted_at,r.supersedes_id FROM share_observation_revision r JOIN source_fetch f ON f.fetch_id=r.fetch_id WHERE ($m IS NULL OR (r.market=$m AND r.ticker=$t)) ORDER BY r.trade_date DESC,r.revision_no DESC",("$m",key?.Market),("$t",key?.Ticker));
+        using var command=Command("SELECT r.revision_id,r.market,r.ticker,r.trade_date,r.total_shares,CASE WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open') THEN 'Critical' ELSE r.status END,r.revision_no,f.sha256,f.original_sha256,f.source_url,f.retrieved_utc,r.first_seen,r.accepted_at,r.supersedes_id FROM share_observation_revision r JOIN source_fetch f ON f.fetch_id=r.fetch_id WHERE ($m IS NULL OR (r.market=$m AND r.ticker=$t)) AND ($from IS NULL OR r.trade_date>=$from) AND ($to IS NULL OR r.trade_date<=$to) ORDER BY r.trade_date DESC,r.revision_no DESC,r.revision_id LIMIT $limit",("$m",key?.Market),("$t",key?.Ticker),("$from",from?.ToString("yyyy-MM-dd")),("$to",to?.ToString("yyyy-MM-dd")),("$limit",maximumRows));
         using var reader=command.ExecuteReader(); var rows=new List<EvidenceRow>();
-        while(reader.Read()) rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5),reader.GetInt32(6),reader.GetString(7),reader.GetString(8),reader.GetString(9),reader.GetString(10),reader.GetString(11),reader.IsDBNull(12)?null:reader.GetString(12),reader.IsDBNull(13)?null:reader.GetString(13)));
+        while(reader.Read()){CheckReadLimit(rows.Count+1);rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5),reader.GetInt32(6),reader.GetString(7),reader.GetString(8),reader.GetString(9),reader.GetString(10),reader.GetString(11),reader.IsDBNull(12)?null:reader.GetString(12),reader.IsDBNull(13)?null:reader.GetString(13)));}
         return rows;
     }
     public List<DateOnly> Calendar(string market)
@@ -233,9 +235,10 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private List<EtfHistoryPoint> ReadHistory(EtfKey? key)
     {
         var keys=key is null?Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToArray():[key];
+        var calendars=keys.Select(x=>x.Market).Distinct().ToDictionary(x=>x,ReadCalendar);
         return EtfHistory.Calculate(keys.Select(k=>
         {
-            var calendar=ReadCalendar(k.Market);
+            var calendar=calendars[k.Market];
             var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
             return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Where(x=>x.Date<=today).Select(x=>x.Date).ToArray():[],ReadPoints(k));
         }).ToArray());
@@ -367,15 +370,32 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         var securities=new List<(string Market,string Ticker,string Name,string Index,string Label)>();
         using(var command=Command("SELECT s.market,s.ticker,s.name,s.index_group,w.review_status FROM security_master s JOIN watchlist_membership w USING(market,ticker) WHERE w.active=1"))
         using(var reader=command.ExecuteReader()) while(reader.Read()) securities.Add((reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4)));
-        var allEvidence=ReadEvidence();
+        var calendars=securities.Select(x=>x.Market).Distinct().ToDictionary(x=>x,ReadCalendar);
+        var issues=ReadOverviewIssues();
         return securities.Select(s=>
         {
-            var points=ReadPoints(new(s.Market,s.Ticker)); var last=points.LastOrDefault(); var calendar=ReadCalendar(s.Market);
+            var points=ReadPoints(new(s.Market,s.Ticker)); var last=points.LastOrDefault(); var calendar=calendars[s.Market];
             var calendarValid=calendar.All(x=>x.Valid);var days=calendarValid?calendar.Select(x=>x.Date).ToList():[];
             Metric Calculate(int window)=>last is null?new(null,null,"Incomplete",""):EtfMetrics.Calculate(last.Date,window,days,points);
-            var issue=allEvidence.Where(x=>x.Market==s.Market && x.Ticker==s.Ticker && x.State is "Critical" or "NeedsReview").Select(x=>x.State).FirstOrDefault();
+            var issue=issues.GetValueOrDefault((s.Market,s.Ticker));
             return new EtfSummary(s.Market,s.Ticker,s.Name,s.Index,s.Label,last?.Date,last?.Shares,Calculate(1).DeltaShares,Calculate(5).DeltaShares,Calculate(20).DeltaShares,!calendarValid?"CalendarCritical":issue??(last is null?"无有效数据":Calculate(1).State),points.Count);
         }).ToList();
+    }
+    private Dictionary<(string Market,string Ticker),string> ReadOverviewIssues()
+    {
+        using var command=Command("""
+            WITH issues AS (
+                SELECT r.market,r.ticker,r.trade_date,r.revision_no,
+                    CASE WHEN EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=r.fetch_id AND q.rule_id='Q15' AND q.status='Open')
+                        THEN 'Critical' ELSE r.status END AS state
+                FROM share_observation_revision r), ranked AS (
+                SELECT market,ticker,state,row_number() OVER(PARTITION BY market,ticker ORDER BY trade_date DESC,revision_no DESC) AS n
+                FROM issues WHERE state IN ('Critical','NeedsReview'))
+            SELECT market,ticker,state FROM ranked WHERE n=1
+            """);
+        using var reader=command.ExecuteReader();var result=new Dictionary<(string,string),string>();
+        while(reader.Read()){operationCancellation.ThrowIfCancellationRequested();result.Add((reader.GetString(0),reader.GetString(1)),reader.GetString(2));}
+        return result;
     }
     public CoverageReport Coverage(EtfKey key,DateOnly from,DateOnly to)
     {

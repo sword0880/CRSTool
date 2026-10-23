@@ -4,6 +4,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
+if(args is ["--read-isolation"]){await ReadIsolationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ReadIsolation",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--etf-loading"]){await EtfLoadingChecks.Run();return;}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
@@ -59,6 +60,7 @@ Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,
 Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,510300,2026-09-01,2,份\nSSE,510300,2026-09-01,2,份"),"Duplicate file rows rejected");
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
 await P0RemediationChecks.Run(root);
+await ReadIsolationChecks.RunAsync(Path.Combine(root,"read-isolation"));
 await BusinessContractChecks.Run(Path.Combine(root,"business-contracts"));
 ExitAlertChecks.Run(Path.Combine(root,"exit-alerts"));
 ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));

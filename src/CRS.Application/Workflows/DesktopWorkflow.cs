@@ -81,11 +81,12 @@ public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotif
         var rates = operations.LoadRates();
         var carry = request.UseCarry && request.OpeningPath is not null ? operations.ReadCarry(request.OpeningPath) : null;
         var periods=request.AccountPeriodsPath is null?null:operations.ReadAccountPeriods(request.AccountPeriodsPath,cancellation);
-        var result = operations.CreateCalculator(rates, request.Broker, request.Year).Calculate(request.Files, request.Year,
+        using var calculation = operations.BeginCalculation(rates,request.Broker,request.Year);
+        var result = calculation.Calculator.Calculate(request.Files, request.Year,
             request.OpeningZero, request.ScopeConfirmed, request.UseCarry ? null : request.OpeningPath,
             carry, cancellation, request.SaveCanonicalSnapshot,periods);
         cancellation.ThrowIfCancellationRequested();
-        operations.Repository.Save(result);
+        calculation.Commit(result,cancellation);
         return new DesktopCalculationOutcome(result, rates.Fingerprint);
     }, cancellation);
 

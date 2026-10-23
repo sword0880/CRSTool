@@ -37,6 +37,9 @@ jobs:
       - name: Verify synthetic ServiceKey recovery envelope rejection matrix
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --service-key-recovery
+      - name: Verify storage growth above the former entry limit and fail-closed ACL checks
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --storage-growth
       - name: Verify one-time recovery export authorization and audit failure boundary
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --recovery-export-authorization

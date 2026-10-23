@@ -1,5 +1,7 @@
 # 当前架构入口
 
+2026-10-23反方评审R01～R04候选整改：Application显式联合导入提交、国家队独立只读快照与有界证据查询、正式源码组合根默认每插件Runner监督、ACL巡检与容量预警分离。工作区源码已接线，未替换已安装服务，验证与剩余边界见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
+
 2026-10-23 阶段 2a 新增 RecoveryExportSession 内部确认/审计状态机及 ServiceKey.OpenExisting 只读入口；尚未接到 Worker 运行时/管道，未改变生产导出权限或调度流程。[验证与剩余接线门槛](../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)。
 
 2026-10-23 ServiceKey 灾备第一阶段：新增内部内存恢复封装组件与合成负例，未接入生产启动/IPC/CLI，主密钥仍由原有机器 DPAPI/SID/ACL 保护。授权导出、目标重封装/只读验库与激活尚未实现，详见[分阶段安全审查](WORKER_SERVICE_KEY_RECOVERY.md)；ARCH-005 / P0-02 保持 Open。
@@ -23,7 +25,7 @@
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
 | CRS.Worker.Abstractions | CRS.Time | 后台会话、任务、查询及存储上下文契约 |
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
-| CRS.Worker.PluginRunner | CRS.Worker.PluginHost | 测试原型：stdio 帧协议；未由 Worker Service 启动，不是生产执行路径 |
+| CRS.Worker.PluginRunner | CRS.Worker.PluginHost | 每插件监督进程、私有stdio双向协议、上下文能力代理；正式源码组合根已启动，部署另验 |
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Named Pipes、Windows 身份授权及请求协议 |
 | CRS.Notifications | CRS.Time | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
@@ -65,7 +67,8 @@ flowchart LR
     IPC --> Service[CRS.Worker.Service / Program.cs]
     Service --> Quartz[Quartz / RAMJobStore]
     Service --> Tasks[SQLCipher 任务库]
-    Quartz --> Jobs[后台 PluginHost / Jobs Session]
+    Quartz --> Runner[每插件 PluginRunner / Job Object]
+    Runner --> Jobs[后台 PluginHost / Jobs Session]
     Jobs --> Market[独立 SQLCipher 市场库 / 原始来源证据]
 ```
 
@@ -81,9 +84,9 @@ Worker维护由`tools/background/Upgrade-Service.ps1`、`Recover-Service.ps1`及
 
 协议真相位于 `src/CRS.Worker.Ipc`：只读和管理管道分离；读取经过 Windows 身份认证，修改要求管理员。版本不兼容、未知命令和不支持的查询必须显式失败。管理命令使用持久请求 ID 和修订号；响应不确定时重发原请求。Jobs/History 为有界游标分页，历史筛选在分页之前执行。
 
-后台加载顺序：管理员控制的信任索引 → 完整包文件哈希/契约/依赖核验 → 加载入口 → Start → 独立注册查询会话 → DescribeJobs → 注册持久计划 → Quartz。纯查询插件允许 DescribeJobs 为空。单包初始化失败隔离；不响应取消的插件由正式宿主终止进程保护存储。停止先撤销请求、进入维护，取消并排空查询和任务，再释放会话、连接和密钥。插件查询不持 Worker 全局锁，同插件仅允许一个在途查询，超额返回 PluginBusy；普通查询异常不冒充任务仓储全局故障。
+后台加载顺序：管理员控制的信任索引 → 完整包文件哈希/契约/依赖核验 → 启动受监督Runner并复核加载入口 → Start → 独立注册查询会话 → DescribeJobs → 注册持久计划 → Quartz。纯查询插件允许 DescribeJobs 为空。单包初始化失败隔离；不响应取消的插件由正式宿主终止对应Runner并确认退出以保护存储。停止先撤销请求、进入维护，取消并排空查询和任务，再释放会话、连接和密钥。插件查询不持 Worker 全局锁，同插件仅允许一个在途查询，超额返回 PluginBusy；普通查询异常不冒充任务仓储全局故障。
 
-当前插件是**受信任同进程代码，不是沙箱**。ALC 和哈希不限制操作系统权限。生产安装器要求外部指定发布者并验证 CMS 发行签名；开发包需显式豁免。运行时信任索引依赖管理员保护，尚未形成完整的签名轮换及第三方隔离体系。任何第三方支持须另行评审。 分阶段隔离提案见[Worker 后台插件进程隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)。新增 PluginRunner 仅为 stdio 原型，当前生产 Worker 仍在进程内加载插件；该原型不提供生产管道、能力代理或 OS 安全沙箱。
+正式源码组合根现将**可信第一方插件放入独立Runner进程，仍不是权限沙箱**。私有继承stdio、包摘要/挑战/PID绑定与Job Object提供故障范围和资源约束；通知、来源预算和进度仍由Worker代理。相同服务身份不限制插件的OS文件/网络权限。安装器继续要求CMS发行签名，开发包需显式豁免，第三方权限隔离仍须评审。详见[隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)及[已接线范围](../implementation/ARCH_OPTIMIZATION_20261023.md)。旧V1原型入口仍仅供既有测试，正式监督入口使用独立V2协议。
 
 ## 后台并发与等待预算
 
@@ -113,7 +116,7 @@ Quartz仍是唯一执行生命周期所有者。`BackgroundRuntime.Scheduling.cs
 NationalTeam插件业务DTO现由Core的`EtfBusinessProtocol`独立管理V1版本；未知版本明确拒绝。Host IPC 2、加载契约2.0及市场持久Schema2仍独立，兼容范围见[业务契约](NATIONALTEAM_BUSINESS_CONTRACT.md)。
 
 
-可信后台插件超出协作取消收尾期后，Catalog进入需要进程重启的终止状态；不再分派或释放仍被使用的会话。Worker健康返回PluginUnresponsive并拒绝新工作，Service继续使用既有退出码2策略。生命周期日志带插件ID/阶段和异常分类，不写异常消息；此机制不构成进程隔离。详见[ARCH-207续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。
+旧进程内Catalog在超出协作取消收尾期后仍进入需要进程重启的终止状态，保留退出码2的存储保护策略。正式源码组合根使用Runner代理，失控时只终止对应进程树并确认退出，记录结果未知，按冷却和启动预算恢复；Worker及其余插件继续响应。生命周期日志仅含插件ID、阶段和分类，见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
 
 
 IBKR税务/绩效/现金对账/账号展示通过统一`IbkrSourceReader`消费Application不可变`BrokerSourceDocument`；证券流水同步绩效传递实际来源快照，不重复解析。投影与算法仍独立；绩效导入及新历史已保存读取/投影版本，设置JSON写2、读1，税务独立历史版本和完整类型化投资事实尚未关闭，见[共享来源事实](BROKER_SOURCE_FACTS.md)。

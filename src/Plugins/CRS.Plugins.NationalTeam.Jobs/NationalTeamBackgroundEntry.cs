@@ -233,7 +233,14 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     public async Task<string> QueryAsync(string payload,CancellationToken token)
     {
         // 网络采集等待期间仍可查询已提交事实；数据库访问由 workspace 自身串行化。
-        string SerializeRow<T>(T value){token.ThrowIfCancellationRequested();return JsonSerializer.Serialize(value);}
+        var serializedRows=0;var serializedBytes=0;
+        string SerializeRow<T>(T value)
+        {
+            token.ThrowIfCancellationRequested();var row=JsonSerializer.Serialize(value);
+            serializedBytes+=System.Text.Encoding.UTF8.GetByteCount(row);
+            if(++serializedRows>10000||serializedBytes>2*1024*1024)throw new ArgumentException("查询结果超过限额，请缩小查询范围。");
+            return row;
+        }
         EtfRequest request;
         try{request=Parse(payload);}
         catch(EtfContractException error){return JsonSerializer.Serialize(new EtfContractFailure(error.Code));}
@@ -255,6 +262,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 if(!snapshots.TryGetValue(existing,out var cached) || cached.Request!=canonical)throw new ArgumentException("查询快照已过期或参数改变，请刷新。");
                 return Page(existing,cached.Rows,cached.Metadata,request);
             }
+            if(snapshots.Count>=8)throw new ArgumentException("查询快照额度已满，请稍后刷新。");
             string? metadata=null;
             string[] rows;
             switch(request.Operation)
@@ -295,7 +303,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "equity-reports":rows=(await workspace!.EquityReportsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "evidence":
                     // 按证券过滤必须发生在快照分页和容量校验之前。
-                    rows=(request.Market is null&&request.Ticker is null?await workspace!.EvidenceAsync(token):await workspace!.EvidenceAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
+                    if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
+                    rows=(await workspace!.EvidenceAsync(request.Market is null?null:Key(request),request.From,request.To,token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "history":
                     if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
                     rows=(await workspace!.HistoryAsync(request.Market is null?null:Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;

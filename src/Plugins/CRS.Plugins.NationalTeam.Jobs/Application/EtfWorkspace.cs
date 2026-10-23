@@ -25,10 +25,10 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     {
         // 单写入者门槛也用于查询，避免同一SQLite连接被界面命令并发使用。
         await gate.WaitAsync(token).ConfigureAwait(false);
-        try { return await Task.Run(()=>repository is {} current?current.ExecuteOperation(work,token):work(),token).ConfigureAwait(false); } finally {gate.Release();}
+        try { ObjectDisposedException.ThrowIf(disposed,this);return await Task.Run(()=>repository is {} current?current.ExecuteOperation(work,token):work(),token).ConfigureAwait(false); } finally {gate.Release();}
     }
-    public Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>RunAsync(()=>repository!.Overview(),token);
-    public Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>RunAsync(()=>repository!.Configuration(),token);
+    public Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>ReadAsync(current=>current.Overview(),token);
+    public Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>ReadAsync(current=>current.Configuration(),token);
     public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>SaveConfigurationAsync(key,name,index,active,reason,expectedRevision,token,null);
     /// <summary>配置变更同样经过服务单写门槛和稳定命令去重。</summary>
     public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.SaveConfiguration(key,name,index,active,reason,expectedRevision,commandId);return true;},token);
@@ -185,15 +185,15 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         }
         finally{integrityGate.Release();}
     }
-    public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>RunAsync(()=>repository!.Evidence(),token);
-    public Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.Evidence(key),token);
-    public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>RunAsync(()=>repository!.History(key),token);
-    public Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.Points(key),token);
+    public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>ReadAsync(current=>current.Evidence(),token);
+    public Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>ReadAsync(current=>current.Evidence(key),token);
+    public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>ReadAsync(current=>current.History(key),token);
+    public Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>ReadAsync(current=>current.Points(key),token);
     /// <summary>在后台查询日历口径内的覆盖状态，不以份额记录本身推断交易日。</summary>
-    public Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>RunAsync(()=>repository!.Coverage(key,from,to),token);
-    public Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>RunAsync(()=>repository!.CollectionAttempts(key,from,to),token);
-    public Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)=>RunAsync(()=>repository!.Acceptance(through),token);
-    public Task<List<EtfAcceptance>> AcceptanceAsync(EtfKey key,DateOnly through,CancellationToken token)=>RunAsync(()=>repository!.Acceptance(key,through),token);
+    public Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>ReadAsync(current=>current.Coverage(key,from,to),token);
+    public Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>ReadAsync(current=>current.CollectionAttempts(key,from,to),token);
+    public Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)=>ReadAsync(current=>current.Acceptance(through),token);
+    public Task<List<EtfAcceptance>> AcceptanceAsync(EtfKey key,DateOnly through,CancellationToken token)=>ReadAsync(current=>current.Acceptance(key,through),token);
     /// <summary>仅允许导出已登记修订的证据；目标文件安全和哈希验证由基础设施处理。</summary>
     public async Task ExportEvidenceAsync(string revisionId,bool original,string destination,CancellationToken token)
     {
@@ -230,5 +230,10 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     /// <summary>稳定命令标识随业务事务提交，防止调度记录提交前强杀导致重复审核或池变更。</summary>
     public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token,Guid? commandId)=>RunAsync(()=> {repository!.Review(id,accept,reviewer,comparableConfirmed,commandId);return true;},token);
     public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token,Guid? commandId)=>RunAsync(()=> {repository!.SetMembership(key,name,index,active,reason,commandId);return true;},token);
-    public async ValueTask DisposeAsync() {await gate.WaitAsync().ConfigureAwait(false);try {repository?.Dispose();repository=null;}finally {gate.Release();} }
+    public async ValueTask DisposeAsync()
+    {
+        await readGate.WaitAsync().ConfigureAwait(false);
+        try{await gate.WaitAsync().ConfigureAwait(false);try{disposed=true;repository?.Dispose();repository=null;}finally{gate.Release();}}
+        finally{readGate.Release();}
+    }
 }

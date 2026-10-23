@@ -20,8 +20,13 @@ public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescripto
 
 /// <summary>只加载后台入口。完整包哈希验证后，私有依赖仍逐次校验，禁止链接逃逸。</summary>
 public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null,
-    Func<string,IBackgroundHostContext>? hostContext = null, Action<string,string,string>? lifecycleDiagnostic = null) : IAsyncDisposable
+    Func<string,IBackgroundHostContext>? hostContext = null, Action<string,string,string>? lifecycleDiagnostic = null,
+    Func<TrustedPackage,IBackgroundPluginSession>? processSessions=null) : IAsyncDisposable
 {
+    // 保留既有四参数构造入口；进程监督是宿主新增装配能力，不改变旧测试/宿主的调用签名。
+    public BackgroundPluginCatalog(TimeSpan? lifecycleTimeout,Action? onUnresponsive,
+        Func<string,IBackgroundHostContext>? hostContext,Action<string,string,string>? lifecycleDiagnostic)
+        :this(lifecycleTimeout,onUnresponsive,hostContext,lifecycleDiagnostic,null){}
     private readonly List<(string Plugin,IBackgroundPluginSession Session)> sessions = [];
     private PluginLifecycleTimeoutException? terminalFault;
     public bool RequiresProcessRestart=>Volatile.Read(ref terminalFault) is not null;
@@ -30,9 +35,13 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     private readonly List<HostedBackgroundJob> jobs = [];
     // 查询能力独立于任务描述列表，支持零 Job 插件。
     private readonly Dictionary<string,IBackgroundQuerySession> querySessions = new(StringComparer.Ordinal);
+    public bool SupportsQueries(string plugin)=>querySessions.ContainsKey(plugin);
     private readonly List<BackgroundPluginStatus> statuses = [];
     public IReadOnlyList<HostedBackgroundJob> Jobs => jobs;
-    public IReadOnlyList<BackgroundPluginStatus> Statuses => statuses;
+    public IReadOnlyList<BackgroundPluginStatus> Statuses => statuses.Select(status=>
+        sessions.FirstOrDefault(x=>x.Plugin==status.PluginId).Session is IsolatedPluginSession {FailureCode:{} code}
+            ?new BackgroundPluginStatus(status.PluginId,"Failed",code):status).ToArray();
+    public bool CanDispatch(string plugin)=>sessions.FirstOrDefault(x=>x.Plugin==plugin).Session is not IsolatedPluginSession isolated||isolated.CanRun;
     /// <summary>查询仅分派到已成功启动的插件，并沿用有界生命周期等待策略。</summary>
     public async Task<string> QueryAsync(string plugin,string payload,CancellationToken token)
     {
@@ -61,7 +70,9 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     }
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
-    public async Task LoadAsync(string root, string trustFile, CancellationToken token)
+    public Task LoadAsync(string root,string trustFile,CancellationToken token)=>LoadCoreAsync(root,trustFile,null,token);
+    public Task LoadSingleAsync(string root,string trustFile,string pluginId,CancellationToken token)=>LoadCoreAsync(root,trustFile,pluginId,token);
+    private async Task LoadCoreAsync(string root, string trustFile,string? selectedPlugin, CancellationToken token)
     {
         EnsureResponsive();
         if (!File.Exists(trustFile)) throw new InvalidDataException("缺少宿主信任索引，拒绝启动后台任务。");
@@ -74,6 +85,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
         {
             if (!ValidId(package.Id) || !ids.Add(package.Id) || package.Files.Count is < 1 or > 256)
                 throw new InvalidDataException("插件标识重复或不合法。");
+            if(selectedPlugin is not null&&package.Id!=selectedPlugin)continue;
             IBackgroundPluginSession? session = null;
             VerifiedContext? context = null;
             try
@@ -90,9 +102,12 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             if (manifest.Id != package.Id || manifest.Version != package.Version || manifest.HostContract != "2.0")
                 throw new InvalidDataException("插件版本或契约不兼容。");
             if (manifest.BackgroundEntry is not { } entry) continue; // UI-only 发行包不进入后台会话。
+            RejectDesktopDependencies(Contained(directory, entry.Assembly));
+            if(processSessions is not null)session=processSessions(package);
+            else
+            {
             context = new VerifiedContext(directory, package.Files);
             contexts.Add(context);
-            RejectDesktopDependencies(Contained(directory, entry.Assembly));
             var assembly = context.LoadFromAssemblyPath(Contained(directory, entry.Assembly));
             await InvokeAsync(package.Id,"CreateSession",_ =>
             {
@@ -102,6 +117,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
                     ? contextual.CreateSession(hostContext?.Invoke(package.Id) ?? throw new InvalidDataException("缺少后台存储上下文。"))
                     : instance.CreateSession(); return Task.CompletedTask;
             }, token);
+            }
             if (session is null) throw new InvalidDataException("后台入口未建立会话。");
             sessions.Add((package.Id,session));
             await InvokeAsync(package.Id,"Start",cancellation => session.StartAsync(cancellation).AsTask(), token);
@@ -165,7 +181,7 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             try { await task.WaitAsync(deadline.Token); }
             catch (OperationCanceledException) when (!task.IsCompleted)
             {
-                try { await task.WaitAsync(TimeSpan.FromSeconds(1)); }
+                try { await task.WaitAsync(TimeSpan.FromSeconds(sessions.Any(x=>x.Plugin==plugin&&x.Session is IsolatedPluginSession)?5:1)); }
                 catch (TimeoutException) when (!task.IsCompleted)
                 {
                     _ = task.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);

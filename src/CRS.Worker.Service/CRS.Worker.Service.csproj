@@ -9,6 +9,7 @@
     <ProjectReference Include="../CRS.Worker.PluginHost/CRS.Worker.PluginHost.csproj" />
     <ProjectReference Include="../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
     <ProjectReference Include="../CRS.Notifications/CRS.Notifications.csproj" />
+    <ProjectReference Include="../CRS.Worker.PluginRunner/CRS.Worker.PluginRunner.csproj" ReferenceOutputAssembly="false" Private="false" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="Quartz" />
@@ -16,4 +17,18 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
+  <!-- 按本次实际构建输出定位Runner，支持普通构建、测试传递复制以及自定义输出目录。 -->
+  <Target Name="IncludeSupervisedRunner" BeforeTargets="_GetCopyToOutputDirectoryItemsFromThisProject;GetCopyToPublishDirectoryItems"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="$(MSBuildProjectDirectory)/../CRS.Worker.PluginRunner/CRS.Worker.PluginRunner.csproj"
+             Targets="GetTargetPath" Properties="Configuration=$(Configuration)" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_SupervisedRunnerAssembly" />
+    </MSBuild>
+    <PropertyGroup><_SupervisedRunnerDirectory>@(_SupervisedRunnerAssembly->'%(RootDir)%(Directory)')</_SupervisedRunnerDirectory></PropertyGroup>
+    <ItemGroup>
+      <_SupervisedRunnerContent Include="$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.exe;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.dll;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.deps.json;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.runtimeconfig.json;$(_SupervisedRunnerDirectory)CRS.Worker.PluginHost.dll;$(_SupervisedRunnerDirectory)CRS.Worker.Abstractions.dll;$(_SupervisedRunnerDirectory)CRS.Time.dll" />
+      <ContentWithTargetPath Include="@(_SupervisedRunnerContent)"
+                            TargetPath="Runner/%(_SupervisedRunnerContent.Filename)%(_SupervisedRunnerContent.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
 </Project>

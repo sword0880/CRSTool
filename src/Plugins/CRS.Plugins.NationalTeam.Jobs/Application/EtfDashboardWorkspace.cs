@@ -3,6 +3,6 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 
 public sealed partial class EtfWorkspace : IEtfDashboardWorkspace
 {
-    public Task<EtfDashboard?> DashboardAsync(EtfKey? key,CancellationToken token)=>RunAsync<EtfDashboard?>(()=>
-        repository is IEtfDashboardRepository dashboard?dashboard.Dashboard(key):null,token);
+    public Task<EtfDashboard?> DashboardAsync(EtfKey? key,CancellationToken token)=>ReadAsync<EtfDashboard?>(current=>
+        current is IEtfDashboardRepository dashboard?dashboard.Dashboard(key):null,token);
 }

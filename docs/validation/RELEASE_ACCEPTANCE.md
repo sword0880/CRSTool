@@ -54,3 +54,5 @@
 - 实际发布包签名、离线安装运行、私有样本／日志／临时文件／WAL 及异常信息隐私审核。
 
 未完成项统一维护在 [KNOWN_ISSUES](../KNOWN_ISSUES.md)，隐私范围见 [PRIVACY](../guides/PRIVACY.md)。acceptance.json 保持 ReleaseApproved=false，技术检查不能自动批准正式发布。
+
+2026-10-23架构四项候选整改：联合导入原子提交、市场只读快照、有界证据查询、Runner进程监督和容量预警已接线。42项专项、最终候选包46项隔离服务化及相关回归通过，正式服务未替换、生产签名及原有发布门槛未关闭，详见[实施与验证](../implementation/ARCH_OPTIMIZATION_20261023.md)。ReleaseApproved保持false。
