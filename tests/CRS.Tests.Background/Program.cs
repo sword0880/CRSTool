@@ -7,6 +7,7 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--recovery-export-authorization"]){await RecoveryExportAuthorizationChecks.RunAsync();return;}
 if(args is ["--service-key-recovery"]){ServiceKeyRecoveryChecks.Run();return;}
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
 if(args is ["--history-date"]){await HistoryDateChecks.RunAsync();return;}
