@@ -37,6 +37,9 @@ jobs:
       - name: Verify synthetic ServiceKey recovery envelope rejection matrix
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --service-key-recovery
+      - name: Verify one-time recovery export authorization and audit failure boundary
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --recovery-export-authorization
       - name: Verify maintenance snapshot and C# startup interop
         shell: pwsh
         run: ./tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop

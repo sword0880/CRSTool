@@ -13,28 +13,40 @@ public static class ServiceKey
     {
         var path = Path.Combine(directory, "service-key.dpapi");
         StorageSecurity.RejectLinks(path); // 不能通过密钥文件链接读取保护目录以外的机器密钥。
-        var sid = WindowsIdentity.GetCurrent().User!.Value;
         if (File.Exists(path))
-        {
-            if (new FileInfo(path).Length > 16384) throw new InvalidDataException("密钥文件格式错误。");
-            var envelope = JsonSerializer.Deserialize<Envelope>(File.ReadAllBytes(path)) ?? throw new InvalidDataException("密钥文件损坏。");
-            if (envelope.Version != 1 || envelope.IdentitySid != sid)
-                throw new InvalidOperationException("服务身份已改变，必须显式迁移密钥；禁止自动生成新密钥。");
-            var key = ProtectedData.Unprotect(envelope.ProtectedKey, Entropy, DataProtectionScope.LocalMachine);
-            if (key.Length != 32) { CryptographicOperations.ZeroMemory(key); throw new InvalidDataException("密钥长度错误。"); }
-            return key;
-        }
+            return OpenExisting(directory);
         // 现有数据缺钥时必须失败；不接受旧明文库或以新密钥静默覆盖。
         if (Directory.EnumerateFiles(directory, "*.db", SearchOption.AllDirectories).Any())
             throw new InvalidDataException("数据库存在但服务密钥缺失，需要恢复密钥。");
         var created = RandomNumberGenerator.GetBytes(32);
         try
         {
+            var sid = WindowsIdentity.GetCurrent().User!.Value;
             var envelope = new Envelope(1, sid, ProtectedData.Protect(created, Entropy, DataProtectionScope.LocalMachine));
             using var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             file.Write(JsonSerializer.SerializeToUtf8Bytes(envelope)); file.Flush(true);
             return created;
         }
         catch { CryptographicOperations.ZeroMemory(created); throw; }
+    }
+
+    /// <summary>维护读取只接受已存在的密钥；即使空目录也绝不进入首次初始化分支。</summary>
+    internal static byte[] OpenExisting(string directory)
+    {
+        var path = Path.Combine(directory, "service-key.dpapi");
+        StorageSecurity.RejectLinks(path);
+        // 调用者须已持有数据租约并验证完整目录树的 ACL。
+        // 保留实际运行账户 SID 校验，以及原有 LocalMachine DPAPI 作用域和附加熵。
+        using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (file.Length > 16384) throw new InvalidDataException("密钥文件格式错误。");
+        var bytes = new byte[checked((int)file.Length)];
+        file.ReadExactly(bytes);
+        var envelope = JsonSerializer.Deserialize<Envelope>(bytes) ?? throw new InvalidDataException("密钥文件损坏。");
+        var sid = WindowsIdentity.GetCurrent().User!.Value;
+        if (envelope.Version != 1 || envelope.IdentitySid != sid)
+            throw new InvalidOperationException("服务身份已改变，必须显式迁移密钥；禁止自动生成新密钥。");
+        var key = ProtectedData.Unprotect(envelope.ProtectedKey, Entropy, DataProtectionScope.LocalMachine);
+        if (key.Length != 32) { CryptographicOperations.ZeroMemory(key); throw new InvalidDataException("密钥长度错误。"); }
+        return key;
     }
 }

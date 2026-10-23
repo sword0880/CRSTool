@@ -1,5 +1,7 @@
 # 当前问题与验收缺口
 
+2026-10-23 P0-02 / ARCH-005 阶段 2a：新增[一次性导出授权与审计边界](validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)内部组件及只读既有密钥入口。生产授权管道、持久重放保护、停机租约/快照交接、完整加密备份与目标恢复未实现；保持 Open，未开放实际导出。
+
 2026-10-23 P0-02 / ARCH-005：新增[ServiceKey 灾备安全审查与分阶段实施](architecture/WORKER_SERVICE_KEY_RECOVERY.md)。第一阶段仅含内部内存密钥封装和 Windows 合成拒绝测试；未开放生产导出/恢复，授权、目标身份重封装、全库只读验证、显式激活及干净机器演练均未完成，仍为 Open。
 
 2026-10-23 NationalTeam 查询完整性范围：新增[原件核验范围与查询开销整改](validation/NATIONALTEAM_EVIDENCE_SCOPE_20261023.md)。只读查询改为核验其业务事实依赖范围，后台 Q15 巡检仍全量扫描；新增独占锁回归，等待 Windows CI。此修改不等于完成真实数据集 P95/P99 性能验收。

@@ -68,6 +68,8 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P0-02：ServiceKey 跨机器灾难恢复尚未闭环
 
+2026-10-23 阶段 2a：新增内部一次性确认/审计状态机与 OpenExisting 只读密钥入口，验证未授权不读钥、重放不重复读钥、审计失败不返回密文；生产停机租约交接、持久重放控制和完整导出仍未接线。见[验证与后续门槛](../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)，P0 保持 Open。
+
 2026-10-23 进展：内部密钥恢复封装及 Windows 合成拒绝测试进入独立 PR；生产授权/恢复未接入，保持 Open。具体威胁、分阶段退出条件及后续 PluginRunner/国家队规模测量顺序见[安全审查与实施方案](WORKER_SERVICE_KEY_RECOVERY.md)。
 
 - 证据：D。现有实施记录指出 ServiceKey 仍依赖 LocalMachine DPAPI 与服务身份，独立恢复凭据和跨机恢复尚未完成。

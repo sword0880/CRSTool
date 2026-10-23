@@ -59,6 +59,8 @@ RestorePrevious在候选移往failed之后或旧程序移回活动目录之后�
 
 ## 跨机器恢复包
 
+阶段 2a 已新增内部一次性授权/审计组件与只读既有密钥入口，见[验证与门槛](../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)。尚无生产导出或恢复命令，不得将组件测试通过视为可对真实服务执行灾备。
+
 2026-10-23 第一阶段新增内部内存封装组件及合成拒绝测试，见[ServiceKey 分阶段恢复与安全审查](../architecture/WORKER_SERVICE_KEY_RECOVERY.md)。尚无授权导出、目标重封装/验库或激活入口；ARCH-005 / P0-02 仍为 Open，不得按本文目标执行真实密钥恢复。
 
 恢复包必须独立于个人税务保险库；需要服务身份内显式授权的导出流程。不能为使管理员命令能读取原服务密钥而移除ServiceKey的SID检查。

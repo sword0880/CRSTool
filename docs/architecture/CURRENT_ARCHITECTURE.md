@@ -1,5 +1,7 @@
 # 当前架构入口
 
+2026-10-23 阶段 2a 新增 RecoveryExportSession 内部确认/审计状态机及 ServiceKey.OpenExisting 只读入口；尚未接到 Worker 运行时/管道，未改变生产导出权限或调度流程。[验证与剩余接线门槛](../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)。
+
 2026-10-23 ServiceKey 灾备第一阶段：新增内部内存恢复封装组件与合成负例，未接入生产启动/IPC/CLI，主密钥仍由原有机器 DPAPI/SID/ACL 保护。授权导出、目标重封装/只读验库与激活尚未实现，详见[分阶段安全审查](WORKER_SERVICE_KEY_RECOVERY.md)；ARCH-005 / P0-02 保持 Open。
 
 状态：Current（2026-10-20 Windows Release构建与依赖门禁已复核，生产发布门槛另行验收）；源码结构核对日期：2026-10-20。本文描述已接线的结构；设计提案和旧实施记录不能替代本文及源码。新增能力先核对本文、项目文件及启动入口，再参考旧方案。
