@@ -13,7 +13,11 @@ WPF UI design checks / Worker upgrade and recovery checks 均 success；该结�
 - `dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --service-key-recovery`：
   正常 Windows 令牌下 **345 项合成检查通过**。
 - 首次沙箱运行在测试 GUID 临时目录 ACL/清理处被拒绝；正常 Windows 令牌重跑通过，未修改生产 ACL/SID 策略。
-- `git diff --check` 通过。完整解决方案、架构门禁与既有维护/升级回归以最终结果和本 PR Windows CI 为准。
+- 全解决方案 `dotnet build CRS.sln -c Release -m:1`：成功，0 warnings / 0 errors。
+- 完整构建后的 `tests/Verify-Architecture.ps1`：全部通过；首次构建前执行因缺少 Domain 测试二进制而中止，未修改门禁。
+- `tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop`：25 项通过。
+- `tests/Test-WorkerUpgradeTransactions.ps1`：145 项通过；两者均未操作真实 SCM。
+- `git diff --check` 通过。最新提交的远端 Windows CI 仍须单独核对。
 
 夹具仅使用 CSPRNG 合成 ServiceKey/恢复凭据、自建临时目录和合成数据库哨兵。不读取 ProgramData
 或已安装服务，不进行生产导出/恢复、真实通知或采集。代码不打印秘密，不上传密钥/凭据 artifact。
