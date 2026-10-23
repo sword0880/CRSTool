@@ -82,7 +82,7 @@ internal static class RecoveryExportAuthorizationChecks
                 Refuses(() => second.Confirm(secret, challenge: first.Challenge), RecoveryExportFailure.BindingMismatch);
                 Check(second.Reads == 0);
                 first.Clock.Timestamp += RecoveryExportSession.Lifetime.Ticks - 1;
-                _ = first.Confirm(secret); // Just before the deadline succeeds without using wall time.
+                _ = first.Confirm(secret); // 截止前仍可成功；授权期限不依赖系统日期时间。
                 Check(first.Reads == 1);
             }
 
@@ -101,7 +101,7 @@ internal static class RecoveryExportAuthorizationChecks
                 var original = binding.Digest.ToArray(); binding.Digest[0] ^= 1;
                 var sealedKey = binding.Confirm(secret, digest: original);
                 using var opened = ServiceKeyRecoveryEnvelope.Open(sealedKey, secret, binding.BundleId, original);
-                Check(binding.Reads == 1); // The session owns a clone, not the caller's mutable digest.
+                Check(binding.Reads == 1); // 会话保存摘要副本，不借用调用者可修改的数组。
             }
             CheckExistingReadOnlyPath();
             Console.WriteLine($"Recovery export authorization: {checks} synthetic checks passed; production export is not registered.");
@@ -139,7 +139,7 @@ internal static class RecoveryExportAuthorizationChecks
                 var path = Path.Combine(root, "service-key.dpapi");
                 try { var unexpected = ServiceKey.OpenExisting(root); CryptographicOperations.ZeroMemory(unexpected); throw new InvalidOperationException("Missing key accepted."); }
                 catch (FileNotFoundException) { checks++; }
-                Check(!File.Exists(path)); // Even an empty directory cannot initialize from the export read path.
+                Check(!File.Exists(path)); // 即使目录为空，导出读钥入口也不能初始化密钥。
                 var created = ServiceKey.Open(root);
                 try
                 {
@@ -157,7 +157,7 @@ internal static class RecoveryExportAuthorizationChecks
                 }
                 finally { CryptographicOperations.ZeroMemory(created); }
             }
-            finally { Directory.Delete(root, recursive: true); } // Test-owned GUID directory only.
+            finally { Directory.Delete(root, recursive: true); } // 仅清理本测试创建的 GUID 目录。
         }
     }
 

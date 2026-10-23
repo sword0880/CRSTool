@@ -35,8 +35,8 @@ public static class ServiceKey
     {
         var path = Path.Combine(directory, "service-key.dpapi");
         StorageSecurity.RejectLinks(path);
-        // The caller must already hold the data lease and validate the complete ACL tree.
-        // Keep the original actual-account SID check and LocalMachine DPAPI entropy/scope.
+        // 调用者须已持有数据租约并验证完整目录树的 ACL。
+        // 保留实际运行账户 SID 校验，以及原有 LocalMachine DPAPI 作用域和附加熵。
         using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (file.Length > 16384) throw new InvalidDataException("密钥文件格式错误。");
         var bytes = new byte[checked((int)file.Length)];

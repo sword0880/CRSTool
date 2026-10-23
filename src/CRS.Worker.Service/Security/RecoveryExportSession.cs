@@ -4,9 +4,9 @@ using CRS.Worker.Ipc;
 namespace CRS.Worker.Service;
 
 /// <summary>
-/// Stage 2a only. One session per frozen snapshot, supplied by a future trusted maintenance coordinator.
-/// No production IPC/CLI registration. BackgroundCaller must come from verified server-side token identity.
-/// This state machine is not an OS security boundary or proof that a snapshot is quiescent/complete.
+/// 仅实现阶段 2a；每份冻结快照由后续可信维护协调器建立独立会话。
+/// 尚未注册生产 IPC/CLI；BackgroundCaller 必须来自服务端已验证的 Windows 令牌身份。
+/// 本状态机不构成操作系统权限边界，也不证明快照已停写或内容完整。
 /// </summary>
 internal sealed class RecoveryExportSession : IDisposable
 {
@@ -43,7 +43,7 @@ internal sealed class RecoveryExportSession : IDisposable
         catch { Dispose(); throw; }
     }
 
-    // An ephemeral confirmation challenge, not the independent recovery credential. Never persist/log it.
+    // 临时确认挑战与独立恢复凭据不同；不得持久保存或写入日志。
     internal byte[] CopyChallenge()
     {
         lock (gate)
@@ -60,7 +60,7 @@ internal sealed class RecoveryExportSession : IDisposable
         lock (gate)
         {
             if (consumed) throw Refused(RecoveryExportFailure.Consumed);
-            consumed = true; // Burn before any audit/key callback: concurrent/replayed calls cannot retry.
+            consumed = true; // 在审计或读钥回调前消费会话，禁止并发或重放调用再次尝试。
             byte[]? key = null;
             byte[]? envelope = null;
             try
@@ -76,8 +76,8 @@ internal sealed class RecoveryExportSession : IDisposable
                     throw Refused(RecoveryExportFailure.BindingMismatch);
                 CheckDeadline(token);
                 Record(confirmationRequestId, RecoveryExportPhase.Authorized);
-                CheckDeadline(token); // A slow audit cannot extend the authorization's lifetime.
-                // Ownership transfers to this session: never return the live Worker's shared key array.
+                CheckDeadline(token); // 慢审计不得延长授权有效期。
+                // 返回副本的所有权交给本会话；严禁返回运行中 Worker 共用的密钥数组。
                 try { key = readExistingKeyCopy(); }
                 catch (Exception) { throw Refused(RecoveryExportFailure.SourceKeyUnavailable); }
                 if (key is null || key.Length != 32) throw Refused(RecoveryExportFailure.SourceKeyUnavailable);
@@ -86,7 +86,7 @@ internal sealed class RecoveryExportSession : IDisposable
                 Record(confirmationRequestId, RecoveryExportPhase.Sealed);
                 CheckDeadline(token);
                 var result = envelope; envelope = null;
-                return result; // Only ciphertext, after both durable audit callbacks succeeded.
+                return result; // 两次持久审计回调均成功后，只返回密文。
             }
             finally
             {
@@ -124,7 +124,7 @@ internal sealed class RecoveryExportSession : IDisposable
     private static RecoveryExportRefusedException Refused(RecoveryExportFailure code) => new(code);
 }
 
-// Typed metadata only: no keys, challenge, credential, manifest contents or arbitrary exception text.
+// 审计只接受固定类型的元数据，不包含密钥、挑战、凭据、清单内容或任意异常正文。
 internal sealed record RecoveryExportAudit(string CallerSid, Guid PrepareRequestId, Guid RequestId,
     Guid BundleId, RecoveryExportPhase Phase);
 internal enum RecoveryExportPhase { Prepared, Authorized, Sealed }
