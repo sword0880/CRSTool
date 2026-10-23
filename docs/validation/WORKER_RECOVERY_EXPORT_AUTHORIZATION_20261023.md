@@ -46,7 +46,16 @@ Windows Worker upgrade/recovery workflow 新增专用授权检查，并保留快
 本机隔离 Windows 实测：新授权矩阵 **126 项通过**，既有封装/DPAPI/SID 矩阵 **345 项通过**。
 两者均用正常 Windows 令牌、自建合成夹具，不访问真实服务目录。Worker 测试项目 Release 构建
 0 warnings / 0 errors，`git diff --check` 通过。全解决方案 Release 构建和架构门禁也已通过，
-构建 0 warnings / 0 errors；最新 head Windows CI 仍须单独核对。
+构建 0 warnings / 0 errors。
+
+代码提交 `4d7c0837278def58951d16d9758fb9fc2cd59ad4` 的 Windows Actions 已全部 success：
+
+- [Worker upgrade and recovery checks](https://github.com/sword0880/CRSTool/actions/runs/39881573714)：新增授权矩阵、原封装矩阵、维护快照互操作、升级故障矩阵和真实隔离 Worker 启动全部通过。
+- [WPF UI design checks](https://github.com/sword0880/CRSTool/actions/runs/39881573690)：全解决方案 Release、架构门禁及既有 Worker/ETF/WPF 回归通过。
+- [Worker PluginRunner prototype](https://github.com/sword0880/CRSTool/actions/runs/39881573675)：原型进程回归通过。
+
+此处记录具名代码提交的证据；后续提交仍须核对其最新 head，不能把先前绿灯自动视为新版本通过。
+本次追加仅更新文档中的验收证据和审计失败语义，不改变实现。
 
 ## 接入生产前必须补齐（阶段 2b，未实现）
 
