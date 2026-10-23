@@ -81,8 +81,7 @@ internal static class StorageSecurityChecks
         process.BeginOutputReadLine(); process.BeginErrorReadLine();
         try
         {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            var health = await new BackgroundPipeClient(pipe).QueryAsync("GetHealth", deadline.Token);
+            var health = await WorkerProcessReadiness.WaitAsync(new BackgroundPipeClient(pipe),process);
             if (health.Health?.State != "Running") throw new InvalidOperationException("测试宿主未正常启动。");
             var keyPath = Path.Combine(data, "service-key.dpapi"); var keyHash = SHA256.HashData(File.ReadAllBytes(keyPath));
             var file = new FileInfo(keyPath); var original = file.GetAccessControl();

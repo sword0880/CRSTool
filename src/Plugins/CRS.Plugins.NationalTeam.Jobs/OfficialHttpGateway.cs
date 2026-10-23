@@ -12,30 +12,34 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     private readonly HttpClient directClient;
     private readonly ISourceRequestPolicy policy;
     private readonly IBackgroundSourceContext? sources;
-    private readonly HashSet<string> directHosts=new(StringComparer.OrdinalIgnoreCase);
-    private readonly SemaphoreSlim gate = new(1);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> directHosts=new(StringComparer.OrdinalIgnoreCase);
+    private readonly object policyGate=new();
+    private readonly Dictionary<string,SemaphoreSlim> sourceGates=new(StringComparer.Ordinal)
+        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)}};
+    private static string Source(string host)=>host.EndsWith("sse.com.cn",StringComparison.Ordinal)?"SSE":host.EndsWith("szse.cn",StringComparison.Ordinal)?"SZSE":"ISSUER-600153";
+    private (DateTimeOffset Next,DateTimeOffset Blocked,int Failures) ReadPolicy(string host){lock(policyGate)return policy.Read(host);}
     public DateTimeOffset? RetryAt(Uri uri)
     {
-        var blocked=policy.Read(uri.Host).Blocked;
+        var blocked=ReadPolicy(uri.Host).Blocked;
         return blocked>CRS.Timing.BeijingClock.Now?blocked:null;
     }
     public void RejectContract(Uri uri)
     {
         sources?.ReportSourceFailure(uri.Host,0);
-        policy.Failure(uri.Host,CRS.Timing.BeijingClock.Now,0);
+        lock(policyGate)policy.Failure(uri.Host,CRS.Timing.BeijingClock.Now,0);
         ImportPolicy(uri.Host);
     }
     private void ImportPolicy(string host)
     {
         if(sources is null)return;
-        var state=policy.Read(host);
+        var state=ReadPolicy(host);
         sources.ImportSourceState(host,new(state.Next,state.Blocked,state.Failures));
     }
     private void Failure(Uri uri,int status,IBackgroundSourceLease? lease,DateTimeOffset? retryAfter=null)
     {
         // 宿主先登记；插件库写失败也不能让其他插件继续访问已拒绝来源。
         lease?.Complete(status,retryAfter);
-        policy.Failure(uri.Host,CRS.Timing.BeijingClock.Now,status,retryAfter);
+        lock(policyGate)policy.Failure(uri.Host,CRS.Timing.BeijingClock.Now,status,retryAfter);
         ImportPolicy(uri.Host);
     }
     public Func<EtfProgress,Task>? Progress {get;set;}
@@ -65,16 +69,17 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     {
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0
             || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)) throw new InvalidOperationException("Public source not allowed.");
+        var gate=sourceGates[Source(uri.Host)];
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var state = policy.Read(uri.Host);
+            var state = ReadPolicy(uri.Host);
             using var lease = await AcquireSourceAsync(uri,state,cancellationToken).ConfigureAwait(false);
             if (state.Blocked > CRS.Timing.BeijingClock.Now) {await ReportAsync("Cooldown",uri,until:state.Blocked);throw new InvalidOperationException($"来源冷却中，最早重试时间{state.Blocked:O}。");}
             var wait = state.Next - CRS.Timing.BeijingClock.Now;
             if (wait > TimeSpan.Zero) {await ReportAsync("RateWait",uri,until:state.Next);await Task.Delay(wait, cancellationToken).ConfigureAwait(false);}
             cancellationToken.ThrowIfCancellationRequested();
-            policy.Reserve(uri.Host, CRS.Timing.BeijingClock.Now);
+            lock(policyGate)policy.Reserve(uri.Host, CRS.Timing.BeijingClock.Now);
             await ReportAsync("RequestStarted",uri);
             // 头部和正文共用20秒期限；HttpClient的ResponseHeadersRead本身不约束正文读取。
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -94,7 +99,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
                         until = delta > DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now.Add(delta);
                     }
                     Failure(uri,status,lease,until);
-                    await ReportAsync("Cooldown",uri,status,policy.Read(uri.Host).Blocked);
+                    await ReportAsync("Cooldown",uri,status,ReadPolicy(uri.Host).Blocked);
                 }
                 if (response.Content.Headers.ContentLength > 8 * 1024 * 1024) throw new InvalidDataException("Response too large.");
                 await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
@@ -104,22 +109,26 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
                     if (buffer.Length + read > 8 * 1024 * 1024) throw new InvalidDataException("Response too large.");
                     await buffer.WriteAsync(bytes.AsMemory(0, read), deadline.Token).ConfigureAwait(false);
                 }
-                if (status is >= 200 and < 300) {policy.Success(uri.Host);lease?.Complete(status);}
+                if (status is >= 200 and < 300)
+                {
+                    lock(policyGate)if(policy.Read(uri.Host).Blocked<=CRS.Timing.BeijingClock.Now)policy.Success(uri.Host);
+                    lease?.Complete(status);
+                }
                 return new(status, buffer.ToArray(), response.Content.Headers.ContentType?.MediaType);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 Failure(uri,0,lease);
-                await ReportAsync("RequestTimedOut",uri,until:policy.Read(uri.Host).Blocked);
+                await ReportAsync("RequestTimedOut",uri,until:ReadPolicy(uri.Host).Blocked);
                 var failure=new TimeoutException("官方来源响应超时，已进入持久退避。");
-                failure.Data["SourceRetryAt"]=policy.Read(uri.Host).Blocked;throw failure;
+                failure.Data["SourceRetryAt"]=ReadPolicy(uri.Host).Blocked;throw failure;
             }
             catch (HttpRequestException)
             {
                 Failure(uri,0,lease);
-                await ReportAsync("RequestFailed",uri,until:policy.Read(uri.Host).Blocked);
+                await ReportAsync("RequestFailed",uri,until:ReadPolicy(uri.Host).Blocked);
                 var failure=new HttpRequestException("官方来源连接失败，已进入持久退避。");
-                failure.Data["SourceRetryAt"]=policy.Read(uri.Host).Blocked;throw failure;
+                failure.Data["SourceRetryAt"]=ReadPolicy(uri.Host).Blocked;throw failure;
             }
         }
         finally { gate.Release(); }
@@ -148,16 +157,16 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
             if(OfficialEquityDocuments.IsReviewedIssuer(uri))request.Headers.Referrer=new("https://www.chinacnd.com/report.html");
             return await transport.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token).ConfigureAwait(false);
         }
-        if(directHosts.Contains(uri.Host))return await Send(directClient).ConfigureAwait(false);
+        if(directHosts.ContainsKey(uri.Host))return await Send(directClient).ConfigureAwait(false);
         try{return await Send(client).ConfigureAwait(false);}
         catch(HttpRequestException error) when(error.StatusCode is null && !token.IsCancellationRequested)
         {
             // 系统代理握手/连接失败时只尝试同一公开URL直连；保留TLS证书验证。
             // HTTP403/429不走此分支，不换域名、验证码或身份，也不重复绕过来源拒绝。
-            var response=await Send(directClient).ConfigureAwait(false);directHosts.Add(uri.Host);return response;
+            var response=await Send(directClient).ConfigureAwait(false);directHosts.TryAdd(uri.Host,0);return response;
         }
     }
-    public void Dispose() { client.Dispose(); directClient.Dispose(); policy.Dispose(); gate.Dispose(); }
+    public void Dispose() { client.Dispose(); directClient.Dispose();lock(policyGate)policy.Dispose();foreach(var gate in sourceGates.Values)gate.Dispose(); }
 }
 
 

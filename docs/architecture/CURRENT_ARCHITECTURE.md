@@ -87,6 +87,8 @@ Worker维护由`tools/background/Upgrade-Service.ps1`、`Recover-Service.ps1`及
 
 ## 后台并发与等待预算
 
+2026-10-23 新增可选 `IGroupedBackgroundSession`。加载时校验分组声明，调度时同时约束插件与执行组，组内 FIFO；某组无额度的等待项不阻挡其他组。NationalTeam 默认采用采集/巡检 2、预警 1、管理 1，总并发 4，保留全局 8 与单插件上限。详见 [分组并发整改与验收边界](../implementation/NATIONAL_TEAM_CONCURRENCY_20261023.md)。
+
 Quartz仍是唯一执行生命周期所有者。`BackgroundRuntime.Scheduling.cs`在短管理门槛内用`Wait(0)`尝试插件额度，不能执行的作业立即释放Quartz名额，进入每插件有界FIFO；额度释放后唤醒队首，不启动脱离Quartz管理的工作。相同任务只留一个等待项，自动重复触发合并；自动任务超额暂不执行，手动请求在持久化前超额返回PluginBusy。已接收手动命令保持持久幂等和重启恢复，暂停/取消清除对应等待项。
 
 全局并发来自私有数据目录的`worker-settings.json`，缺省固定为8；显式MaxConcurrency支持1–32，显式设为0时才按CPU逻辑处理器数取4–16。MaxPendingPerPlugin缺省16，支持1–32。管理员修改后重启生效，例如`{"MaxConcurrency":8,"MaxPendingPerPlugin":16}`；文件不随不可变程序包覆盖，未知字段/非法值拒绝启动。这里的数值是并行作业额度，并非专属物理线程数量。

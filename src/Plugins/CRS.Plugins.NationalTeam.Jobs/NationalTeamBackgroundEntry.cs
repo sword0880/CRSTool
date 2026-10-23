@@ -17,9 +17,16 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
 public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null,
     string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null):IBackgroundPluginSession,
-    IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession
+    IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession,IGroupedBackgroundSession
 {
-    private readonly SemaphoreSlim serial=new(1);
+    public int MaximumConcurrentExecutions=>4;
+    public BackgroundExecutionGroup ExecutionGroup(string jobId)=>jobId switch
+    {
+        "evidence-integrity" or "official-share-sync" or "market-activity-sync" or "official-calendar-sync" or "equity-disclosure-sync"
+            or "equity-report-search" or "equity-review"=>new("collection",2),
+        "alert-evaluate"=>new("evaluation",1),
+        _=>new("management",1)
+    };
     private readonly SemaphoreSlim queries=new(1);
     private IPluginHttpGateway? http=gateway;
     private readonly Dictionary<string,(DateTimeOffset Until,string Request,string[] Rows,string? Metadata)> snapshots=[];
@@ -28,23 +35,31 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     private byte[]? key;
     private RawEvidenceStore? raw;
     private string rawPath="";
-    private Func<BackgroundProgress,Task>? progress;
-    private DateOnly? progressDate;
-    private int httpRequestsStarted;
+    private sealed class ExecutionProgress(Func<BackgroundProgress,Task>? report)
+    {
+        public Func<BackgroundProgress,Task>? Report {get;}=report;
+        public DateOnly? Date;
+        public int HttpStarted;
+    }
+    private readonly AsyncLocal<ExecutionProgress?> executionProgress=new();
     /// <summary>每次任务独立绑定宿主进度，结束后移除，不能将下一次采集归到旧执行。</summary>
     public async Task<BackgroundJobResult> ExecuteWithProgressAsync(string jobId,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)
     {
-        progress=report;progressDate=null;Interlocked.Exchange(ref httpRequestsStarted,0);
-        try{return await ExecuteAsync(jobId,payload,token,commandId);}
-        finally{progress=null;progressDate=null;}
+        return await ExecuteScopedAsync(jobId,payload,token,commandId,report);
     }
     private Task ReportAsync(EtfProgress value)
     {
-        if(value.Stage=="RequestStarted")Interlocked.Increment(ref httpRequestsStarted);
-        if(value.Date is { } date)progressDate=date;
+        var state=executionProgress.Value;if(state is null)return Task.CompletedTask;
+        DateOnly? currentDate;
+        lock(state)
+        {
+            if(value.Stage=="RequestStarted")state.HttpStarted++;
+            if(value.Date is {} date)state.Date=date;
+            currentDate=state.Date;
+        }
         // 应用用例的终止阶段映射到宿主已发布的冷却阶段，兼容日志白名单与现有客户端。
         var stage=value.Stage=="SourceCoolingDown"?"Cooldown":value.Stage;
-        return progress?.Invoke(new(stage,value.Date??progressDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until)
+        return state.Report?.Invoke(new(stage,value.Date??currentDate,value.Market,value.Received,value.Added,value.Duplicates,value.Pending,value.HttpStatus,value.Until)
             {Reused=value.Reused,Closed=value.Closed,Empty=value.Empty,Deferred=value.Deferred,Issues=value.Issues})??Task.CompletedTask;
     }
 
@@ -81,13 +96,18 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     }
     public Task<BackgroundJobResult> ExecuteAsync(string jobId,CancellationToken token)=>ExecuteAsync(jobId,null,token);
 
-    /// <summary>所有写操作经宿主持久命令与插件串行门槛进入；客户端取消等待不撤销已接受命令。</summary>
-    public async Task<BackgroundJobResult> ExecuteAsync(string jobId,string? payload,CancellationToken token,Guid? commandId=null)
+    private async Task<BackgroundJobResult> ExecuteScopedAsync(string jobId,string? payload,CancellationToken token,Guid? commandId,Func<BackgroundProgress,Task>? report)
     {
-        // 与宿主保持同一插件写任务串行，避免采集、配置和审核交错提交。
-        await serial.WaitAsync(token);
-        try
-        {
+        var previous=executionProgress.Value;executionProgress.Value=new(report);
+        try{return await ExecuteCoreAsync(jobId,payload,token,commandId);}
+        finally{executionProgress.Value=previous;}
+    }
+
+    /// <summary>任务经宿主持久命令与执行组进入，数据库操作由workspace短段串行；客户端取消等待不撤销已接受命令。</summary>
+    public Task<BackgroundJobResult> ExecuteAsync(string jobId,string? payload,CancellationToken token,Guid? commandId=null)
+        =>ExecuteScopedAsync(jobId,payload,token,commandId,null);
+    private async Task<BackgroundJobResult> ExecuteCoreAsync(string jobId,string? payload,CancellationToken token,Guid? commandId)
+    {
             EtfRequest request;
             try{request=payload is null?new EtfRequest("sync"):Parse(payload);}
             catch(EtfContractException error){return new("Rejected","contract="+error.Code);}
@@ -177,13 +197,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 default:throw new InvalidDataException("任务与业务参数不匹配。");
             }
             return BackgroundJobResult.Success();
-        }
-        finally{serial.Release();}
     }
 
     /// <summary>写入任务执行检查点：实际 HTTP 开始次数与调用来源适配器次数分开，不能将零行或冷却伪装成下载成功。</summary>
     private string ActivityCheckpoint(MarketActivitySyncReport result) =>
-        $"days={result.QueriedDays};sourceCalls={result.RequestedSources};httpStarted={Volatile.Read(ref httpRequestsStarted)};" +
+        $"days={result.QueriedDays};sourceCalls={result.RequestedSources};httpStarted={executionProgress.Value?.HttpStarted??0};" +
         $"closedSources={result.ClosedSources};emptySources={result.EmptySources};sourceIssues={result.SourceIssues};" +
         $"rows={result.ReceivedRows};existingSources={result.ExistingSources};firstFailure={result.FirstFailureCode??"None"};"+
         $"failureDate={result.FirstFailureDate:yyyy-MM-dd};failureMarket={result.FirstFailureMarket??"None"};retryAt={result.RetryAt:O};hasMore={result.HasMore}";
@@ -352,7 +370,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     public async ValueTask DisposeAsync()
     {
         if(workspace is not null)await workspace.DisposeAsync();workspace=null;
-        if(key is not null)CryptographicOperations.ZeroMemory(key);key=null;(http as IDisposable)?.Dispose();serial.Dispose();queries.Dispose();snapshots.Clear();exports.Clear();
+        if(key is not null)CryptographicOperations.ZeroMemory(key);key=null;(http as IDisposable)?.Dispose();queries.Dispose();snapshots.Clear();exports.Clear();
     }
 
     /// <summary>复用既有采集用例的最小适配，不暴露桌面调度器和税务服务。</summary>

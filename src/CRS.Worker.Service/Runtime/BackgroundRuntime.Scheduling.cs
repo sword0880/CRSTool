@@ -10,9 +10,15 @@ public sealed partial class BackgroundRuntime
     private readonly Dictionary<JobKey, WaitingInvocation> waiting = [];
     private readonly Dictionary<string, LinkedList<JobKey>> waitingOrder = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> pluginLimits = new(StringComparer.Ordinal);
+    private readonly Dictionary<JobKey,SemaphoreSlim> executionGroups=[];
+    private readonly Dictionary<(string Plugin,string Group),SemaphoreSlim> groupWriters=[];
     private readonly Dictionary<JobKey, string> wakeTickets = [];
     private readonly HashSet<string> saturatedPlugins = new(StringComparer.Ordinal);
     private long coalescedTriggers, skippedTriggers;
+
+    private bool GroupAvailable(JobKey key)=>!executionGroups.TryGetValue(key,out var group)||group.CurrentCount>0;
+    // 保留组内FIFO；被采集额度挡住的队头不阻止预警/管理组使用剩余名额。
+    private JobKey? FirstAdmissible(string plugin)=>waitingOrder[plugin].FirstOrDefault(GroupAvailable);
 
     private BackgroundScheduling SchedulingSnapshot() => new(settings.EffectiveMaxConcurrency, running.Count, waiting.Count,
         settings.MaxPendingPerPlugin, coalescedTriggers, skippedTriggers, repository.PendingRuns().Count,
@@ -66,7 +72,7 @@ public sealed partial class BackgroundRuntime
     private async Task WakeWaitingAsync(string plugin, CancellationToken token)
     {
         if (maintenance || fault is not null || catalog.RequiresProcessRestart || pluginWriters[plugin].CurrentCount == 0) return;
-        var head = waitingOrder[plugin].First?.Value;
+        var head = FirstAdmissible(plugin);
         if (head is null) return;
         var ticket = waiting[head];
         if (wakeTickets.TryGetValue(head, out var scheduled) && scheduled == ticket.Id) return;
@@ -89,6 +95,7 @@ public sealed partial class BackgroundRuntime
         var key = context.JobDetail.Key;
         DispatchInvocation? admitted = null;
         SemaphoreSlim? permit = null;
+        SemaphoreSlim? groupPermit=null;
         try
         {
             await gate.WaitAsync(stopping.Token);
@@ -110,8 +117,13 @@ public sealed partial class BackgroundRuntime
                 var ticket = waiting[key];
                 if (!IsCurrent(ticket.Invocation))
                 { RemoveWaiting(key); await WakeWaitingAsync(key.Group, cancellationToken); return; }
-                if (waitingOrder[key.Group].First?.Value.Equals(key) == true && writer.Wait(0))
+                if (FirstAdmissible(key.Group)?.Equals(key) == true && writer.Wait(0))
                 {
+                    if(executionGroups.TryGetValue(key,out var group))
+                    {
+                        if(!group.Wait(0)){writer.Release();await WakeWaitingAsync(key.Group,cancellationToken);return;}
+                        groupPermit=group;
+                    }
                     permit = writer; admitted = ticket.Invocation; RemoveWaiting(key);
                     await WakeWaitingAsync(key.Group, cancellationToken);
                 }
@@ -128,7 +140,7 @@ public sealed partial class BackgroundRuntime
                 await gate.WaitAsync(CancellationToken.None);
                 try
                 {
-                    permit.Release();
+                    groupPermit?.Release();permit.Release();
                     if (!maintenance && fault is null && !catalog.RequiresProcessRestart)
                     {
                         await WakeWaitingAsync(key.Group, CancellationToken.None);

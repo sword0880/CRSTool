@@ -23,9 +23,63 @@ internal static class WorkerSchedulingChecks
     public static async Task RunAsync(string root)
     {
         var key = RandomNumberGenerator.GetBytes(32);
-        try { Settings(root); await Isolation(root, key); await Parallel(root, key); await DeferredCommand(root,key); await ManualImmediateChecks.RunAsync(root,key); }
+        try { Settings(root); await Isolation(root, key); await Parallel(root, key); await EightPlugins(root,key);await GroupIsolation(root,key); await DeferredCommand(root,key); await ManualImmediateChecks.RunAsync(root,key); }
         finally { CryptographicOperations.ZeroMemory(key); }
         Console.WriteLine($"Worker公平调度通过：{passed}项。");
+    }
+    private static async Task GroupIsolation(string root,byte[] key)
+    {
+        var package=WorkerRemediationChecks.Package(root,("crs.grouped","GroupedEntry"),("crs.bad-group","InvalidGroupEntry"));
+        await using var catalog=new BackgroundPluginCatalog();await catalog.LoadAsync(package.Root,package.Trust,default);
+        Check(catalog.Statuses.Single(x=>x.PluginId=="crs.bad-group").State=="Failed","同执行组声明不一致只隔离该插件");
+        using var repository=new EncryptedTaskRepository(Path.Combine(root,"groups.db"),key);
+        await using var runtime=new BackgroundRuntime(repository,catalog);
+        var hold=Path.Combine(root,"group-hold");File.WriteAllText(hold,"synthetic");
+        var old=Environment.GetEnvironmentVariable("CRS_WORKER_TEST_HOLD");Environment.SetEnvironmentVariable("CRS_WORKER_TEST_HOLD",hold);
+        try
+        {
+            await runtime.StartAsync(default);
+            foreach(var job in new[]{"collect1","collect2","collect3"})await runtime.HandleAsync(Request("RunNow","crs.grouped",job),Admin,default);
+            await Until(async()=>(await runtime.HandleAsync(Request("GetHealth","crs.grouped"),Admin,default)).Health?.Scheduling is{Running:2,Waiting:1});
+            Check(repository.History().Count(x=>x.Result=="Running")==2,"长采集组只占两个名额，第三个在宿主等待");
+            await runtime.HandleAsync(Request("RunNow","crs.grouped","evaluation"),Admin,default);
+            await runtime.HandleAsync(Request("RunNow","crs.grouped","management"),Admin,default);
+            await Until(()=>Task.FromResult(repository.History().Count(x=>x.Result=="Succeeded")==2),2);
+            Check(File.Exists(hold)&&repository.History().Count(x=>x.Result=="Running")==2,
+                "队头第三个采集不阻塞后来的预警和管理任务，两者在长采集未结束时真实完成");
+            File.Delete(hold);
+            await Until(()=>Task.FromResult(repository.History().Count(x=>x.Result=="Succeeded")==5));
+            await Until(async()=>(await runtime.HandleAsync(Request("GetHealth","crs.grouped"),Admin,default)).Health?.Scheduling is{Running:0,Waiting:0});
+            Check(repository.PendingRuns().Count==0,"执行组额度释放后等待采集全部完成，不遗留额度或命令");
+        }
+        finally{File.Delete(hold);Environment.SetEnvironmentVariable("CRS_WORKER_TEST_HOLD",old);}
+    }
+    private static async Task EightPlugins(string root,byte[] key)
+    {
+        var plugins=Enumerable.Range(1,9).Select(i=>(Id:"crs.concurrent"+i,Entry:"GoodEntry")).ToArray();
+        var package=WorkerRemediationChecks.Package(root,plugins);
+        await using var catalog=new BackgroundPluginCatalog();await catalog.LoadAsync(package.Root,package.Trust,default);
+        using var repository=new EncryptedTaskRepository(Path.Combine(root,"eight-plugins.db"),key);
+        await using var runtime=new BackgroundRuntime(repository,catalog);
+        var hold=Path.Combine(root,"eight-plugins-hold");File.WriteAllText(hold,"synthetic");
+        var previous=Environment.GetEnvironmentVariable("CRS_WORKER_TEST_HOLD");Environment.SetEnvironmentVariable("CRS_WORKER_TEST_HOLD",hold);
+        try
+        {
+            await runtime.StartAsync(default);
+            foreach(var plugin in plugins.Take(8))
+                Check((await runtime.HandleAsync(Request("RunNow",plugin.Id),Admin,default)).Code=="Accepted","不同插件的独立任务接受并发运行");
+            await Until(()=>Task.FromResult(repository.History().Count(x=>x.Result=="Running")==8));
+            var health=await runtime.HandleAsync(Request("GetHealth",plugins[0].Id),Admin,default);
+            Check(health.Health?.Scheduling is{MaxConcurrency:8,Running:8}&&health.Health.Scheduling.Plugins!.Count(x=>x.Running==1)==8,
+                "默认8个全局名额被8个不同任务实际同时占用");
+            await runtime.HandleAsync(Request("RunNow",plugins[8].Id),Admin,default);
+            Check(repository.History().Count(x=>x.Result=="Running")==8&&repository.PendingRuns().Count==1,
+                "第9个任务持久等待，不突破全局并发8的上限");
+            File.Delete(hold);
+            await Until(()=>Task.FromResult(repository.History().Count(x=>x.Result=="Succeeded")==9));
+            Check(repository.PendingRuns().Count==0,"释放名额后第9个任务也真实完成，无饥饿或漏执行");
+        }
+        finally{File.Delete(hold);Environment.SetEnvironmentVariable("CRS_WORKER_TEST_HOLD",previous);}
     }
     private static async Task DeferredCommand(string root,byte[] key)
     {

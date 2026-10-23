@@ -18,7 +18,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     private readonly CancellationTokenSource queryStopping = new();
     private readonly HashSet<TaskCompletionSource> activeQueries = [];
     private readonly HashSet<string> queryingPlugins = new(StringComparer.Ordinal);
-    private readonly Dictionary<JobKey, CancellationTokenSource> running = [];
+    private readonly Dictionary<JobKey, ExecutionCancellation> running = [];
     private readonly Dictionary<JobKey, string> queued = [];
     private readonly Dictionary<string, SemaphoreSlim> pluginWriters = [];
     private IScheduler? scheduler;
@@ -61,6 +61,16 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                 pluginWriters.Add(job.PluginId, new(limit, limit));
                 pluginLimits.Add(job.PluginId, limit);
                 waitingOrder.Add(job.PluginId, new());
+            }
+            if(job.ExecutionGroup is {} executionGroup)
+            {
+                var id=(job.PluginId,executionGroup.Id);
+                if(!groupWriters.TryGetValue(id,out var groupWriter))
+                {
+                    var groupLimit=Math.Min(executionGroup.MaximumConcurrency,pluginLimits[job.PluginId]);
+                    groupWriters.Add(id,groupWriter=new(groupLimit,groupLimit));
+                }
+                executionGroups.Add(new(job.Descriptor.JobId,job.PluginId),groupWriter);
             }
             await scheduler.AddJob(JobBuilder.Create<PluginJobDispatcher>().WithIdentity(job.Descriptor.JobId, job.PluginId).StoreDurably().Build(), cancellationToken: token);
             }
@@ -200,10 +210,21 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         BackgroundResponse Reply(string code, CommandReceipt? receipt = null) => new(WorkerProtocol.Version, request.RequestId, code, Receipt: receipt);
         if (request.Command == "GetHealth")
         {
-            var sourceHealth=await SourceHealthAsync();
-            var state = fault ?? (catalog.RequiresProcessRestart ? "PluginUnresponsive" : maintenance ? "Maintenance" : catalog.Statuses.Any(x => x.State == "Failed") || repository.Plans().Any(x => x.NeedsReconcile || !HasHandler(x)) ? "Degraded" : "Running");
+            var sourceHealth=fault=="StorageFault"?null:await SourceHealthAsync();
+            BackgroundScheduling? scheduling=null;
+            var degraded=catalog.Statuses.Any(x=>x.State=="Failed");
+            if(fault!="StorageFault")
+            {
+                try
+                {
+                    degraded|=repository.Plans().Any(x=>x.NeedsReconcile||!HasHandler(x));
+                    scheduling=SchedulingSnapshot();
+                }
+                catch(Exception error) when(StorageError(error)){await TripFaultAsync("StorageFault");}
+            }
+            var state = fault ?? (catalog.RequiresProcessRestart ? "PluginUnresponsive" : maintenance ? "Maintenance" : degraded ? "Degraded" : "Running");
             return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, CRS.Timing.BeijingClock.Now, Environment.ProcessId,
-                SchedulingSnapshot(),sourceHealth), Plugins: catalog.Statuses.ToArray());
+                scheduling,sourceHealth), Plugins: catalog.Statuses.ToArray());
         }
         if(request.Command=="GetTaskActivity")return TaskActivityPage(request,caller);
         if (fault is not null) return Reply(fault);
@@ -320,7 +341,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     private async Task ExecuteSerializedAsync(DispatchInvocation invocation, CancellationToken cancellationToken)
     {
         var key = invocation.Key;
-        TaskDefinition? plan = null; CancellationTokenSource? source = null; string? execution = null; Guid? request = null;string? payload=null;
+        TaskDefinition? plan = null; ExecutionCancellation? source = null; string? execution = null; Guid? request = null;string? payload=null;
         await gate.WaitAsync(stopping.Token);
         try
         {
@@ -337,8 +358,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                 || repository.PendingRuns().Any(x=>x.PluginId==plan.PluginId&&x.JobId==plan.JobId)) return;
             if (request is null && plan.NotBefore > CRS.Timing.BeijingClock.Now
                 || request is {} delayed && ManualNotBefore(delayed,plan)>CRS.Timing.BeijingClock.Now) return;
-            source = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, cancellationToken);
-            source.CancelAfter(executionTimeout ?? TimeSpan.FromMinutes(15));
+            source = new(stopping.Token,cancellationToken,executionTimeout??TimeSpan.FromMinutes(15),
+                ()=>diagnostics?.Invoke("PluginCancellationFailed",key.Group,"CallbackFailed"));
             if(request is { } requestId)payload=repository.ReadCommand(requestId).Payload;
             execution = repository.Begin(plan, invocation.ScheduledUtc, request);
             running.Add(key, source);
@@ -354,20 +375,29 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             ?progress.ExecuteWithProgressAsync(plan.JobId,payload,detail=>SaveProgressAsync(execution,detail,source.Token),source.Token,request)
             :handler.Session is IParameterizedBackgroundSession parameterized
             ?parameterized.ExecuteAsync(plan.JobId,payload,source.Token,request):handler.Session.ExecuteAsync(plan.JobId,source.Token), CancellationToken.None);
-        try { result = await work.WaitAsync(source.Token); }
+        try
+        {
+            await Task.WhenAny(work,source.Requested);
+            if(!work.IsCompleted)throw new OperationCanceledException(source.Token);
+            result=await work;
+        }
         catch (OperationCanceledException)
         {
-            try { await work.WaitAsync(TimeSpan.FromSeconds(2)); }
-            catch (TimeoutException)
+            result=new("Cancelled");
+            var drained=Task.WhenAll(work,source.Callbacks);
+            try { await drained.WaitAsync(TimeSpan.FromSeconds(2)); }
+            catch (TimeoutException) when(!drained.IsCompleted)
             {
                 await gate.WaitAsync(CancellationToken.None);
                 try { await TripFaultAsync("UnresponsivePlugin"); onUnresponsive?.Invoke(); }
                 finally { gate.Release(); }
                 // 不释放仍被插件使用的连接；服务停止超时后由宿主终止进程。
-                try { await work; } catch (Exception) { }
+                try { await drained; } catch (Exception) { }
             }
             catch (Exception) { }
-            result = new("Cancelled");
+            // 令牌取消不是业务回滚证明；收尾完成后保留插件实际返回的结果。
+            if(work.IsCompletedSuccessfully)result=work.Result;
+            else if(work.IsFaulted)result=new("Failed","error="+work.Exception!.GetBaseException().GetType().Name);
         }
         // 仅记录异常类型，不能把插件异常消息中的凭据、地址参数或本机路径写入公开日志。
         catch (Exception error) { result = new("Failed","error="+error.GetType().Name[..Math.Min(error.GetType().Name.Length,128)]); }
@@ -376,13 +406,31 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try
         {
             if (fault == "StorageFault") return;
+            if(source.IsCancellationRequested&&result.Status=="RetryDeferred")result=new("Cancelled");
             repository.End(execution, plan, result, request);
             diagnostics?.Invoke("ExecutionCompleted", plan.PluginId + ":" + plan.JobId, result.Status);
             var updated = repository.Plans().Single(x => Key(x).Equals(key));
             await ScheduleRetryAsync(updated, CancellationToken.None);
         }
         catch (Exception error) when (StorageError(error)) { await TripFaultAsync("StorageFault"); }
-        finally { running.Remove(key);runningExecutions.Remove(key); source.Dispose(); gate.Release(); }
+        finally
+        {
+            running.Remove(key);runningExecutions.Remove(key);gate.Release();
+            // 即使插件主体已经结束，仍需等取消回调结束才能释放会话与存储。
+            var callbacks=source.Complete();
+            try
+            {
+                try{await callbacks.WaitAsync(TimeSpan.FromSeconds(2));}
+                catch(TimeoutException)
+                {
+                    await gate.WaitAsync(CancellationToken.None);
+                    try{await TripFaultAsync("UnresponsivePlugin");onUnresponsive?.Invoke();}
+                    finally{gate.Release();}
+                    await callbacks;
+                }
+            }
+            finally{source.Dispose();}
+        }
         if(request is not null && result.Status=="RetryDeferred")await ReconcileAsync(CancellationToken.None);
     }
     /// <summary>阶段记录与控制查询共享短数据库门槛，落盘失败立即停止采集，避免产生虚假进度。</summary>
@@ -414,7 +462,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     public async ValueTask DisposeAsync()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await EnterMaintenanceAsync(deadline.Token);
-        stopping.Cancel(); stopping.Dispose(); queryStopping.Dispose(); foreach (var writer in pluginWriters.Values) writer.Dispose(); gate.Dispose();
+        stopping.Cancel(); stopping.Dispose(); queryStopping.Dispose(); foreach (var writer in pluginWriters.Values) writer.Dispose();foreach(var writer in groupWriters.Values)writer.Dispose(); gate.Dispose();
     }
 }
 

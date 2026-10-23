@@ -119,8 +119,7 @@ internal static class WorkerUpgradeChecks
         {
             try
             {
-                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-                var health = await client.QueryAsync("GetHealth", deadline.Token);
+                var health = await WorkerProcessReadiness.WaitAsync(client,candidate);
                 var journal = new WorkerUpgradeJournal(data).Read();
                 var diagnostics = $"code={health.Code}; health={health.Health?.State ?? "<null>"}; journal={journal?.Stage ?? "<null>"}; newFacts={journal?.NewFactsPossible}; exited={candidate.HasExited}; exitCode={(candidate.HasExited ? candidate.ExitCode : 0)}";
                 Check(health.Health?.State == "Running" && journal is { Stage: "Healthy", NewFactsPossible: true },
@@ -137,7 +136,7 @@ internal static class WorkerUpgradeChecks
         }
         Save(data, new WorkerUpgradeJournal(data).Read()! with { Stage = "Committed" });
         using var confirmed = Launch(program, data, pipe);
-        try { Check((await client.QueryAsync("GetHealth")).Health?.State == "Running", "确认候选后真实进程恢复正常启动"); }
+        try { Check((await WorkerProcessReadiness.WaitAsync(client,confirmed)).Health?.State == "Running", "确认候选后真实进程恢复正常启动"); }
         finally { if (!confirmed.HasExited) { confirmed.Kill(); await confirmed.WaitForExitAsync(); } }
     }
 }

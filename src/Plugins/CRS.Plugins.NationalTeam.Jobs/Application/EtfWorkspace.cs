@@ -12,6 +12,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     private IMarketRepository? repository;
     private IOfficialShareSource? officialSource;
     private readonly SemaphoreSlim syncGate=new(1);
+    private readonly SemaphoreSlim integrityGate=new(1);
     private Func<EtfProgress,Task>? progress;
     public void SetProgressSink(Func<EtfProgress,Task>? sink)=>progress=sink;
     private Task ReportAsync(EtfProgress value)=>progress?.Invoke(value)??Task.CompletedTask;
@@ -170,7 +171,20 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
         repository!.RecordCollection(attempt,failure.State,failure.Reason,fetch);
     }
     /// <summary>后台独占写路径：统一核验原件、协调质量问题与证据事件。</summary>
-    public Task ReconcileEvidenceIntegrityAsync(CancellationToken token)=>RunAsync(()=>{repository!.ReconcileEvidenceIntegrity();return true;},token);
+    public async Task ReconcileEvidenceIntegrityAsync(CancellationToken token)
+    {
+        await integrityGate.WaitAsync(token);
+        try
+        {
+        var snapshot=await RunAsync(()=>repository is IEvidenceIntegrityRepository batch&&raw is IRawEvidenceVerifier
+            ?batch.CaptureIntegrityEvidence():null,token);
+        if(snapshot is null){await RunAsync(()=>{repository!.ReconcileEvidenceIntegrity();return true;},token);return;}
+        // 原件读取/哈希不持市场库门槛；并行采集可以继续提交已完成日。
+        var verified=await Task.Run(()=>((IRawEvidenceVerifier)raw).VerifyMany(snapshot.SelectMany(x=>new[]{x.Hash,x.OriginalHash}),token),token);
+        await RunAsync(()=>{((IEvidenceIntegrityRepository)repository!).ApplyIntegrityEvidence(snapshot,verified);return true;},token);
+        }
+        finally{integrityGate.Release();}
+    }
     public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>RunAsync(()=>repository!.Evidence(),token);
     public Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>RunAsync(()=>repository!.Evidence(key),token);
     public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>RunAsync(()=>repository!.History(key),token);

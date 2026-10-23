@@ -50,16 +50,34 @@ public sealed partial class EtfWorkspace
             var beforeReceived=received;var beforeIssues=issues;var beforeClosed=closed;
             var beforeEmpty=empty;var beforeSkipped=skipped;var beforeDeferred=deferred;
             token.ThrowIfCancellationRequested();await ReportAsync(new("DayStarted",day));
+            // 每日先固定日历快照，独立来源并行下载；汇总与事实提交仍逐项串行。
+            var tradingDays=await RunAsync(()=>new[]{"SSE","SZSE"}.ToDictionary(m=>m,m=>repository!.IsReviewedTradingDay(m,day)),token);
+            async Task<(MarketActivitySource? Source,Exception? Error)> Fetch(string market)
+            {
+                await ReportAsync(new("SourceStarted",day,market));
+                try{return(await activitySource.FetchAsync(market,day,token),null);}
+                catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
+                catch(Exception error){return(null,error);}
+            }
+            var requests=new[]{"SSE","SZSE"}.Where(m=>tradingDays[m]!=false&&!existing.Contains((m,day))&&!blocked.ContainsKey(m))
+                .ToDictionary(m=>m,Fetch);
+            sourceCalls+=requests.Count;
+            await Task.WhenAll(requests.Values);
             foreach(var market in new[]{"SSE","SZSE"})
             {
-                var trading=await RunAsync(()=>repository!.IsReviewedTradingDay(market,day),token);
+                var trading=tradingDays[market];
                 if(trading==false)
                 {closed++;await RunAsync(()=>{repository!.SaveMarketActivity(market,day,null);return true;},token);await ReportAsync(new("MarketClosed",day,market));continue;}
                 if(existing.Contains((market,day))){skipped++;await ReportAsync(new("MarketReused",day,market));continue;}
                 // 冷却只阻止同一来源；不把尚未请求的其他日期写成失败，也不阻塞另一市场。
                 if(blocked.ContainsKey(market)){contiguous=false;deferred++;continue;}
-                await ReportAsync(new("SourceStarted",day,market));MarketActivitySource? source=null;sourceCalls++;
-                try {source=await activitySource.FetchAsync(market,day,token);}
+                MarketActivitySource? source=null;
+                try
+                {
+                    var fetched=await requests[market];
+                    if(fetched.Error is {} error)throw error;
+                    source=fetched.Source;
+                }
                 catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
                 catch(Exception error)
                 {

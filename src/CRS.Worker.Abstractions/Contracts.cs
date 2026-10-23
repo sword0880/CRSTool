@@ -21,6 +21,13 @@ public interface IConcurrentBackgroundSession
     int MaximumConcurrentExecutions { get; }
 }
 
+/// <summary>可选的会话内执行组；宿主在加载时校验声明，分别限制长采集与短控制任务。</summary>
+public interface IGroupedBackgroundSession : IConcurrentBackgroundSession
+{
+    BackgroundExecutionGroup ExecutionGroup(string jobId);
+}
+public sealed record BackgroundExecutionGroup(string Id, int MaximumConcurrency);
+
 /// <summary>任务名称是稳定业务标识；禁止将实现类型或委托序列化到数据库。</summary>
 public sealed record BackgroundJobDescriptor(string JobId, string Name, string DefaultCron,
     string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false,bool ManualOnly=false);

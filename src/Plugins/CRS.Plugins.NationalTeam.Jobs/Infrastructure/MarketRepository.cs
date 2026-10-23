@@ -6,7 +6,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>公开研究数据仓储；追加修订并保留来源，不接触私人税务库。</summary>
-public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRepository
+public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRepository,IEvidenceIntegrityRepository
 {
     private readonly SqliteConnection db;
     private readonly RawEvidenceStore raw;
@@ -310,6 +310,31 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     public void ReconcileEvidenceIntegrity()
     {
         var (bad,good)=ScanEvidence();
+        ApplyIntegrityIds(bad,good);
+    }
+    public IReadOnlyList<IntegrityEvidence> CaptureIntegrityEvidence()
+    {
+        using var command=Command("SELECT fetch_id,sha256,original_sha256 FROM source_fetch");
+        using var reader=command.ExecuteReader();var rows=new List<IntegrityEvidence>();
+        while(reader.Read()){operationCancellation.ThrowIfCancellationRequested();rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2)));}
+        return rows;
+    }
+    public void ApplyIntegrityEvidence(IReadOnlyList<IntegrityEvidence> snapshot,IReadOnlyDictionary<string,bool> verified)
+    {
+        var current=CaptureIntegrityEvidence().ToDictionary(x=>x.Id,StringComparer.Ordinal);
+        var bad=new List<string>();var good=new List<string>();
+        foreach(var row in snapshot)
+        {
+            operationCancellation.ThrowIfCancellationRequested();
+            if(!current.TryGetValue(row.Id,out var actual)||actual!=row)continue;
+            if(!verified.TryGetValue(row.Hash,out var hash)||!verified.TryGetValue(row.OriginalHash,out var original))
+                throw new InvalidDataException("原件批次核验结果不完整。");
+            (hash&&original?good:bad).Add(row.Id);
+        }
+        ApplyIntegrityIds(bad,good);
+    }
+    private void ApplyIntegrityIds(List<string> bad,List<string> good)
+    {
         var openIssues=new HashSet<string>(StringComparer.Ordinal);
         using(var command=Command("SELECT id FROM quality_issue WHERE rule_id='Q15' AND status='Open'"))
         using(var reader=command.ExecuteReader())while(reader.Read())openIssues.Add(reader.GetString(0));

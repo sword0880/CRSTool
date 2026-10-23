@@ -70,7 +70,7 @@ public sealed partial class BackgroundRuntime
                 Guid? request=Guid.TryParseExact(invocation.Request,"N",out var parsed)?parsed:null;
                 if(request is {} manual)queuedRequests.Add(manual);
                 rows.Add(new(key.Group,key.Name,Name(key.Group,key.Name),"Waiting",
-                    pluginWriters[key.Group].CurrentCount==0?"PluginBusy":"AwaitingCapacity",request,QueuePosition:++position));
+                    pluginWriters[key.Group].CurrentCount==0||!GroupAvailable(key)?"PluginBusy":"AwaitingCapacity",request,QueuePosition:++position));
             }
         }
         foreach(var pending in repository.PendingRuns().Where(x=>!queuedRequests.Contains(x.RequestId)))

@@ -29,5 +29,6 @@ public interface ITaskRepository
     CommandReceipt AcceptCommand(BackgroundRequest request, string sid);
     void CompleteCommand(Guid request, string code);
     List<(Guid RequestId, string PluginId, string JobId)> PendingRuns();
+    /// <summary>取消Pending，并为Running持久记录取消意图；不将尚未确认的业务结果宣称为已取消。</summary>
     void CancelPending(string plugin, string job);
 }

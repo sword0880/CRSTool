@@ -11,6 +11,7 @@ using Microsoft.Data.Sqlite;
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
 if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
+if(args is ["--concurrency"]){await NationalTeamConcurrencyChecks.RunAsync();return;}
 if(args is ["--query-cancellation"]){await EtfQueryCancellationChecks.RunAsync();return;}
 if(args is ["--market-query-reliability"]){await MarketQueryReliabilityChecks.RunAsync();return;}
 if(args is ["--cooling-progress"]){await CoolingProgressChecks.RunAsync();return;}
@@ -200,6 +201,7 @@ if(args is ["--client",var childPipe])
 {var reader=new WorkerEtfWorkspace(new(childPipe));if((await reader.OverviewAsync(default)).Count<5)Environment.ExitCode=2;return;}
 if(args.Length!=1)throw new ArgumentException("需要本轮完整 Worker 发行目录。");
 var package=Path.GetFullPath(args[0]);var root=Path.Combine(Path.GetTempPath(),"CRS.Worker.Etf",Guid.NewGuid().ToString("N"));
+if(!chartOnly)await NationalTeamConcurrencyChecks.RunAsync();
 Directory.CreateDirectory(root);StorageSecurity.Prepare(root,true);
 var plugins=Path.Combine(root,"Plugins");var target=Path.Combine(plugins,"crs.national-team","2.0.0");Directory.CreateDirectory(target);
 foreach(var file in Directory.EnumerateFiles(Path.Combine(package,"Plugins","crs.national-team","2.0.0"),"*",SearchOption.AllDirectories))
@@ -362,7 +364,7 @@ try
 }
 finally{CryptographicOperations.ZeroMemory(master);if(marketKey is not null)CryptographicOperations.ZeroMemory(marketKey);}
 // 原有恢复/去重验收完成后，再在同一隔离服务验证可编辑配置，不改动用户监控池。
-// 配置排队用人为阻塞HTTP作断言；先停用隔离库中的自动启动任务，防止其它采集抢先进入同一个阻塞点。
+// 配置不随网络等待排队；先停用隔离库中的自动启动任务，防止其它采集抢先进入同一个阻塞点。
 // 保留NotBefore，仍检验手动运行不会继承旧定时任务退避。
 master=ServiceKey.Open(data);
 try
@@ -395,13 +397,11 @@ using(var service=Start())
         await Until(async()=>(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:heldExecution))).Execution?.Progress?.Any(x=>x.Detail.Stage=="SourceStarted")==true);
         Check(true,"网络尚未返回时可读取来源开始与最近进展");
         var editing=ui.SaveConfigurationAsync(new(existing.Market,existing.Ticker),"合成后台编辑名称","CONFIG",false,"采集期间修改",existing.Revision,default);
-        // 宿主按插件串行写入；网络等待期间应保留命令，不能绕开统一写入门槛。
-        await Task.Delay(1500);
-        Check(!editing.IsCompleted,"采集期间配置命令排队，不绕过插件写入门槛");
+        await editing.WaitAsync(TimeSpan.FromSeconds(5));
+        Check(File.Exists(hold),"长采集网络仍阻塞时，配置经独立管理组与短数据库操作完成");
+        Check((await ui.ConfigurationAsync(default)).Single(x=>x.Ticker==existing.Ticker) is{Name:"合成后台编辑名称",Active:false},"采集未结束时已保存名称、指数和监控状态");
         File.Delete(hold);
-        if(await Task.WhenAny(editing,Task.Delay(20000))!=editing)throw new TimeoutException("采集结束后配置保存仍未完成。");
-        await editing;
-        Check((await ui.ConfigurationAsync(default)).Single(x=>x.Ticker==existing.Ticker) is{Name:"合成后台编辑名称",Active:false},"采集结束后排队配置正确保存名称、指数和监控状态");
+        await Until(async()=>(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:heldRequest.RequestId))).Receipt?.State=="Completed");
         var rejected=false;try{await ui.SaveConfigurationAsync(new(existing.Market,existing.Ticker),"旧窗口覆盖","OLD",true,"旧修订测试",existing.Revision,default);}catch(InvalidDataException){rejected=true;}
         Check(rejected,"管道配置写入拒绝旧修订");
         await ui.SaveConfigurationAsync(new("SSE","510902"),"合成新增配置","CONFIG",false,"自定义候选测试",-1,default);

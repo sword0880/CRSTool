@@ -51,6 +51,8 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             NormalizeStoredTimes();
             Execute("UPDATE task SET zone=$zone,revision=revision+1,reconcile=1 WHERE zone<>$zone", ("$zone", CRS.Timing.BeijingClock.ZoneId));
             Execute("UPDATE execution SET ended=$now,result='Interrupted' WHERE result='Running'", ("$now", Now));
+            // 已请求取消但尚未确认业务结果的运行，重启后保留中断事实，禁止自动重放。
+            Execute("UPDATE command_request SET state='Completed',code='Interrupted' WHERE state='Running' AND command='RunNow' AND code='CancellationRequested'");
             Execute("UPDATE command_request SET state='Pending',code='Accepted' WHERE state='Running' AND command='RunNow'");
             migration.Commit();
         }
@@ -172,6 +174,8 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             {
                 // 执行结果和退避一次提交；进程中断后不会丢失已接受的失败分类。
                 using var tx = db.BeginTransaction();
+                if(requestId is {} cancelled && ReadCommandState(cancelled)?.Code=="CancellationRequested" && result.Status=="RetryDeferred")
+                    result=new("Cancelled");
                 Execute("UPDATE execution SET ended=$now,result=$result,checkpoint=$checkpoint WHERE id=$id", ("$now", Now), ("$result", result.Status), ("$checkpoint", result.Checkpoint), ("$id", id));
                 var failed = result.Status is "Failed" or "AccessBlocked" or "SourceSchemaChanged";
                 var deferred = failed || result.Status is "NotPublished" or "RetryDeferred";
@@ -341,7 +345,7 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
     {
         Persist(() =>
         {
-            lock (gate) Execute("UPDATE command_request SET state='Completed',code='Cancelled' WHERE plugin=$p AND job=$j AND command='RunNow' AND state='Pending'", ("$p", plugin), ("$j", job));
+            lock (gate) Execute("UPDATE command_request SET state=CASE WHEN state='Pending' THEN 'Completed' ELSE state END,code=CASE WHEN state='Pending' THEN 'Cancelled' ELSE 'CancellationRequested' END WHERE plugin=$p AND job=$j AND command='RunNow' AND state IN ('Pending','Running')", ("$p", plugin), ("$j", job));
         });
     }
     // 插件及任务条件先于游标分页，查询值全部参数化。

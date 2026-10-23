@@ -140,6 +140,8 @@ internal static class WorkerRemediationChecks
             Check((await runtime.HandleAsync(Request("GetHealth"), Admin, default)).Health?.State == "UnresponsivePlugin", "执行不响应取消时暴露宿主故障并请求安全停止");
             File.Delete(hold);
             await UntilAsync(() => Task.FromResult(repository.History().Any(x => x.Result == "Cancelled")));
+            Check((await runtime.HandleAsync(Request("GetHealth"),Admin,default)).Health?.State=="UnresponsivePlugin",
+                "失控任务最终响应取消后不清除宿主安全停止状态");
         }
         finally { if (File.Exists(hold)) File.Delete(hold); Environment.SetEnvironmentVariable("CRS_WORKER_TEST_HOLD", previous); }
     }
@@ -327,7 +329,7 @@ internal static class WorkerRemediationChecks
         {
             try
             {
-                await client.QueryAsync("GetHealth"); await client.SendAsync(firstRequest);
+                await WorkerProcessReadiness.WaitAsync(client,child); await client.SendAsync(firstRequest);
                 await UntilAsync(async () => (await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetCommand", RelatedRequestId: firstRequest.RequestId))).Receipt?.State == "Running");
                 Check((await client.SendAsync(pending)).Code == "Accepted", "共享资源繁忙时先持久接受第二任务");
                 Check((await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetCommand", RelatedRequestId: pending.RequestId))).Receipt?.State == "Pending", "强杀前确认命令已接受且尚未 Begin");
@@ -338,7 +340,7 @@ internal static class WorkerRemediationChecks
         using var restored = Start();
         try
         {
-            await client.QueryAsync("GetHealth");
+            await WorkerProcessReadiness.WaitAsync(client,restored);
             await UntilAsync(async () => (await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetCommand", RelatedRequestId: pending.RequestId))).Receipt?.State == "Completed");
             Check((await client.SendAsync(pending)).Code == "Succeeded", "真实强杀后恢复暂停计划的待执行命令，原请求可重发查询结果");
             var history = (await client.QueryAsync("GetHistory")).History!;

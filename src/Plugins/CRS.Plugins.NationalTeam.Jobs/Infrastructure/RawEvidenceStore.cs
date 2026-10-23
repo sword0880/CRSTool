@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using CRS.Plugins.NationalTeamWatch.Application;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>SHA-256内容寻址存证；保存、核验和导出均保留原始字节。</summary>
-public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<string,Stream>? openRead=null) : IRawEvidenceStore
+public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<string,Stream>? openRead=null) : IRawEvidenceStore,IRawEvidenceVerifier
 {
     /// <summary>只导出已经复核哈希的字节；先写同目录临时文件，取消或失败不覆盖已有目标。</summary>
     public async Task ExportVerifiedAsync(string hash,string destination,IReadOnlyList<string> protectedDirectories,CancellationToken cancellationToken)
@@ -49,7 +49,12 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         try
         {
             using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { output.Write(content); output.Flush(true); }
-            File.Move(temporary, target);
+            try{File.Move(temporary, target);}
+            catch(IOException) when(File.Exists(target))
+            {
+                // 并行来源可能取得相同原件；只接受另一执行已原子保存且哈希正确的文件。
+                if(!Verify(hash))throw new InvalidDataException("Evidence integrity failure.");
+            }
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
         return hash;

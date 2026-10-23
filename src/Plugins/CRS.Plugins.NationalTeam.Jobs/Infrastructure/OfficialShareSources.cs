@@ -40,15 +40,15 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
             var market=name.StartsWith("SSE",StringComparison.Ordinal)?"SSE":"SZSE";
             if(progress is not null)await progress(new("SourceStarted",day,market));
             SourceDay? result=null;
-            try{result=await fetch();pages.AddRange(result.Pages);}
+            try{result=await fetch();lock(pages)pages.AddRange(result.Pages);}
             // 只有调用方取消才终止整批；单个来源的网络超时不能吞掉另一交易所的数据。
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-            catch(OperationCanceledException){issues.Add(name+"：官方来源响应超时。");failures.Add(new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","Timeout"));}
+            catch(OperationCanceledException){lock(issues)issues.Add(name+"：官方来源响应超时。");lock(failures)failures.Add(new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","Timeout"));}
             catch(Exception error)
             {
-                issues.Add(name+"："+error.Message);
+                lock(issues)issues.Add(name+"："+error.Message);
                 var failure=error.Data[OfficialResponse.FailureKey] as SourceFailure??new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","SourceRequestFailed");
-                failures.Add(failure);
+                lock(failures)failures.Add(failure);
                 if(failure is {State:"ParseFailed",SourceUrl:{} url}&&http is IOfficialSourceValidationFeedback feedback&&error.Data["EtfContractFeedbackRecorded"] is not true)
                 {
                     feedback.RejectContract(new(url));error.Data["EtfContractFeedbackRecorded"]=true;
@@ -57,8 +57,9 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
             // 日志只保留阶段与公开数量，不持久化来源异常消息。
             if(progress is not null)await progress(new(result is null?"SourceFailed":"SourceParsed",day,market,Received:result?.Pages.Sum(x=>x.Rows.Count)??0));
         }
-        if(pool.Any(x=>x.Market=="SSE"))await Capture("SSE",()=>new SseOfficialShareSource(http,raw).FetchAsync(day,token));
-        foreach(var key in pool.Where(x=>x.Market=="SZSE"))await Capture("SZSE "+key.Ticker,()=>FetchSzseAsync(key,day,token));
+        async Task Szse()
+        {foreach(var key in pool.Where(x=>x.Market=="SZSE"))await Capture("SZSE "+key.Ticker,()=>FetchSzseAsync(key,day,token));}
+        await Task.WhenAll(pool.Any(x=>x.Market=="SSE")?Capture("SSE",()=>new SseOfficialShareSource(http,raw).FetchAsync(day,token)):Task.CompletedTask,Szse());
         if(pages.Count==0 && issues.Count==0)throw new InvalidDataException("有效池为空，没有采集来源。");
         return new(day,pages,issues,failures);
     }

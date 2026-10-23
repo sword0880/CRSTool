@@ -7,6 +7,7 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--cancellation-boundaries"]){await WorkerCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.Cancellation",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--recovery-export-authorization"]){await RecoveryExportAuthorizationChecks.RunAsync();return;}
 if(args is ["--service-key-recovery"]){ServiceKeyRecoveryChecks.Run();return;}
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
@@ -243,9 +244,7 @@ Process Launch()
 }
 async Task WaitPipe(BackgroundPipeClient client, Process process)
 {
-    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-    if (process.HasExited) throw new Exception("服务进程提前退出：" + process.ExitCode);
-    await client.QueryAsync("GetHealth", timeout.Token);
+    await WorkerProcessReadiness.WaitAsync(client,process);
 }
 using (var child = Launch())
 {
@@ -286,6 +285,7 @@ await using (var rejected = new BackgroundPluginCatalog())
 await WorkerRemediationChecks.RunAsync(root, package);
 await LifecycleBoundaryChecks.Run(root);
 await WorkerSchedulingChecks.RunAsync(root);
+await WorkerCancellationChecks.RunAsync(Path.Combine(root,"cancellation-boundaries"));
 await WorkerUpgradeChecks.RunAsync(root, package);
 await StorageSecurityChecks.RunAsync(root, package);
 CryptographicOperations.ZeroMemory(key);

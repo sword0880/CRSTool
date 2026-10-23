@@ -8,9 +8,11 @@ public sealed class Entry:IContextualBackgroundPluginEntry
 {
     public IBackgroundPluginSession CreateSession()=>throw new InvalidOperationException();
     public IBackgroundPluginSession CreateSession(IBackgroundHostContext context)=>new Session(context);
-    private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession
+    private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IGroupedBackgroundSession
     {
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory));
+        public int MaximumConcurrentExecutions=>inner.MaximumConcurrentExecutions;
+        public BackgroundExecutionGroup ExecutionGroup(string jobId)=>inner.ExecutionGroup(jobId);
         public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
         public async ValueTask StartAsync(CancellationToken token)
         {

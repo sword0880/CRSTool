@@ -13,7 +13,10 @@ namespace CRS.Worker.PluginHost;
 public sealed record TrustedPackage(string Id, string Version, string Directory, Dictionary<string, string> Files);
 public sealed record BackgroundEntry(string Assembly, string Type);
 public sealed record BackgroundManifest(string Id, string Version, string HostContract, BackgroundEntry? BackgroundEntry);
-public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescriptor Descriptor, IBackgroundPluginSession Session, int MaximumConcurrency = 1);
+public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescriptor Descriptor, IBackgroundPluginSession Session, int MaximumConcurrency = 1)
+{
+    public BackgroundExecutionGroup? ExecutionGroup {get;init;}
+}
 
 /// <summary>只加载后台入口。完整包哈希验证后，私有依赖仍逐次校验，禁止链接逃逸。</summary>
 public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null,
@@ -109,10 +112,20 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
             if (maximumConcurrency is < 1 or > 32) throw new InvalidDataException("插件并发声明超出上限。");
             if (descriptors.Count > 32 || descriptors.Select(x => x.JobId).Distinct().Count() != descriptors.Count)
                 throw new InvalidDataException("任务重复或超过上限。");
+            var groups=new Dictionary<string,int>(StringComparer.Ordinal);
             foreach (var descriptor in descriptors)
             {
                 if (!ValidId(descriptor.JobId) || descriptor.Name.Length > 100) throw new InvalidDataException("任务标识错误。");
-                jobs.Add(new(package.Id, descriptor, session, maximumConcurrency));
+                BackgroundExecutionGroup? group=null;
+                if(session is IGroupedBackgroundSession grouped)
+                {
+                    await InvokeAsync(package.Id,"ExecutionGroup",_=>{group=grouped.ExecutionGroup(descriptor.JobId);return Task.CompletedTask;},token);
+                    if(group is null||!ValidId(group.Id)||group.MaximumConcurrency<1||group.MaximumConcurrency>maximumConcurrency
+                        ||groups.TryGetValue(group.Id,out var prior)&&prior!=group.MaximumConcurrency)
+                        throw new InvalidDataException("任务执行组声明无效。");
+                    groups[group.Id]=group.MaximumConcurrency;
+                }
+                jobs.Add(new(package.Id, descriptor, session, maximumConcurrency){ExecutionGroup=group});
             }
             if(session is IBackgroundQuerySession querySession)querySessions.Add(package.Id,querySession);
             statuses.Add(new(package.Id, "Started"));
