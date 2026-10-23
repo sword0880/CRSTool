@@ -27,6 +27,29 @@ internal static class ScopedEvidenceChecks
             try{repository.Evidence();throw new Exception("全池漏检无关锁定原件");}
             catch(IOException){Check(true,"全池查询仍核验全部依赖，不借范围优化放松完整性");}
         }
+        // 未关联任何金融事实的 RawSaved 抓取不属于这些查询的依赖；独占锁可稳定证明未扫描它。
+        var orphanHash=raw.Save("orphan fetch not attached to a business fact"u8.ToArray());
+        repository.RecordFetch(orphanHash,"https://www.sse.com.cn/orphan-fetch");
+        using(var orphanLock=new FileStream(Path.Combine(rawPath,orphanHash+".raw"),FileMode.Open,FileAccess.Read,FileShare.None))
+        {
+            Check(repository.Overview().Count>0,"ETF概览只核验其仪表盘证据，不被孤立抓取阻断");
+            Check(repository.Calendar("SSE").Contains(day),"交易日历不被孤立抓取阻断");
+            _=repository.History(null);Check(true,"全池历史不扫描未关联的孤立抓取");
+            Check(repository.PointsForKeys([key,other]).Count==2,"批量份额查询不扫描未关联的孤立抓取");
+            Check(repository.Evidence().Count==2,"全池证据核验份额事实，但不扫描未关联的孤立抓取");
+            _=repository.Coverage(key,day,day);Check(true,"单证券覆盖不被孤立抓取阻断");
+        }
+        // Coverage 还会展示最新采集尝试引用的原件；该依赖必须纳入校验，不能因缩小份额范围而漏检。
+        var attemptHash=raw.Save("collection attempt evidence"u8.ToArray());
+        var attemptFetchId=repository.RecordFetch(attemptHash,"https://www.sse.com.cn/attempt-fetch");
+        var attemptId=repository.BeginCollection(key,day);
+        repository.RecordCollection(attemptId,"RawSaved","RawSaved",attemptFetchId);
+        using(var attemptLock=new FileStream(Path.Combine(rawPath,attemptHash+".raw"),FileMode.Open,FileAccess.Read,FileShare.None))
+        {
+            try{repository.Coverage(key,day,day);throw new Exception("覆盖查询放行了已被当前采集阶段引用的锁定原件");}
+            catch(Exception error) when(error is IOException or InvalidDataException)
+            {Check(true,"覆盖查询继续核验最新采集尝试所引用的原件");}
+        }
         File.WriteAllText(Path.Combine(rawPath,hash+".raw"),"tampered");
         var beforeDamagedQuery=Changes();
         try{repository.Points(key);throw new Exception("已损坏原件被读查询放行");}

@@ -197,7 +197,8 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<EvidenceRow> Evidence()
     {
-        ValidateEvidence();
+        // 全池证据只依赖份额/日历/市场活跃度事实；孤立的原始抓取不能阻断仪表盘查询。
+        ValidateEvidence(dashboardOnly:true);
         return ReadEvidence();
     }
     /// <summary>先过滤证券再返回证据，单只历史不会挤占全池查询的分页容量。</summary>
@@ -211,7 +212,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<DateOnly> Calendar(string market)
     {
-        ValidateEvidence();
+        ValidateEvidence(dashboardOnly:true);
         var calendar=ReadCalendar(market);
         // 不能删除单个损坏日期，否则跨日变化可能被误算为相邻交易日变化。
         return calendar.All(x=>x.Valid)?calendar.Select(x=>x.Date).ToList():[];
@@ -225,7 +226,8 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<EtfHistoryPoint> History(EtfKey? key)
     {
-        ValidateEvidence();
+        if(key is { } specific) ValidateEvidence(specific,includeCalendar:true);
+        else ValidateEvidence(dashboardOnly:true);
         return ReadHistory(key);
     }
     private List<EtfHistoryPoint> ReadHistory(EtfKey? key)
@@ -245,7 +247,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     /// <summary>原件核验仅在本次批查询内共享；下次查询仍重新读取，不能跨查询缓存损坏结果。</summary>
     public Dictionary<EtfKey,List<SharePoint>> PointsForKeys(IReadOnlyList<EtfKey> keys)
-    {ValidateEvidence();return keys.ToDictionary(x=>x,ReadPoints);}
+    {ValidateEvidence(dashboardOnly:true);return keys.ToDictionary(x=>x,ReadPoints);}
     private List<SharePoint> ReadPoints(EtfKey key)
     {
         using var command=Command("""
@@ -256,9 +258,9 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         while(reader.Read()) rows.Add(new(DateOnly.ParseExact(reader.GetString(0),"yyyy-MM-dd",CultureInfo.InvariantCulture),decimal.Parse(reader.GetString(1),CultureInfo.InvariantCulture),null,reader.GetString(2))); return rows;
     }
     /// <summary>纯只读完整性核验：发现未受信原件时拒绝返回可能误导的金融结果，不修改质量状态。</summary>
-    private void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false)
+    private void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false)
     {
-        var (bad,_) = ScanEvidence(shareKey,includeCalendar,activityOnly,dashboardOnly);
+        var (bad,_) = ScanEvidence(shareKey,includeCalendar,activityOnly,dashboardOnly,includeAttempts);
         if(bad.Count==0)return;
         // 已由后台作业标记 Q15 的原件交给各只读查询的现有 SQL 过滤/标红；
         // 后台尚未登记的新损坏必须失败关闭，不能在查询时偷偷写状态。
@@ -269,7 +271,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
             throw new InvalidDataException("Evidence integrity failure; background reconciliation required.");
     }
     /// <summary>读取原始字节和规范化字节的哈希；仅在本次操作中缓存相同哈希的结果。</summary>
-    private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false)
+    private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false)
     {
         var bad=new List<string>();var good=new List<string>();
         var fetches=new List<(string Id,string Hash,string Original)>();
@@ -282,9 +284,14 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
                 OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day)
                 OR fetch_id IN(SELECT fetch_id FROM trading_day))
             AND ($market IS NULL OR fetch_id IN(SELECT fetch_id FROM share_observation_revision WHERE market=$market AND ticker=$ticker)
-            OR ($calendar=1 AND (fetch_id IN(SELECT fetch_id FROM trading_day WHERE market=$market)
-                OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day WHERE market=$market))))
-            """,("$market",shareKey?.Market),("$ticker",shareKey?.Ticker),("$calendar",includeCalendar?1:0),("$activity",activityOnly?1:0),("$dashboard",dashboardOnly?1:0)))
+                OR ($calendar=1 AND (fetch_id IN(SELECT fetch_id FROM trading_day WHERE market=$market)
+                    OR fetch_id IN(SELECT fetch_id FROM exchange_calendar_day WHERE market=$market)))
+                OR ($attempts=1 AND fetch_id IN(
+                    SELECT t.fetch_id FROM etf_collection_attempt a
+                    JOIN etf_collection_transition t ON t.attempt_id=a.id
+                    WHERE a.market=$market AND a.ticker=$ticker AND t.fetch_id IS NOT NULL
+                    AND t.sequence=(SELECT max(sequence) FROM etf_collection_transition WHERE attempt_id=a.id))))
+            """,("$market",shareKey?.Market),("$ticker",shareKey?.Ticker),("$calendar",includeCalendar?1:0),("$activity",activityOnly?1:0),("$dashboard",dashboardOnly?1:0),("$attempts",includeAttempts?1:0)))
         using(var reader=command.ExecuteReader())
             while(reader.Read())
             {
@@ -327,7 +334,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     }
     public List<EtfSummary> Overview()
     {
-        ValidateEvidence();
+        ValidateEvidence(dashboardOnly:true);
         return ReadOverview();
     }
     private List<EtfSummary> ReadOverview()
@@ -350,10 +357,10 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         // 分母取自日历，不能从现有份额记录反推“应有日期”并掩盖缺口。
         if(from>to)throw new InvalidDataException("覆盖区间的开始日期不能晚于结束日期。");
         if(Convert.ToInt32(Scalar("SELECT count(*) FROM security_master WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker)))!=1)throw new InvalidDataException("证券未登记。");
-        ValidateEvidence();
+        ValidateEvidence(key,includeCalendar:true,includeAttempts:true);
         var calendar=ReadCalendar(key.Market);var range=calendar.Where(x=>x.Date>=from && x.Date<=to).ToList();
         var points=ReadPoints(key).ToDictionary(x=>x.Date);
-        var evidence=ReadEvidence().Where(x=>x.Market==key.Market && x.Ticker==key.Ticker).GroupBy(x=>DateOnly.ParseExact(x.TradeDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)).ToDictionary(x=>x.Key,x=>x.ToList());
+        var evidence=ReadEvidence(key).GroupBy(x=>DateOnly.ParseExact(x.TradeDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)).ToDictionary(x=>x.Key,x=>x.ToList());
         var rows=new List<CoverageDay>();
         var allAttempts=CollectionAttempts(key,from,to);
         var attempts=allAttempts.GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.First());

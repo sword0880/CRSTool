@@ -35,6 +35,9 @@ jobs:
       - name: Verify ETF market sync cooldown, empty downloads and job diagnostics
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
+      - name: Verify dashboard evidence scope and orphan fetch isolation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --scoped-evidence
       - name: Verify plugin shared assembly same-version ABI mismatch is rejected before loading
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build
