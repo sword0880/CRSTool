@@ -147,6 +147,28 @@ function Test-WorkerSnapshot([string]$Data, [hashtable]$Record) {
     }
     if (@(Get-WorkerFiles $snapshot).Count -ne $manifest.Files.Count) { throw '快照包含未登记文件。' }
 }
+# 仅当持久快照存在时才允许证明“候选未写入新事实”。升级记录中的
+# NewFactsPossible=false 只是程序状态，不能替代当前文件与停机快照的一致性。
+function Assert-WorkerLiveDataMatchesSnapshot([string]$Data, [hashtable]$Record) {
+    if (-not $Record.BackupManifestHash) { throw '缺少可核验快照，拒绝以文件一致性证明安全回退。' }
+    Test-WorkerSnapshot $Data $Record
+    $manifestPath = Get-WorkerChild $Data ('maintenance/' + $Record.Id + '/snapshot.json')
+    $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -AsHashtable
+    # 与 New-WorkerSnapshot 保持完全相同的排除项；否则会把本次维护日志当作业务新事实。
+    $actual = @(Get-WorkerFiles $Data | Where-Object {
+        $relative = [IO.Path]::GetRelativePath($Data, $_.FullName).Replace('\','/')
+        $relative -notin @('owner.lock','maintenance.lock') -and
+            -not $relative.StartsWith('maintenance/',[StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($actual.Count -ne $manifest.Files.Count) { throw '活动数据文件数量与升级快照不一致，拒绝回退。' }
+    foreach ($item in $actual) {
+        $relative = [IO.Path]::GetRelativePath($Data,$item.FullName).Replace('\','/')
+        if (-not $manifest.Files.ContainsKey($relative) -or
+            (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash -ne $manifest.Files[$relative]) {
+            throw '活动数据与升级快照不一致，拒绝回退。'
+        }
+    }
+}
 function Get-WorkerUpgradePaths([string]$Program, [hashtable]$Record) {
     # 所有移动只使用验证过的固定同级目录；日志不能指定任意源/目标路径。
     $id = [Guid]::ParseExact($Record.Id,'N').ToString('N')
@@ -170,6 +192,9 @@ function Switch-WorkerPackage([string]$Data, [string]$Program, [hashtable]$Recor
 }
 function Restore-WorkerPrevious([string]$Data, [string]$Program, [hashtable]$Record, [scriptblock]$Checkpoint=$null) {
     if ($Record.NewFactsPossible) { throw '候选可能已写入新事实，禁止回退或覆盖旧数据库。' }
+    # 备份完成后的回退必须确认当前原件仍与停机快照一致；
+    # 文件遭删除、追加或篡改时保留现场，不切换代码代次。
+    if ($Record.BackupManifestHash) { Assert-WorkerLiveDataMatchesSnapshot $Data $Record }
     $paths = Get-WorkerUpgradePaths $Program $Record
     # 回退改名中断后Failed目录可能已存在；核对指纹后继续，不覆盖或删除任何代次。
     if(Test-Path -LiteralPath $paths.Failed){

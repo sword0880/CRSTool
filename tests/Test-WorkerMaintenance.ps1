@@ -71,6 +71,8 @@ Check ((Get-FileHash (Join-Path $data 'scheduler-config.db')).Hash -eq $original
 # 在两次目录改名之间模拟断电；日志仍为Staged，恢复不得猜测已进入候选。
 $crashProgram=Join-Path $root 'crash-program';Package $crashProgram '2.0.0'
 $crashRecord=$record.Clone();$crashRecord.Id=[Guid]::NewGuid().ToString('N');$crashRecord.Stage='Staged'
+# 合成事务使用独立升级ID，必须同时创建对应快照而不能复用旧ID的清单哈希。
+New-WorkerSnapshot $data $crashRecord
 $crashPaths=Get-WorkerUpgradePaths $crashProgram $crashRecord
 Copy-WorkerPackage $candidate $crashPaths.Stage $crashProgram
 [IO.Directory]::Move($crashPaths.Active,$crashPaths.Previous)
@@ -81,6 +83,7 @@ foreach($point in @('RollbackCandidateMoved','RollbackPreviousMoved')){
     $rollbackProgram=Join-Path $root $point;Package $rollbackProgram '2.0.0'
     $rollbackRecord=$record.Clone();$rollbackRecord.Id=[Guid]::NewGuid().ToString('N');$rollbackRecord.Stage='Switched'
     $rollbackRecord.PreviousReleaseHash=(Get-FileHash (Join-Path $rollbackProgram 'release.json')).Hash
+    New-WorkerSnapshot $data $rollbackRecord
     $rollbackPaths=Get-WorkerUpgradePaths $rollbackProgram $rollbackRecord
     [IO.Directory]::Move($rollbackPaths.Active,$rollbackPaths.Previous)
     Copy-WorkerPackage $candidate $rollbackPaths.Active $rollbackPaths.Previous

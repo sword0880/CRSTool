@@ -130,6 +130,44 @@ function Run-CheckpointFailure([string]$Point){
         Check ((Get-FileHash (Join-Path $fixture.Data 'service-key.dpapi') -Algorithm SHA256).Hash -eq $fixture.KeyHash) '继续候选不更换密钥文件'
     }
 }
+# 备份后、候选真正启动前，即使日志仍记录 NewFactsPossible=false，
+# 当前活动库或原件偏离停机快照也必须阻止旧程序回退。
+function Run-LiveDriftFailure([string]$Kind) {
+    $fixture=New-Fixture ('live-drift-'+$Kind)
+    $service=New-MockService $fixture.Data
+    $checkpoint={param($stage) if($stage -eq 'Switched'){throw 'synthetic-switched-before-start'}}
+    try {
+        Invoke-WorkerUpgradeTransaction -Data $fixture.Data -Program $fixture.Program -Source $fixture.Candidate -Service $service -Development -Checkpoint $checkpoint
+        throw '切换前中断未触发'
+    }catch{
+        if($_.Exception.Message -ne 'synthetic-switched-before-start'){throw}
+    }
+    $record=Read-WorkerUpgrade $fixture.Data
+    Check ($record.Stage -eq 'NeedsManualRepair' -and -not $record.NewFactsPossible -and $record.BackupManifestHash) "$Kind 回退前具备待核验快照且尚未开放候选写入"
+    $file=switch($Kind) {
+        'DatabaseChanged' {Join-Path $fixture.Data 'scheduler-config.db'}
+        'EvidenceDeleted' {Join-Path $fixture.Data 'plugins/p/raw/review.raw'}
+        'ExtraData' {Join-Path $fixture.Data 'plugins/p/raw/unexpected.raw'}
+    }
+    $original=if(Test-Path -LiteralPath $file){[IO.File]::ReadAllBytes($file)}else{$null}
+    switch($Kind) {
+        'DatabaseChanged' {[IO.File]::AppendAllText($file,'unexpected-live-fact')}
+        'EvidenceDeleted' {[IO.File]::Delete($file)}
+        'ExtraData' {[IO.File]::WriteAllText($file,'unregistered-live-fact')}
+    }
+    $blocked=$false
+    try {
+        Invoke-WorkerRecoveryTransaction -Data $fixture.Data -Program $fixture.Program -Service $service -Action RestorePrevious -Development
+    }catch{$blocked=$_.Exception.Message -match '快照|活动数据'}
+    Check $blocked "$Kind 活动数据偏离备份时拒绝旧程序回退"
+    Check ($service.State.Disabled -and $service.State.Stopped -and (Read-WorkerUpgrade $fixture.Data).Stage -eq 'NeedsManualRepair') "$Kind 数据异常后仍保持维修锁定"
+    Check ((Get-FileHash (Join-Path $fixture.Program 'release.json') -Algorithm SHA256).Hash -eq $fixture.CandidateHash) "$Kind 被拒回退不修改当前程序代次"
+    if($null -eq $original){Remove-Item -LiteralPath $file -Force}
+    else{[IO.File]::WriteAllBytes($file,$original)}
+    Invoke-WorkerRecoveryTransaction -Data $fixture.Data -Program $fixture.Program -Service $service -Action RestorePrevious -Development
+    Check ((Read-WorkerUpgrade $fixture.Data).Stage -eq 'RolledBack') "$Kind 现场明确恢复一致后允许安全回退"
+    Assert-OriginalData $fixture
+}
 try{
     # 包验证/兼容性失败必须发生在停止服务和创建维护事务之前。
     $bad=New-Fixture 'preflight-tamper'
@@ -157,6 +195,7 @@ try{
         Run-CheckpointFailure $point
     }
     Run-CheckpointFailure 'CandidateHealthy'
+    foreach($kind in @('DatabaseChanged','EvidenceDeleted','ExtraData')) { Run-LiveDriftFailure $kind }
 
     # 模拟候选进程启动失败：未跨越数据打开门禁时允许安全回退。
     $startFailure=New-Fixture 'candidate-start-failure'
