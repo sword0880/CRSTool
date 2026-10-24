@@ -23,7 +23,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     public BackgroundExecutionGroup ExecutionGroup(string jobId)=>jobId switch
     {
         "evidence-integrity" or "official-share-sync" or "market-activity-sync" or "official-calendar-sync" or "equity-disclosure-sync"
-            or "equity-report-search" or "equity-review"=>new("collection",2),
+            or "equity-report-search" or "equity-review" or "nav-sync"=>new("collection",2),
         "alert-evaluate"=>new("evaluation",1),
         _=>new("management",1)
     };
@@ -76,6 +76,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         new("equity-review","直接持股原文核验（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-report-search","查找持股官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("activity-review","成交统计修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("nav-sync","官方NAV原件采集（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("nav-review","NAV冲突修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("review","ETF修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("watchlist","ETF验证池变更（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true)];
 
@@ -118,6 +120,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             catch(EtfContractException error){return new("Rejected","contract="+error.Code);}
             switch(jobId)
             {
+                case "nav-sync": return await SyncNavAsync(request,token,commandId);
+                case "nav-review" when request.Operation=="nav-review":
+                    if(request.Market!="SZSE"||request.Ticker!="159915")return new("Rejected","nav=UnsupportedSecurity");
+                    try { await workspace!.ReviewNavAsync(request.Revision??"",request.Accept,request.Reviewer??"",token,commandId);return BackgroundJobResult.Success("nav=RevisionReviewed"); }
+                    catch(InvalidDataException) { return new("Rejected","nav=ReviewInvalid"); }
                 case "evidence-integrity" when request.Operation is "sync" or "integrity":
                     await workspace!.ReconcileEvidenceIntegrityAsync(token);
                     return BackgroundJobResult.Success("integrity=Reconciled");
@@ -225,7 +232,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         {
             var operation=Parse(payload).Operation;
             return operation is "status" or "release-query" or "export" or "dashboard" or "overview" or "configuration"
-                or "history" or "evidence" or "points" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
+                or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
                 or "equity-watchlist" or "equity-holdings" or "equity-disclosures" or "equity-events" or "equity-reports"
                 or "alert-overview" or "alert-configuration" or "alert-events" or "alert-event" or "alert-event-version" or "alert-inputs"
                 or "alert-changes" or "alert-outbox" or "alert-deliveries" or "alert-channels" or "alert-documents" or "alert-metadata" or "alert-holdings"
@@ -316,6 +323,12 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "market-activity":rows=(await workspace!.MarketActivityAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "activity-revisions":rows=(await workspace!.MarketActivityRevisionsAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "points":rows=(await workspace!.PointsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "nav-points":
+                case "nav-revisions":
+                    // NAV仍按显式日期有界读取，避免多年历史分页耗尽快照期限后返回半份结果。
+                    if(request.From is null||request.To is null||request.To<request.From||request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new InvalidDataException("NAV查询区间必须不超过400个自然日。");
+                    rows=request.Operation=="nav-points"?(await workspace!.NavPointsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>SerializeRow(x)).ToArray()
+                        :(await workspace!.NavRevisionsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "collection-attempts":
                     if(request.From is null||request.To is null||request.To<request.From||request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new InvalidDataException("采集查询区间必须不超过400个自然日。");
                     rows=(await workspace!.CollectionAttemptsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>SerializeRow(x)).ToArray();break;

@@ -39,6 +39,9 @@ public interface IEtfWorkspace
     Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token)=>throw new NotSupportedException();
     Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>throw new NotSupportedException("历史汇总需要更新后台服务。");
     Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token);
+    /// <summary>NAV保持独立修订身份；旧后台显式拒绝，不回退为份额点上的未知金额。</summary>
+    Task<List<NavAcceptedPoint>> NavPointsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("NAV查询需要更新后台服务。");
+    Task<List<NavRevision>> NavRevisionsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("NAV修订需要更新后台服务。");
     Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token);
     Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>Task.FromResult(new List<CollectionAttempt>());
     Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)=>throw new NotSupportedException("采集验收需要更新后台服务。");

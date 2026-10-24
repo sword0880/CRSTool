@@ -38,7 +38,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
                 PRAGMA user_version=1;
                 """;
             command.ExecuteNonQuery();
-            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com"})_=Read(host);
+            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","www.efunds.com.cn"})_=Read(host);
         }
         catch { db.Dispose(); throw; }
     }
@@ -49,6 +49,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
         "www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" => "SSE",
         "www.szse.cn" or "disc.static.szse.cn" => "SZSE",
         "www.chinacnd.com" => "ISSUER-600153",
+        "www.efunds.com.cn" or "cdn.efunds.com.cn" => "EFUNDS",
         _ => throw new ArgumentException("不支持的来源。")
     };
 

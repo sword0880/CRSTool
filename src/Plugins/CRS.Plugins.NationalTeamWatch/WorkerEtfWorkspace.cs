@@ -107,6 +107,9 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>RunAsync("watchlist",new("watchlist",key.Market,key.Ticker,Name:name,Index:index,Active:active,Reason:reason,ConfigurationRevision:expectedRevision),token);
     public async Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>(await ReadPagesAsync<EtfHistoryPoint>(new("history",key?.Market,key?.Ticker),token)).Rows;
     public async Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<SharePoint>(new("points",key.Market,key.Ticker),token)).Rows;
+    /// <summary>新操作名保证旧服务不能忽略NAV口径后返回另一类数据。</summary>
+    public async Task<List<NavAcceptedPoint>> NavPointsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>(await ReadPagesAsync<NavAcceptedPoint>(new("nav-points",key.Market,key.Ticker,from,through),token)).Rows;
+    public async Task<List<NavRevision>> NavRevisionsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>(await ReadPagesAsync<NavRevision>(new("nav-revisions",key.Market,key.Ticker,from,through),token)).Rows;
     public async Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)
     {
         var result=await ReadPagesAsync<CoverageDay>(new("coverage",key.Market,key.Ticker,from,to),token);

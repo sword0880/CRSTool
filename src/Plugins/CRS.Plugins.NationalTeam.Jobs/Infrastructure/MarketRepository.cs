@@ -82,7 +82,9 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
             Execute("INSERT OR IGNORE INTO watchlist_membership VALUES($m,$t,1,'默认观察候选，名称和指数待核验','DataPilot',NULL)",("$m",item.Market),("$t",item.Ticker));
             Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,$origin)",("$m",item.Market),("$t",item.Ticker),("$origin",InitialEtfDirectory.Origin));
         }
-        seed.Commit();InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();
+        seed.Commit();
+        try { InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();InitializeNavSchema(); }
+        catch { db.Dispose(); throw; }
     }
     private string Now => CRS.Timing.BeijingClock.Read(clock).ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>

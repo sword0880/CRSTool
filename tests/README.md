@@ -1,5 +1,13 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+NAV来源入口专项：`CRS.Tests.NationalTeamWatch --nav-source-checks`验证固定地址、持久冷却、真实插件同步/审核/查询、提交后重放和待审不升级；HTTP均为替身。宿主预算以`CRS.Tests.WorkerEtf --source-budget`另验基金双域共享及与其他来源独立。范围见[来源接入实施](../docs/implementation/NATIONAL_TEAM_NAV_SOURCE_20261024.md)。
+
+NAV存储新增：`CRS.Tests.NationalTeamWatch --nav-storage-checks`检查独立净值修订、知识时点、冲突/审核/幂等、完整性、重启和取消。`--nav-storage-sample <已核验NAV快照目录> <新目录>`用真实公开原件验证隔离SQLCipher入库及重启回读，使用测试密钥，不连接正式Worker。见[NAV存储实施](../docs/implementation/NATIONAL_TEAM_NAV_STORAGE_20261024.md)。
+
+国家队研究新增：`CRS.Tests.NationalTeamWatch --nav-research-checks`运行官方NAV解析及同日份额/NAV计算反例，也纳入默认回归。`--nav-research-snapshot <原件目录> <新目录>`离线导出单只159915研究样本；`--nav-research-verify <样本目录>`按冻结时间核验原件并复算完整JSON。`--nav-share-study-live <样本目录> <开始日期> <截止日期> <新目录>`只读正式Worker的份额/证据/日历/可比性，生成RetrospectiveOnly报告；`--nav-share-study-verify <报告目录>`重新核验NAV原件并复算。缺日、待审、可比性未知时保持不可计算，不写正式市场库或通知。见[开发清单](../docs/implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)及[NAV来源约束](../docs/implementation/NATIONAL_TEAM_NAV_RESEARCH_20261024.md)。
+
+本机配套安装留证：`CRS.Tests.NationalTeamWatch --deployment-state-live <目录>`只读保存健康、计划、ETF配置和股票记录，并要求读取前后同一Running进程。`--equity-report-sync-live <目录>`仅为600153创建一个稳定报告请求ID，文件存在时沿用；`--equity-report-status-live <目录>`只查询该ID。目录读取失败前先保存独立命令终态，超时不冒充空目录。`--p0-review-live --human-confirmed`仅用于已确认固定原件的五账户，先跑真实黄金样本；已成功账户跳过，仅正式执行证明正文前超时/冷却的终态失败才另记尝试，未知结果和业务拒绝不换ID。见[正式回执与边界](../docs/implementation/ETF_EQUITY_DEPLOYMENT_20261024.md)。
+
 ETF/股票2026-10-24续验：`CRS.Tests.NationalTeamWatch --evidence-adversarial`为16项隔离反例，验证股票历史插入/更正不继承旧比较基线、旧页面确认拒绝、旧库缺基线保留A类快照但无差额，以及ETF原件接收/接受阶段的北京时间窗口；已加入默认回归和Windows CI。`--business-contracts`覆盖基线序列化、新绑定操作及旧服务拒绝后不降级。`--equity-ui`检查实际比较前期展示及修改报告期清除可比勾选。新增`--equity-status-live`只读正式持仓/观察池/样本目录/计划和持久历史，失败不保存完整结果；不采集、不审核、不发消息。真实数据与未关闭门槛见[续项记录](../docs/implementation/ETF_EQUITY_FOLLOWUP_20261024.md)。
 
 ```powershell

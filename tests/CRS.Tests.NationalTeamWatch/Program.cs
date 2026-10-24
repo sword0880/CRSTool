@@ -4,6 +4,14 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
+if(args is ["--nav-research-checks"]){NavResearchChecks.Run();EtfNavStudyChecks.Run();return;}
+if(args is ["--nav-storage-checks"]){NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--nav-source-checks"]){await NavSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavSource",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--nav-storage-sample",var navStorageInput,var navStorageOutput]){NavStorageTool.Run(navStorageInput,navStorageOutput);return;}
+if(args is ["--nav-research-snapshot",var navInput,var navOutput]){NavResearchTool.Run(navInput,navOutput);return;}
+if(args is ["--nav-research-verify",var navSnapshot]){NavResearchTool.Verify(navSnapshot);return;}
+if(args is ["--nav-share-study-live",var studyNav,var studyFrom,var studyThrough,var studyOutput]){await EtfNavStudyTool.Capture(studyNav,studyFrom,studyThrough,studyOutput);return;}
+if(args is ["--nav-share-study-verify",var frozenStudy]){EtfNavStudyTool.Verify(frozenStudy);return;}
 if(args is ["--read-isolation"]){await ReadIsolationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ReadIsolation",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--repository-contracts"]){RepositoryContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.RepositoryContracts",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--evidence-adversarial"]){EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EvidenceAdversarial",Guid.NewGuid().ToString("N")));return;}
@@ -43,6 +51,10 @@ if(args is ["--p0-review-live","--human-confirmed"]){await P0LiveOperations.Revi
 if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
 if(args.Length!=0)throw new ArgumentException("未知的验收参数，拒绝自动退回合成测试。");
+NavResearchChecks.Run();
+EtfNavStudyChecks.Run();
+NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));
+await NavSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavSource",Guid.NewGuid().ToString("N")));
 await EtfChartChecks.Run();
 Check(EtfMetrics.Normalize(2489718.77m,"万份")==24897187700m,"DATA-01 decimal units");
 Reject(()=>EtfMetrics.Normalize(1,"亿元"),"Unknown unit rejected");

@@ -4,6 +4,7 @@ using CRS.Plugin.Abstractions;
 using CRS.Worker.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
+using CRS.Plugins.NationalTeamWatch.Infrastructure;
 namespace CRS.Plugins.NationalTeam.Jobs;
 /// <summary>公开来源限域、限速和大小保护；不跟随重定向，不绕过403或429。</summary>
 public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceValidationFeedback, IDisposable
@@ -15,8 +16,16 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly object policyGate=new();
     private readonly Dictionary<string,SemaphoreSlim> sourceGates=new(StringComparer.Ordinal)
-        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)}};
-    private static string Source(string host)=>host.EndsWith("sse.com.cn",StringComparison.Ordinal)?"SSE":host.EndsWith("szse.cn",StringComparison.Ordinal)?"SZSE":"ISSUER-600153";
+        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)},{"EFUNDS",new(1)}};
+    // 基金官网与其CDN共用一个预算；不能把未知域名默认归入已授权发行人。
+    private static string Source(string host)=>host switch
+    {
+        "www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn"=>"SSE",
+        "www.szse.cn" or "disc.static.szse.cn"=>"SZSE",
+        "www.chinacnd.com"=>"ISSUER-600153",
+        "www.efunds.com.cn" or "cdn.efunds.com.cn"=>"EFUNDS",
+        _=>throw new InvalidOperationException("来源域名未登记。")
+    };
     private (DateTimeOffset Next,DateTimeOffset Blocked,int Failures) ReadPolicy(string host){lock(policyGate)return policy.Read(host);}
     public DateTimeOffset? RetryAt(Uri uri)
     {
@@ -43,7 +52,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
         ImportPolicy(uri.Host);
     }
     public Func<EtfProgress,Task>? Progress {get;set;}
-    private Task ReportAsync(string stage,Uri uri,int? status=null,DateTimeOffset? until=null)=>Progress?.Invoke(new(stage,Market:uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)||OfficialEquityDocuments.IsReviewedIssuer(uri)?"SSE":"SZSE",HttpStatus:status,Until:until))??Task.CompletedTask;
+    private Task ReportAsync(string stage,Uri uri,int? status=null,DateTimeOffset? until=null)=>Progress?.Invoke(new(stage,Market:EfundsNavResearch.IsSource(uri)?null:uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)||OfficialEquityDocuments.IsReviewedIssuer(uri)?"SSE":"SZSE",HttpStatus:status,Until:until))??Task.CompletedTask;
     /// <summary>测试可注入固定响应；正式入口只使用禁重定向的默认传输。</summary>
     public OfficialHttpGateway(ISourceRequestPolicy policy, HttpMessageHandler? transport = null,IBackgroundSourceContext? sources=null)
     {
@@ -54,7 +63,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
         {
             try
             {
-                foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com"})
+                foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","www.efunds.com.cn"})
                 {
                     var legacy=policy.Read(host);
                     sources.ImportSourceState(host,new(legacy.Next,legacy.Blocked,legacy.Failures));
@@ -68,7 +77,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     public async Task<PublicHttpResponse> GetAsync(Uri uri, CancellationToken cancellationToken)
     {
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0
-            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)) throw new InvalidOperationException("Public source not allowed.");
+            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)&&!EfundsNavResearch.IsSource(uri)) throw new InvalidOperationException("Public source not allowed.");
         var gate=sourceGates[Source(uri.Host)];
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -155,6 +164,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
             if(uri.Query.Contains("COMMON_SSE_PL_XBRL_TOP10SHAREHOLDERS",StringComparison.Ordinal))request.Headers.Referrer=new("https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml");
             if(uri.AbsolutePath=="/security/stock/queryCompanyBulletinNew.do")request.Headers.Referrer=new("https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml");
             if(OfficialEquityDocuments.IsReviewedIssuer(uri))request.Headers.Referrer=new("https://www.chinacnd.com/report.html");
+            if(EfundsNavResearch.IsSource(uri))request.Headers.Referrer=new(EfundsNavResearch.ProductUrl);
             return await transport.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token).ConfigureAwait(false);
         }
         if(directHosts.ContainsKey(uri.Host))return await Send(directClient).ConfigureAwait(false);

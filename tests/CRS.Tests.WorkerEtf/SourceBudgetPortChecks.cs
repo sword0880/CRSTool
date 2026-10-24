@@ -23,6 +23,16 @@ internal static class SourceBudgetPortChecks
         check(store.Disposed,"注册表关闭释放注入的存储");
         using(var registry=new SourceBudgetRegistry(new MemoryStore(state)))
             check(registry.Snapshot().Single(x=>x.Source=="SSE").BlockedUtc==blocked,"替换存储重建注册表不改变已存冷却");
+        // 基金官网与CDN同组，但不会继承交易所或发行人的拒绝状态。
+        using(var registry=new SourceBudgetRegistry(new MemoryStore(state)))
+        {
+            registry.ReportFailure("www.efunds.com.cn",429,DateTimeOffset.UtcNow.AddHours(1));
+            try { using var lease=await registry.AcquireAsync("nav","cdn.efunds.com.cn",Empty,default);throw new Exception("基金CDN绕过冷却"); }
+            catch(SourceBudgetUnavailableException e){check(e.Code=="SourceCooldown","基金官网429阻断同组CDN");}
+            check(registry.Snapshot().Single(x=>x.Source=="EFUNDS").BlockedUtc==state["EFUNDS"].BlockedUtc,"基金共享状态可观测且写入存储端口");
+            using var independent=await registry.AcquireAsync("nav","www.chinacnd.com",Empty,default);
+            check(registry.Snapshot().Single(x=>x.Source=="ISSUER-600153").Active==1,"基金冷却不阻断独立发行人");
+        }
         var broken=new MemoryStore(state){FailRead=true};
         try{using var ignored=new SourceBudgetRegistry(broken);throw new Exception("读取失败被当空状态");}
         catch(IOException){check(broken.Disposed,"端口读取失败拒绝启动并释放资源");}

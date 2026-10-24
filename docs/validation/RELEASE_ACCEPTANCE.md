@@ -1,5 +1,7 @@
 # 当前发布验收
 
+2026-10-24晚间ETF/国家队配套已正式Committed安装，160发行文件及5614快照逐项校验、密钥/计划/配置保留；5个已重新核对原件的账户均Completed/Succeeded并回读A类首次披露快照。来源补查与目录请求仍Pending/RetryDeferred，ETF250日仅11/24、连续20日0只，ReleaseApproved=false。见[正式安装及边界](../implementation/ETF_EQUITY_DEPLOYMENT_20261024.md)，下方较早“尚未安装/A类0条”保留为历史时点。
+
 2026-10-24 ETF/国家队股票：新增比较前期绑定、旧Worker拒绝绑定审核、连续采集原件接收时间检查及反例回归。正式完整24只审计：11只250日通过、连续20日0只通过，目标范围8缺失证券日/36待审证券日；当前股票29条待审、A类快照0条，不能沿用早期5账户回读判定当前验收完成。新修复尚未安装，金融数据及发行门槛仍开放。详见[本轮反方续验](../implementation/ETF_EQUITY_FOLLOWUP_20261024.md)。
 
 更新：2026-10-15。**ReleaseApproved=false**。自动回归和真实样本技术验证已通过；独立金额签认、实际设备恢复及发布包审查仍未完成。本文维护当前门槛与执行入口，历史测量见 [验收轮次归档](../archive/RELEASE_ACCEPTANCE_HISTORY.md)。
