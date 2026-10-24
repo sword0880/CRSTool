@@ -57,6 +57,9 @@ jobs:
       - name: Verify ETF market sync cooldown, empty downloads and job diagnostics
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
+      - name: Verify deterministic market cycle research and point-in-time gates
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-cycle-checks
       - name: Verify dashboard evidence scope and orphan fetch isolation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --scoped-evidence
