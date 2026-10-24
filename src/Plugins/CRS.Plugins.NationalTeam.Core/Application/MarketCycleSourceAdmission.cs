@@ -20,6 +20,12 @@ public enum MarketCycleSourceApprovalStatus { Pending, Approved, Rejected }
 
 public enum MarketCycleSourceOperation { AutomatedPolling, HistoricalBackfill, Redistribution }
 
+/// <summary>Verifies that the referenced license/terms bytes are actually retained and match the SHA-256.</summary>
+public interface IMarketCycleSourceApprovalEvidenceVerifier
+{
+    bool Verify(string sha256);
+}
+
 /// <summary>
 /// Human-reviewed source approval evidence. TermsEvidenceHash is the SHA-256 of the locally retained
 /// license/terms evidence, not a hash inferred from a live website. No source is approved by default.
@@ -54,9 +60,11 @@ public static class MarketCycleSourceAdmission
     public static void Require(
         MarketCycleSourceApproval approval,
         MarketCycleSourceOperation operation,
-        DateTimeOffset operationAt)
+        DateTimeOffset operationAt,
+        IMarketCycleSourceApprovalEvidenceVerifier evidenceVerifier)
     {
         ArgumentNullException.ThrowIfNull(approval);
+        ArgumentNullException.ThrowIfNull(evidenceVerifier);
 
         if (string.IsNullOrWhiteSpace(approval.SourceId) || approval.SourceId.Length > 100 ||
             string.IsNullOrWhiteSpace(approval.DatasetId) || approval.DatasetId.Length > 100 ||
@@ -76,6 +84,9 @@ public static class MarketCycleSourceAdmission
             approval.TermsEvidenceHash.Length != 64 ||
             !approval.TermsEvidenceHash.All(Uri.IsHexDigit))
             throw new InvalidDataException("来源许可/条款证据必须具有有效 SHA-256 哈希。");
+
+        if (!evidenceVerifier.Verify(approval.TermsEvidenceHash))
+            throw new InvalidDataException("来源许可/条款原件不存在或 SHA-256 核验失败。");
 
         if (string.IsNullOrWhiteSpace(approval.Reviewer) || approval.Reviewer.Length > 100 ||
             approval.ReviewedAt == default)
