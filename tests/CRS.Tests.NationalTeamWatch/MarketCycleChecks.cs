@@ -8,6 +8,14 @@ internal static class MarketCycleChecks
     private sealed record Fixture(DateOnly[] Days, MarketCycleIndexPoint[] IndexPoints,
         MarketCycleActivityPoint[] ActivityPoints, MarketCycleBreadthPoint[] BreadthPoints);
 
+    private sealed class ApprovalEvidenceVerifier : IMarketCycleSourceApprovalEvidenceVerifier
+    {
+        private readonly HashSet<string> verified;
+        public ApprovalEvidenceVerifier(params string[] hashes) =>
+            verified = new HashSet<string>(hashes, StringComparer.OrdinalIgnoreCase);
+        public bool Verify(string sha256) => verified.Contains(sha256);
+    }
+
     private static void Check(bool condition, string name)
     {
         if (!condition) throw new Exception(name);
@@ -307,46 +315,52 @@ internal static class MarketCycleChecks
                 MarketCycleSourceUse.HistoricalBackfill | MarketCycleSourceUse.Redistribution,
             Hash("reviewed license terms"), "fixture-reviewer", approvalAt, "source-policy-v1",
             input.EvaluationCutoff.AddDays(1));
-        MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff);
-        MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.HistoricalBackfill, input.EvaluationCutoff);
-        MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.Redistribution, input.EvaluationCutoff);
+        var approvalEvidence = new ApprovalEvidenceVerifier(approvedSource.TermsEvidenceHash);
+        MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence);
+        MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.HistoricalBackfill, input.EvaluationCutoff, approvalEvidence);
+        MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.Redistribution, input.EvaluationCutoff, approvalEvidence);
         Check(true, "显式批准的用途在有效期内通过来源门禁");
 
         RejectOperation(() => MarketCycleSourceAdmission.Require(
             approvedSource with { Status = MarketCycleSourceApprovalStatus.Pending },
-            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff),
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "待审核来源不允许自动采集");
         RejectOperation(() => MarketCycleSourceAdmission.Require(
             approvedSource with { ApprovedUses = MarketCycleSourceUse.AutomatedCollection },
-            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff),
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "仅批准采集但未批准持久化仍被拒绝");
         RejectOperation(() => MarketCycleSourceAdmission.Require(
             approvedSource with { ApprovedUses = MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage },
-            MarketCycleSourceOperation.HistoricalBackfill, input.EvaluationCutoff),
+            MarketCycleSourceOperation.HistoricalBackfill, input.EvaluationCutoff, approvalEvidence),
             "自动采集权限不能代替历史回填权限");
         RejectOperation(() => MarketCycleSourceAdmission.Require(
             approvedSource with { ApprovedUses = MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage },
-            MarketCycleSourceOperation.Redistribution, input.EvaluationCutoff),
+            MarketCycleSourceOperation.Redistribution, input.EvaluationCutoff, approvalEvidence),
             "本地存储权限不能代替再分发权限");
         Reject(() => MarketCycleSourceAdmission.Require(
             approvedSource with { TermsEvidenceHash = "bad" },
-            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff),
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "来源许可证据哈希格式错误拒绝");
         Reject(() => MarketCycleSourceAdmission.Require(
+            approvedSource with { TermsEvidenceHash = Hash("unarchived license terms") },
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff,
+            new ApprovalEvidenceVerifier()),
+            "仅有哈希格式但没有可核验条款原件仍被拒绝");
+        Reject(() => MarketCycleSourceAdmission.Require(
             approvedSource with { ReviewedAt = input.EvaluationCutoff.AddMinutes(1) },
-            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff),
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "未来才完成的审批不能用于过去的执行时点");
         RejectOperation(() => MarketCycleSourceAdmission.Require(
             approvedSource with { ValidUntil = input.EvaluationCutoff },
-            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff),
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "过期来源审批拒绝");
         Reject(() => MarketCycleSourceAdmission.Require(
             approvedSource with { SourceUri = new Uri("http://example.com/data") },
-            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff),
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "非 HTTPS 来源地址拒绝");
         Reject(() => MarketCycleSourceAdmission.Require(
             approvedSource with { ApprovedUses = (MarketCycleSourceUse)128 },
-            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff),
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "未知来源权限位拒绝");
 
         Console.WriteLine("市场周期研究检查完成。");
