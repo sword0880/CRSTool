@@ -47,6 +47,9 @@ public sealed class Entry:IContextualBackgroundPluginEntry
             token.ThrowIfCancellationRequested();
             // 仅测试可控的网络等待，验证阶段可查询且配置按插件写入门槛排队。
             while(File.Exists(Path.Combine(root,"http-hold.fixture")))await Task.Delay(25,token);
+            // NAV管道验收只读取预先核对的公开原件；此夹具不进入正式发行，也不请求网络。
+            var nav=CRS.Plugins.NationalTeamWatch.Infrastructure.EfundsNavResearch.OfficialUrls.ToList().IndexOf(uri.AbsoluteUri);
+            if(nav>=0)return new(200,await File.ReadAllBytesAsync(Path.Combine(root,"nav-source.fixture",nav+".raw"),token),"application/javascript");
             var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
             if(uri.AbsolutePath=="/security/stock/queryCompanyBulletinNew.do")
             {

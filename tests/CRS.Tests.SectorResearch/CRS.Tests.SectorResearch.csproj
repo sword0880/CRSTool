@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 独立行业研究检查，不改动另一分支正在维护的国家队测试入口。 -->
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/Plugins/CRS.Plugins.NationalTeam.Core/CRS.Plugins.NationalTeam.Core.csproj" /></ItemGroup>
+</Project>

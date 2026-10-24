@@ -1,0 +1,32 @@
+name: Sector research checks
+# 仅验证合成行业样本与隔离界面；不访问正式Worker，也不将研究原型标记为真实行情验收。
+on:
+  pull_request:
+    paths:
+      - 'src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/SectorResearch.cs'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/SectorResearch*'
+      - 'tests/CRS.Tests.SectorResearch/**'
+      - 'tests/CRS.Tests.SectorUi/**'
+      - '.github/workflows/sector-research-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sector-research:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Check sector domain boundaries with synthetic evidence
+        run: dotnet run --project tests/CRS.Tests.SectorResearch -c Release -- --output artifacts/sector-research
+      - name: Render isolated sector curves with synthetic evidence
+        run: dotnet run --project tests/CRS.Tests.SectorUi -c Release -- artifacts/sector-research/synthetic-input.json artifacts/sector-research/sector-ui.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sector-research-synthetic
+          path: artifacts/sector-research/
+          if-no-files-found: warn

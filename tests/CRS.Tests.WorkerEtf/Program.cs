@@ -9,6 +9,10 @@ using CRS.Plugins.NationalTeamWatch;
 using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
+if(args is ["--nav-pipe",var navPackage,var navSnapshot,var navOutput]){await NavPipeChecks.Run(navPackage,navSnapshot,navOutput);return;}
+if(args is ["--nav-live",var navLiveOutput]){await NavLiveOperations.Run(navLiveOutput,true);return;}
+if(args is ["--nav-status-live",var navStatusOutput]){await NavLiveOperations.Run(navStatusOutput,false);return;}
+
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
 if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
 if(args is ["--concurrency"]){await NationalTeamConcurrencyChecks.RunAsync();return;}

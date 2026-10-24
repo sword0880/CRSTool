@@ -47,7 +47,7 @@
 
 针对10月23日缺日只提交一次份额补查，请求 `41b0e3a1-b983-4275-82ad-271029871d46`。正式执行 `785f901b643641fbb4b6dd13dc6ca533` 为 **RetryDeferred**，`days=1;sourceIssues=33;rows=0`，持久命令仍Pending，计划记录最早重试20:30:51。本次未补齐任何份额，不能把Accepted当成功。
 
-建发官方报告目录只提交一次请求 `e94f0c3f-cfb0-489a-8799-7d2db9689801`，正式回执 **Pending/RetryDeferred**，目录仍0份。首次目录回读超时后按原ID重新读取；命令状态与目录结果分开留证，查询失败不被记录为零条成功。
+建发官方报告目录只提交一次请求 `e94f0c3f-cfb0-489a-8799-7d2db9689801`，当时正式回执 **Pending/RetryDeferred**，目录仍0份。首次目录回读超时后按原ID重新读取；命令状态与目录结果分开留证，查询失败不被记录为零条成功。10月25日01:51按原ID回查已Completed/Succeeded，执行301554a2538446bb97aeabe8adaca67b，检查点reports=Indexed;pages=1;periodsStillRequireReview=true；索引成功不能代替报告期或持仓审核。最新回执见artifacts/national-team-final-20261025/pending-reports-final.jsonl。
 
 维护前正式来源状态显示上交所冷却至 **2026-10-25 00:59:09**，本轮保留此截止时间，没有清空失败计数或换源绕过。深市曾可重试，但此次正式补查仍无新行。任务与原ID在Worker中继续持久退避，不重复创建新请求。
 

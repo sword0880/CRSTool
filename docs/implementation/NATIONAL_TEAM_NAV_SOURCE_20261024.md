@@ -19,9 +19,11 @@
 
 国家队工具与WorkerEtf工具均构建成功，0警告/0错误。23项固定来源/插件入口反例通过，全部HTTP为替身；它们不证明正式源站请求、真实管道或安装完成。
 
-证据根：`artifacts/national-team-nav-source-20261024`。完整回归、宿主来源预算、架构检查已经启动，结果及退出码分别写入`full-regression.log`/`full-exit.txt`、`source-budget.log`/`budget-exit.txt`、`architecture.log`/`architecture-exit.txt`。未读取退出码前不要认定完成。
+证据根：`artifacts/national-team-nav-source-20261024`。完整回归、宿主来源预算、架构检查的结果及退出码分别写入`full-regression.log`/`full-exit.txt`、`source-budget.log`/`budget-exit.txt`、`architecture.log`/`architecture-exit.txt`。10月25日恢复后核对三项退出码均为0，完整回归466项、共享预算66项通过；包含专项检查，不能重复加总。
 
 本轮尚未打完整候选包、执行真实管道验收或替换正式服务。后续必须继续这三项，再进行保留数据的维护安装与正式回读；整体研究目标仍开放。
+
+2026-10-25续记：以上为来源阶段历史状态。随后完整包的7项真实管道检查通过，正式维护已Committed，四个固定源站实际HTTP200并登记3635条、近年IPC回读241条。最新安装及保留门槛以[实机记录](NATIONAL_TEAM_NAV_DEPLOYMENT_20261025.md)为准；不把手动一次成功写成持续自动采集或研究目标完成。
 
 ## 复核入口
 

@@ -1,0 +1,29 @@
+<UserControl x:Class="CRS.Plugins.NationalTeamWatch.Presentation.SectorResearchPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF" Style="{DynamicResource UiPageRoot}">
+ <!-- 研究页只消费后端报告；来源未接入主产品前不在主导航伪装为可用实时能力。 -->
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="20">
+  <TextBlock Text="行业比较研究" Style="{DynamicResource UiPageTitle}" FontSize="24"/>
+  <TextBlock Text="{Binding Caption}" Margin="0,8"/>
+  <TextBlock Text="{Binding Provenance}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+  <WrapPanel Margin="0,12"><TextBlock Text="显示指标" VerticalAlignment="Center" Margin="0,0,12,0"/>
+   <ComboBox Width="220" ItemsSource="{Binding Metrics}" SelectedItem="{Binding Metric}"/>
+  </WrapPanel>
+  <ItemsControl ItemsSource="{Binding Rows}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+   <ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Row.Name}" IsChecked="{Binding IsVisible}" Margin="0,4,18,4"/></DataTemplate></ItemsControl.ItemTemplate>
+  </ItemsControl>
+  <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,10"/>
+  <lvc:CartesianChart Height="360" Series="{Binding Series}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" LegendPosition="Bottom"/>
+  <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" Margin="0,12" MaxHeight="260">
+   <DataGrid.Columns>
+    <DataGridTextColumn Header="行业" Binding="{Binding Row.Name}" Width="*"/>
+    <DataGridTextColumn Header="PE(TTM)" Binding="{Binding Row.PeTtm,StringFormat=N2,TargetNullValue=不可计算}"/>
+    <DataGridTextColumn Header="PB" Binding="{Binding Row.Pb,StringFormat=N2,TargetNullValue=不可计算}"/>
+    <DataGridTextColumn Header="PE分位(%)" Binding="{Binding Row.PePercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
+    <DataGridTextColumn Header="PB分位(%)" Binding="{Binding Row.PbPercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
+    <DataGridTextColumn Header="研究状态" Binding="{Binding State}" Width="2*"/>
+   </DataGrid.Columns>
+  </DataGrid>
+  <TextBlock Text="使用当前已核对版本展示历史，不证明当时系统已知；观察条件不是买入信号。" TextWrapping="Wrap"/>
+ </StackPanel></ScrollViewer>
+</UserControl>

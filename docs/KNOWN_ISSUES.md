@@ -1,5 +1,9 @@
 # 当前问题与验收缺口
 
+2026-10-25 01:51：原建发报告目录请求已Completed/Succeeded并Indexed（pages=1），报告期仍需审核；原份额补查仍Pending/RetryDeferred。没有重复排队，索引不升级为已审持仓。最新回执与剩余工作见[开发清单](implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)。
+
+2026-10-25：[NAV本机部署](implementation/NATIONAL_TEAM_NAV_DEPLOYMENT_20261025.md)已Committed，5620快照文件与原密钥摘要核对，原7项计划/24只ETF/29条股票记录保留。固定159915源站本次四请求200、正式新增3635条/待审0，近年IPC回读241条。自动周期/跨基金、份额可比性、区域有效性和完整持仓方向仍未关闭。[行业曲线原型](implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)已开发独立领域及WPF显示，真实行业数据/服务/主导航未接通；不重复远端MarketCycle原型分支。
+
 2026-10-24 R05A：[独立NAV修订及知识时间存储](implementation/NATIONAL_TEAM_NAV_STORAGE_20261024.md)已加入候选代码，35项存储反例和443项完整回归通过；真实公开3635条在隔离SQLCipher库入库/重启回读完成，登记前时点仍为0条。Installed=false，正式采集入口、来源预算和保留数据的安装回读仍开放，不能以隔离入库替代正式NAV运行或资金流验收。
 
 2026-10-24研究开发按[项目修正清单](implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)推进。单只159915已核对官方单位NAV历史3635条，隔离研究解析及同日份额/NAV对齐、冻结复算已实现，408项回归通过。21:06真实99个窗口因可比性缺失/份额缺日均无金额结果；这不是正式自动NAV或资金流上线。价格/广度/估值、广泛真实持仓及方向分母、区域模型与时间样本外有效性均仍开放。

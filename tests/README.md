@@ -1,5 +1,7 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+行业研究采用独立测试项目，避免与另一分支的MarketCycleChecks重复修改入口。`CRS.Tests.SectorResearch`运行领域反例，`CRS.Tests.SectorUi`渲染明确标记的合成曲线窗口；真实行业源、后台存储与主导航仍待接线。命令、口径及未完成项见[行业研究实施](../docs/implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)。
+
 NAV来源入口专项：`CRS.Tests.NationalTeamWatch --nav-source-checks`验证固定地址、持久冷却、真实插件同步/审核/查询、提交后重放和待审不升级；HTTP均为替身。宿主预算以`CRS.Tests.WorkerEtf --source-budget`另验基金双域共享及与其他来源独立。范围见[来源接入实施](../docs/implementation/NATIONAL_TEAM_NAV_SOURCE_20261024.md)。
 
 NAV存储新增：`CRS.Tests.NationalTeamWatch --nav-storage-checks`检查独立净值修订、知识时点、冲突/审核/幂等、完整性、重启和取消。`--nav-storage-sample <已核验NAV快照目录> <新目录>`用真实公开原件验证隔离SQLCipher入库及重启回读，使用测试密钥，不连接正式Worker。见[NAV存储实施](../docs/implementation/NATIONAL_TEAM_NAV_STORAGE_20261024.md)。
