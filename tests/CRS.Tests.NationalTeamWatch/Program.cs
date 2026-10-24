@@ -32,6 +32,7 @@ if(args is ["--exit-alert-replay-checks"]){ExitAlertReplayChecks.Run();return;}
 if(args is ["--exit-alert-replay-installed",var replayFrom,var replayTo,var installedReplayOutput]){await ExitAlertReplayTool.Installed(replayFrom,replayTo,installedReplayOutput);return;}
 if(args is ["--exit-alert-ui"]){ExitAlertUiChecks.Run();return;}
 if(args is ["--exit-alert-installed"]){await ExitAlertInstalledProbe.Run();return;}
+if(args is ["--market-cycle-checks"]){MarketCycleChecks.Run();return;}
 if(args is ["--market-live"]){await MarketActivityChecks.RunLive(Path.Combine(Environment.CurrentDirectory,"artifacts","market-activity-live",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--market-sync-diagnostics"]){await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(Path.GetTempPath(),"CRS.MarketSyncDiagnostics",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--scoped-evidence"]){ScopedEvidenceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ScopedEvidence",Guid.NewGuid().ToString("N")));return;}
@@ -85,6 +86,7 @@ ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));
 ExitAlertReplayChecks.Run();
 await GapRecoveryChecks.Run(root);
 MarketActivityChecks.Run(root);
+MarketCycleChecks.Run();
 await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
 EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(root,"evidence-adversarial"));
