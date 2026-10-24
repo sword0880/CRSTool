@@ -92,6 +92,9 @@
 
 ## R06：接口形式解耦了类型，但能力语义仍然过宽
 
+续项：市场仓储默认实现已移除，按用例拆分端口并在正式启动核验必需能力；R07 年度边界已修正。
+R08 仅推进内部持久授权，发布门槛仍 Open。当前状态及验收见[续项记录](../implementation/ARCH_FOLLOWUP_20261023.md)，下文保留评审时证据。
+
 证据：`src/Plugins/CRS.Plugins.NationalTeam.Core/Application/Ports.cs:11` 的 `IMarketRepository` 同时包含采集、日历、股票报告、预警、通知 Outbox 和配置；大量方法默认抛 `NotSupportedException`，部分方法默认返回空集合或 null。`src/CRS.Infrastructure/Storage/IVaultStorageBackend.cs` 同时提供仓储、绩效用例工厂、会话保护委托和跨模块导入。
 
 影响：新增适配器可以编译通过，直到业务运行时才发现能力缺失；默认空集合还需要调用方额外区分“没有数据”和“不支持查询”。备份、会话和事务一致性也不能仅靠一个提供方名称得到证明。当前没有证据表明内置 SQLCipher 适配器正走默认空实现，不将它描述为当前数据被漏读。

@@ -24,6 +24,10 @@ internal static class EquityUiChecks
                 {
                     await model.RefreshCommand.ExecuteAsync(null);if(model.Rows.Count!=3)throw new Exception("合成持股查询不完整。");
                     model.Selected=model.Rows.First(x=>x.Institution=="汇金资管");await model.DetailTask;await Task.Delay(600);window.UpdateLayout();
+                    if(!model.ComparisonStatus.Contains("2026-03-31"))throw new Exception("审核界面未显示实际比较前期。");
+                    model.Comparable=true;model.ReportAsOf=new DateTime(2026,3,31);
+                    if(model.Comparable||!model.ComparisonStatus.Contains("尚无已核验前期"))throw new Exception("修改报告时点沿用了旧可比确认。");
+                    model.ReportAsOf=new DateTime(2026,6,30);
                     if(model.HoldingSeries.Length!=1||model.DeltaSeries.Length!=1||model.Disclosures.Count!=2||model.Events.Count!=2||model.Events[0].Delta!=-100||model.StockAccounts.Count!=3)throw new Exception("持仓点、增减柱、组合选择和披露明细未绑定。");
                     if(model.Matrix.Count!=1||!model.Matrix[0].Social.Text.Contains("报告期持股数增加")||!model.Matrix[0].Pension.Text.Contains("本期未列示"))throw new Exception("机构矩阵状态不完整。");
                     model.HoldingAxes[0].MinLimit=.2;if(model.DeltaAxes[0].MinLimit!=.2)throw new Exception("持仓缩放未同步增减图。");

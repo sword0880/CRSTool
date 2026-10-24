@@ -46,6 +46,11 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
     [ObservableProperty] private bool comparable;
     [ObservableProperty] private bool originalConfirmed;
     [ObservableProperty] private bool strategic;
+    private EquityDisclosure? ComparisonDisclosure=>ReportAsOf is {} report?Disclosures
+        .Where(x=>x.State is "Accepted" or "Critical"&&x.ReportAsOf is {} date&&date<DateOnly.FromDateTime(report))
+        .OrderByDescending(x=>x.ReportAsOf).FirstOrDefault():null;
+    public string ComparisonStatus=>ComparisonDisclosure is {} prior?$"比较前期：{prior.ReportAsOf:yyyy-MM-dd}，公告日 {prior.Published:yyyy-MM-dd}。请核对与本期的可比性。":"尚无已核验前期；仅登记本期快照，不计算期间差额。";
+    partial void OnReportAsOfChanged(DateTime? value){Comparable=false;OnPropertyChanged(nameof(ComparisonStatus));}
     private int queryVersion,detailVersion;
     public Task LoadTask {get;private set;}=Task.CompletedTask;
     public Task DetailTask {get;private set;}=Task.CompletedTask;
@@ -67,6 +72,7 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
     {
         ReportAsOf=value?.ReportAsOf?.ToDateTime(TimeOnly.MinValue);Published=value?.Published?.ToDateTime(TimeOnly.MinValue);
         DocumentUrl=value?.DocumentUrl??"";Page=value?.Page??"";OriginalConfirmed=false;Comparable=false;
+        OnPropertyChanged(nameof(ComparisonStatus));
     }
     private async Task LoadRowsAsync()
     {
@@ -132,7 +138,7 @@ public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken l
     [RelayCommand] private Task Review()=>ExecuteAsync(async()=>
     {
         if(Selected is null||SelectedDisclosure is null||SelectedDisclosure.Market!=Selected.Market||SelectedDisclosure.Ticker!=Selected.Ticker||ReportAsOf is null||Published is null||!OriginalConfirmed)throw new System.IO.InvalidDataException("请选择披露记录，并填写报告截止日、公告日及官方PDF；须逐项核对完整股东表、单位、股类及持股数。");
-        await workspace.ReviewEquityAsync(new(SelectedDisclosure.Id,DateOnly.FromDateTime(ReportAsOf.Value),DateOnly.FromDateTime(Published.Value),DocumentUrl,Page,Reviewer,Comparable,Strategic?"Strategic":"Portfolio",Account:Selected.Account,OriginalConfirmed:OriginalConfirmed,Institution:ReviewInstitution),lifetime);
+        await workspace.ReviewEquityAsync(new(SelectedDisclosure.Id,DateOnly.FromDateTime(ReportAsOf.Value),DateOnly.FromDateTime(Published.Value),DocumentUrl,Page,Reviewer,Comparable,Strategic?"Strategic":"Portfolio",Account:Selected.Account,OriginalConfirmed:OriginalConfirmed,Institution:ReviewInstitution){ComparisonDisclosureId=ComparisonDisclosure?.Id},lifetime);
         await RefreshAsync();
     });
 }

@@ -20,8 +20,8 @@ internal static class DirectEquityChecks
             repository.ReviewEquity(new(first.Id,new(2026,3,31),new(2026,4,28),"https://www.sse.com.cn/fixture-first.pdf","P10 股东表","test-reviewer",true,"Portfolio",Account:account,OriginalConfirmed:true),"%PDF-synthetic-first"u8.ToArray());
         repository.SaveEquityDisclosure("SSE","600036",uri,Source(new(2026,8,28),("中央汇金资产管理有限责任公司",900,9),("全国社保基金一零一组合",550,5.5m)));
         var second=repository.EquityDisclosures(new("SSE","600036")).First(x=>x.State=="NeedsReview");
-        repository.ReviewEquity(new(second.Id,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/fixture-second.pdf","P11 股东表","test-reviewer",true,"Portfolio",Account:"中央汇金资产管理有限责任公司",OriginalConfirmed:true),"%PDF-synthetic-second"u8.ToArray());
-        repository.ReviewEquity(new(second.Id,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/fixture-second.pdf","P11 股东表","test-reviewer",true,"Portfolio",Account:"全国社保基金一零一组合",OriginalConfirmed:true),"%PDF-synthetic-second"u8.ToArray());
+        repository.ReviewEquity(new(second.Id,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/fixture-second.pdf","P11 股东表","test-reviewer",true,"Portfolio",Account:"中央汇金资产管理有限责任公司",OriginalConfirmed:true){ComparisonDisclosureId=first.Id},"%PDF-synthetic-second"u8.ToArray());
+        repository.ReviewEquity(new(second.Id,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/fixture-second.pdf","P11 股东表","test-reviewer",true,"Portfolio",Account:"全国社保基金一零一组合",OriginalConfirmed:true){ComparisonDisclosureId=first.Id},"%PDF-synthetic-second"u8.ToArray());
     }
     public static void Run(string root)
     {
@@ -58,7 +58,7 @@ internal static class DirectEquityChecks
         var third=seed.EquityDisclosures(new("SSE","600036")).Single(x=>x.State=="NeedsReview");
         seed.ReviewEquity(new(third.Id,new(2026,9,30),new(2026,10,16),"https://www.sse.com.cn/fixture-third.pdf","P12","reviewer",false,"Portfolio",Account:"中央汇金资产管理有限责任公司",OriginalConfirmed:true),"%PDF-third"u8.ToArray());
         Check(seed.EquityHoldings(null,null,null,false).Single(x=>x.Institution=="社保基金") is {State:"NeedsReview",Delta:null},"同报告其他账户未经核验不得继承确认");
-        seed.ReviewEquity(new(third.Id,new(2026,9,30),new(2026,10,16),"https://www.sse.com.cn/fixture-third.pdf","P12","reviewer",true,"Portfolio",Account:"全国社保基金一零一组合",OriginalConfirmed:true),"%PDF-third"u8.ToArray());
+        seed.ReviewEquity(new(third.Id,new(2026,9,30),new(2026,10,16),"https://www.sse.com.cn/fixture-third.pdf","P12","reviewer",true,"Portfolio",Account:"全国社保基金一零一组合",OriginalConfirmed:true){ComparisonDisclosureId=seed.EquityDisclosures(new("SSE","600036")).Single(x=>x.ReportAsOf==new DateOnly(2026,6,30)).Id},"%PDF-third"u8.ToArray());
         Check(seed.EquityHoldings(null,null,null,false).Single(x=>x.Institution=="汇金资管") is {State:"NotComparable",Delta:null},"后核验账户不覆盖其他账户的可比性");
         Check(seed.EquityEvents(new("SSE","600036")).Count(x=>x.ReportAsOf==new DateOnly(2026,6,30))==3,"新增报告不抹去历史变动");
         Check(seed.EquityEvents(new("SSE","600036")).First().ComparisonFrom==new DateOnly(2026,6,30),"变动明确标记比较起始报告期而非每日交易");
@@ -68,7 +68,7 @@ internal static class DirectEquityChecks
         {
             aliases.SaveEquityDisclosure("SSE","600036",uri,Source(sourceDate,("汇金公司",shares,1)));
             var candidate=aliases.EquityDisclosures(new("SSE","600036")).Single(x=>x.State=="NeedsReview");
-            aliases.ReviewEquity(new(candidate.Id,reportDate,sourceDate,"https://www.sse.com.cn/alias.pdf","P1","reviewer",true,"Portfolio",Account:"汇金公司",OriginalConfirmed:true,Institution:institution),"%PDF-alias"u8.ToArray());
+            aliases.ReviewEquity(new(candidate.Id,reportDate,sourceDate,"https://www.sse.com.cn/alias.pdf","P1","reviewer",true,"Portfolio",Account:"汇金公司",OriginalConfirmed:true,Institution:institution){ComparisonDisclosureId=aliases.EquityDisclosures(new("SSE","600036")).FirstOrDefault(x=>x.State=="Accepted"&&x.ReportAsOf<reportDate)?.Id},"%PDF-alias"u8.ToArray());
         }
         Check(aliases.EquityHoldings(null,null,null,false).Single() is {State:"NotComparable",Delta:null},"相同简称核验为不同法人主体时禁止计算增减持");
         Reliability(root);

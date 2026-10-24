@@ -2,7 +2,7 @@ using System.Text;
 using CRS.Plugin.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
-/// <summary>插件应用用例：串行访问私有仓储，在后台执行导入、查询与证据核验。</summary>
+/// <summary>插件应用用例：串行写入私有仓储，独立读取快照，在后台执行导入与证据核验。</summary>
 public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
 {
     private readonly IPluginHostContext context;
@@ -23,7 +23,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     public Task RegisterCalendarAsync(string market,int year,byte[] bytes,Uri uri,CancellationToken token)=>RunAsync(()=>{repository!.RegisterReviewedCalendar(market,year,bytes,uri);return true;},token);
     private async Task<T> RunAsync<T>(Func<T> work,CancellationToken token)
     {
-        // 单写入者门槛也用于查询，避免同一SQLite连接被界面命令并发使用。
+        // 写入复用单连接；正式查询走独立快照，仅旧串行测试适配器复用此门槛。
         await gate.WaitAsync(token).ConfigureAwait(false);
         try { ObjectDisposedException.ThrowIf(disposed,this);return await Task.Run(()=>repository is {} current?current.ExecuteOperation(work,token):work(),token).ConfigureAwait(false); } finally {gate.Release();}
     }

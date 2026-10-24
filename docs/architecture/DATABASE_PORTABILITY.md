@@ -70,4 +70,6 @@ BackgroundRuntime不再识别具体SQLite类型；已适配任务/来源存储�
 - 新市场适配器继续实现既有`IMarketRepository`，来源策略必须满足持久冷却、不以未知为零及网络前预留的约束；原件存证仍通过独立证据存储能力处理。
 - 注册工厂只接受随可信发行构建的代码，不从配置加载任意程序集、类型名或可执行内容。两个自定义注册测试都转发现有SQLCipher，只证明选择/接线，不代表第二种数据库集成验收。
 
-验证入口：`CRS.Tests.Infrastructure --vault-providers`（10项）、`CRS.Tests.WorkerEtf --storage-providers`（10项）；完整回归与证据见实施续记。架构门禁禁止保险库入口暴露SQL、插件入口直接创建具体仓储，以及网关引用具体数据库策略。
+验证入口：`CRS.Tests.Infrastructure --vault-providers`（10项）、`CRS.Tests.WorkerEtf --storage-providers`（11项）；完整回归与证据见实施续记。架构门禁禁止保险库入口暴露SQL、插件入口直接创建具体仓储，以及网关引用具体数据库策略。
+
+2026-10-23：市场仓储必需方法不再提供默认空/抛错实现，完整存储族由 11 个业务端口组合；正式启动核验独立读取、有界证据、总览和完整性巡检并打开真实只读事务。接口编译和启动核验不能代替新数据库提供方的加密、备份、迁移和原子性验收，见[架构续项](../implementation/ARCH_FOLLOWUP_20261023.md)。

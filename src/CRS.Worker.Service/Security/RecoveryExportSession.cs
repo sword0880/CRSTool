@@ -131,7 +131,7 @@ internal enum RecoveryExportPhase { Prepared, Authorized, Sealed }
 internal enum RecoveryExportFailure
 {
     Forbidden, InvalidRequest, ConfirmationRequired, BindingMismatch, Expired, Consumed,
-    Cancelled, AuditUnavailable, SourceKeyUnavailable
+    Cancelled, AuditUnavailable, SourceKeyUnavailable, CapacityExceeded
 }
 internal sealed class RecoveryExportRefusedException(RecoveryExportFailure code) : InvalidOperationException("Recovery export refused.")
 {

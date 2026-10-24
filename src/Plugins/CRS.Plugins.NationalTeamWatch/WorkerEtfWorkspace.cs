@@ -102,7 +102,8 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     }
     public Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token)=>RunAsync("equity-watch",new("equity-watch",EquityWatch:watch),token);
     public Task SyncEquityAsync(CancellationToken token)=>RunAsync("equity-disclosure-sync",new("equity-sync"),token);
-    public Task ReviewEquityAsync(EquityReview review,CancellationToken token)=>RunAsync("equity-review",new("equity-review",EquityReview:review),token);
+    // 独立操作名让旧Worker明确拒绝；不能让它忽略新增基线字段后按旧规则批准。
+    public Task ReviewEquityAsync(EquityReview review,CancellationToken token)=>RunAsync("equity-review",new("equity-review-bound",EquityReview:review),token);
     public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>RunAsync("watchlist",new("watchlist",key.Market,key.Ticker,Name:name,Index:index,Active:active,Reason:reason,ConfigurationRevision:expectedRevision),token);
     public async Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>(await ReadPagesAsync<EtfHistoryPoint>(new("history",key?.Market,key?.Ticker),token)).Rows;
     public async Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>(await ReadPagesAsync<SharePoint>(new("points",key.Market,key.Ticker),token)).Rows;

@@ -29,6 +29,19 @@ jobs:
       - name: Verify independent market query snapshots and writer isolation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --read-isolation
+      # 仓储必需能力与北京时间边界必须随源码改动回归，不能只验证接口能够编译。
+      - name: Verify market repository contracts before job admission
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --repository-contracts
+      - name: Verify equity comparison baselines and ETF collection receipts
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --evidence-adversarial
+      - name: Verify storage provider capabilities in the formal plugin startup path
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --storage-providers
+      - name: Verify application flows and Beijing business year boundary
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Application -c Release --no-build
       - name: Verify supervised plugin fault isolation and durable execution
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --supervised-plugins

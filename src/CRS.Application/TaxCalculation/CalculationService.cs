@@ -78,7 +78,8 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         var (pnlChecks, cashChecks) = AnnualReconciliation.CheckSalesAndCash(data, year, begin, end, matches, issues, cancellation);
         foreach (var r in used.Values.Where(r => !r.SourceConfirmed)) issues.Add(new("RATE_SOURCE", "实际使用的汇率尚未登记来源。", Currency: r.Currency));
         var clock = timeProvider ?? TimeProvider.System;
-        var provisional = replayContext?.Provisional ?? (year >= clock.GetLocalNow().Year || used.Values.Any(r => r.Provisional));
+        // 业务年度固定使用北京时间；宿主时区不能改变同一时刻的临时结果状态。
+        var provisional = replayContext?.Provisional ?? (year >= CRS.Timing.BeijingClock.Read(clock).Year || used.Values.Any(r => r.Provisional));
         var finalIssues = issues.Distinct().ToList();
         var (calculationStatus, completeness, reconciliation, usage, estimated) = ResultStatusPolicy.Evaluate(
             finalIssues, scopeConfirmed, positionReconciled, cashChecks, pnlChecks, provisional, used.Values, summary, data.Broker != "FUTU");

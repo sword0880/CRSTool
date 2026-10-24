@@ -1,5 +1,7 @@
 # 当前发布验收
 
+2026-10-24 ETF/国家队股票：新增比较前期绑定、旧Worker拒绝绑定审核、连续采集原件接收时间检查及反例回归。正式完整24只审计：11只250日通过、连续20日0只通过，目标范围8缺失证券日/36待审证券日；当前股票29条待审、A类快照0条，不能沿用早期5账户回读判定当前验收完成。新修复尚未安装，金融数据及发行门槛仍开放。详见[本轮反方续验](../implementation/ETF_EQUITY_FOLLOWUP_20261024.md)。
+
 更新：2026-10-15。**ReleaseApproved=false**。自动回归和真实样本技术验证已通过；独立金额签认、实际设备恢复及发布包审查仍未完成。本文维护当前门槛与执行入口，历史测量见 [验收轮次归档](../archive/RELEASE_ACCEPTANCE_HISTORY.md)。
 
 ## 当前证据
@@ -56,3 +58,5 @@
 未完成项统一维护在 [KNOWN_ISSUES](../KNOWN_ISSUES.md)，隐私范围见 [PRIVACY](../guides/PRIVACY.md)。acceptance.json 保持 ReleaseApproved=false，技术检查不能自动批准正式发布。
 
 2026-10-23架构四项候选整改：联合导入原子提交、市场只读快照、有界证据查询、Runner进程监督和容量预警已接线。42项专项、最终候选包46项隔离服务化及相关回归通过，正式服务未替换、生产签名及原有发布门槛未关闭，详见[实施与验证](../implementation/ARCH_OPTIMIZATION_20261023.md)。ReleaseApproved保持false。
+
+2026-10-23 架构续项：市场仓储契约/启动能力核验与北京时间年度边界已验证；恢复授权新增内部持久索引与强杀重放检查。未注册生产恢复 IPC/CLI，未完成目标机激活或双干净机器演练，P0-02 / ARCH-005 继续 Open，ReleaseApproved=false。见[续项记录](../implementation/ARCH_FOLLOWUP_20261023.md)。

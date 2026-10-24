@@ -35,7 +35,11 @@ public sealed record EquityHoldingRow(string DisclosureId,string Market,string T
     public string Basis=>EvidenceSemantics.SnapshotBasis;
     public string NatureText=>Nature=="Strategic"?"战略控股/参股":Nature=="Portfolio"?"证券投资持仓":"性质待核验";
 }
-public sealed record EquityReview(string Id,DateOnly ReportAsOf,DateOnly Published,string DocumentUrl,string Page,string Reviewer,bool Comparable,string Nature,string ShareClass="A",string PercentBasis="TotalShares",string Account="",bool OriginalConfirmed=false,string? Institution=null);
+public sealed record EquityReview(string Id,DateOnly ReportAsOf,DateOnly Published,string DocumentUrl,string Page,string Reviewer,bool Comparable,string Nature,string ShareClass="A",string PercentBasis="TotalShares",string Account="",bool OriginalConfirmed=false,string? Institution=null)
+{
+    /// <summary>审核界面实际显示的前期披露；后台不得把过期确认自动套用到新基线。</summary>
+    public string? ComparisonDisclosureId {get;init;}
+}
 
 public static class DirectEquityComparison
 {

@@ -3,16 +3,21 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 
 public sealed partial class EtfWorkspace
 {
+    // 写入用例只依赖本模块端口，避免扩大对其他业务仓储的依赖。
+    private IMarketActivityWriteRepository ActivityWrites=>repository!;
+    private IMarketActivityReadRepository ActivityReads=>repository!;
+    private IShareCollectionRepository CollectionRecords=>repository!;
+
     private IMarketActivitySource? activitySource;
     public void SetMarketActivitySource(IMarketActivitySource source)=>activitySource=source;
-    public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>ReadAsync(current=>current.MarketActivity(),token);
-    public Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>ReadAsync(current=>current.MarketActivityRevisions(),token);
+    public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>ReadPortAsync((IMarketActivityReadRepository current)=>current.MarketActivity(),token);
+    public Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>ReadPortAsync((IMarketActivityReadRepository current)=>current.MarketActivityRevisions(),token);
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token)=>ReviewMarketActivityAsync(id,accept,reviewer,token,null);
-    public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.ReviewMarketActivity(id,accept,reviewer,commandId);return true;},token);
+    public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token,Guid? commandId)=>RunAsync(()=>{ActivityWrites.ReviewMarketActivity(id,accept,reviewer,commandId);return true;},token);
     public async Task<MarketActivitySyncReport> SyncRecentMarketActivityAsync(CancellationToken token)
     {
         var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
-        var cursor=await RunAsync(()=>repository!.ReadMarketActivityCursor(),token);
+        var cursor=await RunAsync(()=>ActivityReads.ReadMarketActivityCursor(),token);
         var from=cursor?.AddDays(-7)??today.AddDays(-35);var to=from.AddDays(29)<today?from.AddDays(29):today;
         var result=await SyncMarketActivityRangeAsync(from,to,token,true);
         return result with{HasMore=result.HasMore || to<today};
@@ -29,7 +34,7 @@ public sealed partial class EtfWorkspace
         if(from>to || to>today || to.DayNumber-from.DayNumber>400)throw new InvalidDataException("采集区间必须不超过400个自然日，不能包含未来日期。");
         if(activitySource is null)throw new InvalidOperationException("成交统计来源未注册。");
         // 手动历史请求按事实续采；自动近段采集保留原有的官方修订发现能力。
-        var existing=track?new HashSet<(string Market,DateOnly Date)>():await RunAsync(()=>repository!.VerifiedMarketActivityDates(from,to),token);
+        var existing=track?new HashSet<(string Market,DateOnly Date)>():await RunAsync(()=>ActivityReads.VerifiedMarketActivityDates(from,to),token);
         var downloaded=new HashSet<(string Market,DateOnly Date)>();
         int issues=0,received=0,days=0,sourceCalls=0,closed=0,empty=0,skipped=0,deferred=0;
         string? firstFailure=null,firstMarket=null;DateOnly? firstDate=null;
@@ -51,7 +56,7 @@ public sealed partial class EtfWorkspace
             var beforeEmpty=empty;var beforeSkipped=skipped;var beforeDeferred=deferred;
             token.ThrowIfCancellationRequested();await ReportAsync(new("DayStarted",day));
             // 每日先固定日历快照，独立来源并行下载；汇总与事实提交仍逐项串行。
-            var tradingDays=await RunAsync(()=>new[]{"SSE","SZSE"}.ToDictionary(m=>m,m=>repository!.IsReviewedTradingDay(m,day)),token);
+            var tradingDays=await RunAsync(()=>new[]{"SSE","SZSE"}.ToDictionary(m=>m,m=>CollectionRecords.IsReviewedTradingDay(m,day)),token);
             async Task<(MarketActivitySource? Source,Exception? Error)> Fetch(string market)
             {
                 await ReportAsync(new("SourceStarted",day,market));
@@ -67,7 +72,7 @@ public sealed partial class EtfWorkspace
             {
                 var trading=tradingDays[market];
                 if(trading==false)
-                {closed++;await RunAsync(()=>{repository!.SaveMarketActivity(market,day,null);return true;},token);await ReportAsync(new("MarketClosed",day,market));continue;}
+                {closed++;await RunAsync(()=>{ActivityWrites.SaveMarketActivity(market,day,null);return true;},token);await ReportAsync(new("MarketClosed",day,market));continue;}
                 if(existing.Contains((market,day))){skipped++;await ReportAsync(new("MarketReused",day,market));continue;}
                 // 冷却只阻止同一来源；不把尚未请求的其他日期写成失败，也不阻塞另一市场。
                 if(blocked.ContainsKey(market)){contiguous=false;deferred++;continue;}
@@ -99,7 +104,7 @@ public sealed partial class EtfWorkspace
                     await ReportAsync(new("SourceFailed",day,market));
                     if(blocked.ContainsKey(market))await ReportAsync(new("SourceCoolingDown",day,market,Until:until));
                 }
-                await RunAsync(()=>{repository!.SaveMarketActivity(market,day,source);return true;},token);
+                await RunAsync(()=>{ActivityWrites.SaveMarketActivity(market,day,source);return true;},token);
                 if(source is not null)
                 {
                     if(source.Observation is not null){received++;downloaded.Add((market,day));}
@@ -112,13 +117,13 @@ public sealed partial class EtfWorkspace
                     await ReportAsync(new("SourceParsed",day,market,Received:source.Observation is null?0:1));
                 }
             }
-            if(track && contiguous)await RunAsync(()=>{repository!.RecordMarketActivityCursor(day);return true;},token);
+            if(track && contiguous)await RunAsync(()=>{ActivityWrites.RecordMarketActivityCursor(day);return true;},token);
             days++;await ReportAsync(new("MarketDayCompleted",day,Received:received-beforeReceived)
                 {Reused=skipped-beforeSkipped,Closed=closed-beforeClosed,Empty=empty-beforeEmpty,
                 Deferred=deferred-beforeDeferred,Issues=issues-beforeIssues});
         }
         // 冲突/损坏事实即使重新下载了同值也不能冒充已核验完成。
-        var verified=await RunAsync(()=>repository!.VerifiedMarketActivityDates(from,to),token);
+        var verified=await RunAsync(()=>ActivityReads.VerifiedMarketActivityDates(from,to),token);
         foreach(var missing in downloaded.Except(verified))Failure("ObservationUnverified",missing.Date,missing.Market);
         await ReportAsync(new("MarketRangeCompleted",to,Received:received){Reused=skipped,Closed=closed,Empty=empty,Deferred=deferred,Issues=issues});
         if(blocked.Count>0)

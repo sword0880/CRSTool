@@ -11,6 +11,9 @@ if(args is ["--supervised-plugins"]){await SupervisedPluginChecks.RunAsync(Path.
 if(args is ["--storage-growth"]){await StorageGrowthChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.StorageGrowth",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--cancellation-boundaries"]){await WorkerCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.Cancellation",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--recovery-export-authorization"]){await RecoveryExportAuthorizationChecks.RunAsync();return;}
+if(args is ["--recovery-export-persistence"]){await RecoveryExportPersistenceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.RecoveryPersistence",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--recovery-journal-child",var recoveryDirectory,var recoveryPrepare,var recoveryBundle,var recoveryPhase])
+{await RecoveryExportPersistenceChecks.ChildAsync(recoveryDirectory,Guid.ParseExact(recoveryPrepare,"N"),Guid.ParseExact(recoveryBundle,"N"),recoveryPhase);return;}
 if(args is ["--service-key-recovery"]){ServiceKeyRecoveryChecks.Run();return;}
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
 if(args is ["--history-date"]){await HistoryDateChecks.RunAsync();return;}

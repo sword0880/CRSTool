@@ -6,6 +6,7 @@ using CRS.Plugins.NationalTeamWatch;
 using CRS.Plugins.NationalTeam.Jobs;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
+using CRS.Plugins.NationalTeamWatch.Domain;
 using Microsoft.Data.Sqlite;
 
 internal static class BusinessContractChecks
@@ -39,6 +40,11 @@ internal static class BusinessContractChecks
             Check(failure is {ContractError:"UnsupportedContractVersion",SupportedContractVersion:1},"后台查询明确返回版本拒绝，不降级为数据");
             var rejected=await session.ExecuteAsync("watchlist","{\"Operation\":\"watchlist\",\"ContractVersion\":99}",default);
             Check(rejected.Status=="Rejected"&&rejected.Checkpoint=="contract=UnsupportedContractVersion","持久写命令未知版本拒绝且不执行");
+            var boundReview=new EquityReview("candidate",new(2026,3,31),new(2026,4,28),"https://invalid.example/report.pdf","P1","reviewer",true,"Portfolio"){ComparisonDisclosureId="prior"};
+            var boundRequest=JsonSerializer.Serialize(new EtfRequest("equity-review-bound",EquityReview:boundReview));
+            Check(EtfBusinessProtocol.ParseRequest(boundRequest).EquityReview?.ComparisonDisclosureId=="prior","审核基线穿过业务V1序列化保留");
+            var invalidDocument=await session.ExecuteAsync("equity-review",boundRequest,default);
+            Check(invalidDocument.Status=="Rejected"&&invalidDocument.Checkpoint=="equity=OfficialPdfRequired","新绑定审核操作进入正式拒绝路径，非法原文不下载");
             try{await session.QueryAsync("{\"Operation\":\"unknown-operation\"}",default);throw new Exception("未知操作被放行。");}
             catch(ArgumentException){Check(true,"未知查询操作沿白名单拒绝");}
             var reply=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(await session.QueryAsync("{\"Operation\":\"configuration\"}",default));
@@ -72,16 +78,22 @@ internal static class BusinessContractChecks
                 catch(InvalidDataException error) when(error.Message.Contains("UnsupportedContractVersion"))
                 {Check(true,"真实管道客户端拒绝未知版本/业务错误，不返回空列表冒充成功");}
             }
+            var review=new EquityReview("candidate",new(2026,3,31),new(2026,4,28),"https://www.sse.com.cn/report.pdf","P1","reviewer",true,"Portfolio"){ComparisonDisclosureId="prior"};
+            try{await client.ReviewEquityAsync(review,stop.Token);throw new Exception("旧服务意外接受了基线审核。");}
+            catch(InvalidDataException){Check(control.Writes==1&&control.LastWrite is {Operation:"equity-review-bound",EquityReview.ComparisonDisclosureId:"prior"},"真实管道写入使用独立绑定操作，旧服务拒绝后不降级重发");}
         }
         finally{stop.Cancel();try{await listening;}catch(OperationCanceledException){}}
     }
     private sealed class ResponseControl:IBackgroundControl
     {
         public string Payload="{\"Items\":\"[]\",\"Snapshot\":\"s\",\"NextOffset\":null}";
+        public int Writes;public EtfRequest? LastWrite;
         public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
             var business=EtfBusinessProtocol.ParseRequest(request.Payload!);
             if(business.ContractVersion!=1)throw new Exception("客户端未发送V1。");
+            if(request.Command=="RunNow")
+            {Writes++;LastWrite=business;return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Rejected"));}
             return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Payload:Payload));
         }
     }

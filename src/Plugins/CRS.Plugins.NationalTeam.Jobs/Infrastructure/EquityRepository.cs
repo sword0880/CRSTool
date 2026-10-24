@@ -16,6 +16,7 @@ public sealed partial class MarketRepository
             CREATE TABLE IF NOT EXISTS equity_account_identity(disclosure_id TEXT NOT NULL REFERENCES equity_disclosure(id),account TEXT NOT NULL,institution TEXT NOT NULL,reviewer TEXT NOT NULL,PRIMARY KEY(disclosure_id,account));
             CREATE TABLE IF NOT EXISTS equity_account_comparability(disclosure_id TEXT NOT NULL REFERENCES equity_disclosure(id),account TEXT NOT NULL,comparable INTEGER NOT NULL,PRIMARY KEY(disclosure_id,account));
             CREATE TABLE IF NOT EXISTS equity_account_review_audit(id TEXT PRIMARY KEY,disclosure_id TEXT NOT NULL REFERENCES equity_disclosure(id),account TEXT NOT NULL,institution TEXT NOT NULL,nature TEXT NOT NULL,comparable INTEGER NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL,document_hash TEXT NOT NULL,page TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS equity_account_comparison_baseline(review_id TEXT PRIMARY KEY REFERENCES equity_account_review_audit(id),prior_disclosure_id TEXT REFERENCES equity_disclosure(id));
             CREATE TABLE IF NOT EXISTS equity_review_audit(id TEXT PRIMARY KEY,disclosure_id TEXT NOT NULL REFERENCES equity_disclosure(id),reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL,document_fetch_id TEXT NOT NULL,report_date TEXT NOT NULL,published TEXT NOT NULL,page TEXT NOT NULL);
             """);
         var version=Scalar("SELECT version FROM feature_schema_migration WHERE feature='direct-equity'");
@@ -91,13 +92,20 @@ public sealed partial class MarketRepository
         var acceptedHash=Scalar("SELECT f.sha256 FROM equity_disclosure d JOIN source_fetch f ON f.fetch_id=d.document_fetch_id WHERE d.id=$id",("$id",review.Id)) as string;
         if(acceptedHash is not null&&!acceptedHash.Equals(documentHash,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("同一披露的核验原文不能替换；更正报告须登记新候选并重新逐账户核验。");
         if(!row.Holders.Any(x=>x.Account==review.Account) || row.ReportAsOf is {} known && known!=review.ReportAsOf || row.Published is {} publication && publication!=review.Published)throw new InvalidDataException("审核账户或已确认报告时点不匹配。");
-        beforeWrite?.Invoke();using var transaction=db.BeginTransaction();var hash=raw.Save(document);var fetch=RecordFetch(hash,uri.AbsoluteUri,hash,"ReviewedEquityDisclosurePdf","manual-pdf-review-v1");
+        beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
+        // 在同一写事务中核对用户实际看到的基线，界面加载之后的历史补入不能被静默批准。
+        var baseline=Scalar("SELECT id FROM equity_disclosure WHERE market=$m AND ticker=$t AND report_date<$d AND state='Accepted' ORDER BY report_date DESC LIMIT 1",("$m",market),("$t",ticker),("$d",review.ReportAsOf.ToString("yyyy-MM-dd"))) as string;
+        if(review.Comparable&&review.ComparisonDisclosureId!=baseline)throw new InvalidDataException("前期披露已变化或未明确选择，请刷新披露记录并重新核验可比性。");
+        var hash=raw.Save(document);var fetch=RecordFetch(hash,uri.AbsoluteUri,hash,"ReviewedEquityDisclosurePdf","manual-pdf-review-v1");
         Execute("UPDATE equity_disclosure SET state='Superseded' WHERE market=$m AND ticker=$t AND report_date=$d AND state='Accepted'",("$m",market),("$t",ticker),("$d",review.ReportAsOf.ToString("yyyy-MM-dd")));
         Execute("UPDATE equity_disclosure SET report_date=$d,published=$p,document_fetch_id=$f,page=$page,reviewer=$who,comparable=$c,nature=$n,share_class=$class,basis=$basis,state='Accepted',verified_at=$now WHERE id=$id",("$d",review.ReportAsOf.ToString("yyyy-MM-dd")),("$p",review.Published.ToString("yyyy-MM-dd")),("$f",fetch),("$page",review.Page),("$who",review.Reviewer),("$c",review.Comparable?1:0),("$n",review.Nature),("$class",review.ShareClass),("$basis",review.PercentBasis),("$now",Now),("$id",review.Id));
         Execute("INSERT INTO equity_account_review VALUES($id,$a,$n) ON CONFLICT(disclosure_id,account) DO UPDATE SET nature=excluded.nature",("$id",review.Id),("$a",review.Account),("$n",review.Nature));
         Execute("INSERT INTO equity_account_identity VALUES($id,$a,$g,$who) ON CONFLICT(disclosure_id,account) DO UPDATE SET institution=excluded.institution,reviewer=excluded.reviewer",("$id",review.Id),("$a",review.Account),("$g",group),("$who",review.Reviewer));
         Execute("INSERT INTO equity_account_comparability VALUES($id,$a,$c) ON CONFLICT(disclosure_id,account) DO UPDATE SET comparable=excluded.comparable",("$id",review.Id),("$a",review.Account),("$c",review.Comparable?1:0));
-        Execute("INSERT INTO equity_account_review_audit VALUES($id,$d,$a,$g,$n,$c,$who,$now,$h,$p)",("$id",Guid.NewGuid().ToString("N")),("$d",review.Id),("$a",review.Account),("$g",group),("$n",review.Nature),("$c",review.Comparable?1:0),("$who",review.Reviewer),("$now",Now),("$h",hash),("$p",review.Page));
+        // 可比性只批准审核当时的相邻披露；补入历史或更正前期后必须重新核验，不能继承旧布尔值。
+        var accountReviewId=Guid.NewGuid().ToString("N");
+        Execute("INSERT INTO equity_account_review_audit VALUES($id,$d,$a,$g,$n,$c,$who,$now,$h,$p)",("$id",accountReviewId),("$d",review.Id),("$a",review.Account),("$g",group),("$n",review.Nature),("$c",review.Comparable?1:0),("$who",review.Reviewer),("$now",Now),("$h",hash),("$p",review.Page));
+        Execute("INSERT INTO equity_account_comparison_baseline VALUES($id,$prior)",("$id",accountReviewId),("$prior",baseline));
         Execute("INSERT INTO equity_review_audit VALUES($id,$d,$who,$now,$f,$r,$p,$page)",("$id",Guid.NewGuid().ToString("N")),("$d",review.Id),("$who",review.Reviewer),("$now",Now),("$f",fetch),("$r",review.ReportAsOf.ToString("yyyy-MM-dd")),("$p",review.Published.ToString("yyyy-MM-dd")),("$page",review.Page));
         Execute("UPDATE source_fetch SET status='Accepted' WHERE fetch_id=$f",("$f",fetch));RecordCommand(commandId,"equity-review");transaction.Commit();
     }
@@ -144,9 +152,11 @@ public sealed partial class MarketRepository
             bool Comparable(EquityDisclosure period)=>Convert.ToInt32(Scalar("SELECT comparable FROM equity_account_comparability WHERE disclosure_id=$id AND account=$a",("$id",period.Id),("$a",account))??0)==1;
             var previousReviewed=prior is not null && Scalar("SELECT nature FROM equity_account_review WHERE disclosure_id=$id AND account=$a",("$id",prior.Id),("$a",account)) is not null;
             var previousIdentity=prior is null?null:Scalar("SELECT institution FROM equity_account_identity WHERE disclosure_id=$id AND account=$a",("$id",prior.Id),("$a",account)) as string;
+            // 读取最新一次账户审核的基线；旧版没有记录基线时保留快照，但拒绝计算两期差额。
+            var reviewedBaseline=Scalar("SELECT b.prior_disclosure_id FROM equity_account_review_audit a LEFT JOIN equity_account_comparison_baseline b ON b.review_id=a.id WHERE a.disclosure_id=$id AND a.account=$a ORDER BY julianday(a.reviewed_at) DESC,a.rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
             var comparison=prior?.State=="Critical" || before is not null&&(!previousReviewed||previousIdentity!=identity)
                 ?(State:"NotComparable",Delta:(decimal?)null)
-                :DirectEquityComparison.Compare(before?.Shares,value?.Shares,Comparable(current)&&prior is not null&&Comparable(prior),prior?.State=="Accepted");
+                :DirectEquityComparison.Compare(before?.Shares,value?.Shares,Comparable(current)&&prior is not null&&Comparable(prior)&&reviewedBaseline==prior.Id,prior?.State=="Accepted");
             var state=current.State=="Critical"?"Critical":accountNature is null||identity=="主体待核验"?"NeedsReview":comparison.State;
             // 页码属于逐账户核验；不能继承该披露最后一个审核账户的证据位置。
             var evidencePage=Scalar("SELECT page FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY julianday(reviewed_at) DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;

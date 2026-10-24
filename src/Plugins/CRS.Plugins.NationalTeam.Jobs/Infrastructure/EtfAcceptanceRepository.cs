@@ -31,13 +31,18 @@ public sealed partial class MarketRepository
             {
                 // 次日迟发允许；同一天回填20个历史日期不能冒充20日持续采集。
                 var attempts=CollectionAttempts(key,day.Date,day.Date);
-                if(!points.Contains(day.Date)||!attempts.Any(a=>a.State=="Accepted"&&a.OriginalHash is {} hash&&raw.Verify(hash)&&WithinDailyWindow(a.UpdatedAt,day.Date)))break;
+                if(!points.Contains(day.Date)||!attempts.Any(a=>a.State=="Accepted"&&a.OriginalHash is {} hash&&raw.Verify(hash)
+                    &&WithinDailyWindow(a.UpdatedAt,day.Date)&&TimelySourceReceipt(a.FetchId,day.Date)))break;
                 continuous++;
             }
             result.Add(new(key.Market,key.Ticker,through,start,days.Length,accepted,days.Length-accepted,continuous,verified));
         }
         return result;
     }
+    // 追加Accepted阶段不是重新收到原件；旧fetch的重放不能制造当日真实采集。
+    private bool TimelySourceReceipt(string? fetchId,DateOnly day)=>fetchId is not null
+        &&Scalar("SELECT retrieved_utc FROM source_fetch WHERE fetch_id=$id",("$id",fetchId)) is string received
+        &&WithinDailyWindow(received,day);
     /// <summary>以北京时间验收真实接收窗口；历史回填不计入连续运行天数。</summary>
     private static bool WithinDailyWindow(string updatedAt,DateOnly day)
     {

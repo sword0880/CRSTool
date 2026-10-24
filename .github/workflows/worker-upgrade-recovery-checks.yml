@@ -43,6 +43,10 @@ jobs:
       - name: Verify one-time recovery export authorization and audit failure boundary
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --recovery-export-authorization
+      # 真实加密索引和强杀重启仅证明本机授权持久化，不替代跨机恢复门槛。
+      - name: Verify durable recovery authorization and process crash replay rejection
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --recovery-export-persistence
       - name: Verify maintenance snapshot and C# startup interop
         shell: pwsh
         run: ./tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop

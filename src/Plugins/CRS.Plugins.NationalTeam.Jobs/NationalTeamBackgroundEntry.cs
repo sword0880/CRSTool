@@ -90,7 +90,12 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         http??=new OfficialHttpGateway(storage.OpenSourcePolicy(Path.Combine(context.DataDirectory,"data"),key),sources:context as IBackgroundSourceContext);
         if(http is OfficialHttpGateway official)official.Progress=ReportAsync;
         var adapter=new WorkerContext(context.DataDirectory,http);
-        workspace=new(adapter,()=>storage.OpenMarket(Path.Combine(context.DataDirectory,"data"),raw,key),raw);
+        workspace=new(adapter,()=>
+        {
+            var repository=storage.OpenMarket(Path.Combine(context.DataDirectory,"data"),raw,key);
+            try { MarketRepositoryCapabilities.Validate(repository,token); return repository; }
+            catch { repository.Dispose(); throw; } // 能力核验失败不留下已打开的连接。
+        },raw);
         workspace.SetProgressSink(ReportAsync);workspace.SetOfficialSource(new OfficialShareSources(http,raw,ReportAsync));await workspace.InitializeAsync(token);
         workspace.SetMarketActivitySource(new OfficialMarketActivitySource(http));
     }
@@ -128,7 +133,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     await workspace!.ReviewMarketActivityAsync(request.Revision??"",request.Accept,request.Reviewer??"",token,commandId);return BackgroundJobResult.Success();
                 case "equity-watch" when request.Operation=="equity-watch" && request.EquityWatch is {} watch:
                     await workspace!.SaveEquityWatchAsync(watch,token,commandId);return BackgroundJobResult.Success();
-                case "equity-review" when request.Operation=="equity-review" && request.EquityReview is {} review:
+                case "equity-review" when request.Operation is "equity-review" or "equity-review-bound" && request.EquityReview is {} review:
                     if(!Uri.TryCreate(review.DocumentUrl,UriKind.Absolute,out var documentUri)||!OfficialEquityDocuments.IsAllowed(documentUri))return new("Rejected","equity=OfficialPdfRequired");
                     var document=await http!.GetAsync(documentUri,token);
                     if(document.StatusCode!=200)return new("RetryDeferred","equity=DocumentUnavailable",TimeSpan.FromMinutes(30));

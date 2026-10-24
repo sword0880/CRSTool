@@ -1,5 +1,7 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+ETF/股票2026-10-24续验：`CRS.Tests.NationalTeamWatch --evidence-adversarial`为16项隔离反例，验证股票历史插入/更正不继承旧比较基线、旧页面确认拒绝、旧库缺基线保留A类快照但无差额，以及ETF原件接收/接受阶段的北京时间窗口；已加入默认回归和Windows CI。`--business-contracts`覆盖基线序列化、新绑定操作及旧服务拒绝后不降级。`--equity-ui`检查实际比较前期展示及修改报告期清除可比勾选。新增`--equity-status-live`只读正式持仓/观察池/样本目录/计划和持久历史，失败不保存完整结果；不采集、不审核、不发消息。真实数据与未关闭门槛见[续项记录](../docs/implementation/ETF_EQUITY_FOLLOWUP_20261024.md)。
+
 ```powershell
 ./tests/Verify-WpfDesignSystem.ps1
 dotnet run --project tests/CRS.Tests.Wpf -c Release -- --shell-brand-preview artifacts/ui-preview/main
@@ -217,3 +219,5 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 ## 2026-10-23架构四项整改专项
 
 当前Release构建后可分别运行Infrastructure的--calculation-commit、NationalTeamWatch的--read-isolation、Background的--supervised-plugins与--storage-growth。均使用合成资料和隔离目录；storage-growth会创建101000个空文件，需预留目录容量和测试时间。受限环境将TEMP/TMP指向工作区独立artifacts目录。监督专项使用真实子进程、Job Object和持久回执，不操作已安装服务。范围见[实施记录](../docs/implementation/ARCH_OPTIMIZATION_20261023.md)。
+
+架构续项验证：CRS.Tests.NationalTeamWatch --repository-contracts 检查必需方法无默认实现与启动能力门禁；CRS.Tests.WorkerEtf --storage-providers 包含正式会话拒绝残缺提供方。应用默认回归含北京时间年度跨年边界；CRS.Tests.Background --recovery-export-persistence 使用真实 SQLCipher 和自有子进程，检查持久重放索引、故障关闭及三个阶段强杀。它不是生产导出入口，也不代表跨机恢复验收。详见[实施记录](../docs/implementation/ARCH_FOLLOWUP_20261023.md)。

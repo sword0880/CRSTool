@@ -78,6 +78,15 @@ internal static class P0LiveOperations
         EquityGoldenChecks.Run(DirectoryPath);
         using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(6));var token=deadline.Token;
         var reader=new WorkerEtfWorkspace();var pipe=new BackgroundPipeClient();
+        async Task<BackgroundResponse> ReadReceipt(BackgroundRequest request)
+        {
+            while(true)
+            {
+                var value=await pipe.SendAsync(request,token);
+                if(value.Code is not ("RateLimited" or "PluginBusy"))return value;
+                await Task.Delay(500,token);
+            }
+        }
         var candidate=(await reader.EquityDisclosuresAsync(new("SSE","600153"),token)).Single(x=>x.Hash=="D3EE5B577EE76B6EB511730C91019EBCF866115DA134852FCA04F530AC89BA29");
         var accounts=candidate.Holders.Where(x=>InstitutionAccounts.CandidateGroup(x.Account) is not null).Select(x=>x.Account).ToArray();
         if(accounts.Length!=5)throw new InvalidDataException("已确认样本账户发生变化，停止审核。");
@@ -86,23 +95,38 @@ internal static class P0LiveOperations
         foreach(var account in accounts)if(!ids.ContainsKey(account))ids.Add(account,Guid.NewGuid());
         await File.WriteAllTextAsync(path,JsonSerializer.Serialize(ids,new JsonSerializerOptions{WriteIndented=true}),token);
         var receipts=new List<object>();
+        var receiptPath=Path.Combine(DirectoryPath,"equity-review-receipts.json");
+        if(File.Exists(receiptPath))receipts.AddRange(JsonSerializer.Deserialize<List<JsonElement>>(await File.ReadAllTextAsync(receiptPath,token))!.Cast<object>());
         foreach(var account in accounts)
         {
             // 同一手动作业只接收一个在途命令；已明确拒绝的请求另记新尝试，未知结果继续沿用原ID。
-            var existing=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:ids[account]),token);
+            var existing=await ReadReceipt(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:ids[account]));
+            if(existing.Receipt is {State:"Completed",Code:"Succeeded"})
+            {Console.WriteLine("READ 已完成审核账户保留："+account);continue;}
+            if(existing.Receipt is {State:"Completed",Code:"Failed",ExecutionId:{} failedId})
+            {
+                var failed=await ReadReceipt(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:failedId));
+                // 仅已证明在取得正文前超时/冷却的终态失败可以另记重试；结果不明及业务拒绝仍保留原ID。
+                if(failed.Execution?.Progress?.LastOrDefault()?.Detail.Stage is not ("RequestTimedOut" or "Cooldown"))
+                    throw new InvalidDataException("失败发生位置未证明，拒绝用新ID重放审核。");
+                receipts.Add(new{Account=account,Id=ids[account],existing.Code,existing.Receipt,FailedExecution=failed.Execution});
+                await File.WriteAllTextAsync(receiptPath,JsonSerializer.Serialize(receipts,new JsonSerializerOptions{WriteIndented=true}),token);
+                ids[account]=Guid.NewGuid();
+                await File.WriteAllTextAsync(path,JsonSerializer.Serialize(ids,new JsonSerializerOptions{WriteIndented=true}),token);
+            }
             if(existing.Receipt is {State:"Completed",Code:"AlreadyRunning"})
             {
                 receipts.Add(new{Account=account,Id=ids[account],existing.Code,existing.Receipt});ids[account]=Guid.NewGuid();
                 await File.WriteAllTextAsync(path,JsonSerializer.Serialize(ids,new JsonSerializerOptions{WriteIndented=true}),token);
             }
-            var review=new EquityReview(candidate.Id,new(2026,6,30),new(2026,8,29),"https://www.chinacnd.com/report-227.html","PDF P112 前十名股东表；单位股/A股/总股本口径","用户逐项确认2026-10-19；Codex代提交",true,"Portfolio",Account:account,OriginalConfirmed:true,Institution:InstitutionAccounts.Group(account)??"社保基金");
-            var response=await pipe.SendAsync(new(WorkerProtocol.Version,ids[account],"RunNow","crs.national-team","equity-review",Payload:JsonSerializer.Serialize(new EtfRequest("equity-review",EquityReview:review))),token);
+            var review=new EquityReview(candidate.Id,new(2026,6,30),new(2026,8,29),"https://www.chinacnd.com/report-227.html","PDF P112 前十名股东表；单位股/A股/总股本口径","用户逐项确认2026-10-19；Codex复核2026-10-24",true,"Portfolio",Account:account,OriginalConfirmed:true,Institution:InstitutionAccounts.Group(account)??"社保基金");
+            var response=await pipe.SendAsync(new(WorkerProtocol.Version,ids[account],"RunNow","crs.national-team","equity-review",Payload:JsonSerializer.Serialize(new EtfRequest("equity-review-bound",EquityReview:review))),token);
             receipts.Add(new{Account=account,Id=ids[account],response.Code,response.Receipt});
             await File.WriteAllTextAsync(Path.Combine(DirectoryPath,"equity-review-receipts.json"),JsonSerializer.Serialize(receipts,new JsonSerializerOptions{WriteIndented=true}),token);
             if(response.Code is not ("Accepted" or "Succeeded" or "RetryDeferred")&&response.Receipt is null)throw new InvalidDataException("服务未接受审核："+response.Code);
             while(true)
             {
-                var completion=await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:ids[account]),token);
+                var completion=await ReadReceipt(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:ids[account]));
                 if(completion.Receipt?.State=="Completed")
                 {
                     if(completion.Receipt.Code!="Succeeded")throw new InvalidDataException("审核未成功："+completion.Receipt.Code);

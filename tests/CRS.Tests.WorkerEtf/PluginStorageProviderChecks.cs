@@ -37,6 +37,14 @@ internal static class PluginStorageProviderChecks
             await session.StartAsync(default);
             Check(calls==1&&recording.Markets==1&&recording.Policies==1,"选择一次存储族同时装配市场与策略仓储");
         }
+        // 正式会话必须在开放作业前拒绝能力不全的提供方，并释放已经打开的连接。
+        var incomplete=new IncompleteProvider(registry.Create("sqlcipher"));
+        var incompleteRegistry=new NationalTeamStorageProviders([new("incomplete",()=>incomplete)]);
+        await using(var session=new NationalTeamBackgroundSession(new Context(Path.Combine(root,"incomplete")),databaseProvider:"incomplete",storageProviders:incompleteRegistry))
+        {
+            try{await session.StartAsync(default);throw new Exception("能力缺失仍允许启动。");}
+            catch(NotSupportedException){Check(incomplete.Proxy?.Disposed==true,"能力缺失在正式启动时拒绝并释放连接");}
+        }
         // 故障转换在用例边界，取消仍必须保持取消语义。
         var key=RandomNumberGenerator.GetBytes(32);
         try
@@ -65,5 +73,29 @@ internal static class PluginStorageProviderChecks
         {Markets++;return inner.OpenMarket(directory,raw,key);}
         public ISourceRequestPolicy OpenSourcePolicy(string directory,byte[] key)
         {Policies++;return inner.OpenSourcePolicy(directory,key);}
+    }
+    private sealed class IncompleteProvider(INationalTeamStorageProvider inner):INationalTeamStorageProvider
+    {
+        public IncompleteRepositoryProxy? Proxy {get;private set;}
+        public IMarketRepository OpenMarket(string directory,RawEvidenceStore raw,byte[] key)
+        {
+            var value=System.Reflection.DispatchProxy.Create<IMarketRepository,IncompleteRepositoryProxy>();
+            Proxy=(IncompleteRepositoryProxy)value;Proxy.Inner=inner.OpenMarket(directory,raw,key);return value;
+        }
+        public ISourceRequestPolicy OpenSourcePolicy(string directory,byte[] key)=>inner.OpenSourcePolicy(directory,key);
+    }
+}
+
+// 基本方法转发真实加密存储，故意不声明额外能力，用于正式装配负例。
+public class IncompleteRepositoryProxy:System.Reflection.DispatchProxy
+{
+    public IMarketRepository Inner {get;set;}=null!;
+    public bool Disposed {get;private set;}
+    protected override object? Invoke(System.Reflection.MethodInfo? method,object?[]? args)
+    {
+        if(method!.Name==nameof(IDisposable.Dispose))Disposed=true;
+        try{return method.Invoke(Inner,args);}
+        catch(System.Reflection.TargetInvocationException error) when(error.InnerException is {} cause)
+        {System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(cause).Throw();throw;}
     }
 }

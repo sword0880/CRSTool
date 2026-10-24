@@ -7,6 +7,9 @@ public sealed partial class EtfWorkspace
             :throw new NotSupportedException("存储提供方不支持有界证据查询。"),token);
     private readonly SemaphoreSlim readGate=new(1);
     private bool disposed;
+    // 业务模块只接收其读取端口；组合与独立会话仍由此处统一管理。
+    private Task<T> ReadPortAsync<TPort,T>(Func<TPort,T> query,CancellationToken token) where TPort:class
+        =>ReadAsync(current=>query((current as TPort)??throw new NotSupportedException("市场仓储缺少请求的业务读取能力。")),token);
     private async Task<T> ReadAsync<T>(Func<IMarketRepository,T> query,CancellationToken token)
     {
         await readGate.WaitAsync(token).ConfigureAwait(false);

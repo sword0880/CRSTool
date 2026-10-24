@@ -5,6 +5,12 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--read-isolation"]){await ReadIsolationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ReadIsolation",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--repository-contracts"]){RepositoryContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.RepositoryContracts",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--evidence-adversarial"]){EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EvidenceAdversarial",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--equity-status-live"]){await EquityStatusAuditTool.Run();return;}
+if(args is ["--deployment-state-live",var stateDirectory]){await DeploymentOperationsTool.State(stateDirectory);return;}
+if(args is ["--equity-report-sync-live",var reportDirectory]){await DeploymentOperationsTool.Reports(reportDirectory,true);return;}
+if(args is ["--equity-report-status-live",var reportStatusDirectory]){await DeploymentOperationsTool.Reports(reportStatusDirectory,false);return;}
 if(args is ["--etf-loading"]){await EtfLoadingChecks.Run();return;}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
@@ -69,6 +75,7 @@ await GapRecoveryChecks.Run(root);
 MarketActivityChecks.Run(root);
 await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
+EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(root,"evidence-adversarial"));
 EquityReportChecks.Run(root);
 await HistoryRangeChecks.Run(root);
 EtfConfigurationChecks.Run(root);
@@ -187,8 +194,8 @@ Check(File.ReadAllBytes(output).SequenceEqual(content) && !Directory.EnumerateFi
 // 模拟慢查询，验证用户切换证券或日期后，旧结果不能覆盖新输入的界面状态。
 foreach(var changeSecurity in new[]{true,false})
 {
- using var delayed=new DelayedCoverageRepository();
- await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>delayed,exportRaw);
+ using var delayed=new DelayedCoverageRepository(Path.Combine(exportRoot,Guid.NewGuid().ToString("N")),exportRaw);
+ await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>delayed.Repository,exportRaw);
  await workspace.InitializeAsync(CancellationToken.None);
  var model=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(workspace,CancellationToken.None)
  {Selected=new("SSE","510300","合成样例","CSI300","DataPilot",null,null,null,null,null,"无数据",0)};
@@ -220,29 +227,37 @@ sealed class BlockingOfficialSource:IOfficialShareSource
  public async Task<SourceDay> FetchAsync(DateOnly day,CancellationToken token)
  {Entered.TrySetResult();await Task.Delay(Timeout.InfiniteTimeSpan,token);return new(day,[]);}
 }
-// 仓储在返回结果前等待测试放行，使界面输入变化和后台查询返回的顺序可重复。
-sealed class DelayedCoverageRepository:IMarketRepository
+// 用真实存储转发完整契约，只在覆盖查询前插入可控等待；测试不再依赖不完整仓储默认实现。
+sealed class DelayedCoverageRepository : IDisposable
 {
- public ShareImportOutcome ImportSharesDetailed(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation,bool requireCalendar=true)=>throw new NotSupportedException();
+ public IMarketRepository Repository {get;}
  public TaskCompletionSource Entered {get;}=new(TaskCreationOptions.RunContinuationsAsynchronously);
  public ManualResetEventSlim Release {get;}=new();
- public CoverageReport Coverage(EtfKey key,DateOnly from,DateOnly to)
+ public DelayedCoverageRepository(string directory,RawEvidenceStore raw)
  {
-    Entered.SetResult();if(!Release.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("合成查询没有放行。");
-    return new(key.Market,key.Ticker,from,to,1,1,0,0,0,0,100,true,true,"CompleteRegisteredCalendar",[new(from,"Accepted","fixture")]);
+    var key=System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);IMarketRepository inner;
+    try{inner=new MarketRepository(directory,raw,encryptionKey:key);}
+    finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(key);}
+    Repository=System.Reflection.DispatchProxy.Create<IMarketRepository,DelayedRepositoryProxy>();
+    var proxy=(DelayedRepositoryProxy)Repository;proxy.Inner=inner;
+    proxy.BeforeCoverage=()=>{Entered.SetResult();if(!Release.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("合成查询没有放行。");};
  }
- public List<EtfSummary> Overview()=>throw new NotSupportedException();
- public List<EvidenceRow> Evidence()=>throw new NotSupportedException();
- public List<SharePoint> Points(EtfKey key)=>throw new NotSupportedException();
- public string RecordFetch(string hash,string sourceUrl,string? originalHash=null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1")=>throw new NotSupportedException();
- public void MarkFailed(string fetchId)=>throw new NotSupportedException();
- public void ImportCalendar(string fetchId,IReadOnlyList<(string Market,DateOnly Date)> days,CancellationToken cancellation)=>throw new NotSupportedException();
- public int ImportShares(string fetchId,IReadOnlyList<ImportRow> rows,CancellationToken cancellation,bool requireCalendar=true)=>throw new NotSupportedException();
- public DateOnly? ReadSyncCursor()=>throw new NotSupportedException();
- public void RecordSyncCursor(DateOnly day)=>throw new NotSupportedException();
- public void Review(string revisionId,bool accept,string reviewer,bool comparableConfirmed=false,Guid? commandId=null)=>throw new NotSupportedException();
- public void SetMembership(EtfKey key,string name,string index,bool active,string reason,Guid? commandId=null)=>throw new NotSupportedException();
- public List<EtfConfiguration> Configuration()=>[];
- public void SaveConfiguration(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,Guid? commandId=null)=>throw new NotSupportedException();
- public void Dispose()=>Release.Dispose();
+ public void Dispose(){Repository.Dispose();Release.Dispose();}
+}
+// 代理仅供这项界面竞态测试使用；未拦截的方法全部转发真实实现，异常保留原类型。
+class DelayedRepositoryProxy : System.Reflection.DispatchProxy
+{
+ public IMarketRepository Inner {get;set;}=null!;
+ public Action BeforeCoverage {get;set;}=null!;
+ protected override object? Invoke(System.Reflection.MethodInfo? method,object?[]? args)
+ {
+    if(method!.Name==nameof(IEtfReadRepository.Coverage))
+    {
+        BeforeCoverage();var key=(EtfKey)args![0]!;var from=(DateOnly)args[1]!;var to=(DateOnly)args[2]!;
+        return new CoverageReport(key.Market,key.Ticker,from,to,1,1,0,0,0,0,100,true,true,"CompleteRegisteredCalendar",[new(from,"Accepted","fixture")]);
+    }
+    try{return method.Invoke(Inner,args);}
+    catch(System.Reflection.TargetInvocationException error) when(error.InnerException is {} cause)
+    {System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(cause).Throw();throw;}
+ }
 }
