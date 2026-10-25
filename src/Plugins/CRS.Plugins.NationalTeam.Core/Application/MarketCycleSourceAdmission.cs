@@ -27,8 +27,10 @@ public interface IMarketCycleSourceApprovalEvidenceVerifier
 }
 
 /// <summary>
-/// Human-reviewed source approval evidence. TermsEvidenceHash is the SHA-256 of the locally retained
+/// Human-reviewed source approval metadata. TermsEvidenceHash is the SHA-256 of the locally retained
 /// license/terms evidence, not a hash inferred from a live website. No source is approved by default.
+/// This input validator does not authenticate the reviewer or protect approval records against tampering;
+/// production callers must load approvals from a trusted, access-controlled registry.
 /// </summary>
 public sealed record MarketCycleSourceApproval(
     string SourceId,
@@ -74,11 +76,13 @@ public static class MarketCycleSourceAdmission
             throw new InvalidDataException("市场周期来源审批缺少稳定标识或契约版本。");
 
         if (approval.SourceUri is null ||
+            !approval.SourceUri.IsAbsoluteUri ||
             approval.SourceUri.Scheme != Uri.UriSchemeHttps ||
             string.IsNullOrWhiteSpace(approval.SourceUri.Host) ||
             !string.IsNullOrEmpty(approval.SourceUri.UserInfo) ||
+            !string.IsNullOrEmpty(approval.SourceUri.Query) ||
             !string.IsNullOrEmpty(approval.SourceUri.Fragment))
-            throw new InvalidDataException("市场周期来源必须是无凭据、无片段的 HTTPS 地址。");
+            throw new InvalidDataException("市场周期来源基址必须是无凭据、无查询参数、无片段的绝对 HTTPS 地址。");
 
         if (approval.TermsEvidenceHash is null ||
             approval.TermsEvidenceHash.Length != 64 ||

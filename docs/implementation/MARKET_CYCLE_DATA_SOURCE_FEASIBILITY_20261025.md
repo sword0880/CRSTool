@@ -34,6 +34,14 @@
 - 仓库已有实现：[OfficialMarketActivitySource.cs](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/OfficialMarketActivitySource.cs) 使用 query.sse.com.cn/commonQuery.do，解析 TRADE_AMT、TRADE_VOL，并对日期、响应标识、产品代码和数值格式做校验。
 - 判断：官方页面能证明存在日度统计展示，但不能证明该页面底层端点是受版本控制、具有 SLA 的公共 API。PRODUCT_CODE=17 与金额/成交量单位的真实含义，必须使用官方字段说明和真实黄金样本复核，不能只靠合成测试。
 
+### 2.2.1 上证统计月报作为独立交叉核验来源
+
+- 官方页面：[上证统计月报](https://www.sse.com.cn/aboutus/publication/monthly/report/)
+- 本轮可见的月报提供“主板每日成交”和“科创板每日成交”按日统计，展示成交股数（亿股）、成交金额（亿元）、成交笔数等字段。
+- 这为核对上交所每日股票情况页面的单位换算、日期和分板口径提供了额外的官方交叉检查来源；但它是不同的报表入口，字段范围和汇总口径并不自动等同于全沪市或沪深两市总额。
+- 验收时必须把每个板块单独映射并确认股票回购、B 股、基金/其他证券、交易方式和历史口径是否包含；不可直接把月报中的主板与科创板数字与另一页面的“合计”相加而不先验证定义。
+- 判断：适合作为**真实黄金样本的交叉核验材料**，目前不视为已确认的批量历史 API，也不替代使用许可审核。
+
 ### 2.3 深交所市场统计
 
 - 官方统计资料：[深圳证券交易所市场统计年鉴（2023 卷）](https://docs.static.szse.cn/www/market/periodical/year/W020240814360443176703.pdf)
