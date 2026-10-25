@@ -10,8 +10,8 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistry
 {
-    private readonly byte[] marketCycleApprovalAuditKey;
-    private readonly IMarketCycleApprovalWriteAuthority? marketCycleApprovalWriteAuthority;
+    private readonly byte[] marketCycleApprovalAuditKey = [];
+    private readonly IMarketCycleApprovalWriteAuthority? marketCycleApprovalWriteAuthority = null;
     private const string ApprovalAuditGenesis = "0000000000000000000000000000000000000000000000000000000000000000";
 
     private sealed record ApprovalAuditPayload(
