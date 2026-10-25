@@ -141,8 +141,9 @@ public static class MarketCycleSourceAdmission
     }
 
     /// <summary>
-    /// Required target-aware gate for market-cycle collectors. It binds the operation's actual target and
-    /// dataset to the reviewed source base; checking an approval object alone does not authorize an arbitrary URI.
+    /// Required target-aware gate for market-cycle collectors. The approval reader must be supplied by the
+    /// trusted host composition root. It binds the operation's actual target and dataset to the reviewed source base;
+    /// checking an approval object alone does not authorize an arbitrary URI.
     /// </summary>
     public static void RequireTarget(
         MarketCycleSourceApproval approval,
@@ -151,7 +152,7 @@ public static class MarketCycleSourceAdmission
         Uri requestedUri,
         MarketCycleSourceOperation operation,
         DateTimeOffset operationAt,
-        IMarketCycleSourceApprovalRegistry approvalRegistry)
+        IMarketCycleSourceApprovalReader approvalRegistry)
     {
         ArgumentNullException.ThrowIfNull(approval);
         ArgumentNullException.ThrowIfNull(requestedUri);
