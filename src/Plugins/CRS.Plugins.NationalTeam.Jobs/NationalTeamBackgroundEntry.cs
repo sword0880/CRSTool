@@ -16,7 +16,7 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
 public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null,
-    string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null,IIndexSeriesSourceApprovals? indexSourceApprovals=null):IBackgroundPluginSession,
+    string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null,IMarketCycleSourceApprovalReader? indexSourceApprovals=null):IBackgroundPluginSession,
     IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession,IGroupedBackgroundSession
 {
     public int MaximumConcurrentExecutions=>4;
