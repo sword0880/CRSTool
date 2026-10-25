@@ -359,6 +359,18 @@ internal static class MarketCycleChecks
             MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "非 HTTPS 来源地址拒绝");
         Reject(() => MarketCycleSourceAdmission.Require(
+            approvedSource with { SourceUri = new Uri("https://example.com/data?token=secret") },
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
+            "来源基址包含查询参数/潜在凭据时拒绝");
+        Reject(() => MarketCycleSourceAdmission.Require(
+            approvedSource with { Reviewer = " " },
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
+            "缺少人工审核人时拒绝");
+        RejectOperation(() => MarketCycleSourceAdmission.Require(
+            approvedSource with { Status = MarketCycleSourceApprovalStatus.Rejected },
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
+            "已拒绝的来源审批不能执行");
+        Reject(() => MarketCycleSourceAdmission.Require(
             approvedSource with { ApprovedUses = (MarketCycleSourceUse)128 },
             MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence),
             "未知来源权限位拒绝");
