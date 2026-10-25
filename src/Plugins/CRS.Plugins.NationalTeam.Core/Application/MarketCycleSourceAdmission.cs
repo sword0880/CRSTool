@@ -114,7 +114,7 @@ public static class MarketCycleSourceAdmission
         MarketCycleSourceApproval approval,
         MarketCycleSourceOperation operation,
         DateTimeOffset operationAt,
-         IIndexSeriesSourceApprovals approvalRegistry)
+         IMarketCycleSourceApprovalRegistry approvalRegistry)
     {
         ArgumentNullException.ThrowIfNull(approval);
         ArgumentNullException.ThrowIfNull(approvalRegistry);
