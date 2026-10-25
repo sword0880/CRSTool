@@ -39,6 +39,11 @@ internal static class DirectEquityChecks
         Check(repository.EquityDisclosures(new("SSE","600036")).Count==1,"同原件重抓不重复候选");
         var row=repository.EquityHoldings(null,null,null,false).Single();Check(row.ReportAsOf is null&&row.Published is null&&row.Delta is null&&row.State=="NeedsReview","未经PDF核对不产生持仓期或交易结论");
         Reject(()=>repository.ReviewEquity(new(row.DisclosureId,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/report.pdf","P1","reviewer",true,"Portfolio",Account:row.Account),"%PDF-test"u8.ToArray()),"缺少原文确认拒绝");
+        Reject(()=>repository.ReviewEquity(new(row.DisclosureId,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/report.pdf","P1","reviewer",true,"Unknown",Account:row.Account,OriginalConfirmed:true),"%PDF-test"u8.ToArray()),"未知持仓性质不能批准期间可比");
+        repository.ReviewEquity(new(row.DisclosureId,new(2026,6,30),new(2026,8,28),"https://www.sse.com.cn/report.pdf","P1","reviewer",false,"Unknown",Account:row.Account,OriginalConfirmed:true),"%PDF-test"u8.ToArray());
+        Check(repository.EquityHoldings(null,null,null,false).Single() is {Nature:"Unknown",Delta:null,EvidenceLevel:EvidenceLevel.DisclosedHolding},"原文已核快照可保持未知性质而不冒充投资交易");
+        var icbc=new Uri("https://v.icbc.com.cn"+OfficialEquityDocuments.IcbcHalfPath);
+        Check(OfficialEquityDocuments.IsAllowed(icbc)&&OfficialEquityDocuments.Matches(icbc,"SSE","601398",new(2026,6,30))&&!OfficialEquityDocuments.Matches(icbc,"SSE","600153",new(2026,6,30))&&!OfficialEquityDocuments.IsAllowed(new("https://v.icbc.com.cn/userfiles/other.pdf")),"工行发行人仅开放固定证券报告期和文件");
         var seedRaw=new RawEvidenceStore(Path.Combine(root,"equity-seed-raw"));using var seed=TestMarketData.Open(Path.Combine(root,"equity-seed-data"),seedRaw);Seed(seed);
         var values=seed.EquityHoldings(null,null,null,false);
         Check(values.Single(x=>x.Institution=="汇金资管") is {Delta:-100,State:"Decreased"},"同主体同口径披露间净减持");

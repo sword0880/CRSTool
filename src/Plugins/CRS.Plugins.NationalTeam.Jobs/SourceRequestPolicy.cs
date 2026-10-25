@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
@@ -38,7 +38,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
                 PRAGMA user_version=1;
                 """;
             command.ExecuteNonQuery();
-            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","www.efunds.com.cn"})_=Read(host);
+            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.efunds.com.cn","www.cnindex.com.cn"})_=Read(host);
         }
         catch { db.Dispose(); throw; }
     }
@@ -49,7 +49,11 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
         "www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" => "SSE",
         "www.szse.cn" or "disc.static.szse.cn" => "SZSE",
         "www.chinacnd.com" => "ISSUER-600153",
+        // 工行发行人原文有独立预算；不能重置或借用SSE冷却，精确路径由网关白名单另行约束。
+        "v.icbc.com.cn" => "ISSUER-601398",
         "www.efunds.com.cn" or "cdn.efunds.com.cn" => "EFUNDS",
+        // 国证独立持久预算，不借用深交所额度；限定请求路径仍由网关负责。
+        "www.cnindex.com.cn" => "CNINDEX",
         _ => throw new ArgumentException("不支持的来源。")
     };
 

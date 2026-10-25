@@ -42,6 +42,11 @@ public interface IEtfWorkspace
     /// <summary>NAV保持独立修订身份；旧后台显式拒绝，不回退为份额点上的未知金额。</summary>
     Task<List<NavAcceptedPoint>> NavPointsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("NAV查询需要更新后台服务。");
     Task<List<NavRevision>> NavRevisionsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("NAV修订需要更新后台服务。");
+    /// <summary>行业公布值独立读取；旧服务明确拒绝，不把未支持或超时转换为空图。</summary>
+    Task<IndustryPeReport> IndustryPeReportAsync(DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("行业研究需要更新后台服务。");
+    Task<List<IndustryPeRevision>> IndustryPeRevisionsAsync(DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("行业修订需要更新后台服务。");
+    Task<IndustryPeSyncReceipt> QueueIndustryPeAsync(DateOnly from,DateOnly through,bool refreshSource,CancellationToken token)=>throw new NotSupportedException("行业采集需要更新后台服务。");
+    Task<IndustryPeSyncReceipt> IndustryPeSyncStatusAsync(Guid requestId,CancellationToken token)=>throw new NotSupportedException("行业任务需要更新后台服务。");
     Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token);
     Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>Task.FromResult(new List<CollectionAttempt>());
     Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)=>throw new NotSupportedException("采集验收需要更新后台服务。");
@@ -66,7 +71,7 @@ public sealed record EtfRequest(string Operation,string? Market=null,string? Tic
     string? Name=null,string? Index=null,bool Active=false,string? Reason=null,int Offset=0,int Count=10,bool Original=false,string? Snapshot=null,long? ConfigurationRevision=null,
     string? Search=null,string? Institution=null,string? Nature=null,bool Favorites=false,EquityWatch? EquityWatch=null,EquityReview? EquityReview=null,
     ExitAlertFilter? AlertFilter=null,ExitAlertConfiguration? AlertConfiguration=null,AlertDocumentRequest? AlertDocument=null,
-    AlertMetadataReview? AlertMetadata=null,NamedEtfHoldingReview? NamedEtfHolding=null,int ContractVersion=EtfBusinessProtocol.Version);
+    AlertMetadataReview? AlertMetadata=null,NamedEtfHoldingReview? NamedEtfHolding=null,int ContractVersion=EtfBusinessProtocol.Version,bool RefreshSource=false);
 /// <summary>分页使用服务端短期快照，避免采集同时写入导致桌面分页重复或遗漏。</summary>
 public sealed record EtfQueryPage(string Items,string Snapshot,int? NextOffset,string? Metadata=null,int ContractVersion=EtfBusinessProtocol.Version);
 /// <summary>证据导出按有界字节块返回，桌面自行选择输出位置，服务不接收用户路径。</summary>

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 行业原件、加密事务和知识时点使用独立夹具；不访问正式Worker或用户税务数据。 -->
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/CRS.Plugins.NationalTeam.Jobs.csproj" /></ItemGroup>
+</Project>

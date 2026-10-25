@@ -30,16 +30,16 @@ internal static class MarketCycleChecks
         MarketCycleObservationState state = MarketCycleObservationState.Accepted,
         DateTimeOffset? published = null, DateTimeOffset? firstSeen = null, DateTimeOffset? retrieved = null,
         string revision = "r1") =>
-        new(date, close, published ?? Beijing(date, 17), firstSeen ?? Beijing(date, 18),
-            retrieved ?? Beijing(date, 18, 5), $"{date:yyyyMMdd}-{revision}",
+        new(date, close, published ?? Beijing(date, 17), firstSeen ?? Beijing(date, 18,5),
+            retrieved ?? Beijing(date, 18), $"{date:yyyyMMdd}-{revision}",
             Hash($"index|{date:yyyy-MM-dd}|{index}|{close}|{revision}"), state);
 
     private static MarketCycleActivityPoint ActivityPoint(DateOnly date, int index, decimal? amount, decimal? volume,
         MarketCycleObservationState state = MarketCycleObservationState.Accepted,
         DateTimeOffset? published = null, DateTimeOffset? firstSeen = null, DateTimeOffset? retrieved = null,
         string revision = "r1") =>
-        new(date, amount, volume, published ?? Beijing(date, 17), firstSeen ?? Beijing(date, 18),
-            retrieved ?? Beijing(date, 18, 5), $"{date:yyyyMMdd}-{revision}",
+        new(date, amount, volume, published ?? Beijing(date, 17), firstSeen ?? Beijing(date, 18,5),
+            retrieved ?? Beijing(date, 18), $"{date:yyyyMMdd}-{revision}",
             Hash($"activity|{date:yyyy-MM-dd}|{index}|{amount}|{volume}|{revision}"), state);
 
     private static MarketCycleBreadthPoint BreadthPoint(DateOnly date, int index, int above20, int above60,
@@ -48,7 +48,7 @@ internal static class MarketCycleChecks
         string revision = "r1") =>
         new(date, above20, above60, newLow, universe,
             $"{date:yyyyMMdd}-universe", Hash($"universe|{date:yyyy-MM-dd}|{universe}"), "synthetic-universe-v1",
-            published ?? Beijing(date, 17), firstSeen ?? Beijing(date, 18), retrieved ?? Beijing(date, 18, 5),
+            published ?? Beijing(date, 17), firstSeen ?? Beijing(date, 18,5), retrieved ?? Beijing(date, 18),
             $"{date:yyyyMMdd}-{revision}",
             Hash($"breadth|{date:yyyy-MM-dd}|{index}|{above20}|{above60}|{newLow}|{universe}|{revision}"), state);
 
@@ -79,7 +79,7 @@ internal static class MarketCycleChecks
     {
         var asOf = days[^1];
         return new("CN", "CSI300", asOf, Beijing(asOf.AddDays(1), 9), calendarVerified,
-            days, indexPoints, activityPoints, breadthPoints);
+            days, indexPoints, activityPoints, breadthPoints,"synthetic-calendar-v1",Hash(string.Join(',',days)));
     }
 
     public static void Run()
@@ -252,8 +252,8 @@ internal static class MarketCycleChecks
             RevisionId = "future-correction",
             EvidenceHash = Hash("future-index-correction"),
             SourcePublishedAt = cutoff.AddMinutes(1),
-            FirstSeenAt = cutoff.AddMinutes(2),
-            RetrievedAt = cutoff.AddMinutes(3)
+            FirstSeenAt = cutoff.AddMinutes(3),
+            RetrievedAt = cutoff.AddMinutes(2)
         };
         var pointInTime = MarketCycleEvaluator.Evaluate(Input(baseline.Days,
             baseline.IndexPoints.Append(futureIndexRevision).ToArray(), baseline.ActivityPoints, baseline.BreadthPoints));
@@ -288,6 +288,33 @@ internal static class MarketCycleChecks
             "广度证券宇宙快照哈希缺失或格式错误拒绝");
         Reject(() => MarketCycleEvaluator.Evaluate(input, new MarketCycleRules(TopNearHighRatio: 1.1m)),
             "非法候选阈值拒绝");
+
+        // 新输入契约的反方边界：时间缺失、未来日事实、分隔符及日历身份不能被资料齐全掩盖。
+        Reject(()=>MarketCycleEvaluator.Evaluate(input with{EvaluationCutoff=default}),"默认知识截止不能形成研究结果");
+        var early=Beijing(input.AsOfDate.AddDays(-2),18);
+        Reject(()=>MarketCycleEvaluator.Evaluate(input with
+        {
+            EvaluationCutoff=Beijing(input.AsOfDate.AddDays(-1),23),
+            IndexPoints=baseline.IndexPoints.Select(x=>x with{SourcePublishedAt=null,FirstSeenAt=early,RetrievedAt=early}).ToArray(),
+            ActivityPoints=baseline.ActivityPoints.Select(x=>x with{SourcePublishedAt=null,FirstSeenAt=early,RetrievedAt=early}).ToArray(),
+            BreadthPoints=baseline.BreadthPoints.Select(x=>x with{SourcePublishedAt=null,FirstSeenAt=early,RetrievedAt=early}).ToArray()
+        }),"未来评估日不能用伪造的较早登记绕过截止");
+        Reject(()=>MarketCycleEvaluator.Evaluate(input with{IndexPoints=baseline.IndexPoints.Select((x,i)=>i==259?x with{SourcePublishedAt=null,FirstSeenAt=default,RetrievedAt=default}:x).ToArray()}),"缺失首次登记及取得时间拒绝");
+        Reject(()=>MarketCycleEvaluator.Evaluate(input with{IndexPoints=baseline.IndexPoints.Select((x,i)=>i==259?x with{SourcePublishedAt=null,FirstSeenAt=early,RetrievedAt=early}:x).ToArray()}),"日事实不能早于交易日期被取得");
+        Check(MarketCycleEvaluator.Evaluate(input with{CalendarEvidenceHash=null}).DataStatus==MarketCycleDataStatus.InsufficientData,"没有原件身份的日历核验标志不足以开放信号");
+        Check(MarketCycleEvaluator.Evaluate(input with{BreadthPoints=baseline.BreadthPoints.Select((x,i)=>i==259?x with{UniverseDefinitionVersion="different-definition"}:x).ToArray()}).DataStatus==MarketCycleDataStatus.InsufficientData,"不同广度定义版本不做五日比例比较");
+        var firstScope=MarketCycleEvaluator.Evaluate(input with{Market="CN|CSI",IndexCode="300"});
+        var secondScope=MarketCycleEvaluator.Evaluate(input with{Market="CN",IndexCode="CSI|300"});
+        Check(firstScope.Fingerprint!=secondScope.Fingerprint,"市场与指数中的分隔符不能构造指纹碰撞");
+        var utc=MarketCycleEvaluator.Evaluate(input with
+        {
+            EvaluationCutoff=input.EvaluationCutoff.ToUniversalTime(),
+            IndexPoints=baseline.IndexPoints.Select(x=>x with{SourcePublishedAt=x.SourcePublishedAt?.ToUniversalTime(),FirstSeenAt=x.FirstSeenAt.ToUniversalTime(),RetrievedAt=x.RetrievedAt.ToUniversalTime()}).ToArray(),
+            ActivityPoints=baseline.ActivityPoints.Select(x=>x with{SourcePublishedAt=x.SourcePublishedAt?.ToUniversalTime(),FirstSeenAt=x.FirstSeenAt.ToUniversalTime(),RetrievedAt=x.RetrievedAt.ToUniversalTime()}).ToArray(),
+            BreadthPoints=baseline.BreadthPoints.Select(x=>x with{SourcePublishedAt=x.SourcePublishedAt?.ToUniversalTime(),FirstSeenAt=x.FirstSeenAt.ToUniversalTime(),RetrievedAt=x.RetrievedAt.ToUniversalTime()}).ToArray()
+        });
+        Check(utc.Fingerprint==result.Fingerprint,"同一时刻的不同时区表示保持研究身份");
+        Check(result.TimingProof=="NotProven"&&result.InstitutionTradingEvidence=="NotObserved","研究预览在结果中固定保留未验证和机构成交未知");
 
         Console.WriteLine("市场周期研究检查完成。");
     }

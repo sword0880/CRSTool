@@ -12,15 +12,17 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
     private readonly CancellationTokenSource lifetime=new();
     private EtfViewModel? model;
     private EquityViewModel? equity;
+    private IndustryResearchViewModel? industry;
     public ValueTask StartAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         model=new(new WorkerEtfWorkspace(),lifetime.Token);
         equity=new(new WorkerEtfWorkspace(),lifetime.Token);
+        industry=new(new WorkerEtfWorkspace(),lifetime.Token);
         // 启动只注册页面；数据读取在页面打开后执行，不能占用宿主的启动期限。
         return ValueTask.CompletedTask;
     }
-    public IReadOnlyList<PluginPageContribution> GetPages()=>[new("etf-monitor","国家队观察 · ETF份额",()=>new EtfPage(model!)),new("direct-equity","国家队观察 · 直接持股",()=>new EquityPage(equity!))];
+    public IReadOnlyList<PluginPageContribution> GetPages()=>[new("etf-monitor","国家队观察 · ETF份额",()=>new EtfPage(model!)),new("direct-equity","国家队观察 · 直接持股",()=>new EquityPage(equity!)),new("industry-research","行业估值研究",()=>new IndustryResearchPage(industry!))];
     public ValueTask StopAsync(CancellationToken token){lifetime.Cancel();return ValueTask.CompletedTask;}
-    public ValueTask DisposeAsync(){lifetime.Cancel();lifetime.Dispose();model=null;equity=null;return ValueTask.CompletedTask;}
+    public ValueTask DisposeAsync(){lifetime.Cancel();lifetime.Dispose();model=null;equity=null;industry=null;return ValueTask.CompletedTask;}
 }

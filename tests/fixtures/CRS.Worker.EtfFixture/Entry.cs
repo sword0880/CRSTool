@@ -23,7 +23,12 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                 var key=context.OpenDataKey();
                 try
                 {
-                    using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),encryptionKey:key)){ }
+                    using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),encryptionKey:key))
+                    {
+                        // 仅行业管道夹具显式携带合成休市公告；沿生产解析器登记，不让其它测试凭空获得日历。
+                        var calendar=Path.Combine(context.DataDirectory,"industry-pe.fixture","calendar-2026.html");
+                        if(File.Exists(calendar))seed.RegisterReviewedCalendar("SZSE",2026,File.ReadAllBytes(calendar),CRS.Plugins.NationalTeamWatch.Domain.ReviewedExchangeCalendar.Source("SZSE",2026));
+                    }
                     using var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=path,Password=Convert.ToHexString(key),Pooling=false}.ToString());
                     db.Open();using var command=db.CreateCommand();command.CommandText="UPDATE watchlist_membership SET active=0 WHERE ticker NOT IN ('510300','510050','588000','159919','159915')";command.ExecuteNonQuery();
                 }
@@ -50,6 +55,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
             // NAV管道验收只读取预先核对的公开原件；此夹具不进入正式发行，也不请求网络。
             var nav=CRS.Plugins.NationalTeamWatch.Infrastructure.EfundsNavResearch.OfficialUrls.ToList().IndexOf(uri.AbsoluteUri);
             if(nav>=0)return new(200,await File.ReadAllBytesAsync(Path.Combine(root,"nav-source.fixture",nav+".raw"),token),"application/javascript");
+            if(CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialIndustryPeSource.IsSource(uri))return new(200,await File.ReadAllBytesAsync(Path.Combine(root,"industry-pe.fixture",uri.AbsolutePath.Split('/')[2]+".json"),token),"application/json");
             var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
             if(uri.AbsolutePath=="/security/stock/queryCompanyBulletinNew.do")
             {

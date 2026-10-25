@@ -55,8 +55,8 @@ internal static class EquityUiChecks
                     await model.RefreshAsync();model.Selected=model.Rows.Single(x=>x.State=="NeedsReview");await model.DetailTask;
                     var candidate=model.SelectedDisclosure;
                     if(model.Reports.Count!=1)throw new Exception("缓存官方目录未加载。");
-                    model.OriginalConfirmed=true;model.Comparable=true;model.SelectedReport=model.Reports.Single();model.UseReportCommand.Execute(null);
-                    if(model.DocumentUrl!=model.SelectedReport.DocumentUrl||model.Published!=new DateTime(2026,8,29)||model.ReportAsOf is not null||model.OriginalConfirmed||model.Comparable)throw new Exception("报告线索没有安全填入表单或被自动批准为持仓。");
+                    model.OriginalConfirmed=true;model.Comparable=true;model.NatureConfirmed=true;model.SelectedReport=model.Reports.Single();model.UseReportCommand.Execute(null);
+                    if(model.DocumentUrl!=model.SelectedReport.DocumentUrl||model.Published!=new DateTime(2026,8,29)||model.ReportAsOf is not null||model.OriginalConfirmed||model.Comparable||model.NatureConfirmed)throw new Exception("报告线索没有安全填入表单或继承了上一原文的持仓/性质确认。");
                     Descendants(page).OfType<System.Windows.Controls.TabItem>().Single(x=>Equals(x.Header,"披露证据 / 核验")).IsSelected=true;
                     await Task.Delay(100);window.UpdateLayout();Descendants(page).OfType<System.Windows.Controls.GroupBox>().Single().BringIntoView();await Task.Delay(200);window.UpdateLayout();
                     var reportsBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);reportsBitmap.Render(page);

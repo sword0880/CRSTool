@@ -7,6 +7,9 @@ using System.Windows.Threading;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Presentation;
 
+if(args is ["--industry",var industryReport,var industryImage]){IndustryUiChecks.Run(industryReport,industryImage);return;}
+if(args is ["--industry-installed",var installedFrom,var installedThrough,var installedImage]){IndustryInstalledUiChecks.Run(DateOnly.Parse(installedFrom),DateOnly.Parse(installedThrough),installedImage);return;}
+
 if(args.Length!=2)throw new ArgumentException("需要合成输入文件与截图路径。");
 // 财务计算在领域层，视图仅接收报告；夹具标题明确区别真实行业行情。
 var input=JsonSerializer.Deserialize<SectorStudyRequest>(File.ReadAllText(args[0]))!;

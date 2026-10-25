@@ -27,7 +27,7 @@ public sealed class SourceBudgetRegistry : IDisposable
         this.clock = clock ?? TimeProvider.System;
         try
         {
-            foreach (var source in new[] { "SSE", "SZSE", "ISSUER-600153", "EFUNDS" })
+            foreach (var source in new[] { "SSE", "SZSE", "ISSUER-600153", "ISSUER-601398", "EFUNDS", "CNINDEX" })
             {
                 _=store.Read(source); // 在任何插件/调度启动前验证持久状态，不能把损坏行当成空预算。
                 budgets.Add(source,new());
@@ -40,8 +40,12 @@ public sealed class SourceBudgetRegistry : IDisposable
         "www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" => "SSE",
         "www.szse.cn" or "disc.static.szse.cn" => "SZSE",
         "www.chinacnd.com" => "ISSUER-600153",
+        // 仅给已核验发行人文件独立来源身份，未知文件仍由插件能力白名单拒绝。
+        "v.icbc.com.cn" => "ISSUER-601398",
         // 两个基金域名共用持久冷却，防止切到CDN绕过拒绝；与交易所预算独立。
         "www.efunds.com.cn" or "cdn.efunds.com.cn" => "EFUNDS",
+        // 行业公布数据独立冷却，不能让交易所或基金的失败阻塞另一来源。
+        "www.cnindex.com.cn" => "CNINDEX",
         _ => throw new ArgumentException("来源域名尚未获准使用共享预算。", nameof(host))
     };
     public async Task<IBackgroundSourceLease> AcquireAsync(string plugin, string host, SourceBudgetState legacy, CancellationToken token)
