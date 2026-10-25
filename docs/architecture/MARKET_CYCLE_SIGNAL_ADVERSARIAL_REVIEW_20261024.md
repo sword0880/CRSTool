@@ -133,7 +133,7 @@
 
 **风险：** MarketCycleSourceAdmission 检查审批对象字段、用途位、有效期和条款原件哈希，但它本身不证明 Reviewer 身份，也不阻止调用方直接构造 Status=Approved 的对象。若未来作业把任意 JSON/用户可写配置直接映射成审批对象，门禁可能被伪造审批绕过。
 
-**整改与当前状态（2026-10-25）：** 已新增 MarketCycleSourceApprovalRegistry，复用插件现有 SQLCipher 加密 market.db；审批记录绑定 SourceId、来源基址、DatasetId、用途权限、条款原件 SHA-256、审核人/时间、策略版本及有效期。写入采用宿主注入的 IMarketCycleApprovalWriteAuthority，命令 ID/nonce 去重，追加式 HMAC 链、完整链核验和撤销状态；缺少授权器时写入失败关闭，准入时必须与注册表当前完整记录逐字段匹配，不能通过修改 JSON 的 ApprovedUses 或 URI 提权。
+**整改与当前状态（2026-10-25）：** 已新增 MarketCycleSourceApprovalRegistry，复用插件现有 SQLCipher 加密 market.db；审批记录绑定 SourceId、来源基址、DatasetId、用途权限、条款原件 SHA-256、审核人/时间、策略版本及有效期。写入采用宿主注入的 IMarketCycleApprovalWriteAuthority，命令 ID/nonce 去重，追加式 HMAC 链、完整链核验和撤销状态；缺少授权器时写入失败关闭，准入时必须与注册表当前完整记录逐字段匹配，不能通过修改 JSON 的 ApprovedUses 或 URI 提权。 新增 RequireTarget 将每次请求的实际 SourceId、DatasetId、HTTPS 主机/端口及路径边界绑定到获批基址，避免只验证审批对象却请求其他 URL。
 
 **尚未关闭的风险：** 当前 Worker/桌面组合根尚未实现并注入绑定真实管理员会话的生产授权器，因此生产审批写入仍关闭；测试授权器仅供离线测试，绝不能部署。HMAC 链可以发现库内记录篡改、删改或重排，但如果攻击者恢复整个旧版有效数据库快照，单库内的链无法证明这是回滚；若需防全库回滚，必须在独立于 market.db 的受保护存储中维护单调序号/最新链头。上述两项完成前，不注册真实市场周期采集/回填作业。
 
