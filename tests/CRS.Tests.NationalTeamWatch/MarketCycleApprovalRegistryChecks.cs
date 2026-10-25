@@ -116,7 +116,7 @@ internal static class MarketCycleApprovalRegistryChecks
             original = Approval("sse-market-stats", termsHash, clock.At,
                 MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage |
                 MarketCycleSourceUse.HistoricalBackfill | MarketCycleSourceUse.Redistribution,
-                validUntil: clock.At.AddMinutes(4));
+                validUntil: clock.At.AddHours(1));
             originalCommand = Command(original, clock.At);
             firstReceipt = registry.Apply(originalCommand);
 
@@ -176,7 +176,7 @@ internal static class MarketCycleApprovalRegistryChecks
                 nonce: originalCommand.Nonce);
             RejectData(() => registry.Apply(nonceReplay), "新命令不能重放已消费的 nonce");
 
-            clock.Advance(TimeSpan.FromMinutes(3));
+            clock.Advance(TimeSpan.FromMinutes(6));
             RejectData(() => registry.Apply(originalCommand), "超过授权新鲜期的旧审批命令不能再次提交");
             Check(registry.VerifyAuditChain(), "拒绝重放后原审计链仍完整");
 
