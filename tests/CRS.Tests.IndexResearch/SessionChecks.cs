@@ -15,6 +15,8 @@ internal static class SessionChecks
         var root=Path.Combine(Path.GetTempPath(),"CRS.IndexSession",Guid.NewGuid().ToString("N"));var context=new Context(root);Seed(context);
         var approvals=new SyntheticApprovals();var fixture=new Fixture(sources);await using var session=new NationalTeamBackgroundSession(context,fixture,indexSourceApprovals:approvals);await session.StartAsync(default);
         check(fixture.Calls==0&&session.DescribeJobs().Where(x=>x.JobId.StartsWith("index-",StringComparison.Ordinal)).All(x=>!x.EnabledByDefault&&!x.RunOnStartup&&x.ManualOnly),"新指数任务默认关闭且启动只读本地存储");
+        var from=new DateOnly(2026,10,20);var through=new DateOnly(2026,10,23);var rootId=Guid.NewGuid();
+        string Request(string operation,bool refresh=false,string? ticker=null,DateOnly? day=null)=>JsonSerializer.Serialize(new EtfRequest(operation,Ticker:ticker,From:operation=="index-series-sync"?from:null,To:day??through,RefreshSource:refresh));
         var wrongHqApprovals=new SyntheticApprovals{WrongHqBase=true};var wrongHqHttp=new Fixture(sources);
         await using(var wrongHq=new NationalTeamBackgroundSession(new Context(Path.Combine(root,"wrong-hq")),wrongHqHttp,indexSourceApprovals:wrongHqApprovals))
         {
@@ -22,8 +24,6 @@ internal static class SessionChecks
             check((await wrongHq.ExecuteAsync("index-series-sync",Request("index-series-sync"),default,Guid.NewGuid())).Status=="Rejected"&&wrongHqHttp.Calls==0,
                 "行情数据子域名必须有独立准确的来源基址审批，错误主机零HTTP");
         }
-        var from=new DateOnly(2026,10,20);var through=new DateOnly(2026,10,23);var rootId=Guid.NewGuid();
-        string Request(string operation,bool refresh=false,string? ticker=null,DateOnly? day=null)=>JsonSerializer.Serialize(new EtfRequest(operation,Ticker:ticker,From:operation=="index-series-sync"?from:null,To:day??through,RefreshSource:refresh));
         var invalid=await session.ExecuteAsync("index-series-sync",Request("index-series-sync",ticker:"600036"),default,Guid.NewGuid());check(invalid.Status=="Rejected"&&fixture.Calls==0,"错误指数代码在联网前拒绝");
         var blockedHttp=new Fixture(sources);await using(var blocked=new NationalTeamBackgroundSession(new Context(Path.Combine(root,"unapproved")),blockedHttp))
         {
