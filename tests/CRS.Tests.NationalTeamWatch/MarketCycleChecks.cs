@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 
 internal static class MarketCycleChecks
@@ -18,6 +19,21 @@ internal static class MarketCycleChecks
         try { action(); }
         catch (InvalidDataException) { Console.WriteLine("PASS 市场周期：" + name); return; }
         throw new Exception(name);
+    }
+
+    private static void RejectOperation(Action action, string name)
+    {
+        try { action(); }
+        catch (InvalidOperationException) { Console.WriteLine("PASS 市场周期：" + name); return; }
+        throw new Exception(name);
+    }
+
+    private sealed class ApprovalEvidenceVerifier(string? retainedHash = null)
+        : IMarketCycleSourceApprovalEvidenceVerifier
+    {
+        public bool Verify(string sha256) =>
+            retainedHash is not null &&
+            string.Equals(retainedHash, sha256, StringComparison.OrdinalIgnoreCase);
     }
 
     private static DateTimeOffset Beijing(DateOnly date, int hour, int minute = 0) =>
