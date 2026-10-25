@@ -347,7 +347,8 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         if (approval.SourceUri is null || !approval.SourceUri.IsAbsoluteUri ||
             approval.SourceUri.Scheme != Uri.UriSchemeHttps || !approval.SourceUri.IsDefaultPort ||
             string.IsNullOrWhiteSpace(approval.SourceUri.Host) || approval.SourceUri.UserInfo.Length != 0 ||
-            approval.SourceUri.Query.Length != 0 || approval.SourceUri.Fragment.Length != 0)
+            approval.SourceUri.Query.Length != 0 || approval.SourceUri.Fragment.Length != 0 ||
+            !MarketCycleSourceAdmission.IsSafeUriPath(approval.SourceUri))
             throw new InvalidDataException("审批来源必须是无凭据、无查询参数、无片段的绝对 HTTPS 基址。");
 
         if (string.IsNullOrEmpty(approval.TermsEvidenceHash) || approval.TermsEvidenceHash.Length != 64 ||
