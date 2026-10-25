@@ -126,6 +126,10 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
 
         using var transaction = db.BeginTransaction();
         var events = ReadVerifiedApprovalEvents(transaction);
+        var lastGlobalEvent = events.LastOrDefault();
+        if (lastGlobalEvent is not null &&
+            (now < lastGlobalEvent.RecordedAtValue || command.IssuedAt < lastGlobalEvent.IssuedAtValue))
+            throw new InvalidDataException("来源审批全局审计时间水位倒退，拒绝写入。");
         var existing = events.SingleOrDefault(x => x.CommandId == command.CommandId);
         if (existing is not null)
         {
@@ -261,6 +265,8 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         }
 
         var previous = ApprovalAuditGenesis;
+        DateTimeOffset? previousRecordedAt = null;
+        DateTimeOffset? previousIssuedAt = null;
         long expectedSequence = 1;
         foreach (var row in rows)
         {
@@ -300,8 +306,13 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
                 throw new InvalidDataException("来源审批审计 HMAC 格式无效。", error);
             }
 
-            _ = row.RecordedAtValue;
-            _ = row.IssuedAtValue;
+            var recordedAtValue = row.RecordedAtValue;
+            var issuedAtValue = row.IssuedAtValue;
+            if (previousRecordedAt is { } priorRecorded && recordedAtValue < priorRecorded ||
+                previousIssuedAt is { } priorIssued && issuedAtValue < priorIssued)
+                throw new InvalidDataException("来源审批审计时间水位倒退。");
+            previousRecordedAt = recordedAtValue;
+            previousIssuedAt = issuedAtValue;
             previous = row.EventHash;
             expectedSequence++;
         }
