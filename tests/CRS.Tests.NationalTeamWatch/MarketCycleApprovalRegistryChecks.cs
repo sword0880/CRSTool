@@ -169,6 +169,26 @@ internal static class MarketCycleApprovalRegistryChecks
                 new Uri("https://www.sse.com.cn/market/statistics-evil"),
                 MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
                 "路径前缀相似但不在获批路径边界内时拒绝");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://www.sse.com.cn.attacker.example/market/statistics/daily"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "合法主机名后缀拼接攻击必须拒绝");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://www.sse.com.cn:8443/market/statistics/daily"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "非默认 HTTPS 端口必须拒绝");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("http://www.sse.com.cn/market/statistics/daily"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "HTTP 降级请求必须拒绝");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://www.sse.com.cn@attacker.example/market/statistics/daily"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "URI 用户信息伪装官方主机必须拒绝");
 
             RejectData(() => MarketCycleSourceAdmission.RequireTarget(
                 original, original.SourceId, original.DatasetId,
