@@ -28,12 +28,19 @@ internal static class MarketCycleChecks
         throw new Exception(name);
     }
 
-    private sealed class ApprovalEvidenceVerifier(string? retainedHash = null)
-        : IMarketCycleSourceApprovalEvidenceVerifier
+    private sealed class ApprovalEvidenceVerifier(
+        string? retainedHash = null,
+        MarketCycleSourceApproval? registeredApproval = null) : IIndexSeriesSourceApprovals
     {
         public bool Verify(string sha256) =>
             retainedHash is not null &&
             string.Equals(retainedHash, sha256, StringComparison.OrdinalIgnoreCase);
+
+        public MarketCycleSourceApproval? Find(string datasetId) =>
+            registeredApproval is { } approval &&
+            string.Equals(approval.DatasetId, datasetId, StringComparison.Ordinal)
+                ? approval
+                : null;
     }
 
     private static DateTimeOffset Beijing(DateOnly date, int hour, int minute = 0) =>
@@ -315,10 +322,20 @@ internal static class MarketCycleChecks
                 MarketCycleSourceUse.HistoricalBackfill | MarketCycleSourceUse.Redistribution,
             Hash("reviewed license terms"), "fixture-reviewer", approvalAt, "source-policy-v1",
             input.EvaluationCutoff.AddDays(1));
-        var approvalEvidence = new ApprovalEvidenceVerifier(approvedSource.TermsEvidenceHash);
+        var approvalEvidence = new ApprovalEvidenceVerifier(approvedSource.TermsEvidenceHash, approvedSource);
         MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, approvalEvidence);
         MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.HistoricalBackfill, input.EvaluationCutoff, approvalEvidence);
         MarketCycleSourceAdmission.Require(approvedSource, MarketCycleSourceOperation.Redistribution, input.EvaluationCutoff, approvalEvidence);
+
+        var restrictedSource = approvedSource with
+        {
+            ApprovedUses = MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage
+        };
+        var restrictedEvidence = new ApprovalEvidenceVerifier(restrictedSource.TermsEvidenceHash, restrictedSource);
+        Reject(() => MarketCycleSourceAdmission.Require(
+            restrictedSource with { ApprovedUses = approvedSource.ApprovedUses },
+            MarketCycleSourceOperation.AutomatedPolling, input.EvaluationCutoff, restrictedEvidence),
+            "修改内存审批对象不能提升注册表未批准的用途权限");
         Check(true, "显式批准的用途在有效期内通过来源门禁");
 
         RejectOperation(() => MarketCycleSourceAdmission.Require(
