@@ -30,7 +30,7 @@ internal static class MarketCycleChecks
 
     private sealed class ApprovalEvidenceVerifier(
         string? retainedHash = null,
-        MarketCycleSourceApproval? registeredApproval = null) : IIndexSeriesSourceApprovals
+        MarketCycleSourceApproval? registeredApproval = null) : IMarketCycleSourceApprovalRegistry
     {
         public bool Verify(string sha256) =>
             retainedHash is not null &&
@@ -41,6 +41,13 @@ internal static class MarketCycleChecks
             string.Equals(approval.DatasetId, datasetId, StringComparison.Ordinal)
                 ? approval
                 : null;
+
+        public MarketCycleSourceApprovalWriteReceipt Apply(MarketCycleSourceApprovalWriteCommand command) =>
+            throw new NotSupportedException("市场周期领域测试不写入审批注册表。");
+
+        public IReadOnlyList<MarketCycleSourceApprovalAuditEntry> ReadAudit() => [];
+
+        public bool VerifyAuditChain() => true;
     }
 
     private static DateTimeOffset Beijing(DateOnly date, int hour, int minute = 0) =>
