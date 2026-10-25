@@ -161,6 +161,8 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         }
 
         var previousForDataset = datasetEvents.LastOrDefault();
+        if (command.Approval.Status == MarketCycleSourceApprovalStatus.Revoked && previousForDataset is null)
+            throw new InvalidOperationException("没有既有批准记录的来源不能直接登记为已撤销。");
         if (previousForDataset is not null)
         {
             if (now < previousForDataset.RecordedAtValue ||
@@ -368,7 +370,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         if (string.IsNullOrWhiteSpace(approval.Reviewer) || approval.Reviewer.Length > 100 ||
             approval.ReviewedAt == default || approval.ReviewedAt > now.AddSeconds(30) ||
             (approval.ReviewedAt - command.IssuedAt).Duration() > TimeSpan.FromMinutes(2) ||
-            approval.ValidUntil is { } expiry && expiry <= now)
+            approval.ValidUntil is { } expiry && (expiry <= now || expiry <= approval.ReviewedAt))
             throw new InvalidDataException("审核人、审核时间或审批有效期无效。");
     }
 
