@@ -17,6 +17,8 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
     private static byte[] DeriveMarketCycleApprovalAuditKey(ReadOnlySpan<byte> databaseKey) =>
         HMACSHA256.HashData(databaseKey, Encoding.UTF8.GetBytes("CRSTool.MarketCycleApprovalAudit.v1"));
 
+    private sealed record ApprovalAuditAnchorPayload(int Version, long Sequence, string EventHash);
+
     private sealed record ApprovalAuditPayload(
         long Sequence,
         string CommandId,
@@ -63,8 +65,10 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         var version = Scalar("SELECT version FROM feature_schema_migration WHERE feature='market-cycle-approval'");
         var tableCount = Convert.ToInt32(Scalar(
             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='market_cycle_source_approval_event'"));
-        if (version is not null && (Convert.ToInt32(version) != 1 || tableCount != 1) ||
-            version is null && tableCount != 0)
+        var anchorTableCount = Convert.ToInt32(Scalar(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='market_cycle_source_approval_anchor'"));
+        if (version is not null && (Convert.ToInt32(version) != 2 || tableCount != 1 || anchorTableCount != 1) ||
+            version is null && (tableCount != 0 || anchorTableCount != 0))
             throw new InvalidDataException("市场周期来源审批迁移与表结构不一致，拒绝自动重建。");
         if (version is not null) return;
 
@@ -90,8 +94,14 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
             );
             CREATE INDEX IF NOT EXISTS ix_market_cycle_approval_dataset
                 ON market_cycle_source_approval_event(dataset_id, sequence);
+            CREATE TABLE IF NOT EXISTS market_cycle_source_approval_anchor(
+                id INTEGER PRIMARY KEY CHECK(id=1),
+                sequence INTEGER NOT NULL CHECK(sequence>0),
+                event_hash TEXT NOT NULL,
+                anchor_mac TEXT NOT NULL
+            );
             INSERT INTO feature_schema_migration(feature,version,applied_at)
-                VALUES('market-cycle-approval',1,$at);
+                VALUES('market-cycle-approval',2,$at);
             """;
         command.Parameters.AddWithValue("$at", Now);
         command.ExecuteNonQuery();
@@ -212,6 +222,21 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         insert.Parameters.AddWithValue("$previous", previousHash);
         insert.Parameters.AddWithValue("$event", eventHash);
         insert.ExecuteNonQuery();
+
+        var anchorMac = ComputeApprovalAnchorMac(sequence, eventHash);
+        using var anchor = db.CreateCommand();
+        anchor.Transaction = transaction;
+        anchor.CommandText = """
+            INSERT INTO market_cycle_source_approval_anchor(id,sequence,event_hash,anchor_mac)
+            VALUES(1,$sequence,$event,$mac)
+            ON CONFLICT(id) DO UPDATE SET
+                sequence=excluded.sequence,event_hash=excluded.event_hash,anchor_mac=excluded.anchor_mac
+            """;
+        anchor.Parameters.AddWithValue("$sequence", sequence);
+        anchor.Parameters.AddWithValue("$event", eventHash);
+        anchor.Parameters.AddWithValue("$mac", anchorMac);
+        anchor.ExecuteNonQuery();
+
         transaction.Commit();
         return new(command.CommandId, sequence, command.Approval.Status.ToString(), eventHash);
     }
@@ -324,8 +349,59 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
             previous = row.EventHash;
             expectedSequence++;
         }
+        VerifyApprovalAnchor(rows, transaction);
         return rows;
     }
+
+    private void VerifyApprovalAnchor(IReadOnlyList<StoredApprovalEvent> events, SqliteTransaction? transaction)
+    {
+        try
+        {
+            using var command = db.CreateCommand();
+            if (transaction is not null) command.Transaction = transaction;
+            command.CommandText = "SELECT sequence,event_hash,anchor_mac FROM market_cycle_source_approval_anchor WHERE id=1";
+            using var reader = command.ExecuteReader();
+            if (events.Count == 0)
+            {
+                if (reader.Read())
+                    throw new InvalidDataException("无审批事件时不应存在审计链头锚点。");
+                return;
+            }
+
+            if (!reader.Read())
+                throw new InvalidDataException("来源审批审计链头锚点缺失，可能发生尾部截断。");
+            var sequence = reader.GetInt64(0);
+            var eventHash = reader.GetString(1);
+            var anchorMac = reader.GetString(2);
+            if (reader.Read())
+                throw new InvalidDataException("来源审批审计链头锚点不唯一。");
+
+            var latest = events[^1];
+            if (sequence != latest.Sequence || !string.Equals(eventHash, latest.EventHash, StringComparison.Ordinal))
+                throw new InvalidDataException("来源审批审计链头锚点与最新事件不一致，可能发生尾部截断或回滚。");
+
+            var expectedMac = ComputeApprovalAnchorMac(sequence, eventHash);
+            try
+            {
+                if (!CryptographicOperations.FixedTimeEquals(
+                        Convert.FromHexString(expectedMac), Convert.FromHexString(anchorMac)))
+                    throw new InvalidDataException("来源审批审计链头锚点 HMAC 不匹配。");
+            }
+            catch (FormatException error)
+            {
+                throw new InvalidDataException("来源审批审计链头锚点 HMAC 格式无效。", error);
+            }
+        }
+        catch (SqliteException error)
+        {
+            throw new InvalidDataException("来源审批审计链头锚点缺失或不可读取。", error);
+        }
+    }
+
+    private string ComputeApprovalAnchorMac(long sequence, string eventHash) =>
+        Convert.ToHexString(HMACSHA256.HashData(
+            marketCycleApprovalAuditKey,
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new ApprovalAuditAnchorPayload(1, sequence, eventHash)))));
 
     private static void ValidateApprovalCommand(MarketCycleSourceApprovalWriteCommand command, DateTimeOffset now)
     {
