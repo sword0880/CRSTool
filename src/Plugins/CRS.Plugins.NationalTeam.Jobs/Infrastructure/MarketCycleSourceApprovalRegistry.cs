@@ -268,7 +268,8 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
             _ = ReadVerifiedApprovalEvents();
             return true;
         }
-        catch (Exception error) when (error is InvalidDataException or JsonException or FormatException or CryptographicException)
+        catch (Exception error) when (error is InvalidDataException or JsonException or FormatException or
+            CryptographicException or InvalidCastException or OverflowException or SqliteException)
         {
             return false;
         }
