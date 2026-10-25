@@ -25,9 +25,12 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         catch(SqliteException error){throw new IOException("插件市场仓储操作失败。",error);}
         finally{operationCancellation=previous;}
     }
-    public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? encryptionKey=null,TimeProvider? timeProvider=null)
+    public MarketRepository(string dataPath, RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? encryptionKey=null,TimeProvider? timeProvider=null,IMarketCycleApprovalWriteAuthority? approvalWriteAuthority=null)
     {
         if(encryptionKey is not {Length:32})throw new InvalidDataException("市场库必须提供独立的32字节加密密钥。");
+        marketCycleApprovalWriteAuthority=approvalWriteAuthority;
+        marketCycleApprovalAuditKey=System.Security.Cryptography.HMACSHA256.HashData(
+            encryptionKey,System.Text.Encoding.UTF8.GetBytes("CRSTool.MarketCycleApprovalAudit.v1"));
         this.beforeWrite=beforeWrite;
         clock=timeProvider??TimeProvider.System; // 生产固定系统时间，隔离测试可推进时钟验证停机及相邻交易日规则。
         raw = rawStore; Directory.CreateDirectory(dataPath);
@@ -83,7 +86,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
             Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,$origin)",("$m",item.Market),("$t",item.Ticker),("$origin",InitialEtfDirectory.Origin));
         }
         seed.Commit();
-        try { InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();InitializeNavSchema();InitializeIndustryPeSchema();InitializeIndexSeriesSchema(); }
+        try { InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();InitializeNavSchema();InitializeIndustryPeSchema();InitializeIndexSeriesSchema();InitializeMarketCycleApprovalSchema(); }
         catch { db.Dispose(); throw; }
     }
     private string Now => CRS.Timing.BeijingClock.Read(clock).ToString("O");
@@ -472,5 +475,5 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         using var check=destination.CreateCommand(); check.CommandText="PRAGMA integrity_check;";
         if(check.ExecuteScalar() as string!="ok") throw new InvalidDataException("Snapshot integrity failure.");
     }
-    public void Dispose()=>db.Dispose();
+    public void Dispose(){System.Security.Cryptography.CryptographicOperations.ZeroMemory(marketCycleApprovalAuditKey);db.Dispose();}
 }
