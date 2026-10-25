@@ -16,7 +16,7 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
 public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null,
-    string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null,IIndexSeriesSourceApprovals? indexSourceApprovals=null):IBackgroundPluginSession,
+    string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null,IMarketCycleSourceApprovalReader? indexSourceApprovals=null):IBackgroundPluginSession,
     IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession,IGroupedBackgroundSession
 {
     public int MaximumConcurrentExecutions=>4;
@@ -294,7 +294,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "index-series-report":
                     if(request.From is not {} indexFrom||request.To is not {} indexThrough)throw new InvalidDataException("指数研究需要完整日期区间。");
                     var indexReport=await workspace!.IndexSeriesReportAsync(indexFrom,indexThrough,token);
-                    indexReport=indexReport with{PriceCollectionAllowed=IndexSourceAdmitted("cnindex-published-prices",MarketCycleSourceOperation.HistoricalBackfill),ValuationCollectionAllowed=IndexSourceAdmitted("cnindex-published-valuation",MarketCycleSourceOperation.AutomatedPolling)};
+                    indexReport=indexReport with{PriceCollectionAllowed=IndexPriceCollectionAllowed(),ValuationCollectionAllowed=IndexValuationCollectionAllowed()};
                     metadata=JsonSerializer.Serialize(indexReport with{Rows=[]});rows=indexReport.Rows.Select(x=>SerializeRow(x)).ToArray();break;
                 case "index-series-revisions":
                     if(request.From is not {} indexRevisionFrom||request.To is not {} indexRevisionThrough)throw new InvalidDataException("指数修订需要完整日期区间。");

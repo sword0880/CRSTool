@@ -17,6 +17,13 @@ internal static class SessionChecks
         check(fixture.Calls==0&&session.DescribeJobs().Where(x=>x.JobId.StartsWith("index-",StringComparison.Ordinal)).All(x=>!x.EnabledByDefault&&!x.RunOnStartup&&x.ManualOnly),"新指数任务默认关闭且启动只读本地存储");
         var from=new DateOnly(2026,10,20);var through=new DateOnly(2026,10,23);var rootId=Guid.NewGuid();
         string Request(string operation,bool refresh=false,string? ticker=null,DateOnly? day=null)=>JsonSerializer.Serialize(new EtfRequest(operation,Ticker:ticker,From:operation=="index-series-sync"?from:null,To:day??through,RefreshSource:refresh));
+        var wrongHqApprovals=new SyntheticApprovals{WrongHqBase=true};var wrongHqHttp=new Fixture(sources);
+        await using(var wrongHq=new NationalTeamBackgroundSession(new Context(Path.Combine(root,"wrong-hq")),wrongHqHttp,indexSourceApprovals:wrongHqApprovals))
+        {
+            await wrongHq.StartAsync(default);
+            check((await wrongHq.ExecuteAsync("index-series-sync",Request("index-series-sync"),default,Guid.NewGuid())).Status=="Rejected"&&wrongHqHttp.Calls==0,
+                "行情数据子域名必须有独立准确的来源基址审批，错误主机零HTTP");
+        }
         var invalid=await session.ExecuteAsync("index-series-sync",Request("index-series-sync",ticker:"600036"),default,Guid.NewGuid());check(invalid.Status=="Rejected"&&fixture.Calls==0,"错误指数代码在联网前拒绝");
         var blockedHttp=new Fixture(sources);await using(var blocked=new NationalTeamBackgroundSession(new Context(Path.Combine(root,"unapproved")),blockedHttp))
         {
@@ -73,9 +80,17 @@ internal static class SessionChecks
     private sealed class SyntheticApprovals:IIndexSeriesSourceApprovals
     {
         private readonly byte[] terms="SYNTHETIC TEST ONLY - NOT A SOURCE LICENSE"u8.ToArray();
+        private readonly DateTimeOffset reviewedAt=DateTimeOffset.UtcNow.AddMinutes(-1);
         public MarketCycleSourceUse Uses=MarketCycleSourceUse.AutomatedCollection|MarketCycleSourceUse.PersistentStorage|MarketCycleSourceUse.HistoricalBackfill;
         public bool EvidenceHealthy=true;
-        public MarketCycleSourceApproval? Find(string dataset)=>new("CNINDEX",new("https://www.cnindex.com.cn/"),dataset,"cnindex-index-series-v1",OfficialIndexSeriesSource.ParserVersion,MarketCycleSourceApprovalStatus.Approved,Uses,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(terms)),"SyntheticFixture",DateTimeOffset.UtcNow.AddMinutes(-1),"synthetic-v1");
+        public bool WrongHqBase;
+        public MarketCycleSourceApproval? Find(string dataset)
+        {
+            var isHq=dataset=="cnindex-published-prices-hq";
+            var sourceId=isHq?"CNINDEX-HQ":"CNINDEX";
+            var sourceUri=isHq&&!WrongHqBase?new Uri("https://hq.cnindex.com.cn/"):new Uri("https://www.cnindex.com.cn/");
+            return new(sourceId,sourceUri,dataset,"cnindex-index-series-v1",OfficialIndexSeriesSource.ParserVersion,MarketCycleSourceApprovalStatus.Approved,Uses,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(terms)),"SyntheticFixture",reviewedAt,"synthetic-v1");
+        }
         public bool Verify(string hash)=>EvidenceHealthy&&Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(terms))==hash;
     }
     private sealed class Fixture(string root):IPluginHttpGateway,IOfficialSourceValidationFeedback

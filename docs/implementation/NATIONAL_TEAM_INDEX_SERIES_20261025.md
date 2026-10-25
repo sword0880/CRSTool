@@ -22,7 +22,7 @@
 
 开发途中main由用户提交/合并至981a8c19872a0f5ce78e3951c8b0bc4b3eee68fb，已读取PR20新增的[来源可行性](MARKET_CYCLE_DATA_SOURCE_FEASIBILITY_20261025.md)、[P2接入设计](MARKET_CYCLE_P2_INGESTION_DESIGN.md)和MarketCycleSourceAdmission；没有切分支、合并或重复实现其周期模型。
 
-[国证产品服务](https://www.cnindex.com.cn/zh_services/data_licensing/index.html?act_menu=4&act_service=3)区分对外展示授权及需签数据服务协议的产品。本轮未取得明确适用于个人本地自动下载、持久化和历史回填的条款/确认，不将网页可访问或任务开发授权作为来源许可。因此新增采集候选在任何HTTP前调用现有准入门禁，分别核验cnindex-published-prices与cnindex-published-valuation的数据集、来源、契约/解析版本、原件哈希、有效时间和用途；历史价格要求HistoricalBackfill及PersistentStorage，当前估值要求AutomatedCollection及PersistentStorage。分段采集和金融提交前再次核验，避免长步骤跨越到期/撤销边界。
+[国证产品服务](https://www.cnindex.com.cn/zh_services/data_licensing/index.html?act_menu=4&act_service=3)区分对外展示授权及需签数据服务协议的产品。本轮未取得明确适用于个人本地自动下载、持久化和历史回填的条款/确认，不将网页可访问或任务开发授权作为来源许可。因此新增采集候选在任何HTTP前整体预检每个实际目标URI，并在逐个请求前及持久化提交前再次核验。`cnindex-published-prices` 覆盖 `www.cnindex.com.cn` 的方法/单位原件，`cnindex-published-prices-hq` 单独覆盖 `hq.cnindex.com.cn` 的指数日线，`cnindex-published-valuation` 覆盖 `www.cnindex.com.cn` 的日期头/方法/当前估值。准入绑定SourceId、DatasetId、HTTPS主机/端口、路径边界、契约/解析版本、条款原件哈希、有效时间和用途；不同主机不能借用同一基址审批。历史价格要求HistoricalBackfill及PersistentStorage，当前估值要求AutomatedCollection及PersistentStorage，避免长步骤跨越到期/撤销边界。
 
 生产入口未配置审批台账提供方，默认SourceApprovalRequired且HTTP=0；只读报告仍可查询，并向页面返回两个采集准入状态，未批准按钮关闭。没有伪造审核人或协议，没有因本轮候选自动启用计划。审批台账持久化、真实许可及正式采集仍开放；隔离夹具使用显式SyntheticFixture许可，不能登记为正式来源授权。
 

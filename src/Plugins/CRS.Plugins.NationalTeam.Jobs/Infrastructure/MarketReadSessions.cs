@@ -13,6 +13,20 @@ public sealed partial class MarketRepository : IMarketReadSessions,IBoundedMarke
     {
         raw=evidence;clock=timeProvider;
         beforeWrite=()=>throw new InvalidOperationException("只读查询不允许写入。");
+        var password = new SqliteConnectionStringBuilder(connectionString).Password;
+        byte[]? databaseKey = null;
+        try
+        {
+            databaseKey = Convert.FromHexString(password);
+            if (databaseKey.Length == 32)
+                marketCycleApprovalAuditKey = DeriveMarketCycleApprovalAuditKey(databaseKey);
+        }
+        catch (FormatException) { /* 非标准只读连接不获得审批注册表验证能力。 */ }
+        finally
+        {
+            if (databaseKey is not null)
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(databaseKey);
+        }
         db=new(connectionString);
         try
         {
