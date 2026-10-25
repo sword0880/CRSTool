@@ -171,6 +171,9 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
             if (command.Approval.Status == MarketCycleSourceApprovalStatus.Revoked &&
                 previousApproval.Status != MarketCycleSourceApprovalStatus.Approved)
                 throw new InvalidOperationException("只有当前已批准的来源才能被撤销。");
+            if (command.Approval.Status == MarketCycleSourceApprovalStatus.Rejected &&
+                previousApproval.Status == MarketCycleSourceApprovalStatus.Approved)
+                throw new InvalidOperationException("已批准来源必须使用 Revoked 事件撤销，不能改写成 Rejected。");
         }
 
         var sequence = checked((long)events.Count + 1);
