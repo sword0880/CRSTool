@@ -137,7 +137,7 @@ internal static class MarketCycleApprovalRegistryChecks
             var tamperedDataset = original with { DatasetId = "other-dataset" };
             RejectData(() => MarketCycleSourceAdmission.Require(tamperedDataset, MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
                 "修改 DatasetId 不能覆盖注册表");
-            var tamperedUses = original with { ApprovedUses = MarketCycleSourceUse.None };
+            var tamperedUses = original with { ApprovedUses = MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage };
             RejectData(() => MarketCycleSourceAdmission.Require(tamperedUses, MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
                 "内存中的用途权限变化与注册表不一致时拒绝");
 
