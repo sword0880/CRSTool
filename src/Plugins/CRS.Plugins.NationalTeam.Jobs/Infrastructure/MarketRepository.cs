@@ -29,7 +29,6 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     {
         if(encryptionKey is not {Length:32})throw new InvalidDataException("市场库必须提供独立的32字节加密密钥。");
         marketCycleApprovalWriteAuthority=approvalWriteAuthority;
-        marketCycleApprovalAuditKey=DeriveMarketCycleApprovalAuditKey(encryptionKey);
         this.beforeWrite=beforeWrite;
         clock=timeProvider??TimeProvider.System; // 生产固定系统时间，隔离测试可推进时钟验证停机及相邻交易日规则。
         raw = rawStore; Directory.CreateDirectory(dataPath);
@@ -87,6 +86,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         seed.Commit();
         try { InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();InitializeNavSchema();InitializeIndustryPeSchema();InitializeIndexSeriesSchema();InitializeMarketCycleApprovalSchema(); }
         catch { db.Dispose(); throw; }
+        marketCycleApprovalAuditKey=DeriveMarketCycleApprovalAuditKey(encryptionKey);
     }
     private string Now => CRS.Timing.BeijingClock.Read(clock).ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
