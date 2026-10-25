@@ -363,6 +363,33 @@ internal static class MarketCycleApprovalRegistryChecks
             RejectData(() => registry.Find("truncate-dataset"), "尾部截断不能回退为旧的 Approved 审批");
         }
 
+        var anchorTamperData = Path.Combine(root, "anchor-tamper");
+        var anchorTamperClock = new Clock();
+        using (var repository = Open(anchorTamperData, raw, anchorTamperClock, new FixtureAuthority()))
+        {
+            var approval = Approval("anchor-tamper-dataset", termsHash, anchorTamperClock.At,
+                MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage);
+            ((IMarketCycleSourceApprovalRegistry)repository).Apply(Command(approval, anchorTamperClock.At));
+        }
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = Path.Combine(anchorTamperData, "market.db"),
+            Password = Convert.ToHexString(TestMarketData.Key),
+            Pooling = false
+        }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE market_cycle_source_approval_anchor SET anchor_mac='not-hex' WHERE id=1";
+            command.ExecuteNonQuery();
+        }
+        using (var reopened = Open(anchorTamperData, raw, anchorTamperClock, authority: null))
+        {
+            var registry = (IMarketCycleSourceApprovalRegistry)reopened;
+            Check(!registry.VerifyAuditChain(), "损坏的审计链头锚点 MAC 应返回核验失败而非向外抛出存储转换异常");
+            RejectData(() => registry.Find("anchor-tamper-dataset"), "链头锚点 MAC 损坏时拒绝返回审批");
+        }
+
         Console.WriteLine("市场周期审批注册表检查完成。");
     }
 }
