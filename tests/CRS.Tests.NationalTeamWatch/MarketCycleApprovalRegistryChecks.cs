@@ -113,6 +113,7 @@ internal static class MarketCycleApprovalRegistryChecks
         using (var repository = Open(data, raw, clock, authority))
         {
             var registry = (IMarketCycleSourceApprovalRegistry)repository;
+            Check(registry.Find("never-approved") is null, "不存在的来源审批默认返回空，不会自动批准");
             original = Approval("sse-market-stats", termsHash, clock.At,
                 MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage |
                 MarketCycleSourceUse.HistoricalBackfill | MarketCycleSourceUse.Redistribution,
@@ -167,6 +168,12 @@ internal static class MarketCycleApprovalRegistryChecks
                 sourceId: "SZSE", sourceUri: "https://www.szse.cn/market/statistics");
             clock.Advance(TimeSpan.FromSeconds(1));
             RejectData(() => registry.Apply(Command(sourceRebind, clock.At)), "现有 DatasetId 不能重新绑定到另一个 SourceId/URI");
+
+            var uriRebind = Approval("sse-new-dataset-uri-rebind", termsHash, clock.At.AddSeconds(1),
+                MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage,
+                sourceId: "SSE", sourceUri: "https://different.sse.example/market/statistics");
+            clock.Advance(TimeSpan.FromSeconds(1));
+            RejectData(() => registry.Apply(Command(uriRebind, clock.At)), "同一 SourceId 不能改绑到新的来源基址");
 
             var duplicateCommand = registry.Apply(originalCommand);
             Check(duplicateCommand.Replayed && duplicateCommand.Sequence == firstReceipt.Sequence && registry.ReadAudit().Count == 3,
