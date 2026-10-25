@@ -135,6 +135,10 @@ internal static class MarketCycleApprovalRegistryChecks
             Check(firstReceipt.Sequence == 1 && !firstReceipt.Replayed, "首次审批追加单调审计事件");
             Check(registry.VerifyAuditChain() && registry.ReadAudit().Count == 1, "加密库中的 HMAC 审计链可核验");
             Check(registry.Find(original.DatasetId) == original, "重启前可按 DatasetId 读取当前审批");
+            var snapshotApproval = repository.Read(
+                reader => ((IMarketCycleSourceApprovalRegistry)reader).Find(original.DatasetId),
+                System.Threading.CancellationToken.None);
+            Check(snapshotApproval == original, "独立只读快照可从加密连接派生相同审计密钥并读取审批");
             MarketCycleSourceAdmission.Require(original, MarketCycleSourceOperation.AutomatedPolling, clock.At, registry);
             MarketCycleSourceAdmission.Require(original, MarketCycleSourceOperation.HistoricalBackfill, clock.At, registry);
             MarketCycleSourceAdmission.Require(original, MarketCycleSourceOperation.Redistribution, clock.At, registry);
