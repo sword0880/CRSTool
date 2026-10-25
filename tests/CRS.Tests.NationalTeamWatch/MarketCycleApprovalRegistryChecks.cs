@@ -166,6 +166,23 @@ internal static class MarketCycleApprovalRegistryChecks
                 MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
                 "路径前缀相似但不在获批路径边界内时拒绝");
 
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://www.sse.com.cn/market/statistics/%252e%252e/admin"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "双重编码的路径回退段必须拒绝");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://www.sse.com.cn/market/statistics/%252f..%252fadmin"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "双重编码的路径分隔符必须拒绝");
+
+            var unsafeBase = Approval("unsafe-base-path", termsHash, clock.At,
+                MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage,
+                sourceUri: "https://www.sse.com.cn/market/%252e%252e/admin");
+            RejectData(() => registry.Apply(Command(unsafeBase, clock.At)),
+                "含编码路径回退段的来源基址不能进入审批注册表");
+
             var tamperedSource = original with { SourceId = "SZSE" };
             RejectData(() => MarketCycleSourceAdmission.Require(tamperedSource, MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
                 "修改内存对象的 SourceId 不能覆盖注册表");
