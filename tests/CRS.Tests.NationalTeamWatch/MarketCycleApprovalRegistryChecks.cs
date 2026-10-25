@@ -139,6 +139,32 @@ internal static class MarketCycleApprovalRegistryChecks
             MarketCycleSourceAdmission.Require(original, MarketCycleSourceOperation.HistoricalBackfill, clock.At, registry);
             MarketCycleSourceAdmission.Require(original, MarketCycleSourceOperation.Redistribution, clock.At, registry);
             Check(true, "四类用途全量获批时仅按独立门禁逐项放行");
+            MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://www.sse.com.cn/market/statistics/daily?tradeDate=2026-10-25"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry);
+            Check(true, "获批基址下的目标路径与查询参数可通过目标绑定门禁");
+
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, "SZSE", original.DatasetId,
+                new Uri("https://www.sse.com.cn/market/statistics/daily"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "实际请求 SourceId 与审批身份不一致时拒绝");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, "other-dataset",
+                new Uri("https://www.sse.com.cn/market/statistics/daily"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "实际请求 DatasetId 与审批身份不一致时拒绝");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://attacker.example/market/statistics/daily"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "同路径不同主机不能冒充已批准来源");
+            RejectData(() => MarketCycleSourceAdmission.RequireTarget(
+                original, original.SourceId, original.DatasetId,
+                new Uri("https://www.sse.com.cn/market/statistics-evil"),
+                MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
+                "路径前缀相似但不在获批路径边界内时拒绝");
 
             var tamperedSource = original with { SourceId = "SZSE" };
             RejectData(() => MarketCycleSourceAdmission.Require(tamperedSource, MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
