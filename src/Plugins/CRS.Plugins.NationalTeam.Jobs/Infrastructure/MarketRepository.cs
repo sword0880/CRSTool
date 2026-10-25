@@ -29,8 +29,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     {
         if(encryptionKey is not {Length:32})throw new InvalidDataException("市场库必须提供独立的32字节加密密钥。");
         marketCycleApprovalWriteAuthority=approvalWriteAuthority;
-        marketCycleApprovalAuditKey=System.Security.Cryptography.HMACSHA256.HashData(
-            encryptionKey,System.Text.Encoding.UTF8.GetBytes("CRSTool.MarketCycleApprovalAudit.v1"));
+        marketCycleApprovalAuditKey=DeriveMarketCycleApprovalAuditKey(encryptionKey);
         this.beforeWrite=beforeWrite;
         clock=timeProvider??TimeProvider.System; // 生产固定系统时间，隔离测试可推进时钟验证停机及相邻交易日规则。
         raw = rawStore; Directory.CreateDirectory(dataPath);
