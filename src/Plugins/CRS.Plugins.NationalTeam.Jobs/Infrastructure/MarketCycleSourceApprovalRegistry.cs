@@ -50,7 +50,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
     private static DateTimeOffset ParseTime(string value)
     {
         if (!DateTimeOffset.TryParseExact(value, "O", CultureInfo.InvariantCulture,
-                DateTimeStyles.RoundtripKind, out var parsed))
+                DateTimeStyles.None, out var parsed))
             throw new InvalidDataException("来源审批审计时间格式无效。");
         return parsed;
     }
@@ -146,7 +146,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         foreach (var item in sourceEvents)
         {
             var priorApproval = DeserializeApproval(item.ApprovalJson);
-            if (priorApproval.SourceUri != command.Approval.SourceUri)
+            if (!string.Equals(priorApproval.SourceUri.AbsoluteUri, command.Approval.SourceUri.AbsoluteUri, StringComparison.Ordinal))
                 throw new InvalidDataException("来源 ID 已绑定到另一个基址；地址变更必须使用新来源 ID 并重新审核。");
         }
 
@@ -328,7 +328,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
             approval.SourceUri.Query.Length != 0 || approval.SourceUri.Fragment.Length != 0)
             throw new InvalidDataException("审批来源必须是无凭据、无查询参数、无片段的绝对 HTTPS 基址。");
 
-        if (approval.TermsEvidenceHash.Length != 64 ||
+        if (string.IsNullOrEmpty(approval.TermsEvidenceHash) || approval.TermsEvidenceHash.Length != 64 ||
             approval.TermsEvidenceHash.Any(c => !Uri.IsHexDigit(c)) ||
             approval.TermsEvidenceHash != approval.TermsEvidenceHash.ToUpperInvariant())
             throw new InvalidDataException("许可/条款证据必须使用大写 SHA-256 哈希。");
@@ -340,9 +340,9 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
             !Enum.IsDefined(approval.Status) ||
             approval.Status == MarketCycleSourceApprovalStatus.Pending)
             throw new InvalidDataException("审批状态或用途权限无效。");
-        if (approval.Status == MarketCycleSourceApprovalStatus.Approved && approval.ApprovedUses == MarketCycleSourceUse.None ||
-            approval.Status is MarketCycleSourceApprovalStatus.Rejected or MarketCycleSourceApprovalStatus.Revoked &&
-            approval.ApprovedUses != MarketCycleSourceUse.None)
+        if ((approval.Status == MarketCycleSourceApprovalStatus.Approved && approval.ApprovedUses == MarketCycleSourceUse.None) ||
+            ((approval.Status is MarketCycleSourceApprovalStatus.Rejected or MarketCycleSourceApprovalStatus.Revoked) &&
+             approval.ApprovedUses != MarketCycleSourceUse.None))
             throw new InvalidDataException("批准记录必须明确用途；拒绝/撤销记录不能保留任何用途权限。");
 
         if (string.IsNullOrWhiteSpace(approval.Reviewer) || approval.Reviewer.Length > 100 ||
