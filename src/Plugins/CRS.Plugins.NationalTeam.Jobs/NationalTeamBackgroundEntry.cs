@@ -294,7 +294,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "index-series-report":
                     if(request.From is not {} indexFrom||request.To is not {} indexThrough)throw new InvalidDataException("指数研究需要完整日期区间。");
                     var indexReport=await workspace!.IndexSeriesReportAsync(indexFrom,indexThrough,token);
-                    indexReport=indexReport with{PriceCollectionAllowed=IndexSourceAdmitted("cnindex-published-prices",MarketCycleSourceOperation.HistoricalBackfill),ValuationCollectionAllowed=IndexSourceAdmitted("cnindex-published-valuation",MarketCycleSourceOperation.AutomatedPolling)};
+                    indexReport=indexReport with{PriceCollectionAllowed=IndexPriceCollectionAllowed(),ValuationCollectionAllowed=IndexValuationCollectionAllowed()};
                     metadata=JsonSerializer.Serialize(indexReport with{Rows=[]});rows=indexReport.Rows.Select(x=>SerializeRow(x)).ToArray();break;
                 case "index-series-revisions":
                     if(request.From is not {} indexRevisionFrom||request.To is not {} indexRevisionThrough)throw new InvalidDataException("指数修订需要完整日期区间。");
