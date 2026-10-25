@@ -116,10 +116,6 @@ public static class MarketCycleSourceAdmission
         MarketCycleSourceUse.Redistribution;
 
     /// <summary>
-    /// Required target-aware gate for market-cycle collectors. It binds the operation's actual target and
-    /// dataset to the reviewed source base; checking an approval object alone does not authorize an arbitrary URI.
-    /// </summary>
-    /// <summary>
     /// Reject path traversal and encoded path separators before applying a base-path prefix check.
     /// Decoding is bounded and fails closed for repeatedly encoded paths.
     /// </summary>
@@ -144,6 +140,10 @@ public static class MarketCycleSourceAdmission
         return false;
     }
 
+    /// <summary>
+    /// Required target-aware gate for market-cycle collectors. It binds the operation's actual target and
+    /// dataset to the reviewed source base; checking an approval object alone does not authorize an arbitrary URI.
+    /// </summary>
     public static void RequireTarget(
         MarketCycleSourceApproval approval,
         string requestedSourceId,
