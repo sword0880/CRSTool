@@ -158,7 +158,7 @@ internal static class MarketCycleApprovalRegistryChecks
             var badTerms = original with { TermsEvidenceHash = Hash(Encoding.UTF8.GetBytes("different terms not archived")) };
             RejectData(() => registry.Apply(Command(badTerms, clock.At)), "条款哈希未在原件存证中找到时不能批准");
 
-            var proofBoundMutation = Command(original with { ApprovedUses = MarketCycleSourceUse.None }, clock.At,
+            var proofBoundMutation = Command(original with { ApprovedUses = MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage }, clock.At,
                 proofOverride: originalCommand.AuthorizationProof);
             RejectUnauthorized(() => registry.Apply(proofBoundMutation), "审批内容变化但复用旧授权证明时拒绝");
 
