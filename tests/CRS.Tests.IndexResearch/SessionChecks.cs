@@ -80,6 +80,7 @@ internal static class SessionChecks
     private sealed class SyntheticApprovals:IIndexSeriesSourceApprovals
     {
         private readonly byte[] terms="SYNTHETIC TEST ONLY - NOT A SOURCE LICENSE"u8.ToArray();
+        private readonly DateTimeOffset reviewedAt=DateTimeOffset.UtcNow.AddMinutes(-1);
         public MarketCycleSourceUse Uses=MarketCycleSourceUse.AutomatedCollection|MarketCycleSourceUse.PersistentStorage|MarketCycleSourceUse.HistoricalBackfill;
         public bool EvidenceHealthy=true;
         public bool WrongHqBase;
@@ -88,7 +89,7 @@ internal static class SessionChecks
             var isHq=dataset=="cnindex-published-prices-hq";
             var sourceId=isHq?"CNINDEX-HQ":"CNINDEX";
             var sourceUri=isHq&&!WrongHqBase?new Uri("https://hq.cnindex.com.cn/"):new Uri("https://www.cnindex.com.cn/");
-            return new(sourceId,sourceUri,dataset,"cnindex-index-series-v1",OfficialIndexSeriesSource.ParserVersion,MarketCycleSourceApprovalStatus.Approved,Uses,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(terms)),"SyntheticFixture",DateTimeOffset.UtcNow.AddMinutes(-1),"synthetic-v1");
+            return new(sourceId,sourceUri,dataset,"cnindex-index-series-v1",OfficialIndexSeriesSource.ParserVersion,MarketCycleSourceApprovalStatus.Approved,Uses,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(terms)),"SyntheticFixture",reviewedAt,"synthetic-v1");
         }
         public bool Verify(string hash)=>EvidenceHealthy&&Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(terms))==hash;
     }
