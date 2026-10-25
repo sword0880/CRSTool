@@ -1,4 +1,6 @@
-# 当前问题与验收缺口
+﻿# 当前问题与验收缺口
+
+2026-10-25 08:13：[公布行业PE事实链](implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)正式维护已Committed，4日44条真实记录及11行业通过实际Worker和独立WPF页面回读；历史回补正在执行。仅此公布PE页面接通，完整行业价格/PB/市值覆盖/基本面及低估机会仍开放；区域模型与主要持仓方向没有因此验收。以下早期“行业未接通”描述保留其当时时点，当前状态以此项为准。
 
 2026-10-25 01:51：原建发报告目录请求已Completed/Succeeded并Indexed（pages=1），报告期仍需审核；原份额补查仍Pending/RetryDeferred。没有重复排队，索引不升级为已审持仓。最新回执与剩余工作见[开发清单](implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)。
 
@@ -144,3 +146,5 @@ ETF清单续项：后台实际24项配置仍在；页面已改为先读取清单
 2026-10-23 R01～R04：联合导入原子提交、市场只读快照/有界证据查询、每插件Runner监督与容量预警已接入候选源码。未替换已安装Worker，OS权限隔离、长期容量与正式生命周期仍需验收，见[四项整改](implementation/ARCH_OPTIMIZATION_20261023.md)。
 
 2026-10-23 R06/R07 续项：市场仓储默认空实现已移除并按用例拆分，正式启动缺能力即拒绝；临时年度使用北京时间并保持冻结重放。R08 只推进内部持久授权、审计与强杀重放验证，生产跨机恢复闭环仍未完成，发布阻断继续保留，见[实施记录](implementation/ARCH_FOLLOWUP_20261023.md)。
+
+2026-10-25第二轮最终：[工行扩展](implementation/NATIONAL_TEAM_EQUITY_EXPANSION_20261025.md)正式Committed并核对5885份快照，工行4个未知性质快照审核成功，已核合计9账户/2股票，其他20条未核。[公布行业PE](implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)261交易日/2871修订及全历史实际页面回读通过。此前超时记录保留，不能宣称所有负载性能通过。ETF250日11/24、连续20日0/24，原补查仍RetryDeferred；行业完整低估机会、主要持仓方向及高低位模型仍未验收。

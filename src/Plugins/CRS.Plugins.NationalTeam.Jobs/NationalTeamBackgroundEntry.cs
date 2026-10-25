@@ -16,14 +16,14 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
 public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null,
-    string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null):IBackgroundPluginSession,
+    string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null,IIndexSeriesSourceApprovals? indexSourceApprovals=null):IBackgroundPluginSession,
     IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession,IGroupedBackgroundSession
 {
     public int MaximumConcurrentExecutions=>4;
     public BackgroundExecutionGroup ExecutionGroup(string jobId)=>jobId switch
     {
         "evidence-integrity" or "official-share-sync" or "market-activity-sync" or "official-calendar-sync" or "equity-disclosure-sync"
-            or "equity-report-search" or "equity-review" or "nav-sync"=>new("collection",2),
+            or "equity-report-search" or "equity-review" or "nav-sync" or "industry-pe-sync" or "index-series-sync" or "index-valuation-sync"=>new("collection",2),
         "alert-evaluate"=>new("evaluation",1),
         _=>new("management",1)
     };
@@ -78,6 +78,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         new("activity-review","成交统计修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("nav-sync","官方NAV原件采集（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("nav-review","NAV冲突修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("industry-pe-sync","国证行业公布PE采集（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("industry-pe-review","行业公布PE修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("index-series-sync","国证指数日线补缺（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("index-valuation-sync","国证行业指数当期估值（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("index-series-review","指数点位及估值修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("review","ETF修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("watchlist","ETF验证池变更（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true)];
 
@@ -120,6 +125,13 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             catch(EtfContractException error){return new("Rejected","contract="+error.Code);}
             switch(jobId)
             {
+                case "industry-pe-sync": return await SyncIndustryPeAsync(request,token,commandId);
+                case "index-series-sync":return await SyncIndexSeriesAsync(request,token,commandId);
+                case "index-valuation-sync":return await SyncIndexValuationAsync(request,token,commandId);
+                case "index-series-review" when request.Operation=="index-series-review":
+                    await workspace!.ReviewIndexSeriesAsync(request.Revision??"",request.Accept,request.Reviewer??"",token,commandId);return BackgroundJobResult.Success();
+                case "industry-pe-review" when request.Operation=="industry-pe-review":
+                    await workspace!.ReviewIndustryPeAsync(request.Revision??"",request.Accept,request.Reviewer??"",token,commandId);return BackgroundJobResult.Success("industry=RevisionReviewed");
                 case "nav-sync": return await SyncNavAsync(request,token,commandId);
                 case "nav-review" when request.Operation=="nav-review":
                     if(request.Market!="SZSE"||request.Ticker!="159915")return new("Rejected","nav=UnsupportedSecurity");
@@ -232,7 +244,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         {
             var operation=Parse(payload).Operation;
             return operation is "status" or "release-query" or "export" or "dashboard" or "overview" or "configuration"
-                or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
+                or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "industry-pe-report" or "industry-pe-revisions" or "index-series-report" or "index-series-revisions" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
                 or "equity-watchlist" or "equity-holdings" or "equity-disclosures" or "equity-events" or "equity-reports"
                 or "alert-overview" or "alert-configuration" or "alert-events" or "alert-event" or "alert-event-version" or "alert-inputs"
                 or "alert-changes" or "alert-outbox" or "alert-deliveries" or "alert-channels" or "alert-documents" or "alert-metadata" or "alert-holdings"
@@ -279,6 +291,21 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             string[] rows;
             switch(request.Operation)
             {
+                case "index-series-report":
+                    if(request.From is not {} indexFrom||request.To is not {} indexThrough)throw new InvalidDataException("指数研究需要完整日期区间。");
+                    var indexReport=await workspace!.IndexSeriesReportAsync(indexFrom,indexThrough,token);
+                    indexReport=indexReport with{PriceCollectionAllowed=IndexSourceAdmitted("cnindex-published-prices",MarketCycleSourceOperation.HistoricalBackfill),ValuationCollectionAllowed=IndexSourceAdmitted("cnindex-published-valuation",MarketCycleSourceOperation.AutomatedPolling)};
+                    metadata=JsonSerializer.Serialize(indexReport with{Rows=[]});rows=indexReport.Rows.Select(x=>SerializeRow(x)).ToArray();break;
+                case "index-series-revisions":
+                    if(request.From is not {} indexRevisionFrom||request.To is not {} indexRevisionThrough)throw new InvalidDataException("指数修订需要完整日期区间。");
+                    rows=(await workspace!.IndexSeriesRevisionsAsync(indexRevisionFrom,indexRevisionThrough,token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "industry-pe-report":
+                    if(request.From is not {} industryFrom||request.To is not {} industryThrough)throw new InvalidDataException("行业研究需要完整日期区间。");
+                    var industry=await workspace!.IndustryPeReportAsync(industryFrom,industryThrough,token);
+                    metadata=JsonSerializer.Serialize(industry with{Rows=[]});rows=industry.Rows.Select(x=>SerializeRow(x)).ToArray();break;
+                case "industry-pe-revisions":
+                    if(request.From is not {} revisionFrom||request.To is not {} revisionThrough)throw new InvalidDataException("行业修订需要完整日期区间。");
+                    rows=(await workspace!.IndustryPeRevisionsAsync(revisionFrom,revisionThrough,token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "alert-overview":rows=[JsonSerializer.Serialize(await workspace!.AlertOverviewAsync(token))];break;
                 case "alert-configuration":rows=[JsonSerializer.Serialize(await workspace!.AlertConfigurationAsync(token))];break;
                 case "alert-events":rows=(await workspace!.AlertEventsAsync(request.AlertFilter??new(),token)).Select(x=>SerializeRow(x with{RevisionIds=[],HistoricalRevisionIds=null})).ToArray();break;

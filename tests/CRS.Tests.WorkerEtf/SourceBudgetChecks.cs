@@ -32,6 +32,18 @@ internal static class SourceBudgetChecks
         {
             var a=new WorkerPluginContext("plugin-a",root,key,sources:registry);
             var b=new WorkerPluginContext("plugin-b",root,key,sources:registry);
+            // 行业来源独立串行且冷却持久，不能借基金或交易所预算绕过拒绝。
+            var industry=await a.AcquireSourceAsync("www.cnindex.com.cn",Empty,default);
+            var industryQueued=b.AcquireSourceAsync("hq.cnindex.com.cn",Empty,default);
+            Check(!industryQueued.IsCompleted,"国证WWW/HQ跨插件共用唯一在途额度");
+            using(var fund=await b.AcquireSourceAsync("www.efunds.com.cn",Empty,default))Check(registry.Snapshot().Count(x=>x.Active==1)==2,"基金与国证来源相互独立");
+            industry.Complete(403);industry.Dispose();await Denied(industryQueued,"SourceCooldown");
+            await Denied(a.AcquireSourceAsync("hq.cnindex.com.cn",Empty,default),"SourceCooldown");
+            using(var bank=await a.AcquireSourceAsync("v.icbc.com.cn",Empty,default))
+                Check(registry.Snapshot().Single(x=>x.Source=="ISSUER-601398").Active==1&&registry.Snapshot().Single(x=>x.Source=="CNINDEX").State=="Cooldown","工行发行人独立预算不清除其他来源冷却");
+            Check(registry.Snapshot().Single(x=>x.Source=="CNINDEX").BlockedUtc>clock.GetUtcNow().AddHours(5.9),"国证拒绝保留实际宿主Until");
+            using(var abc=await a.AcquireSourceAsync("www.abchina.com",Empty,default))
+            {Check(registry.Snapshot().Single(x=>x.Source=="ISSUER-601288").Active==1&&registry.Snapshot().Single(x=>x.Source=="CNINDEX").State=="Cooldown","农行原件独立来源不清除既有国证冷却");abc.Complete(200);}
             var first=await a.AcquireSourceAsync("query.sse.com.cn",Empty,default);
             var second=b.AcquireSourceAsync("static.sse.com.cn",Empty,default);
             var third=a.AcquireSourceAsync("etf.sse.com.cn",Empty,default);
@@ -68,6 +80,7 @@ internal static class SourceBudgetChecks
         }
         using(var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key),clock))
         {
+            await Denied(registry.AcquireAsync("new-plugin","hq.cnindex.com.cn",Empty,default),"SourceCooldown");
             await Denied(registry.AcquireAsync("new-plugin","www.sse.com.cn",Empty,default),"SourceCooldown");
             clock.Advance(TimeSpan.FromDays(3));
             using(var recovered=await registry.AcquireAsync("new-plugin","www.sse.com.cn",Empty,default))recovered.Complete(200);

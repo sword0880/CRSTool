@@ -1,6 +1,4 @@
-using System.Globalization;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace CRS.Plugins.NationalTeamWatch.Domain;
 
@@ -40,7 +38,7 @@ public sealed record MarketCycleInput(
     bool CalendarVerified, IReadOnlyList<DateOnly> TradingDays,
     IReadOnlyList<MarketCycleIndexPoint> IndexPoints,
     IReadOnlyList<MarketCycleActivityPoint> ActivityPoints,
-    IReadOnlyList<MarketCycleBreadthPoint> BreadthPoints);
+    IReadOnlyList<MarketCycleBreadthPoint> BreadthPoints,string? CalendarRevisionId=null,string? CalendarEvidenceHash=null);
 
 /// <summary>
 /// 版本化研究阈值。默认参数仅为待回测的候选值，不能当作生产参数或投资建议。
@@ -103,7 +101,12 @@ public sealed record MarketCycleAssessment(
     int TopRiskScore, MarketCycleSignalLevel TopRiskLevel,
     int BottomCandidateScore, MarketCycleSignalLevel BottomCandidateLevel, bool RecoveryConfirmation,
     IReadOnlyList<string> TopEvidenceFamilies, IReadOnlyList<string> BottomEvidenceFamilies,
-    IReadOnlyList<string> DataIssues, string Fingerprint);
+    IReadOnlyList<string> DataIssues, string Fingerprint)
+{
+    // 输入齐全只允许规则研究，不能被界面或导出解释为预测验证或具名机构成交证明。
+    public string TimingProof=>"NotProven";
+    public string InstitutionTradingEvidence=>"NotObserved";
+}
 
 /// <summary>
 /// 纯函数式、点时可复现的周期候选计算。指数价格、市场成交额/量、市场广度分别验收。
@@ -122,6 +125,9 @@ public static class MarketCycleEvaluator
 
         if (string.IsNullOrWhiteSpace(input.Market) || string.IsNullOrWhiteSpace(input.IndexCode))
             throw new InvalidDataException("市场与基准指数标识不能为空。");
+        // 日事实不能用更早的知识截止研究未来收盘；默认时间也不能冒充实际观测。
+        if(input.EvaluationCutoff==default||input.AsOfDate==default||input.AsOfDate>DateOnly.FromDateTime(input.EvaluationCutoff.ToOffset(TimeSpan.FromHours(8)).DateTime))
+            throw new InvalidDataException("市场周期评估日期超过知识截止或时间身份缺失。");
 
         var calendar = input.TradingDays.Order().ToArray();
         if (calendar.Distinct().Count() != calendar.Length)
@@ -129,6 +135,8 @@ public static class MarketCycleEvaluator
 
         var issues = new List<string>();
         if (!input.CalendarVerified) issues.Add("交易日历尚未通过核验。");
+        if(string.IsNullOrWhiteSpace(input.CalendarRevisionId)||input.CalendarEvidenceHash is not {Length:64}||!input.CalendarEvidenceHash.All(Uri.IsHexDigit))
+            issues.Add("交易日历缺少绑定的修订身份或原件指纹，不能仅凭核验标志计算信号。");
         if (!calendar.Contains(input.AsOfDate)) issues.Add("评估日期不在已登记交易日历中。");
 
         var expectedDays = calendar.Where(x => x <= input.AsOfDate)
@@ -204,6 +212,8 @@ public static class MarketCycleEvaluator
 
         if (breadthHistory.Length == breadthDays.Length && breadthDays.Length == rules.BreadthComparisonSessions + 1)
         {
+            if(breadthHistory.Select(x=>x.UniverseDefinitionVersion).Distinct(StringComparer.Ordinal).Count()>1)
+                issues.Add("市场广度比较窗口的统计定义版本变化，不能直接比较比例。");
             ValidateBreadthAvailable(breadthHistory[^1], issues, "评估日");
             ValidateBreadthAvailable(breadthHistory[breadthHistory.Length - 1 - rules.BreadthComparisonSessions], issues, "广度比较日");
         }
@@ -321,6 +331,7 @@ public static class MarketCycleEvaluator
     private static void ValidateIndexPoint(MarketCycleIndexPoint value)
     {
         ValidateEvidence(value.RevisionId, value.EvidenceHash, value.SourcePublishedAt, value.FirstSeenAt, value.RetrievedAt);
+        ValidateObservationDate(value.Date,value.RetrievedAt);
         if (value.Close <= 0)
             throw new InvalidDataException("指数收盘必须为正数。");
     }
@@ -328,6 +339,7 @@ public static class MarketCycleEvaluator
     private static void ValidateActivityPoint(MarketCycleActivityPoint value)
     {
         ValidateEvidence(value.RevisionId, value.EvidenceHash, value.SourcePublishedAt, value.FirstSeenAt, value.RetrievedAt);
+        ValidateObservationDate(value.Date,value.RetrievedAt);
         if (value.AmountYuan is < 0 || value.VolumeShares is < 0)
             throw new InvalidDataException("市场成交额或成交量不得为负数。");
     }
@@ -335,6 +347,7 @@ public static class MarketCycleEvaluator
     private static void ValidateBreadthPoint(MarketCycleBreadthPoint value)
     {
         ValidateEvidence(value.RevisionId, value.EvidenceHash, value.SourcePublishedAt, value.FirstSeenAt, value.RetrievedAt);
+        ValidateObservationDate(value.Date,value.RetrievedAt);
         if (string.IsNullOrWhiteSpace(value.UniverseSnapshotId) ||
             string.IsNullOrWhiteSpace(value.UniverseDefinitionVersion) ||
             string.IsNullOrWhiteSpace(value.UniverseSnapshotHash) ||
@@ -355,9 +368,16 @@ public static class MarketCycleEvaluator
             throw new InvalidDataException("可见市场事实缺少修订 ID。");
         if (string.IsNullOrWhiteSpace(evidenceHash) || evidenceHash.Length != 64 || !evidenceHash.All(Uri.IsHexDigit))
             throw new InvalidDataException("可见市场事实缺少有效 SHA-256 原件哈希。");
-        if (firstSeenAt > retrievedAt ||
+        // FirstSeen为该修订正式登记时刻，Retrieved为其原件首次取得时刻；取得前不能先拥有金融事实。
+        if (firstSeenAt==default||retrievedAt==default||publishedAt==default(DateTimeOffset)||retrievedAt > firstSeenAt ||
             publishedAt is { } published && (published > firstSeenAt || published > retrievedAt))
             throw new InvalidDataException("来源发布时间、首次发现时间与实际获取时间顺序不一致。");
+    }
+
+    private static void ValidateObservationDate(DateOnly date,DateTimeOffset retrievedAt)
+    {
+        if(date==default||date>DateOnly.FromDateTime(retrievedAt.ToOffset(TimeSpan.FromHours(8)).DateTime))
+            throw new InvalidDataException("市场日事实日期晚于其原件取得日期。");
     }
 
     private static void ValidateBreadthAvailable(MarketCycleBreadthPoint value, List<string> issues, string label)
@@ -382,46 +402,16 @@ public static class MarketCycleEvaluator
         IReadOnlyList<MarketCycleBreadthPoint> breadthPoints, IReadOnlyList<DateOnly> expectedDays,
         IReadOnlyList<DateOnly> activityDays, IReadOnlyList<DateOnly> breadthDays)
     {
-        var builder = new StringBuilder();
-        builder.Append(System.Text.Json.JsonSerializer.Serialize(rules)).Append('|')
-            .Append(input.Market).Append('|').Append(input.IndexCode).Append('|')
-            .Append(input.AsOfDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append('|')
-            .Append(input.EvaluationCutoff.ToString("O", CultureInfo.InvariantCulture)).Append('|')
-            .Append(input.CalendarVerified).Append('|')
-            .Append(string.Join(',', expectedDays.Select(x => x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))))
-            .Append('|').Append(string.Join(',', activityDays.Select(x => x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))))
-            .Append('|').Append(string.Join(',', breadthDays.Select(x => x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))));
-
-        foreach (var item in indexPoints.OrderBy(x => x.Date).ThenBy(x => x.RevisionId, StringComparer.Ordinal))
-            builder.Append("|I:").Append(item.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
-                .Append(':').Append(item.RevisionId).Append(':').Append(item.EvidenceHash).Append(':').Append(item.State)
-                .Append(':').Append(item.Close.ToString(CultureInfo.InvariantCulture))
-                .Append(':').Append(item.SourcePublishedAt?.ToString("O", CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.FirstSeenAt.ToString("O", CultureInfo.InvariantCulture))
-                .Append(':').Append(item.RetrievedAt.ToString("O", CultureInfo.InvariantCulture));
-
-        foreach (var item in activityPoints.OrderBy(x => x.Date).ThenBy(x => x.RevisionId, StringComparer.Ordinal))
-            builder.Append("|A:").Append(item.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
-                .Append(':').Append(item.RevisionId).Append(':').Append(item.EvidenceHash).Append(':').Append(item.State)
-                .Append(':').Append(item.AmountYuan?.ToString(CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.VolumeShares?.ToString(CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.SourcePublishedAt?.ToString("O", CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.FirstSeenAt.ToString("O", CultureInfo.InvariantCulture))
-                .Append(':').Append(item.RetrievedAt.ToString("O", CultureInfo.InvariantCulture));
-
-        foreach (var item in breadthPoints.OrderBy(x => x.Date).ThenBy(x => x.RevisionId, StringComparer.Ordinal))
-            builder.Append("|B:").Append(item.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
-                .Append(':').Append(item.RevisionId).Append(':').Append(item.EvidenceHash).Append(':').Append(item.State)
-                .Append(':').Append(item.AboveMa20Count?.ToString(CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.AboveMa60Count?.ToString(CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.NewLowCount?.ToString(CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.UniverseCount?.ToString(CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.UniverseSnapshotId).Append(':').Append(item.UniverseSnapshotHash)
-                .Append(':').Append(item.UniverseDefinitionVersion)
-                .Append(':').Append(item.SourcePublishedAt?.ToString("O", CultureInfo.InvariantCulture) ?? "-")
-                .Append(':').Append(item.FirstSeenAt.ToString("O", CultureInfo.InvariantCulture))
-                .Append(':').Append(item.RetrievedAt.ToString("O", CultureInfo.InvariantCulture));
-
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+        // 结构化编码防止市场、指数或修订ID中的分隔符产生相同拼接串；同一时刻统一UTC。
+        var canonical=new
+        {
+            InputContract="market-cycle-input-v2",Rules=rules,input.Market,input.IndexCode,input.AsOfDate,
+            EvaluationCutoff=input.EvaluationCutoff.ToUniversalTime(),input.CalendarVerified,input.CalendarRevisionId,input.CalendarEvidenceHash,
+            ExpectedDays=expectedDays,ActivityDays=activityDays,BreadthDays=breadthDays,
+            Index=indexPoints.OrderBy(x=>x.Date).ThenBy(x=>x.RevisionId,StringComparer.Ordinal).Select(x=>x with{SourcePublishedAt=x.SourcePublishedAt?.ToUniversalTime(),FirstSeenAt=x.FirstSeenAt.ToUniversalTime(),RetrievedAt=x.RetrievedAt.ToUniversalTime()}).ToArray(),
+            Activity=activityPoints.OrderBy(x=>x.Date).ThenBy(x=>x.RevisionId,StringComparer.Ordinal).Select(x=>x with{SourcePublishedAt=x.SourcePublishedAt?.ToUniversalTime(),FirstSeenAt=x.FirstSeenAt.ToUniversalTime(),RetrievedAt=x.RetrievedAt.ToUniversalTime()}).ToArray(),
+            Breadth=breadthPoints.OrderBy(x=>x.Date).ThenBy(x=>x.RevisionId,StringComparer.Ordinal).Select(x=>x with{SourcePublishedAt=x.SourcePublishedAt?.ToUniversalTime(),FirstSeenAt=x.FirstSeenAt.ToUniversalTime(),RetrievedAt=x.RetrievedAt.ToUniversalTime()}).ToArray()
+        };
+        return Convert.ToHexString(SHA256.HashData(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(canonical)));
     }
 }

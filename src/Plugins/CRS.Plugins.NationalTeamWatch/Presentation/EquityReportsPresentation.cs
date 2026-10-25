@@ -38,7 +38,8 @@ public partial class EquityViewModel
         if(report.State!="Indexed"||SelectedDisclosure.State=="Critical"){ReportStatus="原始证据异常，不能填入核验资料。请恢复证据或重新检索。";return;}
         if(SelectedDisclosure.State=="Accepted"&&SelectedDisclosure.DocumentUrl!=report.DocumentUrl){ReportStatus="该披露已核验，原文不能替换。更正报告应选择新候选并逐账户重新核验。";return;}
         DocumentUrl=report.DocumentUrl;Published=report.Announced.ToDateTime(TimeOnly.MinValue);
-        OriginalConfirmed=false;Comparable=false;
+        // 目录只给出处线索，不能继承上一份报告的股数、可比性或投资目的确认。
+        OriginalConfirmed=false;Comparable=false;NatureConfirmed=false;
         if(SelectedDisclosure?.State!="Accepted")ReportAsOf=null;
         ReportStatus="已填写官方原文链接及目录公告日。请打开PDF核对股东表、报告截止日、单位及股类，再逐账户确认；没有自动批准持仓。";
     }

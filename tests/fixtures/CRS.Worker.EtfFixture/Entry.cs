@@ -10,7 +10,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
     public IBackgroundPluginSession CreateSession(IBackgroundHostContext context)=>new Session(context);
     private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IGroupedBackgroundSession
     {
-        private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory));
+        private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory),indexSourceApprovals:new IndexApprovals(context.DataDirectory));
         public int MaximumConcurrentExecutions=>inner.MaximumConcurrentExecutions;
         public BackgroundExecutionGroup ExecutionGroup(string jobId)=>inner.ExecutionGroup(jobId);
         public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
@@ -23,7 +23,12 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                 var key=context.OpenDataKey();
                 try
                 {
-                    using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),encryptionKey:key)){ }
+                    using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),encryptionKey:key))
+                    {
+                        // 仅行业管道夹具显式携带合成休市公告；沿生产解析器登记，不让其它测试凭空获得日历。
+                        var calendar=Path.Combine(context.DataDirectory,"industry-pe.fixture","calendar-2026.html");
+                        if(File.Exists(calendar))seed.RegisterReviewedCalendar("SZSE",2026,File.ReadAllBytes(calendar),CRS.Plugins.NationalTeamWatch.Domain.ReviewedExchangeCalendar.Source("SZSE",2026));
+                    }
                     using var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=path,Password=Convert.ToHexString(key),Pooling=false}.ToString());
                     db.Open();using var command=db.CreateCommand();command.CommandText="UPDATE watchlist_membership SET active=0 WHERE ticker NOT IN ('510300','510050','588000','159919','159915')";command.ExecuteNonQuery();
                 }
@@ -39,6 +44,20 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         public Task<string> QueryAsync(string payload,CancellationToken token)=>payload=="fixture-assemblies"
             ?Task.FromResult(JsonSerializer.Serialize(AppDomain.CurrentDomain.GetAssemblies().Select(x=>x.GetName().Name).ToArray())):inner.QueryAsync(payload,token);
     }
+    /// <summary>仅测试包读取显式合成许可标记；生产发行不含此入口，不把公开原件替身算作真实来源授权。</summary>
+    private sealed class IndexApprovals(string root):CRS.Plugins.NationalTeamWatch.Application.IIndexSeriesSourceApprovals
+    {
+        private string PathName=>Path.Combine(root,"index-series.fixture","synthetic-terms.txt");
+        public CRS.Plugins.NationalTeamWatch.Application.MarketCycleSourceApproval? Find(string dataset)
+        {
+            if(!File.Exists(PathName))return null;
+            return new("CNINDEX",new("https://www.cnindex.com.cn/"),dataset,"cnindex-index-series-v1","cnindex-index-series-v1",
+                CRS.Plugins.NationalTeamWatch.Application.MarketCycleSourceApprovalStatus.Approved,
+                CRS.Plugins.NationalTeamWatch.Application.MarketCycleSourceUse.AutomatedCollection|CRS.Plugins.NationalTeamWatch.Application.MarketCycleSourceUse.PersistentStorage|CRS.Plugins.NationalTeamWatch.Application.MarketCycleSourceUse.HistoricalBackfill,
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(PathName))),"SyntheticFixture",DateTimeOffset.UtcNow.AddMinutes(-1),"synthetic-v1");
+        }
+        public bool Verify(string hash)=>File.Exists(PathName)&&Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(PathName)))==hash;
+    }
     /// <summary>按请求日期生成标注为测试的公开格式字节，不连接互联网。</summary>
     private sealed class Gateway(string root):IPluginHttpGateway
     {
@@ -50,6 +69,14 @@ public sealed class Entry:IContextualBackgroundPluginEntry
             // NAV管道验收只读取预先核对的公开原件；此夹具不进入正式发行，也不请求网络。
             var nav=CRS.Plugins.NationalTeamWatch.Infrastructure.EfundsNavResearch.OfficialUrls.ToList().IndexOf(uri.AbsoluteUri);
             if(nav>=0)return new(200,await File.ReadAllBytesAsync(Path.Combine(root,"nav-source.fixture",nav+".raw"),token),"application/javascript");
+            // 指数完整管道仅回放冻结文件；任何未列地址仍走原夹具，不连接外部网络。
+            if(CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialIndexSeriesSource.IsSource(uri))
+            {
+                var source=CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialIndexSeriesSource.UnitsSource;
+                var name=uri==source?"index-detail.html":uri==CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialIndexSeriesSource.DaySource?"query-day.json":uri==CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialIndexSeriesSource.ValuationSource?"industry-index-list-1.json":uri.AbsolutePath.EndsWith("gz_399317.pdf",StringComparison.Ordinal)?"method-a.pdf":uri.AbsolutePath.EndsWith("gz_399381.pdf",StringComparison.Ordinal)?"method-sector.pdf":System.Web.HttpUtility.ParseQueryString(uri.Query)["indexCode"] is "399317"?"cni-a-20261020-23.json":System.Web.HttpUtility.ParseQueryString(uri.Query)["indexCode"]+"-4days.json";
+                return new(200,await File.ReadAllBytesAsync(Path.Combine(root,"index-series.fixture",name),token),"application/octet-stream");
+            }
+            if(CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialIndustryPeSource.IsSource(uri))return new(200,await File.ReadAllBytesAsync(Path.Combine(root,"industry-pe.fixture",uri.AbsolutePath.Split('/')[2]+".json"),token),"application/json");
             var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
             if(uri.AbsolutePath=="/security/stock/queryCompanyBulletinNew.do")
             {

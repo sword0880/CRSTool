@@ -10,8 +10,13 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
 if(args is ["--nav-pipe",var navPackage,var navSnapshot,var navOutput]){await NavPipeChecks.Run(navPackage,navSnapshot,navOutput);return;}
+if(args is ["--industry-pipe",var industryPackage,var industrySource,var industryPipeOutput]){await IndustryPipeChecks.Run(industryPackage,industrySource,industryPipeOutput);return;}
+if(args is ["--index-pipe",var indexPackage,var indexSource,var indexPipeOutput]){await IndexPipeChecks.Run(indexPackage,indexSource,indexPipeOutput);return;}
 if(args is ["--nav-live",var navLiveOutput]){await NavLiveOperations.Run(navLiveOutput,true);return;}
 if(args is ["--nav-status-live",var navStatusOutput]){await NavLiveOperations.Run(navStatusOutput,false);return;}
+if(args is ["--industry-live",var industryFrom,var industryThrough,var industryOutput]){await IndustryLiveOperations.RunAsync(industryOutput,true,DateOnly.Parse(industryFrom),DateOnly.Parse(industryThrough));return;}
+if(args is ["--industry-status-live",var industryStatusOutput]){await IndustryLiveOperations.RunAsync(industryStatusOutput,false);return;}
+if(args is ["--industry-read-live",var industryReadFrom,var industryReadThrough,var industryReadOutput]){await IndustryLiveOperations.ReadAsync(DateOnly.Parse(industryReadFrom),DateOnly.Parse(industryReadThrough),industryReadOutput);return;}
 
 // 子客户端用于验证桌面进程退出后，服务进程仍能按真实 Quartz 时钟采集。
 if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}

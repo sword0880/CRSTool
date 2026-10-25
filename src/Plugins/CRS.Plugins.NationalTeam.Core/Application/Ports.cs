@@ -8,6 +8,6 @@ public interface IRawEvidenceStore
     Task ExportVerifiedAsync(string hash,string destination,IReadOnlyList<string> protectedDirectories,CancellationToken cancellationToken);
 }
 /// <summary>组合根装配完整存储族；业务用例依赖窄端口，所有方法均由提供方显式实现。</summary>
-public interface IMarketRepository : IDisposable, IMarketOperations, IEtfReadRepository, IEtfWriteRepository, IShareCollectionRepository, IMarketActivityReadRepository, IMarketActivityWriteRepository, IEquityReadRepository, IEquityWriteRepository, IExitAlertReadRepository, IExitAlertWriteRepository, IEvidenceMaintenanceRepository, INavReadRepository, INavWriteRepository
+public interface IMarketRepository : IDisposable, IMarketOperations, IEtfReadRepository, IEtfWriteRepository, IShareCollectionRepository, IMarketActivityReadRepository, IMarketActivityWriteRepository, IEquityReadRepository, IEquityWriteRepository, IExitAlertReadRepository, IExitAlertWriteRepository, IEvidenceMaintenanceRepository, INavReadRepository, INavWriteRepository, IIndustryPeReadRepository, IIndustryPeWriteRepository, IIndexSeriesReadRepository, IIndexSeriesWriteRepository
 {
 }

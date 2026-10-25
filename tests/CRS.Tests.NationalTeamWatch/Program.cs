@@ -16,9 +16,18 @@ if(args is ["--read-isolation"]){await ReadIsolationChecks.RunAsync(Path.Combine
 if(args is ["--repository-contracts"]){RepositoryContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.RepositoryContracts",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--evidence-adversarial"]){EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EvidenceAdversarial",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--equity-status-live"]){await EquityStatusAuditTool.Run();return;}
+if(args is ["--icbc-read-live",var icbcReadDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReadDirectory,false);return;}
+if(args is ["--icbc-review-live",var icbcReviewDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReviewDirectory,true);return;}
+if(args is ["--icbc-golden",var icbcGoldenDirectory]){IcbcGoldenChecks.Run(icbcGoldenDirectory);return;}
+if(args is ["--abc-read-live",var abcReadDirectory]){await AbcEquityAcceptanceTool.Run(abcReadDirectory,false);return;}
+if(args is ["--abc-golden",var abcGoldenDirectory]){AbcGoldenChecks.Run(abcGoldenDirectory);return;}
+if(args is ["--cnd-comparison-golden",var cndComparisonDirectory]){CndComparisonGoldenChecks.Run(cndComparisonDirectory);return;}
+if(args is ["--abc-review-live",var abcReviewDirectory]){await AbcEquityAcceptanceTool.Run(abcReviewDirectory,true);return;}
 if(args is ["--deployment-state-live",var stateDirectory]){await DeploymentOperationsTool.State(stateDirectory);return;}
 if(args is ["--equity-report-sync-live",var reportDirectory]){await DeploymentOperationsTool.Reports(reportDirectory,true);return;}
 if(args is ["--equity-report-status-live",var reportStatusDirectory]){await DeploymentOperationsTool.Reports(reportStatusDirectory,false);return;}
+if(args is ["--equity-report-sync-live",var reportTicker,var tickerReportDirectory]){await DeploymentOperationsTool.Reports(tickerReportDirectory,true,reportTicker);return;}
+if(args is ["--equity-report-status-live",var statusTicker,var tickerStatusDirectory]){await DeploymentOperationsTool.Reports(tickerStatusDirectory,false,statusTicker);return;}
 if(args is ["--etf-loading"]){await EtfLoadingChecks.Run();return;}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
@@ -53,6 +62,7 @@ if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
 if(args.Length!=0)throw new ArgumentException("未知的验收参数，拒绝自动退回合成测试。");
 NavResearchChecks.Run();
+await IcbcSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.IcbcSource",Guid.NewGuid().ToString("N")));
 EtfNavStudyChecks.Run();
 NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));
 await NavSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavSource",Guid.NewGuid().ToString("N")));

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using CRS.Plugins.NationalTeamWatch.Application;
+using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>SHA-256内容寻址存证；保存、核验和导出均保留原始字节。</summary>
 public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<string,Stream>? openRead=null) : IRawEvidenceStore,IRawEvidenceVerifier
@@ -18,7 +19,7 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         // 拒绝重解析目录，避免符号链接将普通导出路径转向插件存储。
         for(var directory=new DirectoryInfo(Path.GetDirectoryName(target)!);directory is not null;directory=directory.Parent)
             if(directory.Exists && directory.Attributes.HasFlag(FileAttributes.ReparsePoint))throw new InvalidDataException("导出目录不能包含符号链接或重解析点。");
-        var bytes=await ReadImportFileAsync(Path.Combine(root,hash+".raw"),cancellationToken).ConfigureAwait(false);
+        var bytes=await ReadBoundedAsync(Path.Combine(root,hash+".raw"),OfficialEquityDocuments.MaximumEvidenceBytes(hash),cancellationToken).ConfigureAwait(false);
         if(Convert.ToHexString(SHA256.HashData(bytes))!=hash)throw new InvalidDataException("原始证据损坏，拒绝导出为已核验文件。");
         var temporary=target+"."+Guid.NewGuid().ToString("N")+".tmp";
         try
@@ -30,12 +31,15 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         finally {if(File.Exists(temporary))File.Delete(temporary);}
     }
     public async Task<byte[]> ReadImportFileAsync(string path,CancellationToken cancellationToken)
+        =>await ReadBoundedAsync(path,8*1024*1024,cancellationToken).ConfigureAwait(false);
+    // 普通导入仍限8MiB；只有已绑定摘要的正式原件读验/导出可使用较大上限，不能靠文件名批准任意正文。
+    private async Task<byte[]> ReadBoundedAsync(string path,int maximumBytes,CancellationToken cancellationToken)
     {
         await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,8192,true);
-        if(input.Length>8*1024*1024)throw new InvalidDataException("每个文件不能超过8MB。");
+        if(input.Length>maximumBytes)throw new InvalidDataException("原件超过允许的文件大小。");
         using var content=new MemoryStream();var buffer=new byte[8192];int read;
         while((read=await input.ReadAsync(buffer,cancellationToken).ConfigureAwait(false))>0)
-        {if(content.Length+read>8*1024*1024)throw new InvalidDataException("每个文件不能超过8MB。");await content.WriteAsync(buffer.AsMemory(0,read),cancellationToken).ConfigureAwait(false);}
+        {if(content.Length+read>maximumBytes)throw new InvalidDataException("原件超过允许的文件大小。");await content.WriteAsync(buffer.AsMemory(0,read),cancellationToken).ConfigureAwait(false);}
         return content.ToArray();
     }
     public string Save(byte[] content)
@@ -44,6 +48,8 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         beforeWrite?.Invoke();
         Directory.CreateDirectory(root);
         var hash = Convert.ToHexString(SHA256.HashData(content)); var target = Path.Combine(root, hash + ".raw");
+        // 大小及身份不符在写临时原件前拒绝，不能留下之后必然无法核验的金融证据。
+        if(content.Length>OfficialEquityDocuments.MaximumEvidenceBytes(hash))throw new InvalidDataException("原件超过允许的文件大小。");
         if (File.Exists(target)) { if (!Verify(hash)) throw new InvalidDataException("Evidence integrity failure."); return hash; }
         var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
@@ -69,14 +75,15 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         {
             // 同一句柄逐块异步读取；取消能中断正在等待的文件读取，而不只在文件之间检查。
             await using var stream=openRead?.Invoke(path)??new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,16384,FileOptions.Asynchronous|FileOptions.SequentialScan);
-            if(stream.Length>8*1024*1024)return false;
+            var maximumBytes=OfficialEquityDocuments.MaximumEvidenceBytes(hash);
+            if(stream.Length>maximumBytes)return false;
             using var digest=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             var buffer=new byte[16384];var total=0;
             while(true)
             {
                 var read=await stream.ReadAsync(buffer.AsMemory(),token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();if(read==0)break;
-                total+=read;if(total>8*1024*1024)return false;
+                total+=read;if(total>maximumBytes)return false;
                 digest.AppendData(buffer,0,read);
             }
             token.ThrowIfCancellationRequested();
