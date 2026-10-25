@@ -70,8 +70,9 @@ public interface IMarketCycleApprovalWriteAuthority
 }
 
 /// <summary>Encrypted, append-only registry contract; the implementation also verifies the keyed audit chain.</summary>
-public interface IMarketCycleSourceApprovalRegistry : IIndexSeriesSourceApprovals
+public interface IMarketCycleSourceApprovalRegistry : IMarketCycleSourceApprovalEvidenceVerifier
 {
+    MarketCycleSourceApproval? Find(string datasetId);
     MarketCycleSourceApprovalWriteReceipt Apply(MarketCycleSourceApprovalWriteCommand command);
     IReadOnlyList<MarketCycleSourceApprovalAuditEntry> ReadAudit();
     bool VerifyAuditChain();
@@ -80,8 +81,7 @@ public interface IMarketCycleSourceApprovalRegistry : IIndexSeriesSourceApproval
 /// <summary>
 /// Human-reviewed source approval metadata. TermsEvidenceHash is the SHA-256 of the locally retained
 /// license/terms evidence, not a hash inferred from a live website. No source is approved by default.
-/// This input validator does not authenticate the reviewer or protect approval records against tampering;
-/// production callers must load approvals from a trusted, access-controlled registry.
+/// Identity authentication is deliberately delegated to the registry's host-injected write authority.
 /// </summary>
 public sealed record MarketCycleSourceApproval(
     string SourceId,
