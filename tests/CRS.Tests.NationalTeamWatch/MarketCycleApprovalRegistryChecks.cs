@@ -156,6 +156,11 @@ internal static class MarketCycleApprovalRegistryChecks
             RejectOperation(() => MarketCycleSourceAdmission.Require(noStorage, MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
                 "仅批准自动采集但未批准持久化仍被拒绝");
 
+            clock.Advance(TimeSpan.FromSeconds(1));
+            var laterApproval = Approval("sse-later-event", termsHash, clock.At,
+                MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage);
+            registry.Apply(Command(laterApproval, clock.At));
+
             var badTerms = original with { TermsEvidenceHash = Hash(Encoding.UTF8.GetBytes("different terms not archived")) };
             RejectData(() => registry.Apply(Command(badTerms, clock.At)), "条款哈希未在原件存证中找到时不能批准");
 
@@ -176,7 +181,7 @@ internal static class MarketCycleApprovalRegistryChecks
             RejectData(() => registry.Apply(Command(uriRebind, clock.At)), "同一 SourceId 不能改绑到新的来源基址");
 
             var duplicateCommand = registry.Apply(originalCommand);
-            Check(duplicateCommand.Replayed && duplicateCommand.Sequence == firstReceipt.Sequence && registry.ReadAudit().Count == 3,
+            Check(duplicateCommand.Replayed && duplicateCommand.Sequence == firstReceipt.Sequence && registry.ReadAudit().Count == 4,
                 "同一命令的精确重放返回原回执而不追加事件");
             var nonceReplay = Command(Approval("sse-nonce-replay", termsHash, clock.At,
                 MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage), clock.At,
@@ -205,7 +210,7 @@ internal static class MarketCycleApprovalRegistryChecks
             RejectOperation(() => MarketCycleSourceAdmission.Require(registry.Find(expiring.DatasetId)!, MarketCycleSourceOperation.AutomatedPolling, clock.At, registry),
                 "审批到期后即使记录仍在也拒绝执行");
 
-            Check(registry.ReadAudit().Count == 5 && registry.VerifyAuditChain(), "审计链包含新增、撤销及过期审批并保持连续");
+            Check(registry.ReadAudit().Count == 6 && registry.VerifyAuditChain(), "审计链包含新增、撤销及过期审批并保持连续");
         }
 
         using (var readOnly = Open(data, raw, clock, authority: null))
