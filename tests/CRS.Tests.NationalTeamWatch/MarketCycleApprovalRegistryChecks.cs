@@ -310,6 +310,39 @@ internal static class MarketCycleApprovalRegistryChecks
             RejectData(() => registry.Find("tamper-dataset"), "审计链损坏时拒绝返回来源审批");
         }
 
+        var truncateData = Path.Combine(root, "truncate");
+        var truncateClock = new Clock();
+        using (var repository = Open(truncateData, raw, truncateClock, authority))
+        {
+            var registry = (IMarketCycleSourceApprovalRegistry)repository;
+            var approved = Approval("truncate-dataset", termsHash, truncateClock.At,
+                MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage,
+                validUntil: truncateClock.At.AddHours(1));
+            registry.Apply(Command(approved, truncateClock.At));
+            truncateClock.Advance(TimeSpan.FromSeconds(1));
+            var revoked = Approval("truncate-dataset", termsHash, truncateClock.At,
+                MarketCycleSourceUse.None, MarketCycleSourceApprovalStatus.Revoked);
+            registry.Apply(Command(revoked, truncateClock.At));
+        }
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = Path.Combine(truncateData, "market.db"),
+            Password = Convert.ToHexString(TestMarketData.Key),
+            Pooling = false
+        }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM market_cycle_source_approval_event WHERE sequence=2";
+            command.ExecuteNonQuery();
+        }
+        using (var reopened = Open(truncateData, raw, truncateClock, authority: null))
+        {
+            var registry = (IMarketCycleSourceApprovalRegistry)reopened;
+            Check(!registry.VerifyAuditChain(), "尾部撤销事件被删除时链头锚点核验失败");
+            RejectData(() => registry.Find("truncate-dataset"), "尾部截断不能回退为旧的 Approved 审批");
+        }
+
         Console.WriteLine("市场周期审批注册表检查完成。");
     }
 }
