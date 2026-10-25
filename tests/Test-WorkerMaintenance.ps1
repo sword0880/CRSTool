@@ -28,6 +28,17 @@ $linkTarget=Join-Path $root 'link-target';New-Item -ItemType Directory -Path $li
 $link=Join-Path $root 'linked';New-Item -ItemType Junction -Path $link -Target $linkTarget | Out-Null
 Reject {Get-WorkerChild $root 'linked/not-created/child.txt'} '缺失叶节点也逐级拒绝链接祖先'
 Check ((Get-WorkerChild $root 'ordinary/not-created.txt') -eq (Join-Path $root 'ordinary/not-created.txt')) '普通未创建路径仍可用于后续安全写入'
+# 归档在本次数据快照范围之外，须在枚举前裁剪；严格模式及活动业务路径仍拒绝链接。
+$archiveScope=Join-Path $root 'archive-scope';New-Item -ItemType Directory -Path (Join-Path $archiveScope 'maintenance') -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $archiveScope 'fact.raw') -Value 'synthetic-active-fact'
+New-Item -ItemType Junction -Path (Join-Path $archiveScope 'maintenance/archive-link') -Target $linkTarget | Out-Null
+Check (@(Get-WorkerFiles $archiveScope -ExcludeMaintenance).Count -eq 1) '业务枚举在进入旧维护归档前裁剪，不读取或计数归档内容'
+Reject {Get-WorkerFiles $archiveScope} '程序包与快照的严格枚举不享受归档排除'
+New-Item -ItemType Junction -Path (Join-Path $archiveScope 'active-link') -Target $linkTarget | Out-Null
+Reject {Get-WorkerFiles $archiveScope -ExcludeMaintenance} '排除旧归档仍拒绝活动业务树中的链接'
+$archiveRootLink=Join-Path $root 'archive-root-link';New-Item -ItemType Directory -Path $archiveRootLink | Out-Null
+New-Item -ItemType Junction -Path (Join-Path $archiveRootLink 'maintenance') -Target $linkTarget | Out-Null
+Reject {Get-WorkerFiles $archiveRootLink -ExcludeMaintenance} '归档根为链接时不能借排除模式绕过检查'
 New-Item -ItemType Directory -Path (Join-Path $data 'maintenance'),(Join-Path $data 'plugins/p/raw') -Force | Out-Null
 Set-Content -LiteralPath (Join-Path $data 'service-key.dpapi') -Value 'synthetic-protected-key'
 Set-Content -LiteralPath (Join-Path $data 'scheduler-config.db') -Value 'synthetic-encrypted-database'

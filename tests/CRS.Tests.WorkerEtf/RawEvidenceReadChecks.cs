@@ -23,6 +23,7 @@ internal static class RawEvidenceReadChecks
         try{store.VerifyMany(all,stop.Token);throw new InvalidOperationException("取消未生效");}
         catch(OperationCanceledException){Check(true,"取消不返回部分校验结果");}
         CancelDuringRead(root,hashes);
+        RawEvidenceAdmissionChecks.RunAsync().GetAwaiter().GetResult();
     }
     private static void CancelDuringRead(string root,string[] hashes)
     {
@@ -35,7 +36,7 @@ internal static class RawEvidenceReadChecks
         var elapsed=Stopwatch.StartNew();stop.Cancel();
         try{pending.WaitAsync(TimeSpan.FromMilliseconds(800)).GetAwaiter().GetResult();throw new Exception("取消后返回了部分校验结果。");}
         catch(OperationCanceledException){}
-        if(opened>4||opened!=disposed)throw new Exception("取消后原件句柄泄漏或超出并发上限。");
+        if(opened>8||opened!=disposed)throw new Exception("取消后原件句柄泄漏或超出并发上限。");
         Console.WriteLine($"PASS 正在等待的原件读取取消：{elapsed.ElapsedMilliseconds}ms，全部{opened}个句柄释放，不返回部分结果。");
         var failing=new RawEvidenceStore(root,openRead:_=>throw new IOException("synthetic read failure"));
         try{failing.VerifyMany(hashes,default);throw new Exception("I/O错误被当作完整结果。");}
@@ -67,5 +68,17 @@ internal static class RawEvidenceReadChecks
         var current=new RawEvidenceStore(root).VerifyMany(hashes,default);var after=timer.ElapsedMilliseconds;
         if(previous.Any(x=>current[x.Key!]!=x.Value))throw new InvalidOperationException("原件校验结果改变。");
         Console.WriteLine(JsonSerializer.Serialize(new{Files=paths.Length,BeforeMs=before,AfterMs=after,Identical=true,Invalid=current.Count(x=>!x.Value)}));
+    }
+    /// <summary>冻结同一组实际公开原件哈希；每轮重新完整读取，不打开市场库、不读取密钥、不删除或改写文件。</summary>
+    internal static void ProfileParallel(string root)
+    {
+        var hashes=Directory.GetFiles(root,"*.raw").Select(Path.GetFileNameWithoutExtension).Select(x=>x!).Order(StringComparer.Ordinal).ToArray();
+        IReadOnlyDictionary<string,bool>? baseline=null;
+        foreach(var parallel in new[]{4,8,16})
+        {
+            var timer=Stopwatch.StartNew();var result=new RawEvidenceStore(root,null,null,parallel).VerifyMany(hashes,default);var elapsed=timer.ElapsedMilliseconds;
+            if(baseline is not null&&(result.Count!=baseline.Count||baseline.Any(x=>!result.TryGetValue(x.Key,out var value)||value!=x.Value)))throw new InvalidDataException("同一原件集合的核验结论发生变化，不能宣称性能等价。");
+            baseline??=result;Console.WriteLine(JsonSerializer.Serialize(new{Parallel=parallel,Files=hashes.Length,ElapsedMs=elapsed,Invalid=result.Count(x=>!x.Value),Mode="ReadonlyFullReverificationNoCache"}));
+        }
     }
 }

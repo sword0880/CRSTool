@@ -236,7 +236,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         else ValidateEvidence(dashboardOnly:true);
         return ReadHistory(key);
     }
-    private List<EtfHistoryPoint> ReadHistory(EtfKey? key)
+    private List<EtfHistoryPoint> ReadHistory(EtfKey? key,IReadOnlyDictionary<EtfKey,List<SharePoint>>? sharedPoints=null)
     {
         var keys=key is null?Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToArray():[key];
         var calendars=keys.Select(x=>x.Market).Distinct().ToDictionary(x=>x,ReadCalendar);
@@ -244,7 +244,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         {
             var calendar=calendars[k.Market];
             var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
-            return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Where(x=>x.Date<=today).Select(x=>x.Date).ToArray():[],ReadPoints(k));
+            return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Where(x=>x.Date<=today).Select(x=>x.Date).ToArray():[],sharedPoints is null?ReadPoints(k):sharedPoints[k]);
         }).ToArray());
     }
     public List<SharePoint> Points(EtfKey key)
@@ -369,7 +369,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         ValidateEvidence(dashboardOnly:true);
         return ReadOverview();
     }
-    private List<EtfSummary> ReadOverview()
+    private List<EtfSummary> ReadOverview(IReadOnlyDictionary<EtfKey,List<SharePoint>>? sharedPoints=null)
     {
         var securities=new List<(string Market,string Ticker,string Name,string Index,string Label)>();
         using(var command=Command("SELECT s.market,s.ticker,s.name,s.index_group,w.review_status FROM security_master s JOIN watchlist_membership w USING(market,ticker) WHERE w.active=1"))
@@ -378,7 +378,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         var issues=ReadOverviewIssues();
         return securities.Select(s=>
         {
-            var points=ReadPoints(new(s.Market,s.Ticker)); var last=points.LastOrDefault(); var calendar=calendars[s.Market];
+            var points=sharedPoints is null?ReadPoints(new(s.Market,s.Ticker)):sharedPoints[new(s.Market,s.Ticker)]; var last=points.LastOrDefault(); var calendar=calendars[s.Market];
             var calendarValid=calendar.All(x=>x.Valid);var days=calendarValid?calendar.Select(x=>x.Date).ToList():[];
             Metric Calculate(int window)=>last is null?new(null,null,"Incomplete",""):EtfMetrics.Calculate(last.Date,window,days,points);
             var issue=issues.GetValueOrDefault((s.Market,s.Ticker));

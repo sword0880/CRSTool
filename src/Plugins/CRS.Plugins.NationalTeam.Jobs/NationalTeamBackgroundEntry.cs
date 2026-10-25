@@ -268,6 +268,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         EtfRequest request;
         try{request=Parse(payload);}
         catch(EtfContractException error){return JsonSerializer.Serialize(new EtfContractFailure(error.Code));}
+        // 参数错误在建立/存入快照前拒绝，不能用无效页大小耗尽八份快照额度。
+        if(request.Offset<0||request.Count is <1 or >256)throw new ArgumentException("分页参数不正确。");
         await queries.WaitAsync(token);
         try
         {
@@ -280,7 +282,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 return JsonSerializer.Serialize("Released");
             }
             if(request.Operation=="export")return await ExportAsync(request,token);
-            var canonical=JsonSerializer.Serialize(request with{Offset=0,Snapshot=null});
+            // 页大小只影响传输，不能改变同一快照的金融范围；证券、日期和其他筛选仍完整绑定。
+            var canonical=JsonSerializer.Serialize(request with{Offset=0,Snapshot=null,Count=10});
             if(request.Snapshot is { } existing)
             {
                 if(!snapshots.TryGetValue(existing,out var cached) || cached.Request!=canonical)throw new ArgumentException("查询快照已过期或参数改变，请刷新。");
@@ -381,18 +384,19 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         finally{queries.Release();}
     }
 
-    /// <summary>分页每次至多十行，沿用同一份数据快照，读完后释放服务端缓存。</summary>
+    /// <summary>协商后至多256行，仍受原46KB响应限额；同一快照连续分页，不截断或重算金融结果。</summary>
     private string Page(string snapshot,string[] rows,string? metadata,EtfRequest request)
     {
-        if(request.Offset<0 || request.Offset>rows.Length || request.Count is <1 or >10)throw new ArgumentException("分页参数不正确。");
+        if(request.Offset<0 || request.Offset>rows.Length || request.Count is <1 or >256)throw new ArgumentException("分页参数不正确。");
         var count=Math.Min(request.Count,rows.Length-request.Offset);
         while(true)
         {
             var next=request.Offset+count<rows.Length?request.Offset+count:(int?)null;
-            var result=JsonSerializer.Serialize(new EtfQueryPage("["+string.Join(',',rows.Skip(request.Offset).Take(count))+"]",snapshot,next,metadata));
+            var result=JsonSerializer.Serialize(new EtfQueryPage("["+string.Join(',',rows.Skip(request.Offset).Take(count))+"]",snapshot,next,metadata){MaximumPageCount=256,TotalRows=rows.Length});
             if(System.Text.Encoding.UTF8.GetByteCount(result)<=46000){if(next is null)snapshots.Remove(snapshot);return result;}
             if(count<=1){snapshots.Remove(snapshot);throw new ArgumentException("单条记录超过查询响应额度。");}
-            count--;
+            // 大行按字节限额缩页；折半避免从256逐行重序列化，下一游标只跨过实际返回的行。
+            count=Math.Max(1,count/2);
         }
     }
 

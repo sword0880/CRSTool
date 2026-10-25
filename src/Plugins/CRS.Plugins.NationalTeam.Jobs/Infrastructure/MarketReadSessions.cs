@@ -39,6 +39,7 @@ public sealed partial class MarketRepository : IMarketReadSessions,IBoundedMarke
     public T Read<T>(Func<IMarketRepository,T> query,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        using var verificationPriority=raw.PrioritizeQueryVerification();
         using var reader=new MarketRepository(readConnectionString,raw,clock);
         return reader.ExecuteOperation(()=>
         {

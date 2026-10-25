@@ -22,6 +22,7 @@ if(args is ["--industry-read-live",var industryReadFrom,var industryReadThrough,
 if(args is ["--startup-ui"]){EtfStartupChecks.Run();return;}
 if(args is ["--concurrency"]){await NationalTeamConcurrencyChecks.RunAsync();return;}
 if(args is ["--query-cancellation"]){await EtfQueryCancellationChecks.RunAsync();return;}
+if(args is ["--adaptive-query-pages"]){await AdaptiveQueryPageChecks.RunAsync();return;}
 if(args is ["--market-query-reliability"]){await MarketQueryReliabilityChecks.RunAsync();return;}
 if(args is ["--cooling-progress"]){await CoolingProgressChecks.RunAsync();return;}
 if(args is ["--manual-receipts"]){await EtfManualReceiptChecks.RunAsync();return;}
@@ -41,6 +42,7 @@ if(args is ["--installed-dashboard-probe"])
     {Console.WriteLine(JsonSerializer.Serialize(new{Status="Unavailable",Category=error.GetType().Name,Code=(error as BackgroundServiceException)?.Code,ElapsedMs=dashboardTimer.ElapsedMilliseconds}));Environment.ExitCode=1;}
     return;
 }
+if(args is ["--query-performance-live",var performanceOutput]){await EtfQueryPerformanceLive.RunAsync(performanceOutput);return;}
 if(args is ["--market-request-probe",var receiptId])
 {
     var receiptClient=new BackgroundPipeClient();
@@ -108,6 +110,7 @@ if(args is ["--collection-attempt-probe",var probeMarket,var probeTicker,var pro
 if(args is ["--initial-directory"]){InitialEtfDirectoryChecks.Run();return;}
 if(args is ["--raw-batch"]){RawEvidenceReadChecks.Run();return;}
 if(args is ["--raw-read-profile",var rawRoot]){RawEvidenceReadChecks.Profile(rawRoot);return;}
+if(args is ["--raw-parallel-profile",var rawParallelRoot]){RawEvidenceReadChecks.ProfileParallel(rawParallelRoot);return;}
 if(args is ["--installed-directory-probe"])
 {
     var entries=await new WorkerEtfWorkspace().ConfigurationAsync(default);

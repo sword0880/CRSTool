@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Diagnostics;
 using System.Security.Principal;
 using System.Text.Json;
 using CRS.Worker.Ipc;
@@ -9,6 +10,10 @@ namespace CRS.Plugins.NationalTeamWatch;
 /// <summary>客户端只访问授权管道，不打开市场库或向服务提交桌面文件路径。</summary>
 public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IEtfWorkspace
 {
+    private readonly Action<EtfQueryPageMeasurement>? pageMeasurement;
+    /// <summary>可选只读测量入口，保留原构造签名；仅记录阶段耗时/行数，不携带账户、URL、金融值或凭据。</summary>
+    public WorkerEtfWorkspace(BackgroundPipeClient connection,Action<EtfQueryPageMeasurement> pageMeasurement):this(connection)
+        =>this.pageMeasurement=pageMeasurement??throw new ArgumentNullException(nameof(pageMeasurement));
     private const string Plugin="crs.national-team";
     private readonly BackgroundPipeClient client=connection??new();
     private BackgroundRequest? uncertain;
@@ -46,22 +51,38 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     /// <summary>同一次读取沿用快照，任何分页失败都不把半份结果交给页面。</summary>
     private async Task<(List<T> Rows,string? Metadata)> ReadPagesAsync<T>(EtfRequest query,CancellationToken token)
     {
-        var rows=new List<T>();string? metadata=null;
+        var rows=new List<T>();string? metadata=null;int? totalRows=null;
         string? snapshot=null;
         try
         {
             while(true)
             {
+                var pageStarted=Stopwatch.GetTimestamp();
                 var page=await QueryAsync<EtfQueryPage>(query,token);
+                if(string.IsNullOrWhiteSpace(page.Snapshot)||snapshot is not null&&snapshot!=page.Snapshot)throw new InvalidDataException("分页快照身份改变，拒绝混合查询结果。");
                 snapshot=page.Snapshot;
-                rows.AddRange(JsonSerializer.Deserialize<List<T>>(page.Items)??throw new InvalidDataException("分页为空。"));metadata??=page.Metadata;
+                var received=JsonSerializer.Deserialize<List<T>>(page.Items)??throw new InvalidDataException("分页为空。");
+                pageMeasurement?.Invoke(new(query.Operation,query.Offset,query.Count,received.Count,System.Text.Encoding.UTF8.GetByteCount(page.Items),(long)Stopwatch.GetElapsedTime(pageStarted).TotalMilliseconds));
+                if(received.Count>query.Count||metadata is not null&&page.Metadata is not null&&metadata!=page.Metadata)throw new InvalidDataException("分页行数或元数据不一致。");
+                rows.AddRange(received);metadata??=page.Metadata;
                 if(rows.Count>10000)throw new InvalidDataException("查询行数超限。");
-                if(page.NextOffset is not { } next)return(rows,metadata);
-                if(next<=query.Offset)throw new InvalidDataException("分页游标未前进。");
-                query=query with{Snapshot=page.Snapshot,Offset=next};
+                if(page.TotalRows is {} total)
+                {
+                    if(total is <0 or >10000||totalRows.HasValue&&totalRows!=total||rows.Count>total)throw new InvalidDataException("分页总行数发生变化或超限。");
+                    totalRows=total;
+                }
+                if(page.MaximumPageCount is {} maximum&&maximum is <1 or >256)throw new InvalidDataException("后台分页能力超出已知限额。");
+                if(page.NextOffset is not { } next)
+                {
+                    if(totalRows.HasValue&&rows.Count!=totalRows)throw new InvalidDataException("分页提前结束，拒绝不完整结果。");
+                    return(rows,metadata);
+                }
+                if(next<=query.Offset||next!=query.Offset+received.Count)throw new InvalidDataException("分页游标未连续前进，拒绝缺行结果。");
+                // 首页仍用旧V1十行；只在服务明确声明能力后增大后续页，旧服务无需猜测或重试。
+                query=query with{Snapshot=page.Snapshot,Offset=next,Count=page.MaximumPageCount??query.Count};
             }
         }
-        catch(OperationCanceledException) when(token.IsCancellationRequested)
+        catch
         {
             if(snapshot is not null)_=ReleaseSnapshotAsync(snapshot);
             throw;

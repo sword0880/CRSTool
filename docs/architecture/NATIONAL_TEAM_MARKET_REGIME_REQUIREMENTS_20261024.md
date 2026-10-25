@@ -158,3 +158,6 @@ M1续项已取得并实现单只159915官方NAV历史的隔离研究解析，合
 新增文档及其入口的53个相对链接校验通过，差异格式检查通过。证据分别为本轮`live/state.json`、`replay-boundary-checks.log`、`document-links.json`及`requirements-audit.json`，根目录为`artifacts/national-team-goal-review-20261024`。未更改业务模型、阈值、采集计划或发出通知。
 
 第二轮最终范围：公布PE已真实回读261交易日/2871修订，完整区间页面成功；工行新增4个已核股数但性质未知的快照，合计9账户/2股票。只关闭上述局部事实链，不关闭主要方向、行业完整估值或周期有效性。见[股票扩展](../implementation/NATIONAL_TEAM_EQUITY_EXPANSION_20261025.md)及[公布PE](../implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)最终记录。
+
+
+第四轮时点补充：2026-10-25 22:30正式只读回读仍为29条股票记录，其中13条FirstListed且EvidenceLevel=2、另16条NeedsReview；它们是3只股票的已核原文报告期快照，不是13笔交易。历史PDF独立登记、匹配市值/行业分母与模型样本外门槛继续开放。ETF查询真实超时作为R12优先修正，正式失败、分页加速、读取写门槛反例及维护分层见[查询性能记录](../implementation/ETF_QUERY_TIMEOUT_PERFORMANCE_20261025.md)。这些性能修正不提升持仓证明等级，也不关闭原始产品目标。

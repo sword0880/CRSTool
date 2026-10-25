@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CRS.Worker.Ipc;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch;
@@ -21,8 +22,20 @@ public sealed partial class WorkerEtfWorkspace : IEtfDashboardWorkspace
     }
     private async Task ReleaseSnapshotAsync(string snapshot)
     {
-        using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        try{await QueryAsync<string>(new("release-query",Snapshot:snapshot),timeout.Token);}
+        // 清理可能排在当前金融读取之后，不能在本地排队时就耗尽两秒网络期限。
+        // 排队最多32秒，取得门槛后仅给释放请求两秒；不延长产品查询的15秒宿主期限，也不阻塞界面取消。
+        using var queueTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(32));
+        try
+        {
+            await queryGate.WaitAsync(queueTimeout.Token);
+            try
+            {
+                using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,
+                    Payload:JsonSerializer.Serialize(new EtfRequest("release-query",Snapshot:snapshot))),timeout.Token);
+            }
+            finally{queryGate.Release();}
+        }
         catch(Exception error) when(error is OperationCanceledException or InvalidDataException or CRS.Worker.Ipc.BackgroundServiceException or UnauthorizedAccessException)
         { /* 旧后台或断连时由服务端快照期限兜底，不覆盖用户的新查询状态。 */ }
     }

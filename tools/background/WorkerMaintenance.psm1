@@ -19,13 +19,18 @@ function Get-WorkerChild([string]$Root, [string]$Relative) {
     Assert-WorkerNoLinks $path
     return $path
 }
-function Get-WorkerFiles([string]$Root) {
+function Get-WorkerFiles([string]$Root,[switch]$ExcludeMaintenance) {
     Assert-WorkerNoLinks $Root
-    $pending = [Collections.Generic.Stack[string]]::new(); $pending.Push([IO.Path]::GetFullPath($Root))
+    $base=[IO.Path]::GetFullPath($Root)
+    $pending = [Collections.Generic.Stack[string]]::new(); $pending.Push($base)
     $count = 0
     while ($pending.Count) {
         foreach ($entry in Get-ChildItem -LiteralPath $pending.Pop() -Force) {
-            if (++$count -gt 100000 -or ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '维护文件数量超限或包含链接。' }
+            if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw '维护文件数量超限或包含链接。' }
+            # 旧维护归档本就不属于本次业务快照；必须在遍历前排除，不能先扫描十万旧文件再过滤。
+            # 仍检查归档根是否为链接；实际业务树、每份快照及程序包仍保留原十万条目上限与逐路径检查。
+            if($ExcludeMaintenance -and $entry.PSIsContainer -and $entry.FullName.Equals((Join-Path $base 'maintenance'),[StringComparison]::OrdinalIgnoreCase)){continue}
+            if (++$count -gt 100000) { throw '维护文件数量超限或包含链接。' }
             if ($entry.PSIsContainer) { $pending.Push($entry.FullName) } else { $entry }
         }
     }
@@ -109,7 +114,7 @@ function Copy-WorkerPackage([string]$Source, [string]$Target, [string]$AclSource
 function New-WorkerSnapshot([string]$Data, [hashtable]$Record) {
     $destination = Get-WorkerChild $Data ('maintenance/' + $Record.Id + '/snapshot')
     if (Test-Path -LiteralPath $destination) { throw '升级快照已存在，拒绝覆盖。' }
-    $files = @(Get-WorkerFiles $Data | Where-Object {
+    $files = @(Get-WorkerFiles $Data -ExcludeMaintenance | Where-Object {
         $relative = [IO.Path]::GetRelativePath($Data,$_.FullName).Replace('\','/')
         $relative -notin @('owner.lock','maintenance.lock') -and -not $relative.StartsWith('maintenance/',[StringComparison]::OrdinalIgnoreCase)
     })
@@ -155,7 +160,7 @@ function Assert-WorkerLiveDataMatchesSnapshot([string]$Data, [hashtable]$Record)
     $manifestPath = Get-WorkerChild $Data ('maintenance/' + $Record.Id + '/snapshot.json')
     $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -AsHashtable
     # 与 New-WorkerSnapshot 保持完全相同的排除项；否则会把本次维护日志当作业务新事实。
-    $actual = @(Get-WorkerFiles $Data | Where-Object {
+    $actual = @(Get-WorkerFiles $Data -ExcludeMaintenance | Where-Object {
         $relative = [IO.Path]::GetRelativePath($Data, $_.FullName).Replace('\','/')
         $relative -notin @('owner.lock','maintenance.lock') -and
             -not $relative.StartsWith('maintenance/',[StringComparison]::OrdinalIgnoreCase)

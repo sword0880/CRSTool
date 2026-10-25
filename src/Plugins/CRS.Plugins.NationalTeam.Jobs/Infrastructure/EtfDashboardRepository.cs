@@ -16,6 +16,10 @@ public sealed partial class MarketRepository
     private EtfDashboard ReadDashboard(EtfKey? key)
     {
         ValidateEvidence(dashboardOnly:true);
-        return new(ReadOverview(),ReadHistory(key),ReadMarketActivity());
+        // 概览与历史在同一只读事务内复用已读取的份额列表；不跨查询缓存金融值或原件核验结论。
+        var keys=Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker));
+        if(key is not null)keys=keys.Append(key);
+        var points=keys.Distinct().ToDictionary(x=>x,ReadPoints);
+        return new(ReadOverview(points),ReadHistory(key,points),ReadMarketActivity());
     }
 }

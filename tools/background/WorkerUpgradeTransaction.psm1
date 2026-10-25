@@ -33,9 +33,9 @@ function New-WorkerServiceOperations([string]$Name,[string]$Program,[scriptblock
     return @{Disable=$disable;Stop=$stop;Enable=$enable;Start=$start;Health=$HealthProbe}
 }
 function Wait-WorkerHealthy([hashtable]$Service){
-    # 候选在打开数据库前逐份核验一致性快照；数千份小文件可超过原40秒。
-    # 保持有界等待，但不能在校验期间反复停止服务，或绕过其完整性检查。
-    $deadline=[DateTime]::UtcNow.AddSeconds(180)
+    # 候选完整核验约六千份快照后还须检查全部受保护归档的ACL；实测两阶段已接近原180秒。
+    # 启动确认最多五分钟，不跳过任何安全检查；金融查询的15秒期限及运行任务期限均不因此改变。
+    $deadline=[DateTime]::UtcNow.AddSeconds(300)
     do{
         if(& $Service.Health){return}
         Start-Sleep -Milliseconds 250

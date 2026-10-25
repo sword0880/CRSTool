@@ -78,6 +78,12 @@ public sealed record EtfRequest(string Operation,string? Market=null,string? Tic
     ExitAlertFilter? AlertFilter=null,ExitAlertConfiguration? AlertConfiguration=null,AlertDocumentRequest? AlertDocument=null,
     AlertMetadataReview? AlertMetadata=null,NamedEtfHoldingReview? NamedEtfHolding=null,int ContractVersion=EtfBusinessProtocol.Version,bool RefreshSource=false);
 /// <summary>分页使用服务端短期快照，避免采集同时写入导致桌面分页重复或遗漏。</summary>
-public sealed record EtfQueryPage(string Items,string Snapshot,int? NextOffset,string? Metadata=null,int ContractVersion=EtfBusinessProtocol.Version);
+public sealed record EtfQueryPage(string Items,string Snapshot,int? NextOffset,string? Metadata=null,int ContractVersion=EtfBusinessProtocol.Version)
+{
+    // V1可选能力，不改原构造签名；缺失表示旧服务仍按十行读取，页字节限额不随行数增加。
+    public int? MaximumPageCount {get;init;}
+    // 同一快照的完整行数；新端据此识别提前结束，旧服务缺失时沿既有游标契约读取。
+    public int? TotalRows {get;init;}
+}
 /// <summary>证据导出按有界字节块返回，桌面自行选择输出位置，服务不接收用户路径。</summary>
 public sealed record EvidenceChunk(string Hash,long Length,int Offset,byte[] Bytes,int ContractVersion=EtfBusinessProtocol.Version);

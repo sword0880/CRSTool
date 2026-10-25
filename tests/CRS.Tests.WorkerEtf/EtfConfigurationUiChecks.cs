@@ -38,6 +38,9 @@ internal static class EtfConfigurationUiChecks
                     }
                     model.AllEtfs=true;await model.HistoryLoadTask;
                     if(model.ChartStatus.Contains("失败"))throw new InvalidOperationException(model.ChartStatus);
+                    // 连续切换同时取消证据分页；图表通过不能掩盖证据查询已失败的状态。
+                    await model.EvidenceLoadTask;
+                    if(model.Status.Contains("证据读取失败"))throw new InvalidOperationException(model.Status);
                     ((FrameworkElement)page.FindName("ComparisonPanel")).BringIntoView();await Task.Delay(1000);window.UpdateLayout();
                     var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
                     var directory=Path.Combine(Environment.CurrentDirectory,"artifacts","etf-installed-ui");Directory.CreateDirectory(directory);

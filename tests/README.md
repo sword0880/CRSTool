@@ -240,3 +240,9 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 农行原件隔离：`CRS.Tests.NationalTeamWatch --abc-golden artifacts/national-team-abc-research-20261025`验证10项固定原件、A股口径、表决权不改股数、损坏回滚和重启边界。`--abc-read-live <目录>`仅查询，`--abc-review-live <目录>`会以稳定请求逐账户正式审核，不可当成普通测试运行。`CRS.Tests.SectorUi --index-installed <起日> <止日> <截图>`仅核验正式未配置新来源许可、无指数事实时的缺口和按钮状态，隐藏空图默认零刻度；有真实已核资料后应采用相应的新验收预期。
 
 `CRS.Tests.NationalTeamWatch --cnd-comparison-golden artifacts/national-team-comparison-research-20261025`使用逐页核对的建发两期原件和正式只读摘录，验证未进前十不补零、原文增减算术及未经可比审核不输出差额。它不新增正式前期、不伪造SSE历史JSON，也不批准真实期间交易比较，见[比较缺口](../docs/implementation/NATIONAL_TEAM_PERIOD_COMPARISON_20261025.md)。
+
+ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新旧分页、46KB缩页、同快照并发写入隔离、连续游标/总行数及异常释放；`--raw-batch`验证默认8并发的完整原件校验、取消和新损坏；`--query-cancellation`及`--market-query-reliability`沿用真实隔离管道/仓储取消与采集继续检查。`--raw-parallel-profile <公开原件目录>`仅只读比较4/8/16并发完整核验；`--query-performance-live <不存在的目录>`通过正式后台测三次整页、510300历史/证据，失败也记录健康与PID，每页记录行数/逻辑字节/耗时，未受控的操作系统缓存不称严格冷盘。两项live/profile测量不在CI运行，不读取密钥或修改金融事实。见[性能实施记录](../docs/implementation/ETF_QUERY_TIMEOUT_PERFORMANCE_20261025.md)。
+
+`--market-query-reliability`另含应用写门槛阻塞反例：真实加密仓储写用例尚未提交时独立读取可完成，提交后新读取可见；关闭等待在途读取，取消后释放，已关闭不再接收新查询。该检查针对读取准入与生命周期，不等同正式规模的延迟承诺。
+
+`--raw-batch`还验证同一原件库跨巡检/查询共享默认八句柄、查询等待优先及每八次让后台前进一次；取消等待不打开原件，取消在途读取释放文件及额度。`--adaptive-query-pages`包含取消快照清理等待本地在途查询超过两秒的反例；清理排队期限与网络期限分开，产品查询期限保持不变。

@@ -6,6 +6,22 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>SHA-256内容寻址存证；保存、核验和导出均保留原始字节。</summary>
 public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<string,Stream>? openRead=null) : IRawEvidenceStore,IRawEvidenceVerifier
 {
+    private readonly int verificationParallelism=8;
+    private readonly RawEvidenceReadAdmission verificationReads=new(8);
+    private readonly AsyncLocal<bool> queryVerification=new();
+    public RawEvidenceReadActivity VerificationActivity=>verificationReads.Activity;
+    /// <summary>只读金融快照优先核验；作用域随逻辑查询流动，不缓存原件，不改变知识时间或完整性结论。</summary>
+    public IDisposable PrioritizeQueryVerification()
+    {var previous=queryVerification.Value;queryVerification.Value=true;return new QueryScope(()=>queryVerification.Value=previous);}
+    private sealed class QueryScope(Action restore):IDisposable
+    {private Action? current=restore;public void Dispose()=>Interlocked.Exchange(ref current,null)?.Invoke();}
+    /// <summary>仅调整有界读取并发，不缓存核验结论；保留原三参数构造签名，供真实只读A/B测量及隔离取消检查。</summary>
+    public RawEvidenceStore(string root,Action? beforeWrite,Func<string,Stream>? openRead,int verificationParallelism):this(root,beforeWrite,openRead)
+    {
+        if(verificationParallelism is <1 or >16)throw new ArgumentOutOfRangeException(nameof(verificationParallelism));
+        this.verificationParallelism=verificationParallelism;
+        verificationReads=new(verificationParallelism);
+    }
     /// <summary>只导出已经复核哈希的字节；先写同目录临时文件，取消或失败不覆盖已有目标。</summary>
     public async Task ExportVerifiedAsync(string hash,string destination,IReadOnlyList<string> protectedDirectories,CancellationToken cancellationToken)
     {
@@ -73,6 +89,9 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         var path = Path.Combine(root, hash + ".raw");
         try
         {
+            // 每个批次仍有界并行，同一库的所有批次还共享额度；后台巡检不能把句柄数乘到24并与查询争抢磁盘。
+            using var lease=await verificationReads.EnterAsync(queryVerification.Value,token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
             // 同一句柄逐块异步读取；取消能中断正在等待的文件读取，而不只在文件之间检查。
             await using var stream=openRead?.Invoke(path)??new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,16384,FileOptions.Asynchronous|FileOptions.SequentialScan);
             var maximumBytes=OfficialEquityDocuments.MaximumEvidenceBytes(hash);
@@ -92,13 +111,13 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         catch(FileNotFoundException){return false;}
         catch(DirectoryNotFoundException){return false;}
     }
-    /// <summary>仅本次操作共享结果；最多四个只读句柄并行，下一次查询仍重新校验全部原件。</summary>
+    /// <summary>仅本次操作共享结果；默认最多八个只读句柄并行，下一次查询仍重新校验全部原件。</summary>
     public IReadOnlyDictionary<string,bool> VerifyMany(IEnumerable<string> hashes,CancellationToken token)
     {
         var results=new System.Collections.Concurrent.ConcurrentDictionary<string,bool>(StringComparer.Ordinal);
         token.ThrowIfCancellationRequested();
         Parallel.ForEachAsync(hashes.Distinct(StringComparer.Ordinal),
-            new ParallelOptions{MaxDegreeOfParallelism=4,CancellationToken=token},
+            new ParallelOptions{MaxDegreeOfParallelism=verificationParallelism,CancellationToken=token},
             async(hash,cancellation)=>results[hash]=await VerifyAsync(hash,cancellation).ConfigureAwait(false))
             .GetAwaiter().GetResult();
         token.ThrowIfCancellationRequested();

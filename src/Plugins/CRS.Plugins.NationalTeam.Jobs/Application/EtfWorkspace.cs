@@ -19,7 +19,12 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     public string NetworkStatus {get;private set;}="等待后台服务采集；关闭或锁定桌面不影响任务运行。";
     public void SetOfficialSource(IOfficialShareSource source)=>officialSource=source;
     public EtfWorkspace(IPluginHostContext context,Func<IMarketRepository> repositoryFactory,IRawEvidenceStore raw) {this.context=context;this.repositoryFactory=repositoryFactory;this.raw=raw;}
-    public Task InitializeAsync(CancellationToken token)=>RunAsync(()=> { repository=repositoryFactory(); return true; },token);
+    public Task InitializeAsync(CancellationToken token)=>RunAsync(()=>
+    {
+        repository=repositoryFactory();
+        // 仓储构造与连接字符串完成后才发布；查询持readGate，释放也先持readGate，故端口使用中不会被处置。
+        Volatile.Write(ref independentReads,repository as IMarketReadSessions);return true;
+    },token);
     public Task RegisterCalendarAsync(string market,int year,byte[] bytes,Uri uri,CancellationToken token)=>RunAsync(()=>{repository!.RegisterReviewedCalendar(market,year,bytes,uri);return true;},token);
     private async Task<T> RunAsync<T>(Func<T> work,CancellationToken token)
     {
@@ -233,7 +238,7 @@ public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await readGate.WaitAsync().ConfigureAwait(false);
-        try{await gate.WaitAsync().ConfigureAwait(false);try{disposed=true;repository?.Dispose();repository=null;}finally{gate.Release();}}
+        try{await gate.WaitAsync().ConfigureAwait(false);try{disposed=true;Volatile.Write(ref independentReads,null);repository?.Dispose();repository=null;}finally{gate.Release();}}
         finally{readGate.Release();}
     }
 }

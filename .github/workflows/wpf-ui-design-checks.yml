@@ -63,6 +63,22 @@ jobs:
       - name: Verify dashboard evidence scope and orphan fetch isolation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --scoped-evidence
+      # 只用隔离资料验证分页/取消，不在CI访问正式Worker或下载公开原件。
+      - name: Verify adaptive ETF pages preserve complete snapshots and legacy clients
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --adaptive-query-pages
+      - name: Verify bounded evidence verification cancellation and new corruption
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --raw-batch
+      - name: Verify query cancellation preserves background collection
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --market-query-reliability
+      - name: Verify paged query disconnect cancellation and old service fallback
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --query-cancellation
+      - name: Verify ETF dashboard parity and late selection isolation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-loading
       - name: Verify plugin shared assembly same-version ABI mismatch is rejected before loading
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build
