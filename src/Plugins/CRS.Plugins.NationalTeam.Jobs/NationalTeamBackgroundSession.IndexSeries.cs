@@ -166,6 +166,24 @@ public sealed partial class NationalTeamBackgroundSession
         }
         catch(Exception error) when(error is InvalidDataException or InvalidOperationException or ArgumentException){return false;}
     }
+    /// <summary>报告页显示的是完整采集路径是否具备准入，而不是只检查某一条数据集记录。</summary>
+    private bool IndexPriceCollectionAllowed()
+    {
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
+        var methodAndUnits=new[]{OfficialIndexSeriesSource.UnitsSource}
+            .Concat(IndexResearchCatalog.Definitions.Values.Select(x=>new Uri(x.MethodUrl))).Distinct().ToArray();
+        return IndexSourceTargetsAdmitted("cnindex-published-prices",MarketCycleSourceOperation.HistoricalBackfill,methodAndUnits)&&
+               IndexSourceAdmitted("cnindex-published-prices-hq",MarketCycleSourceOperation.HistoricalBackfill,
+                   OfficialIndexSeriesSource.PriceSource("399317",today,today));
+    }
+
+    private bool IndexValuationCollectionAllowed()
+    {
+        var targets=new[]{OfficialIndexSeriesSource.DaySource,OfficialIndexSeriesSource.ValuationSource,
+            new Uri(IndexResearchCatalog.Get("399381").MethodUrl)};
+        return IndexSourceTargetsAdmitted("cnindex-published-valuation",MarketCycleSourceOperation.AutomatedPolling,targets);
+    }
+
     // 前后日期头均属同一来源合同；畸形后置头不能漏出为宿主故障或误记为本地证据损坏。
     private static DateOnly ParseIndexHeader(CapturedIndexDocument document)
     {
