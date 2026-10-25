@@ -119,6 +119,31 @@ public static class MarketCycleSourceAdmission
     /// Required target-aware gate for market-cycle collectors. It binds the operation's actual target and
     /// dataset to the reviewed source base; checking an approval object alone does not authorize an arbitrary URI.
     /// </summary>
+    /// <summary>
+    /// Reject path traversal and encoded path separators before applying a base-path prefix check.
+    /// Decoding is bounded and fails closed for repeatedly encoded paths.
+    /// </summary>
+    public static bool IsSafeUriPath(Uri uri)
+    {
+        if (uri is null || !uri.IsAbsoluteUri) return false;
+        var path = uri.AbsolutePath;
+        for (var pass = 0; pass < 4; pass++)
+        {
+            if (path.Contains('\\') ||
+                path.Contains("%2f", StringComparison.OrdinalIgnoreCase) ||
+                path.Contains("%5c", StringComparison.OrdinalIgnoreCase) ||
+                path.Split('/').Any(segment => segment is "." or ".."))
+                return false;
+
+            string decoded;
+            try { decoded = Uri.UnescapeDataString(path); }
+            catch (UriFormatException) { return false; }
+            if (string.Equals(decoded, path, StringComparison.Ordinal)) return true;
+            path = decoded;
+        }
+        return false;
+    }
+
     public static void RequireTarget(
         MarketCycleSourceApproval approval,
         string requestedSourceId,
@@ -141,6 +166,7 @@ public static class MarketCycleSourceAdmission
             approvedBase.Scheme != Uri.UriSchemeHttps || !approvedBase.IsDefaultPort ||
             !string.IsNullOrEmpty(approvedBase.UserInfo) || !string.IsNullOrEmpty(approvedBase.Query) ||
             !string.IsNullOrEmpty(approvedBase.Fragment) ||
+            !IsSafeUriPath(approvedBase) || !IsSafeUriPath(requestedUri) ||
             requestedUri.Scheme != Uri.UriSchemeHttps || !requestedUri.IsDefaultPort ||
             !string.IsNullOrEmpty(requestedUri.UserInfo) || !string.IsNullOrEmpty(requestedUri.Fragment) ||
             !string.Equals(approvedBase.IdnHost, requestedUri.IdnHost, StringComparison.OrdinalIgnoreCase) ||
@@ -179,7 +205,8 @@ public static class MarketCycleSourceAdmission
             string.IsNullOrWhiteSpace(approval.SourceUri.Host) ||
             !string.IsNullOrEmpty(approval.SourceUri.UserInfo) ||
             !string.IsNullOrEmpty(approval.SourceUri.Query) ||
-            !string.IsNullOrEmpty(approval.SourceUri.Fragment))
+            !string.IsNullOrEmpty(approval.SourceUri.Fragment) ||
+            !IsSafeUriPath(approval.SourceUri))
             throw new InvalidDataException("市场周期来源基址必须是无凭据、无查询参数、无片段的绝对 HTTPS 地址。");
 
         if (approval.TermsEvidenceHash is null ||
