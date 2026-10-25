@@ -164,6 +164,9 @@ public static class MarketCycleSourceAdmission
         if (approval.ReviewedAt > operationAt)
             throw new InvalidDataException("来源审批在拟执行时点尚未生效。");
 
+        if (approval.ValidUntil is { } effectiveExpiry && effectiveExpiry <= approval.ReviewedAt)
+            throw new InvalidDataException("来源审批有效期必须晚于审核生效时间。");
+
         if (approval.ValidUntil is { } validUntil && validUntil <= operationAt)
             throw new InvalidOperationException("来源审批已过期，拒绝执行。");
 
