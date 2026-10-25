@@ -126,10 +126,8 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
 
         using var transaction = db.BeginTransaction();
         var events = ReadVerifiedApprovalEvents(transaction);
-        var lastGlobalEvent = events.LastOrDefault();
-        if (lastGlobalEvent is not null &&
-            (now < lastGlobalEvent.RecordedAtValue || command.IssuedAt < lastGlobalEvent.IssuedAtValue))
-            throw new InvalidDataException("来源审批全局审计时间水位倒退，拒绝写入。");
+        // Idempotent retries are checked before the global time watermark: a still-fresh exact retry
+        // must return its original receipt even if a later independent command has already been committed.
         var existing = events.SingleOrDefault(x => x.CommandId == command.CommandId);
         if (existing is not null)
         {
@@ -141,6 +139,11 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
             transaction.Commit();
             return new(command.CommandId, existing.Sequence, existing.Status, existing.EventHash, Replayed: true);
         }
+
+        var lastGlobalEvent = events.LastOrDefault();
+        if (lastGlobalEvent is not null &&
+            (now < lastGlobalEvent.RecordedAtValue || command.IssuedAt < lastGlobalEvent.IssuedAtValue))
+            throw new InvalidDataException("来源审批全局审计时间水位倒退，拒绝写入。");
 
         if (events.Any(x => string.Equals(x.Nonce, command.Nonce, StringComparison.Ordinal)))
             throw new InvalidDataException("来源审批 nonce 已使用，拒绝重放。");
