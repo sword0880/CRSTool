@@ -254,7 +254,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         var rows = new List<StoredApprovalEvent>();
         using (var command = db.CreateCommand())
         {
-            command.Transaction = transaction;
+            if (transaction is not null) command.Transaction = transaction;
             command.CommandText = """
                 SELECT sequence,command_id,nonce,source_id,dataset_id,status,actor_id,recorded_at,issued_at,
                     approval_json,payload_hash,previous_event_hash,event_hash
