@@ -83,7 +83,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
             Execute("INSERT OR IGNORE INTO etf_configuration_version VALUES($m,$t,0,$origin)",("$m",item.Market),("$t",item.Ticker),("$origin",InitialEtfDirectory.Origin));
         }
         seed.Commit();
-        try { InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();InitializeNavSchema();InitializeIndustryPeSchema(); }
+        try { InitializeCalendarSchema();InitializeEquitySchema();InitializeActivityReviewSchema();InitializeExitAlertSchema();InitializeNavSchema();InitializeIndustryPeSchema();InitializeIndexSeriesSchema(); }
         catch { db.Dispose(); throw; }
     }
     private string Now => CRS.Timing.BeijingClock.Read(clock).ToString("O");

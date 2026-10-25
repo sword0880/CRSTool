@@ -234,3 +234,9 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 行业公布PE独立检查：`dotnet run --project tests/CRS.Tests.IndustryPe -c Release -- --output artifacts/industry-pe-checks-20261025`，覆盖严格解析、加密修订/知识时点、双回执、取消、原件健康和来源持久冷却；使用合成及隔离资料，不代表正式数据或机会有效性验收。
 
 工行真实原件隔离检查：`dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release -- --icbc-golden artifacts/national-team-equity-expansion-20261025`，要求原件摘要匹配，7项覆盖A/H股、简称、未知投资目的、重启回读及严格大文件额度。正式回执另见[股票扩展证据](../docs/implementation/NATIONAL_TEAM_EQUITY_EXPANSION_20261025.md)，隔离测试不能代替实机验收。
+
+指数事实链本地原件检查：`dotnet run --project tests/CRS.Tests.IndexResearch -c Release -- --source artifacts/national-team-index-research-20261025/source --output artifacts/national-team-index-research-20261025/isolated`。冻结原件配合显式测试时钟、日历、密钥和合成许可，覆盖解析、金融证明、修订/双回执、取消及来源默认拒绝。`CRS.Tests.SectorUi --index <ui-replay-report.json> <截图路径>`验证11条非空曲线、受理/待审/终态、改日期取消和来源未获准按钮；`CRS.Tests.WorkerEtf --index-pipe <完整候选包> <原件目录> <不存在的输出目录>`验证完整宿主/监督进程/管道，不访问正式服务或互联网。真实原件暂不提交/上传CI；远端只构建新专项，不能将其称为黄金样本运行成功。开放门槛见[指数实施记录](../docs/implementation/NATIONAL_TEAM_INDEX_SERIES_20261025.md)。
+
+农行原件隔离：`CRS.Tests.NationalTeamWatch --abc-golden artifacts/national-team-abc-research-20261025`验证10项固定原件、A股口径、表决权不改股数、损坏回滚和重启边界。`--abc-read-live <目录>`仅查询，`--abc-review-live <目录>`会以稳定请求逐账户正式审核，不可当成普通测试运行。`CRS.Tests.SectorUi --index-installed <起日> <止日> <截图>`仅核验正式未配置新来源许可、无指数事实时的缺口和按钮状态，隐藏空图默认零刻度；有真实已核资料后应采用相应的新验收预期。
+
+`CRS.Tests.NationalTeamWatch --cnd-comparison-golden artifacts/national-team-comparison-research-20261025`使用逐页核对的建发两期原件和正式只读摘录，验证未进前十不补零、原文增减算术及未经可比审核不输出差额。它不新增正式前期、不伪造SSE历史JSON，也不批准真实期间交易比较，见[比较缺口](../docs/implementation/NATIONAL_TEAM_PERIOD_COMPARISON_20261025.md)。

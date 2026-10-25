@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
@@ -38,7 +38,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
                 PRAGMA user_version=1;
                 """;
             command.ExecuteNonQuery();
-            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.efunds.com.cn","www.cnindex.com.cn"})_=Read(host);
+            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","www.efunds.com.cn","www.cnindex.com.cn"})_=Read(host);
         }
         catch { db.Dispose(); throw; }
     }
@@ -51,9 +51,12 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
         "www.chinacnd.com" => "ISSUER-600153",
         // 工行发行人原文有独立预算；不能重置或借用SSE冷却，精确路径由网关白名单另行约束。
         "v.icbc.com.cn" => "ISSUER-601398",
+        // 仅精确白名单原件使用此发行人预算；不把未知域名或ZIP当作允许的报告。
+        "www.abchina.com" => "ISSUER-601288",
         "www.efunds.com.cn" or "cdn.efunds.com.cn" => "EFUNDS",
         // 国证独立持久预算，不借用深交所额度；限定请求路径仍由网关负责。
-        "www.cnindex.com.cn" => "CNINDEX",
+        // 官网与其行情域名共用CNINDEX预算和冷却，不能借行情子域名绕过网站拒绝。
+        "www.cnindex.com.cn" or "hq.cnindex.com.cn" => "CNINDEX",
         _ => throw new ArgumentException("不支持的来源。")
     };
 

@@ -9,6 +9,8 @@ using CRS.Plugins.NationalTeamWatch.Presentation;
 
 if(args is ["--industry",var industryReport,var industryImage]){IndustryUiChecks.Run(industryReport,industryImage);return;}
 if(args is ["--industry-installed",var installedFrom,var installedThrough,var installedImage]){IndustryInstalledUiChecks.Run(DateOnly.Parse(installedFrom),DateOnly.Parse(installedThrough),installedImage);return;}
+if(args is ["--index",var indexReport,var indexImage]){IndexUiChecks.Run(indexReport,indexImage);return;}
+if(args is ["--index-installed",var indexFrom,var indexThrough,var indexInstalledImage]){IndexInstalledUiChecks.Run(DateOnly.Parse(indexFrom),DateOnly.Parse(indexThrough),indexInstalledImage);return;}
 
 if(args.Length!=2)throw new ArgumentException("需要合成输入文件与截图路径。");
 // 财务计算在领域层，视图仅接收报告；夹具标题明确区别真实行业行情。

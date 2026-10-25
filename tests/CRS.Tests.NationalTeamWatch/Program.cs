@@ -19,6 +19,10 @@ if(args is ["--equity-status-live"]){await EquityStatusAuditTool.Run();return;}
 if(args is ["--icbc-read-live",var icbcReadDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReadDirectory,false);return;}
 if(args is ["--icbc-review-live",var icbcReviewDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReviewDirectory,true);return;}
 if(args is ["--icbc-golden",var icbcGoldenDirectory]){IcbcGoldenChecks.Run(icbcGoldenDirectory);return;}
+if(args is ["--abc-read-live",var abcReadDirectory]){await AbcEquityAcceptanceTool.Run(abcReadDirectory,false);return;}
+if(args is ["--abc-golden",var abcGoldenDirectory]){AbcGoldenChecks.Run(abcGoldenDirectory);return;}
+if(args is ["--cnd-comparison-golden",var cndComparisonDirectory]){CndComparisonGoldenChecks.Run(cndComparisonDirectory);return;}
+if(args is ["--abc-review-live",var abcReviewDirectory]){await AbcEquityAcceptanceTool.Run(abcReviewDirectory,true);return;}
 if(args is ["--deployment-state-live",var stateDirectory]){await DeploymentOperationsTool.State(stateDirectory);return;}
 if(args is ["--equity-report-sync-live",var reportDirectory]){await DeploymentOperationsTool.Reports(reportDirectory,true);return;}
 if(args is ["--equity-report-status-live",var reportStatusDirectory]){await DeploymentOperationsTool.Reports(reportStatusDirectory,false);return;}

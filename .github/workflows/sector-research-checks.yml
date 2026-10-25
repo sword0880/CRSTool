@@ -12,6 +12,9 @@ on:
       - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Industry*'
       - 'src/Plugins/CRS.Plugins.NationalTeamWatch/WorkerEtfWorkspace.IndustryPe.cs'
       - 'tests/CRS.Tests.IndustryPe/**'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/IndexResearch*'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/WorkerEtfWorkspace.IndexSeries.cs'
+      - 'tests/CRS.Tests.IndexResearch/**'
       - '.github/workflows/sector-research-checks.yml'
   workflow_dispatch:
 permissions:
@@ -31,6 +34,9 @@ jobs:
         run: dotnet run --project tests/CRS.Tests.SectorUi -c Release -- artifacts/sector-research/synthetic-input.json artifacts/sector-research/sector-ui.png
       - name: Check published industry PE parsing, encrypted revisions and source cooldown
         run: dotnet run --project tests/CRS.Tests.IndustryPe -c Release -- --output artifacts/industry-pe-checks
+      # 国证真实原件仅保留本地研究证据；未确认再分发许可，不上传原件或在CI联网补取。
+      - name: Build index evidence checks without downloading source files
+        run: dotnet build tests/CRS.Tests.IndexResearch -c Release
       - uses: actions/upload-artifact@v4
         if: always()
         with:

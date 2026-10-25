@@ -8,6 +8,11 @@ public sealed partial class MarketRepository
     /// <summary>使用已核验深交所日历作公布序列的交易日对照；原件即时校验，不把周一到周五猜作交易日。</summary>
     public IndustryPeCalendarSnapshot IndustryPeCalendar(DateOnly from,DateOnly through,DateTimeOffset cutoff)
     {
+        var snapshot=ReadPublishedTradingCalendar(from,through,cutoff);return new(snapshot.Days,snapshot.Fingerprint);
+    }
+    // 公布PE和公布指数都只借用已核深交所日历作日期对照；不据此证明行业宇宙或跨市场成交范围相同。
+    private (IReadOnlyDictionary<DateOnly,bool?> Days,string Fingerprint) ReadPublishedTradingCalendar(DateOnly from,DateOnly through,DateTimeOffset cutoff)
+    {
         if(from>through||through.DayNumber-from.DayNumber>400||cutoff==default||cutoff>clock.GetUtcNow())throw new InvalidDataException("行业日历查询范围无效。");
         var facts=new List<(DateOnly Day,bool Open,string Fetch,string Hash,string Original,bool Valid)>();
         using(var command=Command("""
@@ -22,6 +27,6 @@ public sealed partial class MarketRepository
         var days=Enumerable.Range(0,through.DayNumber-from.DayNumber+1).Select(from.AddDays).ToDictionary(x=>x,_=>(bool?)null);
         foreach(var fact in facts)if(fact.Valid&&health[fact.Hash]&&health[fact.Original])days[fact.Day]=fact.Open;
         var fingerprint=ExitAlertEvaluator.Hash(System.Text.Json.JsonSerializer.Serialize(new{Reference="SZSEReviewedCalendar",Facts=facts.Select(x=>new{x.Day,x.Open,x.Fetch,x.Hash,x.Original,x.Valid}),Days=days}));
-        return new(days,fingerprint);
+        return (days,fingerprint);
     }
 }

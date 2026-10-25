@@ -11,6 +11,7 @@ using Microsoft.Data.Sqlite;
 
 if(args is ["--nav-pipe",var navPackage,var navSnapshot,var navOutput]){await NavPipeChecks.Run(navPackage,navSnapshot,navOutput);return;}
 if(args is ["--industry-pipe",var industryPackage,var industrySource,var industryPipeOutput]){await IndustryPipeChecks.Run(industryPackage,industrySource,industryPipeOutput);return;}
+if(args is ["--index-pipe",var indexPackage,var indexSource,var indexPipeOutput]){await IndexPipeChecks.Run(indexPackage,indexSource,indexPipeOutput);return;}
 if(args is ["--nav-live",var navLiveOutput]){await NavLiveOperations.Run(navLiveOutput,true);return;}
 if(args is ["--nav-status-live",var navStatusOutput]){await NavLiveOperations.Run(navStatusOutput,false);return;}
 if(args is ["--industry-live",var industryFrom,var industryThrough,var industryOutput]){await IndustryLiveOperations.RunAsync(industryOutput,true,DateOnly.Parse(industryFrom),DateOnly.Parse(industryThrough));return;}

@@ -62,6 +62,11 @@ public interface IEtfWorkspace
     Task<EquityReportSearch> QueueEquityReportsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
     Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token)=>throw new NotSupportedException();
     Task SyncEquityAsync(CancellationToken token)=>throw new NotSupportedException();
+    Task<IndexSeriesResearchReport> IndexSeriesReportAsync(DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("指数研究需要更新后台服务。");
+    Task<List<IndexSeriesRevision>> IndexSeriesRevisionsAsync(DateOnly from,DateOnly through,CancellationToken token)=>throw new NotSupportedException("指数修订查询需要更新后台服务。");
+    Task<IndexSeriesCommandReceipt> QueueIndexSeriesAsync(DateOnly from,DateOnly through,bool refreshSource,CancellationToken token)=>throw new NotSupportedException("指数采集需要更新后台服务。");
+    Task<IndexSeriesCommandReceipt> QueueIndexValuationAsync(DateOnly date,CancellationToken token)=>throw new NotSupportedException("指数估值采集需要更新后台服务。");
+    Task<IndexSeriesCommandReceipt> IndexSeriesStatusAsync(Guid requestId,CancellationToken token)=>throw new NotSupportedException("指数任务状态需要更新后台服务。");
     Task ReviewEquityAsync(EquityReview review,CancellationToken token)=>throw new NotSupportedException();
 }
 
