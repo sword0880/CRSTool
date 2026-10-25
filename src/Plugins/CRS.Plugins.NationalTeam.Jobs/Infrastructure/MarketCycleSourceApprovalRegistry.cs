@@ -14,6 +14,9 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
     private readonly IMarketCycleApprovalWriteAuthority? marketCycleApprovalWriteAuthority = null;
     private const string ApprovalAuditGenesis = "0000000000000000000000000000000000000000000000000000000000000000";
 
+    private static byte[] DeriveMarketCycleApprovalAuditKey(ReadOnlySpan<byte> databaseKey) =>
+        HMACSHA256.HashData(databaseKey, Encoding.UTF8.GetBytes("CRSTool.MarketCycleApprovalAudit.v1"));
+
     private sealed record ApprovalAuditPayload(
         long Sequence,
         string CommandId,
