@@ -151,7 +151,7 @@ public static class MarketCycleSourceAdmission
         Uri requestedUri,
         MarketCycleSourceOperation operation,
         DateTimeOffset operationAt,
-        IMarketCycleSourceApprovalReader approvalRegistry)
+        IMarketCycleSourceApprovalRegistry approvalRegistry)
     {
         ArgumentNullException.ThrowIfNull(approval);
         ArgumentNullException.ThrowIfNull(requestedUri);
