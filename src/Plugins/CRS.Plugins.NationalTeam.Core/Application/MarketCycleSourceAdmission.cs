@@ -103,8 +103,8 @@ public sealed record MarketCycleSourceApproval(
     DateTimeOffset? ValidUntil = null);
 
 /// <summary>
-/// Fail-closed admission gate for future market-cycle collectors. It has no network, storage or clock
-/// dependency; callers supply the intended operation time so the same approval can be replay-tested.
+/// Fail-closed admission gate for market-cycle and index-series source use. The gate performs no network
+/// calls or writes; callers supply a trusted approval reader and explicit operation time so admission can be replay-tested.
 /// This gate supplements, and does not replace, the host allow-list and request-budget checks.
 /// </summary>
 public static class MarketCycleSourceAdmission
