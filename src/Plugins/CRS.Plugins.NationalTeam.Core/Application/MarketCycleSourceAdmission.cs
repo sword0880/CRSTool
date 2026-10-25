@@ -115,6 +115,48 @@ public static class MarketCycleSourceAdmission
         MarketCycleSourceUse.HistoricalBackfill |
         MarketCycleSourceUse.Redistribution;
 
+    /// <summary>
+    /// Required target-aware gate for market-cycle collectors. It binds the operation's actual target and
+    /// dataset to the reviewed source base; checking an approval object alone does not authorize an arbitrary URI.
+    /// </summary>
+    public static void RequireTarget(
+        MarketCycleSourceApproval approval,
+        string requestedSourceId,
+        string requestedDatasetId,
+        Uri requestedUri,
+        MarketCycleSourceOperation operation,
+        DateTimeOffset operationAt,
+        IMarketCycleSourceApprovalReader approvalRegistry)
+    {
+        ArgumentNullException.ThrowIfNull(approval);
+        ArgumentNullException.ThrowIfNull(requestedUri);
+        ArgumentNullException.ThrowIfNull(approvalRegistry);
+
+        if (!string.Equals(approval.SourceId, requestedSourceId, StringComparison.Ordinal) ||
+            !string.Equals(approval.DatasetId, requestedDatasetId, StringComparison.Ordinal))
+            throw new InvalidDataException("实际请求的来源 ID 或数据集 ID 与审批身份不匹配。");
+
+        var approvedBase = approval.SourceUri;
+        if (approvedBase is null || !approvedBase.IsAbsoluteUri ||
+            approvedBase.Scheme != Uri.UriSchemeHttps || !approvedBase.IsDefaultPort ||
+            !string.IsNullOrEmpty(approvedBase.UserInfo) || !string.IsNullOrEmpty(approvedBase.Query) ||
+            !string.IsNullOrEmpty(approvedBase.Fragment) ||
+            requestedUri.Scheme != Uri.UriSchemeHttps || !requestedUri.IsDefaultPort ||
+            !string.IsNullOrEmpty(requestedUri.UserInfo) || !string.IsNullOrEmpty(requestedUri.Fragment) ||
+            !string.Equals(approvedBase.IdnHost, requestedUri.IdnHost, StringComparison.OrdinalIgnoreCase) ||
+            approvedBase.Port != requestedUri.Port)
+            throw new InvalidDataException("实际请求 URI 不属于获批的 HTTPS 来源基址。");
+
+        var basePath = approvedBase.AbsolutePath.TrimEnd('/');
+        var targetPath = requestedUri.AbsolutePath;
+        if (basePath.Length > 0 &&
+            !string.Equals(targetPath, basePath, StringComparison.Ordinal) &&
+            !targetPath.StartsWith(basePath + "/", StringComparison.Ordinal))
+            throw new InvalidDataException("实际请求路径不属于获批的来源路径边界。");
+
+        Require(approval, operation, operationAt, approvalRegistry);
+    }
+
     public static void Require(
         MarketCycleSourceApproval approval,
         MarketCycleSourceOperation operation,
