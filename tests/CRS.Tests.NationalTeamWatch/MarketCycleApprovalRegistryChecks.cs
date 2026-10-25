@@ -114,6 +114,17 @@ internal static class MarketCycleApprovalRegistryChecks
         {
             var registry = (IMarketCycleSourceApprovalRegistry)repository;
             Check(registry.Find("never-approved") is null, "不存在的来源审批默认返回空，不会自动批准");
+            var orphanRevocation = Approval("orphan-revocation", termsHash, clock.At,
+                MarketCycleSourceUse.None, MarketCycleSourceApprovalStatus.Revoked);
+            RejectOperation(() => registry.Apply(Command(orphanRevocation, clock.At)),
+                "不存在先前批准记录的来源不能直接登记为已撤销");
+
+            var invalidExpiry = Approval("invalid-expiry", termsHash, clock.At,
+                MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage,
+                validUntil: clock.At.AddSeconds(10)) with { ReviewedAt = clock.At.AddSeconds(20) };
+            RejectData(() => registry.Apply(Command(invalidExpiry, clock.At)),
+                "审批有效期不能早于审核生效时间");
+
             original = Approval("sse-market-stats", termsHash, clock.At,
                 MarketCycleSourceUse.AutomatedCollection | MarketCycleSourceUse.PersistentStorage |
                 MarketCycleSourceUse.HistoricalBackfill | MarketCycleSourceUse.Redistribution,
