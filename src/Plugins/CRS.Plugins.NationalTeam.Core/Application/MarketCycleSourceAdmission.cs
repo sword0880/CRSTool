@@ -69,10 +69,15 @@ public interface IMarketCycleApprovalWriteAuthority
         out string authenticatedActorId);
 }
 
-/// <summary>Encrypted, append-only registry contract; the implementation also verifies the keyed audit chain.</summary>
-public interface IMarketCycleSourceApprovalRegistry : IMarketCycleSourceApprovalEvidenceVerifier
+/// <summary>Read-only approval lookup port shared by the market-cycle registry and index-series approval provider.</summary>
+public interface IMarketCycleSourceApprovalReader : IMarketCycleSourceApprovalEvidenceVerifier
 {
     MarketCycleSourceApproval? Find(string datasetId);
+}
+
+/// <summary>Encrypted, append-only registry contract; the implementation also verifies the keyed audit chain.</summary>
+public interface IMarketCycleSourceApprovalRegistry : IMarketCycleSourceApprovalReader
+{
     MarketCycleSourceApprovalWriteReceipt Apply(MarketCycleSourceApprovalWriteCommand command);
     IReadOnlyList<MarketCycleSourceApprovalAuditEntry> ReadAudit();
     bool VerifyAuditChain();
@@ -114,7 +119,7 @@ public static class MarketCycleSourceAdmission
         MarketCycleSourceApproval approval,
         MarketCycleSourceOperation operation,
         DateTimeOffset operationAt,
-         IMarketCycleSourceApprovalRegistry approvalRegistry)
+         IMarketCycleSourceApprovalReader approvalRegistry)
     {
         ArgumentNullException.ThrowIfNull(approval);
         ArgumentNullException.ThrowIfNull(approvalRegistry);
