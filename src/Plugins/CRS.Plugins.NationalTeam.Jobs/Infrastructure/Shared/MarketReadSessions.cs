@@ -32,6 +32,7 @@ public sealed partial class MarketRepository : IMarketReadSessions,IBoundedMarke
         industryPeStore=new IndustryPeStore(marketSession);
         marketCalendarStore=new MarketCalendarStore(marketSession);
         indexSeriesStore=new IndexSeriesStore(marketSession);
+        marketActivityStore=new MarketActivityStore(marketSession,marketCalendarStore);
         try
         {
             db.Open();

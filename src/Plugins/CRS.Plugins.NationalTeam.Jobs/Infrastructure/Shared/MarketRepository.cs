@@ -17,6 +17,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private readonly IndustryPeStore industryPeStore;
     private readonly MarketCalendarStore marketCalendarStore;
     private readonly IndexSeriesStore indexSeriesStore;
+    private readonly MarketActivityStore marketActivityStore;
 
     private sealed class MarketRepositorySession : IMarketRepositorySession
     {
@@ -32,6 +33,12 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         public object? Scalar(string sql,params (string,object?)[] args)=>owner.Scalar(sql,args);
         public void CheckReadLimit(int count)=>owner.CheckReadLimit(count);
         public void RecordCommand(Guid? id,string operation)=>owner.RecordCommand(id,operation);
+        public string Now=>owner.Now;
+        public bool Committed(Guid? id)=>owner.Committed(id);
+        public void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false)
+            =>owner.ValidateEvidence(shareKey,includeCalendar,activityOnly,dashboardOnly,includeAttempts);
+        public string RecordFetch(string hash,string sourceUrl,string? originalHash=null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1")
+            =>owner.RecordFetch(hash,sourceUrl,originalHash,provider,parserVersion);
     }
 
     /// <summary>应用用例已持有串行门槛，作用域结束恢复令牌，取消不能泄漏到下一次查询。</summary>
@@ -60,6 +67,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         industryPeStore=new IndustryPeStore(marketSession);
         marketCalendarStore=new MarketCalendarStore(marketSession);
         indexSeriesStore=new IndexSeriesStore(marketSession);
+        marketActivityStore=new MarketActivityStore(marketSession,marketCalendarStore);
         readConnectionString=new SqliteConnectionStringBuilder(db.ConnectionString){Mode=SqliteOpenMode.ReadOnly}.ToString();
         Execute("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
         var version = Convert.ToInt32(Scalar("PRAGMA user_version;"));

@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
@@ -18,4 +19,8 @@ internal interface IMarketRepositorySession
     object? Scalar(string sql,params (string,object?)[] args);
     void CheckReadLimit(int count);
     void RecordCommand(Guid? id,string operation);
+    string Now { get; }
+    bool Committed(Guid? id);
+    void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false);
+    string RecordFetch(string hash,string sourceUrl,string? originalHash=null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1");
 }
