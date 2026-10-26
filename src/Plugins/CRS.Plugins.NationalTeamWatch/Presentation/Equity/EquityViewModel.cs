@@ -9,7 +9,7 @@ using LiveChartsCore.SkiaSharpView;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>直接持股交互与服务端结果展示；不在桌面下载公告、写库或推断持股变化。</summary>
-public partial class EquityViewModel(IEtfWorkspace workspace,CancellationToken lifetime):ObservableObject
+public partial class EquityViewModel(IDirectEquityWorkspace workspace,CancellationToken lifetime):ObservableObject
 {
     public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EquityHoldingRow> Rows {get;}=[];
