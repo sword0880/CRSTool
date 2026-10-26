@@ -83,7 +83,8 @@ public sealed partial class MarketRepository
     {
         using var command=Command("SELECT event_id,sequence,kind,at,payload FROM nt_risk_event_change WHERE event_id=$id ORDER BY sequence",("$id",id));
         using var reader=command.ExecuteReader();var rows=new List<ExitAlertChange>();while(reader.Read())rows.Add(new(reader.GetString(0),reader.GetInt32(1),reader.GetString(2),reader.GetString(3),reader.GetString(4)));return rows;
-    }    public List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)=>alertOutboxStore.AlertOutbox(filter);
+    }
+    public List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)=>alertOutboxStore.AlertOutbox(filter);
     // Legacy partials keep calling this helper; persistence now belongs exclusively to AlertOutboxStore.
-    private void WriteOutbox(AlertOutboxItem row)=>alertOutboxStore.WriteOutbox(row);;
+    private void WriteOutbox(AlertOutboxItem row)=>alertOutboxStore.WriteOutbox(row);
 }
