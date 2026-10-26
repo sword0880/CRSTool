@@ -8,7 +8,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch;
 
 /// <summary>客户端只访问授权管道，不打开市场库或向服务提交桌面文件路径。</summary>
-public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IEtfWorkspace
+public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=null):IEtfWorkspace, IEtfResearchWorkspace, IDirectEquityWorkspace, IIndustryValuationWorkspace, IMarketCycleWorkspace, INavWorkspace, IExitAlertWorkspace
 {
     private readonly Action<EtfQueryPageMeasurement>? pageMeasurement;
     /// <summary>可选只读测量入口，保留原构造签名；仅记录阶段耗时/行数，不携带账户、URL、金融值或凭据。</summary>

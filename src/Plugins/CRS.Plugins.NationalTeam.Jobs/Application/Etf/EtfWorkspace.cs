@@ -3,7 +3,7 @@ using CRS.Plugin.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>插件应用用例：串行写入私有仓储，独立读取快照，在后台执行导入与证据核验。</summary>
-public sealed partial class EtfWorkspace : IEtfWorkspace,IAsyncDisposable
+public sealed partial class EtfWorkspace : IEtfWorkspace, IEtfResearchWorkspace, IDirectEquityWorkspace, IIndustryValuationWorkspace, IMarketCycleWorkspace, INavWorkspace, IExitAlertWorkspace, IAsyncDisposable
 {
     private readonly IPluginHostContext context;
     private readonly SemaphoreSlim gate=new(1);
