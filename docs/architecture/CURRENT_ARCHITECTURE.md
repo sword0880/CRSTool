@@ -21,6 +21,7 @@
 | CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security | 券商解析、持久化、汇率、导出、装配 |
 | CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc | 桌面进程，具体基础设施仅由 Composition 装配 |
 | CRS.Plugin.Abstractions | CRS.Time | 桌面插件的 BCL 契约 |
+| CRS.Plugin.Common | 无 | 供所有插件复用的纯BCL公平读取/取消租约；无静态容量、无金融来源数据、不依赖宿主 |
 | CRS.Plugin.Wpf | CRS.Plugin.Abstractions | WPF 页面贡献契约 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
 | CRS.Worker.Abstractions | CRS.Time | 后台会话、任务、查询及存储上下文契约 |
@@ -32,7 +33,7 @@
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
 | CRS.Plugins.Heartbeat | CRS.Worker.Abstractions | 后台心跳插件 |
 | CRS.Plugins.NationalTeam.Core | CRS.Time | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
-| CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions | 后台采集、市场库、来源策略及查询 |
+| CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Plugin.Common | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
 
 ## 解决方案测试与夹具项目
