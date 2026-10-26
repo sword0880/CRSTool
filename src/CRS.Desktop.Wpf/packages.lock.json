@@ -388,9 +388,12 @@
       "crs.application": {
         "type": "Project",
         "dependencies": {
-          "CRS.Domain": "[1.0.0, )",
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )",
+          "CRS.Domain": "[1.0.0, )"
         }
+      },
+      "crs.common": {
+        "type": "Project"
       },
       "crs.domain": {
         "type": "Project"
@@ -414,7 +417,7 @@
       "crs.plugin.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "crs.plugin.wpf": {
@@ -436,13 +439,10 @@
           "Konscious.Security.Cryptography.Argon2": "[1.3.1, )"
         }
       },
-      "crs.time": {
-        "type": "Project"
-      },
       "crs.worker.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "crs.worker.ipc": {

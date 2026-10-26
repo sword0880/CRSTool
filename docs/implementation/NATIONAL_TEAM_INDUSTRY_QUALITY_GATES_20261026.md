@@ -12,7 +12,7 @@
 
 ## 业务模块分类
 
-只在 `CRS.Plugins.NationalTeam.Core/Domain/Industry/IndustryQualityGate.cs` 增加新的模型及纯规则。数据持久化和来源准入的未来适配器属于 `NationalTeam.Jobs`；UI 只消费由业务服务提供的审核状态，不能从页面计算现金流或报表数值。这遵循[NationalTeam 功能分类](../architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)，避免把所有新内容堆入单一 Page/ViewModel 或共享巨类。
+只在 `CRS.Plugins.NationalTeam.Core/Domain/IndustryValuation/IndustryQualityGate.cs` 增加新的模型及纯规则。数据持久化和来源准入的未来适配器属于 `NationalTeam.Jobs`；UI 只消费由业务服务提供的审核状态，不能从页面计算现金流或报表数值。这遵循[NationalTeam 功能分类](../architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)，避免把所有新内容堆入单一 Page/ViewModel 或共享巨类。
 
 研究规则为以下 **领域侧必需指标完整性**（指标明确，但数值本身不在本阶段按简单阈值打分）：
 
@@ -39,7 +39,7 @@
 
 | 文件 | 工作内容 |
 | --- | --- |
-| `Core/Domain/Industry/IndustryQualityGate.cs` | 经营模式、指标单位、时间/覆盖/来源/分类核验、资料齐备状态与指纹 |
+| `Core/Domain/IndustryValuation/IndustryQualityGate.cs` | 经营模式、指标单位、时间/覆盖/来源/分类核验、资料齐备状态与指纹 |
 | `Core/Domain/SectorResearch.cs` | 新增可选 `QualityInputs`，按行业绑定闸门；缺失质量证据停止输出 `ResearchWatch` |
 | `NationalTeamWatch/Presentation/SectorResearchPage.xaml` | 展示“质量证据”状态，不从页面回推金融状态 |
 | `NationalTeamWatch/Presentation/SectorResearchViewModel.cs` | 将证据不足与待人工反方评估分别明确展示 |

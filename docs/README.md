@@ -10,7 +10,7 @@
 | 了解当前架构 | [当前架构](architecture/CURRENT_ARCHITECTURE.md) · [项目目录](architecture/PROJECT_STRUCTURE.md) |
 | 继续专项整改 | [架构整改计划](architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md) · [整改续记](implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md) |
 | 插件与后台 | [插件架构](CRS_PLUGIN_ARCHITECTURE.md) · [后台设计](CRS_BACKGROUND_SERVICE_DESIGN.md) |
-| 国家队监控 | [ETF 一期设计](NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md) · [实施进展](implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md) |
+| 国家队监控 | [ETF 一期设计](NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md) · [实施进展](implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md) |
 | 统一界面风格 | [全局品牌与控件样式](implementation/BRAND_VISUAL_SYSTEM.md) |
 | 测试及发布 | [测试命令](../tests/README.md) · [发布验收](validation/RELEASE_ACCEPTANCE.md) |
 

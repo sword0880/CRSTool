@@ -3,8 +3,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
 /// <summary>
-/// Narrow V2 port for ETF share research and evidence workflows.
-/// Kept separate from the legacy IEtfWorkspace contract so existing callers and IPC payloads do not change.
+/// ETF份额研究与证据操作的独立端口；实现缺失时显式报告不可用。
 /// </summary>
 public interface IEtfResearchWorkspace : IWorkspaceAccess
 {
@@ -17,7 +16,7 @@ public interface IEtfResearchWorkspace : IWorkspaceAccess
     Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token) => throw new NotSupportedException("ETF历史需要更新后台服务。");
     Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token) => throw new NotSupportedException("ETF份额点需要更新后台服务。");
     Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token) => throw new NotSupportedException("ETF覆盖率需要更新后台服务。");
-    Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token) => Task.FromResult(new List<CollectionAttempt>());
+    Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token) => throw new NotSupportedException("该工作区未提供采集记录查询。");
     Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token) => throw new NotSupportedException("采集验收需要更新后台服务。");
     Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token) => throw new NotSupportedException("ETF同步需要更新后台服务。");
     Task ExportEvidenceAsync(string revisionId,bool original,string destination,CancellationToken token) => throw new NotSupportedException("证据导出需要更新后台服务。");

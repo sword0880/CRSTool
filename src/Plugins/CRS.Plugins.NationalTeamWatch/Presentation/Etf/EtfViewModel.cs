@@ -24,9 +24,9 @@ public partial class EtfViewModel : ObservableObject
         Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),workspace,lifetime);
     }
 
-    /// <summary>Compatibility entry for existing consumers of the legacy composite workspace contract.</summary>
-    public EtfViewModel(IEtfWorkspace workspace,CancellationToken lifetime)
-        :this(LegacyEtfResearchWorkspaceAdapter.Create(workspace),LegacyMarketCycleWorkspaceAdapter.Create(workspace),ExitAlertViewModel.AsPort(workspace),lifetime) {}
+    /// <summary>装配入口直接拆为窄端口注入，不再保留旧接口适配器。</summary>
+    public EtfViewModel(INationalTeamWorkspace workspace,CancellationToken lifetime)
+        :this(workspace,workspace,workspace,lifetime) {}
     public ExitAlertViewModel Alerts {get;}
     public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EtfSummary> Rows { get; }=[];

@@ -2,7 +2,7 @@ using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-public sealed partial class MarketRepository
+internal sealed partial class AlertStore
 {
     private ExitAlertEvent? CurrentAlert(ExitAlertFinding finding,string version)=>alertEventStore.CurrentAlert(finding,version);
     /// <summary>未知数据不解除风险；事件变更与各渠道Outbox同事务，重复评价不重复通知。</summary>

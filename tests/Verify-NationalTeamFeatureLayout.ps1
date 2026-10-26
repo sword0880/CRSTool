@@ -72,24 +72,27 @@ if (-not (Test-Path -LiteralPath $marketRepository -PathType Leaf)) {
 }
 
 
-# Narrow workspace ports are the new feature boundary; keep the legacy composite contract as a compatibility facade.
+# 页面依赖功能端口；组合接口仅用于装配，不保留重复旧契约。
 $portFiles = @(
     "$core/Application/Shared/IWorkspaceAccess.cs",
-    "$core/Application/Shared/IEtfResearchWorkspace.cs",
-    "$core/Application/Shared/IDirectEquityWorkspace.cs",
-    "$core/Application/Shared/IIndustryValuationWorkspace.cs",
-    "$core/Application/Shared/IMarketCycleWorkspace.cs",
-    "$core/Application/Shared/INavWorkspace.cs",
-    "$core/Application/Shared/IExitAlertWorkspace.cs"
+    "$core/Application/Etf/IEtfResearchWorkspace.cs",
+    "$core/Application/Equity/IDirectEquityWorkspace.cs",
+    "$core/Application/IndustryValuation/IIndustryValuationWorkspace.cs",
+    "$core/Application/MarketCycle/IMarketCycleWorkspace.cs",
+    "$core/Application/Nav/INavWorkspace.cs",
+    "$core/Application/ExitAlerts/IExitAlertWorkspace.cs"
 )
 foreach ($port in $portFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $port) -PathType Leaf)) {
         throw "Required narrow workspace port is missing: $port"
     }
 }
-$legacyContract = Get-Content -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/IEtfWorkspace.cs") -Raw
-if ($legacyContract -notmatch 'public interface IEtfWorkspace' -or $legacyContract -notmatch 'OverviewAsync') {
-    throw 'The legacy IEtfWorkspace compatibility contract is missing or was unexpectedly replaced.'
+$assemblyContract = Get-Content -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/INationalTeamWorkspace.cs") -Raw
+if ($assemblyContract -notmatch 'public interface INationalTeamWorkspace : IEtfResearchWorkspace' -or $assemblyContract -match 'Task<') {
+    throw 'NationalTeam assembly contract must compose feature ports without duplicating their methods.'
+}
+if (Test-Path -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/IEtfWorkspace.cs")) {
+    throw 'The retired composite workspace interface must not return.'
 }
 $viewModelPortChecks = @(
     @{ Path = "$ui/Presentation/Equity/EquityViewModel.cs"; Pattern = 'EquityViewModel\(IDirectEquityWorkspace' },
@@ -148,9 +151,9 @@ $navStoreSource = Get-Content -LiteralPath $navStorePath -Raw
 $alertOutboxStoreSource = Get-Content -LiteralPath $alertOutboxStorePath -Raw
 $alertEventStoreSource = Get-Content -LiteralPath $alertEventStorePath -Raw
 $alertDeliveryStoreSource = Get-Content -LiteralPath $alertDeliveryStorePath -Raw
-$alertDeliveryFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertDeliveryRepository.cs") -Raw
-$alertLifecycleSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertLifecycleRepository.cs") -Raw
-$alertFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertRepository.cs") -Raw
+$alertDeliveryFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.Delivery.cs") -Raw
+$alertLifecycleSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.Lifecycle.cs") -Raw
+$alertFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.cs") -Raw
 if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
     $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
@@ -176,8 +179,21 @@ if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $alertDeliveryFacadeSource -notmatch 'alertDeliveryStore\.CompleteAlertNotification' -or
     $alertDeliveryFacadeSource -notmatch 'alertDeliveryStore\.DueNotifications' -or
     $calendarStoreSource -match 'partial class MarketRepository') {
-    throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind the session contract and compatibility facades.'
+    throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind explicit sessions and feature stores.'
 }
+# 已迁移领域的总仓储入口只允许转发，禁止SQL重新混入兼容入口。
+foreach ($feature in @('Equity','ExitAlerts')) {
+    foreach ($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/$feature") -Filter '*Repository.cs') {
+        $source = Get-Content -LiteralPath $file.FullName -Raw
+        if ($source -match '\b(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)\b') { throw "Feature SQL leaked back into facade: $($file.Name)" }
+    }
+}
+$alertSession = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.Session.cs") -Raw
+if ($alertSession -notmatch 'IAlertMarketFacts facts' -or $alertSession -match '\bMarketRepository owner') {
+    throw 'Alert feature must consume narrow market facts, not the aggregate repository.'
+}
+$equitySession = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Equity/EquityStore.Session.cs") -Raw
+if ($equitySession -notmatch 'EquityStore\(IMarketRepositorySession session\)') { throw 'Equity feature session boundary missing.' }
 $etfViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/Etf/EtfViewModel.cs") -Raw
 $marketActivitySource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/MarketCycle/MarketActivityPresentation.cs") -Raw
 $proofViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/ExitAlerts/ExitAlertProofViewModel.cs") -Raw

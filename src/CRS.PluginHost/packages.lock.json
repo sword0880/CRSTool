@@ -134,10 +134,13 @@
         "resolved": "10.0.0",
         "contentHash": "inRnbpCS0nwO/RuoZIAqxQUuyjaknOOnCEZB55KSMMjRhl0RQDttSmLSGsUJN3RQ3ocf5NDLFd2mOQViHqMK5w=="
       },
+      "crs.common": {
+        "type": "Project"
+      },
       "crs.plugin.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "crs.plugin.wpf": {
@@ -145,9 +148,6 @@
         "dependencies": {
           "CRS.Plugin.Abstractions": "[1.0.0, )"
         }
-      },
-      "crs.time": {
-        "type": "Project"
       }
     }
   }

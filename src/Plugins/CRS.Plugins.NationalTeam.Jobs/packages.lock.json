@@ -39,25 +39,25 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
+      "crs.common": {
+        "type": "Project"
+      },
       "crs.plugin.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "crs.plugins.nationalteam.core": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
-      },
-      "crs.time": {
-        "type": "Project"
       },
       "crs.worker.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       }
     }

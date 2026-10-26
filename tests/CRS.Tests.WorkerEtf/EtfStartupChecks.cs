@@ -28,7 +28,7 @@ internal static class EtfStartupChecks
                     Check(clock.Elapsed<TimeSpan.FromSeconds(2),"会话启动不等待后台连接或整页刷新");
                     Check(((IPluginWpfSession)session).GetPages().Count==3&&((IPluginWpfSession)session).GetPages().Any(x=>x.RouteKey=="industry-research"),"先完成ETF、持股及行业三个页面注册");
                     using var lifetime=new CancellationTokenSource();
-                    var workspace=DispatchProxy.Create<IEtfWorkspace,DelayedWorkspace>();
+                    var workspace=DispatchProxy.Create<INationalTeamWorkspace,DelayedWorkspace>();
                     var delayed=(DelayedWorkspace)(object)workspace;
                     var model=new EtfViewModel(workspace,lifetime.Token);
                     var page=new EtfPage(model);

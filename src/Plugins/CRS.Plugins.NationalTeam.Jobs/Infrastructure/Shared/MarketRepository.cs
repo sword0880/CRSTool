@@ -19,9 +19,6 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private readonly IndexSeriesStore indexSeriesStore;
     private readonly MarketActivityStore marketActivityStore;
     private readonly NavStore navStore;
-    private readonly AlertOutboxStore alertOutboxStore;
-    private readonly AlertEventStore alertEventStore;
-    private readonly AlertDeliveryStore alertDeliveryStore;
 
     private sealed class MarketRepositorySession : IMarketRepositorySession
     {
@@ -69,13 +66,12 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         db = new(new SqliteConnectionStringBuilder { DataSource = Path.Combine(dataPath, "market.db"), Password=Convert.ToHexString(encryptionKey),Pooling = false }.ToString()); db.Open();
         marketSession=new MarketRepositorySession(this);
         industryPeStore=new IndustryPeStore(marketSession);
+        equityStore=new EquityStore(marketSession);
         marketCalendarStore=new MarketCalendarStore(marketSession);
         indexSeriesStore=new IndexSeriesStore(marketSession);
         marketActivityStore=new MarketActivityStore(marketSession,marketCalendarStore);
         navStore=new NavStore(marketSession);
-        alertOutboxStore=new AlertOutboxStore(marketSession);
-        alertEventStore=new AlertEventStore(marketSession);
-        alertDeliveryStore=new AlertDeliveryStore(marketSession,alertOutboxStore);
+        alertStore=new AlertStore(marketSession,new AlertMarketFacts(this));
         readConnectionString=new SqliteConnectionStringBuilder(db.ConnectionString){Mode=SqliteOpenMode.ReadOnly}.ToString();
         Execute("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
         var version = Convert.ToInt32(Scalar("PRAGMA user_version;"));
@@ -129,6 +125,8 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         catch { db.Dispose(); throw; }
         marketCycleApprovalAuditKey=DeriveMarketCycleApprovalAuditKey(encryptionKey);
     }
+    private readonly AlertStore alertStore;
+    private readonly EquityStore equityStore;
     private string Now => CRS.Timing.BeijingClock.Read(clock).ToString("O");
     /// <summary>自然日查询进度独立于交易日覆盖率，不能用游标宣称份额完整。</summary>
     public DateOnly? ReadSyncCursor()=>Scalar("SELECT checked_through FROM worker_sync_cursor WHERE id=1") is string value?DateOnly.ParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture):null;

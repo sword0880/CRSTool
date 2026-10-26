@@ -119,20 +119,13 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
                 }
                 // 已逐页核对的工行原件约13.35MiB；仅该精确且有哈希约束的文件可到16MiB，其余仍限8MiB。
                 var maximumBytes=OfficialEquityDocuments.IsReviewedIssuer(uri)&&uri.Host=="v.icbc.com.cn"?16*1024*1024:8*1024*1024;
-                if (response.Content.Headers.ContentLength > maximumBytes) throw new InvalidDataException("Response too large.");
-                await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
-                using var buffer = new MemoryStream(); var bytes = new byte[8192]; int read;
-                while ((read = await stream.ReadAsync(bytes, deadline.Token).ConfigureAwait(false)) > 0)
-                {
-                    if (buffer.Length + read > maximumBytes) throw new InvalidDataException("Response too large.");
-                    await buffer.WriteAsync(bytes.AsMemory(0, read), deadline.Token).ConfigureAwait(false);
-                }
+                var body=await CRS.Common.Net.BoundedContentReader.ReadAsync(response.Content,maximumBytes,deadline.Token).ConfigureAwait(false);
                 if (status is >= 200 and < 300)
                 {
                     lock(policyGate)if(policy.Read(uri.Host).Blocked<=CRS.Timing.BeijingClock.Now)policy.Success(uri.Host);
                     lease?.Complete(status);
                 }
-                return new(status, buffer.ToArray(), response.Content.Headers.ContentType?.MediaType);
+                return new(status, body, response.Content.Headers.ContentType?.MediaType);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {

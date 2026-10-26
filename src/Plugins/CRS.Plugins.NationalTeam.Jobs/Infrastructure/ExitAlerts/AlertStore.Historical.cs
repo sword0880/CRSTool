@@ -2,7 +2,7 @@ using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-public sealed partial class MarketRepository
+internal sealed partial class AlertStore
 {
     private sealed record SavedAlertInput(string EventId,int Sequence,ExitAlertEvent Original,AlertFundInput[] Inputs,NamedEtfHolding[] Holdings,string? Rechecked);
     /// <summary>冻结当次规则输入，历史更正不使用后来新增的监控成员、具名披露或其它规则版本。</summary>

@@ -26,7 +26,7 @@
     </MSBuild>
     <PropertyGroup><_SupervisedRunnerDirectory>@(_SupervisedRunnerAssembly->'%(RootDir)%(Directory)')</_SupervisedRunnerDirectory></PropertyGroup>
     <ItemGroup>
-      <_SupervisedRunnerContent Include="$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.exe;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.dll;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.deps.json;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.runtimeconfig.json;$(_SupervisedRunnerDirectory)CRS.Worker.PluginHost.dll;$(_SupervisedRunnerDirectory)CRS.Worker.Abstractions.dll;$(_SupervisedRunnerDirectory)CRS.Time.dll;$(_SupervisedRunnerDirectory)CRS.Common.dll" />
+      <_SupervisedRunnerContent Include="$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.exe;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.dll;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.deps.json;$(_SupervisedRunnerDirectory)CRS.Worker.PluginRunner.runtimeconfig.json;$(_SupervisedRunnerDirectory)CRS.Worker.PluginHost.dll;$(_SupervisedRunnerDirectory)CRS.Worker.Abstractions.dll;$(_SupervisedRunnerDirectory)CRS.Common.dll" />
       <ContentWithTargetPath Include="@(_SupervisedRunnerContent)"
                             TargetPath="Runner/%(_SupervisedRunnerContent.Filename)%(_SupervisedRunnerContent.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>

@@ -88,9 +88,10 @@ internal static class EtfChartChecks
         thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();
         if(failure is not null)throw new InvalidOperationException("缺日连线渲染检查失败。",failure);
     }
-    private sealed class ChartWorkspace:IEtfWorkspace
+    private sealed class ChartWorkspace:INationalTeamWorkspace
     {
         public List<(EtfKey? Key,TaskCompletionSource<List<EtfHistoryPoint>> Reply)> Requests {get;}=[];
+        public bool CanManage => true;
         public string NetworkStatus=>"test";
         public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>Task.FromResult(new List<MarketActivityPoint>{new(new(2026,10,11),100000000m,1,"Complete"),new(new(2026,10,12),200000000m,1,"Complete"),new(new(2026,10,13),null,null,"Incomplete")});
         public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)

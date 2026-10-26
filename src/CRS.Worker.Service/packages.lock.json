@@ -393,21 +393,21 @@
           "System.Diagnostics.EventLog": "8.0.0"
         }
       },
+      "crs.common": {
+        "type": "Project"
+      },
       "crs.notifications": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )",
+          "CRS.Common": "[1.0.0, )",
           "MailKit": "[4.17.0, )",
           "System.Security.Cryptography.ProtectedData": "[10.0.12, )"
         }
       },
-      "crs.time": {
-        "type": "Project"
-      },
       "crs.worker.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "crs.worker.ipc": {

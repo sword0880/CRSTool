@@ -1,4 +1,4 @@
-﻿## UI-ARCH 统一视觉回归（Windows）
+## UI-ARCH 统一视觉回归（Windows）
 
 行业研究采用独立测试项目。`CRS.Tests.SectorResearch`运行完整模型领域反例；`CRS.Tests.SectorUi`默认渲染明确标记的合成曲线，`--industry-installed`使用真实Worker业务管道读取已登记公布PE。国证公布PE已接通独立后台事实链和第三页导航；完整行业价格/PB/覆盖/基本面及机会门槛仍开放。命令、口径及证据见[行业研究实施](../docs/implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)和[公布PE事实链](../docs/implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)。
 
@@ -28,7 +28,7 @@ dotnet run --project tests/CRS.Tests.PluginRecovery -c Release -- --ui-visual-pr
 
 Worker升级专项：先构建当前Release并发布新的HeartbeatOnly测试包；`./tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop`使用隔离合成文件验证包核验、快照/原件、程序切换、禁止有新事实回退和PowerShell/C#互操作，不操作SCM。`dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --upgrade-only <全新Worker测试包目录>`使用真实SQLCipher/DPAPI与测试自有进程验证升级阶段及强杀；已接入完整后台套件。需独立TEMP目录及Windows管道测试权限，不能替代真实安装服务升级或跨机恢复验收。
 
-插件/ETF开发预览：说明与未完成门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_PLUGIN_PROGRESS.md)。新增验证入口：`dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release`；`dotnet run --project tests/CRS.Tests.PluginHost -c Release -- artifacts/plugin-preview/Plugins`。双插件测试前用 `./tests/Publish-Plugins.ps1 -IncludeDemo` 生成全新发布目录。测试仅用合成研究数据和独立临时库，不把状态恢复测试称为断电验收。
+插件/ETF开发预览：说明与未完成门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。新增验证入口：`dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release`；`dotnet run --project tests/CRS.Tests.PluginHost -c Release -- artifacts/plugin-preview/Plugins`。双插件测试前用 `./tests/Publish-Plugins.ps1 -IncludeDemo` 生成全新发布目录。测试仅用合成研究数据和独立临时库，不把状态恢复测试称为断电验收。
 
 桌面日常开发：编译解决方案或 `CRS.Desktop.Wpf`（Debug/Release、VS F5 均适用）会先构建国家队双入口和 Demo 插件，再由 `Build-DevelopmentPlugins.ps1` 把完整输出、清单和 SHA256 可信索引同步到桌面输出的 `Plugins/<id>/<version>`。无需手动复制 DLL，也无需运行发布/同步脚本。纯后台 Heartbeat 不进入桌面包。更新已加载 DLL 前需停止桌面调试；复制失败会使构建失败。可用 `-p:SyncDevelopmentPlugins=false` 关闭开发同步；`Publish-Plugins.ps1` 已显式关闭此步骤并继续独立生成发行开发包。新增桌面插件时需在 WPF 项目登记同样的仅构建引用；Core 等依赖随入口输出复制。此开发哈希索引不替代生产签名发行链。
 
@@ -258,3 +258,7 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 `CRS.Tests.WorkerEtf --query-cancel-live <不存在的目录>`只读等待两项自然在途作业，取消本客户端尚未返回的整页查询，并在两分钟内回查原执行ID；未结束或非Succeeded都保留Unconfirmed。插件PID需另用独立进程快照核对，不能用主服务健康替代，也不把客户端取消等同于所有服务端工作已确认取消。该入口不提交或重试后台采集。
 
 `CRS.Tests.NationalTeamWatch --gongniu-golden <原件目录>`读取固定SSE原件与发行人162页PDF做8项隔离核验；`--gongniu-read-live <目录>`只回读正式状态，`--gongniu-review-live <目录>`会按已核PDF审核两个具名账户，先保存请求并回查原句柄，仅UnknownRequest才以同ID提交。正式审核必须待支持精确来源的包Committed及独立保留核验，投资性质Unknown、期间变化null。来源及页码见[公牛披露记录](../docs/implementation/NATIONAL_TEAM_GONGNIU_DISCLOSURE_20261026.md)；普通CDN路径和官网网页未获准作为原件，官网/CDN共享冷却由source-budget/source-policy专项覆盖。
+
+## NationalTeam 分层重构续项（2026-10-26）
+
+先构建，再运行 `--bounded-content`（8项容量/取消负例）、`--common-time`（公共时间语义）及 `--etf-loading`；完整NationalTeam默认回归和 `--exit-alerts` 覆盖加密存储、回滚、重启、修订与投递。`Verify-NationalTeamFeatureLayout.ps1` 检查按功能端口及独立持股/预警模块，禁止旧宽接口和SQL回流。环境和最终结果见[重构记录](../docs/implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。

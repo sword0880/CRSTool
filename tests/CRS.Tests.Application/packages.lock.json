@@ -5,14 +5,14 @@
       "crs.application": {
         "type": "Project",
         "dependencies": {
-          "CRS.Domain": "[1.0.0, )",
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )",
+          "CRS.Domain": "[1.0.0, )"
         }
       },
-      "crs.domain": {
+      "crs.common": {
         "type": "Project"
       },
-      "crs.time": {
+      "crs.domain": {
         "type": "Project"
       }
     }

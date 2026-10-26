@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><Version>2.0.0</Version></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../CRS.Time/CRS.Time.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../CRS.Common/CRS.Common.csproj" /></ItemGroup>
   <!-- 后台契约保持纯 BCL，不引用桌面、调度器或税务实现。 -->
 </Project>

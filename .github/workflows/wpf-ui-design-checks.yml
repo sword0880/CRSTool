@@ -80,9 +80,12 @@ jobs:
       - name: Verify adaptive ETF pages preserve complete snapshots and legacy clients
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --adaptive-query-pages
-      - name: Verify common Beijing time semantics and legacy CRS.Time forwarders
+      - name: Verify common Beijing time semantics
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time-compat
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time
+      - name: Verify shared bounded HTTP body reads and cancellation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --bounded-content
       - name: Verify shared plugin read admissions and cancellation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission

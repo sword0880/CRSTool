@@ -8,7 +8,7 @@
 - [FIFO 核算](CAPITAL_GAIN_FIFO_SPEC.md) · [金额显示](AMOUNT_PRESENTATION.md) · [富途字段](FUTU_FIELD_MAPPING.md)
 - [数据库升级](DATABASE_UPGRADE.md) · [备份容量](BACKUP_CAPACITY.md) · [锁定中断](LOCK_INTERRUPTION.md)
 - [计划任务](SCHEDULED_TASKS.md) · [后台服务](BACKGROUND_SERVICE.md)
-- [ETF Worker 迁移](ETF_WORKER_MIGRATION.md) · [国家队插件进展](NATIONAL_TEAM_PLUGIN_PROGRESS.md)
+- [ETF Worker 迁移](ETF_WORKER_MIGRATION.md) · [国家队分层重构](NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)
 - [行业估值反方审查与后续来源门槛](NATIONAL_TEAM_INDUSTRY_UNDERVALUE_REVIEW_20261026.md) · [行业基本面证据闸门与反方测试](NATIONAL_TEAM_INDUSTRY_QUALITY_GATES_20261026.md) · [国家队插件功能分类](../architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)
 - [投资绩效](PERFORMANCE_P0.md)
 
@@ -22,3 +22,5 @@
 其余细分专题按文件名在此目录查找，不重复维护第二份完整文件列表。进行发布判断，请查看 [待办](../KNOWN_ISSUES.md) 和 [发布验收](../validation/RELEASE_ACCEPTANCE.md)。
 
 [返回文档首页](../README.md)
+
+- [NationalTeamWatch分层重构续项](NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)：独立持股/预警模块、按功能端口、公共正文读取与旧接口退役。

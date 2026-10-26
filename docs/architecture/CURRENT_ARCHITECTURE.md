@@ -1,5 +1,7 @@
 # 当前架构入口
 
+2026-10-26 国家队模块续项：直接持股与预警实现独立、工作区端口按功能归档、旧聚合接口及时间兼容壳退役，公共正文读取进入 `CRS.Common`。当前验证及剩余连接/ETF核心解耦见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+
 2026-10-23反方评审R01～R04候选整改：Application显式联合导入提交、国家队独立只读快照与有界证据查询、正式源码组合根默认每插件Runner监督、ACL巡检与容量预警分离。工作区源码已接线，未替换已安装服务，验证与剩余边界见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
 
 2026-10-23 阶段 2a 新增 RecoveryExportSession 内部确认/审计状态机及 ServiceKey.OpenExisting 只读入口；尚未接到 Worker 运行时/管道，未改变生产导出权限或调度流程。[验证与剩余接线门槛](../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)。
@@ -14,25 +16,24 @@
 
 | 项目 | 直接项目依赖 | 职责 |
 | --- | --- | --- |
-| CRS.Time | CRS.Common | 二进制兼容外壳：通过 TypeForwardedTo 转发旧时间类型，暂不删除已发行程序集 |
 | CRS.Domain | 无 | 交易事实、FIFO、税务及绩效规则 |
-| CRS.Application | CRS.Domain, CRS.Time | 用例、端口、冻结结果、DesktopWorkflow |
+| CRS.Application | CRS.Common, CRS.Domain | 用例、端口、冻结结果、DesktopWorkflow |
 | CRS.Security | 无 | 密码学、认证和保险库机制 |
 | CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security | 券商解析、持久化、汇率、导出、装配 |
 | CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc | 桌面进程，具体基础设施仅由 Composition 装配 |
-| CRS.Plugin.Abstractions | CRS.Time | 桌面插件的 BCL 契约 |
-| CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹；不依赖业务或宿主 |
+| CRS.Plugin.Abstractions | CRS.Common | 桌面插件的 BCL 契约 |
+| CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹、有界HTTP正文读取；不依赖业务或宿主 |
 | CRS.Plugin.Wpf | CRS.Plugin.Abstractions | WPF 页面贡献契约 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
-| CRS.Worker.Abstractions | CRS.Time | 后台会话、任务、查询及存储上下文契约 |
+| CRS.Worker.Abstractions | CRS.Common | 后台会话、任务、查询及存储上下文契约 |
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
 | CRS.Worker.PluginRunner | CRS.Worker.PluginHost | 每插件监督进程、私有stdio双向协议、上下文能力代理；正式源码组合根已启动，部署另验 |
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Named Pipes、Windows 身份授权及请求协议 |
-| CRS.Notifications | CRS.Time | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
+| CRS.Notifications | CRS.Common | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
 | CRS.Plugins.Heartbeat | CRS.Worker.Abstractions | 后台心跳插件 |
-| CRS.Plugins.NationalTeam.Core | CRS.Time | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
+| CRS.Plugins.NationalTeam.Core | CRS.Common | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
 | CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
 

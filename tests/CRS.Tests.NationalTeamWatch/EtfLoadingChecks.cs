@@ -93,9 +93,10 @@ internal static class EtfLoadingChecks
     }
     private sealed class RolloverClock:TimeProvider
     {public DateTimeOffset At;public override DateTimeOffset GetUtcNow()=>At;}
-    private sealed class Workspace:IEtfWorkspace,IEtfDashboardWorkspace
+    private sealed class Workspace:INationalTeamWorkspace,IEtfDashboardWorkspace
     {
         public int SeparateReads;
+        public bool CanManage => true;
         public string NetworkStatus=>"synthetic";
         public List<CancellationToken> HistoryTokens=[];
         public List<TaskCompletionSource<List<EtfHistoryPoint>>> HistoryReplies=[];

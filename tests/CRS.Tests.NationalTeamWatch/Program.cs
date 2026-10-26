@@ -4,8 +4,9 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
-if(args is ["--common-time-compat"]){CommonTimeCompatibilityChecks.Run();return;}
+if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
 if(args is ["--shared-read-admission"]){await PluginCommonAdmissionChecks.RunAsync();return;}
+if(args is ["--bounded-content"]){await BoundedContentChecks.RunAsync();return;}
 if(args is ["--nav-research-checks"]){NavResearchChecks.Run();EtfNavStudyChecks.Run();return;}
 if(args is ["--nav-storage-checks"]){NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--nav-source-checks"]){await NavSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavSource",Guid.NewGuid().ToString("N")));return;}

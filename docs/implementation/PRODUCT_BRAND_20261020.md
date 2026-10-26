@@ -50,7 +50,7 @@ Debug/Release桌面构建均0警告、0错误（auth-brand-debug.log / auth-bran
 
 `BrandNavigationToggle` 删除 `IsKeyboardFocused` 的红色边框触发器，避免点击品牌区切换导航后一直显示红框；保留透明背景、轻量悬停/按下反馈和原生键盘焦点提示。导航开关与品牌素材不变。
 
-`CRS.Time` 是已经接入的无 UI 公共类库：统一北京时间时钟、时间点偏移标准化、文本序列化和 JSON `DateTimeOffset` 边界。桌面、Worker、通知与插件共用它，避免各层重复处理时间。现有职责不是未来插件功能占位，也不包含交易日历或市场行情。
+`CRS.Common/Time` 是已经接入的无 UI 公共时间实现：统一北京时间时钟、时间点偏移标准化、文本序列化和 JSON `DateTimeOffset` 边界。桌面、Worker、通知与插件共用公共实现，避免各层重复处理时间。现有职责不是未来插件功能占位，也不包含交易日历或市场行情。
 
 验证：本次 Debug / Release 构建均为 0 警告、0 错误（`artifacts/startup-layout-*-build.log`）；主窗口三宽度、三 DPI 位图预览及导航命中回归通过，人工查看品牌局部图片无红框（`artifacts/startup-layout-brand/`）。认证 XAML 的绑定、命名控件与事件契约对比保持一致。完整隔离保险库启动预览在创建测试库阶段退出，未进入窗口检查；高缩放、多屏首次显示及认证窗口实际滚动仍待实机验收。界面规范脚本因未修改的 `BackgroundServicePage.xaml` 已有硬编码颜色 5 / 基线 2 未通过，未扩大本次修改范围。
 

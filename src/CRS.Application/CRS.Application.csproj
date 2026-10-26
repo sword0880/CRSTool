@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../CRS.Domain/CRS.Domain.csproj" />
-    <ProjectReference Include="../CRS.Time/CRS.Time.csproj" />
+    <ProjectReference Include="../CRS.Common/CRS.Common.csproj" />
     <Using Include="CRS.Domain" />
   </ItemGroup>
 </Project>
