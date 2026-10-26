@@ -113,14 +113,15 @@
 - 新增 `MarketCalendarStore`，统一负责交易日历Schema、官方日历登记、已审核交易日判断，以及行业PE/指数研究共同使用的日历查询与原件核验；`RegisterReviewedCalendar`、`IsReviewedTradingDay`、`IndustryPeCalendar` 与 `IndexSeriesCalendar` 仍保留原公共入口。
 - `IndexSeriesStore` 现已独立承接指数捕获证明、官方原件导入、价格引用、修订历史、审核及命令幂等；`IndexSeriesRepository` 只保留 `IMarketRepository` 兼容转发，指数日历通过共享 `MarketCalendarStore` 查询。
 - `MarketActivityStore` 现已独立承接市场成交额/成交量事实、采集游标、来源原件登记、复核审计与冲突状态计算；原 `MarketActivityRepository` 保留方法签名并转发，复用同一会话和日历Store。
+- `NavStore` 现已独立承接ETF基金NAV原件、修订、审核与知识截止查询；`NavRepository` 保留旧方法兼容。重启时核验 `etf-nav` 迁移登记和5张真实表是否一致，若缺表直接拒绝补建并保全现场。
 - `MarketRepository` 继续保留旧的 `IMarketRepository` 公共入口，行业PE、日历和指数序列方法通过兼容Facade/共享组件转发，没有更改上层用例或Worker IPC。
 - 新增内部 `IMarketRepositorySession` 契约，并由私有的 `MarketRepositorySession` 适配器提供共享连接、取消令牌、时间、原件核验和幂等回执能力。它**暂时仍由MarketRepository持有底层连接**；这一步抽离了领域逻辑，但尚未把数据库生命周期所有权完全搬出聚合类。
 - 本次迁移保留同一个SQLCipher连接、原有事务提交点、原件保存顺序、`feature_schema_migration` 版本和 `nt_industry_*` 表结构。读写都仍经过既有 `ExecuteOperation` 取消门槛。
 
 ### 下一步存储层迁移顺序
 
-1. **迁移NAV与退出预警**：市场周期的指数序列、成交活动和共享日历已拆为独立Store。下一步先迁移NAV的独立修订与原件核验，再迁移退出预警的pending标记、事件重放、发件箱和投递事务。
-2. **再迁移NAV和退出预警**：保留NAV独立修订身份、预警pending标记、事件重放和发件箱投递事务；禁止为了拆类而把原来一个事务切成多个提交。
+1. **迁移退出预警**：NAV的独立修订与原件核验已拆出。下一步先梳理退出预警的pending标记、事件重放、发件箱/投递审计事务，再按“评估、生命周期、投递”拆为真正的独立Store，不能割裂既有事务。
+2. **完善存储测试**：除独立NAV真实SQLCipher存储、丢表拒绝自动补建之外，对市场活动、指数和行业PE追加回滚/重启/取消/知识截止对照，并校验来源哈希和两套幂等回执。
 3. **再迁移直接持股，最后迁移ETF核心**：直接持股依赖证券主档和官方披露原件；ETF核心包含份额修订、质量问题、日历、仪表盘与同步游标，跨域耦合最多，最后处理。
 4. **最后迁移连接所有权**：当各领域Store通过共享会话回归稳定后，再将SQLCipher连接/只读快照/Schema组合根抽到独立 `MarketDatabaseSession`，让 `MarketRepository` 退化为纯兼容Facade。
 5. 每个领域迁移都必须通过真实存储测试：数据库关闭重开、写事务回滚、取消中断、重复命令回执、原件损坏、知识截止查询和并发只读快照。只通过编译或目录检查不算验收。

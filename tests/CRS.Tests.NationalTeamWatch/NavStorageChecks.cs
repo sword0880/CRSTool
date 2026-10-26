@@ -82,6 +82,7 @@ internal static class NavStorageChecks
             Check(reopened.NavPoints(Key, From, Through, initialAt).Count == 10 && reopened.NavPoints(Key, From, Through, conflictAt).Count == 9, "重启后的历史知识视图仍可复算");
         }
         Cancellation(Path.Combine(root, "cancel"));
+        BrokenSchema(Path.Combine(root, "broken-schema"));
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(data, "market.db"), Password = Convert.ToHexString(TestMarketData.Key), Pooling = false }.ToString()))
         {
             connection.Open(); using var command = connection.CreateCommand(); command.CommandText = "DELETE FROM worker_business_command WHERE request=$id"; command.Parameters.AddWithValue("$id", importCommand.ToString("N")); command.ExecuteNonQuery();
@@ -96,6 +97,33 @@ internal static class NavStorageChecks
         using (var exclusive = new FileStream(Path.Combine(data, "market.db"), FileMode.Open, FileAccess.Read, FileShare.None))
             Check(exclusive.Length > 0, "初始化失败释放数据库句柄，不遗留升级锁");
     }
+    private static void BrokenSchema(string root)
+    {
+        var raw = new RawEvidenceStore(Path.Combine(root, "raw"));
+        var data = Path.Combine(root, "data");
+        var clock = new Clock();
+        using (var seeded = TestMarketData.Open(data, raw, timeProvider: clock))
+            Check(seeded.ImportNavDocuments(NavResearchChecks.Fixture()).Added == 10, "准备真实加密NAV存储与迁移记录");
+        // 人为删除一个已声明表，确保重启只报告损坏、不借 CREATE IF NOT EXISTS 补表掩盖。
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            { DataSource = Path.Combine(data, "market.db"), Password = Convert.ToHexString(TestMarketData.Key), Pooling = false }.ToString()))
+        {
+            connection.Open();
+            using var drop = connection.CreateCommand();
+            drop.CommandText = "DROP TABLE nt_nav_command";
+            drop.ExecuteNonQuery();
+        }
+        Reject(() => { using var damaged = TestMarketData.Open(data, raw, timeProvider: clock); },
+            "已登记NAV模式缺少命令表时启动失败，不自动补建空表");
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            { DataSource = Path.Combine(data, "market.db"), Password = Convert.ToHexString(TestMarketData.Key), Pooling = false }.ToString()))
+        {
+            connection.Open(); using var verify = connection.CreateCommand();
+            verify.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='nt_nav_command'";
+            Check(Convert.ToInt32(verify.ExecuteScalar()) == 0, "失败启动未修改NAV破损现场");
+        }
+    }
+
     private static void Cancellation(string root)
     {
         using var cancel = new CancellationTokenSource(); var armed = false; var writes = 0;

@@ -110,6 +110,8 @@ $sessionContractPath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/IMarketR
 $industryStorePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeStore.cs"
 $industryFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeRepository.cs"
 $calendarStorePath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketCalendarStore.cs"
+$navFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/Nav/NavRepository.cs"
+$navStorePath = Join-Path $repoRoot "$jobs/Infrastructure/Nav/NavStore.cs"
 $calendarFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeCalendar.cs"
 $indexFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesRepository.cs"
 $indexStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesStore.cs"
@@ -120,7 +122,8 @@ if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $calendarStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $indexStorePath -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $activityStorePath -PathType Leaf)) {
+    -not (Test-Path -LiteralPath $activityStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $navStorePath -PathType Leaf)) {
     throw 'Storage extraction requires the shared session, IndustryPeStore, MarketCalendarStore, IndexSeriesStore and MarketActivityStore.'
 }
 $sessionSource = Get-Content -LiteralPath $sessionContractPath -Raw
@@ -134,6 +137,8 @@ $indexStoreSource = Get-Content -LiteralPath $indexStorePath -Raw
 $calendarPersistenceFacadeSource = Get-Content -LiteralPath $calendarPersistenceFacadePath -Raw
 $activityFacadeSource = Get-Content -LiteralPath $activityFacadePath -Raw
 $activityStoreSource = Get-Content -LiteralPath $activityStorePath -Raw
+$navFacadeSource = Get-Content -LiteralPath $navFacadePath -Raw
+$navStoreSource = Get-Content -LiteralPath $navStorePath -Raw
 if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
     $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
@@ -146,6 +151,8 @@ if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $indexStoreSource -match 'partial class MarketRepository' -or
     $activityFacadeSource -notmatch 'marketActivityStore\.MarketActivity' -or
     $activityStoreSource -match 'partial class MarketRepository' -or
+    $navFacadeSource -notmatch 'navStore\.NavPoints' -or
+    $navStoreSource -match 'partial class MarketRepository' -or
     $calendarStoreSource -match 'partial class MarketRepository') {
     throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind the session contract and compatibility facades.'
 }

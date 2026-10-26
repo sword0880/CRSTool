@@ -36,6 +36,9 @@ jobs:
       - name: Verify market repository contracts before job admission
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --repository-contracts
+      - name: Verify NAV storage evidence, revisions, schema and rollback
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-storage-checks
       - name: Verify equity comparison baselines and ETF collection receipts
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --evidence-adversarial

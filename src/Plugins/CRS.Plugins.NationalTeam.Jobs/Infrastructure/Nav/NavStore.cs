@@ -25,6 +25,11 @@ internal sealed class NavStore
     {
         var version = _session.Scalar("SELECT version FROM feature_schema_migration WHERE feature='etf-nav'");
         if (version is not null && Convert.ToInt32(version) != 1) throw new InvalidDataException("NAV存储版本不受支持，拒绝猜测兼容。");
+        // 有迁移记录但表缺失、或无记录却遗留部分表，都不能在启动时自动补建伪装为空库。
+        var existingTables = Convert.ToInt32(_session.Scalar(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN('nt_nav_capture','nt_nav_capture_document','nt_nav_revision','nt_nav_revision_event','nt_nav_command')"));
+        if ((version is null && existingTables != 0) || (version is not null && existingTables != 5))
+            throw new InvalidDataException("NAV迁移登记与实际表结构不一致，拒绝自动修补或清空金融证据。");
         _session.BeforeWrite?.Invoke(); using var transaction = _session.Connection.BeginTransaction();
         _session.Execute("""
             CREATE TABLE IF NOT EXISTS nt_nav_capture(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,parser_version TEXT NOT NULL,verified_at TEXT NOT NULL,registered_at TEXT NOT NULL,fingerprint TEXT NOT NULL,row_count INTEGER NOT NULL);
