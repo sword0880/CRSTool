@@ -6,9 +6,12 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>预警中心只维护筛选、选择及编辑草稿，计算、原件、数据库和投递均在后台。</summary>
-public partial class ExitAlertViewModel(IExitAlertWorkspace workspace,CancellationToken lifetime):ObservableObject
+public partial class ExitAlertViewModel(IExitAlertWorkspace workspace,IEtfResearchWorkspace etfWorkspace,CancellationToken lifetime):ObservableObject
 {
     internal static IExitAlertWorkspace AsPort(IEtfWorkspace workspace)=>workspace as IExitAlertWorkspace??new LegacyExitAlertWorkspaceAdapter(workspace);
+    /// <summary>Compatibility constructor for existing consumers of the legacy composite workspace contract.</summary>
+    public ExitAlertViewModel(IEtfWorkspace workspace,CancellationToken lifetime)
+        :this(AsPort(workspace),LegacyEtfResearchWorkspaceAdapter.Create(workspace),lifetime) {}
     public bool CanManage=>workspace.CanManage;
     public bool CanEdit=>CanManage&&!Busy;
     public ObservableCollection<ExitAlertEvent> Events {get;}=[];
