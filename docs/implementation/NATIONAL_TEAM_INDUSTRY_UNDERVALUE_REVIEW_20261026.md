@@ -63,6 +63,7 @@
 
 ```powershell
 dotnet run --project tests/CRS.Tests.IndustryPe -c Release -- --output artifacts/industry-pe-checks
+dotnet run --project tests/CRS.Tests.SectorUi -c Release -- --industry artifacts/industry-pe-checks/synthetic-industry-ui-report.json artifacts/industry-pe-checks/synthetic-industry-ui.png
 dotnet run --project tests/CRS.Tests.SectorResearch -c Release -- --output artifacts/sector-research
 dotnet run --project tests/CRS.Tests.SectorUi -c Release -- artifacts/sector-research/synthetic-input.json artifacts/sector-research/sector-ui.png
 dotnet build CRS.sln -c Release
