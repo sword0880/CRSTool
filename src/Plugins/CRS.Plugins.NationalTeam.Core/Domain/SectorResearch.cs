@@ -14,10 +14,18 @@ public sealed record SectorFundamentals(DateOnly AsOf,decimal? ProfitGrowth,deci
 public sealed record SectorInput(SectorDefinition Definition,IReadOnlyList<SectorPrice> Prices,IReadOnlyList<SectorValuation> Valuations,IReadOnlyList<SectorFundamentals> Fundamentals);
 /// <summary>交易日必须来自已核对日历；历史样本和图表使用同一实际日期轴，不用工作日猜补。</summary>
 public sealed record SectorStudyRequest(DateOnly From,DateOnly Through,DateTimeOffset Cutoff,DateOnly CalendarFrom,DateOnly CalendarThrough,SectorEvidence CalendarEvidence,
-    IReadOnlyList<DateOnly> TradingDays,IReadOnlyList<SectorInput> Sectors,int HistoryYears=5,int MinimumSamples=252,decimal MinimumCoverage=0.8m,decimal LowPercentile=20m);
+    IReadOnlyList<DateOnly> TradingDays,IReadOnlyList<SectorInput> Sectors,int HistoryYears=5,int MinimumSamples=252,decimal MinimumCoverage=0.8m,decimal LowPercentile=20m)
+{
+    // 可选新增：未接入真实独立基本面时必须保持空集合，不能将PE低位冒充质量审查通过。
+    public IReadOnlyList<IndustryQualityInput> QualityInputs {get;init;}=[];
+}
 public sealed record SectorChartPoint(DateOnly Date,decimal? NormalizedClose,decimal? PePercentile=null,decimal? PbPercentile=null);
 public sealed record SectorStudyRow(string Id,string Name,IReadOnlyList<SectorChartPoint> Curve,decimal? PeTtm,decimal? Pb,decimal? PePercentile,decimal? PbPercentile,
-    int PeSamples,int PbSamples,int ExpectedHistory,string PriceState,string ValuationState,string OpportunityState,string Explanation);
+    int PeSamples,int PbSamples,int ExpectedHistory,string PriceState,string ValuationState,string OpportunityState,string Explanation)
+{
+    public string QualityReadiness {get;init;}="MissingQualitySource";
+    public string? QualityFingerprint {get;init;}
+}
 public sealed record SectorStudyReport(DateOnly BaseDate,DateOnly Through,DateTimeOffset Cutoff,string Fingerprint,IReadOnlyList<SectorStudyRow> Rows)
 {
     public string Mode=>"CurrentKnowledgeResearch";
@@ -28,15 +36,18 @@ public sealed record SectorStudyReport(DateOnly BaseDate,DateOnly Through,DateTi
 /// <summary>只计算行业研究投影，不联网、不持久化、不生成订单；走势低点与低估状态分别计算。</summary>
 public static class SectorResearch
 {
-    public const string AlgorithmVersion="sector-study-v1";
+    public const string AlgorithmVersion="sector-study-v2";
     public static SectorStudyReport Calculate(SectorStudyRequest request)
     {
         // IReadOnlyList不保证底层不可变；入口先复制，防止校验、绘图和指纹读取到调用方的不同版本。
         request=request with{TradingDays=request.TradingDays.ToArray(),Sectors=request.Sectors.Select(x=>x with
-            {Prices=x.Prices.ToArray(),Valuations=x.Valuations.ToArray(),Fundamentals=x.Fundamentals.ToArray()}).ToArray()};
+            {Prices=x.Prices.ToArray(),Valuations=x.Valuations.ToArray(),Fundamentals=x.Fundamentals.ToArray()}).ToArray(),
+            QualityInputs=(request.QualityInputs??[]).Select(x=>x with{Observations=x.Observations.ToArray()}).ToArray()};
         if(request.From>request.Through||request.Through>DateOnly.FromDateTime(request.Cutoff.ToOffset(TimeSpan.FromHours(8)).DateTime)
             ||request.HistoryYears is <1 or >20||request.MinimumSamples<252||request.MinimumCoverage is <=0 or >1||request.LowPercentile is <=0 or >=50
             ||request.Sectors.Count>100||request.Sectors.Select(x=>x.Definition.Id).Distinct(StringComparer.Ordinal).Count()!=request.Sectors.Count
+            ||request.QualityInputs.Select(x=>x.SectorId).Distinct(StringComparer.Ordinal).Count()!=request.QualityInputs.Count
+            ||request.QualityInputs.Any(x=>!request.Sectors.Any(sector=>sector.Definition.Id==x.SectorId))
             ||request.TradingDays.Distinct().Count()!=request.TradingDays.Count)throw new InvalidDataException("行业研究日期、规则或样本身份无效。");
         var calendar=request.TradingDays.Order().ToArray();var calendarSet=calendar.ToHashSet();var dates=calendar.Where(x=>x>=request.From&&x<=request.Through).ToArray();
         if(dates.Length==0||request.CalendarFrom>request.From||request.CalendarThrough<request.Through||!Known(request.CalendarEvidence,request.Cutoff))
@@ -50,6 +61,7 @@ public static class SectorResearch
         var historyFrom=dates[^1].AddYears(-request.HistoryYears);var expected=calendar.Count(x=>x>=historyFrom&&x<dates[^1]);
         var historyCalendar=request.CalendarFrom<=historyFrom&&request.CalendarThrough>=dates[^1];
         var rows=new List<SectorStudyRow>();
+        var qualityBySector=request.QualityInputs.ToDictionary(x=>x.SectorId,StringComparer.Ordinal);
         foreach(var sector in request.Sectors.OrderBy(x=>x.Definition.Id,StringComparer.Ordinal))
         {
             if(sector.Prices.GroupBy(x=>x.Date).Any(x=>x.Count()!=1)||sector.Valuations.GroupBy(x=>x.Date).Any(x=>x.Count()!=1)
@@ -90,15 +102,20 @@ public static class SectorResearch
                 :peRank is null||pbRank is null?"InsufficientHistory":"ComparableHistory";
             var fundamental=sector.Fundamentals.Where(x=>x.AsOf<=dates[^1]&&Known(x.Evidence,request.Cutoff)).OrderByDescending(x=>x.AsOf).FirstOrDefault();
             var fundamentalValid=fundamental is not null&&dates[^1].DayNumber-fundamental.AsOf.DayNumber<=180&&fundamental.Coverage>=request.MinimumCoverage&&fundamental.Coverage<=1m&&fundamental.ProfitGrowth.HasValue;
+            var quality=IndustryQualityGate.Evaluate(definition,qualityBySector.GetValueOrDefault(definition.Id),
+                dates[^1],request.Cutoff,current?.UniverseSnapshotHash);
             var low=peRank<=request.LowPercentile&&pbRank<=request.LowPercentile;
             var opportunity=valuationState!="ComparableHistory"?"NotEvaluated":!low?"NoLowValuationCondition":priceState!="Complete"?"PriceDataIncomplete":!fundamentalValid?"FundamentalsUnavailable"
-                :fundamental!.ProfitGrowth<0?"ValueTrapRisk":"ResearchWatch";
-            rows.Add(new(definition.Id,definition.Name,Array.AsReadOnly(curve),currentPe,currentPb,peRank,pbRank,pe.Length,pb.Length,expected,priceState,valuationState,opportunity,
-                "曲线统一起点100；估值分位只比较本行业同口径历史且不含当日。观察条件不是买入信号，盈利恶化/资料不足分别保留。"));
+                :fundamental!.ProfitGrowth<0?"ValueTrapRisk":quality.State!="ReadyForAdversarialReview"?"IndependentQualityEvidenceUnavailable":"ResearchWatch";
+            rows.Add(new SectorStudyRow(definition.Id,definition.Name,Array.AsReadOnly(curve),currentPe,currentPb,peRank,pbRank,pe.Length,pb.Length,expected,priceState,valuationState,opportunity,
+                "估值低位不是合理价值；基本面审核仅代表质量证据齐备，不能证实低估或构成买入信号。")
+                {QualityReadiness=quality.State,QualityFingerprint=quality.Fingerprint});
         }
         // 指纹绑定来源、审核/首见、分类版本和参数；同一数值换证据或知识时点也不是同一研究输入。
         var frozen=request with{TradingDays=calendar,Sectors=request.Sectors.OrderBy(x=>x.Definition.Id,StringComparer.Ordinal).Select(x=>x with
-            {Prices=x.Prices.OrderBy(p=>p.Date).ToArray(),Valuations=x.Valuations.OrderBy(v=>v.Date).ToArray(),Fundamentals=x.Fundamentals.OrderBy(f=>f.AsOf).ToArray()}).ToArray()};
+            {Prices=x.Prices.OrderBy(p=>p.Date).ToArray(),Valuations=x.Valuations.OrderBy(v=>v.Date).ToArray(),Fundamentals=x.Fundamentals.OrderBy(f=>f.AsOf).ToArray()}).ToArray(),
+            QualityInputs=request.QualityInputs.OrderBy(x=>x.SectorId,StringComparer.Ordinal)
+                .Select(x=>x with{Observations=x.Observations.OrderBy(y=>y.Measure).ToArray()}).ToArray()};
         var fingerprint=Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(AlgorithmVersion+"|"+JsonSerializer.Serialize(frozen))));
         return new(baseDate,dates[^1],request.Cutoff,fingerprint,Array.AsReadOnly(rows.ToArray()));
     }
