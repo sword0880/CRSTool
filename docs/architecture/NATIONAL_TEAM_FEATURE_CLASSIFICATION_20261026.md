@@ -88,6 +88,42 @@
 
 新增 tests/Verify-NationalTeamFeatureLayout.ps1 并接入 WPF CI。它检查 Core 的 Domain/Application、Jobs 的 Application/Infrastructure、NationalTeamWatch 的 Presentation 和 Worker IPC 目录不能继续平铺业务源码，验证 XAML/code-behind 配对，以及 Worker 部分类归档位置。新功能若再把源码堆回根目录，会在 CI 中失败。
 
+## 模块解耦第二阶段：窄工作区端口（2026-10-26）
+
+本阶段把页面/用例的依赖方向从“所有页面都接收 `IEtfWorkspace`”逐步改成按业务功能注入专用端口。新增以下接口：
+
+- `IEtfResearchWorkspace`：ETF配置、份额、历史、覆盖率、证据与同步。
+- `IDirectEquityWorkspace`：机构直接持股、披露、官方报告与历史原文登记。
+- `IIndustryValuationWorkspace`：国证行业PE、修订审核与采集回执。
+- `IMarketCycleWorkspace`：市场成交活动与样本指数研究。
+- `INavWorkspace`：基金NAV与独立修订历史。
+- `IExitAlertWorkspace`：预警评估、事件、输入证据、审核与投递。
+- `IWorkspaceAccess`：跨领域的管理能力提示；实际授权仍由Worker强制执行。
+
+### 兼容策略
+
+- 旧的 `IEtfWorkspace` 文件和成员声明保持不变，不通过修改其继承树来伪装二进制兼容。
+- `EtfWorkspace` 与 `WorkerEtfWorkspace` 同时实现旧组合接口和新领域端口；Worker IPC的插件ID、命令名、JSON负载、分页快照和请求回执不变。
+- 直接持股、行业估值、指数研究和退出预警的ViewModel改为依赖对应窄端口；ETF ViewModel现在在内部使用ETF端口和预警端口，旧构造入口通过显式兼容适配器转接。
+- 兼容适配器只用于旧调用方；新代码应直接注入领域端口。新端口的默认失败实现仅用于明确报告旧后台不支持的功能，不能将失败折算为空结果。
+
+### 当前尚未完成的存储层解耦
+
+此阶段**没有声称 `MarketRepository` 已被拆分**。它仍然是拥有共享SQLite连接的聚合实现，领域partial文件虽然已分类，但尚未成为独立仓储。下一阶段按以下顺序执行：
+
+1. **先建立共享会话契约**：将数据库连接、命令执行、取消令牌、只读快照、时间提供器、原件核验及命令幂等回执收敛为内部 `IMarketDatabaseSession` / 上下文。上下文不创建第二个写连接。
+2. **先迁移行业PE作为试点**：将 `InitializeIndustryPeSchema`、导入、修订读取、审核、双回执幂等逻辑迁移到独立 `IndustryPeStore`，由 `MarketRepository` 保留旧接口并转发。行业表、索引、`feature_schema_migration` 版本和命令结果格式不变。
+3. **保留事务边界**：每次写入仍通过同一共享连接/事务执行；每次只读查询仍建立独立只读连接与一致快照。禁止为每个领域各自开一个写连接，避免SQLite锁冲突与跨表部分提交。
+4. **按领域逐个迁移**：行业PE通过回归后，再迁移指数序列/市场成交活动、NAV、退出预警、直接持股，最后迁移ETF核心。每一步都必须验证原件健康检查、取消、命令重放、时间截止查询和数据库重开。
+5. **最后组合新仓储**：用领域仓储组合实现现有 `IMarketRepository` 兼容Facade；旧Worker任务和旧IPC调用不直接依赖新的内部仓储类型。
+
+### 数据库与事务边界清单
+
+- 主库仍是独立加密的 `market.db`；保持现有 `PRAGMA user_version=2`、SQLCipher密钥派生与只读连接设置。
+- 构造/初始化目前串行调用日历、直接持股、市场活动、退出预警、NAV、行业PE、指数序列及市场周期审批等Schema初始化器。迁移后应由唯一的存储组合根按固定顺序调用一次；若迁移记录与表不匹配，继续失败关闭，不能自动重建空表。
+- `source_fetch`、`quality_issue`、`worker_business_command`、原件存储与审计时间线是跨领域共享资源。领域仓储只能通过明确的共享端口访问，不能各自复制或另建一套证据表。
+- `ExecuteOperation` 的取消中断、写前授权钩子、`Read` 的一致性快照、最多10000行的读取边界以及同请求幂等回执，都是行为契约，不是可随目录迁移改变的实现细节。
+
 ## 反方架构师审查：这次没有解决的问题
 
 | 问题 | 本轮处理 | 不能夸大的结论 / 后续动作 |
