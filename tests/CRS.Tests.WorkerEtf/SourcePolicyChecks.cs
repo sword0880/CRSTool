@@ -19,6 +19,16 @@ internal static class SourcePolicyChecks
         int passed = 0;
         void Check(bool condition, string name)
         { if (!condition) throw new InvalidOperationException(name); passed++; Console.WriteLine("PASS 来源策略：" + name); }
+        // 插件持久策略与宿主使用相同出版者身份；重开数据库后也不能借CDN清除官网失败。
+        var gongniuRoot=Path.Combine(root,"gongniu");var policyNow=DateTimeOffset.UtcNow;
+        using(var policy=new SourceRequestPolicy(gongniuRoot,key))
+        {
+            policy.Failure("www.gongniu.cn",policyNow,403);
+            Check(policy.Read("gnstaticcdn.gongniukaiguan.net").Blocked>policyNow
+                &&policy.Read("www.sse.com.cn").Blocked<=policyNow,"公牛官网/CDN共用插件冷却且与SSE独立");
+        }
+        using(var reopenedPolicy=new SourceRequestPolicy(gongniuRoot,key))
+            Check(reopenedPolicy.Read("gnstaticcdn.gongniukaiguan.net").Failures==1&&reopenedPolicy.Read("www.gongniu.cn").Blocked>policyNow,"公牛来源失败及冷却重启后保留");
         var handler = new FixedHandler((_, _) =>
         {
             var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests) { Content = new StringContent("limited") };

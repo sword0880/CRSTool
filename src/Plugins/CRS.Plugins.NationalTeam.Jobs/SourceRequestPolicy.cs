@@ -38,7 +38,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
                 PRAGMA user_version=1;
                 """;
             command.ExecuteNonQuery();
-            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","www.efunds.com.cn","www.cnindex.com.cn"})_=Read(host);
+            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","gnstaticcdn.gongniukaiguan.net","www.efunds.com.cn","www.cnindex.com.cn"})_=Read(host);
         }
         catch { db.Dispose(); throw; }
     }
@@ -53,6 +53,8 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
         "v.icbc.com.cn" => "ISSUER-601398",
         // 仅精确白名单原件使用此发行人预算；不把未知域名或ZIP当作允许的报告。
         "www.abchina.com" => "ISSUER-601288",
+        // 同一发行人的网站/CDN沿同一持久来源身份；重启或更换域名不能清除既有失败和冷却。
+        "www.gongniu.cn" or "gnstaticcdn.gongniukaiguan.net" => "ISSUER-603195",
         "www.efunds.com.cn" or "cdn.efunds.com.cn" => "EFUNDS",
         // 国证独立持久预算，不借用深交所额度；限定请求路径仍由网关负责。
         // 官网与其行情域名共用CNINDEX预算和冷却，不能借行情子域名绕过网站拒绝。

@@ -21,6 +21,9 @@ if(args is ["--icbc-review-live",var icbcReviewDirectory]){await IcbcEquityAccep
 if(args is ["--icbc-golden",var icbcGoldenDirectory]){IcbcGoldenChecks.Run(icbcGoldenDirectory);return;}
 if(args is ["--abc-read-live",var abcReadDirectory]){await AbcEquityAcceptanceTool.Run(abcReadDirectory,false);return;}
 if(args is ["--abc-golden",var abcGoldenDirectory]){AbcGoldenChecks.Run(abcGoldenDirectory);return;}
+if(args is ["--gongniu-golden",var gongniuGoldenDirectory]){GongniuGoldenChecks.Run(gongniuGoldenDirectory);return;}
+if(args is ["--gongniu-review-live",var gongniuReviewDirectory]){await GongniuEquityAcceptanceTool.Run(gongniuReviewDirectory,true);return;}
+if(args is ["--gongniu-read-live",var gongniuReadDirectory]){await GongniuEquityAcceptanceTool.Run(gongniuReadDirectory,false);return;}
 if(args is ["--cnd-comparison-golden",var cndComparisonDirectory]){CndComparisonGoldenChecks.Run(cndComparisonDirectory);return;}
 if(args is ["--historical-pdf-checks",var historicalPdf]){HistoricalEquityChecks.Run(historicalPdf);return;}
 if(args is ["--abc-review-live",var abcReviewDirectory]){await AbcEquityAcceptanceTool.Run(abcReviewDirectory,true);return;}

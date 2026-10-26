@@ -27,7 +27,7 @@ public sealed class SourceBudgetRegistry : IDisposable
         this.clock = clock ?? TimeProvider.System;
         try
         {
-            foreach (var source in new[] { "SSE", "SZSE", "ISSUER-600153", "ISSUER-601398", "ISSUER-601288", "EFUNDS", "CNINDEX" })
+            foreach (var source in new[] { "SSE", "SZSE", "ISSUER-600153", "ISSUER-601398", "ISSUER-601288", "ISSUER-603195", "EFUNDS", "CNINDEX" })
             {
                 _=store.Read(source); // 在任何插件/调度启动前验证持久状态，不能把损坏行当成空预算。
                 budgets.Add(source,new());
@@ -44,6 +44,8 @@ public sealed class SourceBudgetRegistry : IDisposable
         "v.icbc.com.cn" => "ISSUER-601398",
         // 农行固定原件独立持久冷却，不能借用或清除其他发行人/交易所的失败状态。
         "www.abchina.com" => "ISSUER-601288",
+        // 公牛官网与其公开披露CDN共用持久预算，来源独立不代表允许任意路径或自动替代交易所请求。
+        "www.gongniu.cn" or "gnstaticcdn.gongniukaiguan.net" => "ISSUER-603195",
         // 两个基金域名共用持久冷却，防止切到CDN绕过拒绝；与交易所预算独立。
         "www.efunds.com.cn" or "cdn.efunds.com.cn" => "EFUNDS",
         // 行业公布数据独立冷却，不能让交易所或基金的失败阻塞另一来源。

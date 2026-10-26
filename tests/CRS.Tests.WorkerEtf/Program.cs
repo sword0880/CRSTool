@@ -51,6 +51,7 @@ if(args is ["--installed-dashboard-probe"])
 }
 if(args is ["--query-performance-live",var performanceOutput]){await EtfQueryPerformanceLive.RunAsync(performanceOutput);return;}
 if(args is ["--query-performance-live-load",var loadPerformanceOutput]){await EtfQueryPerformanceLive.RunAsync(loadPerformanceOutput,true);return;}
+if(args is ["--query-cancel-live",var cancelLiveOutput]){await EtfQueryCancelLive.Run(cancelLiveOutput);return;}
 if(args is ["--dashboard-profile-live",var profileOutput]){await DashboardProfileLive.Run(profileOutput);return;}
 if(args is ["--cross-day-live",var gapDate,var gapBaseline,var gapOutput]){await EtfCrossDayLive.RunAsync(DateOnly.ParseExact(gapDate,"yyyy-MM-dd"),gapBaseline,gapOutput);return;}
 if(args is ["--market-request-probe",var receiptId])

@@ -16,7 +16,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly object policyGate=new();
     private readonly Dictionary<string,SemaphoreSlim> sourceGates=new(StringComparer.Ordinal)
-        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)},{"ISSUER-601398",new(1)},{"ISSUER-601288",new(1)},{"EFUNDS",new(1)},{"CNINDEX",new(1)}};
+        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)},{"ISSUER-601398",new(1)},{"ISSUER-601288",new(1)},{"ISSUER-603195",new(1)},{"EFUNDS",new(1)},{"CNINDEX",new(1)}};
     // 基金官网与其CDN共用一个预算；不能把未知域名默认归入已授权发行人。
     private static string Source(string host)=>host switch
     {
@@ -26,6 +26,8 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
         "v.icbc.com.cn"=>"ISSUER-601398",
         // 已核农行原件单独排队和退避，不动SSE或其他发行人预算。
         "www.abchina.com"=>"ISSUER-601288",
+        // 发行人网站与其明确披露CDN共用冷却；仅固定已核PDF能通过能力白名单，不借用SSE预算。
+        "www.gongniu.cn" or "gnstaticcdn.gongniukaiguan.net"=>"ISSUER-603195",
         "www.efunds.com.cn" or "cdn.efunds.com.cn"=>"EFUNDS",
         "www.cnindex.com.cn" or "hq.cnindex.com.cn"=>"CNINDEX",
         _=>throw new InvalidOperationException("来源域名未登记。")
@@ -68,7 +70,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
         {
             try
             {
-                foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","www.efunds.com.cn","www.cnindex.com.cn"})
+                foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","gnstaticcdn.gongniukaiguan.net","www.efunds.com.cn","www.cnindex.com.cn"})
                 {
                     var legacy=policy.Read(host);
                     sources.ImportSourceState(host,new(legacy.Next,legacy.Blocked,legacy.Failures));

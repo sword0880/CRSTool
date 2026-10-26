@@ -250,3 +250,11 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 历史PDF独立登记：默认国家队回归包含6项无需原件的目录/拒绝合同；`CRS.Tests.NationalTeamWatch --historical-pdf-checks <真实年报PDF>`核验32项真实原件和隔离事务失败边界。`CRS.Tests.WorkerEtf --historical-command-checks`检查11项稳定请求/重开客户端/双回执边界（隔离控制器，已加入CI配置，未声称远端执行）。`--historical-pipe <完整候选包> <原PDF> <不存在的输出目录>`用独立宿主、监督进程和真实管道回放公开原件，并渲染WPF登记/回查界面；源站、正式数据不参与。`--historical-live <目录>`会显式提交真实来源登记，先保存稳定请求；`--historical-status-live <原目录>`仅沿原ID回查，不能当普通测试运行。见[口径和验收边界](../docs/implementation/NATIONAL_TEAM_HISTORICAL_PDF_20261026.md)。
 
 `CRS.Tests.WorkerEtf --equity-read-live <SSE或SZSE> <六位代码> <不存在的目录>`只读冻结指定证券候选/完整披露/历次事件/报告目录及待处理检索，不提交任务或登记持仓；同一健康PID后才生成完整取证凭据。`CRS.Tests.NationalTeamWatch --dashboard-profile-checks`检查5项诊断结果一致、新损坏和读取中取消；`CRS.Tests.WorkerEtf --dashboard-profile-live <不存在的目录>`仅在新后台支持时采样有限阶段，失败保存Unavailable与前后健康。见[分段口径](../docs/implementation/ETF_QUERY_STAGE_PROFILE_20261026.md)，不能把单次结果当性能验收或把准入/投影混合时间叫纯磁盘/IPC耗时。
+
+`CRS.Tests.NationalTeamWatch --dashboard-batch-checks`验证7项有界批量SQL、跨市场身份、停用/缺失/待审与取消边界。`CRS.Tests.WorkerEtf --query-performance-live-load <不存在的目录>`最多等待六分钟，实际观察国家队至少两个在途任务才采样并保存任务句柄；不提交任务制造负载，超时仍是观测未满足。
+
+`CRS.Tests.Background --runner-diagnostic-cancel`以真实隔离子进程验证8项慢诊断、取消确认、同PID后台作业、来源额度归还及诊断熔断/停止边界；不操作正式SCM、不注入正式日志延迟。见[真实事故与修正证据](../docs/implementation/ETF_RUNNER_DIAGNOSTIC_CANCELLATION_20261026.md)。旧实现失败与新实现通过须分开保留，不能替代正式安装和在途作业核验。
+
+`CRS.Tests.WorkerEtf --query-cancel-live <不存在的目录>`只读等待两项自然在途作业，取消本客户端尚未返回的整页查询，并在两分钟内回查原执行ID；未结束或非Succeeded都保留Unconfirmed。插件PID需另用独立进程快照核对，不能用主服务健康替代，也不把客户端取消等同于所有服务端工作已确认取消。该入口不提交或重试后台采集。
+
+`CRS.Tests.NationalTeamWatch --gongniu-golden <原件目录>`读取固定SSE原件与发行人162页PDF做8项隔离核验；`--gongniu-read-live <目录>`只回读正式状态，`--gongniu-review-live <目录>`会按已核PDF审核两个具名账户，先保存请求并回查原句柄，仅UnknownRequest才以同ID提交。正式审核必须待支持精确来源的包Committed及独立保留核验，投资性质Unknown、期间变化null。来源及页码见[公牛披露记录](../docs/implementation/NATIONAL_TEAM_GONGNIU_DISCLOSURE_20261026.md)；普通CDN路径和官网网页未获准作为原件，官网/CDN共享冷却由source-budget/source-policy专项覆盖。

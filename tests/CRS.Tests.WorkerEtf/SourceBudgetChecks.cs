@@ -44,6 +44,14 @@ internal static class SourceBudgetChecks
             Check(registry.Snapshot().Single(x=>x.Source=="CNINDEX").BlockedUtc>clock.GetUtcNow().AddHours(5.9),"国证拒绝保留实际宿主Until");
             using(var abc=await a.AcquireSourceAsync("www.abchina.com",Empty,default))
             {Check(registry.Snapshot().Single(x=>x.Source=="ISSUER-601288").Active==1&&registry.Snapshot().Single(x=>x.Source=="CNINDEX").State=="Cooldown","农行原件独立来源不清除既有国证冷却");abc.Complete(200);}
+            // 公牛网站和其披露CDN是同一出版者，不能以独立来源为由绕过本发行人的拒绝。
+            var gongniu=await a.AcquireSourceAsync("www.gongniu.cn",Empty,default);
+            var gongniuCdn=b.AcquireSourceAsync("gnstaticcdn.gongniukaiguan.net",Empty,default);
+            Check(!gongniuCdn.IsCompleted,"公牛官网/CDN跨插件共享唯一额度");
+            gongniu.Complete(403);gongniu.Dispose();await Denied(gongniuCdn,"SourceCooldown");
+            await Denied(a.AcquireSourceAsync("www.gongniu.cn",Empty,default),"SourceCooldown");
+            Check(registry.Snapshot().Single(x=>x.Source=="ISSUER-603195").State=="Cooldown"
+                &&registry.Snapshot().Single(x=>x.Source=="SSE").State!="Cooldown","公牛冷却不污染交易所来源");
             var first=await a.AcquireSourceAsync("query.sse.com.cn",Empty,default);
             var second=b.AcquireSourceAsync("static.sse.com.cn",Empty,default);
             var third=a.AcquireSourceAsync("etf.sse.com.cn",Empty,default);

@@ -45,6 +45,10 @@ jobs:
       - name: Verify supervised plugin fault isolation and durable execution
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --supervised-plugins
+      # 可选诊断阻塞不得延误业务取消确认，也不得终止同进程正常后台作业。
+      - name: Verify runner diagnostic backpressure preserves cooperative cancellation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --runner-diagnostic-cancel
       - name: Verify Worker abnormal execution filter before SQL pagination and via read-only IPC
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --history-result-filter
