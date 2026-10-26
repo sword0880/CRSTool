@@ -61,7 +61,7 @@ internal static class NavSourceChecks
     }
     private static async Task Gateway(string root)
     {
-        var handler = new DeniedHandler(); var policy = new SourceRequestPolicy(root, TestMarketData.Key);
+        var handler = new DeniedHandler(); var policy = new SourceRequestPolicy(root);
         using (var gateway = new OfficialHttpGateway(policy, handler))
         {
             foreach (var url in new[] { "https://www.efunds.com.cn/fund/159919.shtml", EfundsNavResearch.RecentUrl + "?other=1", "https://evil.efunds.com.cn/fund/159915.shtml" })
@@ -75,7 +75,7 @@ internal static class NavSourceChecks
             Check(policy.Read("www.efunds.com.cn").Blocked == policy.Read("cdn.efunds.com.cn").Blocked && policy.Read("www.sse.com.cn").Blocked <= DateTimeOffset.UtcNow,
                 "基金双域同组，交易所预算保持独立");
         }
-        using var reopened = new SourceRequestPolicy(root, TestMarketData.Key);
+        using var reopened = new SourceRequestPolicy(root);
         Check(reopened.Read("cdn.efunds.com.cn").Blocked > DateTimeOffset.UtcNow, "重启保留基金来源拒绝状态");
     }
     private sealed class Context(string root) : IBackgroundHostContext

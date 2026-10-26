@@ -155,7 +155,7 @@ $alertDeliveryFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$job
 $alertLifecycleSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.Lifecycle.cs") -Raw
 $alertFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.cs") -Raw
 if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
-    $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
+    $repositorySource -notmatch 'MarketDatabaseSession database' -or
     $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
     $storeSource -match 'partial class MarketRepository' -or
     $calendarFacadeSource -notmatch 'marketCalendarStore\.IndustryPeCalendar' -or
@@ -182,11 +182,20 @@ if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind explicit sessions and feature stores.'
 }
 # 已迁移领域的总仓储入口只允许转发，禁止SQL重新混入兼容入口。
-foreach ($feature in @('Equity','ExitAlerts','Evidence')) {
+foreach ($feature in @('Equity','ExitAlerts','Evidence','Etf')) {
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/$feature") -Filter '*Repository.cs') {
         $source = Get-Content -LiteralPath $file.FullName -Raw
         if ($source -match '\b(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)\b') { throw "Feature SQL leaked back into facade: $($file.Name)" }
     }
+}
+$databaseSession = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Storage/MarketDatabaseSession.cs") -Raw
+$etfStore = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Etf/EtfStore.Session.cs") -Raw
+$plainSqlite = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Storage/PublicResearchSqlite.cs") -Raw
+if ($databaseSession -notmatch 'IMarketRepositorySession,IDisposable' -or $databaseSession -match 'MarketRepository owner' -or
+    $repositorySource -match 'new SqliteConnection|db\.Open|db\.Dispose|CREATE TABLE|PRAGMA|MarketRepositorySession' -or
+    $etfStore -notmatch 'IMarketRepositorySession session' -or $etfStore -match 'MarketRepository owner' -or
+    $plainSqlite -match 'Password\s*=' -or $databaseSession -match 'Password\s*=') {
+    throw 'ETF storage and connection ownership must remain separate; public research databases cannot use encryption passwords.'
 }
 $integrityStore = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Evidence/EvidenceIntegrityStore.cs") -Raw
 $integrityFacade = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Evidence/EvidenceIntegrityRepository.cs") -Raw

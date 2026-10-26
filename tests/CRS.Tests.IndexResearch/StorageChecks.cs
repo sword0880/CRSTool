@@ -62,7 +62,7 @@ internal static class StorageChecks
             var unitDoc=broad.Documents.Single(x=>x.Role=="Units");var path=Path.Combine(root,"raw",unitDoc.Sha256+".raw");var saved=File.ReadAllBytes(path);File.WriteAllText(path,"损坏");
             check(repository.IndexSeriesRevisions(broad.From,broad.Through,clock.At).Where(x=>x.Value.Kind=="Price").All(x=>!x.EvidenceHealthy),"共同单位原件损坏阻断所有依赖价格");File.WriteAllBytes(path,saved);
             check(repository.IndexSeriesRevisions(broad.From,broad.Through,clock.At).Where(x=>x.Value.Kind=="Price").All(x=>x.EvidenceHealthy),"恢复原哈希字节才解除原件阻断");
-            using var corrupt=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Password=Convert.ToHexString(TestMarketData.Key),Pooling=false}.ToString());corrupt.Open();
+            using var corrupt=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString());corrupt.Open();
             var tamperTarget=repository.IndexSeriesRevisions(valuation.From,valuation.Through,clock.At).Single(x=>x.Value.Code=="399317"&&x.State=="NeedsReview");
             using(var tamper=corrupt.CreateCommand())
             {
@@ -79,7 +79,7 @@ internal static class StorageChecks
             var reverse=Guid.NewGuid();repository.ImportIndexSeries(broad,reverse);command.CommandText="DELETE FROM worker_business_command WHERE request=$id";command.Parameters["$id"].Value=reverse.ToString("N");command.ExecuteNonQuery();Reject(()=>repository.IndexSeriesReceipt(reverse),"全局回执缺损不能被金融回执冒充完整");
         }
         using(var reopened=TestMarketData.Open(data,raw,timeProvider:clock))check(reopened.IndexSeriesRevisions(broad.From,broad.Through,clock.At).Count==315,"加密库独立重启保留301价格、10快照与四项修订");
-        using(var corrupt=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Password=Convert.ToHexString(TestMarketData.Key),Pooling=false}.ToString()))
+        using(var corrupt=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString()))
         {corrupt.Open();using var command=corrupt.CreateCommand();command.CommandText="DROP TABLE nt_index_event";command.ExecuteNonQuery();}
         Reject(()=>{using var broken=TestMarketData.Open(data,raw,timeProvider:clock);},"已初始化指数库缺表不能自动重建为无数据");
         using var cancel=new CancellationTokenSource();var armed=false;var cancelData=Path.Combine(root,"cancel");

@@ -67,7 +67,7 @@ internal static class P0RemediationChecks
     private static async Task ValidationBackoff(string root,DateOnly day)
     {
         var path=Path.Combine(root,"contract-backoff");var raw=new RawEvidenceStore(Path.Combine(path,"raw"));var handler=new HtmlHandler();
-        using(var policy=new CRS.Plugins.NationalTeam.Jobs.SourceRequestPolicy(Path.Combine(path,"policy"),TestMarketData.Key))
+        using(var policy=new CRS.Plugins.NationalTeam.Jobs.SourceRequestPolicy(Path.Combine(path,"policy")))
         using(var gateway=new CRS.Plugins.NationalTeam.Jobs.OfficialHttpGateway(policy,handler))
         {
             var source=new OfficialShareSources(gateway,raw);
@@ -75,7 +75,7 @@ internal static class P0RemediationChecks
             var second=await source.FetchAsync(day.AddDays(1),[new("SSE","510300")],default);
             Check(first.Failures?.Single().State=="ParseFailed"&&second.Failures?.Single().State=="SourceFailed"&&handler.Requests==1,"HTTP200防护HTML触发契约失败持久退避，不连续请求同一来源");
         }
-        using var reopened=new CRS.Plugins.NationalTeam.Jobs.SourceRequestPolicy(Path.Combine(path,"policy"),TestMarketData.Key);
+        using var reopened=new CRS.Plugins.NationalTeam.Jobs.SourceRequestPolicy(Path.Combine(path,"policy"));
         Check(reopened.Read("query.sse.com.cn").Blocked>DateTimeOffset.UtcNow,"结构/解析错误冷却在策略库重建后保留");
     }
     private sealed class HtmlHandler:System.Net.Http.HttpMessageHandler

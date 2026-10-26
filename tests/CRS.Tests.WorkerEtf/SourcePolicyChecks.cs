@@ -21,13 +21,13 @@ internal static class SourcePolicyChecks
         { if (!condition) throw new InvalidOperationException(name); passed++; Console.WriteLine("PASS 来源策略：" + name); }
         // 插件持久策略与宿主使用相同出版者身份；重开数据库后也不能借CDN清除官网失败。
         var gongniuRoot=Path.Combine(root,"gongniu");var policyNow=DateTimeOffset.UtcNow;
-        using(var policy=new SourceRequestPolicy(gongniuRoot,key))
+        using(var policy=new SourceRequestPolicy(gongniuRoot))
         {
             policy.Failure("www.gongniu.cn",policyNow,403);
             Check(policy.Read("gnstaticcdn.gongniukaiguan.net").Blocked>policyNow
                 &&policy.Read("www.sse.com.cn").Blocked<=policyNow,"公牛官网/CDN共用插件冷却且与SSE独立");
         }
-        using(var reopenedPolicy=new SourceRequestPolicy(gongniuRoot,key))
+        using(var reopenedPolicy=new SourceRequestPolicy(gongniuRoot))
             Check(reopenedPolicy.Read("gnstaticcdn.gongniukaiguan.net").Failures==1&&reopenedPolicy.Read("www.gongniu.cn").Blocked>policyNow,"公牛来源失败及冷却重启后保留");
         var handler = new FixedHandler((_, _) =>
         {
@@ -37,7 +37,7 @@ internal static class SourcePolicyChecks
         });
         var sse = new Uri("https://query.sse.com.cn/test");
         var progress=new List<CRS.Plugins.NationalTeamWatch.Application.EtfProgress>();
-        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(root, key), handler))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(root), handler))
         {
             gateway.Progress=value=>{progress.Add(value);return Task.CompletedTask;};
             Check((await gateway.GetAsync(sse, default)).StatusCode == 429, "拒绝响应保留原始状态供来源登记");
@@ -45,19 +45,19 @@ internal static class SourcePolicyChecks
             var cooldownRejected=false;try{await gateway.GetAsync(sse,default);}catch(InvalidOperationException){cooldownRejected=true;}
             Check(cooldownRejected && progress[^1].Stage=="Cooldown" && progress.Count(x=>x.Stage=="RequestStarted")==1,"冷却请求明确记录等待且不再发起HTTP");
         }
-        using (var policy = new SourceRequestPolicy(root, key))
+        using (var policy = new SourceRequestPolicy(root))
         {
             Check(policy.Read("www.sse.com.cn").Blocked > DateTimeOffset.UtcNow.AddHours(47), "重建策略后保留Retry-After，且同交易所域名共用阻断");
             Check(policy.Read("www.szse.cn").Failures == 0, "上交所拒绝不污染深交所额度");
         }
         var healthy = new FixedHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("ok") }));
-        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(root, key), healthy))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(root), healthy))
         {
             try { await gateway.GetAsync(new("https://etf.sse.com.cn/test"), default); throw new Exception("未阻断"); }
             catch (InvalidOperationException) { Check(healthy.Calls == 0, "重启后被阻断来源不会发出请求或切换域名"); }
             Check((await gateway.GetAsync(new("https://www.szse.cn/test"), default)).StatusCode == 200, "另一交易所仍可独立采集");
         }
-        using (var policy = new SourceRequestPolicy(Path.Combine(root, "transient"), key))
+        using (var policy = new SourceRequestPolicy(Path.Combine(root, "transient")))
         {
             var now = DateTimeOffset.UtcNow;
             policy.Reserve(sse.Host, now);
@@ -70,26 +70,26 @@ internal static class SourcePolicyChecks
             Check(policy.Read(sse.Host).Failures == 0, "成功后清除连续失败计数");
         }
         var timeoutRoot = Path.Combine(root, "timeout");
-        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(timeoutRoot, key), new FixedHandler((_, _) => throw new TaskCanceledException())))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(timeoutRoot), new FixedHandler((_, _) => throw new TaskCanceledException())))
         {
             try { await gateway.GetAsync(sse, default); throw new Exception("未分类超时"); }
             catch (TimeoutException) { Check(true, "传输超时转换为来源故障而非用户取消"); }
         }
-        using (var policy = new SourceRequestPolicy(timeoutRoot, key))
+        using (var policy = new SourceRequestPolicy(timeoutRoot))
             Check(policy.Read(sse.Host).Blocked > DateTimeOffset.UtcNow, "传输超时在重建后仍退避");
-        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root, "body"), key), new FixedHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream()) }))))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root, "body")), new FixedHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream()) }))))
         {
             try { await gateway.GetAsync(sse, default); throw new Exception("正文未超时"); }
             catch (TimeoutException) { Check(true, "正文停滞也受20秒总期限约束"); }
         }
         var cancelRoot = Path.Combine(root, "cancel");
         using (var cancelled = new CancellationTokenSource())
-        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(cancelRoot, key), new FixedHandler((_, token) => { cancelled.Cancel(); token.ThrowIfCancellationRequested(); throw new Exception(); })))
+        using (var gateway = new OfficialHttpGateway(new SourceRequestPolicy(cancelRoot), new FixedHandler((_, token) => { cancelled.Cancel(); token.ThrowIfCancellationRequested(); throw new Exception(); })))
         {
             try { await gateway.GetAsync(sse, cancelled.Token); throw new Exception("未取消"); }
             catch (OperationCanceledException) { Check(true, "调用方取消保持取消语义"); }
         }
-        using (var policy = new SourceRequestPolicy(cancelRoot, key))
+        using (var policy = new SourceRequestPolicy(cancelRoot))
             Check(policy.Read(sse.Host).Failures == 0, "用户取消不增加来源失败计数");
         var rejected = false;
         try
@@ -101,9 +101,9 @@ internal static class SourcePolicyChecks
         Check(rejected, "来源策略库无钥拒读");
         var damaged = Path.Combine(root, "damaged"); Directory.CreateDirectory(damaged);
         File.WriteAllText(Path.Combine(damaged, "source-policy.db"), "broken database");
-        try { using var policy = new SourceRequestPolicy(damaged, key); throw new Exception("损坏库被重建"); }
+        try { using var policy = new SourceRequestPolicy(damaged); throw new Exception("损坏库被重建"); }
         catch (SqliteException) { Check(true, "策略损坏拒绝启动且不静默清除阻断"); }
-        using (var policy = new SourceRequestPolicy(Path.Combine(root, "forbidden"), key))
+        using (var policy = new SourceRequestPolicy(Path.Combine(root, "forbidden")))
         {
             var now = DateTimeOffset.UtcNow; policy.Failure(sse.Host, now, 403);
             Check(policy.Read(sse.Host).Blocked >= now.AddHours(6), "403至少冷却六小时");

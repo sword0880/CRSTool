@@ -16,7 +16,7 @@ internal static class MarketQueryReliabilityChecks
         var key=RandomNumberGenerator.GetBytes(32);var rawPath=Path.Combine(root,"raw");var data=Path.Combine(root,"data");
         using var entered=new ManualResetEventSlim();var wait=0;
         var raw=new RawEvidenceStore(rawPath,openRead:path=>Volatile.Read(ref wait)==1?new WaitingStream(entered):File.OpenRead(path));
-        using var repository=new MarketRepository(data,raw,encryptionKey:key);
+        using var repository=new MarketRepository(data,raw,approvalAuditKey:key);
         var day=new DateOnly(2026,10,13);
         MarketActivitySource Value(string market,DateOnly date)=>new(OfficialMarketActivitySource.Request(market,date),
             Encoding.UTF8.GetBytes($"synthetic-{market}-{date}"),market,date,new(market,date,100,200));
@@ -30,7 +30,7 @@ internal static class MarketQueryReliabilityChecks
         repository.ReconcileEvidenceIntegrity();
         Console.WriteLine("PASS 成交查询仅核验相关证据；完整巡检仍发现无关披露原件损坏。");
         // WAL已有其他写入者时，整页只读事务不能抢占写锁。
-        using(var writer=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Password=Convert.ToHexString(key),Pooling=false}.ToString()))
+        using(var writer=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString()))
         {
             writer.Open();using(var check=writer.CreateCommand())
             {check.CommandText="SELECT count(*) FROM quality_issue WHERE rule_id='Q15' AND status='Open'";
@@ -75,7 +75,7 @@ internal static class MarketQueryReliabilityChecks
         using var repository=new MarketRepository(Path.Combine(root,"data"),raw,()=>
         {
             if(Volatile.Read(ref hold)==1){entered.Set();if(!release.Wait(TimeSpan.FromSeconds(15)))throw new TimeoutException("隔离写入未释放。");}
-        },encryptionKey:key);
+        },approvalAuditKey:key);
         await using var workspace=new EtfWorkspace(new Context(),()=>repository,raw);
         await workspace.InitializeAsync(default);Volatile.Write(ref hold,1);
         var writer=workspace.SaveConfigurationAsync(new("SSE","510300"),"独立读取检查","测试指数",true,"隔离并发检查",0,default);

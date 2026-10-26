@@ -5,20 +5,17 @@ using Microsoft.Data.Sqlite;
 
 namespace CRS.Plugins.NationalTeam.Jobs;
 
-/// <summary>来源限速和退避独立存入加密库，重启不能清除交易所拒绝状态。</summary>
+/// <summary>来源限速和退避存入普通SQLite，重启不能清除交易所拒绝状态。</summary>
 public sealed class SourceRequestPolicy : ISourceRequestPolicy
 {
     private readonly SqliteConnection db;
     private bool failed;
-    public SourceRequestPolicy(string directory, byte[] key)
+    public SourceRequestPolicy(string directory)
     {
-        if (key.Length != 32) throw new ArgumentException("来源策略需要32字节服务密钥。");
         Directory.CreateDirectory(directory);
-        SQLitePCL.Batteries_V2.Init();
-        db = new(new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "source-policy.db"), Password = Convert.ToHexString(key), Pooling = false }.ToString());
+        db = CRS.Plugins.NationalTeamWatch.Infrastructure.PublicResearchSqlite.Open(Path.Combine(directory,"source-policy.db"));
         try
         {
-            db.Open();
             using (var version = db.CreateCommand())
             {
                 version.CommandText = "PRAGMA user_version";

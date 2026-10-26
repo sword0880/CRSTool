@@ -7,6 +7,7 @@ static void Reject(Action action,string name) {try{action();}catch(Exception){Co
 if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
 if(args is ["--shared-read-admission"]){await PluginCommonAdmissionChecks.RunAsync();return;}
 if(args is ["--bounded-content"]){await BoundedContentChecks.RunAsync();return;}
+if(args is ["--public-storage"]){PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--nav-research-checks"]){NavResearchChecks.Run();EtfNavStudyChecks.Run();return;}
 if(args is ["--nav-storage-checks"]){NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--nav-source-checks"]){await NavSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavSource",Guid.NewGuid().ToString("N")));return;}
@@ -73,6 +74,7 @@ if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
 if(args.Length!=0)throw new ArgumentException("未知的验收参数，拒绝自动退回合成测试。");
 NavResearchChecks.Run();
+PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));
 await IcbcSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.IcbcSource",Guid.NewGuid().ToString("N")));
 EtfNavStudyChecks.Run();
 NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));
@@ -273,7 +275,7 @@ sealed class DelayedCoverageRepository : IDisposable
  public DelayedCoverageRepository(string directory,RawEvidenceStore raw)
  {
     var key=System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);IMarketRepository inner;
-    try{inner=new MarketRepository(directory,raw,encryptionKey:key);}
+    try{inner=new MarketRepository(directory,raw,approvalAuditKey:key);}
     finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(key);}
     Repository=System.Reflection.DispatchProxy.Create<IMarketRepository,DelayedRepositoryProxy>();
     var proxy=(DelayedRepositoryProxy)Repository;proxy.Inner=inner;

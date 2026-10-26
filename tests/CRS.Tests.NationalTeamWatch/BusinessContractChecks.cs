@@ -55,7 +55,7 @@ internal static class BusinessContractChecks
             catch(ArgumentException){Check(true,"已释放快照不能被重用");}
         }
         var future=Path.Combine(root,"future-schema");Directory.CreateDirectory(future);SQLitePCL.Batteries_V2.Init();
-        using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(future,"market.db"),Password=Convert.ToHexString(TestMarketData.Key)}.ToString()))
+        using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(future,"market.db")}.ToString()))
         {db.Open();using var cmd=db.CreateCommand();cmd.CommandText="PRAGMA user_version=99";cmd.ExecuteNonQuery();}
         try{using var rejected=TestMarketData.Open(future,new RawEvidenceStore(Path.Combine(future,"raw")));throw new Exception("未知存储版本被放行。");}
         catch(InvalidDataException){Check(true,"未知持久Schema拒绝打开，与业务V1独立");}

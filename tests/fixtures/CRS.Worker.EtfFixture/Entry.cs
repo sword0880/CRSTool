@@ -23,7 +23,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                 var key=context.OpenDataKey();
                 try
                 {
-                    using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),encryptionKey:key))
+                    using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),approvalAuditKey:key))
                     {
                         // 仅行业管道夹具显式携带合成休市公告；沿生产解析器登记，不让其它测试凭空获得日历。
                         var calendar=Path.Combine(context.DataDirectory,"industry-pe.fixture","calendar-2026.html");

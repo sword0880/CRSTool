@@ -7,15 +7,15 @@ namespace CRS.Plugins.NationalTeam.Jobs;
 public interface INationalTeamStorageProvider
 {
     IMarketRepository OpenMarket(string directory,RawEvidenceStore raw,byte[] key);
-    ISourceRequestPolicy OpenSourcePolicy(string directory,byte[] key);
+    ISourceRequestPolicy OpenSourcePolicy(string directory);
 }
 public sealed class NationalTeamStorageProviders
 {
-    public const string DefaultProvider="sqlcipher";
+    public const string DefaultProvider="sqlite";
     private readonly Dictionary<string,Func<INationalTeamStorageProvider>> providers;
     public NationalTeamStorageProviders(IEnumerable<KeyValuePair<string,Func<INationalTeamStorageProvider>>>? additional=null)
     {
-        providers=new(StringComparer.OrdinalIgnoreCase){{DefaultProvider,()=>new SqlCipherNationalTeamStorage()}};
+        providers=new(StringComparer.OrdinalIgnoreCase){{DefaultProvider,()=>new SqliteNationalTeamStorage()}};
         foreach(var item in additional??[])
         {
             Validate(item.Key);ArgumentNullException.ThrowIfNull(item.Value);
@@ -48,9 +48,9 @@ public sealed class NationalTeamStorageProviders
         if(string.IsNullOrWhiteSpace(value)||value.Length>64||value.Any(c=>!(char.IsAsciiLetterOrDigit(c)||c is '-' or '_')))
             throw new ArgumentException("数据库类型标识无效。");
     }
-    private sealed class SqlCipherNationalTeamStorage:INationalTeamStorageProvider
+    private sealed class SqliteNationalTeamStorage:INationalTeamStorageProvider
     {
-        public IMarketRepository OpenMarket(string directory,RawEvidenceStore raw,byte[] key)=>new MarketRepository(directory,raw,encryptionKey:key);
-        public ISourceRequestPolicy OpenSourcePolicy(string directory,byte[] key)=>new SourceRequestPolicy(directory,key);
+        public IMarketRepository OpenMarket(string directory,RawEvidenceStore raw,byte[] key)=>new MarketRepository(directory,raw,approvalAuditKey:key);
+        public ISourceRequestPolicy OpenSourcePolicy(string directory)=>new SourceRequestPolicy(directory);
     }
 }

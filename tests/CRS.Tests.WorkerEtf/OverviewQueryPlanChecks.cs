@@ -14,8 +14,8 @@ internal static class OverviewQueryPlanChecks
         var root=Path.Combine(Path.GetTempPath(),"CRS.OverviewPlan",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
         var key=RandomNumberGenerator.GetBytes(32);var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
         var bytes=Encoding.UTF8.GetBytes("synthetic calendar evidence");var hash=raw.Save(bytes);string fetch;
-        using(var repo=new MarketRepository(Path.Combine(root,"data"),raw,encryptionKey:key))fetch=repo.RecordFetch(hash,"https://www.sse.com.cn/synthetic-test");
-        using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(root,"data","market.db"),Password=Convert.ToHexString(key),Pooling=false}.ToString()))
+        using(var repo=new MarketRepository(Path.Combine(root,"data"),raw,approvalAuditKey:key))fetch=repo.RecordFetch(hash,"https://www.sse.com.cn/synthetic-test");
+        using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(root,"data","market.db"),Pooling=false}.ToString()))
         {
             db.Open();
             void Exec(string sql){using var command=db.CreateCommand();command.CommandText=sql;command.ExecuteNonQuery();}
@@ -40,7 +40,7 @@ internal static class OverviewQueryPlanChecks
             Check(before.SequenceEqual(after),"加索引前后日期及完整性结论完全一致");
             Console.WriteLine(JsonSerializer.Serialize(new{QualityRows=20000,CalendarRows=260,BeforeMs=beforeMs,AfterMs=afterMs}));
         }
-        using(var repo=new MarketRepository(Path.Combine(root,"data"),raw,encryptionKey:key))
+        using(var repo=new MarketRepository(Path.Combine(root,"data"),raw,approvalAuditKey:key))
         {
             var first=JsonSerializer.Serialize(repo.ExecuteOperation(repo.Overview,default));
             File.WriteAllText(Path.Combine(root,"raw",hash+".raw"),"damaged synthetic evidence");

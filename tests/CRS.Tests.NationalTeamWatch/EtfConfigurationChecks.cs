@@ -55,7 +55,7 @@ internal static class EtfConfigurationChecks
             Check(repository.Configuration().Single(x=>x.Market==active.Market && x.Ticker==active.Ticker).Name=="超过20只仍可编辑","超过20只时仍允许修改名称和备注");
         }
         // 模拟旧版本遗留的两个容量触发器；新版本打开时必须解除，不能要求删除研究数据。
-        using(var legacy=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(directory,"data","market.db"),Password=Convert.ToHexString(TestMarketData.Key),Pooling=false}.ToString()))
+        using(var legacy=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(directory,"data","market.db"),Pooling=false}.ToString()))
         {
             legacy.Open();using var command=legacy.CreateCommand();
             command.CommandText="""

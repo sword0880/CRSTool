@@ -3,7 +3,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-public sealed partial class MarketRepository
+internal sealed partial class EtfStore
 {
     /// <summary>分段扫描所有已登记年份，优先最近250交易日，并让未尝试的缺口先行。</summary>
     public List<ShareGap> DueHistoricalShareGaps(DateOnly through,DateTimeOffset now)

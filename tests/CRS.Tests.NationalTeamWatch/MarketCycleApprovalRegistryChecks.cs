@@ -95,7 +95,7 @@ internal static class MarketCycleApprovalRegistryChecks
         RawEvidenceStore raw,
         Clock clock,
         IMarketCycleApprovalWriteAuthority? authority)
-        => new(data, raw, encryptionKey: TestMarketData.Key, timeProvider: clock, approvalWriteAuthority: authority);
+        => new(data, raw, approvalAuditKey: TestMarketData.Key, timeProvider: clock, approvalWriteAuthority: authority);
 
     public static void Run(string root)
     {
@@ -313,7 +313,6 @@ internal static class MarketCycleApprovalRegistryChecks
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
             DataSource = Path.Combine(tamperData, "market.db"),
-            Password = Convert.ToHexString(TestMarketData.Key),
             Pooling = false
         }.ToString()))
         {
@@ -347,7 +346,6 @@ internal static class MarketCycleApprovalRegistryChecks
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
             DataSource = Path.Combine(truncateData, "market.db"),
-            Password = Convert.ToHexString(TestMarketData.Key),
             Pooling = false
         }.ToString()))
         {
@@ -374,7 +372,6 @@ internal static class MarketCycleApprovalRegistryChecks
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
             DataSource = Path.Combine(anchorTamperData, "market.db"),
-            Password = Convert.ToHexString(TestMarketData.Key),
             Pooling = false
         }.ToString()))
         {

@@ -10,7 +10,7 @@ internal static class ScopedEvidenceChecks
         void Check(bool value,string name){if(!value)throw new Exception(name);Console.WriteLine("PASS 原件查询："+name);}
         var rawPath=Path.Combine(root,"raw");var raw=new RawEvidenceStore(rawPath);
         using var repository=TestMarketData.Open(Path.Combine(root,"data"),raw);
-        var connection=(Microsoft.Data.Sqlite.SqliteConnection)typeof(MarketRepository).GetField("db",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.GetValue(repository)!;
+        var connection=(Microsoft.Data.Sqlite.SqliteConnection)typeof(MarketRepository).GetProperty("db",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.GetValue(repository)!;
         long Changes(){using var command=connection.CreateCommand();command.CommandText="SELECT total_changes()";return Convert.ToInt64(command.ExecuteScalar());}
         var key=new EtfKey("SSE","510300");var other=new EtfKey("SSE","510050");var day=new DateOnly(2026,9,1);
         var calendarHash=raw.Save("calendar fixture"u8.ToArray());var calendarFetch=repository.RecordFetch(calendarHash,"https://www.sse.com.cn/");

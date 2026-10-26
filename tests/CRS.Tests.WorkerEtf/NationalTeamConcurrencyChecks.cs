@@ -35,7 +35,7 @@ internal static class NationalTeamConcurrencyChecks
     {
         var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);int sse=0,szse=0;
-        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(root,key),new Handler(async(uri,token)=>
+        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(root),new Handler(async(uri,token)=>
         {
             if(uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal))
             {Interlocked.Increment(ref sse);entered.TrySetResult();await release.Task.WaitAsync(token);}
@@ -64,7 +64,7 @@ internal static class NationalTeamConcurrencyChecks
         var shareEntered=new ConcurrentDictionary<string,byte>();
         var both=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var day=new DateOnly(2026,10,14);var other=day.AddDays(1);
-        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"policy"),key),new Handler(async(uri,token)=>
+        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"policy")),new Handler(async(uri,token)=>
         {
             var query=Query(uri);
             var activity=query.GetValueOrDefault("sqlId")=="COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C"||query.GetValueOrDefault("CATALOGID")=="scsj_gprdgk_after";
@@ -77,7 +77,7 @@ internal static class NationalTeamConcurrencyChecks
         }));
         var context=new Context(root,key);
         // 只保留两只合成测试ETF，仍使用真实加密仓储、会话和来源适配器。
-        using(var seed=new MarketRepository(Path.Combine(root,"data"),new(Path.Combine(root,"raw")),encryptionKey:key))
+        using(var seed=new MarketRepository(Path.Combine(root,"data"),new(Path.Combine(root,"raw")),approvalAuditKey:key))
         {
             foreach(var row in seed.Configuration().Where(x=>x.Ticker is not ("510300" or "159919")))
                 seed.SaveConfiguration(new(row.Market,row.Ticker),row.Name,row.IndexGroup,false,"synthetic",row.Revision);
@@ -115,7 +115,7 @@ internal static class NationalTeamConcurrencyChecks
         var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var pause=0;
         var raw=new RawEvidenceStore(Path.Combine(root,"raw"),openRead:path=>new PausingStream(File.OpenRead(path),
             ()=>Volatile.Read(ref pause)==1,entered,release));
-        using var repository=new MarketRepository(Path.Combine(root,"data"),raw,encryptionKey:key);
+        using var repository=new MarketRepository(Path.Combine(root,"data"),raw,approvalAuditKey:key);
         var hash=raw.Save(Encoding.UTF8.GetBytes("synthetic integrity evidence"));repository.RecordFetch(hash,"https://www.sse.com.cn/test",hash);
         await using var workspace=new EtfWorkspace(new WorkspaceContext(root),()=>repository,raw);await workspace.InitializeAsync(default);
         var row=(await workspace.ConfigurationAsync(default)).First();

@@ -14,7 +14,7 @@ internal static class HistoricalEquityChecks
     private static void Reject(Action action,string label)
     {try{action();}catch(InvalidDataException){Check(true,label);return;}throw new Exception("未拒绝："+label);}
     private static SqliteConnection Sql(string data)
-    {var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Password=Convert.ToHexString(TestMarketData.Key),Pooling=false}.ToString());db.Open();return db;}
+    {var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString());db.Open();return db;}
     private static long Count(string data,string table)
     {using var db=Sql(data);using var q=db.CreateCommand();q.CommandText="SELECT count(*) FROM "+table;return Convert.ToInt64(q.ExecuteScalar());}
     public static void CatalogContracts(string root)

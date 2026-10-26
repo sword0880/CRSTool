@@ -41,7 +41,7 @@ internal sealed partial class AlertStore
         }
         transaction.Commit();
     }
-    public void MarkAlertPending()=>Execute("INSERT INTO nt_alert_pending VALUES(1,$now) ON CONFLICT(id) DO UPDATE SET changed_at=excluded.changed_at",("$now",Now));
+    public void MarkAlertPending()=>pending.Mark();
     public ExitAlertConfiguration AlertConfiguration()
     {
         using var command=Command("SELECT r.payload,c.routes,c.revision FROM nt_alert_configuration c JOIN nt_alert_rule r ON r.version=c.version WHERE c.id=1");

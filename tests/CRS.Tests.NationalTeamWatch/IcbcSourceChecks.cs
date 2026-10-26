@@ -9,7 +9,7 @@ internal static class IcbcSourceChecks
     {
         async Task Check(string name,Uri uri,int size,bool allowed)
         {
-            using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,Guid.NewGuid().ToString("N")),TestMarketData.Key),new Handler(size));
+            using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,Guid.NewGuid().ToString("N"))),new Handler(size));
             try{var reply=await gateway.GetAsync(uri,default);if(!allowed||reply.Content.Length!=size)throw new Exception(name);}
             catch(InvalidDataException) when(!allowed){}
             Console.WriteLine("PASS 工行来源边界："+name);

@@ -154,15 +154,15 @@ internal static class SourceBudgetChecks
         using var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key));
         var first=new Handler(HttpStatusCode.TooManyRequests);
         var second=new Handler(HttpStatusCode.OK);
-        using var a=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"a"),key),first,new WorkerPluginContext("a",root,key,sources:registry));
-        using var b=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"b"),key),second,new WorkerPluginContext("b",root,key,sources:registry));
+        using var a=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"a")),first,new WorkerPluginContext("a",root,key,sources:registry));
+        using var b=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"b")),second,new WorkerPluginContext("b",root,key,sources:registry));
         check((await a.GetAsync(new("https://query.sse.com.cn/test"),default)).StatusCode==429,"真实网关登记429并保留响应状态");
         try{await b.GetAsync(new("https://etf.sse.com.cn/test"),default);throw new Exception("跨插件未阻断");}
         catch(SourceBudgetUnavailableException){check(second.Calls==0,"第二插件私有策略为空也不再发出HTTP");}
         check((await b.GetAsync(new("https://www.szse.cn/test"),default)).StatusCode==200,"共享冷却不阻断另一交易所网关");
         b.RejectContract(new("https://www.szse.cn/test"));
         check(registry.Snapshot().Single(x=>x.Source=="SZSE").State=="Cooldown","正文契约校验失败反馈到宿主");
-        using var old=new SourceRequestPolicy(Path.Combine(root,"legacy"),key);
+        using var old=new SourceRequestPolicy(Path.Combine(root,"legacy"));
         old.Failure("www.chinacnd.com",DateTimeOffset.UtcNow,403,DateTimeOffset.UtcNow.AddDays(5));
         using var legacy=new OfficialHttpGateway(old,new Handler(HttpStatusCode.OK),new WorkerPluginContext("legacy",root,key,sources:registry));
         check(registry.Snapshot().Single(x=>x.Source=="ISSUER-600153").BlockedUtc>DateTimeOffset.UtcNow.AddDays(4),"网关初始化即合并全部旧冷却，不等待首次请求");
@@ -181,8 +181,8 @@ internal static class SourceBudgetChecks
     {
         using var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key));
         var local=Path.Combine(root,"local");
-        var policy=new SourceRequestPolicy(local,key);policy.Reserve("www.sse.com.cn",DateTimeOffset.UtcNow.AddMinutes(-1));
-        using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(local,"source-policy.db"),Password=Convert.ToHexString(key),Pooling=false}.ToString());
+        var policy=new SourceRequestPolicy(local);policy.Reserve("www.sse.com.cn",DateTimeOffset.UtcNow.AddMinutes(-1));
+        using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(local,"source-policy.db"),Pooling=false}.ToString());
         db.Open();using var command=db.CreateCommand();
         command.CommandText="CREATE TRIGGER fail_local BEFORE UPDATE ON source_policy WHEN NEW.failures>0 BEGIN SELECT RAISE(ABORT,'injected'); END";command.ExecuteNonQuery();
         using var gateway=new OfficialHttpGateway(policy,new Handler(HttpStatusCode.TooManyRequests),new WorkerPluginContext("one",root,key,sources:registry));

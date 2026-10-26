@@ -3,7 +3,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-public sealed partial class MarketRepository
+internal sealed partial class EtfStore
 {
     private sealed record AcceptanceReceipt(string Hash,string AcceptedAt,string ReceivedAt);
 

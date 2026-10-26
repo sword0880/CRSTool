@@ -9,7 +9,7 @@ internal static class EquityLiveChecks
     {
         var root=Path.Combine(Environment.CurrentDirectory,"artifacts","direct-equity-20261018","live",Guid.NewGuid().ToString("N"));
         using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(55));var raw=new RawEvidenceStore(Path.Combine(root,"raw"));using var repository=TestMarketData.Open(Path.Combine(root,"data"),raw);
-        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"policy"),RandomNumberGenerator.GetBytes(32)));
+        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"policy")));
         foreach(var ticker in new[]{"601398","600153","600036"})
         {
             var uri=OfficialEquitySource.Request("SSE",ticker);var response=await gateway.GetAsync(uri,deadline.Token);if(response.StatusCode!=200)throw new Exception("官方股东接口未返回成功。");

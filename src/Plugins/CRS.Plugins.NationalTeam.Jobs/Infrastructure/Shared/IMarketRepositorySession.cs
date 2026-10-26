@@ -10,6 +10,7 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 internal interface IMarketRepositorySession
 {
     SqliteConnection Connection { get; }
+    bool IsReadSnapshot { get; }
     RawEvidenceStore RawEvidence { get; }
     Action? BeforeWrite { get; }
     TimeProvider Clock { get; }
@@ -21,6 +22,6 @@ internal interface IMarketRepositorySession
     void RecordCommand(Guid? id,string operation);
     string Now { get; }
     bool Committed(Guid? id);
-    void ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false);
+    IReadOnlyDictionary<string,bool> ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false);
     string RecordFetch(string hash,string sourceUrl,string? originalHash=null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1");
 }

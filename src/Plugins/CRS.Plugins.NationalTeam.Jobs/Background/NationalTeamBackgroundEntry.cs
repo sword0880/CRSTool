@@ -87,15 +87,15 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         new("review","ETF修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("watchlist","ETF验证池变更（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true)];
 
-    /// <summary>初始化只打开服务私有加密库；联网在 Quartz 作业中执行，不阻塞服务启动。</summary>
+    /// <summary>初始化打开公开研究资料库；联网在Quartz作业中执行，不阻塞服务启动。</summary>
     public async ValueTask StartAsync(CancellationToken token)
     {
         if(workspace is not null)throw new InvalidOperationException("会话已经启动。");
         var storage=(storageProviders??new NationalTeamStorageProviders()).Create(databaseProvider??NationalTeamStorageProviders.ConfiguredProvider());
         Directory.CreateDirectory(context.DataDirectory);rawPath=Path.Combine(context.DataDirectory,"raw");
         key=context.OpenDataKey();raw=new(rawPath);
-        // 策略库使用同一插件专用密钥和受限目录，缺失密钥或损坏时不能退回内存策略。
-        http??=new OfficialHttpGateway(storage.OpenSourcePolicy(Path.Combine(context.DataDirectory,"data"),key),sources:context as IBackgroundSourceContext);
+        // 来源退避是公开研究状态，使用普通SQLite持久化；密钥仅用于审批审计认证。
+        http??=new OfficialHttpGateway(storage.OpenSourcePolicy(Path.Combine(context.DataDirectory,"data")),sources:context as IBackgroundSourceContext);
         if(http is OfficialHttpGateway official)official.Progress=ReportAsync;
         var adapter=new WorkerContext(context.DataDirectory,http);
         workspace=new(adapter,()=>

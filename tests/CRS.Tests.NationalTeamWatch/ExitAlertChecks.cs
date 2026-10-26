@@ -84,7 +84,7 @@ internal static class ExitAlertChecks
     }
     private static SqliteConnection OpenDatabase(string root)
     {
-        var connection=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(root,"data","market.db"),Password=Convert.ToHexString(TestMarketData.Key),Pooling=false}.ToString());connection.Open();return connection;
+        var connection=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(root,"data","market.db"),Pooling=false}.ToString());connection.Open();return connection;
     }
     private static void Sql(SqliteConnection connection,string sql){using var command=connection.CreateCommand();command.CommandText=sql;command.ExecuteNonQuery();}
     private static void Persistence(string root)

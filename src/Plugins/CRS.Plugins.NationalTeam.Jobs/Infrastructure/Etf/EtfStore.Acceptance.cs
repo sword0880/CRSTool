@@ -2,7 +2,7 @@ using System.Globalization;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
-public sealed partial class MarketRepository:IEtfAcceptanceProfileRepository
+internal sealed partial class EtfStore:IEtfAcceptanceProfileRepository
 {
     public EtfAcceptanceQueryProfile ProfileAcceptance(EtfKey? key,DateOnly through)
     {

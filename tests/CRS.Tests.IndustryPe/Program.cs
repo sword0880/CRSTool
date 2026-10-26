@@ -40,7 +40,7 @@ Check(new[]{"http://www.cnindex.com.cn/syl/2026-10-23/cninfo.json","https://www.
 var oldCulture=CultureInfo.CurrentCulture;try{CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("th-TH");Check(OfficialIndustryPeSource.Source(date).AbsolutePath=="/syl/2026-10-23/cninfo.json","非公历地区设置不能改变官网日期路径");}finally{CultureInfo.CurrentCulture=oldCulture;}
 
 var command=Guid.NewGuid();DateTimeOffset initialAt;string acceptedId;
-using(var repository=new MarketRepository(data,raw,encryptionKey:key,timeProvider:clock))
+using(var repository=new MarketRepository(data,raw,approvalAuditKey:key,timeProvider:clock))
 {
     Check(repository.IndustryPeRevisions(date,date,clock.At).Count==0,"空库没有假行业事实");
     var initial=repository.ImportIndustryPe(source,command);initialAt=clock.At;acceptedId=repository.IndustryPeRevisions(date,date,clock.At)[0].Id;
@@ -75,17 +75,17 @@ using(var repository=new MarketRepository(data,raw,encryptionKey:key,timeProvide
     Check(repository.IndustryPeRevisions(date,date,clock.At).All(x=>x.EvidenceHealthy),"未产生持久Q15事件的隔离字节恢复后重新核验");
     var calendarSnapshot=repository.IndustryPeCalendar(date,date,clock.At);
     Check(calendarSnapshot.Days[date] is null,"未登记日历不能用星期推算交易日");
-    using var corrupt=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Password=Convert.ToHexString(key),Pooling=false}.ToString());corrupt.Open();
+    using var corrupt=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString());corrupt.Open();
     using var delete=corrupt.CreateCommand();delete.CommandText="DELETE FROM nt_industry_command WHERE id=$id";delete.Parameters.AddWithValue("$id",command.ToString("N"));delete.ExecuteNonQuery();
     Reject(()=>repository.IndustryPeReceipt(command),"业务命令存在而金融回执缺失时失败关闭");
     var reverse=Guid.NewGuid();clock.Next();repository.ImportIndustryPe(source,reverse);
     delete.Parameters["$id"].Value=reverse.ToString("N");delete.CommandText="DELETE FROM worker_business_command WHERE request=$id";delete.ExecuteNonQuery();
     Reject(()=>repository.IndustryPeReceipt(reverse),"金融回执存在而业务命令缺失时也失败关闭");
 }
-using(var reopened=new MarketRepository(data,raw,encryptionKey:key,timeProvider:clock))Check(reopened.IndustryPeRevisions(date,date,clock.At).Count==12,"加密库重启仍保留全部修订和审核");
-using(var corruptedSchema=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Password=Convert.ToHexString(key),Pooling=false}.ToString()))
+using(var reopened=new MarketRepository(data,raw,approvalAuditKey:key,timeProvider:clock))Check(reopened.IndustryPeRevisions(date,date,clock.At).Count==12,"加密库重启仍保留全部修订和审核");
+using(var corruptedSchema=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString()))
 {corruptedSchema.Open();using var drop=corruptedSchema.CreateCommand();drop.CommandText="DROP TABLE nt_industry_event";drop.ExecuteNonQuery();}
-Reject(()=>{using var missingTable=new MarketRepository(data,raw,encryptionKey:key,timeProvider:clock);},"已初始化库缺表不能自动重建成无数据状态");
+Reject(()=>{using var missingTable=new MarketRepository(data,raw,approvalAuditKey:key,timeProvider:clock);},"已初始化库缺表不能自动重建成无数据状态");
 
 // 取消在写入边界触发，验证真实事务而非只验证入口的预取消令牌。
 var cancelRoot=Path.Combine(root,"cancel");using var cancellation=new CancellationTokenSource();var armed=false;

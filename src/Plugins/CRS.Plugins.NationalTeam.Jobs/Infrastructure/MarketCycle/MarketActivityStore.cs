@@ -36,7 +36,16 @@ internal sealed class MarketActivityStore
             &&group.Select(x=>(x.Amount,x.Volume)).Distinct().Count()==1).Select(x=>x.Key).ToHashSet();
     }
 
-    public void InitializeSchema()=>_session.Execute("CREATE TABLE IF NOT EXISTS market_activity_review(fetch_id TEXT PRIMARY KEY REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS market_activity_review_audit(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL);");
+    public void InitializeSchema()
+    {
+        _session.Execute("""
+            CREATE TABLE IF NOT EXISTS market_activity_cursor(id INTEGER PRIMARY KEY CHECK(id=1),checked_through TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS market_activity_attempt(market TEXT,trade_date TEXT,state TEXT NOT NULL,PRIMARY KEY(market,trade_date));
+            CREATE TABLE IF NOT EXISTS market_activity_observation(market TEXT,trade_date TEXT,amount_yuan TEXT NOT NULL,volume_shares TEXT NOT NULL,fetch_id TEXT NOT NULL,PRIMARY KEY(market,trade_date,fetch_id),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
+            """);
+        _session.Execute("CREATE TABLE IF NOT EXISTS market_activity_review(fetch_id TEXT PRIMARY KEY REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS market_activity_review_audit(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL);");
+
+    }
 
     public List<MarketActivityRevision> MarketActivityRevisions()
     {

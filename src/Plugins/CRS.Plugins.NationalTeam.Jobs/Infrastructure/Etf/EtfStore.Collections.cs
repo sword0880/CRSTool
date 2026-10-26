@@ -3,7 +3,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-public sealed partial class MarketRepository
+internal sealed partial class EtfStore
 {
     /// <summary>每次请求独立建档，不覆盖同日旧失败；事务保证预期阶段同时落库。</summary>
     public string BeginCollection(EtfKey key,DateOnly day)

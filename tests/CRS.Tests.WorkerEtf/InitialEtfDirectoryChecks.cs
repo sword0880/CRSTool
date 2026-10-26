@@ -10,7 +10,7 @@ internal static class InitialEtfDirectoryChecks
         var root=Path.Combine(Path.GetTempPath(),"CRS.InitialEtfDirectory",Guid.NewGuid().ToString("N"));
         var data=Path.Combine(root,"data");var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
         var key=RandomNumberGenerator.GetBytes(32);
-        MarketRepository Open()=>new(data,raw,encryptionKey:key);
+        MarketRepository Open()=>new(data,raw,approvalAuditKey:key);
         var expected=InitialEtfDirectory.Entries.Select(x=>(x.Market,x.Ticker)).ToHashSet();
         void Check(bool value,string name){if(!value)throw new InvalidOperationException(name);Console.WriteLine("PASS ETF初始化目录："+name);}
         try

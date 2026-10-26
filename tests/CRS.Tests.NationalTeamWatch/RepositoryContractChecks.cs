@@ -12,7 +12,7 @@ internal static class RepositoryContractChecks
         Check(methods.All(x=>x.IsAbstract),"所有仓储端口均要求显式实现，没有默认空集合或延迟抛错");
         Check(typeof(IEquityReadRepository).GetMethods().All(x=>!x.Name.StartsWith("Save")&&!x.Name.StartsWith("Review")),"披露读取端口不暴露审核写入");
         var key=System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
-        using var repository=new MarketRepository(root,new RawEvidenceStore(Path.Combine(root,"raw")),encryptionKey:key);
+        using var repository=new MarketRepository(root,new RawEvidenceStore(Path.Combine(root,"raw")),approvalAuditKey:key);
         System.Security.Cryptography.CryptographicOperations.ZeroMemory(key);
         MarketRepositoryCapabilities.Validate(repository,default);
         Check(true,"正式存储可打开独立读取并具有全部必需能力");

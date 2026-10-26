@@ -2,7 +2,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-public sealed partial class MarketRepository:IEtfDashboardProfileRepository
+internal sealed partial class EtfStore:IEtfDashboardProfileRepository
 {
     public EtfDashboardQueryProfile ProfileDashboard(EtfKey? key)
     {

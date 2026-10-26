@@ -149,7 +149,7 @@ internal static class MarketActivityChecks
 
     public static async Task RunLive(string root)
     {
-        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"policy"),RandomNumberGenerator.GetBytes(32)));
+        using var gateway=new OfficialHttpGateway(new SourceRequestPolicy(Path.Combine(root,"policy")));
         var source=new OfficialMarketActivitySource(gateway);var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
         using var repository=TestMarketData.Open(Path.Combine(root,"data"),raw);
         foreach(var market in new[]{"SSE","SZSE"})

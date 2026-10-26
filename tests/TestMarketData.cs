@@ -1,5 +1,5 @@
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
-/// <summary>仅测试使用的显式固定密钥；生产密钥由 Worker 的机器保护主密钥派生。</summary>
+/// <summary>仅测试使用的审批审计认证密钥；国家队业务数据库使用普通SQLite。</summary>
 internal static class TestMarketData
 {
     public static readonly byte[] Key=Enumerable.Range(1,32).Select(x=>(byte)x).ToArray();

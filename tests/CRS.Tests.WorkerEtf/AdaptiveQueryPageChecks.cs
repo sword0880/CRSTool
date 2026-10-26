@@ -19,7 +19,7 @@ internal static class AdaptiveQueryPageChecks
         var passed=0;
         void Check(bool value,string text){if(!value)throw new InvalidDataException(text);passed++;Console.WriteLine("PASS 自适应分页："+text);}
         var root=Path.Combine(Path.GetTempPath(),"CRS.AdaptivePages",Guid.NewGuid().ToString("N"));var context=new Context(root);
-        using(var seed=new MarketRepository(Path.Combine(root,"data"),new RawEvidenceStore(Path.Combine(root,"raw")),encryptionKey:context.Key))
+        using(var seed=new MarketRepository(Path.Combine(root,"data"),new RawEvidenceStore(Path.Combine(root,"raw")),approvalAuditKey:context.Key))
             for(var i=0;i<80;i++)seed.SetMembership(new("SSE",(700000+i).ToString()),new string('测',64),new string('行',16),true,new string('据',80));
         await using(var session=new NationalTeamBackgroundSession(context,new NoHttp()))
         {
@@ -34,7 +34,7 @@ internal static class AdaptiveQueryPageChecks
             {try{await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("configuration",Count:257)),default);throw new Exception("超限页大小被接受。");}catch(ArgumentException){}}
             var first=await Page(new("configuration"));var rows=JsonSerializer.Deserialize<EtfConfiguration[]>(first.Items)!;
             Check(rows.Length==10&&first.MaximumPageCount==256,"旧式首页十行，明确声明可选扩页能力；无效请求不耗尽快照");
-            using(var writer=new MarketRepository(Path.Combine(root,"data"),new RawEvidenceStore(Path.Combine(root,"raw")),encryptionKey:context.Key))writer.SetMembership(new("SSE","799999"),"合成后插","合成",true,"只验证快照隔离");
+            using(var writer=new MarketRepository(Path.Combine(root,"data"),new RawEvidenceStore(Path.Combine(root,"raw")),approvalAuditKey:context.Key))writer.SetMembership(new("SSE","799999"),"合成后插","合成",true,"只验证快照隔离");
             try{await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("configuration",Ticker:"799999",Offset:10,Count:256,Snapshot:first.Snapshot)),default);throw new Exception("快照范围改变未拒绝。");}catch(ArgumentException){Check(true,"传输页大小可变，但证券筛选仍绑定原快照");}
             var all=rows.ToList();var offset=first.NextOffset;var wide=false;
             while(offset is {} next)

@@ -2,7 +2,7 @@ using System.Globalization;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-public sealed partial class MarketRepository
+internal sealed partial class EtfStore
 {
     /// <summary>正式仪表盘沿外层同一只读事务分批读取；参数分组只限制SQL大小，不截断证券或事实。</summary>
     private Dictionary<EtfKey,List<SharePoint>> ReadDashboardPoints(IEnumerable<EtfKey> keys)

@@ -56,7 +56,7 @@ internal static class EvidenceAcceptanceAdversarialChecks
         using(var reopened=TestMarketData.Open(data,raw))
             Check(reopened.EquityHoldings(null,null,null,false).Single(x=>x.Account==Account).Delta==-60,"基线和重新审核结果跨重启保留");
         // 模拟旧版已审核库：不凭既有comparable=true补造缺失的基线记录。
-        using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Password=Convert.ToHexString(TestMarketData.Key),Pooling=false}.ToString()))
+        using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString()))
         {
             db.Open();using var audit=db.CreateCommand();
             audit.CommandText="SELECT count(DISTINCT b.prior_disclosure_id) FROM equity_account_comparison_baseline b JOIN equity_account_review_audit a ON a.id=b.review_id WHERE a.disclosure_id=$id";audit.Parameters.AddWithValue("$id",latestId);

@@ -83,13 +83,13 @@ internal static class NavStorageChecks
         }
         Cancellation(Path.Combine(root, "cancel"));
         BrokenSchema(Path.Combine(root, "broken-schema"));
-        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(data, "market.db"), Password = Convert.ToHexString(TestMarketData.Key), Pooling = false }.ToString()))
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(data, "market.db"), Pooling = false }.ToString()))
         {
             connection.Open(); using var command = connection.CreateCommand(); command.CommandText = "DELETE FROM worker_business_command WHERE request=$id"; command.Parameters.AddWithValue("$id", importCommand.ToString("N")); command.ExecuteNonQuery();
         }
         using (var inconsistent = TestMarketData.Open(data, raw, timeProvider: clock))
             Reject(() => inconsistent.ImportNavDocuments(NavResearchChecks.Fixture(), importCommand), "NAV回执和业务命令缺一方时拒绝冒充完整重放");
-        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(data, "market.db"), Password = Convert.ToHexString(TestMarketData.Key), Pooling = false }.ToString()))
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(data, "market.db"), Pooling = false }.ToString()))
         {
             connection.Open(); using var command = connection.CreateCommand(); command.CommandText = "UPDATE feature_schema_migration SET version=2 WHERE feature='etf-nav'"; command.ExecuteNonQuery();
         }
@@ -106,7 +106,7 @@ internal static class NavStorageChecks
             Check(seeded.ImportNavDocuments(NavResearchChecks.Fixture()).Added == 10, "准备真实加密NAV存储与迁移记录");
         // 人为删除一个已声明表，确保重启只报告损坏、不借 CREATE IF NOT EXISTS 补表掩盖。
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-            { DataSource = Path.Combine(data, "market.db"), Password = Convert.ToHexString(TestMarketData.Key), Pooling = false }.ToString()))
+            { DataSource = Path.Combine(data, "market.db"), Pooling = false }.ToString()))
         {
             connection.Open();
             using var drop = connection.CreateCommand();
@@ -116,7 +116,7 @@ internal static class NavStorageChecks
         Reject(() => { using var damaged = TestMarketData.Open(data, raw, timeProvider: clock); },
             "已登记NAV模式缺少命令表时启动失败，不自动补建空表");
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-            { DataSource = Path.Combine(data, "market.db"), Password = Convert.ToHexString(TestMarketData.Key), Pooling = false }.ToString()))
+            { DataSource = Path.Combine(data, "market.db"), Pooling = false }.ToString()))
         {
             connection.Open(); using var verify = connection.CreateCommand();
             verify.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='nt_nav_command'";

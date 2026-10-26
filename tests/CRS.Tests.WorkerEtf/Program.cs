@@ -386,7 +386,7 @@ master=ServiceKey.Open(data);byte[]? marketKey=null;
 try
 {
     marketKey=new WorkerPluginContext("crs.national-team",data,master).OpenDataKey();
-    using var market=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"plugins","crs.national-team","data","market.db"),Password=Convert.ToHexString(marketKey),Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());market.Open();
+    using var market=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"plugins","crs.national-team","data","market.db"),Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());market.Open();
     using var query=market.CreateCommand();query.CommandText="SELECT count(*) FROM watchlist_change";
     Check(Convert.ToInt32(query.ExecuteScalar())==1,"业务提交后重放命令只记录一次池变更，业务去重与事实同事务");
     query.CommandText="SELECT checked_through FROM worker_sync_cursor WHERE id=1";

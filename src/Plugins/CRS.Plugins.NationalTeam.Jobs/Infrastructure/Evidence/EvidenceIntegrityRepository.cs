@@ -5,7 +5,6 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 public sealed partial class MarketRepository
 {
-    private readonly EvidenceIntegrityStore evidenceIntegrityStore;
     private IReadOnlyDictionary<string,bool> ValidateEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false)
         =>evidenceIntegrityStore.Validate(shareKey,includeCalendar,activityOnly,dashboardOnly,includeAttempts);
     public void ReconcileEvidenceIntegrity()=>evidenceIntegrityStore.ReconcileEvidenceIntegrity();
