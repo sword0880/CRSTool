@@ -5,9 +5,14 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
+if(args is ["--etf-holder-candidates"]){await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--etf-holder-golden",var holderSourceDirectory]){await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")),holderSourceDirectory);return;}
 if(args is ["--shared-read-admission"]){await PluginCommonAdmissionChecks.RunAsync();return;}
 if(args is ["--bounded-content"]){await BoundedContentChecks.RunAsync();return;}
 if(args is ["--public-storage"]){PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--application-boundaries"]){await ApplicationBoundaryChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ApplicationBoundaries",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--nav-workspace"]){await NavWorkspaceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.NavWorkspace",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--nav-workspace-verify",var navWorkspaceDocument]){NavWorkspaceVerifyTool.Run(navWorkspaceDocument);return;}
 if(args is ["--public-storage-wal-fixture",var walFixtureDirectory]){PublicResearchStorageChecks.WalFixture(walFixtureDirectory);return;}
 if(args is ["--nav-research-checks"]){NavResearchChecks.Run();EtfNavStudyChecks.Run();return;}
 if(args is ["--nav-storage-checks"]){NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));return;}
@@ -75,7 +80,10 @@ if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
 if(args.Length!=0)throw new ArgumentException("未知的验收参数，拒绝自动退回合成测试。");
 NavResearchChecks.Run();
+await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")));
 PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));
+await ApplicationBoundaryChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ApplicationBoundaries",Guid.NewGuid().ToString("N")));
+await NavWorkspaceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.NavWorkspace",Guid.NewGuid().ToString("N")));
 await IcbcSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.IcbcSource",Guid.NewGuid().ToString("N")));
 EtfNavStudyChecks.Run();
 NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));
@@ -150,7 +158,7 @@ var cancelRaw=new RawEvidenceStore(Path.Combine(root,"cancel-raw"));var blocking
 await using(var cancelWorkspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
 {
  await cancelWorkspace.InitializeAsync(CancellationToken.None);cancelWorkspace.Etf.SetOfficialSource(blockingSource);
- var cancelModel=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(cancelWorkspace,CancellationToken.None);using var hostCancel=new CancellationTokenSource();
+ var cancelModel=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(new LocalResearchWorkspace(cancelWorkspace),CancellationToken.None);using var hostCancel=new CancellationTokenSource();
  var work=cancelModel.SyncLatestAsync(hostCancel.Token);await blockingSource.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));hostCancel.Cancel();await work.WaitAsync(TimeSpan.FromSeconds(5));
  Check(!cancelModel.Busy && cancelModel.Status.Contains("取消"),"Host scheduler cancellation reaches active plugin network operation");
 }

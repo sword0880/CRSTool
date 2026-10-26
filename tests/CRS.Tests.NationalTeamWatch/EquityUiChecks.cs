@@ -36,11 +36,11 @@ internal static class EquityUiChecks
                     if(ratio.Y!=9)throw new Exception("比例不是原披露比例。");model.HoldingPercent=false;
                     var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(page);
                     var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
-                    var output=Path.Combine(Environment.CurrentDirectory,"artifacts","direct-equity-20261018","equity-page-synthetic.png");using(var file=File.Create(output))encoder.Save(file);
+                    var output=Path.Combine(root,"equity-page-synthetic.png");using(var file=File.Create(output))encoder.Save(file);
                     model.MainTabIndex=1;await Task.Delay(200);window.UpdateLayout();
                     var matrixBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);matrixBitmap.Render(page);
                     var matrixEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();matrixEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(matrixBitmap));
-                    using(var file=File.Create(Path.Combine(Environment.CurrentDirectory,"artifacts","equity-charts-20261019","matrix-synthetic.png")))matrixEncoder.Save(file);
+                    using(var file=File.Create(Path.Combine(root,"matrix-synthetic.png")))matrixEncoder.Save(file);
                     model.SelectedMatrix=model.Matrix.Single();model.ShowMatrixStockCommand.Execute(null);await model.DetailTask;
                     if(model.MainTabIndex!=0||model.Selected?.Ticker!="600036")throw new Exception("矩阵未打开对应股票持仓图。");
                     model.Selected=model.Rows.First(x=>x.Institution=="汇金资管");await model.DetailTask;
@@ -48,7 +48,7 @@ internal static class EquityUiChecks
                     eventTab.IsSelected=true;await Task.Delay(200);window.UpdateLayout();
                     var eventBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);eventBitmap.Render(page);
                     var eventEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();eventEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(eventBitmap));
-                    using(var file=File.Create(Path.Combine(Environment.CurrentDirectory,"artifacts","direct-equity-20261018","equity-events-synthetic.png")))eventEncoder.Save(file);
+                    using(var file=File.Create(Path.Combine(root,"equity-events-synthetic.png")))eventEncoder.Save(file);
                     model.SelectedAccount=model.StockAccounts.Single(x=>x.Row.Institution=="养老保险基金");await model.DetailTask;
                     if(model.Events.Count!=2||model.DeltaSeries.Length!=0||((LiveChartsCore.SkiaSharpView.ScatterSeries<LiveChartsCore.Defaults.ObservablePoint>)model.HoldingSeries.Single()).Values!.Count()!=1)throw new Exception("未列示被填零或画成清仓柱。");
                     await workspace.Equity.SaveEquityDisclosureAsync("SSE","600036",OfficialEquitySource.Request("SSE","600036"),DirectEquityChecks.Source(new(2026,10,16),("中央汇金资产管理有限责任公司",800,8)),default);
@@ -61,7 +61,7 @@ internal static class EquityUiChecks
                     await Task.Delay(100);window.UpdateLayout();Descendants(page).OfType<System.Windows.Controls.GroupBox>().Single().BringIntoView();await Task.Delay(200);window.UpdateLayout();
                     var reportsBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);reportsBitmap.Render(page);
                     var reportsEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();reportsEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(reportsBitmap));
-                    using(var file=File.Create(Path.Combine(Environment.CurrentDirectory,"artifacts","equity-disclosures-20261019","reports-synthetic.png")))reportsEncoder.Save(file);
+                    using(var file=File.Create(Path.Combine(root,"reports-synthetic.png")))reportsEncoder.Save(file);
                     model.HoldingPercent=true;
                     if(candidate?.Id!=model.Selected.DisclosureId||model.SelectedDisclosure!=candidate||model.SelectedEvent is not null)throw new Exception("图表默认选择或单位切换覆盖了待审候选。");
                     var detachedAxis=model.HoldingAxes.First();
@@ -79,7 +79,7 @@ internal static class EquityUiChecks
     }
     private static void CheckUnsafeChartInputs(IDirectEquityWorkspace workspace)
     {
-        var model=new EquityViewModel(new LocalResearchWorkspace(workspace),CancellationToken.None);
+        var model=new EquityViewModel(workspace,CancellationToken.None);
         foreach(var (state,shares,delta) in new[]{("NeedsReview",100m,999m),("Critical",100m,999m),("Conflict",100m,999m),("NotComparable",100m,999m),("Increased",200m,100m),("Decreased",100m,-100m),("Unchanged",100m,0m)})
             model.Events.Add(new(Guid.NewGuid().ToString(),"SSE","600036","合成股票","社保基金","合成组合",shares,1,new(2026,3,31),new(2026,4,28),new(2026,4,28),state,delta,"Portfolio",false,"https://www.sse.com.cn/test.pdf"));
         model.HoldingPercent=true;

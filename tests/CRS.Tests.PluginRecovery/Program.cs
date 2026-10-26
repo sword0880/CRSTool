@@ -19,7 +19,7 @@ internal static class Program
         var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
-        if(args is ["--ui-visual-preview" or "--workspace-visual-preview",var previewDirectory])
+        if(args is ["--ui-visual-preview" or "--workspace-visual-preview" or "--nav-visual-preview" or "--holder-visual-preview",var previewDirectory])
         {
             try
             {
@@ -27,7 +27,9 @@ internal static class Program
                     {Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                     {Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
-                if(args[0]=="--workspace-visual-preview") UiVisualPreview.RenderWorkspace(previewDirectory);
+                if(args[0]=="--holder-visual-preview") UiVisualPreview.RenderHolders(previewDirectory);
+                else if(args[0]=="--nav-visual-preview") UiVisualPreview.RenderNav(previewDirectory);
+                else if(args[0]=="--workspace-visual-preview") UiVisualPreview.RenderWorkspace(previewDirectory);
                 else UiVisualPreview.Render(previewDirectory);
             }
             catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}
@@ -78,7 +80,7 @@ internal static class Program
             try
             {
                 window.Show();
-                foreach(var route in new[]{"etf-monitor","direct-equity","industry-pe","sector-index"})
+                foreach(var route in new[]{"etf-monitor","direct-equity","nav-study","industry-pe","sector-index"})
                 {
                     page.OpenRoute(route);
                     await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);

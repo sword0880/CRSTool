@@ -5,8 +5,8 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-/// <summary>Dedicated NAV evidence and revision store; uses the existing SQLCipher writer/read snapshot and receipts.</summary>
-internal sealed class NavStore
+/// <summary>NAV原件、修订和回执存储；复用公开研究SQLite写会话与独立只读快照。</summary>
+internal sealed partial class NavStore
 {
     private readonly IMarketRepositorySession _session;
     public NavStore(IMarketRepositorySession session)=>_session=session;
@@ -113,8 +113,10 @@ internal sealed class NavStore
     }
 
     public IReadOnlyList<NavAcceptedPoint> NavPoints(EtfKey key, DateOnly from, DateOnly through, DateTimeOffset knowledgeCutoff)
+        =>AcceptedNavPoints(NavRevisions(key,from,through,knowledgeCutoff));
+
+    private static IReadOnlyList<NavAcceptedPoint> AcceptedNavPoints(IReadOnlyList<NavRevision> rows)
     {
-        var rows = NavRevisions(key, from, through, knowledgeCutoff);
         if (rows.Any(x => (x.State is "Accepted" or "NeedsReview") && !x.EvidenceHealthy))
             throw new InvalidDataException("NAV依赖原件缺失、损坏或仍处于完整性异常，拒绝返回金融计算输入。");
         var result = new List<NavAcceptedPoint>();

@@ -86,6 +86,9 @@ jobs:
       - name: Verify shared bounded HTTP body reads and cancellation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --bounded-content
+      - name: Verify ETF holder candidates preserve review and UI request boundaries
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-holder-candidates
       - name: Verify shared plugin read admissions and cancellation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission
@@ -117,6 +120,12 @@ jobs:
       - name: Verify public research SQLite ownership and preservation of encrypted legacy files
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --public-storage
+      - name: Verify backend use cases and mandatory client workspace contracts
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --application-boundaries
+      - name: Verify NAV share study snapshots and complete bounded JSON transport
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-workspace
       - name: Verify plugin shared assembly same-version ABI mismatch is rejected before loading
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build

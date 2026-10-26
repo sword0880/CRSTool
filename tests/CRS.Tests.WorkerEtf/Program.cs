@@ -273,6 +273,8 @@ using(var service=Start())
         await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.JobId=="official-share-sync"&&x.Result=="Succeeded"));
         Check((await ui.OverviewAsync(default)).Count==5 && (await ui.OverviewAsync(default)).All(x=>x.Shares>0),"启动后自动采集两市五只ETF并经管道查询");
         await Until(async()=>(await ui.MarketActivityAsync(default)).Any(x=>x.State=="Complete"));
+        // 首批两市完整数据不代表整段采集结束；跨请求指纹只能比较稳定的同一事实集合。
+        await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.JobId=="market-activity-sync"&&x.Result=="Succeeded"));
         Check((await ui.MarketActivityAsync(default)).Where(x=>x.State=="Complete").All(x=>x.AmountYuan==1678054000000m && x.VolumeShares==104657000000m),"独立成交任务自动采集两市并通过真实管道返回统一单位总额");
         var basketHistory=await ui.HistoryAsync(null,default);
         Check(basketHistory.Count>0 && basketHistory.All(x=>x.Total==5 && x.Covered==5 && x.Shares>0 && x.DeltaShares is null),"全部ETF历史经真实分页返回同日总和，无日历不计算净变化");
@@ -285,11 +287,16 @@ using(var service=Start())
         var profilePage=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(profileReply.Payload);using(var profileData=JsonDocument.Parse(profilePage.Items))
         {
             var profile=profileData.RootElement[0];var expectedHash=Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(dashboard)));
+            if(profile.GetProperty("DashboardSha256").GetString()!=expectedHash)
+                Console.WriteLine($"DIAGNOSTIC dashboard/profile mismatch: stages={profile.GetProperty("Stages").GetArrayLength()};overview={dashboard!.Overview.Count};history={dashboard.History.Count};activity={dashboard.Activity.Count}");
             Check(profilePage.TotalRows==1&&profilePage.NextOffset is null&&profile.GetProperty("Stages").GetArrayLength()==7&&profile.GetProperty("DashboardSha256").GetString()==expectedHash,"有限分段诊断经真实Runner/管道返回，完整金融结果指纹与正常整页一致");
         }
         var acceptanceThrough=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime).AddDays(-1);
         var acceptance=await ui.AcceptanceAsync(acceptanceThrough,default);
         Check(acceptance.Count==5&&acceptance.All(x=>!x.DataAcceptancePassed&&!x.CalendarVerified),"生产验收查询经真实管道返回，无日历时不得批准250日或连续20日");
+        var navStudy=await ui.NavStudyAsync(new("SSE","510300"),acceptanceThrough.AddDays(-7),acceptanceThrough,default);
+        Check(navStudy.FrozenInputs.Key==new CRS.Plugins.NationalTeamWatch.Domain.EtfKey("SSE","510300")&&navStudy.FrozenInputs.Nav.Points.Count==0&&navStudy.State=="NoRegisteredTradingDays",
+            "NAV份额研究经真实Runner和分块管道返回冻结输入，无NAV及日历时明确不可计算");
         var attempts=await ui.CollectionAttemptsAsync(new("SSE","510300"),acceptanceThrough.AddDays(-8),acceptanceThrough.AddDays(1),default);
         Check(attempts.Any(x=>x.State=="Accepted"&&x.OriginalHash is not null&&x.ParserVersion=="sse-etf-json-v1"),"采集尝试经真实分页管道返回来源版本与原件关联");
         Check((await ui.EquityEventsAsync(new("SSE","600036"),default)).Count==0,"历次持股变动经真实只读管道返回，未采集不伪造事件");

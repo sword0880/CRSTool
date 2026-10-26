@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 跨业务文档读取机制，不引用税务、宿主、数据库或插件。 -->
+  <ItemGroup><PackageReference Include="PdfPig" /></ItemGroup>
+</Project>

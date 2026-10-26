@@ -16,11 +16,12 @@ public static class NationalTeamWorkspaceCatalog
     ];
 
     public static IReadOnlyList<NationalTeamWorkspaceItem> Create(EtfViewModel etfs,EquityViewModel equity,
-        IndustryResearchViewModel industry,IndexResearchViewModel indices)
+        IndustryResearchViewModel industry,IndexResearchViewModel indices,NavStudyViewModel nav)
     {
         var result=new NationalTeamWorkspaceItem[]{
             new("etf-monitor","holdings","ETF份额与市场成交","ETF全市场份额不是中央汇金独立持仓。",()=>new EtfPage(etfs)),
             new("direct-equity","holdings","机构直接持股","公告报告期快照不等于逐日真实成交。",()=>new EquityPage(equity)),
+            new("nav-study","holdings","NAV与份额金额","同日净值估算为基金整体观察，不能归因国家队成交。",()=>new NavStudyPage(nav)),
             new("industry-pe","industry","全行业公布PE","国证一级行业剔亏PE的短区间历史位置不等于低估。",()=>new IndustryResearchPage(industry)),
             new("sector-index","industry","行业样本指数与PB","国证1000行业样本不能冒充全部上市公司估值。",()=>new IndexResearchPage(indices))
         };

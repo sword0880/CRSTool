@@ -42,6 +42,12 @@
       "crs.common": {
         "type": "Project"
       },
+      "crs.documents": {
+        "type": "Project",
+        "dependencies": {
+          "PdfPig": "[0.1.16, )"
+        }
+      },
       "crs.plugin.abstractions": {
         "type": "Project",
         "dependencies": {
@@ -59,6 +65,12 @@
         "dependencies": {
           "CRS.Common": "[1.0.0, )"
         }
+      },
+      "PdfPig": {
+        "type": "CentralTransitive",
+        "requested": "[0.1.16, )",
+        "resolved": "0.1.16",
+        "contentHash": "qQcbsNMYVY+K5ELptax2S8thNMk0+rSQq3H/KdYj3LLcko8yTCz8y5KIvsKxIyAuTN0ZYNnfsZkM+0EvxTwHVA=="
       }
     }
   }

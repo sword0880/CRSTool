@@ -4,11 +4,10 @@
     <ProjectReference Include="../CRS.Application/CRS.Application.csproj" />
     <!-- 安全核心不认识文件和业务模型，所有持久化仍由基础设施协调。 -->
     <ProjectReference Include="../CRS.Security/CRS.Security.csproj" />
+    <ProjectReference Include="../CRS.Documents/CRS.Documents.csproj" />
     <Using Include="CRS.Domain" />
     <Using Include="CRS.Application" />
     <PackageReference Include="NPOI" />
-    <!-- PDF 文字及坐标解析独立于 NPOI，固定版本并保留真实模板验收。 -->
-    <PackageReference Include="PdfPig" />
     <!-- NPOI 2.8.1 将绘图依赖标记为可选，这里显式引用以确保运行时能加载 SkiaSharp。 -->
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="NLog" />

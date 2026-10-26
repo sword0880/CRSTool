@@ -1,6 +1,6 @@
 namespace CRS.Plugins.NationalTeamWatch.Domain;
 
-public sealed record NavResearchSource(string Url, string Sha256, DateTimeOffset RetrievedAt, int Bytes);
+public sealed record NavResearchSource(string Url, string Sha256, DateTimeOffset RetrievedAt, int? Bytes);
 public sealed record NavResearchPoint(DateOnly Date, decimal UnitNavYuan, decimal AccumulatedNavYuan,
     DateTimeOffset FirstSeenAt, IReadOnlyList<string> SourceHashes)
 {

@@ -49,3 +49,10 @@
 - [x] 更新功能分层与实施记录。
 
 final result: passed
+# NAV与份额金额工作区（2026-10-26）
+
+新增页面沿用顶部“资金与持仓”菜单，正文全宽。筛选条在窄窗口换行；数字与状态列有最小宽度，状态可换行，未知值显示长横线，日期固定为年-月-日。
+
+使用真实WPF窗口完成640/1040/1280 DIP与100/125/150%密度的9张合成数据截图，带数值/状态列宽断言；没有后台查询或真实金融样本。首次离屏渲染发现星号列压缩，修正列约束并改为实际窗口布局后复验。
+
+已查看[窄窗口](artifacts/national-team-nav-workspace-ui-v2-20261026/nav-640-100.png)及[1040 DIP、150%密度](artifacts/national-team-nav-workspace-ui-v2-20261026/nav-1040-150.png)。日志为`artifacts/national-team-nav-workspace-visual-v2-20261026.log`。该视觉结果不表示NAV覆盖、机构归因或择时模型验收。

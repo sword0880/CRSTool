@@ -4,7 +4,8 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>预警仍共用既有市场库门槛；联网投递由宿主适配，不能在数据库锁内等待提供商。</summary>
 public sealed partial class ExitAlertUseCases : MarketUseCaseScope
 {
-    internal ExitAlertUseCases(MarketApplicationSession session):base(session){}
+    private readonly IEtfHolderCandidateParser holderParser;
+    internal ExitAlertUseCases(MarketApplicationSession session,IEtfHolderCandidateParser holderParser):base(session)=>this.holderParser=holderParser;
 
     public Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertOverview(),token);
     public Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertConfiguration(),token);

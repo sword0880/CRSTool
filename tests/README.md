@@ -1,5 +1,7 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+ETF持有人候选：`CRS.Tests.NationalTeamWatch --etf-holder-candidates`检查未知模板、原件/取消/页参数和界面草稿竞态；已纳入默认回归与CI。`--etf-holder-golden <原件目录>`逐行比对510300两份官方年报及独立页面摘录，再经真实后台只读分页回查，使用普通SQLite隔离库；不批准具名持仓、不访问正式Worker。通用PDF读取迁至`CRS.Documents`，富途收入回归独立验证。范围及来源见[候选接线](../docs/implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)。
+
 行业研究采用独立测试项目。`CRS.Tests.SectorResearch`运行完整模型领域反例；`CRS.Tests.SectorUi`默认渲染明确标记的合成曲线，`--industry-installed`使用真实Worker业务管道读取已登记公布PE。国证公布PE已接通独立后台事实链和第三页导航；完整行业价格/PB/覆盖/基本面及机会门槛仍开放。命令、口径及证据见[行业研究实施](../docs/implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)和[公布PE事实链](../docs/implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)。
 
 NAV来源入口专项：`CRS.Tests.NationalTeamWatch --nav-source-checks`验证固定地址、持久冷却、真实插件同步/审核/查询、提交后重放和待审不升级；HTTP均为替身。宿主预算以`CRS.Tests.WorkerEtf --source-budget`另验基金双域共享及与其他来源独立。范围见[来源接入实施](../docs/implementation/NATIONAL_TEAM_NAV_SOURCE_20261024.md)。
@@ -124,7 +126,7 @@ ETF服务化专项：先以默认参数发布完整Worker包，再运行 `dotnet
 dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --source-policy
 ```
 
-验证持久冷却、来源间隔、Retry-After、临时故障退避、两市超时隔离、正文20秒期限、取消语义和策略库无钥/损坏拒绝，共18项。测试临时目录可设为工作区artifacts下；不代替官网长期覆盖验收。
+验证持久冷却、来源间隔、Retry-After、临时故障退避、两市超时隔离、正文20秒期限、取消语义和普通策略库无密码可读/损坏拒绝，共22项，另含持久故障恢复专项。测试临时目录可设为工作区artifacts下；不代替官网长期覆盖验收。
 
 ## ETF可编辑配置
 
@@ -269,3 +271,7 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 ## 国家队公开研究存储与连接所有权
 
 `CRS.Tests.NationalTeamWatch --public-storage`验证普通SQLite文件/快照、无密码读取、只读写入拒绝、连接释放、旧加密库保留式离线导出、错误密钥/占用/已有目标拒绝、来源退避保留以及真实隔离子进程崩溃遗留WAL的恢复。`--public-storage-wal-fixture`仅供该专项创建并强制结束合成子进程，不连接正式服务。默认回归及CI包含专项。原市场库测试连接已同步去除密码；收入/报税保险库及Worker管理存储测试保持原加密边界。完整实现及迁移发布限制见[ETF存储拆分](../docs/implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。
+
+`CRS.Tests.NationalTeamWatch --application-boundaries`检查客户端合同全部要求显式实现、八组后台用例不实现界面合同、初始化前/关闭后拒绝读写、重复初始化与取消、必需能力缺失时释放连接。默认回归及CI包含专项；旧`EtfWorkspace`已删除，WPF合成夹具通过测试专用端口转发实际用例，未配置能力明确拒绝。并发读取、完整性核验和47项独立后台检查继续验证真实执行行为，见[应用边界](../docs/implementation/NATIONAL_TEAM_APPLICATION_BOUNDARY_20261026.md)。
+
+`CRS.Tests.NationalTeamWatch --nav-workspace`验证NAV与份额研究的同一只读快照、1/5/20窗口、缺失/损坏/待审更正、完整JSON块、真实后台分页、证券与日期身份以及界面迟到响应隔离。`CRS.Tests.WorkerEtf <完整后台包>`增加真实Runner的NAV研究读取；完整冻结输入可做数学复算，仍不是原件现场验收、具名机构成交或模型有效性证明。见[NAV工作区](../docs/implementation/NATIONAL_TEAM_NAV_WORKSPACE_20261026.md)。

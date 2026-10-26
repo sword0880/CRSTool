@@ -49,6 +49,16 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
     }
     public async Task<byte[]> ReadImportFileAsync(string path,CancellationToken cancellationToken)
         =>await ReadBoundedAsync(path,8*1024*1024,cancellationToken).ConfigureAwait(false);
+    /// <summary>同一份有界字节核验后交给后台解析，避免先验哈希再打开文件的内容竞态。</summary>
+    internal byte[] ReadVerified(string hash,CancellationToken token)
+    {
+        if(!ContentFingerprint.IsSha256Hex(hash))throw new InvalidDataException("证据哈希格式无效。");
+        using var lease=verificationReads.EnterAsync(queryVerification.Value,token).GetAwaiter().GetResult();
+        var bytes=ReadBoundedAsync(Path.Combine(root,hash+".raw"),OfficialEquityDocuments.MaximumEvidenceBytes(hash),token).GetAwaiter().GetResult();
+        token.ThrowIfCancellationRequested();
+        if(!ContentFingerprint.Matches(hash,bytes))throw new InvalidDataException("持有人原件损坏，不能继续解析。");
+        return bytes;
+    }
     // 普通导入仍限8MiB；只有已绑定摘要的正式原件读验/导出可使用较大上限，不能靠文件名批准任意正文。
     private async Task<byte[]> ReadBoundedAsync(string path,int maximumBytes,CancellationToken cancellationToken)
     {

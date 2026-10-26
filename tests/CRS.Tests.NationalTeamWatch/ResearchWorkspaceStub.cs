@@ -4,6 +4,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 /// <summary>测试专用端口：未配置的能力立即失败；生产代码不引用此类型。</summary>
 internal abstract class ResearchWorkspaceStub : INationalTeamWorkspace
 {
+    public virtual Task<EtfNavStudyReport> NavStudyAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>throw new InvalidOperationException("测试未配置此能力。");
     public virtual bool CanManage=>true;
     public virtual Task<List<HistoricalEquityPdf>> HistoricalEquityDocumentsAsync(CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
     public virtual Task<HistoricalEquityCommand> ImportHistoricalEquityPdfAsync(string id,string reviewer,string reason,bool originalConfirmed,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
@@ -53,6 +54,7 @@ internal abstract class ResearchWorkspaceStub : INationalTeamWorkspace
     public virtual Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
     public virtual Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
     public virtual Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
+    public virtual Task<EtfHolderCandidateReport> EtfHolderCandidatesAsync(EtfKey key,string documentId,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
     public virtual Task<IndustryPeReport> IndustryPeReportAsync(DateOnly from,DateOnly through,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
     public virtual Task<List<IndustryPeRevision>> IndustryPeRevisionsAsync(DateOnly from,DateOnly through,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");
     public virtual Task<IndustryPeSyncReceipt> QueueIndustryPeAsync(DateOnly from,DateOnly through,bool refreshSource,CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");

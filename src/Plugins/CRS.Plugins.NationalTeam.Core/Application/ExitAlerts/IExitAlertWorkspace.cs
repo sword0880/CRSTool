@@ -25,4 +25,5 @@ public interface IExitAlertWorkspace : IWorkspaceAccess
     Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token);
     Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token);
     Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token);
+    Task<EtfHolderCandidateReport> EtfHolderCandidatesAsync(EtfKey key,string documentId,CancellationToken token);
 }

@@ -16,4 +16,5 @@ public interface IExitAlertReadRepository
     List<AlertDocument> AlertDocuments(EtfKey key);
     List<AlertFundMetadata> AlertMetadata();
     List<NamedEtfHolding> NamedEtfHoldings(EtfKey? key=null);
+    EtfHolderDocument EtfHolderDocument(EtfKey key,string documentId);
 }

@@ -10,4 +10,5 @@ public sealed partial class MarketRepository
     public List<AlertFundMetadata> AlertMetadata() => alertStore.AlertMetadata();
     public void ReviewNamedEtfHolding(NamedEtfHoldingReview review,Guid? commandId=null) => alertStore.ReviewNamedEtfHolding(review, commandId);
     public List<NamedEtfHolding> NamedEtfHoldings(EtfKey? key=null) => alertStore.NamedEtfHoldings(key);
+    public EtfHolderDocument EtfHolderDocument(EtfKey key,string documentId) => alertStore.EtfHolderDocument(key,documentId);
 }

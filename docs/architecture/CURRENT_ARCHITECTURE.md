@@ -1,6 +1,8 @@
 # 当前架构入口
 
-2026-10-26 国家队模块续项：直接持股、预警及原件完整性实现独立，工作区端口按功能归档，旧聚合接口及时间兼容壳退役，公共正文读取进入 `CRS.Common`、顶部分类菜单进入`CRS.Plugin.Wpf`。验收查询有界批量读取并附只读阶段诊断。ETF核心、连接和初始化所有权已进一步独立，国家队两库改为普通SQLite；当前验证与剩余边界见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+2026-10-27 具名ETF持有人候选接线：通用PDF读取迁入无业务依赖的`CRS.Documents`，富途与国家队共用；持有人模板、候选合同和用例分别归`EtfHoldings`功能目录。已登记原件经只读核验后解析，不自动升级人工确认。范围及剩余门槛见[候选接线](../implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)。
+
+2026-10-26 国家队模块续项：直接持股、预警及原件完整性实现独立，工作区端口按功能归档，旧聚合接口及时间兼容壳退役，公共正文读取进入 `CRS.Common`、顶部分类菜单进入`CRS.Plugin.Wpf`。验收查询有界批量读取并附只读阶段诊断。ETF核心、连接和初始化所有权已独立，国家队两库改为普通SQLite；后台另分八组类型化用例和统一执行会话，不再实现界面合同，六个客户端合同均要求显式实现。当前验证与剩余边界见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
 
 2026-10-23反方评审R01～R04候选整改：Application显式联合导入提交、国家队独立只读快照与有界证据查询、正式源码组合根默认每插件Runner监督、ACL巡检与容量预警分离。工作区源码已接线，未替换已安装服务，验证与剩余边界见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
 
@@ -19,10 +21,11 @@
 | CRS.Domain | 无 | 交易事实、FIFO、税务及绩效规则 |
 | CRS.Application | CRS.Common, CRS.Domain | 用例、端口、冻结结果、DesktopWorkflow |
 | CRS.Security | 无 | 密码学、认证和保险库机制 |
-| CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security | 券商解析、持久化、汇率、导出、装配 |
+| CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security, CRS.Documents | 券商解析、持久化、汇率、导出、装配 |
 | CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc | 桌面进程，具体基础设施仅由 Composition 装配 |
 | CRS.Plugin.Abstractions | CRS.Common | 桌面插件的 BCL 契约 |
 | CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹、有界HTTP正文读取；不依赖业务或宿主 |
+| CRS.Documents | 无 | 公共PDF文字/坐标读取、文件及页面限额；仅依赖PdfPig，不含券商或持仓规则 |
 | CRS.Plugin.Wpf | CRS.Plugin.Abstractions | WPF 页面贡献契约 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
 | CRS.Worker.Abstractions | CRS.Common | 后台会话、任务、查询及存储上下文契约 |
@@ -34,7 +37,7 @@
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
 | CRS.Plugins.Heartbeat | CRS.Worker.Abstractions | 后台心跳插件 |
 | CRS.Plugins.NationalTeam.Core | CRS.Common | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
-| CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common | 后台采集、市场库、来源策略及查询 |
+| CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common, CRS.Documents | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
 
 ## 解决方案测试与夹具项目

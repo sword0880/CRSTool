@@ -17,6 +17,7 @@ internal sealed class NationalTeamStores
     public readonly AlertStore Alerts;
     public readonly EvidenceIntegrityStore Integrity;
     public readonly EtfStore Etf;
+    public readonly EtfNavStudyStore NavStudy;
     public NationalTeamStores(MarketDatabaseSession session)
     {
         Calendar=new(session);Activity=new(session,Calendar);
@@ -26,5 +27,6 @@ internal sealed class NationalTeamStores
         Integrity=new(session,pending.Mark,Etf.RecordQueryStage);
         session.AttachIntegrity(Integrity);
         Industry=new(session);Equity=new(session);Index=new(session);Nav=new(session);
+        NavStudy=new(session,Nav,Etf,Alerts);
     }
 }

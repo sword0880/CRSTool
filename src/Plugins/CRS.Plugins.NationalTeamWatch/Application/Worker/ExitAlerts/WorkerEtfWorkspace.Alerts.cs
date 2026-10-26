@@ -26,4 +26,12 @@ public sealed partial class WorkerEtfWorkspace
     public Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>RunAsync("alert-manage",new("alert-metadata-review",AlertMetadata:review),token);
     public Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>AlertRows<NamedEtfHolding>(new("alert-holdings",key.Market,key.Ticker),token);
     public Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token)=>RunAsync("alert-manage",new("alert-holding-review",NamedEtfHolding:review),token);
+    public async Task<EtfHolderCandidateReport> EtfHolderCandidatesAsync(EtfKey key,string documentId,CancellationToken token)
+    {
+        var blocks=(await ReadPagesAsync<CRS.Serialization.JsonDocumentBlock>(new("etf-holder-candidates",key.Market,key.Ticker,Revision:documentId,Count:2),token)).Rows;
+        var report=CRS.Serialization.JsonDocumentBlocks.Decode<EtfHolderCandidateReport>(blocks,token);
+        if(report.Document.Id!=documentId||report.Document.Market!=key.Market||report.Document.Ticker!=key.Ticker
+            ||report.ParserVersion!="huatai300-holders-pdf-v1")throw new InvalidDataException("持有人候选与所选原件或解析版本不符。");
+        return report;
+    }
 }

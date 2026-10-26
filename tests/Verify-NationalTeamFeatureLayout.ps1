@@ -40,15 +40,15 @@ Assert-NoLooseCode "$ui/Application"
 Assert-OnlyExpectedRootCode $ui @('GlobalUsings.cs', 'NationalTeamPluginEntry.cs')
 Assert-OnlyExpectedRootCode "$jobs/Background" @('NationalTeamBackgroundEntry.cs')
 
-# The IPC workspace is still one compatibility facade, but each feature partial belongs to its own folder.
+# IPC客户端按功能归档，后台用例不实现这些客户端合同。
 $workerRoot = Join-Path $repoRoot "$ui/Application/Worker"
 $workerFiles = @(Get-ChildItem -LiteralPath $workerRoot -Recurse -File -Filter 'WorkerEtfWorkspace*.cs')
-if ($workerFiles.Count -ne 6) {
-    throw "Expected 6 WorkerEtfWorkspace source parts, found $($workerFiles.Count)."
+if ($workerFiles.Count -ne 7) {
+    throw "Expected 7 WorkerEtfWorkspace source parts, found $($workerFiles.Count)."
 }
 foreach ($file in $workerFiles) {
     $relative = $file.FullName.Substring($repoRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
-    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|Equity|ExitAlerts|IndustryValuation|MarketCycle)/WorkerEtfWorkspace[^/]*\.cs$') {
+    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|Equity|ExitAlerts|IndustryValuation|MarketCycle|Nav)/WorkerEtfWorkspace[^/]*\.cs$') {
         throw ("Worker workspace partial is not grouped by feature: " + $relative)
     }
 }
@@ -86,6 +86,10 @@ foreach ($port in $portFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $port) -PathType Leaf)) {
         throw "Required narrow workspace port is missing: $port"
     }
+    $contractSource = Get-Content -LiteralPath (Join-Path $repoRoot $port) -Raw
+    if ($contractSource -match '=>|NotSupportedException|Task\.FromResult') {
+        throw "Workspace contracts must require explicit implementations without default fallbacks: $port"
+    }
 }
 $assemblyContract = Get-Content -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/INationalTeamWorkspace.cs") -Raw
 if ($assemblyContract -notmatch 'public interface INationalTeamWorkspace : IEtfResearchWorkspace' -or $assemblyContract -match 'Task<') {
@@ -93,6 +97,27 @@ if ($assemblyContract -notmatch 'public interface INationalTeamWorkspace : IEtfR
 }
 if (Test-Path -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/IEtfWorkspace.cs")) {
     throw 'The retired composite workspace interface must not return.'
+}
+
+# 后台用例与客户端合同分离；跨功能共享执行会话，不重建聚合partial。
+$applicationRoot = Join-Path $repoRoot "$jobs/Application"
+foreach ($file in Get-ChildItem -LiteralPath $applicationRoot -Recurse -File -Filter '*.cs') {
+    $source = Get-Content -LiteralPath $file.FullName -Raw
+    if ($source -match '\b(EtfWorkspace|INationalTeamWorkspace|IEtfResearchWorkspace|IDirectEquityWorkspace|IIndustryValuationWorkspace|IMarketCycleWorkspace|INavWorkspace|IExitAlertWorkspace)\b') {
+        throw "Backend use cases must not implement client workspace contracts: $($file.Name)"
+    }
+    if ($file.Name -notin @('MarketApplicationSession.cs','NationalTeamApplication.cs') -and $source -match '\bIMarketRepository\b') {
+        throw "Feature use cases must access typed repository ports through the shared session: $($file.Name)"
+    }
+}
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure") -Recurse -File -Filter '*.cs') {
+    if ((Get-Content -LiteralPath $file.FullName -Raw) -match 'class NationalTeamBackgroundSession') {
+        throw "Background orchestration must not be hidden inside Infrastructure: $($file.Name)"
+    }
+}
+$useCaseSession = Get-Content -LiteralPath (Join-Path $applicationRoot 'Shared/MarketApplicationSession.cs') -Raw
+if ($useCaseSession -notmatch 'MarketRepositoryCapabilities\.Validate' -or $useCaseSession -match 'sessions is null\?') {
+    throw 'The shared application session must verify capabilities before publishing independent reads, without serial fallback.'
 }
 $viewModelPortChecks = @(
     @{ Path = "$ui/Presentation/Equity/EquityViewModel.cs"; Pattern = 'EquityViewModel\(IDirectEquityWorkspace' },

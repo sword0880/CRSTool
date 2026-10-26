@@ -22,7 +22,7 @@ $appReferences = @($appProject.SelectNodes('//ProjectReference'))
 Assert-Boundary ($appReferences.Count -eq 2 -and @($appReferences | Where-Object {$_.Include -notmatch '^../CRS\.(Domain|Common)/CRS\.(Domain|Common)\.csproj$'}).Count -eq 0) 'Application 只能引用 Domain 与纯BCL时间策略。'
 [xml]$infraProject = Get-Content -Raw (Join-Path $infra 'CRS.Infrastructure.csproj')
 foreach ($reference in $infraProject.SelectNodes('//ProjectReference')) {
-    Assert-Boundary ($reference.Include -match 'CRS\.(Domain|Application|Security)/CRS\.(Domain|Application|Security)\.csproj$') 'Infrastructure 反向引用前台。'
+    Assert-Boundary ($reference.Include -match 'CRS\.(Domain|Application|Security|Documents)/CRS\.(Domain|Application|Security|Documents)\.csproj$') 'Infrastructure 反向引用前台。'
 }
 foreach ($root in @($domain,$app)) {
     foreach ($file in Get-ChildItem $root -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
@@ -78,7 +78,7 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
                 $reference.GetAttribute('DevelopmentPlugin') -eq 'true'
             Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.' -or $developmentBuildOnly) "宿主/税务静态引用业务插件：$($projectFile.Name)"
         } else {
-            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Common/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
+            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.(Common|Documents)/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
         }
     }
 }
@@ -126,6 +126,12 @@ foreach($file in Get-ChildItem $pluginCommon -Filter '*.cs' -Recurse | Where-Obj
     Assert-Boundary (-not ($source -match 'using CRS\.(Worker|Plugins|Infrastructure|Application|Desktop)|using Microsoft\.Data\.Sqlite|using System\.Windows')) "公共基础组件存在越界依赖：$($file.Name)"
 }
 Write-Output '后台服务无 WPF/私人税务依赖门禁通过。'
+# 有第三方解析依赖的文档机制独立于纯BCL Common及税务基础设施。
+[xml]$documentsProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Documents/CRS.Documents.csproj')
+Assert-Boundary ($documentsProject.SelectNodes('//ProjectReference | //UseWPF | //UseWindowsForms').Count -eq 0 -and $documentsProject.SelectNodes('//PackageReference').Count -eq 1 -and $documentsProject.SelectSingleNode('//PackageReference').Include -eq 'PdfPig') '文档机制不得依赖宿主、业务或数据库。'
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Documents') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
+    Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using CRS\.(Domain|Application|Infrastructure|Plugins|Desktop)|Microsoft\.Data\.Sqlite|System\.Windows')) "文档机制出现业务依赖：$($file.Name)"
+}
 # ETF桌面入口必须只使用管道，后台入口必须保持无界面，主程序会话不能再实例化调度器。
 [xml]$etfUi=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj')
 Assert-Boundary ($etfUi.SelectNodes('//PackageReference').Include -notcontains 'Microsoft.Data.Sqlite.Core') 'ETF桌面引用了市场库连接实现。'
@@ -138,7 +144,7 @@ Assert-Boundary ($etfJobs.SelectNodes('//Compile[@Include]').Count -eq 0 -and $e
 Assert-Boundary ($etfCore.SelectNodes('//Compile[@Include]').Count -eq 0) 'ETF Core 不允许跨目录源码链接。'
 Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.PluginHost/QuartzTaskScheduler.cs'))) '桌面宿主仍保留第二套 Quartz 执行实现。'
 $uiEntry=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/CRS.Plugins.NationalTeamWatch/NationalTeamPluginEntry.cs')
-Assert-Boundary (-not ($uiEntry -match 'new\s+(MarketRepository|OfficialShareSources)|RegisterAsync|\bEtfWorkspace\(')) 'ETF桌面入口仍有本地采集/写入路径。'
+Assert-Boundary (-not ($uiEntry -match 'new\s+(MarketRepository|OfficialShareSources|NationalTeamApplication)|RegisterAsync|\bEtfWorkspace\(')) 'ETF桌面入口仍有本地采集/写入路径。'
 $uiHost=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.PluginHost/PluginRuntime.cs')
 Assert-Boundary (-not ($uiHost -match 'new\s+QuartzTaskScheduler|scheduler\.Scope')) '桌面插件宿主仍创建第二个调度器。'
 Write-Output 'ETF双入口、唯一任务执行者与桌面无写库依赖门禁通过。'

@@ -98,6 +98,12 @@
       "crs.common": {
         "type": "Project"
       },
+      "crs.documents": {
+        "type": "Project",
+        "dependencies": {
+          "PdfPig": "[0.1.16, )"
+        }
+      },
       "crs.domain": {
         "type": "Project"
       },
@@ -105,13 +111,13 @@
         "type": "Project",
         "dependencies": {
           "CRS.Application": "[1.0.0, )",
+          "CRS.Documents": "[1.0.0, )",
           "CRS.Domain": "[1.0.0, )",
           "CRS.Security": "[1.0.0, )",
           "Dapper": "[2.1.89, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
           "NLog": "[6.2.1, )",
           "NPOI": "[2.8.1, )",
-          "PdfPig": "[0.1.16, )",
           "QRCoder": "[1.7.0, )",
           "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )",
           "SkiaSharp": "[3.119.4, )",

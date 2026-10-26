@@ -190,6 +190,12 @@
       "crs.common": {
         "type": "Project"
       },
+      "crs.documents": {
+        "type": "Project",
+        "dependencies": {
+          "PdfPig": "[0.1.16, )"
+        }
+      },
       "crs.plugin.abstractions": {
         "type": "Project",
         "dependencies": {
@@ -212,6 +218,7 @@
         "type": "Project",
         "dependencies": {
           "CRS.Common": "[1.0.0, )",
+          "CRS.Documents": "[1.0.0, )",
           "CRS.Plugin.Abstractions": "[1.0.0, )",
           "CRS.Plugins.NationalTeam.Core": "[2.0.0, )",
           "CRS.Worker.Abstractions": "[2.0.0, )",
@@ -277,6 +284,12 @@
         "dependencies": {
           "SQLitePCLRaw.core": "2.1.12"
         }
+      },
+      "PdfPig": {
+        "type": "CentralTransitive",
+        "requested": "[0.1.16, )",
+        "resolved": "0.1.16",
+        "contentHash": "qQcbsNMYVY+K5ELptax2S8thNMk0+rSQq3H/KdYj3LLcko8yTCz8y5KIvsKxIyAuTN0ZYNnfsZkM+0EvxTwHVA=="
       },
       "SkiaSharp": {
         "type": "CentralTransitive",

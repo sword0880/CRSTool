@@ -7,6 +7,7 @@
     <ProjectReference Include="../../CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" />
     <ProjectReference Include="../../CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj" />
     <ProjectReference Include="../../CRS.Common/CRS.Common.csproj" />
+    <ProjectReference Include="../../CRS.Documents/CRS.Documents.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" /><PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
   </ItemGroup>
 </Project>

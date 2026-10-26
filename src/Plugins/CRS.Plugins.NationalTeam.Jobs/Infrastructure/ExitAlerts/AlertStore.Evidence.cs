@@ -46,6 +46,21 @@ internal sealed partial class AlertStore
         using var command=Command("SELECT payload FROM nt_alert_metadata");
         return ReadJson<AlertFundMetadata>(command).Select(x=>raw.Verify(x.EvidenceHash)?x:x with{OriginalConfirmed=false}).ToList();
     }
+    /// <summary>跨模块研究仅核对本基金的可比性原件，沿用当前查询取消和Q15状态。</summary>
+    internal AlertFundMetadata? MetadataForNavStudy(EtfKey key)
+    {
+        var payload=Scalar("SELECT payload FROM nt_alert_metadata WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker)) as string;
+        if(payload is null)return null;
+        var value=JsonSerializer.Deserialize<AlertFundMetadata>(payload)??throw new InvalidDataException("基金可比性资料损坏。");
+        var valid=value.Market==key.Market&&value.Ticker==key.Ticker&&Convert.ToInt32(Scalar("""
+            SELECT count(*) FROM nt_alert_document d JOIN source_fetch f ON f.fetch_id=d.fetch_id
+            WHERE d.market=$m AND d.ticker=$t AND d.hash=$hash AND d.url=$url AND f.sha256=d.hash AND f.original_sha256=d.hash
+                AND f.provider='ReviewedEtfAlertPdf' AND f.status!='ParseFailed'
+                AND NOT EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open')
+            """,("$m",key.Market),("$t",key.Ticker),("$hash",value.EvidenceHash),("$url",value.EvidenceUrl)))==1;
+        var healthy=raw.VerifyMany([value.EvidenceHash],session.OperationCancellation)[value.EvidenceHash];
+        return valid&&healthy?value:value with{OriginalConfirmed=false};
+    }
     public void ReviewNamedEtfHolding(NamedEtfHoldingReview review,Guid? commandId=null)
     {
         if(Committed(commandId))return;var document=RequireAlertDocument(review.DocumentId);

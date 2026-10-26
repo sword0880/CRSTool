@@ -1,0 +1,35 @@
+<UserControl x:Class="CRS.Plugins.NationalTeamWatch.Presentation.NavStudyPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:design="clr-namespace:CRS.Plugin.Wpf;assembly=CRS.Plugin.Wpf"
+ Style="{DynamicResource UiPageRoot}" Background="{DynamicResource BrandCanvasBrush}">
+ <UserControl.Resources><design:BeijingTimestampConverter x:Key="RecordedTime"/></UserControl.Resources>
+ <Grid Margin="20"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <StackPanel><TextBlock Text="NAV与份额金额研究" Style="{DynamicResource UiPageTitle}"/>
+   <TextBlock Text="同日单位净值 × 每日份额变化 · 1 / 5 / 20 交易日窗口" Foreground="{DynamicResource BrandTextSecondaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+   <Expander Header="查看研究口径" Margin="0,8,0,0"><TextBlock Text="按已登记交易日逐日相加，不使用累计净值。基金全市场份额变化金额不是具名国家队成交，也不是精确现金净流入。缺少日历、可比性、份额或同日NAV时保留未知；本页不判断市场顶底或发出退出通知。" TextWrapping="Wrap" Margin="0,8"/></Expander>
+  </StackPanel>
+  <Border Grid.Row="1" Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,12,0,0">
+   <WrapPanel><ComboBox ItemsSource="{Binding Funds}" SelectedItem="{Binding Selected}" Width="285" Margin="0,0,8,6"><ComboBox.ItemTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding Ticker}" FontWeight="SemiBold" Margin="0,0,8,0"/><TextBlock Text="{Binding Name}"/></StackPanel></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+    <DatePicker SelectedDateFormat="Short" SelectedDate="{Binding From}" Width="130" Margin="0,0,6,6"/><TextBlock Text="至" VerticalAlignment="Center" Margin="0,0,6,6"/><DatePicker SelectedDateFormat="Short" SelectedDate="{Binding Through}" Width="130" Margin="0,0,8,6"/>
+    <ui:Button Content="查询研究" Command="{Binding QueryCommand}" Margin="0,0,8,6"/><ui:Button Content="取消等待" Command="{Binding CancelCommand}" Margin="0,0,8,6"/><ui:Button Content="复制冻结研究JSON" Command="{Binding CopyFrozenCommand}" Margin="0,0,0,6"/>
+   </WrapPanel>
+  </Border>
+  <StackPanel Grid.Row="2" Margin="0,12"><TextBlock Text="{Binding Caption}" TextWrapping="Wrap"/><TextBlock Text="{Binding Status}" Foreground="{DynamicResource BrandStatusInfoBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/></StackPanel>
+  <TabControl Grid.Row="3">
+   <TabItem Header="份额金额窗口"><DataGrid x:Name="StudyGrid" ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MinRowHeight="34" ColumnHeaderHeight="38"><DataGrid.Columns>
+    <DataGridTextColumn Header="截止日" Binding="{Binding Value.Date,StringFormat=yyyy-MM-dd}" Width="105"/><DataGridTextColumn Header="窗口" Binding="{Binding WindowText}" Width="100"/>
+    <DataGridTextColumn Header="份额变化（份）" Binding="{Binding Value.DeltaShares,StringFormat=N0,TargetNullValue=—}" MinWidth="110" Width="*"/><DataGridTextColumn Header="估算金额（元）" Binding="{Binding Value.EstimatedAmountYuan,StringFormat=N2,TargetNullValue=—}" MinWidth="110" Width="*"/>
+    <DataGridTemplateColumn Header="数据状态" MinWidth="165" Width="1.4*"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding StatusText}" ToolTip="{Binding StatusText}" TextWrapping="Wrap" Margin="4" VerticalAlignment="Center"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+   </DataGrid.Columns></DataGrid></TabItem>
+   <TabItem Header="NAV修订"><DataGrid ItemsSource="{Binding Revisions}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"><DataGrid.Columns>
+    <DataGridTextColumn Header="净值日" Binding="{Binding Date,StringFormat=yyyy-MM-dd}"/><DataGridTextColumn Header="单位净值（元）" Binding="{Binding UnitNavYuan,StringFormat=N4}"/><DataGridTextColumn Header="累计净值（元）" Binding="{Binding AccumulatedNavYuan,StringFormat=N4}"/>
+    <DataGridTextColumn Header="状态" Binding="{Binding State}"/><DataGridTextColumn Header="状态记录（北京时间）" Binding="{Binding StateRecordedAt,Converter={StaticResource RecordedTime}}" Width="190"/><DataGridTextColumn Header="原件健康" Binding="{Binding EvidenceHealthy}"/><DataGridTextColumn Header="修订身份" Binding="{Binding Id}" Width="*"/>
+   </DataGrid.Columns></DataGrid></TabItem>
+   <TabItem Header="来源与冻结身份"><Grid Margin="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <TextBlock Text="完整输入保留研究截止、份额修订、NAV修订、可比性和原件哈希。当前资料回看不证明历史当时可得；原件长度未记录时保持未知。" TextWrapping="Wrap"/>
+    <TextBox Grid.Row="1" Text="{Binding Fingerprint,Mode=OneWay}" IsReadOnly="True" Margin="0,10"/>
+    <DataGrid Grid.Row="2" ItemsSource="{Binding Sources}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"><DataGrid.Columns><DataGridTextColumn Header="官方来源" Binding="{Binding Url}" Width="2*"/><DataGridTextColumn Header="取得时间（北京时间）" Binding="{Binding RetrievedAt,Converter={StaticResource RecordedTime}}" Width="190"/><DataGridTextColumn Header="原件SHA256" Binding="{Binding Sha256}" Width="*"/></DataGrid.Columns></DataGrid>
+   </Grid></TabItem>
+  </TabControl>
+ </Grid>
+</UserControl>

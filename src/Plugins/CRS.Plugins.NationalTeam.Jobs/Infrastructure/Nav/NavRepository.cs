@@ -3,7 +3,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-/// <summary>Compatibility facade: NAV storage is now implemented by NavStore, without changing Worker IPC.</summary>
+/// <summary>NAV存储组合入口，仅转发至独立NavStore，不拥有连接或业务SQL。</summary>
 public sealed partial class MarketRepository
 {
     public NavImportOutcome? NavImportReceipt(Guid commandId)=>navStore.NavImportReceipt(commandId);

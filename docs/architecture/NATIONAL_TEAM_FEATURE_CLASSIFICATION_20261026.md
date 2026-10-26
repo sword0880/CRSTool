@@ -18,7 +18,7 @@
 | Equity | 具名账户直接持股、逐账户审核、公告索引、历史原文 | 机构直接持股页；报告期持股变化不能称每日成交 |
 | IndustryValuation | 国证行业公布PE、样本估值、基本面质量门槛 | 公布PE及行业样本指数/PB页；不同统计宇宙分开，低PE不等于低估 |
 | MarketCycle | 市场成交活动、指数序列、周期研究、来源审批 | 指数研究及ETF页的市场活动；顶部/底部仍缺完整真实输入及样本外验证 |
-| Nav | 单位净值、修订、知识时点及同日研究 | 独立后台事实链；基金NAV不是全市场周期 |
+| Nav | 单位净值、修订、知识时点及同日研究 | 顶部“NAV与份额金额”入口；同日NAV与份额研究，不代表机构成交或全市场周期 |
 | ExitAlerts | 规则、证据、事件、历史回算、Outbox和投递 | ETF页内预警中心；独立退出导航/完整金融模型尚未交付 |
 | Evidence / Sources | 原件、批次核验、来源许可和HTTP策略 | 插件内跨功能基础设施，不承载新业务 |
 | Shared / Storage | 装配契约、连接生命周期、初始化顺序和普通SQLite存储组合 | 明确例外目录，禁止继续堆放领域特有实现 |
@@ -29,7 +29,11 @@ Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Inf
 
 `INationalTeamWorkspace` 仅继承六个功能端口，不重复声明成员；`NationalTeamProtocol.cs` 单独存放当前请求和分页DTO。旧 `IEtfWorkspace` 及三套Legacy UI适配器已删除。当前接口可直接重构，不承担旧二进制兼容承诺。
 
-桌面宿主只注册一个可见“国家队研究工作台”。内部目录由 `NationalTeamWorkspaceCatalog` 管理分类、路由、证据限制和视图工厂；按需创建当前页，切换释放旧视图引用。三个旧平铺宿主路由已移除；ETF、持股、公布PE与样本指数由工作台内部目录导航。无调用方的 `IndustryResearchHostPage` 同步删除。
+六个界面合同全部要求显式实现，不含默认抛错、空集合或忽略筛选的回退。后台不再实现界面合同；`NationalTeamApplication`装配八组功能用例，`MarketApplicationSession`拥有应用读写门槛与生命周期，各模块仅访问类型化仓储端口。旧后台`EtfWorkspace`删除，细节见[应用边界记录](../implementation/NATIONAL_TEAM_APPLICATION_BOUNDARY_20261026.md)。
+
+桌面宿主只注册一个可见“国家队研究工作台”。内部目录由 `NationalTeamWorkspaceCatalog` 管理分类、路由、证据限制和视图工厂；按需创建当前页，切换释放旧视图引用。三个旧平铺宿主路由已移除；ETF、持股、NAV、公布PE与样本指数由工作台内部目录导航。无调用方的 `IndustryResearchHostPage` 同步删除。
+
+NAV份额研究使用独立跨模块只读投影，冻结输入按通用有界JSON块传输；公共机制进入`CRS.Common`，金融计算仍在插件应用/领域层。范围和数据缺口见[NAV工作区记录](../implementation/NATIONAL_TEAM_NAV_WORKSPACE_20261026.md)。
 
 工作台采用顶部“资金与持仓 / 行业与估值”分类下拉菜单，不再保留占用正文宽度的第二层侧栏。当前研究说明按需展开，正文独占整行。通用菜单控件及样式归属外层 `CRS.Plugin.Wpf/PluginSectionNavigation`，插件仅提供分类与目的地；菜单不创建业务页、不查询数据，选中态在页面构造成功后提交。
 

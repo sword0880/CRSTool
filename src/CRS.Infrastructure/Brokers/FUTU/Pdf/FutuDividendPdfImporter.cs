@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CRS.Domain;
+using CRS.Documents.Pdf;
 
 namespace CRS.Infrastructure.Pdf;
 
@@ -58,6 +59,7 @@ public static class FutuDividendPdfImporter
             if (result.Count == 0) throw new CrsException("PDF 未识别到可验证的账户收入表；扫描件或未知布局请改用富途 Excel。");
             return result;
         }
+        catch (InvalidDataException e) { throw new CrsException(e.Message); }
         catch (Exception e) when (e is not (CrsException or OperationCanceledException)) { throw new CrsException("富途 PDF 读取失败，请检查文件是否损坏、加密或为扫描件。"); }
     }
     /// <summary>为紧邻数字的币种补分隔空格，共用收入金额解析规则。</summary>

@@ -8,7 +8,7 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 
 public sealed record EtfNavStudyRequest(EtfKey Key, DateOnly From, DateOnly Through, DateTimeOffset KnowledgeCutoff,
     NavResearchDataset Nav, CoverageReport Coverage, IReadOnlyList<SharePoint> Shares, IReadOnlyList<EvidenceRow> ShareEvidence,
-    AlertFundMetadata? Comparability);
+    AlertFundMetadata? Comparability,IReadOnlyList<NavRevision>? NavRevisions=null);
 public sealed record EtfNavStudyWindow(DateOnly Date, int Window, decimal? DeltaShares, decimal? EstimatedAmountYuan, string State, string Fingerprint);
 public sealed record EtfNavStudyReport(string AlgorithmVersion, string Fingerprint, EtfNavStudyRequest FrozenInputs, IReadOnlyList<EtfNavStudyWindow> Windows)
 {
@@ -22,7 +22,16 @@ public sealed record EtfNavStudyReport(string AlgorithmVersion, string Fingerpri
 /// <summary>冻结研究样本按已核对交易日对齐；缺日不跨越，份额可比性未知时不计算差额。</summary>
 public static class EtfNavStudy
 {
-    public const string AlgorithmVersion = "etf-nav-study-v1";
+    public const string AlgorithmVersion = "etf-nav-study-v2";
+    /// <summary>完整冻结文档数学复算；版本、输入身份和全部输出必须一致，不等同原件或预测验收。</summary>
+    public static EtfNavStudyReport VerifyFrozen(EtfNavStudyReport report)
+    {
+        if(report.AlgorithmVersion!=AlgorithmVersion)throw new InvalidDataException("研究版本不支持，拒绝按当前模型解释旧报告。");
+        var rebuilt=Run(report.FrozenInputs);
+        if(rebuilt.Fingerprint!=report.Fingerprint||!rebuilt.Windows.SequenceEqual(report.Windows))
+            throw new InvalidDataException("研究输入身份或窗口结果不符，拒绝通过数学复算。");
+        return rebuilt;
+    }
     private static bool Hash(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
     public static EtfNavStudyReport Run(EtfNavStudyRequest input)
     {
@@ -39,7 +48,7 @@ public static class EtfNavStudy
             || input.Coverage.RegisteredTradingDays != input.Coverage.Days.Count)
             throw new InvalidDataException("研究输入存在重复、无效份额、夹带NAV或日历边界不符。");
         var sourceHashes = input.Nav.Sources.Select(x => x.Sha256).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (input.Nav.Sources.Count == 0 || input.Nav.Sources.Any(x => !Hash(x.Sha256) || x.RetrievedAt == default || x.RetrievedAt > input.Nav.VerifiedAt)
+        if (input.Nav.Sources.Count == 0 && input.Nav.Points.Count != 0 || input.Nav.Sources.Any(x => !Hash(x.Sha256) || x.RetrievedAt == default || x.RetrievedAt > input.Nav.VerifiedAt)
             || input.Nav.Points.Any(x => x.UnitNavYuan <= 0 || x.Date > cutoffDay || x.FirstSeenAt == default || x.FirstSeenAt > input.Nav.VerifiedAt
             || x.SourceHashes.Count == 0 || x.SourceHashes.Any(h => !Hash(h) || !sourceHashes.Contains(h))))
             throw new InvalidDataException("NAV数值、来源指纹或首见时刻无效。");
@@ -48,10 +57,11 @@ public static class EtfNavStudy
         {
             Shares = Array.AsReadOnly(input.Shares.OrderBy(x => x.Date).ToArray()),
             ShareEvidence = Array.AsReadOnly(input.ShareEvidence.OrderBy(x => x.RevisionId, StringComparer.Ordinal).ToArray()),
+            NavRevisions = input.NavRevisions is null?null:Array.AsReadOnly(input.NavRevisions.OrderBy(x=>x.Date).ThenBy(x=>x.Revision).Select(x=>x with{}).ToArray()),
             Coverage = input.Coverage with { Days = Array.AsReadOnly(input.Coverage.Days.OrderBy(x => x.Date).ToArray()) },
             Nav = input.Nav with
             {
-                Sources = Array.AsReadOnly(input.Nav.Sources.OrderBy(x => x.Url, StringComparer.Ordinal).ToArray()),
+                Sources = Array.AsReadOnly(input.Nav.Sources.OrderBy(x => x.Url, StringComparer.Ordinal).ThenBy(x=>x.Sha256,StringComparer.Ordinal).ThenBy(x=>x.RetrievedAt).ToArray()),
                 Points = Array.AsReadOnly(input.Nav.Points.OrderBy(x => x.Date).Select(x => x with { SourceHashes = Array.AsReadOnly(x.SourceHashes.Order(StringComparer.Ordinal).ToArray()) }).ToArray())
             }
         };

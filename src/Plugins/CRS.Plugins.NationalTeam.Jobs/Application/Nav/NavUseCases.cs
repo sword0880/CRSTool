@@ -5,6 +5,8 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 public sealed partial class NavUseCases : MarketUseCaseScope
 {
     internal NavUseCases(MarketApplicationSession session):base(session){}
+    public Task<EtfNavStudyReport> NavStudyAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)
+        =>ReadPortAsync((IEtfNavStudyReadRepository r)=>EtfNavStudy.Run(r.FreezeEtfNavStudy(key,from,through)),token);
     public Task<NavImportOutcome?> NavImportReceiptAsync(Guid id, CancellationToken token)
         => ReadPortAsync<INavReadRepository, NavImportOutcome?>(r => r.NavImportReceipt(id), token);
     /// <summary>联网已在写入门槛之外完成，整个原件组与命令回执在仓储单事务提交。</summary>
