@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Presentation;
 
+if(args is ["--navigation"]){NationalTeamNavigationChecks.Run();return;}
 if(args is ["--industry",var industryReport,var industryImage]){IndustryUiChecks.Run(industryReport,industryImage);return;}
 if(args is ["--industry-installed",var installedFrom,var installedThrough,var installedImage]){IndustryInstalledUiChecks.Run(DateOnly.Parse(installedFrom),DateOnly.Parse(installedThrough),installedImage);return;}
 if(args is ["--index",var indexReport,var indexImage]){IndexUiChecks.Run(indexReport,indexImage);return;}
