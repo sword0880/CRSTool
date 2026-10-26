@@ -84,6 +84,11 @@ Check(Gate(profile with{Observations=profile.Observations.Select(x=>x.Measure==I
     x with{Evidence=x.Evidence with{AcceptedAt=cutoff.AddSeconds(1)}}:x).ToArray()}).State=="IncompleteQualityEvidence","知识截止后的审批不能穿越时点");
 Check(Gate(profile with{Scheme="other"}).State=="IncompatibleUniverseOrClassification","行业分类未匹配不能沿用质量证据");
 Check(Gate(profile,"bad-hash").State=="IncompatibleUniverseOrClassification","未知公司池摘要不能升级质量状态");
+Check(Gate(profile with{ProfileMappingEvidence=profile.ProfileMappingEvidence! with
+    {FirstSeenAt=cutoff.ToOffset(TimeSpan.FromHours(8)),RetrievedAt=cutoff.ToOffset(TimeSpan.FromHours(8)),
+    AcceptedAt=cutoff.ToOffset(TimeSpan.FromHours(8)),
+    PublishedAt=cutoff.AddDays(-2).ToOffset(TimeSpan.FromHours(8))}}).Fingerprint==ready.Fingerprint,
+    "同一审核与披露时间仅改变时区显示不应改变质量证据身份");
 Check(Gate(profile with{ProfileMappingEvidence=null}).State=="UnverifiedProfileMapping",
     "行业映射未经过审核不能任意自选更宽松的规则");
 Check(Gate(profile with{ProfileRuleSet="old-method"}).State=="UnverifiedProfileMapping",
