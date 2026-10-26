@@ -21,17 +21,25 @@
    <ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Row.Name}" IsChecked="{Binding IsVisible}" Margin="0,4,16,4"/></DataTemplate></ItemsControl.ItemTemplate>
   </ItemsControl>
   <lvc:CartesianChart Height="360" Series="{Binding Series}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" LegendPosition="Bottom"/>
-  <DataGrid ItemsSource="{Binding Rows}" IsReadOnly="True" CanUserAddRows="False" AutoGenerateColumns="False" HeadersVisibility="Column" MaxHeight="330" Margin="0,10">
+  <WrapPanel Margin="0,10,0,4">
+   <CheckBox Content="仅显示双口径历史低位（研究筛选）" IsChecked="{Binding OnlyDualLow}" VerticalAlignment="Center"/>
+  </WrapPanel>
+  <TextBlock Text="{Binding ComparisonSummary}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+  <DataGrid ItemsSource="{Binding ComparisonRows}" IsReadOnly="True" CanUserAddRows="False" AutoGenerateColumns="False" HeadersVisibility="Column" MaxHeight="330" Margin="0,10">
    <DataGrid.Columns>
     <DataGridTextColumn Header="行业" Binding="{Binding Row.Name}" Width="*"/>
     <DataGridTextColumn Header="截至对照日" Binding="{Binding Row.LatestDate,StringFormat=yyyy-MM-dd,TargetNullValue=未知}"/>
     <DataGridTextColumn Header="滚动加权PE" Binding="{Binding Row.LatestRollingWeighted,StringFormat=N2,TargetNullValue=未知}"/>
     <DataGridTextColumn Header="滚动中位PE" Binding="{Binding Row.LatestRollingMedian,StringFormat=N2,TargetNullValue=未知}"/>
-    <DataGridTextColumn Header="区间分位(%)" Binding="{Binding Row.PublishedSeriesPercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
-    <DataGridTextColumn Header="前置样本" Binding="{Binding Row.PriorSamples}"/>
-    <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="2*"/>
+    <DataGridTextColumn Header="加权PE历史位置(%)" Binding="{Binding Row.PublishedSeriesPercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
+    <DataGridTextColumn Header="中位PE历史位置(%)" Binding="{Binding Row.PublishedMedianSeriesPercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
+    <DataGridTextColumn Header="加权/中位样本" Binding="{Binding Row.PriorSamples}"/>
+    <DataGridTextColumn Header="中位样本" Binding="{Binding Row.MedianPriorSamples}"/>
+    <DataGridTextColumn Header="双口径历史位置" Binding="{Binding HistoricalPosition}" Width="2*"/>
+    <DataGridTextColumn Header="资料状态" Binding="{Binding State}" Width="2*"/>
    </DataGrid.Columns>
   </DataGrid>
-  <TextBlock Text="使用当前已登记版本回看历史，不代表当时系统已知；公布值不能识别国家队持仓或交易，也不提供买入信号。" TextWrapping="Wrap"/>
+  <TextBlock Text="研究阈值：加权及中位PE分别处于所选区间前20%低位才列为双口径观察；两类数据分别要求至少252个前置正值样本、核验交易日覆盖率≥80%，并排除当日。该阈值未经样本外验证。" TextWrapping="Wrap" Margin="0,8,0,4"/>
+  <TextBlock Text="重要：国证官网公布PE剔除亏损样本；行业亏损覆盖、市值覆盖率、PB、ROE、自由现金流与供需周期均未核实。低PE可能来自周期利润高点；这里的历史位置不代表行业已低估，也不识别国家队持仓或交易。使用当前已登记版本回看历史，不能冒充历史实盘已知结果。" TextWrapping="Wrap"/>
  </StackPanel></ScrollViewer>
 </UserControl>
