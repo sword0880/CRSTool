@@ -9,14 +9,14 @@ public partial class EtfViewModel
 {
     public System.Collections.ObjectModel.ObservableCollection<CRS.Plugins.NationalTeamWatch.Application.MarketActivityRevision> ActivityRevisions {get;}=[];
     [ObservableProperty] private CRS.Plugins.NationalTeamWatch.Application.MarketActivityRevision? selectedActivityRevision;
-    [RelayCommand] private Task RefreshActivityRevisions()=>ExecuteAsync(async token=>{var rows=await workspace.MarketActivityRevisionsAsync(token);SelectedActivityRevision=null;ActivityRevisions.Clear();foreach(var row in rows)ActivityRevisions.Add(row);});
+    [RelayCommand] private Task RefreshActivityRevisions()=>ExecuteAsync(async token=>{var rows=await marketCycleWorkspace.MarketActivityRevisionsAsync(token);SelectedActivityRevision=null;ActivityRevisions.Clear();foreach(var row in rows)ActivityRevisions.Add(row);});
     [RelayCommand] private Task AcceptActivityRevision()=>ReviewActivityRevision(true);
     [RelayCommand] private Task RejectActivityRevision()=>ReviewActivityRevision(false);
     private Task ReviewActivityRevision(bool accept)=>ExecuteAsync(async token=>
     {
         if(SelectedActivityRevision is null)throw new System.IO.InvalidDataException("请先选择成交统计修订。");
-        await workspace.ReviewMarketActivityAsync(SelectedActivityRevision.Id,accept,Reviewer,token);
-        var rows=await workspace.MarketActivityRevisionsAsync(token);SelectedActivityRevision=null;ActivityRevisions.Clear();foreach(var row in rows)ActivityRevisions.Add(row);
+        await marketCycleWorkspace.ReviewMarketActivityAsync(SelectedActivityRevision.Id,accept,Reviewer,token);
+        var rows=await marketCycleWorkspace.MarketActivityRevisionsAsync(token);SelectedActivityRevision=null;ActivityRevisions.Clear();foreach(var row in rows)ActivityRevisions.Add(row);
         await LoadMarketActivityAsync(token);
     });
     [ObservableProperty] private ISeries[] marketAmountSeries=[];
@@ -33,7 +33,7 @@ public partial class EtfViewModel
         MarketActivityStatus=$"正在向后台提交 {range} 的沪深成交额采集，并等待执行结果；实际来源限流可能导致任务延期或失败。";
         try
         {
-            await workspace.SyncMarketActivityAsync(from,to,token);
+            await marketCycleWorkspace.SyncMarketActivityAsync(from,to,token);
             token.ThrowIfCancellationRequested();
             await LoadMarketActivityAsync(token);
             token.ThrowIfCancellationRequested();
@@ -60,7 +60,7 @@ public partial class EtfViewModel
         MarketActivityStatus="正在加载沪深股票成交统计…";
         try
         {
-            var points=await workspace.MarketActivityAsync(token);token.ThrowIfCancellationRequested();
+            var points=await marketCycleWorkspace.MarketActivityAsync(token);token.ThrowIfCancellationRequested();
             if(version!=activityVersion)return;
             activityPoints=points;RebuildComparison();
             ApplyMarketActivityStatus(points);
