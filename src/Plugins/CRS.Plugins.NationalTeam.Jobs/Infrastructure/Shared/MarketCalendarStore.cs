@@ -42,12 +42,6 @@ internal sealed class MarketCalendarStore
         return value is null?null:Convert.ToInt32(value)==1;
     }
 
-    public bool? IsReviewedTradingDay(string market,DateOnly day)
-    {
-        var value=_session.Scalar("SELECT c.is_open FROM exchange_calendar_day c WHERE market=$m AND day=$d AND NOT EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=c.fetch_id AND q.rule_id='Q15' AND q.status='Open')",("$m",market),("$d",day.ToString("yyyy-MM-dd")));
-        return value is null?null:Convert.ToInt32(value)==1;
-    }
-
     public IndustryPeCalendarSnapshot IndustryPeCalendar(DateOnly from,DateOnly through,DateTimeOffset cutoff)
     {
         var snapshot=ReadPublishedTradingCalendar(from,through,cutoff);
