@@ -10,7 +10,7 @@ using LiveChartsCore.SkiaSharpView;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>只投影后台公布序列及任务回执；不联网、不计算分位、不打开市场库。</summary>
-public partial class IndustryResearchViewModel(IEtfWorkspace workspace,CancellationToken lifetime):ObservableObject
+public partial class IndustryResearchViewModel(IIndustryValuationWorkspace workspace,CancellationToken lifetime):ObservableObject
 {
     private CancellationTokenSource? operation;
     private bool initialized;
