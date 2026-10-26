@@ -9,13 +9,28 @@ using CRS.Worker.Ipc;
 /// <summary>正式业务只读测量；失败同样核对健康和PID，不提交任务、不清缓存、不提取服务密钥。</summary>
 internal static class EtfQueryPerformanceLive
 {
-    public static async Task RunAsync(string output)
+    public static async Task RunAsync(string output,bool awaitNaturalLoad=false)
     {
         output=Path.GetFullPath(output);if(Directory.Exists(output))throw new IOException("测量目录已存在，保留原测量不覆盖。");Directory.CreateDirectory(output);
         var pipe=new BackgroundPipeClient();var measurements=new List<EtfQueryPageMeasurement>();var reader=new WorkerEtfWorkspace(pipe,measurements.Add);var results=new List<object>();var failed=0;
         async Task<BackgroundResponse> Health()
         {
             using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(5));return await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"),timeout.Token);
+        }
+        if(awaitNaturalLoad)
+        {
+            // 等正常在途任务，不排队新采集来制造负载；六分钟只限制观察，产品单次查询仍为15秒。
+            var waitStarted=CRS.Timing.BeijingClock.Now;var elapsed=Stopwatch.StartNew();BackgroundResponse? observed=null;
+            while(elapsed.Elapsed<TimeSpan.FromMinutes(6))
+            {
+                observed=await Health();
+                if(observed.Health?.State=="Running"&&observed.Health.Scheduling?.Plugins?.Any(x=>x.PluginId=="crs.national-team"&&x.Running>=2)==true)break;
+                await Task.Delay(2000);
+            }
+            var loadObserved=observed?.Health?.State=="Running"&&observed.Health.Scheduling?.Plugins?.Any(x=>x.PluginId=="crs.national-team"&&x.Running>=2)==true;
+            var activity=loadObserved?await pipe.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity")):null;
+            await File.WriteAllTextAsync(Path.Combine(output,"natural-load.json"),JsonSerializer.Serialize(new{StartedAt=waitStarted,ObservedAt=CRS.Timing.BeijingClock.Now,Observed=loadObserved,Health=observed?.Health,Activity=activity},new JsonSerializerOptions{WriteIndented=true}));
+            if(!loadObserved){Console.WriteLine("Unavailable: 未观察到两项国家队正常在途任务，未追加工作或假造忙时验收。");Environment.ExitCode=2;return;}
         }
         async Task Sample<T>(string name,Func<CancellationToken,Task<T>> read,Func<T,object> summarize)
         {

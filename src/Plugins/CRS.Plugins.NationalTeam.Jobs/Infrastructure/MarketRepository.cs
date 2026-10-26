@@ -240,10 +240,11 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     {
         var keys=key is null?Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToArray():[key];
         var calendars=keys.Select(x=>x.Market).Distinct().ToDictionary(x=>x,ReadCalendar);
+        // 同一次只读快照冻结同一北京自然日，使用仓储时钟；跨零点只纳入新日历缺口，不生成份额事实。
+        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(clock).DateTime);
         return EtfHistory.Calculate(keys.Select(k=>
         {
             var calendar=calendars[k.Market];
-            var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
             return new EtfHistoryInput(k,calendar.All(x=>x.Valid)?calendar.Where(x=>x.Date<=today).Select(x=>x.Date).ToArray():[],sharedPoints is null?ReadPoints(k):sharedPoints[k]);
         }).ToArray());
     }
@@ -280,6 +281,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     /// <summary>读取原始字节和规范化字节的哈希；仅在本次操作中缓存相同哈希的结果。</summary>
     private (List<string> Bad,List<string> Good) ScanEvidence(EtfKey? shareKey=null,bool includeCalendar=false,bool activityOnly=false,bool dashboardOnly=false,bool includeAttempts=false)
     {
+        var stageStarted=System.Diagnostics.Stopwatch.GetTimestamp();
         var bad=new List<string>();var good=new List<string>();
         var fetches=new List<(string Id,string Hash,string Original)>();
         using(var command=Command("""
@@ -305,13 +307,16 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
                 operationCancellation.ThrowIfCancellationRequested();
                 fetches.Add((reader.GetString(0),reader.GetString(1),reader.GetString(2)));
             }
+        RecordDashboardStage("EvidenceSql",stageStarted,fetches.Count);stageStarted=System.Diagnostics.Stopwatch.GetTimestamp();
         var verified=raw.VerifyMany(fetches.SelectMany(x=>new[]{x.Hash,x.Original}),operationCancellation);
+        // 此阶段包含共享句柄准入、完整读取及SHA核验；不能把它全称为物理磁盘耗时。
+        RecordDashboardStage("RawVerificationIncludingAdmission",stageStarted,verified.Count);stageStarted=System.Diagnostics.Stopwatch.GetTimestamp();
         foreach(var fetch in fetches)
         {
             operationCancellation.ThrowIfCancellationRequested();
             if(!verified[fetch.Hash]||!verified[fetch.Original])bad.Add(fetch.Id);else good.Add(fetch.Id);
         }
-        return (bad,good);
+        RecordDashboardStage("EvidenceClassification",stageStarted,fetches.Count);return (bad,good);
     }
     /// <summary>仅由 Worker 持久后台完整性任务调用。状态变更和审计事件在单一事务中提交，重跑幂等。</summary>
     public void ReconcileEvidenceIntegrity()

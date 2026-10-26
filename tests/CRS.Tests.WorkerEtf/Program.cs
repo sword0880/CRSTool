@@ -26,6 +26,13 @@ if(args is ["--adaptive-query-pages"]){await AdaptiveQueryPageChecks.RunAsync();
 if(args is ["--market-query-reliability"]){await MarketQueryReliabilityChecks.RunAsync();return;}
 if(args is ["--cooling-progress"]){await CoolingProgressChecks.RunAsync();return;}
 if(args is ["--manual-receipts"]){await EtfManualReceiptChecks.RunAsync();return;}
+if(args is ["--historical-command-checks"]){await HistoricalEquityCommandChecks.RunAsync();return;}
+if(args is ["--historical-live",var historicalLiveOutput]){await HistoricalEquityLive.Run(historicalLiveOutput,true);return;}
+if(args is ["--historical-status-live",var historicalStatusOutput]){await HistoricalEquityLive.Run(historicalStatusOutput,false);return;}
+if(args is ["--equity-read-live",var equityMarket,var equityTicker,var equityReadOutput]){await EquityDisclosureReadLive.Run(equityMarket,equityTicker,equityReadOutput);return;}
+if(args is ["--historical-pipe",var historicalPackage,var historicalOriginal,var historicalOutput]){await HistoricalEquityPipeChecks.Run(historicalPackage,historicalOriginal,historicalOutput);return;}
+if(args is ["--historical-ui",var historicalPipe,var historicalUiOutput]){HistoricalEquityUiChecks.Run(historicalPipe,historicalUiOutput);return;}
+if(args is ["--historical-read-ui",var historicalKnownRequest,var historicalReadUiOutput]){HistoricalEquityUiChecks.Run("",historicalReadUiOutput,true,Guid.Parse(historicalKnownRequest));return;}
 if(args is ["--installed-dashboard-probe"])
 {
     var dashboardTimer=Stopwatch.StartNew();var dashboardClient=new BackgroundPipeClient();
@@ -43,6 +50,9 @@ if(args is ["--installed-dashboard-probe"])
     return;
 }
 if(args is ["--query-performance-live",var performanceOutput]){await EtfQueryPerformanceLive.RunAsync(performanceOutput);return;}
+if(args is ["--query-performance-live-load",var loadPerformanceOutput]){await EtfQueryPerformanceLive.RunAsync(loadPerformanceOutput,true);return;}
+if(args is ["--dashboard-profile-live",var profileOutput]){await DashboardProfileLive.Run(profileOutput);return;}
+if(args is ["--cross-day-live",var gapDate,var gapBaseline,var gapOutput]){await EtfCrossDayLive.RunAsync(DateOnly.ParseExact(gapDate,"yyyy-MM-dd"),gapBaseline,gapOutput);return;}
 if(args is ["--market-request-probe",var receiptId])
 {
     var receiptClient=new BackgroundPipeClient();
@@ -269,6 +279,13 @@ using(var service=Start())
         Check(singleHistory.Count==basketHistory.Count && singleHistory.All(x=>x.Total==1 && x.Covered==1 && x.Shares>0),"单只ETF历史使用独立口径");
         var dashboard=await ui.DashboardAsync(null,default);
         Check(dashboard is not null&&dashboard.Overview.Count==5&&dashboard.History.SequenceEqual(basketHistory)&&dashboard.Activity.Any(x=>x.State=="Complete"),"整页合并查询经真实Worker及快照分页返回与独立查询一致的表格和图表");
+        var profileReply=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:JsonSerializer.Serialize(new EtfRequest("dashboard-profile"))));
+        if(profileReply.Code!="Ok"||profileReply.Payload is null)throw new InvalidDataException("完整包不支持有限诊断。");
+        var profilePage=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(profileReply.Payload);using(var profileData=JsonDocument.Parse(profilePage.Items))
+        {
+            var profile=profileData.RootElement[0];var expectedHash=Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(dashboard)));
+            Check(profilePage.TotalRows==1&&profilePage.NextOffset is null&&profile.GetProperty("Stages").GetArrayLength()==7&&profile.GetProperty("DashboardSha256").GetString()==expectedHash,"有限分段诊断经真实Runner/管道返回，完整金融结果指纹与正常整页一致");
+        }
         var acceptanceThrough=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime).AddDays(-1);
         var acceptance=await ui.AcceptanceAsync(acceptanceThrough,default);
         Check(acceptance.Count==5&&acceptance.All(x=>!x.DataAcceptancePassed&&!x.CalendarVerified),"生产验收查询经真实管道返回，无日历时不得批准250日或连续20日");

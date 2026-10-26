@@ -2,6 +2,7 @@
   <!-- 后台应用与仓储实体代码归 Jobs，不依赖 WPF。 -->
   <PropertyGroup><Version>2.0.0</Version></PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources/cnd-2025-annual.json" />
     <ProjectReference Include="../CRS.Plugins.NationalTeam.Core/CRS.Plugins.NationalTeam.Core.csproj" />
     <ProjectReference Include="../../CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" />
     <ProjectReference Include="../../CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj" />

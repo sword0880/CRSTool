@@ -8,6 +8,7 @@ using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 if(args is ["--supervised-plugins"]){await SupervisedPluginChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.SupervisedPlugins",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--runner-diagnostic-cancel"]){await RunnerDiagnosticCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.RunnerDiagnostic",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--storage-growth"]){await StorageGrowthChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.StorageGrowth",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--cancellation-boundaries"]){await WorkerCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.Cancellation",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--recovery-export-authorization"]){await RecoveryExportAuthorizationChecks.RunAsync();return;}

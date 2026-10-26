@@ -22,6 +22,8 @@ public sealed class IsolatedCapabilityEntry:IContextualBackgroundPluginEntry
             await progress(new("RangeStarted"));
             // 故意忽略取消，证明父进程能只终止这个Runner并收回正在占用的来源额度。
             if(payload=="hang")await Task.Delay(Timeout.InfiniteTimeSpan);
+            // 可协作长作业用于证明查询取消/诊断拥塞不能终止同一Runner的其它在途工作。
+            if(payload=="hold")while(File.Exists(Path.Combine(context.DataDirectory,"diagnostic-job.hold")))await Task.Delay(20,token);
             var notification=(IBackgroundNotificationContext)context;
             var channels=await notification.NotificationChannelsAsync(token);
             var sent=await notification.SendNotificationAsync(channels.Single().Id,"fixture",new("fixture-message","合成通知","无真实收件人","Fixture"),token);
@@ -33,8 +35,11 @@ public sealed class IsolatedCapabilityEntry:IContextualBackgroundPluginEntry
             if(payload=="crash")Environment.Exit(17);
             if(payload=="hang")return Task.Delay(Timeout.InfiniteTimeSpan).ContinueWith(_=>"unreachable",TaskScheduler.Default);
             if(payload=="reject")throw new InvalidDataException("synthetic-private-message");
+            if(payload=="cooperative-cancel")return CooperativeQuery(token);
             return Task.FromResult(context.PluginId+":"+Environment.ProcessId);
         }
+        private async Task<string> CooperativeQuery(CancellationToken token)
+        {File.WriteAllText(Path.Combine(context.DataDirectory,"diagnostic-query.entered"),"synthetic");await Task.Delay(Timeout.Infinite,token);return "unreachable";}
         public ValueTask StopAsync(CancellationToken token)=>ValueTask.CompletedTask;
         public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
     }

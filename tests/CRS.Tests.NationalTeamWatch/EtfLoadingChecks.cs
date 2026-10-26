@@ -12,7 +12,7 @@ internal static class EtfLoadingChecks
     public static async Task Run()
     {
         await EtfChartChecks.Run();
-        CheckHistoryParity();CheckDashboardIntegrity();
+        CheckHistoryParity();CheckDashboardIntegrity();CheckBeijingRollover();
         var workspace=new Workspace();using var lifetime=new CancellationTokenSource();
         var model=new EtfViewModel(workspace,lifetime.Token);
         await model.RefreshCommand.ExecuteAsync(null);
@@ -74,6 +74,25 @@ internal static class EtfLoadingChecks
         File.WriteAllBytes(Path.Combine(rawRoot,hash+".raw"),bytes);
         Check(repo.ExecuteOperation(()=>repo.Dashboard(null),default).History.Count==1,"损坏修复后重新校验，不跨刷新缓存");
     }
+    private static void CheckBeijingRollover()
+    {
+        var root=Path.Combine(Path.GetTempPath(),"CRS.EtfRollover",Guid.NewGuid().ToString("N"));var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
+        var clock=new RolloverClock{At=new(2026,10,25,15,59,59,TimeSpan.Zero)};
+        using var repo=TestMarketData.Open(Path.Combine(root,"data"),raw,timeProvider:clock);
+        var hash=raw.Save(Encoding.UTF8.GetBytes("synthetic calendar known before midnight; no new share fact"));
+        var fetch=repo.RecordFetch(hash,"https://www.sse.com.cn/synthetic-rollover");var beforeDay=new DateOnly(2026,10,23);var newDay=new DateOnly(2026,10,26);var key=new EtfKey("SSE","510300");
+        repo.ImportCalendar(fetch,[("SSE",beforeDay),("SZSE",beforeDay),("SSE",newDay),("SZSE",newDay)],default);
+        repo.ImportShares(fetch,[new(key,beforeDay,100m,"万份")],default);
+        var singleBefore=repo.History(key);var allBefore=repo.History(null);var evidenceBefore=JsonSerializer.Serialize(repo.Evidence(key));
+        Check(singleBefore.Count==1&&allBefore.Count==1,"北京零点前不把已登记的未来交易日当成当日历史");
+        clock.At=clock.At.AddSeconds(1);var singleAfter=repo.History(key);var allAfter=repo.History(null);
+        Check(singleAfter.Count==2&&allAfter.Count==2&&singleAfter[^1] is{Date:var date,Shares:null,DeltaShares:null,Covered:0,Total:1}&&date==newDay
+            &&allAfter[^1] is{Shares:null,DeltaShares:null,Covered:0,Total:24},"北京跨日仅新增缺口行，单只和固定篮子均不把未知份额补零");
+        Check(JsonSerializer.Serialize(singleBefore)==JsonSerializer.Serialize(singleAfter.Take(1))&&JsonSerializer.Serialize(allBefore)==JsonSerializer.Serialize(allAfter.Take(1))
+            &&JsonSerializer.Serialize(repo.Evidence(key))==evidenceBefore,"跨日不改已有历史值或生成新证据/金融事实");
+    }
+    private sealed class RolloverClock:TimeProvider
+    {public DateTimeOffset At;public override DateTimeOffset GetUtcNow()=>At;}
     private sealed class Workspace:IEtfWorkspace,IEtfDashboardWorkspace
     {
         public int SeparateReads;

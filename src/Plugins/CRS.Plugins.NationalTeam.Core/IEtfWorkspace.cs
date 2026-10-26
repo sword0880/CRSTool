@@ -5,6 +5,10 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>页面只接触用例契约；本地后台实现和管道客户端可分别验证。</summary>
 public interface IEtfWorkspace
 {
+    Task<List<HistoricalEquityPdf>> HistoricalEquityDocumentsAsync(CancellationToken token)=>throw new NotSupportedException("历史原文登记需要更新后台。");
+    Task<HistoricalEquityCommand> ImportHistoricalEquityPdfAsync(string id,string reviewer,string reason,bool originalConfirmed,CancellationToken token)=>throw new NotSupportedException("历史原文登记需要更新后台。");
+    Task<HistoricalEquityCommand> HistoricalEquityStatusAsync(Guid requestId,CancellationToken token)=>throw new NotSupportedException("历史原文登记需要更新后台。");
+    Task<HistoricalEquityReceipt?> HistoricalEquityReceiptAsync(Guid requestId,CancellationToken token)=>throw new NotSupportedException("历史原文登记需要更新后台。");
     Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>throw new NotSupportedException("预警中心需要更新后台服务。");
     Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token)=>throw new NotSupportedException();
     Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>throw new NotSupportedException();

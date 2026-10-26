@@ -27,6 +27,7 @@ public sealed partial class MarketRepository
             Execute("INSERT OR IGNORE INTO equity_watch VALUES('SSE',$t,$n,1,0)",("$t",ticker),("$n",name));
         transaction.Commit();
         InitializeEquityReportSchema();
+        InitializeHistoricalEquitySchema();
     }
     public List<EquityWatch> EquityWatchlist()
     {

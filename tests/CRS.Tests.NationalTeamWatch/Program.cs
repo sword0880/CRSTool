@@ -22,6 +22,7 @@ if(args is ["--icbc-golden",var icbcGoldenDirectory]){IcbcGoldenChecks.Run(icbcG
 if(args is ["--abc-read-live",var abcReadDirectory]){await AbcEquityAcceptanceTool.Run(abcReadDirectory,false);return;}
 if(args is ["--abc-golden",var abcGoldenDirectory]){AbcGoldenChecks.Run(abcGoldenDirectory);return;}
 if(args is ["--cnd-comparison-golden",var cndComparisonDirectory]){CndComparisonGoldenChecks.Run(cndComparisonDirectory);return;}
+if(args is ["--historical-pdf-checks",var historicalPdf]){HistoricalEquityChecks.Run(historicalPdf);return;}
 if(args is ["--abc-review-live",var abcReviewDirectory]){await AbcEquityAcceptanceTool.Run(abcReviewDirectory,true);return;}
 if(args is ["--deployment-state-live",var stateDirectory]){await DeploymentOperationsTool.State(stateDirectory);return;}
 if(args is ["--equity-report-sync-live",var reportDirectory]){await DeploymentOperationsTool.Reports(reportDirectory,true);return;}
@@ -29,6 +30,8 @@ if(args is ["--equity-report-status-live",var reportStatusDirectory]){await Depl
 if(args is ["--equity-report-sync-live",var reportTicker,var tickerReportDirectory]){await DeploymentOperationsTool.Reports(tickerReportDirectory,true,reportTicker);return;}
 if(args is ["--equity-report-status-live",var statusTicker,var tickerStatusDirectory]){await DeploymentOperationsTool.Reports(tickerStatusDirectory,false,statusTicker);return;}
 if(args is ["--etf-loading"]){await EtfLoadingChecks.Run();return;}
+if(args is ["--dashboard-profile-checks"]){DashboardProfileChecks.Run();return;}
+if(args is ["--dashboard-batch-checks"]){DashboardBatchChecks.Run();return;}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
 if(args is ["--business-contracts"]){await BusinessContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.BusinessContracts",Guid.NewGuid().ToString("N")));return;}
@@ -99,6 +102,7 @@ MarketActivityChecks.Run(root);
 MarketCycleChecks.Run();
 await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
+HistoricalEquityChecks.CatalogContracts(Path.Combine(root,"historical-catalog"));
 EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(root,"evidence-adversarial"));
 EquityReportChecks.Run(root);
 await HistoryRangeChecks.Run(root);

@@ -246,3 +246,7 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 `--market-query-reliability`另含应用写门槛阻塞反例：真实加密仓储写用例尚未提交时独立读取可完成，提交后新读取可见；关闭等待在途读取，取消后释放，已关闭不再接收新查询。该检查针对读取准入与生命周期，不等同正式规模的延迟承诺。
 
 `--raw-batch`还验证同一原件库跨巡检/查询共享默认八句柄、查询等待优先及每八次让后台前进一次；取消等待不打开原件，取消在途读取释放文件及额度。`--adaptive-query-pages`包含取消快照清理等待本地在途查询超过两秒的反例；清理排队期限与网络期限分开，产品查询期限保持不变。
+
+历史PDF独立登记：默认国家队回归包含6项无需原件的目录/拒绝合同；`CRS.Tests.NationalTeamWatch --historical-pdf-checks <真实年报PDF>`核验32项真实原件和隔离事务失败边界。`CRS.Tests.WorkerEtf --historical-command-checks`检查11项稳定请求/重开客户端/双回执边界（隔离控制器，已加入CI配置，未声称远端执行）。`--historical-pipe <完整候选包> <原PDF> <不存在的输出目录>`用独立宿主、监督进程和真实管道回放公开原件，并渲染WPF登记/回查界面；源站、正式数据不参与。`--historical-live <目录>`会显式提交真实来源登记，先保存稳定请求；`--historical-status-live <原目录>`仅沿原ID回查，不能当普通测试运行。见[口径和验收边界](../docs/implementation/NATIONAL_TEAM_HISTORICAL_PDF_20261026.md)。
+
+`CRS.Tests.WorkerEtf --equity-read-live <SSE或SZSE> <六位代码> <不存在的目录>`只读冻结指定证券候选/完整披露/历次事件/报告目录及待处理检索，不提交任务或登记持仓；同一健康PID后才生成完整取证凭据。`CRS.Tests.NationalTeamWatch --dashboard-profile-checks`检查5项诊断结果一致、新损坏和读取中取消；`CRS.Tests.WorkerEtf --dashboard-profile-live <不存在的目录>`仅在新后台支持时采样有限阶段，失败保存Unavailable与前后健康。见[分段口径](../docs/implementation/ETF_QUERY_STAGE_PROFILE_20261026.md)，不能把单次结果当性能验收或把准入/投影混合时间叫纯磁盘/IPC耗时。

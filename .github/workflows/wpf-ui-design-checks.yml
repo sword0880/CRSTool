@@ -79,6 +79,16 @@ jobs:
       - name: Verify ETF dashboard parity and late selection isolation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-loading
+      # 只使用隔离控制器核验原请求与双回执，不下载公开原件或操作正式服务。
+      - name: Verify historical disclosure request identity and receipts
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --historical-command-checks
+      - name: Verify dashboard profiling preserves integrity and cancellation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --dashboard-profile-checks
+      - name: Verify batched dashboard matches per-security financial queries
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --dashboard-batch-checks
       - name: Verify plugin shared assembly same-version ABI mismatch is rejected before loading
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build

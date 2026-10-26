@@ -10,7 +10,7 @@ internal static class SupervisedRunner
     public static async Task<int> RunAsync(string[] args)
     {
         using var input=Console.OpenStandardInput();using var output=Console.OpenStandardOutput();Console.SetOut(Console.Error);
-        BackgroundPluginCatalog? catalog=null;RunnerContext? context=null;RunnerChannel? channel=null;FileStream? ownership=null;var started=0;var cleanStop=false;
+        BackgroundPluginCatalog? catalog=null;RunnerContext? context=null;RunnerChannel? channel=null;BufferedRunnerDiagnostics? diagnostics=null;FileStream? ownership=null;var started=0;var cleanStop=false;
         try
         {
             string Option(string name){var i=Array.IndexOf(args,name);return i>=0&&i+1<args.Length?args[i+1]:throw new ArgumentException();}
@@ -35,13 +35,9 @@ internal static class SupervisedRunner
                             ownership=await AcquireOwnershipAsync(directory,token).ConfigureAwait(false);
                             context=new(id,directory,start.DataKey,channel!);
                         }
+                        diagnostics=new BufferedRunnerDiagnostics(async(value,cancellation)=>{_=await channel!.CallAsync<bool>("Lifecycle",value,cancellation).ConfigureAwait(false);});diagnostics.Start();
                         catalog=new BackgroundPluginCatalog(onUnresponsive:()=>Environment.Exit(2),hostContext:_=>context??throw new InvalidDataException(),
-                            lifecycleDiagnostic:(_,phase,code)=>
-                            {
-                                // 保留原查询操作/取消分类；诊断代理失败不能改变业务结果或延长取消期限。
-                                using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(1));
-                                channel!.CallAsync<bool>("Lifecycle",new RunnerLifecycle(phase,code),deadline.Token).GetAwaiter().GetResult();
-                            });
+                            lifecycleDiagnostic:(_,phase,code)=>diagnostics.Report(phase,code));
                         await catalog.LoadSingleAsync(root,trust,id,token).ConfigureAwait(false);
                         if(catalog.Statuses.SingleOrDefault(x=>x.PluginId==id)?.State!="Started")throw new InvalidDataException("Runner plugin startup failed.");
                         var jobs=catalog.Jobs.Where(x=>x.PluginId==id).ToArray();
@@ -76,6 +72,7 @@ internal static class SupervisedRunner
         {
             // 意外断连不能提前释放插件目录租约；强制进程退出后由OS关闭句柄，防止新Worker与旧线程重叠写库。
             if(started!=0&&!cleanStop)Environment.Exit(2);
+            if(diagnostics is not null)await diagnostics.DisposeAsync().ConfigureAwait(false);
             if(channel is not null)await channel.DisposeAsync().ConfigureAwait(false);
             // 无法协作停止的插件由父进程Job Object关闭；不在EOF后无界等待。
             context?.Dispose();ownership?.Dispose();

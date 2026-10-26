@@ -1,0 +1,92 @@
+{
+  "Id": "cnd-600153-20251231-pdf-v1",
+  "Market": "SSE",
+  "Ticker": "600153",
+  "Name": "建发股份2025年年度报告",
+  "ReportAsOf": "2025-12-31",
+  "Published": "2026-04-29",
+  "PublicationBasis": "发行人官网公告列表列示日，不代表最早公开时刻",
+  "PublicationUrl": "https://www.chinacnd.com/announcement-page-5.html",
+  "DocumentUrl": "https://www.chinacnd.com/report-226.html",
+  "OriginalHash": "470448A5B8073540B0A6A722E1DDED1558AB9DC06FB44347D0E91D2948B72DF2",
+  "Pages": "P158-159；总股本见P2",
+  "ShareClass": "A",
+  "PercentBasis": "TotalShares",
+  "Unit": "股",
+  "Scope": "Top10ShareholdersExcludingSecuritiesLending",
+  "TotalShares": 2899538551,
+  "Holders": [
+    {
+      "Account": "厦门建发集团有限公司",
+      "Shares": 1356687985,
+      "Percent": 46.79
+    },
+    {
+      "Account": "香港中央结算有限公司",
+      "Shares": 86767941,
+      "Percent": 2.99
+    },
+    {
+      "Account": "基本养老保险基金一零零三组合",
+      "Shares": 67250642,
+      "Percent": 2.32
+    },
+    {
+      "Account": "招商银行股份有限公司－上证红利交易型开放式指数证券投资基金",
+      "Shares": 44112196,
+      "Percent": 1.52
+    },
+    {
+      "Account": "全国社保基金一零七组合",
+      "Shares": 34616620,
+      "Percent": 1.19
+    },
+    {
+      "Account": "招商银行股份有限公司－工银瑞信价值精选混合型证券投资基金",
+      "Shares": 29197675,
+      "Percent": 1.01
+    },
+    {
+      "Account": "宁波银行股份有限公司－中泰星元价值优选灵活配置混合型证券投资基金",
+      "Shares": 28774097,
+      "Percent": 0.99
+    },
+    {
+      "Account": "全国社保基金四零三组合",
+      "Shares": 28064763,
+      "Percent": 0.97
+    },
+    {
+      "Account": "中国农业银行股份有限公司－中证500交易型开放式指数证券投资基金",
+      "Shares": 25692242,
+      "Percent": 0.89
+    },
+    {
+      "Account": "中信证券股份有限公司－社保基金1106组合",
+      "Shares": 22789500,
+      "Percent": 0.79
+    }
+  ],
+  "ReviewedAccounts": [
+    {
+      "Account": "基本养老保险基金一零零三组合",
+      "Institution": "养老保险基金",
+      "Page": "P158前十名股东表第3行；P159无限售表"
+    },
+    {
+      "Account": "全国社保基金一零七组合",
+      "Institution": "社保基金",
+      "Page": "P158前十名股东表第5行；P159无限售表"
+    },
+    {
+      "Account": "全国社保基金四零三组合",
+      "Institution": "社保基金",
+      "Page": "P158前十名股东表第8行；P159无限售表"
+    },
+    {
+      "Account": "中信证券股份有限公司－社保基金1106组合",
+      "Institution": "社保基金",
+      "Page": "P159顶部续表及无限售表第10行"
+    }
+  ]
+}

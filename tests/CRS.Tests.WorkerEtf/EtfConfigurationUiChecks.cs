@@ -28,7 +28,7 @@ internal static class EtfConfigurationUiChecks
                 try
                 {
                     await model.EnsureInitializedAsync();
-                    if(model.Rows.Count==0 || model.ChartStatus.Contains("失败") || model.MarketActivityStatus.Contains("失败"))throw new InvalidOperationException("实际服务初始化查询失败："+model.ChartStatus+"；"+model.MarketActivityStatus);
+                    if(model.Rows.Count==0 || model.ChartStatus.Contains("失败") || model.MarketActivityStatus.Contains("失败"))throw new InvalidOperationException($"实际服务初始化查询失败：rows={model.Rows.Count};configs={model.Configurations.Count};status={model.Status};chart={model.ChartStatus};activity={model.MarketActivityStatus}");
                     var grid=(DataGrid)page.FindName("OverviewGrid");
                     foreach(var row in model.Rows)
                     {

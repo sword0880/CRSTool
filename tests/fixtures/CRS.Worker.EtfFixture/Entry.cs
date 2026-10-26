@@ -13,7 +13,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory),indexSourceApprovals:new IndexApprovals(context.DataDirectory));
         public int MaximumConcurrentExecutions=>inner.MaximumConcurrentExecutions;
         public BackgroundExecutionGroup ExecutionGroup(string jobId)=>inner.ExecutionGroup(jobId);
-        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
         public async ValueTask StartAsync(CancellationToken token)
         {
             // 此故障/去重夹具固定五只合成来源；生产默认全目录由仓储配置专项单独验证。
@@ -64,6 +64,14 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         public async Task<PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
+            var historical=Path.Combine(root,"historical-pdf.fixture");
+            if(Directory.Exists(historical))
+            {
+                // 历史披露完整管道只回放已核原件；意外地址直接失败，不让夹具请求真实网络。
+                if(uri.AbsoluteUri!="https://www.chinacnd.com/report-226.html")throw new InvalidDataException("历史夹具出现未列来源。");
+                await File.AppendAllTextAsync(Path.Combine(historical,"calls.log"),"original\n",token);
+                return new(200,await File.ReadAllBytesAsync(Path.Combine(historical,"original.pdf"),token),"application/pdf");
+            }
             // 仅测试可控的网络等待，验证阶段可查询且配置按插件写入门槛排队。
             while(File.Exists(Path.Combine(root,"http-hold.fixture")))await Task.Delay(25,token);
             // NAV管道验收只读取预先核对的公开原件；此夹具不进入正式发行，也不请求网络。
