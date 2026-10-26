@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
+using CRS.Plugin.Common.Evidence;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
@@ -25,7 +26,7 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
     /// <summary>只导出已经复核哈希的字节；先写同目录临时文件，取消或失败不覆盖已有目标。</summary>
     public async Task ExportVerifiedAsync(string hash,string destination,IReadOnlyList<string> protectedDirectories,CancellationToken cancellationToken)
     {
-        if(hash.Length!=64 || !hash.All(Uri.IsHexDigit))throw new InvalidDataException("证据哈希格式无效。");
+        if(!ContentFingerprint.IsSha256Hex(hash))throw new InvalidDataException("证据哈希格式无效。");
         var target=Path.GetFullPath(destination);
         foreach(var directory in protectedDirectories)
         {
@@ -36,7 +37,7 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         for(var directory=new DirectoryInfo(Path.GetDirectoryName(target)!);directory is not null;directory=directory.Parent)
             if(directory.Exists && directory.Attributes.HasFlag(FileAttributes.ReparsePoint))throw new InvalidDataException("导出目录不能包含符号链接或重解析点。");
         var bytes=await ReadBoundedAsync(Path.Combine(root,hash+".raw"),OfficialEquityDocuments.MaximumEvidenceBytes(hash),cancellationToken).ConfigureAwait(false);
-        if(Convert.ToHexString(SHA256.HashData(bytes))!=hash)throw new InvalidDataException("原始证据损坏，拒绝导出为已核验文件。");
+        if(!ContentFingerprint.Matches(hash,bytes))throw new InvalidDataException("原始证据损坏，拒绝导出为已核验文件。");
         var temporary=target+"."+Guid.NewGuid().ToString("N")+".tmp";
         try
         {
@@ -63,7 +64,7 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         // 即便稍后失败或去重，也先通过宿主写入门槛；升级时保守保留候选数据。
         beforeWrite?.Invoke();
         Directory.CreateDirectory(root);
-        var hash = Convert.ToHexString(SHA256.HashData(content)); var target = Path.Combine(root, hash + ".raw");
+        var hash = ContentFingerprint.Sha256(content); var target = Path.Combine(root, hash + ".raw");
         // 大小及身份不符在写临时原件前拒绝，不能留下之后必然无法核验的金融证据。
         if(content.Length>OfficialEquityDocuments.MaximumEvidenceBytes(hash))throw new InvalidDataException("原件超过允许的文件大小。");
         if (File.Exists(target)) { if (!Verify(hash)) throw new InvalidDataException("Evidence integrity failure."); return hash; }
@@ -85,7 +86,7 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
     private async Task<bool> VerifyAsync(string hash,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        if (hash.Length != 64 || !hash.All(Uri.IsHexDigit)) return false;
+        if (!ContentFingerprint.IsSha256Hex(hash)) return false;
         var path = Path.Combine(root, hash + ".raw");
         try
         {
