@@ -47,7 +47,7 @@ internal sealed class IndustryPeStore
         if(_session.Scalar("SELECT registered_at FROM nt_industry_capture WHERE id=$id",("$id",capture)) is string registered)
         {
             var duplicate=new IndustryPeImportOutcome(capture,0,values.Count,existing.Count(x=>x.State=="NeedsReview"),DateTimeOffset.Parse(registered,CultureInfo.InvariantCulture));
-            RecordIndustry_session.Command(commandId,"industry-pe-import",payload,JsonSerializer.Serialize(duplicate),now);_session.OperationCancellation.ThrowIfCancellationRequested();transaction.Commit();return duplicate;
+            RecordIndustryCommand(commandId,"industry-pe-import",payload,JsonSerializer.Serialize(duplicate),now);_session.OperationCancellation.ThrowIfCancellationRequested();transaction.Commit();return duplicate;
         }
         _session.Execute("INSERT INTO source_fetch VALUES($id,'OfficialCnindexIndustryPe',$retrieved,NULL,$url,$hash,$hash,'Accepted',$parser)",("$id",fetch),("$retrieved",IndustryTime(document.RetrievedAt)),("$url",document.Url),("$hash",hash),("$parser",OfficialIndustryPeSource.ParserVersion));
         _session.Execute("INSERT INTO nt_industry_capture VALUES($id,$fetch,$date,$at)",("$id",capture),("$fetch",fetch),("$date",Day(document.Date)),("$at",IndustryTime(now)));
@@ -61,7 +61,7 @@ internal sealed class IndustryPeStore
             IndustryEvent(id,state,"official-parser:"+OfficialIndustryPeSource.ParserVersion,now);added++;if(state=="NeedsReview")pending++;
         }
         var outcome=new IndustryPeImportOutcome(capture,added,duplicates,pending,now);
-        RecordIndustry_session.Command(commandId,"industry-pe-import",payload,JsonSerializer.Serialize(outcome),now);
+        RecordIndustryCommand(commandId,"industry-pe-import",payload,JsonSerializer.Serialize(outcome),now);
         _session.OperationCancellation.ThrowIfCancellationRequested();transaction.Commit();return outcome;
     }
     public IReadOnlyList<IndustryPeRevision> IndustryPeRevisions(DateOnly from,DateOnly through,DateTimeOffset cutoff)
@@ -103,11 +103,11 @@ internal sealed class IndustryPeStore
         if(string.IsNullOrWhiteSpace(reviewer)||reviewer.Length>120||reviewer.Any(char.IsControl))throw new InvalidDataException("行业PE审核人无效。");
         var payload=ExitAlertEvaluator.Hash(JsonSerializer.Serialize(new{revision,accept,reviewer}));if(IndustryReplay(commandId,"industry-pe-review",payload) is not null)return;
         _session.BeforeWrite?.Invoke();using var transaction=_session.Connection.BeginTransaction();var now=IndustryWriteAt();
-        using var identity=_session.Command("SELECT trade_date FROM nt_industry_revision WHERE id=$id",("$id",revision));var day=identity.Execute_session.Scalar() as string??throw new InvalidDataException("行业PE修订不存在。");
+        using var identity=_session.Command("SELECT trade_date FROM nt_industry_revision WHERE id=$id",("$id",revision));var day=identity.ExecuteScalar() as string??throw new InvalidDataException("行业PE修订不存在。");
         var date=DateOnly.ParseExact(day,"yyyy-MM-dd",CultureInfo.InvariantCulture);var all=IndustryPeRevisions(date,date,now);var target=all.Single(x=>x.Id==revision);
         if(target.State!="NeedsReview"||!target.EvidenceHealthy)throw new InvalidDataException("行业PE目标不处于可审核状态或原件不健康。");
         if(accept)foreach(var prior in all.Where(x=>x.Values.Code==target.Values.Code&&x.State=="Accepted"))IndustryEvent(prior.Id,"Superseded",reviewer,now);
-        IndustryEvent(target.Id,accept?"Accepted":"Rejected",reviewer,now);RecordIndustry_session.Command(commandId,"industry-pe-review",payload,"true",now);
+        IndustryEvent(target.Id,accept?"Accepted":"Rejected",reviewer,now);RecordIndustryCommand(commandId,"industry-pe-review",payload,"true",now);
         _session.OperationCancellation.ThrowIfCancellationRequested();transaction.Commit();
     }
     private static string Day(DateOnly day)=>day.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
@@ -124,8 +124,8 @@ internal sealed class IndustryPeStore
         if(!reader.Read())return prior is null?null:throw new InvalidDataException("行业PE命令双回执缺损。");
         if(prior!=operation||reader.GetString(0)!=operation||payload is not null&&reader.GetString(1)!=payload)throw new InvalidDataException("行业PE命令不能更换操作或负载。");return reader.GetString(2);
     }
-    private void RecordIndustry_session.Command(Guid? id,string operation,string payload,string result,DateTimeOffset at)
+    private void RecordIndustryCommand(Guid? id,string operation,string payload,string result,DateTimeOffset at)
     {
-        if(id is not {} value)return;_session.Execute("INSERT INTO nt_industry_command VALUES($id,$op,$payload,$json,$at)",("$id",value.ToString("N")),("$op",operation),("$payload",payload),("$json",result),("$at",IndustryTime(at)));Record_session.Command(id,operation);
+        if(id is not {} value)return;_session.Execute("INSERT INTO nt_industry_command VALUES($id,$op,$payload,$json,$at)",("$id",value.ToString("N")),("$op",operation),("$payload",payload),("$json",result),("$at",IndustryTime(at)));_session.RecordCommand(id,operation);
     }
 }
