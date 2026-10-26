@@ -106,7 +106,7 @@ public static class SectorResearch
                 dates[^1],request.Cutoff,current?.UniverseSnapshotHash);
             var low=peRank<=request.LowPercentile&&pbRank<=request.LowPercentile;
             var opportunity=valuationState!="ComparableHistory"?"NotEvaluated":!low?"NoLowValuationCondition":priceState!="Complete"?"PriceDataIncomplete":!fundamentalValid?"FundamentalsUnavailable"
-                :fundamental!.ProfitGrowth<0?"ValueTrapRisk":quality.State!="ReadyForAdversarialReview"?"IndependentQualityEvidenceUnavailable":"ResearchWatch";
+                :fundamental!.ProfitGrowth<0?"ValueTrapRisk":quality.State!="ReadyForAdversarialReview"?"IndependentQualityEvidenceUnavailable":"NeedsAdversarialAssessment";
             rows.Add(new SectorStudyRow(definition.Id,definition.Name,Array.AsReadOnly(curve),currentPe,currentPb,peRank,pbRank,pe.Length,pb.Length,expected,priceState,valuationState,opportunity,
                 "估值低位不是合理价值；基本面审核仅代表质量证据齐备，不能证实低估或构成买入信号。")
                 {QualityReadiness=quality.State,QualityFingerprint=quality.Fingerprint});
