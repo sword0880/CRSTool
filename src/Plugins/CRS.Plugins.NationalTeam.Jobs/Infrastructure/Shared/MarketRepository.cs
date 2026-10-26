@@ -119,6 +119,9 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private void Execute(string sql, params (string, object?)[] args) { using var command = Command(sql,args); command.ExecuteNonQuery(); }
     private object? Scalar(string sql, params (string, object?)[] args) { using var command = Command(sql,args); return command.ExecuteScalar(); }
     private static string Decimal(decimal value) => value.ToString(CultureInfo.InvariantCulture);
+    // Compatibility helpers still used by the not-yet-extracted IndexSeriesRepository partial.
+    private static string Day(DateOnly day)=>day.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
+    private static string IndustryTime(DateTimeOffset value)=>value.ToUniversalTime().ToString("O",CultureInfo.InvariantCulture);
     public string RecordFetch(string hash, string sourceUrl, string? originalHash = null,string provider="ReviewedNormalizedManualImport",string parserVersion="normalized-csv-v1")
     {
         beforeWrite?.Invoke();
