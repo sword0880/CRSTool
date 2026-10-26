@@ -10,9 +10,22 @@ using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 /// <summary>仅管理界面状态和交互命令，数据判断与存储交由应用用例。</summary>
-public partial class EtfViewModel(IEtfWorkspace workspace, CancellationToken lifetime) : ObservableObject
+public partial class EtfViewModel : ObservableObject
 {
-    public ExitAlertViewModel Alerts {get;}=new(workspace,lifetime);
+    private readonly IEtfResearchWorkspace workspace;
+    private readonly CancellationToken lifetime;
+
+    public EtfViewModel(IEtfResearchWorkspace workspace,IExitAlertWorkspace alertWorkspace,CancellationToken lifetime)
+    {
+        this.workspace=workspace??throw new ArgumentNullException(nameof(workspace));
+        this.lifetime=lifetime;
+        Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),lifetime);
+    }
+
+    /// <summary>Compatibility entry for existing consumers of the legacy composite workspace contract.</summary>
+    public EtfViewModel(IEtfWorkspace workspace,CancellationToken lifetime)
+        :this(LegacyEtfResearchWorkspaceAdapter.Create(workspace),ExitAlertViewModel.AsPort(workspace),lifetime) {}
+    public ExitAlertViewModel Alerts {get;}
     public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EtfSummary> Rows { get; }=[];
     public ObservableCollection<EtfConfiguration> Configurations {get;}=[];
