@@ -6,8 +6,9 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>预警中心只维护筛选、选择及编辑草稿，计算、原件、数据库和投递均在后台。</summary>
-public partial class ExitAlertViewModel(IEtfWorkspace workspace,CancellationToken lifetime):ObservableObject
+public partial class ExitAlertViewModel(IExitAlertWorkspace workspace,CancellationToken lifetime):ObservableObject
 {
+    internal static IExitAlertWorkspace AsPort(IEtfWorkspace workspace)=>workspace as IExitAlertWorkspace??new LegacyExitAlertWorkspaceAdapter(workspace);
     public bool CanManage=>workspace.CanManage;
     public bool CanEdit=>CanManage&&!Busy;
     public ObservableCollection<ExitAlertEvent> Events {get;}=[];
@@ -144,4 +145,31 @@ public partial class AlertRouteEditor(string channelId,string name,string profil
     public string Name {get;}=name;
     [ObservableProperty] private string profileId=profileId;
     [ObservableProperty] private bool selected=selected;
+}
+
+
+/// <summary>Adapts the unchanged legacy composite contract to the narrower exit-alert port.</summary>
+internal sealed class LegacyExitAlertWorkspaceAdapter(IEtfWorkspace inner):IExitAlertWorkspace
+{
+    public bool CanManage=>inner.CanManage;
+    public Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>inner.AlertOverviewAsync(token);
+    public Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token)=>inner.AlertConfigurationAsync(token);
+    public Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>inner.SaveAlertConfigurationAsync(value,token);
+    public Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>inner.AlertEventsAsync(filter,token);
+    public Task<ExitAlertEvent> AlertEventAsync(string id,CancellationToken token)=>inner.AlertEventAsync(id,token);
+    public Task<ExitAlertEvent> AlertEventVersionAsync(string id,int sequence,CancellationToken token)=>inner.AlertEventVersionAsync(id,sequence,token);
+    public Task<List<EvidenceRow>> AlertInputsAsync(string id,int? sequence,CancellationToken token)=>inner.AlertInputsAsync(id,sequence,token);
+    public Task<List<ExitAlertChange>> AlertChangesAsync(string id,CancellationToken token)=>inner.AlertChangesAsync(id,token);
+    public Task<List<AlertOutboxItem>> AlertOutboxAsync(CancellationToken token)=>inner.AlertOutboxAsync(token);
+    public Task<List<AlertOutboxItem>> AlertOutboxAsync(ExitAlertFilter filter,CancellationToken token)=>inner.AlertOutboxAsync(filter,token);
+    public Task<List<AlertDeliveryRecord>> AlertDeliveriesAsync(string id,CancellationToken token)=>inner.AlertDeliveriesAsync(id,token);
+    public Task RetryAlertNotificationAsync(string id,CancellationToken token)=>inner.RetryAlertNotificationAsync(id,token);
+    public Task EvaluateAlertsAsync(CancellationToken token)=>inner.EvaluateAlertsAsync(token);
+    public Task<List<AlertChannel>> AlertChannelsAsync(CancellationToken token)=>inner.AlertChannelsAsync(token);
+    public Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>inner.AlertDocumentsAsync(key,token);
+    public Task RegisterAlertDocumentAsync(AlertDocumentRequest request,CancellationToken token)=>inner.RegisterAlertDocumentAsync(request,token);
+    public Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>inner.AlertMetadataAsync(token);
+    public Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>inner.ReviewAlertMetadataAsync(review,token);
+    public Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>inner.NamedEtfHoldingsAsync(key,token);
+    public Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token)=>inner.ReviewNamedEtfHoldingAsync(review,token);
 }
