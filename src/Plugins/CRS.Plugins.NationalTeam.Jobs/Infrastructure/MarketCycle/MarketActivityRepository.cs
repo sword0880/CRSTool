@@ -13,4 +13,5 @@ public sealed partial class MarketRepository
     public void RecordMarketActivityCursor(DateOnly day)=>marketActivityStore.RecordMarketActivityCursor(day);
     public void SaveMarketActivity(string market,DateOnly day,MarketActivitySource? source)=>marketActivityStore.SaveMarketActivity(market,day,source);
     public List<MarketActivityPoint> MarketActivity()=>marketActivityStore.MarketActivity();
+    private List<MarketActivityPoint> ReadMarketActivity()=>marketActivityStore.ReadMarketActivity();
 }
