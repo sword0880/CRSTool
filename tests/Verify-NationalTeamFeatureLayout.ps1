@@ -200,7 +200,7 @@ if ($databaseSession -notmatch 'IMarketRepositorySession,IDisposable' -or $datab
 $integrityStore = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Evidence/EvidenceIntegrityStore.cs") -Raw
 $integrityFacade = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Evidence/EvidenceIntegrityRepository.cs") -Raw
 if ($integrityStore -match 'partial class MarketRepository' -or $integrityStore -notmatch 'IMarketRepositorySession session' -or
-    $integrityFacade -notmatch 'evidenceIntegrityStore\.Validate' -or $repositorySource -match 'private .*ScanEvidence|private .*ApplyIntegrityIds') {
+    $integrityFacade -notmatch 'evidenceIntegrityStore\.ReconcileEvidenceIntegrity' -or $repositorySource -match 'private .*ScanEvidence|private .*ApplyIntegrityIds') {
     throw 'Evidence integrity must remain an independent store with a forwarding facade.'
 }
 $alertSession = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.Session.cs") -Raw

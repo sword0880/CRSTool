@@ -12,7 +12,6 @@ public sealed partial class MarketRepository
         return new(snapshot.Days,snapshot.Fingerprint);
     }
 
-    private void InitializeIndexSeriesSchema()=>indexSeriesStore.InitializeSchema();
     public IndexImportOutcome? IndexSeriesReceipt(Guid commandId)=>indexSeriesStore.IndexSeriesReceipt(commandId);
     public IndexImportOutcome ImportIndexSeries(CapturedIndexPacket packet,Guid? commandId=null)=>indexSeriesStore.ImportIndexSeries(packet,commandId);
     public IReadOnlyList<IndexSeriesRevision> IndexSeriesRevisions(DateOnly from,DateOnly through,DateTimeOffset cutoff)=>indexSeriesStore.IndexSeriesRevisions(from,through,cutoff);

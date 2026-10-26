@@ -37,8 +37,9 @@ public static class LegacyNationalTeamExport
             }
             NationalTeamPlaintextExport expected;
             SQLitePCL.Batteries_V2.Init();
+            // 只对工作副本开放创建权限，使ATTACH能新建导出目标；原文件从不以可写连接打开。
             using(var encrypted=new SqliteConnection(new SqliteConnectionStringBuilder
-                {DataSource=input,Mode=SqliteOpenMode.ReadWrite,Password=Convert.ToHexString(legacyKey),Pooling=false}.ToString()))
+                {DataSource=input,Mode=SqliteOpenMode.ReadWriteCreate,Password=Convert.ToHexString(legacyKey),Pooling=false}.ToString()))
             {
                 encrypted.Open();
                 var version=Convert.ToInt32(Scalar(encrypted,"PRAGMA user_version"));

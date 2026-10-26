@@ -1,6 +1,6 @@
 # 数据库存储抽象与替换边界
 
-状态：2026-10-20实施约束，当前运行实现仍为SQLite/SQLCipher。此文不代表已支持或已验收其他数据库。
+状态：2026-10-26更新。收入/报税保险库保留SQLCipher；国家队公开研究数据按用户要求改为普通SQLite。此文不代表已支持其他数据库或已完成正式资料迁移。
 
 ## 必须遵循的边界
 
@@ -19,7 +19,7 @@
 | Worker任务 | ITaskRepository隔离调度与任务仓储 | 18个公开仓储操作（含本地快照）在适配器内转换SQLite错误为IOException，业务冲突保持原分类；调度库迁移、并发及真实第二数据库仍需验收 |
 | 共享来源预算 | SourceBudgetRegistry只依赖ISourceBudgetStore；Program选择SqliteSourceBudgetStore，运行期SQLite错误转为IOException | 当前为单Worker写入；多实例/远程库必须增加原子预留或并发控制，不能沿用独立Read/Save冒充跨进程安全 |
 | 保险库 | VaultManager转发IVaultStorageBackend；SQLCipher认证、计算/绩效仓储、锁定和备份属于同一适配器族 | 新提供方必须完整实现会话与安全能力并验证数据迁移；当前只内置SQLCipher |
-| 国家队插件 | NationalTeamStorageProviders同时选择市场仓储和ISourceRequestPolicy；入口/网关不创建具体数据库 | 新提供方仍需实现IMarketRepository、来源策略与迁移，不等同于已有第二数据库 |
+| 国家队插件 | NationalTeamStorageProviders以sqlite族提供市场仓储和来源策略；EtfStore拥有ETF核心，MarketDatabaseSession拥有连接，初始化独立 | 旧加密库须显式离线保留式导出和正式维护回读；新提供方仍需完整契约与迁移验收 |
 
 ISourceBudgetStore由注册表串行调用并接管释放。Save必须持久、原子，损坏/未知状态必须拒绝使用；当前本地实现保留原数据库格式、密钥派生、冷却与故障锁定。内存替身仅用于验证规则独立性，不是生产替代数据库。
 
@@ -42,7 +42,7 @@ BackgroundRuntime不再识别具体SQLite类型；已适配任务/来源存储�
 
 ## 可插拔结构与配置（2026-10-20）
 
-用户本轮选择“暂不指定，先完成可插拔结构”。当前只内置sqlcipher，没有虚构PostgreSQL/SQL Server实现。受信任代码注册新适配器后，只改数据库类型配置即可选择已注册实现；首次更换仍需另行执行迁移、加密、并发和恢复验收，不自动将现有库转换格式。
+早期选择为“暂不指定，先完成可插拔结构”。2026-10-26用户进一步明确加密边界：保险库内置sqlcipher，国家队内置sqlite；没有PostgreSQL/SQL Server实现，也不保留国家队sqlcipher配置别名。受信任代码注册新适配器后可按配置选择，首次更换仍须独立迁移、并发与恢复验收，不自动转换现有文件。
 
 两个进程均读取各自运行目录的 `config/storage-providers.json`，同一文件结构为：
 
@@ -50,11 +50,11 @@ BackgroundRuntime不再识别具体SQLite类型；已适配任务/来源存储�
 {
   "Version": 1,
   "Vault": "sqlcipher",
-  "NationalTeam": "sqlcipher"
+  "NationalTeam": "sqlite"
 }
 ```
 
-样例源文件为 `config/storage-providers.example.json`。部署时将所需配置放到对应桌面/Worker运行目录；运行中不热切换，修改后重启相应进程。缺省文件沿用sqlcipher；重复字段、未知版本、非法ID、未知提供方明确拒绝，不能回落内存或明文库。配置不保存连接密码或密钥。两处组合根独立解析同一配置契约，避免基础设施与业务插件产生项目依赖；Worker调度库/宿主预算库不受此两字段切换，应单独保持现有注册边界。
+样例源文件为 `config/storage-providers.example.json`。部署时放到对应桌面/Worker运行目录；运行中不热切换。缺省为Vault=sqlcipher、NationalTeam=sqlite；重复字段、未知版本、非法ID、未知提供方明确拒绝，不以失败自动改用另一实现或内存库。配置不保存密码或密钥。Worker调度库/宿主预算库不受此两字段切换，继续保持自身注册和安全边界。
 
 ### 保险库
 
@@ -66,9 +66,9 @@ BackgroundRuntime不再识别具体SQLite类型；已适配任务/来源存储�
 ### 插件
 
 - `NationalTeamStorageProviders`按类型选择`INationalTeamStorageProvider`，同族提供市场仓储与持久来源策略。会话先解析提供方，再创建目录、取密钥、构建网关与工作区。
-- `OfficialHttpGateway`仅依赖`ISourceRequestPolicy`。SQLCipher来源策略在真实SQL入口转换故障；MarketRepository在ExecuteOperation用例边界转换数据库故障，SQL中断的取消语义保持不变。
+- `OfficialHttpGateway`仅依赖`ISourceRequestPolicy`。普通SQLite来源策略在真实SQL入口转换故障；MarketDatabaseSession在ExecuteOperation边界转换故障并中断取消的SQL，总仓储仅转发。
 - 新市场适配器继续实现既有`IMarketRepository`，来源策略必须满足持久冷却、不以未知为零及网络前预留的约束；原件存证仍通过独立证据存储能力处理。
-- 注册工厂只接受随可信发行构建的代码，不从配置加载任意程序集、类型名或可执行内容。两个自定义注册测试都转发现有SQLCipher，只证明选择/接线，不代表第二种数据库集成验收。
+- 注册工厂只接受随可信发行构建的代码，不从配置加载任意程序集或类型名。保险库自定义注册测试转发现有SQLCipher，国家队注册测试转发现有普通SQLite，均只证明选择/接线。国家队公开文件、离线旧库导出和连接所有权另见[专项记录](../implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。
 
 验证入口：`CRS.Tests.Infrastructure --vault-providers`（10项）、`CRS.Tests.WorkerEtf --storage-providers`（11项）；完整回归与证据见实施续记。架构门禁禁止保险库入口暴露SQL、插件入口直接创建具体仓储，以及网关引用具体数据库策略。
 

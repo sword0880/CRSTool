@@ -50,7 +50,7 @@
 
 ### P1：总览实际超时，健康正常，仍需分阶段定位
 
-真实只读审查捕获了预警总览超时，前后Worker健康/进程一致。[AlertOverview](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs) 依赖全池Acceptance；[ReadAcceptance](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Etf/EtfAcceptanceRepository.cs) 的无证券筛选完整性核验仍会进入较宽的原件读取。
+真实只读审查捕获了预警总览超时，前后Worker健康/进程一致。[AlertOverview](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs) 依赖全池Acceptance；[ReadAcceptance](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Etf/EtfStore.Acceptance.cs) 的无证券筛选完整性核验仍会进入较宽的原件读取。
 
 这是**源码层潜在耗时来源**，本轮没有为该具体现场查询取得分阶段耗时，因此不将其直接宣布为唯一根因。后续代码整改已将份额与采集收据批量读取，并在单次验收内复用原件核验结果；完整性实现提取为`EvidenceIntegrityStore`，全池原件范围和发送前正式门槛保留。新增`acceptance-profile`只读诊断可分别观测SQL、原件核验及投影。新包尚未替换已安装Worker，因此原现场超时保持开放。优化不能取消金融证据核验、放大查询超时或把超时改成空成功。
 
@@ -63,7 +63,7 @@
 | 四个行业/指数测试工程不在主解决方案，既有全量构建漏检 | 纳入解决方案及当前架构清单，门禁覆盖生产与测试项目；37项目Release零警告/零错误，修正目录移动后的CI触发路径 |
 | 旧工作区/时间兼容层与隐藏路由造成重复责任 | 按用户未正式上线的约束移除重复接口、三套适配器、Time兼容壳及三个旧宿主入口；随后改为顶部菜单，工作台内部导航24项通过 |
 
-直接持股、预警及原件完整性模块提取、公共正文读取等结构调整见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。目录归档和大量隔离检查已经改善维护性，但 `MarketRepository` 仍持有ETF核心及连接生命周期，后台用例与客户端工作区的边界也仍需收拢，不能称整个插件架构已经彻底解耦。
+直接持股、预警及原件完整性模块提取、公共正文读取等结构调整见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。目录归档和大量隔离检查已经改善维护性，ETF核心和连接/初始化所有权已进一步独立，国家队公开资料按用户要求改用普通SQLite；后台用例与客户端工作区的边界仍需收拢，不能称整个插件架构已经彻底解耦。
 
 ## 本轮判断
 

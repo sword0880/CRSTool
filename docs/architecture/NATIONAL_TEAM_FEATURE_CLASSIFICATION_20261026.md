@@ -5,7 +5,7 @@
 ## 项目与依赖方向
 
 - `NationalTeam.Core`：领域事实、纯规则及按功能划分的应用端口，引用外层 `CRS.Common`。
-- `NationalTeam.Jobs`：采集、用例协调、后台任务、原件及加密存储；不依赖 WPF 或个人税务库。
+- `NationalTeam.Jobs`：采集、用例协调、后台任务、原件及普通SQLite研究存储；不依赖 WPF 或个人税务库。
 - `NationalTeamWatch`：页面与 Worker 客户端；只读取DTO、提交命令和显示状态，不下载原件、不操作数据库、不计算金融指标。
 - 外层 `CRS.Common`：北京时间、JSON时间、SHA256、读取公平租约及受限HTTP正文读取。来源许可、业务阈值、原件路径、密钥和数据库连接不进入公共库。
 - 调度、来源共享预算和通知分别复用既有 Worker、`IBackgroundSourceContext` 和 `CRS.Notifications`，不重复建设。
@@ -21,7 +21,7 @@
 | Nav | 单位净值、修订、知识时点及同日研究 | 独立后台事实链；基金NAV不是全市场周期 |
 | ExitAlerts | 规则、证据、事件、历史回算、Outbox和投递 | ETF页内预警中心；独立退出导航/完整金融模型尚未交付 |
 | Evidence / Sources | 原件、批次核验、来源许可和HTTP策略 | 插件内跨功能基础设施，不承载新业务 |
-| Shared / Storage | 装配契约、共享会话、加密存储组合 | 明确例外目录，禁止继续堆放领域特有实现 |
+| Shared / Storage | 装配契约、连接生命周期、初始化顺序和普通SQLite存储组合 | 明确例外目录，禁止继续堆放领域特有实现 |
 
 Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Infrastructure`，UI 的 `Application/Worker`、`Presentation` 均按以上业务归档。六个工作区端口位于各自 `Application/<功能>`；`IWorkspaceAccess` 与 `INationalTeamWorkspace` 留在Shared作为装配契约。
 
@@ -37,7 +37,7 @@ Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Inf
 
 ## 存储与事务
 
-当前已独立：`IndustryPeStore`、`MarketCalendarStore`、`IndexSeriesStore`、`MarketActivityStore`、`NavStore`、`EquityStore`、`AlertStore` 和 `EvidenceIntegrityStore`。预警模块内部装配 `AlertEventStore`、`AlertOutboxStore`、`AlertDeliveryStore`。
+当前已独立：`EtfStore`、`IndustryPeStore`、`MarketCalendarStore`、`IndexSeriesStore`、`MarketActivityStore`、`NavStore`、`EquityStore`、`AlertStore` 和 `EvidenceIntegrityStore`。预警模块内部装配 `AlertEventStore`、`AlertOutboxStore`、`AlertDeliveryStore`。
 
 `EquityStore` 分持股、公告和历史原文文件，经过 `IMarketRepositorySession` 取得连接、原件、取消与命令幂等能力。`AlertStore` 分评价、证据、历史、生命周期和领取文件，跨模块读取只经过 `IAlertMarketFacts`。总仓储的这两个领域入口只转发，不再保留SQL。
 
@@ -51,7 +51,9 @@ Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Inf
 
 `EvidenceIntegrityStore`独立负责原件扫描、只读失败关闭、后台Q15损坏/恢复审计及批次应用，继续使用同一会话与事务；总仓储仅保留转发。验收按128证券分组读取份额和最近20个交易日的采集收据，复用本次哈希结果并按需补验阶段原件；不能跨请求复用核验结论。
 
-当前 `MarketRepository` 仍持有ETF核心和连接生命周期，`AlertStore` 仍收拢部分用例协调。全池验收的完整性依赖范围仍较宽，后续需将ETF数据门槛与通知冻结输入核验明确分离，再缩小查询依赖；不能只为提速删除原件核验。以上属于下一步解耦工作，不能称整个插件层重构已经结束。迁移顺序和验证要求见[实施记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+ETF核心已移入`EtfStore`；连接、独立读取与释放由`MarketDatabaseSession`拥有，初始化由`NationalTeamSchemaInitializer`和各功能Store拥有。国家队两库和快照按用户要求改为普通SQLite，收入/报税加密保留，旧国家队加密资料只能显式离线保留式导出。见[存储边界记录](../implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。
+
+`AlertStore`仍收拢部分用例协调，来源审批注册表仍有聚合partial实现。全池验收的完整性依赖范围仍较宽，后续需将ETF数据门槛与通知冻结输入核验明确分离，再缩小查询依赖；不能只为提速删除原件核验。以上属于下一步解耦工作，不能称整个插件层重构已经结束。
 
 ## 门禁与维护
 

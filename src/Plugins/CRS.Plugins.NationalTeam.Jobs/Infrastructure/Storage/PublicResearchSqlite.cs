@@ -10,7 +10,7 @@ internal static class PublicResearchSqlite
     {
         if(!File.Exists(path))return;
         using var file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
-        if(file.Length==0)return;
+        if(file.Length==0)throw new InvalidDataException("已有国家队资料库为空，可能已截断；拒绝静默重建或清除来源退避。");
         Span<byte> header=stackalloc byte[16];
         if(file.Read(header)!=16||!header.SequenceEqual("SQLite format 3\0"u8))
             throw new InvalidDataException("国家队资料库仍为旧加密格式或文件已损坏；请先执行保留原文件的离线迁移，拒绝重建或覆盖。");

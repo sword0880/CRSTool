@@ -329,10 +329,9 @@ using(var service=Start())
         Check(!loaded.Any(x=>x.StartsWith("Presentation",StringComparison.Ordinal)||x is "CRS.Plugins.NationalTeamWatch" or "CRS.Infrastructure" or "CRS.Security"),"服务不加载WPF、UI插件或私人税务程序集");
         var market=Path.Combine(data,"plugins","crs.national-team","data","market.db");
         using(var file=new FileStream(market,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete))
-        {var header=new byte[16];file.ReadExactly(header);Check(!System.Text.Encoding.ASCII.GetString(header).StartsWith("SQLite format"),"市场库文件头为SQLCipher密文");}
-        var plainRejected=false;
-        try{using var raw=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=market,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());raw.Open();using var command=raw.CreateCommand();command.CommandText="SELECT count(*) FROM security_master";command.ExecuteScalar();}
-        catch(SqliteException){plainRejected=true;}Check(plainRejected,"未提供独立密钥不能读取市场库");
+        {var header=new byte[16];file.ReadExactly(header);Check(System.Text.Encoding.ASCII.GetString(header)=="SQLite format 3\0","国家队市场库文件头为普通SQLite");}
+        using(var raw=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=market,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString()))
+        {raw.Open();using var command=raw.CreateCommand();command.CommandText="SELECT count(*) FROM security_master";Check(Convert.ToInt32(command.ExecuteScalar())>0,"国家队市场公开数据不提供密钥也可读取");}
         var forbiddenQuery=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:JsonSerializer.Serialize(new EtfRequest("review"))));
         Check(forbiddenQuery.Code=="UnknownQuery","只读业务端点拒绝审核写操作");
         Check((await Send(Request("Resume","review",revision:1))).Code=="ManualOnly","审核入口不能被启用为无参数定时任务");
@@ -376,7 +375,7 @@ using(var service=Start())
         await WaitForService(service);
         await Query("GetHealth");var plans=(await Query("GetJobs")).Jobs!;
         Check(plans.Single(x=>x.JobId=="official-share-sync") is{Enabled:false,Cron:"0/2 * * * * ?"},"强杀重启后保留采集计划与暂停状态");
-        Check((await ui.OverviewAsync(default)).Count==6,"重启后保留独立加密库和服务端池变更");
+        Check((await ui.OverviewAsync(default)).Count==6,"重启后保留公开研究库和服务端池变更");
         Check((await ui.EvidenceAsync(default)).Count==40,"同值重复采集不增加事实修订");
         await Until(async()=>(await Query("GetHistory")).History!.Any(x=>x.JobId=="watchlist" && x.Result=="Succeeded"));
     }
@@ -390,7 +389,7 @@ try
     using var query=market.CreateCommand();query.CommandText="SELECT count(*) FROM watchlist_change";
     Check(Convert.ToInt32(query.ExecuteScalar())==1,"业务提交后重放命令只记录一次池变更，业务去重与事实同事务");
     query.CommandText="SELECT checked_through FROM worker_sync_cursor WHERE id=1";
-    Check(query.ExecuteScalar() is string,"自动补采查询游标持久保存在独立加密市场库");
+    Check(query.ExecuteScalar() is string,"自动补采查询游标持久保存在独立公开研究市场库");
 }
 finally{CryptographicOperations.ZeroMemory(master);if(marketKey is not null)CryptographicOperations.ZeroMemory(marketKey);}
 // 原有恢复/去重验收完成后，再在同一隔离服务验证可编辑配置，不改动用户监控池。

@@ -8,6 +8,7 @@ if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
 if(args is ["--shared-read-admission"]){await PluginCommonAdmissionChecks.RunAsync();return;}
 if(args is ["--bounded-content"]){await BoundedContentChecks.RunAsync();return;}
 if(args is ["--public-storage"]){PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--public-storage-wal-fixture",var walFixtureDirectory]){PublicResearchStorageChecks.WalFixture(walFixtureDirectory);return;}
 if(args is ["--nav-research-checks"]){NavResearchChecks.Run();EtfNavStudyChecks.Run();return;}
 if(args is ["--nav-storage-checks"]){NavStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavStorage",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--nav-source-checks"]){await NavSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NavSource",Guid.NewGuid().ToString("N")));return;}

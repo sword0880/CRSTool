@@ -91,18 +91,15 @@ internal static class SourcePolicyChecks
         }
         using (var policy = new SourceRequestPolicy(cancelRoot))
             Check(policy.Read(sse.Host).Failures == 0, "用户取消不增加来源失败计数");
-        var rejected = false;
-        try
         {
             using var plain = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(root, "source-policy.db"), Pooling = false }.ToString());
-            plain.Open(); using var command = plain.CreateCommand(); command.CommandText = "SELECT * FROM source_policy"; command.ExecuteScalar();
+            plain.Open(); using var command = plain.CreateCommand(); command.CommandText = "SELECT count(*) FROM source_policy";
+            Check(Convert.ToInt32(command.ExecuteScalar())>0,"国家队来源策略无需密钥即可读取已提交状态");
         }
-        catch (SqliteException) { rejected = true; }
-        Check(rejected, "来源策略库无钥拒读");
         var damaged = Path.Combine(root, "damaged"); Directory.CreateDirectory(damaged);
         File.WriteAllText(Path.Combine(damaged, "source-policy.db"), "broken database");
         try { using var policy = new SourceRequestPolicy(damaged); throw new Exception("损坏库被重建"); }
-        catch (SqliteException) { Check(true, "策略损坏拒绝启动且不静默清除阻断"); }
+        catch (Exception error) when(error is SqliteException or InvalidDataException) { Check(true, "策略损坏拒绝启动且不静默清除阻断"); }
         using (var policy = new SourceRequestPolicy(Path.Combine(root, "forbidden")))
         {
             var now = DateTimeOffset.UtcNow; policy.Failure(sse.Host, now, 403);

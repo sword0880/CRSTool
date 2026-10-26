@@ -1,6 +1,6 @@
 # 当前架构入口
 
-2026-10-26 国家队模块续项：直接持股、预警及原件完整性实现独立，工作区端口按功能归档，旧聚合接口及时间兼容壳退役，公共正文读取进入 `CRS.Common`、顶部分类菜单进入`CRS.Plugin.Wpf`。验收查询有界批量读取并附只读阶段诊断。当前验证及剩余连接/ETF核心解耦见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+2026-10-26 国家队模块续项：直接持股、预警及原件完整性实现独立，工作区端口按功能归档，旧聚合接口及时间兼容壳退役，公共正文读取进入 `CRS.Common`、顶部分类菜单进入`CRS.Plugin.Wpf`。验收查询有界批量读取并附只读阶段诊断。ETF核心、连接和初始化所有权已进一步独立，国家队两库改为普通SQLite；当前验证与剩余边界见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
 
 2026-10-23反方评审R01～R04候选整改：Application显式联合导入提交、国家队独立只读快照与有界证据查询、正式源码组合根默认每插件Runner监督、ACL巡检与容量预警分离。工作区源码已接线，未替换已安装服务，验证与剩余边界见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
 
@@ -52,7 +52,7 @@
 | CRS.Tests.PluginHost | 桌面插件宿主 |
 | CRS.Tests.PluginRecovery | UI插件包、页面资源与只读服务边界；Worker恢复另行验证 |
 | CRS.Tests.NationalTeamWatch | ETF 业务与来源 |
-| CRS.Tests.IndexResearch | 指数序列、估值及加密修订研究 |
+| CRS.Tests.IndexResearch | 指数序列、估值及持久修订研究 |
 | CRS.Tests.IndustryPe | 行业公布PE、修订、来源与历史位置 |
 | CRS.Tests.SectorResearch | 行业质量、估值研究与反方规则 |
 | CRS.Tests.SectorUi | 行业研究界面、分类导航与查询取消 |
@@ -75,12 +75,12 @@ flowchart LR
     Service --> Tasks[SQLCipher 任务库]
     Quartz --> Runner[每插件 PluginRunner / Job Object]
     Runner --> Jobs[后台 PluginHost / Jobs Session]
-    Jobs --> Market[独立 SQLCipher 市场库 / 原始来源证据]
+    Jobs --> Market[独立普通SQLite市场库 / 原始来源证据]
 ```
 
 WPF 负责展示与交互；Views/ViewModels/Controls 通过应用入口调用，不能解析文件、计算金额或直接连接数据库。后台没有 WPF、私人税务或保险库依赖。国家队领域模型与公共查询 DTO 实体位于 Core；采集、应用写用例、市场仓储及证据完整性作业位于 Jobs；UI 目录仅保留页面、ViewModel 与 IPC 客户端。桌面旧 Quartz 实现与桌面计划契约已从本整改分支移除，Quartz Cron 表达式编辑器仅负责解析和预览。WPF 退出不停止已安装服务。主程序没有静态引用业务插件；UI/Core/Jobs 的运行会话与容器不跨进程共享。
 
-通知经独立公共组件CRS.Notifications的渠道契约与注册表发送；Worker组合根注册邮件适配器，插件只得到IBackgroundNotificationContext，不取得提供商凭据或收件目标。系统邮件设置经DesktopWorkflow和管理IPC配置。预警事件、输入快照、业务Outbox及提交历史留在国家队插件的同一加密市场库，事件与Outbox同事务；既有Quartz每5分钟驱动恢复评价和有界投递；独立 evidence-integrity 后台任务协调原件损坏/恢复状态（只读查询核验发现损坏立即拒绝返回，不持久化变更），采集/审核成功也触发评价，不另建调度器、数据库或服务。金融预警仍受真实数据门槛阻断，数据核查独立展示。详情见[通知边界](NOTIFICATION_CHANNELS.md)及[实施验收](../implementation/NATIONAL_TEAM_EXIT_ALERT_IMPLEMENTATION_20261019.md)。
+通知经独立公共组件CRS.Notifications的渠道契约与注册表发送；Worker组合根注册邮件适配器，插件只得到IBackgroundNotificationContext，不取得提供商凭据或收件目标。系统邮件设置经DesktopWorkflow和管理IPC配置。预警事件、输入快照、业务Outbox及提交历史留在国家队插件的同一普通SQLite市场库，事件与Outbox同事务；既有Quartz每5分钟驱动恢复评价和有界投递；独立 evidence-integrity 后台任务协调原件损坏/恢复状态（只读查询核验发现损坏立即拒绝返回，不持久化变更），采集/审核成功也触发评价，不另建调度器、数据库或服务。金融预警仍受真实数据门槛阻断，数据核查独立展示。详情见[通知边界](NOTIFICATION_CHANNELS.md)及[实施验收](../implementation/NATIONAL_TEAM_EXIT_ALERT_IMPLEMENTATION_20261019.md)。
 
 正式 Worker 由 `src/CRS.Worker.Service/Program.cs` 固定组合，数据位于 `%ProgramData%/CRS/Background`，独占 `owner.lock`；服务 SID 和管理员 ACL 限制访问。调度库使用机器 DPAPI 主密钥，插件使用 HKDF 按插件 ID 派生的独立密钥与私有目录。个人税务库采用独立用户密钥域，默认 CRS/data。DPAPI 文件与数据库拷贝尚不构成跨机恢复方案。
 
@@ -144,7 +144,7 @@ Worker任务仓储的运行期SQLite异常现由适配器转为IO故障；Backgr
 
 ## 保险库与插件存储族选择
 
-VaultManager现为IVaultStorageBackend转发入口，原SQLCipher会话/认证/备份实现归Storage/SqlCipher。DesktopOperations依赖存储族端口；国家队后台入口通过NationalTeamStorageProviders选择市场仓储及ISourceRequestPolicy，网关不再依赖SourceRequestPolicy具体类。桌面和Worker分别读取其运行目录config/storage-providers.json的Vault/NationalTeam字段；仅内置sqlcipher，未注册类型拒绝，不自动迁移或热切换。完整注册、配置及验收边界见[数据库可插拔规范](DATABASE_PORTABILITY.md)。未新增项目或反向项目依赖。
+VaultManager现为IVaultStorageBackend转发入口，原SQLCipher会话/认证/备份实现归Storage/SqlCipher。DesktopOperations依赖存储族端口；国家队后台入口通过NationalTeamStorageProviders选择市场仓储及ISourceRequestPolicy，网关不再依赖SourceRequestPolicy具体类。桌面和Worker分别读取其运行目录config/storage-providers.json的Vault/NationalTeam字段；保险库内置sqlcipher、国家队内置sqlite，未注册类型拒绝；旧国家队加密文件须显式离线保留式导出，不自动迁移或热切换。完整注册、配置及验收边界见[数据库可插拔规范](DATABASE_PORTABILITY.md)。未新增项目或反向项目依赖。
 
 ARCH-208税务审计补强：IBKR新年度/期初报告的TaxImportProvenance随结果在现有仓储原子持久化并受整份结果封存保护；旧记录保持未知，重放与年度汇总沿用历史依据，底稿列出解析版本。此项不改税务/FIFO/汇率规则，富途税务三类来源版本现已接入，完整类型化事实、跨版本差异及独立金额验收仍开放。
 

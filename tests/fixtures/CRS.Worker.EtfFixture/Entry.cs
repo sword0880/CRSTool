@@ -29,7 +29,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                         var calendar=Path.Combine(context.DataDirectory,"industry-pe.fixture","calendar-2026.html");
                         if(File.Exists(calendar))seed.RegisterReviewedCalendar("SZSE",2026,File.ReadAllBytes(calendar),CRS.Plugins.NationalTeamWatch.Domain.ReviewedExchangeCalendar.Source("SZSE",2026));
                     }
-                    using var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=path,Password=Convert.ToHexString(key),Pooling=false}.ToString());
+                    using var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=path,Pooling=false}.ToString());
                     db.Open();using var command=db.CreateCommand();command.CommandText="UPDATE watchlist_membership SET active=0 WHERE ticker NOT IN ('510300','510050','588000','159919','159915')";command.ExecuteNonQuery();
                 }
                 finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(key);}

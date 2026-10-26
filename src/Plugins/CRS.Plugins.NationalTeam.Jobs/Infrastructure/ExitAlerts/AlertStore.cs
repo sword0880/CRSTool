@@ -5,7 +5,7 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 internal sealed partial class AlertStore
 {
-    /// <summary>在既有加密市场库内增量建表；事件与Outbox共用事务，不增加数据库或调度器。</summary>
+    /// <summary>在既有公开研究市场库内增量建表；事件与Outbox共用事务，不增加数据库或调度器。</summary>
     public void InitializeExitAlertSchema()
     {
         using var transaction=db.BeginTransaction();

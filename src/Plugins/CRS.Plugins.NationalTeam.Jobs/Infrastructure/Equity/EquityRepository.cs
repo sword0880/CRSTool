@@ -4,7 +4,6 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 public sealed partial class MarketRepository
 {
     // 聚合入口不再持有直接持股SQL；领域Store沿用同一会话及原事务提交点。
-    private void InitializeEquitySchema() => equityStore.InitializeEquitySchema();
     public List<EquityWatch> EquityWatchlist() => equityStore.EquityWatchlist();
     public void SaveEquityWatch(EquityWatch watch, Guid? commandId = null) => equityStore.SaveEquityWatch(watch, commandId);
     public void SaveEquityDisclosure(string market, string ticker, Uri uri, byte[] bytes) => equityStore.SaveEquityDisclosure(market, ticker, uri, bytes);
