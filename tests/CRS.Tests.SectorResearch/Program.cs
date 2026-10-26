@@ -57,7 +57,7 @@ var ready=Gate(profile);
 Check(ready.State=="ReadyForAdversarialReview"&&ready.InvestmentConclusion=="NotEvaluated"
     &&ready.Metrics.Count==3,"周期行业全部人工核验资料齐备仍然不能推导已低估");
 var enriched=SectorResearch.Calculate(input with{QualityInputs=[profile]});
-Check(enriched.Rows[0].OpportunityState=="ResearchWatch"&&enriched.Rows[0].QualityReadiness=="ReadyForAdversarialReview"
+Check(enriched.Rows[0].OpportunityState=="NeedsAdversarialAssessment"&&enriched.Rows[0].QualityReadiness=="ReadyForAdversarialReview"
     &&enriched.TimingProof=="NotProven"&&enriched.Rows[1].OpportunityState=="IndependentQualityEvidenceUnavailable",
     "只有关联行业自己的完整质量证据才可进入研究观察，且另一行业仍未知");
 Check(enriched.Fingerprint!=report.Fingerprint,"独立质量证据进入研究输入指纹，不可与此前版本混同");
