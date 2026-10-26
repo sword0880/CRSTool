@@ -39,6 +39,7 @@ if(args is ["--equity-report-status-live",var statusTicker,var tickerStatusDirec
 if(args is ["--etf-loading"]){await EtfLoadingChecks.Run();return;}
 if(args is ["--dashboard-profile-checks"]){DashboardProfileChecks.Run();return;}
 if(args is ["--dashboard-batch-checks"]){DashboardBatchChecks.Run();return;}
+if(args is ["--acceptance-batch-checks"]){AcceptanceBatchChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.AcceptanceBatch",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
 if(args is ["--business-contracts"]){await BusinessContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.BusinessContracts",Guid.NewGuid().ToString("N")));return;}
@@ -111,6 +112,7 @@ await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-syn
 DirectEquityChecks.Run(root);
 HistoricalEquityChecks.CatalogContracts(Path.Combine(root,"historical-catalog"));
 EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(root,"evidence-adversarial"));
+AcceptanceBatchChecks.Run(Path.Combine(root,"acceptance-batch"));
 EquityReportChecks.Run(root);
 await HistoryRangeChecks.Run(root);
 EtfConfigurationChecks.Run(root);

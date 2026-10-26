@@ -262,3 +262,5 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 ## NationalTeam 分层重构续项（2026-10-26）
 
 先构建，再运行 `--bounded-content`（8项容量/取消负例）、`--common-time`（公共时间语义）及 `--etf-loading`；完整NationalTeam默认回归和 `--exit-alerts` 覆盖加密存储、回滚、重启、修订与投递。`Verify-NationalTeamFeatureLayout.ps1` 检查按功能端口及独立持股/预警模块，禁止旧宽接口和SQL回流。环境和最终结果见[重构记录](../docs/implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+
+`CRS.Tests.NationalTeamWatch --acceptance-batch-checks`在真实隔离加密库验证超过128证券的批量验收、同次原件去重、跨请求重新核验、跨市场同代码、最新阶段/独立尝试、额外阶段原件、取消及损坏失败关闭。诊断JSON保存在该次隔离目录并打印路径；不使用磁盘耗时断言替代正式性能。`--exit-alerts`另经真实插件入口验证`acceptance-profile`与正常验收结果一致且不投递通知。两者不操作已安装Worker，也不证明正式总览超时已关闭。

@@ -1,5 +1,7 @@
 ﻿# 国家队观察、市场高低位与持仓方向：需求对照及改进设计
 
+> 本文保留2026-10-24的需求基线与当时现场快照，第二节不是当前功能清单。后续已实现独立NAV事实链、更多具名股票披露及研究模块；当前实现和未接线缺口见[2026-10-26反方复核](../validation/NATIONAL_TEAM_POST_REFACTOR_REVIEW_20261026.md)，当前目录见[功能分层](NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)。本文后续研究要求继续适用。
+
 核对日期：2026-10-24。目标原文：“通过跟踪国家队的成交量来判断牛市高点和熊市的底部区域，以及国家队的主要持仓方向”。本轮按现有沪深A股研究范围、日线/周线区域判断进行核对；其他市场和资产类别不因该假设被认定已覆盖。
 
 **结论：现有系统具备可信采集、ETF份额观察及部分披露快照基础，尚不能完成顶部/底部区域判断或国家队主要持仓方向分析。即使补齐250日份额和20日连续采集，也不能据此认定预测能力或机构成交识别能力成立。**
@@ -41,13 +43,13 @@
 
 代码依据：
 
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/ExitAlertReplay.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Application/MarketActivity.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/DirectEquity.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/MarketRepository.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/OfficialEquitySource.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlertEvaluationRepository.cs`
+- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlerts.cs`
+- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlertReplay.cs`
+- `src/Plugins/CRS.Plugins.NationalTeam.Core/Application/MarketCycle/MarketActivity.cs`
+- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/Equity/DirectEquity.cs`
+- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Shared/MarketRepository.cs`
+- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Equity/OfficialEquitySource.cs`
+- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs`
 
 ## 3. 产品应交付的两条分析链
 

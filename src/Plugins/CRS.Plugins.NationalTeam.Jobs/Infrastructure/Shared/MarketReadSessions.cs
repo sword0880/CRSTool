@@ -29,6 +29,7 @@ public sealed partial class MarketRepository : IMarketReadSessions,IBoundedMarke
         }
         db=new(connectionString);
         marketSession=new MarketRepositorySession(this);
+        evidenceIntegrityStore=new(marketSession,MarkAlertPending,RecordQueryStage);
         industryPeStore=new IndustryPeStore(marketSession);
         equityStore=new EquityStore(marketSession);
         marketCalendarStore=new MarketCalendarStore(marketSession);

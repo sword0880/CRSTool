@@ -111,6 +111,9 @@ jobs:
       - name: Verify batched dashboard matches per-security financial queries
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --dashboard-batch-checks
+      - name: Verify acceptance batching preserves receipt timing and evidence integrity
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --acceptance-batch-checks
       - name: Verify plugin shared assembly same-version ABI mismatch is rejected before loading
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build

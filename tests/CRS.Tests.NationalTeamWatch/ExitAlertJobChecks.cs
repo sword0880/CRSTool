@@ -20,6 +20,15 @@ internal static class ExitAlertJobChecks
         await using(var session=new NationalTeamBackgroundSession(context,new NoHttp()))
         {
             await session.StartAsync(default);
+            var through=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime).AddDays(-1);
+            var profileRequest=JsonSerializer.Serialize(new EtfRequest("acceptance-profile",To:through));
+            if(session.QueryOperation(profileRequest)!="acceptance-profile")throw new Exception("验收诊断未登记为只读操作。");
+            var profilePage=JsonSerializer.Deserialize<EtfQueryPage>(await session.QueryAsync(profileRequest,default))!;
+            var profile=JsonSerializer.Deserialize<List<EtfAcceptanceQueryProfile>>(profilePage.Items)!.Single();
+            var normalPage=JsonSerializer.Deserialize<EtfQueryPage>(await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("acceptance",To:through)),default))!;
+            if(JsonSerializer.Serialize(profile.Acceptance)!=JsonSerializer.Serialize(JsonSerializer.Deserialize<List<EtfAcceptance>>(normalPage.Items))||context.Calls!=0)
+                throw new Exception("后台验收诊断改变金融结果或发送了通知。");
+            Console.WriteLine("PASS 预警后台：验收分段诊断通过真实插件查询入口，结果与正常验收一致且不投递通知。");
             if(!session.DescribeJobs().Any(x=>x.JobId=="alert-evaluate"&&x.EnabledByDefault&&x.RunOnStartup))throw new Exception("预警未沿现有调度注册。");
             var result=await session.ExecuteAsync("alert-evaluate",null,default);
             var first=await Outbox(session);

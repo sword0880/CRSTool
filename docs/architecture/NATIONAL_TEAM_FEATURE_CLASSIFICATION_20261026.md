@@ -37,7 +37,7 @@ Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Inf
 
 ## 存储与事务
 
-当前已独立：`IndustryPeStore`、`MarketCalendarStore`、`IndexSeriesStore`、`MarketActivityStore`、`NavStore`、`EquityStore` 和 `AlertStore`。预警模块内部装配 `AlertEventStore`、`AlertOutboxStore`、`AlertDeliveryStore`。
+当前已独立：`IndustryPeStore`、`MarketCalendarStore`、`IndexSeriesStore`、`MarketActivityStore`、`NavStore`、`EquityStore`、`AlertStore` 和 `EvidenceIntegrityStore`。预警模块内部装配 `AlertEventStore`、`AlertOutboxStore`、`AlertDeliveryStore`。
 
 `EquityStore` 分持股、公告和历史原文文件，经过 `IMarketRepositorySession` 取得连接、原件、取消与命令幂等能力。`AlertStore` 分评价、证据、历史、生命周期和领取文件，跨模块读取只经过 `IAlertMarketFacts`。总仓储的这两个领域入口只转发，不再保留SQL。
 
@@ -49,7 +49,9 @@ Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Inf
 4. 正式查询独立只读连接和一致性快照；取消只作用于当前查询，不停止背景采集。
 5. `market.db`、Schema及业务表沿用当前定义；不为目录重构丢弃既有事实。
 
-当前 `MarketRepository` 仍持有ETF核心、完整性逻辑和连接生命周期，`AlertStore` 仍收拢部分用例协调。以上属于下一步解耦工作，不能称整个插件层重构已经结束。迁移顺序和验证要求见[实施记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+`EvidenceIntegrityStore`独立负责原件扫描、只读失败关闭、后台Q15损坏/恢复审计及批次应用，继续使用同一会话与事务；总仓储仅保留转发。验收按128证券分组读取份额和最近20个交易日的采集收据，复用本次哈希结果并按需补验阶段原件；不能跨请求复用核验结论。
+
+当前 `MarketRepository` 仍持有ETF核心和连接生命周期，`AlertStore` 仍收拢部分用例协调。全池验收的完整性依赖范围仍较宽，后续需将ETF数据门槛与通知冻结输入核验明确分离，再缩小查询依赖；不能只为提速删除原件核验。以上属于下一步解耦工作，不能称整个插件层重构已经结束。迁移顺序和验证要求见[实施记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
 
 ## 门禁与维护
 

@@ -263,7 +263,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         try
         {
             var operation=Parse(payload).Operation;
-            return operation is "status" or "release-query" or "export" or "dashboard" or "dashboard-profile" or "overview" or "configuration"
+            return operation is "status" or "release-query" or "export" or "dashboard" or "dashboard-profile" or "acceptance-profile" or "overview" or "configuration"
                 or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "industry-pe-report" or "industry-pe-revisions" or "index-series-report" or "index-series-revisions" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
                 or "equity-watchlist" or "equity-holdings" or "equity-disclosures" or "equity-events" or "equity-reports" or "equity-history-documents" or "equity-history-receipt"
                 or "alert-overview" or "alert-configuration" or "alert-events" or "alert-event" or "alert-event-version" or "alert-inputs"
@@ -394,6 +394,10 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "collection-attempts":
                     if(request.From is null||request.To is null||request.To<request.From||request.To.Value.DayNumber-request.From.Value.DayNumber>400)throw new InvalidDataException("采集查询区间必须不超过400个自然日。");
                     rows=(await workspace!.CollectionAttemptsAsync(Key(request),request.From.Value,request.To.Value,token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "acceptance-profile":
+                    if(request.To is null||(request.Market is null)!=(request.Ticker is null))throw new InvalidDataException("验收诊断需要截至日期及完整ETF标识。");
+                    var acceptanceProfile=await workspace!.ProfileAcceptanceAsync(request.Market is null?null:Key(request),request.To.Value,token);
+                    rows=[JsonSerializer.Serialize(acceptanceProfile)];break;
                 case "acceptance":
                     if(request.To is null)throw new InvalidDataException("验收需要截至日期。");
                     rows=(request.Market is null&&request.Ticker is null?await workspace!.AcceptanceAsync(request.To.Value,token)

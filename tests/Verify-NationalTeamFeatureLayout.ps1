@@ -182,11 +182,17 @@ if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind explicit sessions and feature stores.'
 }
 # 已迁移领域的总仓储入口只允许转发，禁止SQL重新混入兼容入口。
-foreach ($feature in @('Equity','ExitAlerts')) {
+foreach ($feature in @('Equity','ExitAlerts','Evidence')) {
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/$feature") -Filter '*Repository.cs') {
         $source = Get-Content -LiteralPath $file.FullName -Raw
         if ($source -match '\b(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)\b') { throw "Feature SQL leaked back into facade: $($file.Name)" }
     }
+}
+$integrityStore = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Evidence/EvidenceIntegrityStore.cs") -Raw
+$integrityFacade = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Evidence/EvidenceIntegrityRepository.cs") -Raw
+if ($integrityStore -match 'partial class MarketRepository' -or $integrityStore -notmatch 'IMarketRepositorySession session' -or
+    $integrityFacade -notmatch 'evidenceIntegrityStore\.Validate' -or $repositorySource -match 'private .*ScanEvidence|private .*ApplyIntegrityIds') {
+    throw 'Evidence integrity must remain an independent store with a forwarding facade.'
 }
 $alertSession = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertStore.Session.cs") -Raw
 if ($alertSession -notmatch 'IAlertMarketFacts facts' -or $alertSession -match '\bMarketRepository owner') {

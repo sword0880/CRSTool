@@ -52,7 +52,7 @@
 
 真实只读审查捕获了预警总览超时，前后Worker健康/进程一致。[AlertOverview](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs) 依赖全池Acceptance；[ReadAcceptance](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Etf/EtfAcceptanceRepository.cs) 的无证券筛选完整性核验仍会进入较宽的原件读取。
 
-这是**源码层潜在耗时来源**，本轮没有为该具体查询取得分阶段耗时，因此不将其直接宣布为唯一根因。优化不能取消金融证据核验、放大查询超时或把超时改成空成功；发送前的完整性/正式门槛也不能为展示性能而被放宽。
+这是**源码层潜在耗时来源**，本轮没有为该具体现场查询取得分阶段耗时，因此不将其直接宣布为唯一根因。后续代码整改已将份额与采集收据批量读取，并在单次验收内复用原件核验结果；完整性实现提取为`EvidenceIntegrityStore`，全池原件范围和发送前正式门槛保留。新增`acceptance-profile`只读诊断可分别观测SQL、原件核验及投影。新包尚未替换已安装Worker，因此原现场超时保持开放。优化不能取消金融证据核验、放大查询超时或把超时改成空成功。
 
 ## 本轮已修复的复核发现
 
@@ -61,9 +61,9 @@
 | ETF页面隐式依赖主程序私有BooleanVisibility资源，独立宿主创建失败 | 页面显式声明WPF内置转换器；实际完整包内ETF、直接持股、行业PE、样本指数四页均成功创建与布局 |
 | 管道权限拒绝/SCM身份核验异常逃逸，行业页首次Loaded可能令桌面退出 | 公共通信层转为带原因的BackgroundServiceException；保留RequestId和写结果未知语义；行业/指数读写状态边界处理权限及超时；行业17项和12项IPC边界通过 |
 | 四个行业/指数测试工程不在主解决方案，既有全量构建漏检 | 纳入解决方案及当前架构清单，门禁覆盖生产与测试项目；37项目Release零警告/零错误，修正目录移动后的CI触发路径 |
-| 旧工作区/时间兼容层与隐藏路由造成重复责任 | 按用户未正式上线的约束移除重复接口、三套适配器、Time兼容壳及三个旧宿主入口；工作台内部导航13项通过 |
+| 旧工作区/时间兼容层与隐藏路由造成重复责任 | 按用户未正式上线的约束移除重复接口、三套适配器、Time兼容壳及三个旧宿主入口；随后改为顶部菜单，工作台内部导航24项通过 |
 
-直接持股与预警模块提取、公共正文读取等结构调整见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。目录归档和大量隔离检查已经改善维护性，但 `MarketRepository` 仍持有ETF核心、原件完整性及连接生命周期，后台用例与客户端工作区的边界也仍需收拢，不能称整个插件架构已经彻底解耦。
+直接持股、预警及原件完整性模块提取、公共正文读取等结构调整见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。目录归档和大量隔离检查已经改善维护性，但 `MarketRepository` 仍持有ETF核心及连接生命周期，后台用例与客户端工作区的边界也仍需收拢，不能称整个插件架构已经彻底解耦。
 
 ## 本轮判断
 
