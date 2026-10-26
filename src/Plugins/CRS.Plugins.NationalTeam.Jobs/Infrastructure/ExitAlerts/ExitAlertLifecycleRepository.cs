@@ -4,11 +4,7 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 public sealed partial class MarketRepository
 {
-    private ExitAlertEvent? CurrentAlert(ExitAlertFinding finding,string version)
-    {
-        using var command=Command("SELECT payload FROM nt_risk_event WHERE rule_id=$r AND scope_id=$s AND rule_version=$v AND state NOT IN ('Resolved','RetractedByRevision','HistoricalEvidence','RuleSuperseded') ORDER BY julianday(updated_at) DESC LIMIT 1",("$r",finding.RuleId),("$s",finding.ScopeId),("$v",version));
-        var json=command.ExecuteScalar() as string;return json is null?null:JsonSerializer.Deserialize<ExitAlertEvent>(json);
-    }
+    private ExitAlertEvent? CurrentAlert(ExitAlertFinding finding,string version)=>alertEventStore.CurrentAlert(finding,version);
     /// <summary>未知数据不解除风险；事件变更与各渠道Outbox同事务，重复评价不重复通知。</summary>
     private void ApplyAlertFinding(ExitAlertFinding finding,ExitAlertConfiguration configuration)
     {
@@ -17,11 +13,7 @@ public sealed partial class MarketRepository
         var next=NextAlert(previous,finding,configuration);if(next is null)return;
         var row=next.Value.Event;var kind=next.Value.Kind;var notify=next.Value.Notify;
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
-        Execute("""
-            INSERT INTO nt_risk_event VALUES($id,$r,$s,$v,$first,$last,$lane,$state,$at,$p)
-            ON CONFLICT(id) DO UPDATE SET last_date=excluded.last_date,state=excluded.state,updated_at=excluded.updated_at,payload=excluded.payload
-            """,("$id",row.Id),("$r",row.RuleId),("$s",row.ScopeId),("$v",row.RuleVersion),("$first",row.FirstTradeDate.ToString("yyyy-MM-dd")),("$last",row.LastTradeDate.ToString("yyyy-MM-dd")),("$lane",row.Lane.ToString()),("$state",row.State),("$at",row.UpdatedAt),("$p",JsonSerializer.Serialize(row)));
-        Execute("INSERT INTO nt_risk_event_change VALUES($id,$n,$kind,$at,$p)",("$id",row.Id),("$n",row.ChangeNo),("$kind",kind),("$at",row.UpdatedAt),("$p",JsonSerializer.Serialize(row)));
+        alertEventStore.RecordChange(row,kind);
         if(finding.Triggered&&finding.InputSnapshots is {Count:>0})SaveAlertInputSnapshot(row,finding);
         if(notify)EnqueueAlertNotifications(row,kind,configuration.Routes);
         transaction.Commit();

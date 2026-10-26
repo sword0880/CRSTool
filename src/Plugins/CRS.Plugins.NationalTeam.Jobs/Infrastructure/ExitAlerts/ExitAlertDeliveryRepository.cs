@@ -32,14 +32,8 @@ public sealed partial class MarketRepository
         }
         transaction.Commit();return null;
     }
-    public ExitAlertEvent? AlertEvent(string id)
-        =>AlertEvent(id,null);
-    public ExitAlertEvent? AlertEvent(string id,int? sequence)
-    {
-        var json=sequence is {} number?Scalar("SELECT payload FROM nt_risk_event_change WHERE event_id=$id AND sequence=$n",("$id",id),("$n",number)) as string
-            :Scalar("SELECT payload FROM nt_risk_event WHERE id=$id",("$id",id)) as string;
-        return json is null?null:JsonSerializer.Deserialize<ExitAlertEvent>(json);
-    }
+    public ExitAlertEvent? AlertEvent(string id)=>alertEventStore.AlertEvent(id,null);
+    public ExitAlertEvent? AlertEvent(string id,int? sequence)=>alertEventStore.AlertEvent(id,sequence);
     /// <summary>按事件版本的实际输入筛选证据后分页，历史修订仍可定位原件与接收时间。</summary>
     public List<CRS.Plugins.NationalTeamWatch.Application.EvidenceRow> AlertInputs(string id,int? sequence=null)
     {

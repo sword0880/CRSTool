@@ -63,27 +63,12 @@ public sealed partial class MarketRepository
         SupersedeAlertRules(value.Rules.Version);MarkAlertPending();RecordCommand(commandId,"alert-settings");transaction.Commit();
     }
     private static bool RouteId(string? value)=>value is {Length:>0 and <=40}&&value.All(c=>char.IsAsciiLetterOrDigit(c)||c is '-' or '_');
-    public List<ExitAlertEvent> AlertEvents(ExitAlertFilter filter)
-    {
-        if(filter.From>filter.To||filter.Search?.Length>120||filter.Lane is not (null or "DataQuality" or "EtfOutflow" or "InstitutionEvidence")
-            ||filter.State is not (null or "Active" or "PendingVerification" or "Resolved" or "RetractedByRevision" or "HistoricalEvidence" or "RuleSuperseded"))throw new InvalidDataException("预警筛选无效，请检查日期、车道或状态。");
-        // 业务筛选先进入SQL，再建立IPC快照；超过上限要求缩小范围，不静默截断。
-        using var command=Command("""
-            SELECT payload FROM nt_risk_event WHERE ($lane IS NULL OR lane=$lane) AND ($state IS NULL OR state=$state)
-            AND ($from IS NULL OR last_date>=$from) AND ($to IS NULL OR first_date<=$to)
-            AND ($search IS NULL OR instr(scope_id,$search)>0 OR instr(payload,$search)>0) ORDER BY julianday(updated_at) DESC LIMIT 1001
-            """,("$lane",filter.Lane),("$state",filter.State),("$from",filter.From?.ToString("yyyy-MM-dd")),("$to",filter.To?.ToString("yyyy-MM-dd")),("$search",string.IsNullOrWhiteSpace(filter.Search)?null:filter.Search));
-        var result=ReadJson<ExitAlertEvent>(command);if(result.Count>1000)throw new InvalidDataException("事件过多，请缩小日期或状态范围。");return result;
-    }
+    public List<ExitAlertEvent> AlertEvents(ExitAlertFilter filter)=>alertEventStore.AlertEvents(filter);
     private static List<T> ReadJson<T>(Microsoft.Data.Sqlite.SqliteCommand command)
     {
         using var reader=command.ExecuteReader();var result=new List<T>();while(reader.Read())result.Add(JsonSerializer.Deserialize<T>(reader.GetString(0))??throw new InvalidDataException("预警记录损坏。"));return result;
     }
-    public List<ExitAlertChange> AlertChanges(string id)
-    {
-        using var command=Command("SELECT event_id,sequence,kind,at,payload FROM nt_risk_event_change WHERE event_id=$id ORDER BY sequence",("$id",id));
-        using var reader=command.ExecuteReader();var rows=new List<ExitAlertChange>();while(reader.Read())rows.Add(new(reader.GetString(0),reader.GetInt32(1),reader.GetString(2),reader.GetString(3),reader.GetString(4)));return rows;
-    }
+    public List<ExitAlertChange> AlertChanges(string id)=>alertEventStore.AlertChanges(id);
     public List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)=>alertOutboxStore.AlertOutbox(filter);
     // Legacy partials keep calling this helper; persistence now belongs exclusively to AlertOutboxStore.
     private void WriteOutbox(AlertOutboxItem row)=>alertOutboxStore.WriteOutbox(row);
