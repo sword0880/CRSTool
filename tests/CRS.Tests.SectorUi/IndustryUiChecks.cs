@@ -37,7 +37,7 @@ internal static class IndustryUiChecks
                     }while(work is not null?!work.IsCompleted:clock.Elapsed<TimeSpan.FromMilliseconds(1500));
                     work?.GetAwaiter().GetResult();
                 }
-                var workspace=DispatchProxy.Create<IEtfWorkspace,IndustryTestWorkspace>();var proxy=(IndustryTestWorkspace)(object)workspace;proxy.Report=report;
+                var workspace=DispatchProxy.Create<IIndustryValuationWorkspace,IndustryTestWorkspace>();var proxy=(IndustryTestWorkspace)(object)workspace;proxy.Report=report;
                 using var lifetime=new CancellationTokenSource();var model=new IndustryResearchViewModel(workspace,lifetime.Token){From=report.From.ToDateTime(TimeOnly.MinValue),Through=report.Through.ToDateTime(TimeOnly.MinValue)};
                 window=new(){Title=isSynthetic?"行业合成数据界面验证":"行业输入报告隔离界面验证",Content=new IndustryResearchPage(model,false),Width=1280,Height=1000,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};window.Show();
                 Pump(model.QueryCommand.ExecuteAsync(null));

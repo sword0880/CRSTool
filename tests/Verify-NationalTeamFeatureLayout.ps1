@@ -1,0 +1,190 @@
+$ErrorActionPreference = 'Stop'
+$repoRoot = Split-Path $PSScriptRoot -Parent
+
+function Get-DirectCodeFiles([string]$RelativePath, [string[]]$Extensions = @('.cs', '.xaml')) {
+    $path = Join-Path $repoRoot $RelativePath
+    if (-not (Test-Path -LiteralPath $path -PathType Container)) {
+        throw "Required NationalTeam feature directory is missing: $RelativePath"
+    }
+    return @(Get-ChildItem -LiteralPath $path -File | Where-Object { $Extensions -contains $_.Extension.ToLowerInvariant() })
+}
+
+function Assert-NoLooseCode([string]$RelativePath, [string[]]$Extensions = @('.cs', '.xaml')) {
+    $files = Get-DirectCodeFiles $RelativePath $Extensions
+    if ($files.Count -gt 0) {
+        $names = ($files | ForEach-Object { $_.Name }) -join ', '
+        throw ("Business source must be grouped into feature folders; found loose files in " + $RelativePath + ": " + $names)
+    }
+}
+
+function Assert-OnlyExpectedRootCode([string]$RelativePath, [string[]]$AllowedNames) {
+    $files = Get-DirectCodeFiles $RelativePath @('.cs', '.xaml')
+    $unexpected = @($files | Where-Object { $_.Name -notin $AllowedNames })
+    if ($unexpected.Count -gt 0) {
+        throw ("Unexpected loose source files in " + $RelativePath + ": " + (($unexpected | ForEach-Object { $_.Name }) -join ', '))
+    }
+}
+
+$core = 'src/Plugins/CRS.Plugins.NationalTeam.Core'
+$jobs = 'src/Plugins/CRS.Plugins.NationalTeam.Jobs'
+$ui = 'src/Plugins/CRS.Plugins.NationalTeamWatch'
+
+Assert-NoLooseCode "$core/Domain"
+Assert-NoLooseCode "$core/Application"
+Assert-NoLooseCode $core
+Assert-NoLooseCode "$jobs/Application"
+Assert-NoLooseCode "$jobs/Infrastructure"
+Assert-NoLooseCode $jobs
+Assert-NoLooseCode "$ui/Presentation"
+Assert-NoLooseCode "$ui/Application"
+Assert-OnlyExpectedRootCode $ui @('GlobalUsings.cs', 'NationalTeamPluginEntry.cs')
+Assert-OnlyExpectedRootCode "$jobs/Background" @('NationalTeamBackgroundEntry.cs')
+
+# The IPC workspace is still one compatibility facade, but each feature partial belongs to its own folder.
+$workerRoot = Join-Path $repoRoot "$ui/Application/Worker"
+$workerFiles = @(Get-ChildItem -LiteralPath $workerRoot -Recurse -File -Filter 'WorkerEtfWorkspace*.cs')
+if ($workerFiles.Count -ne 6) {
+    throw "Expected 6 WorkerEtfWorkspace source parts, found $($workerFiles.Count)."
+}
+foreach ($file in $workerFiles) {
+    $relative = $file.FullName.Substring($repoRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
+    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|Equity|ExitAlerts|IndustryValuation|MarketCycle)/WorkerEtfWorkspace[^/]*\.cs$') {
+        throw ("Worker workspace partial is not grouped by feature: " + $relative)
+    }
+}
+
+# WPF page and code-behind must move together so generated InitializeComponent resources remain coherent.
+$xamlFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "$ui/Presentation") -Recurse -File -Filter '*.xaml')
+foreach ($xaml in $xamlFiles) {
+    if (-not (Test-Path -LiteralPath ($xaml.FullName + '.cs') -PathType Leaf)) {
+        throw ("WPF XAML page is missing its paired code-behind: " + $xaml.FullName)
+    }
+}
+$codeBehind = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "$ui/Presentation") -Recurse -File -Filter '*.xaml.cs')
+if ($codeBehind.Count -ne $xamlFiles.Count) {
+    throw "WPF XAML/code-behind counts differ: XAML=$($xamlFiles.Count), code-behind=$($codeBehind.Count)."
+}
+
+# Shared storage remains intentionally shared; this guard is organizational, not a claim of module isolation.
+$marketRepository = Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketRepository.cs"
+if (-not (Test-Path -LiteralPath $marketRepository -PathType Leaf)) {
+    throw 'The shared MarketRepository entry point must remain explicitly located under Infrastructure/Shared.'
+}
+
+
+# Narrow workspace ports are the new feature boundary; keep the legacy composite contract as a compatibility facade.
+$portFiles = @(
+    "$core/Application/Shared/IWorkspaceAccess.cs",
+    "$core/Application/Shared/IEtfResearchWorkspace.cs",
+    "$core/Application/Shared/IDirectEquityWorkspace.cs",
+    "$core/Application/Shared/IIndustryValuationWorkspace.cs",
+    "$core/Application/Shared/IMarketCycleWorkspace.cs",
+    "$core/Application/Shared/INavWorkspace.cs",
+    "$core/Application/Shared/IExitAlertWorkspace.cs"
+)
+foreach ($port in $portFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $port) -PathType Leaf)) {
+        throw "Required narrow workspace port is missing: $port"
+    }
+}
+$legacyContract = Get-Content -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/IEtfWorkspace.cs") -Raw
+if ($legacyContract -notmatch 'public interface IEtfWorkspace' -or $legacyContract -notmatch 'OverviewAsync') {
+    throw 'The legacy IEtfWorkspace compatibility contract is missing or was unexpectedly replaced.'
+}
+$viewModelPortChecks = @(
+    @{ Path = "$ui/Presentation/Equity/EquityViewModel.cs"; Pattern = 'EquityViewModel\(IDirectEquityWorkspace' },
+    @{ Path = "$ui/Presentation/IndustryValuation/IndustryResearchViewModel.cs"; Pattern = 'IndustryResearchViewModel\(IIndustryValuationWorkspace' },
+    @{ Path = "$ui/Presentation/MarketCycle/IndexResearchViewModel.cs"; Pattern = 'IndexResearchViewModel\(IMarketCycleWorkspace' },
+    @{ Path = "$ui/Presentation/ExitAlerts/ExitAlertViewModel.cs"; Pattern = 'ExitAlertViewModel\(IExitAlertWorkspace' },
+    @{ Path = "$ui/Presentation/Etf/EtfViewModel.cs"; Pattern = 'IEtfResearchWorkspace workspace' }
+)
+foreach ($check in $viewModelPortChecks) {
+    $source = Get-Content -LiteralPath (Join-Path $repoRoot $check.Path) -Raw
+    if ($source -notmatch $check.Pattern) {
+        throw "ViewModel must depend on its feature port: $($check.Path)"
+    }
+}
+
+# Industry PE is the first real storage extraction: the facade must delegate, and the store must not rejoin the legacy partial class.
+$sessionContractPath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/IMarketRepositorySession.cs"
+$industryStorePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeStore.cs"
+$industryFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeRepository.cs"
+$calendarStorePath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketCalendarStore.cs"
+$navFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/Nav/NavRepository.cs"
+$navStorePath = Join-Path $repoRoot "$jobs/Infrastructure/Nav/NavStore.cs"
+$calendarFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeCalendar.cs"
+$indexFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesRepository.cs"
+$indexStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesStore.cs"
+$calendarPersistenceFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/CalendarRepository.cs"
+$activityFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/MarketActivityRepository.cs"
+$activityStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/MarketActivityStore.cs"
+$alertOutboxStorePath = Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertOutboxStore.cs"
+$alertEventStorePath = Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertEventStore.cs"
+$alertDeliveryStorePath = Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertDeliveryStore.cs"
+if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $calendarStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $indexStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $activityStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $navStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $alertOutboxStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $alertEventStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $alertDeliveryStorePath -PathType Leaf)) {
+    throw 'Storage extraction requires the shared session, IndustryPeStore, MarketCalendarStore, IndexSeriesStore and MarketActivityStore.'
+}
+$sessionSource = Get-Content -LiteralPath $sessionContractPath -Raw
+$storeSource = Get-Content -LiteralPath $industryStorePath -Raw
+$facadeSource = Get-Content -LiteralPath $industryFacadePath -Raw
+$repositorySource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketRepository.cs") -Raw
+$calendarStoreSource = Get-Content -LiteralPath $calendarStorePath -Raw
+$calendarFacadeSource = Get-Content -LiteralPath $calendarFacadePath -Raw
+$indexFacadeSource = Get-Content -LiteralPath $indexFacadePath -Raw
+$indexStoreSource = Get-Content -LiteralPath $indexStorePath -Raw
+$calendarPersistenceFacadeSource = Get-Content -LiteralPath $calendarPersistenceFacadePath -Raw
+$activityFacadeSource = Get-Content -LiteralPath $activityFacadePath -Raw
+$activityStoreSource = Get-Content -LiteralPath $activityStorePath -Raw
+$navFacadeSource = Get-Content -LiteralPath $navFacadePath -Raw
+$navStoreSource = Get-Content -LiteralPath $navStorePath -Raw
+$alertOutboxStoreSource = Get-Content -LiteralPath $alertOutboxStorePath -Raw
+$alertEventStoreSource = Get-Content -LiteralPath $alertEventStorePath -Raw
+$alertDeliveryStoreSource = Get-Content -LiteralPath $alertDeliveryStorePath -Raw
+$alertDeliveryFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertDeliveryRepository.cs") -Raw
+$alertLifecycleSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertLifecycleRepository.cs") -Raw
+$alertFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertRepository.cs") -Raw
+if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
+    $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
+    $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
+    $storeSource -match 'partial class MarketRepository' -or
+    $calendarFacadeSource -notmatch 'marketCalendarStore\.IndustryPeCalendar' -or
+    $calendarPersistenceFacadeSource -notmatch 'marketCalendarStore\.RegisterReviewedCalendar' -or
+    $calendarPersistenceFacadeSource -notmatch 'marketCalendarStore\.IsReviewedTradingDay' -or
+    $indexFacadeSource -notmatch 'marketCalendarStore\.ReadPublishedTradingCalendar' -or
+    $indexFacadeSource -notmatch 'indexSeriesStore\.IndexSeriesRevisions' -or
+    $indexStoreSource -match 'partial class MarketRepository' -or
+    $activityFacadeSource -notmatch 'marketActivityStore\.MarketActivity' -or
+    $activityStoreSource -match 'partial class MarketRepository' -or
+    $navFacadeSource -notmatch 'navStore\.NavPoints' -or
+    $navStoreSource -match 'partial class MarketRepository' -or
+    $alertFacadeSource -notmatch 'alertOutboxStore\.AlertOutbox' -or
+    $alertOutboxStoreSource -match 'partial class MarketRepository' -or
+    $alertOutboxStoreSource -match 'trustedCondition' -or
+    $alertEventStoreSource -match 'partial class MarketRepository' -or
+    $alertEventStoreSource -notmatch 'public void RecordChange' -or
+    $alertFacadeSource -notmatch 'alertEventStore\.AlertEvents' -or
+    $alertLifecycleSource -notmatch 'alertEventStore\.RecordChange\(row,kind\)' -or
+    $alertDeliveryStoreSource -match 'partial class MarketRepository' -or
+    $alertDeliveryFacadeSource -notmatch 'alertDeliveryStore\.CompleteAlertNotification' -or
+    $alertDeliveryFacadeSource -notmatch 'alertDeliveryStore\.DueNotifications' -or
+    $calendarStoreSource -match 'partial class MarketRepository') {
+    throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind the session contract and compatibility facades.'
+}
+$etfViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/Etf/EtfViewModel.cs") -Raw
+$marketActivitySource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/MarketCycle/MarketActivityPresentation.cs") -Raw
+$proofViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/ExitAlerts/ExitAlertProofViewModel.cs") -Raw
+if ($etfViewModelSource -notmatch 'IMarketCycleWorkspace marketCycleWorkspace' -or
+    $marketActivitySource -notmatch 'marketCycleWorkspace\.MarketActivityAsync' -or
+    $proofViewModelSource -notmatch 'etfWorkspace\.ConfigurationAsync') {
+    throw 'ETF, market-cycle and exit-alert UI dependencies must use explicit feature ports.'
+}
+Write-Host "PASS NationalTeam feature layout: Core, Jobs, WPF presentation and Worker IPC files are grouped by feature."
+Write-Host "Validated Worker workspace parts: $($workerFiles.Count); WPF pages: $($xamlFiles.Count); narrow feature ports: $($portFiles.Count)."

@@ -14,13 +14,14 @@
 
 | 项目 | 直接项目依赖 | 职责 |
 | --- | --- | --- |
-| CRS.Time | 无 | 全应用北京时间时钟、带 +08:00 的时间点创建与持久化边界 |
+| CRS.Time | CRS.Common | 二进制兼容外壳：通过 TypeForwardedTo 转发旧时间类型，暂不删除已发行程序集 |
 | CRS.Domain | 无 | 交易事实、FIFO、税务及绩效规则 |
 | CRS.Application | CRS.Domain, CRS.Time | 用例、端口、冻结结果、DesktopWorkflow |
 | CRS.Security | 无 | 密码学、认证和保险库机制 |
 | CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security | 券商解析、持久化、汇率、导出、装配 |
 | CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc | 桌面进程，具体基础设施仅由 Composition 装配 |
 | CRS.Plugin.Abstractions | CRS.Time | 桌面插件的 BCL 契约 |
+| CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹；不依赖业务或宿主 |
 | CRS.Plugin.Wpf | CRS.Plugin.Abstractions | WPF 页面贡献契约 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
 | CRS.Worker.Abstractions | CRS.Time | 后台会话、任务、查询及存储上下文契约 |
@@ -32,7 +33,7 @@
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
 | CRS.Plugins.Heartbeat | CRS.Worker.Abstractions | 后台心跳插件 |
 | CRS.Plugins.NationalTeam.Core | CRS.Time | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
-| CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions | 后台采集、市场库、来源策略及查询 |
+| CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
 
 ## 解决方案测试与夹具项目

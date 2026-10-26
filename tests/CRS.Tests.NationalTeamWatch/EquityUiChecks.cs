@@ -77,7 +77,7 @@ internal static class EquityUiChecks
             app.Run(window);
         });thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw new InvalidOperationException("直接持股UI验收失败。",failure);
     }
-    private static void CheckUnsafeChartInputs(IEtfWorkspace workspace)
+    private static void CheckUnsafeChartInputs(IDirectEquityWorkspace workspace)
     {
         var model=new EquityViewModel(workspace,CancellationToken.None);
         foreach(var (state,shares,delta) in new[]{("NeedsReview",100m,999m),("Critical",100m,999m),("Conflict",100m,999m),("NotComparable",100m,999m),("Increased",200m,100m),("Decreased",100m,-100m),("Unchanged",100m,0m)})

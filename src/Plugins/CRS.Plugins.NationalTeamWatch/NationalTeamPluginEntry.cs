@@ -17,7 +17,8 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
     public ValueTask StartAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        model=new(new WorkerEtfWorkspace(),lifetime.Token);
+        var etfWorkspace=new WorkerEtfWorkspace();
+        model=new(etfWorkspace,etfWorkspace,etfWorkspace,lifetime.Token);
         equity=new(new WorkerEtfWorkspace(),lifetime.Token);
         industry=new(new WorkerEtfWorkspace(),lifetime.Token);
         indices=new(new WorkerEtfWorkspace(),lifetime.Token);

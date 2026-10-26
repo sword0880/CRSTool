@@ -34,7 +34,7 @@ foreach($file in $files) {
         $failures.Add("新增硬编码颜色：$relative，现有 $hardcoded / 基线 $legacyAllowance")
     }
     # 表格工具区的窄日期选择器必须显示可读的年月日，禁止退回默认长日期格式。
-    if($relative -like 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/*.xaml') {
+    if($relative.StartsWith('src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/',[StringComparison]::OrdinalIgnoreCase) -and $relative.EndsWith('.xaml',[StringComparison]::OrdinalIgnoreCase)) {
         foreach($datePicker in [regex]::Matches($source,'<DatePicker\b[^>]*>')) {
             if($datePicker.Value -notmatch 'SelectedDateFormat="Short"') {
                 $failures.Add("插件日期控件未指定短日期格式：$relative")

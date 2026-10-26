@@ -97,6 +97,11 @@ internal static class ExitAlertChecks
                 Sql(connection,"CREATE TRIGGER synthetic_outbox_abort BEFORE INSERT ON nt_alert_outbox BEGIN SELECT RAISE(ABORT,'synthetic failure'); END;");
                 try{repository.EvaluateExitAlerts(true);throw new Exception("注入故障未回滚");}catch(SqliteException){}
                 Check(repository.AlertEvents(new()).Count==0&&repository.AlertOutbox().Count==0,"事件与Outbox插入失败同事务回滚，不产生孤立事件");
+                using(var journal=connection.CreateCommand())
+                {
+                    journal.CommandText="SELECT (SELECT count(*) FROM nt_risk_event_change)+(SELECT count(*) FROM nt_alert_input_snapshot)";
+                    Check(Convert.ToInt32(journal.ExecuteScalar())==0,"模拟Outbox落库失败时变更日志和冻结证据也必须整体回滚");
+                }
                 Sql(connection,"DROP TRIGGER synthetic_outbox_abort;");
             }
             repository.EvaluateExitAlerts(true);var risk=repository.AlertEvents(new("EtfOutflow")).Single();
@@ -118,6 +123,16 @@ internal static class ExitAlertChecks
             var config=reopened.AlertConfiguration();reopened.SaveAlertConfiguration(config with{Rules=config.Rules with{Version="exit-v2.0"},Routes=[new("dingtalk","research")]});
             reopened.EvaluateExitAlerts(true);var claim=reopened.ClaimAlertNotification()!;second=claim.Id;
             Check(claim.ChannelId=="dingtalk"&&claim.ProfileId=="research","切换渠道和Profile无需修改风险规则算法");
+            // 投递审计写失败时，Outbox状态不能单独提交为“已失败/可重试”。
+            using(var connection=OpenDatabase(root))
+            {
+                Sql(connection,"CREATE TRIGGER synthetic_delivery_abort BEFORE INSERT ON nt_alert_delivery BEGIN SELECT RAISE(ABORT,'synthetic delivery failure'); END;");
+                try{reopened.CompleteAlertNotification(claim.Id,claim.Lease!,new("RetryableFailure","Http429"));throw new Exception("投递审计故障未回滚");}
+                catch(SqliteException){}
+                Check(reopened.AlertOutbox().Single(x=>x.Id==second).State=="InFlight"&&reopened.AlertDeliveries(second).Count==0,
+                    "投递审计失败时租约与Outbox状态均回滚，不单独宣称通知失败");
+                Sql(connection,"DROP TRIGGER synthetic_delivery_abort;");
+            }
             reopened.CompleteAlertNotification(claim.Id,claim.Lease!,new("RetryableFailure","Http429"));
             Check(reopened.AlertOutbox().Single(x=>x.Id==second).State=="Retry"&&reopened.AlertDeliveries(second).Count==1,"ALERT-14 明确未受理的429保留失败码和退避，不记送达");
             reopened.RetryAlertNotification(second);claim=reopened.ClaimAlertNotification()!;

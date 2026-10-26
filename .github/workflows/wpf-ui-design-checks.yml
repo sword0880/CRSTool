@@ -23,6 +23,9 @@ jobs:
       - name: Verify architecture dependency constraints
         shell: pwsh
         run: ./tests/Verify-Architecture.ps1
+      - name: Verify NationalTeamWatch source files are grouped by business function
+        shell: pwsh
+        run: ./tests/Verify-NationalTeamFeatureLayout.ps1
       - name: Verify atomic tax and performance import commits
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --calculation-commit
@@ -33,6 +36,12 @@ jobs:
       - name: Verify market repository contracts before job admission
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --repository-contracts
+      - name: Verify NAV storage evidence, revisions, schema and rollback
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-storage-checks
+      - name: Verify exit alert outbox restart, evidence and delivery safeguards
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alerts
       - name: Verify equity comparison baselines and ETF collection receipts
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --evidence-adversarial
@@ -71,6 +80,12 @@ jobs:
       - name: Verify adaptive ETF pages preserve complete snapshots and legacy clients
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --adaptive-query-pages
+      - name: Verify common Beijing time semantics and legacy CRS.Time forwarders
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time-compat
+      - name: Verify shared plugin read admissions and cancellation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission
       - name: Verify bounded evidence verification cancellation and new corruption
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --raw-batch
