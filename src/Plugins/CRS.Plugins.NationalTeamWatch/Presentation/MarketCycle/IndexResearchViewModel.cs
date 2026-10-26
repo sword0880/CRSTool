@@ -10,7 +10,7 @@ using LiveChartsCore.SkiaSharpView;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>界面只呈现后台归一曲线及缺失状态；取消/改日期不撤销已经受理的后台采集。</summary>
-public partial class IndexResearchViewModel(IEtfWorkspace workspace,CancellationToken lifetime):ObservableObject
+public partial class IndexResearchViewModel(IMarketCycleWorkspace workspace,CancellationToken lifetime):ObservableObject
 {
     public bool CanManage=>workspace.CanManage;
     // 保存后台报告身份供只读验收和后续核对；界面不重算曲线或改变金融指纹。
