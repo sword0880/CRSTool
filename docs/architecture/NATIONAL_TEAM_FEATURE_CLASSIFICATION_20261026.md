@@ -28,51 +28,77 @@
 4. `NationalTeamWorkspacePage.cs` 按分类构造左侧索引；初次打开显示说明，不创建任何子功能页面；点击时仅创建当前子页，切换时释放上个视图引用。ViewModel 与查询身份仍由既有Session管理，不在视图执行采集、SQL、金融运算。
 5. 工作台没有跨证据类别的混合数据总表：全行业PE及国证1000指数PB必须分别进入自己的模型，不能由导航层直接 join。
 
-## 后续源码结构：按业务纵向、按层横向
+## 本轮已实施：既有源码按业务领域归档（2026-10-26）
 
-已有根目录平铺的生产文件**本 PR 暂不批量迁移**，避免同一时期大量路径变动干扰正在执行的金融来源回补及回归。新增或重构功能统一按下述目标结构逐项迁移，类型命名空间优先保持不变以减少 ABI 变化：
+本轮不再只规定“以后新增代码怎么放”，而是把现有生产源码按功能搬入目录。**138 个既有源码文件做路径迁移**，同时将 XAML 与对应 code-behind 成对移动。保留既有 C# namespace、公开类型名、方法签名、数据库表/Schema、插件 ID、路由键和 Worker 调度契约；本轮不改业务算法，不声称已经完成真正的模块解耦。
 
-```text
-src/Plugins/
-  CRS.Plugins.NationalTeam.Core/
-    Domain/
-      Etf/                 # 份额、NAV与市场活动规则
-      Equity/              # 机构持股、披露与机构归属
-      Industry/            # PE/PB、估值和周期行业差异
-      MarketCycle/         # 高低位研究规则，禁止直接指令化
-      Alerts/              # 减持信号与证据门槛
-    Application/           # 场景用例与端口，按以上业务分别聚合
-  CRS.Plugins.NationalTeam.Jobs/
-    Application/           # Worker用例，按业务目录
-    Infrastructure/        # 原件、官方适配、仓储与修订；禁止 WPF 依赖
-  CRS.Plugins.NationalTeamWatch/
-    NationalTeamPluginEntry.cs   # 只组合分类导航和各页面ViewModel
-    Presentation/
-      Navigation/          # 唯一分类注册表和按需加载工作台（已实现）
-      Etf/                 # 待逐项搬迁
-      Equity/              # 待逐项搬迁
-      Industry/            # 待逐项搬迁
-      MarketCycle/         # 待完成可用性门槛后新增
-      Alerts/              # 待完成可用性门槛后新增
-    WorkerEtfWorkspace.*.cs # IPC按业务拆分；不得在UI绕过Worker读取库
-```
+### 目录结构
 
-**单职责要求**：View和ViewModel不得计算投资事实；Domain不得依赖WPF或网络；Jobs拥有来源与加密库；导航只管理分类与页面生命周期；宿主不得枚举“国证”“汇金”等业务专属分类来分组。
+    src/Plugins/
+      CRS.Plugins.NationalTeam.Core/
+        Domain/
+          Etf/                  # ETF份额、ETF目录与度量
+          Equity/               # 机构直接持股、历史披露与官方公告模型
+          Evidence/             # 证据等级与来源语义
+          ExitAlerts/           # 预警规则、事件与重放模型
+          IndustryValuation/    # 行业PE、行业研究、质量证据闸门
+          MarketCycle/          # 指数研究、周期规则、已审核交易日历
+          Nav/                  # 基金NAV研究模型
+        Application/
+          Etf/ Equity/ Evidence/ ExitAlerts/
+          IndustryValuation/ MarketCycle/ Nav/
+          Sources/              # 来源策略端口
+          Shared/               # 兼容性聚合契约、跨领域读取会话
+      CRS.Plugins.NationalTeam.Jobs/
+        Background/
+          ExitAlerts/ IndustryValuation/ MarketCycle/ Nav/
+          NationalTeamBackgroundEntry.cs
+        Application/
+          Etf/ Equity/ ExitAlerts/
+          IndustryValuation/ MarketCycle/ Nav/
+        Infrastructure/
+          Etf/ Equity/ Evidence/ ExitAlerts/
+          IndustryValuation/ MarketCycle/ Nav/
+          Shared/               # 共享SQLite会话、通用日历与公共仓储入口
+          Sources/              # HTTP网关、限流/冷却策略、通用响应证据
+          Storage/              # 正式存储提供器
+        Resources/               # 保留嵌入资源路径，避免更改ManifestResource名称
+      CRS.Plugins.NationalTeamWatch/
+        Application/Worker/
+          Etf/ Equity/ ExitAlerts/ IndustryValuation/ MarketCycle/
+        Presentation/
+          Navigation/            # 唯一内部分类目录与按需加载工作台
+          Etf/ Equity/ ExitAlerts/ IndustryValuation/ MarketCycle/
 
-同一子模块超过约300行时优先按查询、命令、图表投影及证据查看职责拆小文件，而不是机械按每100行分割。禁止新增一个跨行业、ETF和机构持股的巨型 `NationalTeamViewModel`。新增业务分类先加目录/证据边界，再加页面/测试；**不能仅仅改菜单名称就算完成重构**。
+### 分类边界与保留项
 
-## 反方审查
+- **ETF份额**：目录、采集、份额差额、覆盖率、Dashboard与对应页面/ViewModel。
+- **直接持股与披露**：公司/机构持股、历史PDF、公告索引和对应查询/展示。
+- **行业估值**：国证行业公布PE、修订日历、行业质量闸门和行业研究页面。
+- **市场周期**：指数序列、市场成交活动、来源审批、周期研究与对应页面。
+- **退出预警**：规则评估、事件/证据/生命周期、交付记录、Worker任务与页面。
+- **NAV**：NAV来源、存储与研究。
+- **Evidence / Sources / Shared**：只放跨领域原件存储、来源访问控制、共享会话/聚合契约；不能把业务特有代码为了省事继续放回共享目录。
+- NationalTeamPluginEntry.cs、GlobalUsings.cs、项目文件、插件清单与锁文件仍留在插件根目录，作为装配/构建元数据，不是业务功能。
+- Resources/cnd-2025-annual.json 保留原路径，防止隐式嵌入资源名变化。导航仍只公开“国家队研究工作台”；旧路由注册保持不变。
+- WorkerEtfWorkspace.* 仍是历史命名的跨功能IPC客户端外观，但已按 ETF、直接持股、行业估值、市场周期、退出预警放入对应子目录；不在本次擅自更名或改变IPC契约。
+- IEtfWorkspace 保留在 Application/Shared：尽管名字历史上带ETF，它现在是覆盖多个功能的兼容性Facade，不能因为文件挪动就假装它是纯ETF接口。
 
-| 潜在问题 | 本次防线 | 后续验收 |
+### 本轮验证与新增约束
+
+新增 tests/Verify-NationalTeamFeatureLayout.ps1 并接入 WPF CI。它检查 Core 的 Domain/Application、Jobs 的 Application/Infrastructure、NationalTeamWatch 的 Presentation 和 Worker IPC 目录不能继续平铺业务源码，验证 XAML/code-behind 配对，以及 Worker 部分类归档位置。新功能若再把源码堆回根目录，会在 CI 中失败。
+
+## 反方架构师审查：这次没有解决的问题
+
+| 问题 | 本轮处理 | 不能夸大的结论 / 后续动作 |
 | --- | --- | --- |
-| 改路由导致用户找不到原功能 | 单主入口+分组菜单；原三路由身份保留 | 真实插件宿主安装包切换及导航截图 |
-| 导航页启动引发大量Worker IPC查询 | 根页面懒加载，未点击不创建子页 | Windows界面隔离测试；实机时间线 |
-| 点击视图构造失败后清空旧内容 | 先成功创建新页再替换，失败不更新路由 | 注入失败工厂测试 |
-| 每次切换累积UI图表和控件 | 只保留一个活跃 `Content`；模型由Session管理 | 长期切换内存与取消/离开期间回写测试 |
-| 新分类只有菜单没有已上线真实资料 | 不展示空分类，不提前列假模块 | 分类目录校验与真实来源/权限验收 |
-| 客户端共享契约更改造成 MissingMethodException | 不改变已有构造器，新增属性采用非必填；正式打包必须成对升级插件+宿主共享DLL | 旧/新发行 ABI、可信包哈希、重启与真机装包验证 |
-| 分类误导金融结论 | 页面明确写出证据限制，全行业PE与样本指数PB不拼接 | 真实来源原件、PIT、组合映射长期核验 |
-| 隐藏旧菜单导致直达不可达 | 兼容路由仍注册；新首页单独暴露功能 | 非菜单旧路由的API级启动/导航回归 |
+| 一个巨大的 MarketRepository 仍以 partial class 横跨ETF、直接持股、行业PE、NAV、市场周期和预警 | 将各领域仓储实现文件按功能归档，公共实现放到 Infrastructure/Shared | **这是可读性重构，不是模块隔离**。下一阶段应拆成独立仓储/适配器，通过窄端口共享连接、事务与原件服务；先做依赖图、事务边界与Schema初始化清单，再逐个领域迁移 |
+| IEtfWorkspace 与 WorkerEtfWorkspace 的历史接口名不能代表实际职责 | 保留兼容外观，按领域归档实现文件 | 不直接改公共接口成员归属或类型名，避免旧插件二进制/调用点ABI变化。后续先定义版本化的 IEquityWorkspace、IIndustryValuationWorkspace 等窄端口，双读/适配验证后再淘汰旧Facade |
+| C# namespace 仍使用原来的 CRS.Plugins.NationalTeamWatch.* | 本轮只改物理目录，不改namespace | 这是有意降低风险。目录已按功能分类，但namespace/程序集边界尚未实现同等程度的解耦；下一阶段需要评估公开API、插件加载和旧二进制兼容 |
+| 共用 Ports.cs、共享查询会话和少数跨领域DTO仍是公共汇合点 | 归档到 Application/Shared | 共享目录必须是明确例外，不应成为新业务的默认位置；后续需将宽泛的聚合接口拆成窄接口，但保持组合根统一管理生命周期 |
+| 仅通过目录整理无法证明业务逻辑正确 | 未改计算逻辑、数据来源与调度契约 | 必须由完整Windows构建、WPF/XAML编译、行业PE/市场周期/预警/IPC/Worker回归证明无回归；不能用静态目录检查替代功能验收 |
+
+这次重构的成功标准是“已有源码能按业务领域定位，且行为不变”，不是“所有领域已独立部署”。真正拆分巨型仓储和宽泛接口作为后续单独阶段，不与本次大批量路径变更混在一起。
 
 ## 验收命令
 

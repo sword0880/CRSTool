@@ -23,6 +23,9 @@ jobs:
       - name: Verify architecture dependency constraints
         shell: pwsh
         run: ./tests/Verify-Architecture.ps1
+      - name: Verify NationalTeamWatch source files are grouped by business function
+        shell: pwsh
+        run: ./tests/Verify-NationalTeamFeatureLayout.ps1
       - name: Verify atomic tax and performance import commits
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --calculation-commit
