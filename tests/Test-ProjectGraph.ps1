@@ -40,5 +40,5 @@ Set-Content -LiteralPath $document -Value $originalDocument
 $extra = Join-Path $fixture 'src/CRS.Unregistered/CRS.Unregistered.csproj'
 New-Item -ItemType Directory -Path (Split-Path $extra -Parent) -Force | Out-Null
 Set-Content -LiteralPath $extra -Value '<Project Sdk="Microsoft.NET.Sdk" />'
-Assert-Rejected '生产项目未登记'
+Assert-Rejected '生产或测试项目未登记'
 Write-Output '项目门禁：正常项目通过，四种结构回退均拒绝。'

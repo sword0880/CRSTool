@@ -26,7 +26,7 @@ internal static class EtfStartupChecks
                     await using var session=new NationalTeamPluginEntry().CreateSession(null!);
                     var clock=Stopwatch.StartNew();await session.StartAsync(default);
                     Check(clock.Elapsed<TimeSpan.FromSeconds(2),"会话启动不等待后台连接或整页刷新");
-                    Check(((IPluginWpfSession)session).GetPages().Count==3&&((IPluginWpfSession)session).GetPages().Any(x=>x.RouteKey=="industry-research"),"先完成ETF、持股及行业三个页面注册");
+                    Check(((IPluginWpfSession)session).GetPages() is {Count:1} pages&&pages[0].RouteKey=="national-team-workspace","启动只注册分类工作台，不预先打开业务页");
                     using var lifetime=new CancellationTokenSource();
                     var workspace=DispatchProxy.Create<INationalTeamWorkspace,DelayedWorkspace>();
                     var delayed=(DelayedWorkspace)(object)workspace;

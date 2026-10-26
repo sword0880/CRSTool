@@ -58,7 +58,7 @@ public partial class IndustryResearchViewModel(IIndustryValuationWorkspace works
             Status=next.CalendarVerified?"已核验交易日对照；缺日断线。分位仅比较本行业所选区间的公布序列，至少252个前置样本；不代表低估机会。":"交易日历尚未核验；展示已取得公布值，历史分位不可计算。";
         }
         catch(OperationCanceledException){Clear();Status="查询已取消或超时；后台采集继续运行，请稍后主动查询。";}
-        catch(Exception error) when(error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException)
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or TimeoutException or InvalidDataException or InvalidOperationException or NotSupportedException)
         {Clear();Status="行业资料读取失败："+error.Message;}
         finally{operation=null;Busy=false;}
     }
@@ -68,7 +68,7 @@ public partial class IndustryResearchViewModel(IIndustryValuationWorkspace works
         Busy=true;using var current=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=current;current.CancelAfter(TimeSpan.FromSeconds(30));
         try{var range=Range();ShowReceipt(await workspace.QueueIndustryPeAsync(range.From,range.Through,RefreshSource,current.Token));}
         catch(OperationCanceledException){TaskStatus="受理等待已取消或超时，不能确认采集结果；原请求身份已保留，请保持参数并核查。";}
-        catch(Exception error) when(error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException){TaskStatus="行业采集尚未确认："+error.Message;}
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or TimeoutException or InvalidDataException or InvalidOperationException or NotSupportedException){TaskStatus="行业采集尚未确认："+error.Message;}
         finally{operation=null;Busy=false;}
     }
     [RelayCommand(CanExecute=nameof(CanQuery))]
@@ -78,7 +78,7 @@ public partial class IndustryResearchViewModel(IIndustryValuationWorkspace works
         Busy=true;using var current=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=current;current.CancelAfter(TimeSpan.FromSeconds(30));
         try{ShowReceipt(await workspace.IndustryPeSyncStatusAsync(id,current.Token));}
         catch(OperationCanceledException){TaskStatus="任务查询已取消或超时；后台任务继续运行。";}
-        catch(Exception error) when(error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException){TaskStatus="任务状态未知："+error.Message;}
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or TimeoutException or InvalidDataException or InvalidOperationException or NotSupportedException){TaskStatus="任务状态未知："+error.Message;}
         finally{operation=null;Busy=false;}
     }
     private void ShowReceipt(IndustryPeSyncReceipt receipt)

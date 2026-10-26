@@ -31,6 +31,7 @@ if(args is ["--cnd-comparison-golden",var cndComparisonDirectory]){CndComparison
 if(args is ["--historical-pdf-checks",var historicalPdf]){HistoricalEquityChecks.Run(historicalPdf);return;}
 if(args is ["--abc-review-live",var abcReviewDirectory]){await AbcEquityAcceptanceTool.Run(abcReviewDirectory,true);return;}
 if(args is ["--deployment-state-live",var stateDirectory]){await DeploymentOperationsTool.State(stateDirectory);return;}
+if(args is ["--research-feature-audit-live",var auditDirectory]){await ResearchFeatureAuditTool.RunAsync(auditDirectory);return;}
 if(args is ["--equity-report-sync-live",var reportDirectory]){await DeploymentOperationsTool.Reports(reportDirectory,true);return;}
 if(args is ["--equity-report-status-live",var reportStatusDirectory]){await DeploymentOperationsTool.Reports(reportStatusDirectory,false);return;}
 if(args is ["--equity-report-sync-live",var reportTicker,var tickerReportDirectory]){await DeploymentOperationsTool.Reports(tickerReportDirectory,true,reportTicker);return;}

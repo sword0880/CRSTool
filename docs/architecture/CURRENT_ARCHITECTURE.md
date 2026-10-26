@@ -50,8 +50,12 @@
 | CRS.Tests.Wpf | 绑定、交互和窗口 |
 | CRS.Tests.Verification | 样本及发布验证 |
 | CRS.Tests.PluginHost | 桌面插件宿主 |
-| CRS.Tests.PluginRecovery | 插件升级恢复 |
+| CRS.Tests.PluginRecovery | UI插件包、页面资源与只读服务边界；Worker恢复另行验证 |
 | CRS.Tests.NationalTeamWatch | ETF 业务与来源 |
+| CRS.Tests.IndexResearch | 指数序列、估值及加密修订研究 |
+| CRS.Tests.IndustryPe | 行业公布PE、修订、来源与历史位置 |
+| CRS.Tests.SectorResearch | 行业质量、估值研究与反方规则 |
+| CRS.Tests.SectorUi | 行业研究界面、分类导航与查询取消 |
 | CRS.Tests.Background | Worker、管道、权限和调度 |
 | CRS.Tests.WorkerEtf | ETF 双入口及后台存储 |
 | CRS.Worker.FixturePlugin | 后台故障与慢查询夹具，不进入发行包 |

@@ -22,9 +22,9 @@ foreach ($path in $graph.Keys) {
         if (-not $graph.ContainsKey($dependency)) { throw "引用项目未登记在解决方案：$dependency" }
     }
 }
-foreach ($productionFile in Get-ChildItem -LiteralPath (Join-Path $root 'src') -Filter '*.csproj' -Recurse |
+foreach ($productionFile in Get-ChildItem -LiteralPath @((Join-Path $root 'src'), (Join-Path $root 'tests')) -Filter '*.csproj' -Recurse |
     Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
-    if (-not $graph.ContainsKey($productionFile.FullName)) { throw "生产项目未登记在解决方案：$($productionFile.Name)" }
+    if (-not $graph.ContainsKey($productionFile.FullName)) { throw "生产或测试项目未登记在解决方案：$($productionFile.Name)" }
 }
 $states = @{}
 function Visit-Project([string]$Path, [string[]]$Stack) {
@@ -51,4 +51,4 @@ foreach ($row in [regex]::Matches($document, '(?m)^\| (CRS\.[A-Za-z0-9.]+) \| ([
     $actual = @(if ($declared -ne '无') { $declared.Split(',').Trim() | Sort-Object })
     if (($expected -join ',') -ne ($actual -join ',')) { throw "当前架构文档的直接依赖已漂移：$name" }
 }
-Write-Output "解决方案 $($graph.Count) 个项目清单一致、生产项目完整、无循环依赖。"
+Write-Output "解决方案 $($graph.Count) 个项目清单一致、生产及测试项目完整、无循环依赖。"

@@ -31,7 +31,7 @@
 
 - 官方页面：[每日股票情况](https://www.sse.com.cn/market/stockdata/overview/day/)
 - 页面当前显示每日股票情况，并提供“2021 年 12 月 24 日之前”的历史概况链接。
-- 仓库已有实现：[OfficialMarketActivitySource.cs](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/OfficialMarketActivitySource.cs) 使用 query.sse.com.cn/commonQuery.do，解析 TRADE_AMT、TRADE_VOL，并对日期、响应标识、产品代码和数值格式做校验。
+- 仓库已有实现：[OfficialMarketActivitySource.cs](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/MarketCycle/OfficialMarketActivitySource.cs) 使用 query.sse.com.cn/commonQuery.do，解析 TRADE_AMT、TRADE_VOL，并对日期、响应标识、产品代码和数值格式做校验。
 - 判断：官方页面能证明存在日度统计展示，但不能证明该页面底层端点是受版本控制、具有 SLA 的公共 API。PRODUCT_CODE=17 与金额/成交量单位的真实含义，必须使用官方字段说明和真实黄金样本复核，不能只靠合成测试。
 
 ### 2.2.1 上证统计月报作为独立交叉核验来源
@@ -45,7 +45,7 @@
 ### 2.3 深交所市场统计
 
 - 官方统计资料：[深圳证券交易所市场统计年鉴（2023 卷）](https://docs.static.szse.cn/www/market/periodical/year/W020240814360443176703.pdf)
-- 仓库已有实现：[OfficialMarketActivitySource.cs](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/OfficialMarketActivitySource.cs) 使用深交所 ShowReport 页面接口，检查 CATALOGID、TABKEY、txtQueryDate、深市合计和成交金额/成交量字段。
+- 仓库已有实现：[OfficialMarketActivitySource.cs](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/MarketCycle/OfficialMarketActivitySource.cs) 使用深交所 ShowReport 页面接口，检查 CATALOGID、TABKEY、txtQueryDate、深市合计和成交金额/成交量字段。
 - 判断：年鉴/统计页面可以支持汇总口径研究，但不等同于完整、可批量回放的日度历史数据合同。现有 JSON 页面端点仍须通过真实响应样本、字段单位、历史可用区间、限流及许可范围验证。
 - 深交所官方规则材料中曾明确交易信息归属交易所，并对未经许可的使用/传播作出限制。该条款的现行版本、适用范围和个人本地研究的具体许可，应由深交所确认；本报告不替代法律意见。[官方规则材料示例](https://docs.static.szse.cn/www/fund/guide/W020210331716400647184.pdf)
 

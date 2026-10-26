@@ -3,19 +3,22 @@ name: Sector research checks
 on:
   pull_request:
     paths:
-      - 'src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/SectorResearch.cs'
-      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/SectorResearch*'
+      - 'src/CRS.Common/**'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/IndustryValuation/**'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Navigation/**'
       - 'tests/CRS.Tests.SectorResearch/**'
       - 'tests/CRS.Tests.SectorUi/**'
       - 'src/Plugins/CRS.Plugins.NationalTeam.Core/**'
       - 'src/Plugins/CRS.Plugins.NationalTeam.Jobs/**'
-      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Industry*'
-      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/WorkerEtfWorkspace.IndustryPe.cs'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Application/Worker/IndustryValuation/**'
       - 'tests/CRS.Tests.IndustryPe/**'
-      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/IndexResearch*'
-      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/WorkerEtfWorkspace.IndexSeries.cs'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/MarketCycle/**'
+      - 'src/Plugins/CRS.Plugins.NationalTeamWatch/Application/Worker/MarketCycle/**'
       - 'tests/CRS.Tests.IndexResearch/**'
       - '.github/workflows/sector-research-checks.yml'
+      - 'CRS.sln'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
   workflow_dispatch:
 permissions:
   contents: read

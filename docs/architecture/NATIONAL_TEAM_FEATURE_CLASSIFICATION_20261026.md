@@ -29,7 +29,9 @@ Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Inf
 
 `INationalTeamWorkspace` 仅继承六个功能端口，不重复声明成员；`NationalTeamProtocol.cs` 单独存放当前请求和分页DTO。旧 `IEtfWorkspace` 及三套Legacy UI适配器已删除。当前接口可直接重构，不承担旧二进制兼容承诺。
 
-桌面宿主只注册一个可见“国家队研究工作台”。内部目录由 `NationalTeamWorkspaceCatalog` 管理分类、路由、证据限制和视图工厂；按需创建当前页，切换释放旧视图引用。现有隐藏路由仍用于明确业务导航身份，其保留不表示旧程序集兼容要求。
+桌面宿主只注册一个可见“国家队研究工作台”。内部目录由 `NationalTeamWorkspaceCatalog` 管理分类、路由、证据限制和视图工厂；按需创建当前页，切换释放旧视图引用。三个旧平铺宿主路由已移除；ETF、持股、公布PE与样本指数由工作台内部目录导航。无调用方的 `IndustryResearchHostPage` 同步删除。
+
+工作台采用顶部“资金与持仓 / 行业与估值”分类下拉菜单，不再保留占用正文宽度的第二层侧栏。当前研究说明按需展开，正文独占整行。通用菜单控件及样式归属外层 `CRS.Plugin.Wpf/PluginSectionNavigation`，插件仅提供分类与目的地；菜单不创建业务页、不查询数据，选中态在页面构造成功后提交。
 
 尚无真实输入的顶部/底部、独立退出导航不以空壳入口充数。现有页面展示缺失或不可判定状态，不将旧服务不支持、超时或缺失资料折算为零或成功。
 

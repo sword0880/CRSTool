@@ -52,4 +52,4 @@ P1 的四指数比较未实现；已确认标普500、纳斯达克综合、上�
 
 真实解析专项最终通过：3 份 IBKR XML + 5 份富途年度交易表，累计 9 个伪名账户、1,570 条规范事件、65 个净值快照；4 份富途收入汇总明确拒绝转换成重复事件。账户/金额不写验收输出。缺项代码包含 NAV_MISSING、PRICE_MISSING、FX_MISSING、CASH_FLOW_COVERAGE、TRANSFER_UNMATCHED、UNKNOWN_EVENT；数值业务验收仍未通过。
 
-2026-10-14 最终窗口证据：[绩效工作台合成截图](../../artifacts/performance-p0/workspace-performance.png)、[最小窗口合成截图](../../artifacts/performance-p0/workspace-performance-minimum.png)。分类方向/数量校验、未确认草稿阻断、离线模板价格/汇率重建和修订/转账完整恢复均已加入集成回归。原有 Application 套件和 68 项综合回归通过。
+2026-10-14 最终窗口证据：绩效工作台及最小窗口合成截图（历史路径 `artifacts/performance-p0/workspace-performance*.png` 当前未保留，不能作为当前可复核证据）。分类方向/数量校验、未确认草稿阻断、离线模板价格/汇率重建和修订/转账完整恢复均已加入集成回归。原有 Application 套件和 68 项综合回归通过。

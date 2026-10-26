@@ -20,21 +20,25 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
+      "crs.common": {
+        "type": "Project"
+      },
       "crs.plugin.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "crs.plugins.nationalteam.core": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "crs.plugins.nationalteam.jobs": {
         "type": "Project",
         "dependencies": {
+          "CRS.Common": "[1.0.0, )",
           "CRS.Plugin.Abstractions": "[1.0.0, )",
           "CRS.Plugins.NationalTeam.Core": "[2.0.0, )",
           "CRS.Worker.Abstractions": "[2.0.0, )",
@@ -42,13 +46,10 @@
           "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )"
         }
       },
-      "crs.time": {
-        "type": "Project"
-      },
       "crs.worker.abstractions": {
         "type": "Project",
         "dependencies": {
-          "CRS.Time": "[1.0.0, )"
+          "CRS.Common": "[1.0.0, )"
         }
       },
       "Microsoft.Data.Sqlite.Core": {

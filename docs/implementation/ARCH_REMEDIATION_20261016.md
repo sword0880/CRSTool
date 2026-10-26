@@ -1,6 +1,6 @@
 # 2026-10-16 架构整改实施记录
 
-基线：[整改建议](../20261016整改建议.md)。按用户要求，ARCH-001（P0 税务正确性、独立金额 Golden Dataset）最后处理；ARCH-002 同属 P0，仍优先推进。该排序不降低任何发布门槛。
+历史基线为已移除的20261016整改建议；现行清单见[架构整改单](../architecture/ARCHITECTURE_REMEDIATION_PLAN.md)。按用户要求，ARCH-001（P0 税务正确性、独立金额 Golden Dataset）最后处理；ARCH-002 同属 P0，仍优先推进。该排序不降低任何发布门槛。
 
 升级与跨机恢复的边界见[维护规范](../deployment/WORKER_UPGRADE_AND_RECOVERY.md)。第二批已接入Worker维护代码与隔离检查；跨机恢复仍为Proposed，完整发布门槛继续保留。
 

@@ -19,7 +19,7 @@ internal static class Program
         var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
-        if(args is ["--ui-visual-preview",var previewDirectory])
+        if(args is ["--ui-visual-preview" or "--workspace-visual-preview",var previewDirectory])
         {
             try
             {
@@ -27,7 +27,8 @@ internal static class Program
                     {Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                     {Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
-                UiVisualPreview.Render(previewDirectory);
+                if(args[0]=="--workspace-visual-preview") UiVisualPreview.RenderWorkspace(previewDirectory);
+                else UiVisualPreview.Render(previewDirectory);
             }
             catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}
             return;
@@ -68,10 +69,23 @@ internal static class Program
             await runtime.StartAsync();Check(runtime.Statuses.All(x=>x.State==PluginState.Started),"实际UI宿主加载双入口包中的页面入口");
             Check(!Directory.EnumerateFiles(storage,"*.db",SearchOption.AllDirectories).Any(),"UI会话启动不创建任何桌面任务库或市场库");
             var nationalPages=runtime.Pages.Where(x=>x.PluginId=="crs.national-team").ToArray();
-            Check(nationalPages.Length==2,"ETF及直接持股页面由同一插件提供");
-            var page=nationalPages.Single(x=>x.Contribution.RouteKey=="etf-monitor").Contribution.CreateView();
+            Check(nationalPages.Length==1&&nationalPages[0].Contribution.RouteKey=="national-team-workspace","国家队只提供分类工作台，不注册旧平铺入口");
+            var page=(CRS.Plugins.NationalTeamWatch.Presentation.NationalTeamWorkspacePage)nationalPages[0].Contribution.CreateView();
+            Check(page.SelectedRouteKey is null,"工作台初始不打开子页面或发出数据查询");
+            page.OpenRoute("etf-monitor");
+            Check(page.SelectedRouteKey=="etf-monitor","ETF页面从工作台内部按需创建");
             var window=new Window{Content=page,Width=1100,Height=760,ShowInTaskbar=false};
-            try{window.Show();await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);window.UpdateLayout();Check(page.ActualWidth>0 && page.ActualHeight>0,"服务查询页面完成真实WPF布局");}
+            try
+            {
+                window.Show();
+                foreach(var route in new[]{"etf-monitor","direct-equity","industry-pe","sector-index"})
+                {
+                    page.OpenRoute(route);
+                    await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    window.UpdateLayout();
+                    Check(page.SelectedRouteKey==route&&page.ActualWidth>0&&page.ActualHeight>0,"工作台内部页面完成真实WPF创建与布局："+route);
+                }
+            }
             finally{window.Content=null;window.Close();}
             await runtime.DisposeAsync();Check(runtime.Pages.Count==0,"退出UI只释放展示会话");
         }

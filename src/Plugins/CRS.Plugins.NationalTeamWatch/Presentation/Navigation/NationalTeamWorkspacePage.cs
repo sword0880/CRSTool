@@ -2,83 +2,83 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Media;
+using CRS.Plugin.Wpf;
 
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
-/// <summary>每个功能按需构造，工作台只保留一个活跃视图；数据和任务由各自ViewModel/Worker负责。</summary>
-public sealed class NationalTeamWorkspacePage:UserControl
+/// <summary>顶部分类导航与全宽内容；按需创建当前页，不执行采集或金融运算。</summary>
+public sealed class NationalTeamWorkspacePage : UserControl
 {
-    private readonly IReadOnlyDictionary<string,NationalTeamWorkspaceItem> items;
-    private readonly ContentControl content=new();
-    private readonly TextBlock title=new(){FontSize=21,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap};
-    private readonly TextBlock notice=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,10)};
-    private readonly Dictionary<string,Button> buttons=new(StringComparer.Ordinal);
-    public string? SelectedRouteKey {get;private set;}
-    public int CategoryCount {get;}
+    private readonly IReadOnlyDictionary<string, NationalTeamWorkspaceItem> items;
+    private readonly ContentControl content = new() { Name = "ResearchContent", HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
+    private readonly TextBlock location = new() { Text = "选择研究功能", FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 12, 0) };
+    private readonly TextBlock notice = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, LineHeight = 19 };
+    private readonly Border noticePanel;
+    private readonly PluginSectionNavigation navigation;
+    public string? SelectedRouteKey { get; private set; }
+    public int CategoryCount { get; }
 
     public NationalTeamWorkspacePage(IReadOnlyList<NationalTeamWorkspaceItem> entries)
     {
         NationalTeamWorkspaceCatalog.Validate(entries);
-        items=entries.ToDictionary(x=>x.RouteKey,StringComparer.Ordinal);
-        CategoryCount=NationalTeamWorkspaceCatalog.Categories.Count(c=>entries.Any(e=>e.CategoryKey==c.Key));
-        var root=new Grid{Margin=new Thickness(16)};
-        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(248)});
-        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
+        items = entries.ToDictionary(x => x.RouteKey, StringComparer.Ordinal);
+        var groups = NationalTeamWorkspaceCatalog.Categories.Where(g => entries.Any(e => e.CategoryKey == g.Key)).ToArray();
+        CategoryCount = groups.Length;
+        navigation = new(groups.Select(g => new PluginNavigationCategory(g.Key, g.Title)).ToArray(),
+            entries.Select(e => new PluginNavigationDestination(e.RouteKey, e.CategoryKey, e.Title, e.EvidenceNotice)).ToArray());
+        navigation.RouteRequested += OpenRoute;
+        navigation.Name = "ResearchTopNavigation";
+        location.SetResourceReference(TextBlock.ForegroundProperty, "BrandTextSecondaryBrush");
+        notice.SetResourceReference(TextBlock.ForegroundProperty, "BrandTextSecondaryBrush");
+        SetResourceReference(BackgroundProperty, "BrandCanvasBrush");
+        SetResourceReference(ForegroundProperty, "BrandTextPrimaryBrush");
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        var menu=new StackPanel{Margin=new Thickness(0,0,10,0)};
-        menu.Children.Add(new TextBlock{Text="国家队研究工作台",FontSize=21,FontWeight=FontWeights.SemiBold,Margin=new Thickness(8,0,0,8)});
-        menu.Children.Add(new TextBlock{Text="按研究内容分类，选择一项后按需读取。",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(8,0,8,12)});
-        foreach(var category in NationalTeamWorkspaceCatalog.Categories)
-        {
-            var members=entries.Where(x=>x.CategoryKey==category.Key).ToArray();
-            if(members.Length==0)continue; // 尚未实现的预警或市场周期不显示空入口。
-            var group=new StackPanel{Margin=new Thickness(0,0,0,12)};
-            group.Children.Add(new TextBlock{Text=category.Title,FontSize=15,FontWeight=FontWeights.SemiBold,Margin=new Thickness(7,2,0,3)});
-            group.Children.Add(new TextBlock{Text=category.Description,TextWrapping=TextWrapping.Wrap,FontSize=11,
-                Foreground=SystemColors.GrayTextBrush,Margin=new Thickness(7,0,6,5)});
-            foreach(var item in members)
-            {
-                var button=new Button{Content=item.Title,HorizontalContentAlignment=HorizontalAlignment.Left,Padding=new Thickness(10,7,7,7),
-                    Margin=new Thickness(4,2,4,2),ToolTip=item.EvidenceNotice,Tag=item.RouteKey};
-                AutomationProperties.SetName(button,category.Title+" · "+item.Title);
-                var route=item.RouteKey;
-                button.Click+=(_,_)=>OpenRoute(route);
-                buttons.Add(route,button);
-                group.Children.Add(button);
-            }
-            menu.Children.Add(group);
-        }
-        var left=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Content=menu};
-        Grid.SetColumn(left,0);root.Children.Add(left);
+        var toolbar = new Grid();
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolbar.Children.Add(navigation);
+        Grid.SetColumn(location, 1); toolbar.Children.Add(location);
+        var help = new Button { Name = "ResearchNoticeToggle", Content = "研究说明", FontSize = 12, MinWidth = 68,
+            Padding = new Thickness(10, 8, 10, 8), VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(help, "展开或收起当前研究资料说明");
+        var header = new Border { Name = "ResearchToolbar", Child = toolbar, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1),
+            Padding = new Thickness(6), Margin = new Thickness(20, 12, 20, 0) };
+        header.SetResourceReference(Border.BackgroundProperty, "BrandSurfaceBrush");
+        header.SetResourceReference(Border.BorderBrushProperty, "BrandBorderBrush");
+        Grid.SetColumn(help, 2); toolbar.Children.Add(help); root.Children.Add(header);
 
-        var right=new Grid{Margin=new Thickness(10,0,0,0)};
-        right.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        right.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
-        var header=new StackPanel{Margin=new Thickness(4,0,0,6)};
-        header.Children.Add(title);header.Children.Add(notice);
-        Grid.SetRow(header,0);right.Children.Add(header);
-        content.HorizontalContentAlignment=HorizontalAlignment.Stretch;
-        content.VerticalContentAlignment=VerticalAlignment.Stretch;
-        Grid.SetRow(content,1);right.Children.Add(content);
-        Grid.SetColumn(right,1);root.Children.Add(right);
-        Content=root;
-        title.Text="选择左侧研究功能";
-        notice.Text="市场数据、行业估值与机构持仓属于不同证据链；页面切换不触发采集，也不会给出自动买入建议。";
-        content.Content=new TextBlock{Text="请选择一项已上线的研究功能。尚未完成真实数据与有效性验证的功能不会以可用菜单出现。",
-            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(4,16,4,16)};
+        notice.Text = "ETF份额、机构持仓和市场成交属于不同证据链；市场成交用于观察冷热度，不推断具名机构的买卖。";
+        noticePanel = new Border { Name = "ResearchNotice", Child = notice, Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(20, 6, 20, 0) };
+        noticePanel.SetResourceReference(Border.BackgroundProperty, "BrandSurfaceBrush");
+        help.Click += (_, _) => noticePanel.Visibility = noticePanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        Grid.SetRow(noticePanel, 1); root.Children.Add(noticePanel);
+        Grid.SetRow(content, 2); root.Children.Add(content);
+        Content = root;
+        var welcome = new StackPanel { MaxWidth = 460, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24) };
+        welcome.Children.Add(new TextBlock { Text = "从上方选择研究内容", FontSize = 22, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        var hint = new TextBlock { Text = "资金与持仓、行业与估值分开查看。进入功能后按需读取资料，页面切换不会触发采集。", FontSize = 13, LineHeight = 22, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "BrandTextSecondaryBrush");
+        welcome.Children.Add(hint); content.Content = welcome;
     }
 
     public void OpenRoute(string routeKey)
     {
-        if(!items.TryGetValue(routeKey,out var item))throw new InvalidDataException("国家队研究功能路由不存在。");
-        if(SelectedRouteKey==routeKey)return;
-        // 先建成新页再交换；页面构造异常不应使旧页消失或留下错误高亮。
-        var page=item.CreateView()??throw new InvalidDataException("插件研究功能无法创建页面。");
-        content.Content=page;
-        SelectedRouteKey=routeKey;
-        title.Text=item.Title;
-        notice.Text=item.EvidenceNotice+" 本页为独立研究资料，不能直接替代其他分类的证据。";
-        foreach(var (key,button) in buttons)button.FontWeight=key==routeKey?FontWeights.SemiBold:FontWeights.Normal;
+        if (!items.TryGetValue(routeKey, out var item)) throw new InvalidDataException("国家队研究功能路由不存在。");
+        if (SelectedRouteKey == routeKey) return;
+        // 新页面构造成功后再提交正文、菜单及当前位置；失败时保留原页面和选中态。
+        var page = item.CreateView() ?? throw new InvalidDataException("插件研究功能无法创建页面。");
+        content.Content = page;
+        SelectedRouteKey = routeKey;
+        navigation.Select(routeKey);
+        var category = NationalTeamWorkspaceCatalog.Categories.Single(x => x.Key == item.CategoryKey);
+        location.Text = category.Title + " / " + item.Title;
+        location.ToolTip = location.Text;
+        notice.Text = item.EvidenceNotice + " 市场成交用于观察整体冷热，不直接归因具名主体。";
     }
 }

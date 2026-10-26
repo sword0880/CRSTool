@@ -64,12 +64,19 @@ internal static class IndustryUiChecks
                 Check(model.ComparisonRows.Count==11&&model.ComparisonRows.All(x=>x.Observation==IndustryPeObservation.EvidenceIncomplete),"真实单日样本不能由UI补造中位分位");
                 Pump(model.QueueCommand.ExecuteAsync(null));Check(proxy.Queued==1&&model.TaskStatus.Contains("尚未确认",StringComparison.Ordinal),"受理不能显示采集已完成");
                 proxy.Mode="Failure";Pump(model.QueryCommand.ExecuteAsync(null));Check(model.Rows.Count==0&&model.Series.Length==0&&model.Status.Contains("失败",StringComparison.Ordinal),"查询失败清除旧图，不能保留成当前结果");
+                proxy.Mode="Normal";Pump(model.QueryCommand.ExecuteAsync(null));
+                Check(model.Rows.Count>0,"权限故障前已有真实报告投影，验证不会残留旧结果");
+                proxy.Mode="AccessDenied";Pump(model.QueryCommand.ExecuteAsync(null));
+                Check(!model.Busy&&model.Rows.Count==0&&model.Series.Length==0&&model.Status.Contains("失败",StringComparison.Ordinal),"权限拒绝清除旧资料并显示错误，不逃逸到界面线程");
+                var deniedStart=new IndustryResearchViewModel(workspace,CancellationToken.None);
+                Pump(deniedStart.EnsureInitializedAsync());
+                Check(!deniedStart.Busy&&deniedStart.Rows.Count==0&&deniedStart.Status.Contains("失败",StringComparison.Ordinal),"首次Loaded权限拒绝也正常结束初始化");
                 proxy.Mode="Wait";var pending=model.QueryCommand.ExecuteAsync(null);Pump();model.CancelCommand.Execute(null);Pump(pending);
                 Check(model.Rows.Count==0&&model.Status.Contains("取消",StringComparison.Ordinal)&&proxy.Queued==1,"取消只终止查询等待，不撤销已受理采集");
                 Pump(model.RefreshTaskCommand.ExecuteAsync(null));Check(model.TaskStatus.Contains("差异待审核",StringComparison.Ordinal),"采集完成但待审不写成全部成功");
                 proxy.ReceiptCode="Timeout";Pump(model.RefreshTaskCommand.ExecuteAsync(null));Check(model.TaskStatus.Contains("已结束",StringComparison.Ordinal)&&model.TaskStatus.Contains("Timeout",StringComparison.Ordinal)&&!model.TaskStatus.Contains("已受理",StringComparison.Ordinal),"调度失败终态不能显示仍在等待受理");
                 using var sessionLifetime=new CancellationTokenSource();var session=new NationalTeamPluginEntry().CreateSession(null!);Pump(session.StartAsync(sessionLifetime.Token).AsTask());
-                Check(((IPluginWpfSession)session).GetPages().Any(x=>x.RouteKey=="industry-research"),"插件正式注册行业页面且启动不主动查询");Pump(session.DisposeAsync().AsTask());
+                Check(((IPluginWpfSession)session).GetPages() is {Count:1} pages&&pages[0].RouteKey=="national-team-workspace","插件只注册分类工作台且启动不主动查询");Pump(session.DisposeAsync().AsTask());
                 File.WriteAllText(Path.ChangeExtension(screenshot,".json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,InputReport=reportFile,report.Fingerprint,Transport=isSynthetic?"SyntheticUiFixture":"IsolatedInputReportWithUiWorkspaceFixture"},new JsonSerializerOptions{WriteIndented=true}));
             }
             catch(Exception error){failure=error;}
@@ -88,7 +95,7 @@ public class IndustryTestWorkspace:DispatchProxy
     {
         "get_CanManage"=>true,
         "get_NetworkStatus"=>"界面隔离验证",
-        "IndustryPeReportAsync"=>Mode=="Failure"?Task.FromException<IndustryPeReport>(new IOException("隔离查询失败")):Mode=="Wait"?WaitAsync((CancellationToken)args![2]!):Task.FromResult(Report),
+        "IndustryPeReportAsync"=>Mode=="AccessDenied"?Task.FromException<IndustryPeReport>(new UnauthorizedAccessException("隔离权限拒绝")):Mode=="Failure"?Task.FromException<IndustryPeReport>(new IOException("隔离查询失败")):Mode=="Wait"?WaitAsync((CancellationToken)args![2]!):Task.FromResult(Report),
         "QueueIndustryPeAsync"=>Queue(),
         "IndustryPeSyncStatusAsync"=>Task.FromResult(new IndustryPeSyncReceipt(request,"Completed",ReceiptCode,"fixture-execution")),
         _=>throw new NotSupportedException("界面夹具不支持此操作。")

@@ -62,7 +62,7 @@ public partial class IndexResearchViewModel(IMarketCycleWorkspace workspace,Canc
             if(latest!=default&&SnapshotDate==CRS.Timing.BeijingClock.Now.Date)SnapshotDate=latest.ToDateTime(TimeOnly.MinValue);
         }
         catch(OperationCanceledException){if(version==queryVersion){Clear();Status="查询已取消或超时；后台采集继续运行。";}}
-        catch(Exception error) when(error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException)
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or TimeoutException or InvalidDataException or InvalidOperationException or NotSupportedException)
         {if(version==queryVersion){Clear();Status="指数资料读取失败："+error.Message;}}
         finally{operation=null;querying=false;Busy=false;}
     }
@@ -86,7 +86,7 @@ public partial class IndexResearchViewModel(IMarketCycleWorkspace workspace,Canc
         Busy=true;using var current=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=current;current.CancelAfter(TimeSpan.FromSeconds(30));
         try{await action(current.Token);}
         catch(OperationCanceledException){TaskStatus=requestScope+"：受理或状态等待已取消/超时，结果未确认；保持原参数和请求身份核查。";}
-        catch(Exception error) when(error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException){TaskStatus=requestScope+"：任务未确认，"+error.Message;}
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or TimeoutException or InvalidDataException or InvalidOperationException or NotSupportedException){TaskStatus=requestScope+"：任务未确认，"+error.Message;}
         finally{operation=null;Busy=false;}
     }
     private void ShowReceipt(IndexSeriesCommandReceipt receipt)

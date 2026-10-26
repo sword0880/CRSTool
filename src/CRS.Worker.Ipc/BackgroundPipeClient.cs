@@ -31,12 +31,18 @@ public sealed class BackgroundPipeClient(string pipeName = BackgroundPipeServer.
         catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
         catch(OperationCanceledException error){throw Failure(submitted?"ResponseTimedOut":"ServiceUnavailable",error);}
         catch(PipeFrameInterruptedException error){throw Failure("ResponseInterrupted",error);}
+        // 权限和SCM身份核验失败同样属于通信边界；不得从async Loaded逃逸导致桌面退出。
+        // submitted仍决定写命令是否结果未知，拒绝连接或身份核验失败绝不触发降级重试。
+        catch(UnauthorizedAccessException error){throw Failure("AccessDenied",error);}
+        catch(System.ComponentModel.Win32Exception error){throw Failure("ServiceIdentityUnavailable",error);}
         catch(IOException error){throw Failure("ConnectionFailed",error);}
         BackgroundServiceException Failure(string code,Exception? error=null)
         {
             var unknown=submitted&&BackgroundPipeServer.IsMutation(request.Command);
             var text=unknown?"后台响应未确认，操作可能已受理。请保留原参数并到任务中心核对，勿重新创建相同任务。":
-                code=="RequestTimedOut"?"后台查询超时，请稍后刷新；当前结果未更新。":"后台连接中断或服务暂不可用，请确认配套服务已更新后重新查询。";
+                code=="RequestTimedOut"?"后台查询超时，请稍后刷新；当前结果未更新。":
+                code is "AccessDenied" or "ServiceIdentityUnavailable"?"后台访问被拒绝或服务身份无法核实；未取得可用结果，请核对服务及当前Windows权限。":
+                "后台连接中断或服务暂不可用，请确认配套服务已更新后重新查询。";
             return new(code,request.RequestId,unknown,text,error);
         }
     }
