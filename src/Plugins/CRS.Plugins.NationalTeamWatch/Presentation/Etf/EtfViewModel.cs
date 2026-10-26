@@ -21,7 +21,7 @@ public partial class EtfViewModel : ObservableObject
         this.workspace=workspace??throw new ArgumentNullException(nameof(workspace));
         this.marketCycleWorkspace=marketCycleWorkspace??throw new ArgumentNullException(nameof(marketCycleWorkspace));
         this.lifetime=lifetime;
-        Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),lifetime);
+        Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),workspace,lifetime);
     }
 
     /// <summary>Compatibility entry for existing consumers of the legacy composite workspace contract.</summary>
