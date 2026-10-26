@@ -51,7 +51,8 @@ IndustryQualityObservation Fact(IndustryQualityMeasure metric,decimal value)=>ne
     "source-"+metric,true,false,QualityProof("proof-"+metric));
 var profile=new IndustryQualityInput("A","synthetic","v1",IndustryQualityProfile.Cyclical,
     [Fact(IndustryQualityMeasure.MidCycleEarnings,0.08m),Fact(IndustryQualityMeasure.CashConversion,1.1m),
-        Fact(IndustryQualityMeasure.BalanceSheetLeverage,2.1m)]);
+        Fact(IndustryQualityMeasure.BalanceSheetLeverage,2.1m)])
+    {ProfileRuleSet="industry-profile-v1",ProfileMappingEvidence=QualityProof("synthetic-profile-cyclical")};
 IndustryQualityGateReport Gate(IndustryQualityInput candidate,string? hash=null)=>IndustryQualityGate.Evaluate(original.Definition,candidate,through,cutoff,hash??new('b',64));
 var ready=Gate(profile);
 Check(ready.State=="ReadyForAdversarialReview"&&ready.InvestmentConclusion=="NotEvaluated"
@@ -83,6 +84,18 @@ Check(Gate(profile with{Observations=profile.Observations.Select(x=>x.Measure==I
     x with{Evidence=x.Evidence with{AcceptedAt=cutoff.AddSeconds(1)}}:x).ToArray()}).State=="IncompleteQualityEvidence","知识截止后的审批不能穿越时点");
 Check(Gate(profile with{Scheme="other"}).State=="IncompatibleUniverseOrClassification","行业分类未匹配不能沿用质量证据");
 Check(Gate(profile,"bad-hash").State=="IncompatibleUniverseOrClassification","未知公司池摘要不能升级质量状态");
+Check(Gate(profile with{ProfileMappingEvidence=null}).State=="UnverifiedProfileMapping",
+    "行业映射未经过审核不能任意自选更宽松的规则");
+Check(Gate(profile with{ProfileRuleSet="old-method"}).State=="UnverifiedProfileMapping",
+    "来源分类方法换版后需重新核验，不能沿用旧规则");
+Check(Gate(profile with{ProfileMappingEvidence=QualityProof("future-mapping") with{AcceptedAt=cutoff.AddSeconds(1)}}).State=="UnverifiedProfileMapping",
+    "知识截止之后才审核的行业规则不能提前生效");
+Check(Gate(profile with{Observations=profile.Observations.Select(x=>x.Measure==IndustryQualityMeasure.CashConversion?
+    x with{Evidence=x.Evidence with{PublishedAt=new DateTimeOffset(2026,1,1,0,0,0,TimeSpan.Zero)}}:x).ToArray()})
+    .State=="IncompleteQualityEvidence","财报披露早于报告期结束不可能是真实证据");
+Check(Gate(profile with{Observations=profile.Observations.Select(x=>x.Measure==IndustryQualityMeasure.CashConversion?
+    x with{Value=400m}:x).ToArray()}).State=="IncompleteQualityEvidence",
+    "离谱百分比必须复核单位，不得自动列为证据完备");
 Check(Gate(profile with{Profile=IndustryQualityProfile.Financial}).State=="IncompleteQualityEvidence",
     "金融行业必须包含资产质量和资本适足率，不能套周期行业现金流检查");
 Check(Gate(profile with{Profile=IndustryQualityProfile.Innovation}).State=="IncompleteQualityEvidence",
