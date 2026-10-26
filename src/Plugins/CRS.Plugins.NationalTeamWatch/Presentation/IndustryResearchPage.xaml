@@ -33,7 +33,7 @@
     <DataGridTextColumn Header="滚动中位PE" Binding="{Binding Row.LatestRollingMedian,StringFormat=N2,TargetNullValue=未知}"/>
     <DataGridTextColumn Header="加权PE历史位置(%)" Binding="{Binding Row.PublishedSeriesPercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
     <DataGridTextColumn Header="中位PE历史位置(%)" Binding="{Binding Row.PublishedMedianSeriesPercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
-    <DataGridTextColumn Header="加权/中位样本" Binding="{Binding Row.PriorSamples}"/>
+    <DataGridTextColumn Header="加权样本" Binding="{Binding Row.PriorSamples}"/>
     <DataGridTextColumn Header="中位样本" Binding="{Binding Row.MedianPriorSamples}"/>
     <DataGridTextColumn Header="双口径历史位置" Binding="{Binding HistoricalPosition}" Width="2*"/>
     <DataGridTextColumn Header="资料状态" Binding="{Binding State}" Width="2*"/>
