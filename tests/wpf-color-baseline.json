@@ -21,7 +21,7 @@
   "src/CRS.Desktop.Wpf/Views/SettingsWindow.xaml": 0,
   "src/CRS.Desktop.Wpf/Views/VaultWindow.xaml": 8,
   "src/Plugins/CRS.Plugins.Demo/DemoPage.xaml": 0,
-  "src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/EquityPage.xaml": 0,
-  "src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/EtfPage.xaml": 6,
-  "src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/ExitAlertPage.xaml": 0
+  "src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Equity/EquityPage.xaml": 0,
+  "src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Etf/EtfPage.xaml": 6,
+  "src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/ExitAlerts/ExitAlertPage.xaml": 0
 }
