@@ -111,11 +111,13 @@ $industryStorePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation
 $industryFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeRepository.cs"
 $calendarStorePath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketCalendarStore.cs"
 $calendarFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeCalendar.cs"
-$indexStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesRepository.cs"
+$indexFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesRepository.cs"
+$indexStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesStore.cs"
 if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $calendarStorePath -PathType Leaf)) {
-    throw 'Storage extraction requires IMarketRepositorySession, IndustryPeStore and MarketCalendarStore.'
+    -not (Test-Path -LiteralPath $calendarStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $indexStorePath -PathType Leaf)) {
+    throw 'Storage extraction requires IMarketRepositorySession, IndustryPeStore, MarketCalendarStore and IndexSeriesStore.'
 }
 $sessionSource = Get-Content -LiteralPath $sessionContractPath -Raw
 $storeSource = Get-Content -LiteralPath $industryStorePath -Raw
@@ -123,15 +125,18 @@ $facadeSource = Get-Content -LiteralPath $industryFacadePath -Raw
 $repositorySource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketRepository.cs") -Raw
 $calendarStoreSource = Get-Content -LiteralPath $calendarStorePath -Raw
 $calendarFacadeSource = Get-Content -LiteralPath $calendarFacadePath -Raw
+$indexFacadeSource = Get-Content -LiteralPath $indexFacadePath -Raw
 $indexStoreSource = Get-Content -LiteralPath $indexStorePath -Raw
 if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
     $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
     $storeSource -match 'partial class MarketRepository' -or
     $calendarFacadeSource -notmatch 'marketCalendarStore\.IndustryPeCalendar' -or
-    $indexStoreSource -notmatch 'marketCalendarStore\.ReadPublishedTradingCalendar' -or
+    $indexFacadeSource -notmatch 'marketCalendarStore\.ReadPublishedTradingCalendar' -or
+    $indexFacadeSource -notmatch 'indexSeriesStore\.IndexSeriesRevisions' -or
+    $indexStoreSource -match 'partial class MarketRepository' -or
     $calendarStoreSource -match 'partial class MarketRepository') {
-    throw 'Industry PE and shared calendar storage must stay behind the session contract and compatibility facades.'
+    throw 'Industry PE, shared calendar and index-series storage must stay behind the session contract and compatibility facades.'
 }
 $etfViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/Etf/EtfViewModel.cs") -Raw
 $marketActivitySource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/MarketCycle/MarketActivityPresentation.cs") -Raw
