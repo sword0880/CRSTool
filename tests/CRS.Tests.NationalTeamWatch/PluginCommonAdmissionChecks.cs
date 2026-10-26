@@ -48,5 +48,15 @@ internal static class PluginCommonAdmissionChecks
         using(await another.EnterAsync(false,CancellationToken.None))
             Check(another.Activity.Active==1 && gate.Activity.Active==0,"two plugins maintain isolated quotas");
         Check(another.Activity.Active==0,"isolated lease disposes");
+        var raced=new PriorityReadAdmission(1);
+        var reservation=await raced.EnterAsync(false,CancellationToken.None);
+        using var raceCancel=new CancellationTokenSource();
+        var contender=raced.EnterAsync(true,raceCancel.Token).AsTask();
+        reservation.Dispose();
+        raceCancel.Cancel();
+        try { using(await contender.WaitAsync(TimeSpan.FromSeconds(3))) { } }
+        catch(OperationCanceledException) { }
+        Check(raced.Activity.Active==0 && raced.Activity.PriorityWaiting==0,
+            "cancel/grant race never leaks shared read capacity");
     }
 }
