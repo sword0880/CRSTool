@@ -6,7 +6,7 @@ namespace CRS.Plugins.NationalTeamWatch.Presentation;
 /// <summary>
 /// Transitional adapter for legacy IEtfWorkspace implementations. New application paths should inject IEtfResearchWorkspace directly.
 /// </summary>
-internal sealed class LegacyEtfResearchWorkspaceAdapter(IEtfWorkspace inner):IEtfResearchWorkspace
+internal class LegacyEtfResearchWorkspaceAdapter(IEtfWorkspace inner):IEtfResearchWorkspace
 {
     public string NetworkStatus=>inner.NetworkStatus;
     public bool CanManage=>inner.CanManage;
@@ -25,5 +25,14 @@ internal sealed class LegacyEtfResearchWorkspaceAdapter(IEtfWorkspace inner):IEt
     public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token)=>inner.ReviewAsync(id,accept,reviewer,comparableConfirmed,token);
     public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>inner.MembershipAsync(key,name,index,active,reason,token);
     public static IEtfResearchWorkspace Create(IEtfWorkspace workspace)
-        =>workspace as IEtfResearchWorkspace??new LegacyEtfResearchWorkspaceAdapter(workspace);
+        =>workspace as IEtfResearchWorkspace
+            ??(workspace is IEtfDashboardWorkspace dashboard
+                ?new LegacyEtfDashboardWorkspaceAdapter(workspace,dashboard)
+                :new LegacyEtfResearchWorkspaceAdapter(workspace));
+}
+
+internal sealed class LegacyEtfDashboardWorkspaceAdapter(IEtfWorkspace inner,IEtfDashboardWorkspace dashboard)
+    :LegacyEtfResearchWorkspaceAdapter(inner),IEtfDashboardWorkspace
+{
+    public Task<EtfDashboard?> DashboardAsync(EtfKey? key,CancellationToken token)=>dashboard.DashboardAsync(key,token);
 }
