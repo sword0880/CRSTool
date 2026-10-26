@@ -54,12 +54,12 @@ internal static class GapRecoveryChecks
             repository.SetMembership(comparisonKey,"isolated","index",false,"end isolated gap comparison");
         }
         var source=new RecordingSource();
-        await using(var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(data,raw),raw))
+        await using(var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(data,raw),raw))
         {
-            await workspace.InitializeAsync(default);workspace.SetOfficialSource(source);await workspace.SyncRecentAsync(default);
+            await workspace.InitializeAsync(default);workspace.Etf.SetOfficialSource(source);await workspace.Etf.SyncRecentAsync(default);
             var today=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime);
             Check(source.Calls.First()>=today.AddDays(-7)&&source.Calls.Contains(new(2025,1,2)),"最新数据先采，再补旧缺口，旧游标不阻塞最新日期");
-            Check((await workspace.PointsAsync(key,default)).Any(x=>x.Date==new DateOnly(2025,1,2)),"缺口经实际应用用例提交为有效事实");
+            Check((await workspace.Etf.PointsAsync(key,default)).Any(x=>x.Date==new DateOnly(2025,1,2)),"缺口经实际应用用例提交为有效事实");
         }
     }
     private sealed class RecordingSource:IOfficialShareSource

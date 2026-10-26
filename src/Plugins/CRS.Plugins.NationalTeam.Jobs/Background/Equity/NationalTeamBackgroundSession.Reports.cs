@@ -14,7 +14,7 @@ public sealed partial class NationalTeamBackgroundSession
         var from=request.From??today.AddDays(-400);var to=request.To??today;
         if(to>today)return new("Rejected","reports=FutureDate");
         try{_=OfficialEquityReports.Request(key,from,to,1);}catch(InvalidDataException){return new("Rejected","reports=InvalidRange");}
-        if(commandId is {} committed&&await workspace!.EquityReportCommandCompleteAsync(committed,token))return BackgroundJobResult.Success("reports=AlreadyCommitted");
+        if(commandId is {} committed&&await workspace!.Equity.EquityReportCommandCompleteAsync(committed,token))return BackgroundJobResult.Success("reports=AlreadyCommitted");
         var pages=new List<byte[]>();var pageCount=1;
         try
         {
@@ -25,7 +25,7 @@ public sealed partial class NationalTeamBackgroundSession
                 var parsed=OfficialEquityReports.Parse(key,from,to,page,response.Content);pageCount=parsed.Pages;pages.Add(response.Content);
                 await ReportAsync(new("ReportIndexPage",Market:key.Market,Received:parsed.Documents.Count));
             }
-            await workspace!.SaveEquityReportsAsync(key,from,to,pages,token,commandId);
+            await workspace!.Equity.SaveEquityReportsAsync(key,from,to,pages,token,commandId);
             await ReportAsync(new("ReportIndexCommitted",Market:key.Market,Added:pages.Count));
             return BackgroundJobResult.Success($"reports=Indexed;pages={pages.Count};periodsStillRequireReview=true");
         }

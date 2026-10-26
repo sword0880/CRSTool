@@ -117,21 +117,21 @@ internal static class NationalTeamConcurrencyChecks
             ()=>Volatile.Read(ref pause)==1,entered,release));
         using var repository=new MarketRepository(Path.Combine(root,"data"),raw,approvalAuditKey:key);
         var hash=raw.Save(Encoding.UTF8.GetBytes("synthetic integrity evidence"));repository.RecordFetch(hash,"https://www.sse.com.cn/test",hash);
-        await using var workspace=new EtfWorkspace(new WorkspaceContext(root),()=>repository,raw);await workspace.InitializeAsync(default);
-        var row=(await workspace.ConfigurationAsync(default)).First();
-        Volatile.Write(ref pause,1);var check=workspace.ReconcileEvidenceIntegrityAsync(default);
+        await using var workspace=new NationalTeamApplication(new WorkspaceContext(root),()=>repository,raw);await workspace.InitializeAsync(default);
+        var row=(await workspace.Etf.ConfigurationAsync(default)).First();
+        Volatile.Write(ref pause,1);var check=workspace.Evidence.ReconcileEvidenceIntegrityAsync(default);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         try
         {
             using var secondStop=new CancellationTokenSource();
-            var second=workspace.ReconcileEvidenceIntegrityAsync(secondStop.Token);secondStop.Cancel();
+            var second=workspace.Evidence.ReconcileEvidenceIntegrityAsync(secondStop.Token);secondStop.Cancel();
             try{await second;throw new InvalidOperationException("第二巡检没有取消。");}catch(OperationCanceledException){}
             Check(!check.IsCompleted,"同一完整性巡检串行防止旧核验覆盖新结果，取消等待不影响原巡检");
-            await workspace.SaveConfigurationAsync(new(row.Market,row.Ticker),"synthetic updated",row.IndexGroup,row.Active,"synthetic",row.Revision,default)
+            await workspace.Etf.SaveConfigurationAsync(new(row.Market,row.Ticker),"synthetic updated",row.IndexGroup,row.Active,"synthetic",row.Revision,default)
                 .WaitAsync(TimeSpan.FromSeconds(2));
-            Check(!check.IsCompleted&&(await workspace.ConfigurationAsync(default)).Single(x=>x.Ticker==row.Ticker).Name=="synthetic updated",
+            Check(!check.IsCompleted&&(await workspace.Etf.ConfigurationAsync(default)).Single(x=>x.Ticker==row.Ticker).Name=="synthetic updated",
                 "原件核验读取阻塞时短配置事务仍提交，不持市场库门槛等待文件");
-            var stale=false;try{await workspace.SaveConfigurationAsync(new(row.Market,row.Ticker),row.Name,row.IndexGroup,row.Active,"stale",row.Revision,default);}
+            var stale=false;try{await workspace.Etf.SaveConfigurationAsync(new(row.Market,row.Ticker),row.Name,row.IndexGroup,row.Active,"stale",row.Revision,default);}
             catch(InvalidDataException){stale=true;}
             Check(stale,"并行配置修改仍拒绝旧修订，未绕过乐观并发校验");
         }

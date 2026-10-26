@@ -14,15 +14,15 @@ public sealed partial class NationalTeamBackgroundSession
             || request.Revision is not null || request.Reviewer is not null || request.Accept) return new("Rejected", "nav=UnsupportedSecurityOrArguments");
         try
         {
-            var outcome = commandId is { } id ? await workspace!.NavImportReceiptAsync(id, token) : null;
+            var outcome = commandId is { } id ? await workspace!.Nav.NavImportReceiptAsync(id, token) : null;
             if (outcome is null)
             {
                 var documents = await new OfficialNavSource(http!).FetchAsync(token);
-                outcome = await workspace!.ImportNavDocumentsAsync(documents, token, commandId);
+                outcome = await workspace!.Nav.ImportNavDocumentsAsync(documents, token, commandId);
             }
             // Pending计数必须重读全部尚待审核的版本；重复采集不等于已有冲突消失。
             var today = DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
-            var revisions = await workspace!.NavRevisionsAsync(new("SZSE", "159915"), new(2011, 9, 20), today, token);
+            var revisions = await workspace!.Nav.NavRevisionsAsync(new("SZSE", "159915"), new(2011, 9, 20), today, token);
             if (revisions.Any(x => (x.State is "Accepted" or "NeedsReview") && !x.EvidenceHealthy)) return new("Rejected", "nav=EvidenceUnhealthy");
             var pending = revisions.Count(x => x.State == "NeedsReview");
             return new(pending == 0 ? "Succeeded" : "NeedsReview", $"navAdded={outcome.Added};navDuplicates={outcome.Duplicates};navPending={pending};capture={outcome.CaptureId}");

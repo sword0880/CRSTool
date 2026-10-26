@@ -9,7 +9,7 @@ public interface IEtfDashboardProfileRepository
     EtfDashboardQueryProfile ProfileDashboard(EtfKey? key);
 }
 
-public sealed partial class EtfWorkspace
+public sealed partial class EtfUseCases
 {
     // 可选诊断能力不加入必需仓储合同；旧提供方明确不支持，不能以空仪表盘替代。
     internal Task<EtfDashboardQueryProfile> ProfileDashboardAsync(EtfKey? key,CancellationToken token)

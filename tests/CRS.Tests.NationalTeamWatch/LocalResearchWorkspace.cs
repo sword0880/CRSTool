@@ -1,0 +1,60 @@
+using CRS.Plugins.NationalTeamWatch.Application;
+using CRS.Plugins.NationalTeamWatch.Domain;
+
+/// <summary>仅供WPF合成测试转发本地用例；正式桌面始终使用授权Worker客户端。</summary>
+internal sealed class LocalResearchWorkspace(NationalTeamApplication application) : ResearchWorkspaceStub
+{
+    public override string NetworkStatus=>application.Etf.NetworkStatus;
+    public override Task<List<HistoricalEquityPdf>> HistoricalEquityDocumentsAsync(CancellationToken token)=>application.Equity.HistoricalEquityDocumentsAsync(token);
+    public override Task<HistoricalEquityReceipt?> HistoricalEquityReceiptAsync(Guid requestId,CancellationToken token)=>application.Equity.HistoricalEquityReceiptAsync(requestId,token);
+    public override Task<List<EquityWatch>> EquityWatchlistAsync(CancellationToken token)=>application.Equity.EquityWatchlistAsync(token);
+    public override Task<List<EquityHoldingRow>> EquityHoldingsAsync(string? search,string? institution,string? nature,bool favorites,CancellationToken token)=>application.Equity.EquityHoldingsAsync(search,institution,nature,favorites,token);
+    public override Task<List<EquityDisclosure>> EquityDisclosuresAsync(EtfKey key,CancellationToken token)=>application.Equity.EquityDisclosuresAsync(key,token);
+    public override Task<List<EquityHoldingRow>> EquityEventsAsync(EtfKey key,CancellationToken token)=>application.Equity.EquityEventsAsync(key,token);
+    public override Task<List<EquityReportDocument>> EquityReportsAsync(EtfKey key,CancellationToken token)=>application.Equity.EquityReportsAsync(key,token);
+    public override Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token)=>application.Equity.SaveEquityWatchAsync(watch,token);
+    public override Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>application.Etf.OverviewAsync(token);
+    public override Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>application.Etf.ConfigurationAsync(token);
+    public override Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>application.Etf.SaveConfigurationAsync(key,name,index,active,reason,expectedRevision,token);
+    public override Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>application.Etf.EvidenceAsync(token);
+    public override Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>application.Etf.EvidenceAsync(key,token);
+    public override Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)=>application.Etf.HistoryAsync(key,token);
+    public override Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>application.Etf.PointsAsync(key,token);
+    public override Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>application.Etf.CoverageAsync(key,from,to,token);
+    public override Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>application.Etf.CollectionAttemptsAsync(key,from,to,token);
+    public override Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)=>application.Etf.AcceptanceAsync(through,token);
+    public override Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)=>application.Etf.SyncAsync(from,to,token);
+    public override Task ExportEvidenceAsync(string revisionId,bool original,string destination,CancellationToken token)=>application.Etf.ExportEvidenceAsync(revisionId,original,destination,token);
+    public override Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token)=>application.Etf.ReviewAsync(id,accept,reviewer,comparableConfirmed,token);
+    public override Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>application.Etf.MembershipAsync(key,name,index,active,reason,token);
+    public override Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>application.Alerts.AlertOverviewAsync(token);
+    public override Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token)=>application.Alerts.AlertConfigurationAsync(token);
+    public override Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>application.Alerts.SaveAlertConfigurationAsync(value,token);
+    public override Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>application.Alerts.AlertEventsAsync(filter,token);
+    public override Task<ExitAlertEvent> AlertEventAsync(string id,CancellationToken token)=>application.Alerts.AlertEventAsync(id,token);
+    public override Task<ExitAlertEvent> AlertEventVersionAsync(string id,int sequence,CancellationToken token)=>application.Alerts.AlertEventVersionAsync(id,sequence,token);
+    public override Task<List<EvidenceRow>> AlertInputsAsync(string id,int? sequence,CancellationToken token)=>application.Alerts.AlertInputsAsync(id,sequence,token);
+    public override Task<List<ExitAlertChange>> AlertChangesAsync(string id,CancellationToken token)=>application.Alerts.AlertChangesAsync(id,token);
+    public override Task<List<AlertOutboxItem>> AlertOutboxAsync(CancellationToken token)=>application.Alerts.AlertOutboxAsync(token);
+    public override Task<List<AlertOutboxItem>> AlertOutboxAsync(ExitAlertFilter filter,CancellationToken token)=>application.Alerts.AlertOutboxAsync(filter,token);
+    public override Task<List<AlertDeliveryRecord>> AlertDeliveriesAsync(string id,CancellationToken token)=>application.Alerts.AlertDeliveriesAsync(id,token);
+    public override Task RetryAlertNotificationAsync(string id,CancellationToken token)=>application.Alerts.RetryAlertNotificationAsync(id,token);
+    public override Task EvaluateAlertsAsync(CancellationToken token)=>application.Alerts.EvaluateAlertsAsync(token);
+    public override Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>application.Alerts.AlertDocumentsAsync(key,token);
+    public override Task RegisterAlertDocumentAsync(AlertDocumentRequest request,CancellationToken token)=>application.Alerts.RegisterAlertDocumentAsync(request,token);
+    public override Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>application.Alerts.AlertMetadataAsync(token);
+    public override Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>application.Alerts.ReviewAlertMetadataAsync(review,token);
+    public override Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>application.Alerts.NamedEtfHoldingsAsync(key,token);
+    public override Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token)=>application.Alerts.ReviewNamedEtfHoldingAsync(review,token);
+    public override Task<IndustryPeReport> IndustryPeReportAsync(DateOnly from,DateOnly through,CancellationToken token)=>application.Industry.IndustryPeReportAsync(from,through,token);
+    public override Task<List<IndustryPeRevision>> IndustryPeRevisionsAsync(DateOnly from,DateOnly through,CancellationToken token)=>application.Industry.IndustryPeRevisionsAsync(from,through,token);
+    public override Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>application.Activity.MarketActivityAsync(token);
+    public override Task SyncMarketActivityAsync(DateOnly from,DateOnly to,CancellationToken token)=>application.Activity.SyncMarketActivityAsync(from,to,token);
+    public override Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>application.Activity.MarketActivityRevisionsAsync(token);
+    public override Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token)=>application.Activity.ReviewMarketActivityAsync(id,accept,reviewer,token);
+    public override Task<IndexSeriesResearchReport> IndexSeriesReportAsync(DateOnly from,DateOnly through,CancellationToken token)=>application.Index.IndexSeriesReportAsync(from,through,token);
+    public override Task<List<IndexSeriesRevision>> IndexSeriesRevisionsAsync(DateOnly from,DateOnly through,CancellationToken token)=>application.Index.IndexSeriesRevisionsAsync(from,through,token);
+    public override Task<List<NavAcceptedPoint>> NavPointsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>application.Nav.NavPointsAsync(key,from,through,token);
+    public override Task<List<NavRevision>> NavRevisionsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>application.Nav.NavRevisionsAsync(key,from,through,token);
+    public override Task<List<AlertChannel>> AlertChannelsAsync(CancellationToken token)=>Task.FromResult(new List<AlertChannel>());
+}

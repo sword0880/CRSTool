@@ -19,33 +19,33 @@ internal static class P0RemediationChecks
         await szse.PrepareRangeAsync(day,day.AddDays(1),default);
         foreach(var date in new[]{day,day.AddDays(1)})
             Check((await szse.FetchAsync(date,[new("SZSE","159919")],default)).Failures?.Single() is {State:"AccessBlocked",Reason:"Http429",Ticker:"159919",OriginalHash:not null},"深市区间失败缓存保留限流原因及原件，不退化为普通缺失");
-        await using(var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(data,raw),raw))
+        await using(var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(data,raw),raw))
         {
-            await workspace.InitializeAsync(default);workspace.SetOfficialSource(new OfficialShareSources(http,raw));
+            await workspace.InitializeAsync(default);workspace.Etf.SetOfficialSource(new OfficialShareSources(http,raw));
             http.Status=403;http.Body="blocked response fixture";
-            await workspace.SyncAsync(day,day,default);
-            var blocked=(await workspace.CollectionAttemptsAsync(key,day,day,default)).Single();
+            await workspace.Etf.SyncAsync(day,day,default);
+            var blocked=(await workspace.Etf.CollectionAttemptsAsync(key,day,day,default)).Single();
             Check(blocked is {State:"AccessBlocked",Reason:"Http403",ParserVersion:"sse-etf-json-v1"}&&blocked.SourceUrl?.Contains("sse.com.cn")==true&&blocked.OriginalHash==raw.Save(Encoding.UTF8.GetBytes(http.Body)),"403原件、来源、解析版本和访问受限状态可追溯");
-            Check((await workspace.CoverageAsync(key,day,day,default)) is {State:"NoCalendar",AcceptedDays:0},"无日历仍可独立查询失败尝试，不伪造覆盖率");
-            http.Status=200;http.Body="<html>invalid JSON fixture</html>";await workspace.SyncAsync(day,day,default);
-            Check((await workspace.CollectionAttemptsAsync(key,day,day,default))[0] is {State:"ParseFailed",OriginalHash:not null},"错误响应保留原件并显示解析失败");
-            http.Body=Shares("100");await workspace.SyncAsync(day,day,default);
-            var accepted=(await workspace.CollectionAttemptsAsync(key,day,day,default))[0];
-            Check(accepted.State=="Accepted"&&(await workspace.PointsAsync(key,default)).Single().Shares==1000000,"补采成功必须有通过质量检查的有效事实");
-            await workspace.RegisterCalendarAsync("SSE",2026,Encoding.UTF8.GetBytes(DirectEquityChecks.CalendarHtml),ReviewedExchangeCalendar.Source("SSE",2026),default);
+            Check((await workspace.Etf.CoverageAsync(key,day,day,default)) is {State:"NoCalendar",AcceptedDays:0},"无日历仍可独立查询失败尝试，不伪造覆盖率");
+            http.Status=200;http.Body="<html>invalid JSON fixture</html>";await workspace.Etf.SyncAsync(day,day,default);
+            Check((await workspace.Etf.CollectionAttemptsAsync(key,day,day,default))[0] is {State:"ParseFailed",OriginalHash:not null},"错误响应保留原件并显示解析失败");
+            http.Body=Shares("100");await workspace.Etf.SyncAsync(day,day,default);
+            var accepted=(await workspace.Etf.CollectionAttemptsAsync(key,day,day,default))[0];
+            Check(accepted.State=="Accepted"&&(await workspace.Etf.PointsAsync(key,default)).Single().Shares==1000000,"补采成功必须有通过质量检查的有效事实");
+            await workspace.Etf.RegisterCalendarAsync("SSE",2026,Encoding.UTF8.GetBytes(DirectEquityChecks.CalendarHtml),ReviewedExchangeCalendar.Source("SSE",2026),default);
             http.Body="""{"actionErrors":[],"pageHelp":{"pageNo":1,"pageCount":0,"total":0},"result":[]}""";
-            await workspace.SyncAsync(day,day,default);
-            var coverage=await workspace.CoverageAsync(key,day,day,default);
+            await workspace.Etf.SyncAsync(day,day,default);
+            var coverage=await workspace.Etf.CoverageAsync(key,day,day,default);
             Check(coverage is {AcceptedDays:1,CoveragePercent:100}&&coverage.Days.Single().LastAttempt?.State=="NotPublished","空响应不补零、不覆盖既有有效事实，单列最新采集失败");
-            http.Body=Shares("200");await workspace.SyncAsync(day,day,default);
-            Check((await workspace.CollectionAttemptsAsync(key,day,day,default))[0].State=="NeedsReview"&&(await workspace.PointsAsync(key,default)).Count==0,"异常跳变不能凭任务成功升级有效事实");
-            var revision=(await workspace.EvidenceAsync(default)).Single(x=>x.State=="NeedsReview");await workspace.ReviewAsync(revision.RevisionId,true,"fixture-reviewer",true,default);
-            await workspace.SyncAsync(day,day,default);
-            Check((await workspace.CollectionAttemptsAsync(key,day,day,default))[0].State=="Accepted"&&(await workspace.PointsAsync(key,default)).Single().Shares==2000000,"审核后重试关联有效修订，历史失败记录仍保留");
-            var source=new BlockingOfficialSource();workspace.SetOfficialSource(source);using var cancellation=new CancellationTokenSource();
-            var sync=workspace.SyncAsync(day,day,cancellation.Token);await source.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));cancellation.Cancel();
+            http.Body=Shares("200");await workspace.Etf.SyncAsync(day,day,default);
+            Check((await workspace.Etf.CollectionAttemptsAsync(key,day,day,default))[0].State=="NeedsReview"&&(await workspace.Etf.PointsAsync(key,default)).Count==0,"异常跳变不能凭任务成功升级有效事实");
+            var revision=(await workspace.Etf.EvidenceAsync(default)).Single(x=>x.State=="NeedsReview");await workspace.Etf.ReviewAsync(revision.RevisionId,true,"fixture-reviewer",true,default);
+            await workspace.Etf.SyncAsync(day,day,default);
+            Check((await workspace.Etf.CollectionAttemptsAsync(key,day,day,default))[0].State=="Accepted"&&(await workspace.Etf.PointsAsync(key,default)).Single().Shares==2000000,"审核后重试关联有效修订，历史失败记录仍保留");
+            var source=new BlockingOfficialSource();workspace.Etf.SetOfficialSource(source);using var cancellation=new CancellationTokenSource();
+            var sync=workspace.Etf.SyncAsync(day,day,cancellation.Token);await source.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));cancellation.Cancel();
             try{await sync;throw new Exception("取消未生效");}catch(OperationCanceledException){ }
-            Check((await workspace.CollectionAttemptsAsync(key,day,day,default))[0].State=="Interrupted","宿主取消后持久记录中断状态");
+            Check((await workspace.Etf.CollectionAttemptsAsync(key,day,day,default))[0].State=="Interrupted","宿主取消后持久记录中断状态");
         }
         using(var reopened=TestMarketData.Open(data,raw))
         {

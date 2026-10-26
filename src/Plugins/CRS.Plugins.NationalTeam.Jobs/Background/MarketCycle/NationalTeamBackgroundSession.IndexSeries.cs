@@ -22,11 +22,11 @@ public sealed partial class NationalTeamBackgroundSession
         if(!IndexSourceTargetsAdmitted("cnindex-published-prices",MarketCycleSourceOperation.HistoricalBackfill,methodAndUnitsTargets)||
            !IndexSourceTargetsAdmitted("cnindex-published-prices-hq",MarketCycleSourceOperation.HistoricalBackfill,priceTargets))
             return new("Rejected","index=SourceApprovalRequired;http=0");
-        var calendar=await workspace!.IndexSeriesCalendarAsync(from,through,token);
+        var calendar=await workspace!.Index.IndexSeriesCalendarAsync(from,through,token);
         var natural=Enumerable.Range(0,through.DayNumber-from.DayNumber+1).Select(from.AddDays).ToArray();
         if(natural.Any(d=>!calendar.Days.TryGetValue(d,out var open)||!open.HasValue))return new("Rejected","index=VerifiedCalendarRequired;reference=SZSE");
         var days=natural.Where(d=>calendar.Days[d]==true).ToArray();if(days.Length==0)return new("Succeeded","index=ReferenceCalendarClosed;http=0;facts=0");
-        var initial=await workspace.IndexSeriesRevisionsAsync(from,through,token);var active=initial.Where(x=>x.Value.Kind=="Price"&&definitions.Any(d=>d.Code==x.Value.Code)&&x.State is "Accepted" or "NeedsReview").ToArray();
+        var initial=await workspace.Index.IndexSeriesRevisionsAsync(from,through,token);var active=initial.Where(x=>x.Value.Kind=="Price"&&definitions.Any(d=>d.Code==x.Value.Code)&&x.State is "Accepted" or "NeedsReview").ToArray();
         if(active.Any(x=>!x.EvidenceHealthy))return new("Rejected","index=ExistingEvidenceUnhealthy");
         var methods=new Dictionary<string,CapturedIndexDocument>(StringComparer.Ordinal);CapturedIndexDocument? units=null;var added=0;var reused=0;
         try
@@ -49,7 +49,7 @@ public sealed partial class NationalTeamBackgroundSession
                 foreach(var segment in segments)
                 {
                     token.ThrowIfCancellationRequested();var start=segment[0];var end=segment[^1];var id=IndexChildCommand(commandId.Value,definition.Code,start,end);
-                    var outcome=await workspace.IndexSeriesReceiptAsync(id,token);var replay=outcome is not null;
+                    var outcome=await workspace.Index.IndexSeriesReceiptAsync(id,token);var replay=outcome is not null;
                     if(outcome is not null&&(outcome.Kind!="Price"||outcome.Code!=definition.Code||outcome.From!=start||outcome.Through!=end))return new("Rejected","index=ReceiptScopeMismatch");
                     if(outcome is null)
                     {
@@ -75,13 +75,13 @@ public sealed partial class NationalTeamBackgroundSession
                            !IndexSourceAdmitted("cnindex-published-prices",MarketCycleSourceOperation.HistoricalBackfill,new(units.Url))||
                            !IndexSourceAdmitted("cnindex-published-prices-hq",MarketCycleSourceOperation.HistoricalBackfill,new(document.Url)))
                             return new("Rejected",$"index=SourceApprovalRequiredBeforeCommit;added={added};reused={reused}");
-                        outcome=await workspace.ImportIndexSeriesAsync(packet,token,id);
+                        outcome=await workspace.Index.ImportIndexSeriesAsync(packet,token,id);
                     }
                     var fresh=replay?0:outcome.Added;added+=fresh;if(replay)reused+=outcome.Added+outcome.Duplicates;
                     await ReportAsync(new("DayCommitted",end,Received:replay?0:outcome.Added+outcome.Duplicates,Added:fresh,Duplicates:replay?0:outcome.Duplicates,Pending:outcome.Pending){Reused=replay?outcome.Added+outcome.Duplicates:0});
                 }
             }
-            var final=(await workspace.IndexSeriesRevisionsAsync(from,through,token)).Where(x=>x.Value.Kind=="Price"&&definitions.Any(d=>d.Code==x.Value.Code)).ToArray();
+            var final=(await workspace.Index.IndexSeriesRevisionsAsync(from,through,token)).Where(x=>x.Value.Kind=="Price"&&definitions.Any(d=>d.Code==x.Value.Code)).ToArray();
             if(final.Any(x=>(x.State is "Accepted" or "NeedsReview")&&!x.EvidenceHealthy))return new("Rejected","index=EvidenceUnhealthyAfterCommit");
             var pending=final.Count(x=>x.State=="NeedsReview");var accepted=definitions.Sum(d=>days.Count(day=>!final.Any(x=>x.Value.Code==d.Code&&x.Value.Date==day&&x.State=="NeedsReview")&&final.Count(x=>x.Value.Code==d.Code&&x.Value.Date==day&&x.State=="Accepted"&&x.EvidenceHealthy)==1));
             return new(pending>0?"NeedsReview":accepted==days.Length*definitions.Length?"Succeeded":"RetryDeferred",$"indexPriceFacts={accepted};expected={days.Length*definitions.Length};added={added};reused={reused};pending={pending};referenceCalendar=SZSE;timing=NotProven",pending==0&&accepted<days.Length*definitions.Length?IndexRetryDelay():null);
@@ -102,10 +102,10 @@ public sealed partial class NationalTeamBackgroundSession
             return new("Rejected","indexValuation=SourceApprovalRequired;http=0");
         try
         {
-            if(await workspace!.IndexSeriesReceiptAsync(commandId.Value,token) is {} prior)
+            if(await workspace!.Index.IndexSeriesReceiptAsync(commandId.Value,token) is {} prior)
             {
                 if(prior.Kind!="Valuation"||prior.Code is not null||prior.From!=date||prior.Through!=date)return new("Rejected","indexValuation=ReceiptScopeMismatch");
-                var current=(await workspace.IndexSeriesRevisionsAsync(date,date,token)).Where(x=>x.Value.Kind=="Valuation"&&x.State is "Accepted" or "NeedsReview").ToArray();
+                var current=(await workspace.Index.IndexSeriesRevisionsAsync(date,date,token)).Where(x=>x.Value.Kind=="Valuation"&&x.State is "Accepted" or "NeedsReview").ToArray();
                 if(current.Any(x=>!x.EvidenceHealthy)||current.Select(x=>x.Value.Code).Distinct().Count()!=10)return new("Rejected","indexValuation=CommittedButCurrentEvidenceUnavailable");
                 return new(current.Any(x=>x.State=="NeedsReview")?"NeedsReview":"Succeeded",$"indexValuation=CommittedReceipt;reused={prior.Added+prior.Duplicates};freshAdded=0");
             }
@@ -114,7 +114,7 @@ public sealed partial class NationalTeamBackgroundSession
             var before=await OfficialIndexSeriesSource.FetchAsync(http!,"HeaderBefore",OfficialIndexSeriesSource.DaySource,token);DateOnly published;
             published=ParseIndexHeader(before);
             if(published!=date)return new("Rejected",$"indexValuation=PublishedDateMismatch;published={published:yyyy-MM-dd};requested={date:yyyy-MM-dd}");
-            var prices=await workspace.IndexSeriesRevisionsAsync(date,date,token);
+            var prices=await workspace.Index.IndexSeriesRevisionsAsync(date,date,token);
             if(IndexResearchCatalog.Definitions.Values.Where(x=>x.Family=="Cni1000Sector").Any(d=>prices.Count(x=>x.Value.Kind=="Price"&&x.Value.Code==d.Code&&x.State=="Accepted"&&x.EvidenceHealthy)!=1||prices.Any(x=>x.Value.Kind=="Price"&&x.Value.Code==d.Code&&x.State=="NeedsReview")))return new("Rejected","indexValuation=HealthySameDatePricesRequired");
             if(!IndexSourceAdmitted("cnindex-published-valuation",MarketCycleSourceOperation.AutomatedPolling,valuationMethodUri))
                 return new("Rejected","indexValuation=SourceApprovalRequiredBeforeMethod");
@@ -132,7 +132,7 @@ public sealed partial class NationalTeamBackgroundSession
                !IndexSourceAdmitted("cnindex-published-valuation",MarketCycleSourceOperation.AutomatedPolling,new(listing.Url))||
                !IndexSourceAdmitted("cnindex-published-valuation",MarketCycleSourceOperation.AutomatedPolling,new(after.Url)))
                 return new("Rejected","indexValuation=SourceApprovalRequiredBeforeCommit");
-            var result=await workspace.ImportIndexSeriesAsync(packet,token,commandId);
+            var result=await workspace.Index.ImportIndexSeriesAsync(packet,token,commandId);
             await ReportAsync(new("DayCommitted",date,Received:result.Added+result.Duplicates,Added:result.Added,Duplicates:result.Duplicates,Pending:result.Pending));
             return new(result.Pending>0?"NeedsReview":"Succeeded",$"indexValuationDate={date:yyyy-MM-dd};added={result.Added};duplicates={result.Duplicates};pending={result.Pending};coverage=Unknown;opportunity=NotEvaluated");
         }

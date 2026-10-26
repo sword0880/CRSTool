@@ -12,7 +12,7 @@ public sealed partial class NationalTeamBackgroundSession
         var count=0;
         for(var i=0;i<3;i++)
         {
-            token.ThrowIfCancellationRequested();var item=await workspace!.ClaimAlertNotificationAsync(token);if(item is null)break;
+            token.ThrowIfCancellationRequested();var item=await workspace!.Alerts.ClaimAlertNotificationAsync(token);if(item is null)break;
             AlertDispatchOutcome outcome;
             using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromSeconds(5));
             try
@@ -23,7 +23,7 @@ public sealed partial class NationalTeamBackgroundSession
             }
             // 领取后发生任何未分类中断都无法证明未受理；先持久核对状态，再响应宿主取消。
             catch(Exception){outcome=new("OutcomeUnknown","DeliveryInterrupted");}
-            await workspace.CompleteAlertNotificationAsync(item,outcome);count++;
+            await workspace.Alerts.CompleteAlertNotificationAsync(item,outcome);count++;
             token.ThrowIfCancellationRequested();
         }
         return BackgroundJobResult.Success("notificationAttempts="+count);
@@ -35,18 +35,18 @@ public sealed partial class NationalTeamBackgroundSession
         {
             switch(request.Operation)
             {
-                case "alert-settings" when request.AlertConfiguration is {} settings:await workspace!.SaveAlertConfigurationAsync(settings,token,commandId);break;
-                case "alert-retry":await workspace!.RetryAlertNotificationAsync(request.Revision??"",token,commandId);break;
+                case "alert-settings" when request.AlertConfiguration is {} settings:await workspace!.Alerts.SaveAlertConfigurationAsync(settings,token,commandId);break;
+                case "alert-retry":await workspace!.Alerts.RetryAlertNotificationAsync(request.Revision??"",token,commandId);break;
                 case "alert-document" when request.AlertDocument is {} document:
                     if(!Uri.TryCreate(document.Url,UriKind.Absolute,out var uri)||!OfficialEquityDocuments.IsAllowed(uri)||OfficialEquityDocuments.IsReviewedIssuer(uri))return new("Rejected","alert=OfficialEtfPdfRequired");
                     var response=await http!.GetAsync(uri,token);
                     if(response.StatusCode!=200)return new("RetryDeferred","alert=DocumentUnavailable",TimeSpan.FromMinutes(30));
-                    await workspace!.RegisterAlertDocumentAsync(document,response.Content,token,commandId);break;
-                case "alert-metadata-review" when request.AlertMetadata is {} metadata:await workspace!.ReviewAlertMetadataAsync(metadata,token,commandId);break;
-                case "alert-holding-review" when request.NamedEtfHolding is {} holding:await workspace!.ReviewNamedEtfHoldingAsync(holding,token,commandId);break;
+                    await workspace!.Alerts.RegisterAlertDocumentAsync(document,response.Content,token,commandId);break;
+                case "alert-metadata-review" when request.AlertMetadata is {} metadata:await workspace!.Alerts.ReviewAlertMetadataAsync(metadata,token,commandId);break;
+                case "alert-holding-review" when request.NamedEtfHolding is {} holding:await workspace!.Alerts.ReviewNamedEtfHoldingAsync(holding,token,commandId);break;
                 default:return new("Rejected","alert=InvalidOperation");
             }
-            await workspace!.EvaluateAlertsAsync(token);return BackgroundJobResult.Success();
+            await workspace!.Alerts.EvaluateAlertsAsync(token);return BackgroundJobResult.Success();
         }
         catch(InvalidDataException){return new("Rejected","alert=InvalidOrStaleInput");}
     }

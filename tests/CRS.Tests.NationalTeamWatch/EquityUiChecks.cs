@@ -15,8 +15,8 @@ internal static class EquityUiChecks
                 DirectEquityChecks.Seed(seed);
                 seed.SaveEquityReports(new("SSE","600036"),new(2026,8,1),new(2026,10,19),[EquityReportChecks.Page()]);
             }
-            using var lifetime=new CancellationTokenSource();var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
-            workspace.InitializeAsync(default).GetAwaiter().GetResult();var model=new EquityViewModel(workspace,lifetime.Token);var page=new EquityPage(model);
+            using var lifetime=new CancellationTokenSource();var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
+            workspace.InitializeAsync(default).GetAwaiter().GetResult();var model=new EquityViewModel(new LocalResearchWorkspace(workspace),lifetime.Token);var page=new EquityPage(model);
             var window=new System.Windows.Window{Content=page,Width=1200,Height=850,ShowInTaskbar=false,Title="直接持股隔离合成验收"};
             window.Loaded+=async(_,_)=>
             {
@@ -51,7 +51,7 @@ internal static class EquityUiChecks
                     using(var file=File.Create(Path.Combine(Environment.CurrentDirectory,"artifacts","direct-equity-20261018","equity-events-synthetic.png")))eventEncoder.Save(file);
                     model.SelectedAccount=model.StockAccounts.Single(x=>x.Row.Institution=="养老保险基金");await model.DetailTask;
                     if(model.Events.Count!=2||model.DeltaSeries.Length!=0||((LiveChartsCore.SkiaSharpView.ScatterSeries<LiveChartsCore.Defaults.ObservablePoint>)model.HoldingSeries.Single()).Values!.Count()!=1)throw new Exception("未列示被填零或画成清仓柱。");
-                    await workspace.SaveEquityDisclosureAsync("SSE","600036",OfficialEquitySource.Request("SSE","600036"),DirectEquityChecks.Source(new(2026,10,16),("中央汇金资产管理有限责任公司",800,8)),default);
+                    await workspace.Equity.SaveEquityDisclosureAsync("SSE","600036",OfficialEquitySource.Request("SSE","600036"),DirectEquityChecks.Source(new(2026,10,16),("中央汇金资产管理有限责任公司",800,8)),default);
                     await model.RefreshAsync();model.Selected=model.Rows.Single(x=>x.State=="NeedsReview");await model.DetailTask;
                     var candidate=model.SelectedDisclosure;
                     if(model.Reports.Count!=1)throw new Exception("缓存官方目录未加载。");
@@ -68,7 +68,7 @@ internal static class EquityUiChecks
                     model.Institution="养老保险基金";await model.LoadTask;if(model.Rows.Count!=1||model.Rows[0].State!="NotListed")throw new Exception("机构筛选未保持未知持仓。");
                     model.Search="无此组合";await model.LoadTask;if(model.Rows.Count!=0||model.HoldingSeries.Length!=0||model.DeltaSeries.Length!=0||model.Disclosures.Count!=0||model.Events.Count!=0||model.Matrix.Count!=0||model.StockAccounts.Count!=0||model.Reports.Count!=0)throw new Exception("空结果残留旧详情。");
                     if(detachedAxis is not null)detachedAxis.MinLimit=.25;
-                    CheckUnsafeChartInputs(workspace);
+                    CheckUnsafeChartInputs(new LocalResearchWorkspace(workspace));
                     Console.WriteLine("PASS 真实WPF直接持股：上下图、比例、联动缩放、组合切换、矩阵、空结果及不安全输入隔离；截图为合成数据。");
                 }
                 catch(Exception error){failure=error;}
@@ -79,7 +79,7 @@ internal static class EquityUiChecks
     }
     private static void CheckUnsafeChartInputs(IDirectEquityWorkspace workspace)
     {
-        var model=new EquityViewModel(workspace,CancellationToken.None);
+        var model=new EquityViewModel(new LocalResearchWorkspace(workspace),CancellationToken.None);
         foreach(var (state,shares,delta) in new[]{("NeedsReview",100m,999m),("Critical",100m,999m),("Conflict",100m,999m),("NotComparable",100m,999m),("Increased",200m,100m),("Decreased",100m,-100m),("Unchanged",100m,0m)})
             model.Events.Add(new(Guid.NewGuid().ToString(),"SSE","600036","合成股票","社保基金","合成组合",shares,1,new(2026,3,31),new(2026,4,28),new(2026,4,28),state,delta,"Portfolio",false,"https://www.sse.com.cn/test.pdf"));
         model.HoldingPercent=true;

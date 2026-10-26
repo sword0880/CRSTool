@@ -133,23 +133,23 @@ Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate.
 Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json.Replace("123.45","-1")),onlineDate,1),"Official response negative shares rejected");
 Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate,2),"Official response wrong page rejected");
 var onlineRoot=Path.Combine(root,"online");var onlineRaw=new RawEvidenceStore(Path.Combine(onlineRoot,"raw"));
-await using(var onlineWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(onlineRoot,"data"),onlineRaw),onlineRaw))
+await using(var onlineWorkspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(onlineRoot,"data"),onlineRaw),onlineRaw))
 {
  await onlineWorkspace.InitializeAsync(CancellationToken.None);
- onlineWorkspace.SetOfficialSource(new SseOfficialShareSource(new FixtureHttp(json),onlineRaw));
- await onlineWorkspace.SyncAsync(onlineDate,onlineDate,CancellationToken.None);
- await onlineWorkspace.SyncAsync(onlineDate,onlineDate,CancellationToken.None);
- Check((await onlineWorkspace.PointsAsync(new("SSE","510300"),CancellationToken.None)).Single().Shares==1234500m,"Automatic download imports official shares without manual files and stays idempotent");
- Check((await onlineWorkspace.CoverageAsync(new("SSE","510300"),onlineDate,onlineDate,CancellationToken.None)).RegisteredTradingDays==0,"Automatic shares do not fabricate verified trading calendar");
- Check((await onlineWorkspace.EvidenceAsync(CancellationToken.None)).Single().OriginalHash!= (await onlineWorkspace.EvidenceAsync(CancellationToken.None)).Single().Hash,"Automatic source retains original JSON and normalized evidence separately");
+ onlineWorkspace.Etf.SetOfficialSource(new SseOfficialShareSource(new FixtureHttp(json),onlineRaw));
+ await onlineWorkspace.Etf.SyncAsync(onlineDate,onlineDate,CancellationToken.None);
+ await onlineWorkspace.Etf.SyncAsync(onlineDate,onlineDate,CancellationToken.None);
+ Check((await onlineWorkspace.Etf.PointsAsync(new("SSE","510300"),CancellationToken.None)).Single().Shares==1234500m,"Automatic download imports official shares without manual files and stays idempotent");
+ Check((await onlineWorkspace.Etf.CoverageAsync(new("SSE","510300"),onlineDate,onlineDate,CancellationToken.None)).RegisteredTradingDays==0,"Automatic shares do not fabricate verified trading calendar");
+ Check((await onlineWorkspace.Etf.EvidenceAsync(CancellationToken.None)).Single().OriginalHash!= (await onlineWorkspace.Etf.EvidenceAsync(CancellationToken.None)).Single().Hash,"Automatic source retains original JSON and normalized evidence separately");
 }
 try{await new SseOfficialShareSource(new FixtureHttp(json,403)).FetchAsync(onlineDate,CancellationToken.None);throw new Exception("403 accepted");}catch(InvalidDataException){Console.WriteLine("PASS Official HTTP403 stops collection without fake facts");}
 try{await new SseOfficialShareSource(new FixtureHttp(json.Replace("\"total\":1","\"total\":2"))).FetchAsync(onlineDate,CancellationToken.None);throw new Exception("Truncated page accepted");}catch(InvalidDataException){Console.WriteLine("PASS Truncated official pagination rejected");}
 // 宿主取消必须传递到界面调度出的采集任务，不能只取消Quartz外层等待。
 var cancelRaw=new RawEvidenceStore(Path.Combine(root,"cancel-raw"));var blockingSource=new BlockingOfficialSource();
-await using(var cancelWorkspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
+await using(var cancelWorkspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
 {
- await cancelWorkspace.InitializeAsync(CancellationToken.None);cancelWorkspace.SetOfficialSource(blockingSource);
+ await cancelWorkspace.InitializeAsync(CancellationToken.None);cancelWorkspace.Etf.SetOfficialSource(blockingSource);
  var cancelModel=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(cancelWorkspace,CancellationToken.None);using var hostCancel=new CancellationTokenSource();
  var work=cancelModel.SyncLatestAsync(hostCancel.Token);await blockingSource.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));hostCancel.Cancel();await work.WaitAsync(TimeSpan.FromSeconds(5));
  Check(!cancelModel.Busy && cancelModel.Status.Contains("取消"),"Host scheduler cancellation reaches active plugin network operation");
@@ -234,10 +234,8 @@ Check(File.ReadAllBytes(output).SequenceEqual(content) && !Directory.EnumerateFi
 // 模拟慢查询，验证用户切换证券或日期后，旧结果不能覆盖新输入的界面状态。
 foreach(var changeSecurity in new[]{true,false})
 {
- using var delayed=new DelayedCoverageRepository(Path.Combine(exportRoot,Guid.NewGuid().ToString("N")),exportRaw);
- await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>delayed.Repository,exportRaw);
- await workspace.InitializeAsync(CancellationToken.None);
- var model=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(workspace,CancellationToken.None)
+ using var delayed=new DelayedCoverageWorkspace();
+ var model=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(delayed,CancellationToken.None)
  {Selected=new("SSE","510300","合成样例","CSI300","DataPilot",null,null,null,null,null,"无数据",0)};
  var request=model.ShowCoverageCommand.ExecuteAsync(null);
  await delayed.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -267,37 +265,16 @@ sealed class BlockingOfficialSource:IOfficialShareSource
  public async Task<SourceDay> FetchAsync(DateOnly day,CancellationToken token)
  {Entered.TrySetResult();await Task.Delay(Timeout.InfiniteTimeSpan,token);return new(day,[]);}
 }
-// 用真实存储转发完整契约，只在覆盖查询前插入可控等待；测试不再依赖不完整仓储默认实现。
-sealed class DelayedCoverageRepository : IDisposable
+// 此处只验收界面竞态，不创建能力不完整的仓储代理或回退串行会话。
+sealed class DelayedCoverageWorkspace : ResearchWorkspaceStub, IDisposable
 {
- public IMarketRepository Repository {get;}
  public TaskCompletionSource Entered {get;}=new(TaskCreationOptions.RunContinuationsAsynchronously);
  public ManualResetEventSlim Release {get;}=new();
- public DelayedCoverageRepository(string directory,RawEvidenceStore raw)
+ public override Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>Task.Run(()=>
  {
-    var key=System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);IMarketRepository inner;
-    try{inner=new MarketRepository(directory,raw,approvalAuditKey:key);}
-    finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(key);}
-    Repository=System.Reflection.DispatchProxy.Create<IMarketRepository,DelayedRepositoryProxy>();
-    var proxy=(DelayedRepositoryProxy)Repository;proxy.Inner=inner;
-    proxy.BeforeCoverage=()=>{Entered.SetResult();if(!Release.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("合成查询没有放行。");};
- }
- public void Dispose(){Repository.Dispose();Release.Dispose();}
-}
-// 代理仅供这项界面竞态测试使用；未拦截的方法全部转发真实实现，异常保留原类型。
-class DelayedRepositoryProxy : System.Reflection.DispatchProxy
-{
- public IMarketRepository Inner {get;set;}=null!;
- public Action BeforeCoverage {get;set;}=null!;
- protected override object? Invoke(System.Reflection.MethodInfo? method,object?[]? args)
- {
-    if(method!.Name==nameof(IEtfReadRepository.Coverage))
-    {
-        BeforeCoverage();var key=(EtfKey)args![0]!;var from=(DateOnly)args[1]!;var to=(DateOnly)args[2]!;
-        return new CoverageReport(key.Market,key.Ticker,from,to,1,1,0,0,0,0,100,true,true,"CompleteRegisteredCalendar",[new(from,"Accepted","fixture")]);
-    }
-    try{return method.Invoke(Inner,args);}
-    catch(System.Reflection.TargetInvocationException error) when(error.InnerException is {} cause)
-    {System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(cause).Throw();throw;}
- }
+    Entered.SetResult();if(!Release.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("合成查询没有放行。");
+    return new CoverageReport(key.Market,key.Ticker,from,to,1,1,0,0,0,0,100,true,true,"CompleteRegisteredCalendar",[new(from,"Accepted","fixture")]);
+ },token);
+ public override Task<List<CollectionAttempt>> CollectionAttemptsAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>Task.FromResult(new List<CollectionAttempt>());
+ public void Dispose()=>Release.Dispose();
 }

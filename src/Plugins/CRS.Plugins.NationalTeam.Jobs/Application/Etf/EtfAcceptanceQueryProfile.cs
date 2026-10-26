@@ -9,7 +9,7 @@ public interface IEtfAcceptanceProfileRepository
     EtfAcceptanceQueryProfile ProfileAcceptance(EtfKey? key,DateOnly through);
 }
 
-public sealed partial class EtfWorkspace
+public sealed partial class EtfUseCases
 {
     internal Task<EtfAcceptanceQueryProfile> ProfileAcceptanceAsync(EtfKey? key,DateOnly through,CancellationToken token)
         =>ReadPortAsync<IEtfAcceptanceProfileRepository,EtfAcceptanceQueryProfile>(current=>current.ProfileAcceptance(key,through),token);

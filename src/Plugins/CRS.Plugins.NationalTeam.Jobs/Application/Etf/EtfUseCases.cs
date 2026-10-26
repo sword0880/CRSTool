@@ -2,50 +2,32 @@ using System.Text;
 using CRS.Plugin.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
-/// <summary>插件应用用例：串行写入私有仓储，独立读取快照，在后台执行导入与证据核验。</summary>
-public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposable
+
+/// <summary>ETF采集、导入、证据与审核用例；通过共享会话访问ETF存储端口。</summary>
+public sealed partial class EtfUseCases : MarketUseCaseScope
 {
     private readonly IPluginHostContext context;
-    private readonly SemaphoreSlim gate=new(1);
     private readonly IRawEvidenceStore raw;
-    private readonly Func<IMarketRepository> repositoryFactory;
-    private IMarketRepository? repository;
+    private readonly SemaphoreSlim syncGate=new(1,1);
     private IOfficialShareSource? officialSource;
-    private readonly SemaphoreSlim syncGate=new(1);
-    private readonly SemaphoreSlim integrityGate=new(1);
-    private Func<EtfProgress,Task>? progress;
-    public void SetProgressSink(Func<EtfProgress,Task>? sink)=>progress=sink;
-    private Task ReportAsync(EtfProgress value)=>progress?.Invoke(value)??Task.CompletedTask;
     public string NetworkStatus {get;private set;}="等待后台服务采集；关闭或锁定桌面不影响任务运行。";
-    // Preserve the legacy interface's permissive presentation hint; Worker authorization remains authoritative.
-    public bool CanManage=>true;
+    internal EtfUseCases(MarketApplicationSession session,IPluginHostContext context,IRawEvidenceStore raw):base(session)
+    {this.context=context;this.raw=raw;}
     public void SetOfficialSource(IOfficialShareSource source)=>officialSource=source;
-    public EtfWorkspace(IPluginHostContext context,Func<IMarketRepository> repositoryFactory,IRawEvidenceStore raw) {this.context=context;this.repositoryFactory=repositoryFactory;this.raw=raw;}
-    public Task InitializeAsync(CancellationToken token)=>RunAsync(()=>
-    {
-        repository=repositoryFactory();
-        // 仓储构造与连接字符串完成后才发布；查询持readGate，释放也先持readGate，故端口使用中不会被处置。
-        Volatile.Write(ref independentReads,repository as IMarketReadSessions);return true;
-    },token);
-    public Task RegisterCalendarAsync(string market,int year,byte[] bytes,Uri uri,CancellationToken token)=>RunAsync(()=>{repository!.RegisterReviewedCalendar(market,year,bytes,uri);return true;},token);
-    private async Task<T> RunAsync<T>(Func<T> work,CancellationToken token)
-    {
-        // 写入复用单连接；正式查询走独立快照，仅旧串行测试适配器复用此门槛。
-        await gate.WaitAsync(token).ConfigureAwait(false);
-        try { ObjectDisposedException.ThrowIf(disposed,this);return await Task.Run(()=>repository is {} current?current.ExecuteOperation(work,token):work(),token).ConfigureAwait(false); } finally {gate.Release();}
-    }
+    private Task<T> ReadAsync<T>(Func<IEtfRepository,T> query,CancellationToken token)=>ReadPortAsync(query,token);
+    public Task RegisterCalendarAsync(string market,int year,byte[] bytes,Uri uri,CancellationToken token)=>RunAsync((IEtfRepository repository)=>{repository!.RegisterReviewedCalendar(market,year,bytes,uri);return true;},token);
     public Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>ReadAsync(current=>current.Overview(),token);
     public Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>ReadAsync(current=>current.Configuration(),token);
     public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>SaveConfigurationAsync(key,name,index,active,reason,expectedRevision,token,null);
     /// <summary>配置变更同样经过服务单写门槛和稳定命令去重。</summary>
-    public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token,Guid? commandId)=>RunAsync(()=>{repository!.SaveConfiguration(key,name,index,active,reason,expectedRevision,commandId);return true;},token);
+    public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token,Guid? commandId)=>RunAsync((IEtfRepository repository)=>{repository!.SaveConfiguration(key,name,index,active,reason,expectedRevision,commandId);return true;},token);
     /// <summary>串行下载官方份额；按日期提交，取消后保留已完成日，重试使用原件哈希与事实幂等。</summary>
     public async Task<SyncReport> SyncRecentAsync(CancellationToken token)
     {
         var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         // 最新数据先采；历史失败不能把所有后续日期挡在旧游标后面。
         var recent=await SyncAsync(today.AddDays(-7),today,token,true);
-        var gaps=await RunAsync(()=>repository!.DueHistoricalShareGaps(today.AddDays(-8),CRS.Timing.BeijingClock.Now),token);
+        var gaps=await RunAsync((IEtfRepository repository)=>repository!.DueHistoricalShareGaps(today.AddDays(-8),CRS.Timing.BeijingClock.Now),token);
         if(gaps.Count==0)return recent;
         var from=gaps[0].Date;var to=from.AddDays(29)<today.AddDays(-8)?from.AddDays(29):today.AddDays(-8);
         var batch=gaps.Where(x=>x.Date>=from&&x.Date<=to).GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.Select(g=>g.Key).ToHashSet());
@@ -72,36 +54,36 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
                 token.ThrowIfCancellationRequested();NetworkStatus=$"两市正在获取 {day:yyyy-MM-dd}；已完成{completed}个查询日。";
                 await ReportAsync(new("DayStarted",day));
                 // 这里只读取监控配置，不为确定请求池重复计算全池指标和扫描全部原件。
-                var activeKeys=await RunAsync(()=>repository!.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
+                var activeKeys=await RunAsync((IEtfRepository repository)=>repository!.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
                 if(activeKeys.Count==0){NetworkStatus="当前没有启用监控的ETF，已停止本次采集；已提交事实保留。";return new(completed,issues.Count,receivedRows);}
-                var poolKeys=await RunAsync(()=>activeKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)!=false
+                var poolKeys=await RunAsync((IEtfRepository repository)=>activeKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)!=false
                     && (gapBatch is null||gapBatch.TryGetValue(day,out var due)&&due.Contains(key))).ToList(),token);
                 if(poolKeys.Count==0)
                 {
-                    if(trackProgress&&contiguous)await RunAsync(()=>{repository!.RecordSyncCursor(day);return true;},token);
+                    if(trackProgress&&contiguous)await RunAsync((IEtfRepository repository)=>{repository!.RecordSyncCursor(day);return true;},token);
                     completed++;await ReportAsync(new("DayCommitted",day));continue;
                 }
-                var attempts=await RunAsync(()=>poolKeys.ToDictionary(key=>key,key=>repository!.BeginCollection(key,day)),token);
+                var attempts=await RunAsync((IEtfRepository repository)=>poolKeys.ToDictionary(key=>key,key=>repository!.BeginCollection(key,day)),token);
                 SourceDay result;
                 try
                 {
-                    await RunAsync(()=>{foreach(var id in attempts.Values)repository!.RecordCollection(id,"Fetching","OfficialSourceRequested");return true;},token);
+                    await RunAsync((IEtfRepository repository)=>{foreach(var id in attempts.Values)repository!.RecordCollection(id,"Fetching","OfficialSourceRequested");return true;},token);
                     result=await officialSource.FetchAsync(day,poolKeys,token).ConfigureAwait(false);
                 }
                 catch(Exception error)
                 {
                     // 取消仍需落盘阶段；强杀则保留Fetching，重启后可识别未完成尝试。
-                    await RunAsync(()=>{foreach(var id in attempts.Values)RecordCollectionFailure(id,error.Data["EtfSourceFailure"] as SourceFailure
+                    await RunAsync((IEtfRepository repository)=>{foreach(var id in attempts.Values)RecordCollectionFailure(repository,id,error.Data["EtfSourceFailure"] as SourceFailure
                         ??new("",null,error is OperationCanceledException?"Interrupted":"SourceFailed",error is OperationCanceledException?"Cancelled":"SourceRequestFailed"));return true;},CancellationToken.None);
                     throw;
                 }
                 if(result.Issues?.Count>0||result.Failures?.Count>0)contiguous=false;
-                var missing=await RunAsync(()=>poolKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)==true&&!result.Pages.Any(p=>p.Rows.Any(r=>r.Key==key&&r.Date==day))).ToArray(),token);
+                var missing=await RunAsync((IEtfRepository repository)=>poolKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)==true&&!result.Pages.Any(p=>p.Rows.Any(r=>r.Key==key&&r.Date==day))).ToArray(),token);
                 if(missing.Length>0){contiguous=false;foreach(var key in missing)issues.Add($"{key.Market}:{key.Ticker}:{day:yyyy-MM-dd}:NotPublished");}
                 receivedRows+=result.Pages.Sum(page=>page.Rows.Count(row=>poolKeys.Contains(row.Key)));
                 foreach(var issue in result.Issues??[])issues.Add(issue);
                 ShareImportOutcome outcome;
-                try { outcome=await RunAsync(()=>
+                try { outcome=await RunAsync((IEtfRepository repository)=>
                 {
                     int added=0,duplicates=0,pending=0;
                     var pool=repository!.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToHashSet();
@@ -132,7 +114,7 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
                     foreach(var key in poolKeys)
                     {
                         var failure=result.Failures?.FirstOrDefault(x=>x.Market==key.Market&&(x.Ticker is null||x.Ticker==key.Ticker));
-                        if(failure is not null){RecordCollectionFailure(attempts[key],failure);continue;}
+                        if(failure is not null){RecordCollectionFailure(repository,attempts[key],failure);continue;}
                         var attempt=repository.CollectionAttempts(key,day,day).First(x=>x.Id==attempts[key]);
                         var received=result.Pages.Any(p=>p.Rows.Any(r=>r.Key==key&&r.Date==day));
                         var revisions=evidence.Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker&&x.TradeDate==day.ToString("yyyy-MM-dd")).ToArray();
@@ -147,7 +129,7 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
                 },token).ConfigureAwait(false); }
                 catch(Exception error)
                 {
-                    await RunAsync(()=>{foreach(var pair in attempts)
+                    await RunAsync((IEtfRepository repository)=>{foreach(var pair in attempts)
                     {
                         var attempt=repository!.CollectionAttempts(pair.Key,day,day).First(x=>x.Id==pair.Value);
                         repository.RecordCollection(pair.Value,error is OperationCanceledException?"Interrupted":"ParseFailed",error is OperationCanceledException?"Cancelled":"ImportOrValidationFailed",attempt.FetchId);
@@ -167,7 +149,7 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
         catch(Exception error){NetworkStatus=$"采集停止，已完成{completed}日保留；{error.Message}";throw;}
         finally{syncGate.Release();}
     }
-    private void RecordCollectionFailure(string attempt,SourceFailure failure)
+    private void RecordCollectionFailure(IEtfRepository repository,string attempt,SourceFailure failure)
     {
         string? fetch=null;
         if(failure.OriginalHash is {} hash && failure.SourceUrl is {} url)
@@ -176,21 +158,6 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
             if(failure.State=="ParseFailed")repository.MarkFailed(fetch);
         }
         repository!.RecordCollection(attempt,failure.State,failure.Reason,fetch);
-    }
-    /// <summary>后台独占写路径：统一核验原件、协调质量问题与证据事件。</summary>
-    public async Task ReconcileEvidenceIntegrityAsync(CancellationToken token)
-    {
-        await integrityGate.WaitAsync(token);
-        try
-        {
-        var snapshot=await RunAsync(()=>repository is IEvidenceIntegrityRepository batch&&raw is IRawEvidenceVerifier
-            ?batch.CaptureIntegrityEvidence():null,token);
-        if(snapshot is null){await RunAsync(()=>{repository!.ReconcileEvidenceIntegrity();return true;},token);return;}
-        // 原件读取/哈希不持市场库门槛；并行采集可以继续提交已完成日。
-        var verified=await Task.Run(()=>((IRawEvidenceVerifier)raw).VerifyMany(snapshot.SelectMany(x=>new[]{x.Hash,x.OriginalHash}),token),token);
-        await RunAsync(()=>{((IEvidenceIntegrityRepository)repository!).ApplyIntegrityEvidence(snapshot,verified);return true;},token);
-        }
-        finally{integrityGate.Release();}
     }
     public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>ReadAsync(current=>current.Evidence(),token);
     public Task<List<EvidenceRow>> EvidenceAsync(EtfKey key,CancellationToken token)=>ReadAsync(current=>current.Evidence(key),token);
@@ -204,7 +171,7 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
     /// <summary>仅允许导出已登记修订的证据；目标文件安全和哈希验证由基础设施处理。</summary>
     public async Task ExportEvidenceAsync(string revisionId,bool original,string destination,CancellationToken token)
     {
-        var row=await RunAsync(()=>repository!.Evidence().SingleOrDefault(x=>x.RevisionId==revisionId),token).ConfigureAwait(false)
+        var row=await RunAsync((IEtfRepository repository)=>repository!.Evidence().SingleOrDefault(x=>x.RevisionId==revisionId),token).ConfigureAwait(false)
             ??throw new InvalidDataException("所选证据修订不存在。");
         if(row.State=="Critical")throw new InvalidDataException("该修订的证据链损坏，拒绝导出为已核验文件。");
         var paths=context.DataPaths;
@@ -218,7 +185,7 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
         {
             var bytes=await raw.ReadImportFileAsync(file,cancellation).ConfigureAwait(false);
             var originalBytes=await raw.ReadImportFileAsync(originalFile,cancellation).ConfigureAwait(false);
-            await RunAsync(()=>
+            await RunAsync((IEtfRepository repository)=>
             {
                 var hash=raw.Save(bytes); var originalHash=raw.Save(originalBytes); var fetch=repository!.RecordFetch(hash,url,originalHash);
                 try
@@ -235,12 +202,6 @@ public sealed partial class EtfWorkspace : INationalTeamWorkspace, IAsyncDisposa
     public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token)=>ReviewAsync(id,accept,reviewer,comparableConfirmed,token,null);
     public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>MembershipAsync(key,name,index,active,reason,token,null);
     /// <summary>稳定命令标识随业务事务提交，防止调度记录提交前强杀导致重复审核或池变更。</summary>
-    public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token,Guid? commandId)=>RunAsync(()=> {repository!.Review(id,accept,reviewer,comparableConfirmed,commandId);return true;},token);
-    public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token,Guid? commandId)=>RunAsync(()=> {repository!.SetMembership(key,name,index,active,reason,commandId);return true;},token);
-    public async ValueTask DisposeAsync()
-    {
-        await readGate.WaitAsync().ConfigureAwait(false);
-        try{await gate.WaitAsync().ConfigureAwait(false);try{disposed=true;Volatile.Write(ref independentReads,null);repository?.Dispose();repository=null;}finally{gate.Release();}}
-        finally{readGate.Release();}
-    }
+    public Task ReviewAsync(string id,bool accept,string reviewer,bool comparableConfirmed,CancellationToken token,Guid? commandId)=>RunAsync((IEtfRepository repository)=> {repository!.Review(id,accept,reviewer,comparableConfirmed,commandId);return true;},token);
+    public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token,Guid? commandId)=>RunAsync((IEtfRepository repository)=> {repository!.SetMembership(key,name,index,active,reason,commandId);return true;},token);
 }

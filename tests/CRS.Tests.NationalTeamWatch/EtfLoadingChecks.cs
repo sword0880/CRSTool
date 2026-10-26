@@ -93,29 +93,29 @@ internal static class EtfLoadingChecks
     }
     private sealed class RolloverClock:TimeProvider
     {public DateTimeOffset At;public override DateTimeOffset GetUtcNow()=>At;}
-    private sealed class Workspace:INationalTeamWorkspace,IEtfDashboardWorkspace
+    private sealed class Workspace:ResearchWorkspaceStub,IEtfDashboardWorkspace
     {
         public int SeparateReads;
-        public bool CanManage => true;
-        public string NetworkStatus=>"synthetic";
+        public override bool CanManage => true;
+        public override string NetworkStatus=>"synthetic";
         public List<CancellationToken> HistoryTokens=[];
         public List<TaskCompletionSource<List<EtfHistoryPoint>>> HistoryReplies=[];
         public TaskCompletionSource<EtfDashboard?>? DashboardReply;
         private static EtfSummary Row(string code)=>new("SSE",code,code,"test","DataPilot",null,null,null,null,null,"",0);
         public EtfDashboard Result=>new([Row("510300"),Row("510050")],[new(new(2026,10,13),100,null,1,2)],[new(new(2026,10,13),100000000m,1,"Complete")]);
         public Task<EtfDashboard?> DashboardAsync(EtfKey? key,CancellationToken token)=>DashboardReply?.Task??Task.FromResult<EtfDashboard?>(Result);
-        public Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>Task.FromResult(new List<EtfConfiguration>());
-        public Task<List<EtfSummary>> OverviewAsync(CancellationToken token){SeparateReads++;throw new Exception("重复查询");}
-        public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token){SeparateReads++;throw new Exception("重复查询");}
-        public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)
+        public override Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>Task.FromResult(new List<EtfConfiguration>());
+        public override Task<List<EtfSummary>> OverviewAsync(CancellationToken token){SeparateReads++;throw new Exception("重复查询");}
+        public override Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token){SeparateReads++;throw new Exception("重复查询");}
+        public override Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)
         {HistoryTokens.Add(token);var reply=new TaskCompletionSource<List<EtfHistoryPoint>>(TaskCreationOptions.RunContinuationsAsynchronously);HistoryReplies.Add(reply);return reply.Task.WaitAsync(token);}
-        public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>Task.FromResult(new List<EvidenceRow>());
-        public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>throw new NotSupportedException();
-        public Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
-        public Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
-        public Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
-        public Task ExportEvidenceAsync(string id,bool original,string destination,CancellationToken token)=>throw new NotSupportedException();
-        public Task ReviewAsync(string id,bool accept,string reviewer,bool comparable,CancellationToken token)=>throw new NotSupportedException();
-        public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>Task.FromResult(new List<EvidenceRow>());
+        public override Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
+        public override Task ExportEvidenceAsync(string id,bool original,string destination,CancellationToken token)=>throw new NotSupportedException();
+        public override Task ReviewAsync(string id,bool accept,string reviewer,bool comparable,CancellationToken token)=>throw new NotSupportedException();
+        public override Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>throw new NotSupportedException();
     }
 }

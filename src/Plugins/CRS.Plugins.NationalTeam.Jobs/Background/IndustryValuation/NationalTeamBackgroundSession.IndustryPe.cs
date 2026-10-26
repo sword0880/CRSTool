@@ -16,9 +16,9 @@ public sealed partial class NationalTeamBackgroundSession
             ||from>through||from<new DateOnly(2021,4,1)||through>today||through.DayNumber-from.DayNumber>400
             ||request.Market is not null||request.Ticker is not null||request.Revision is not null||request.Reviewer is not null)
             return new("Rejected","industry=InvalidRangeOrIdentity");
-        var calendar=await workspace!.IndustryPeCalendarAsync(from,through,token);
+        var calendar=await workspace!.Industry.IndustryPeCalendarAsync(from,through,token);
         if(calendar.Days.Values.Any(x=>!x.HasValue))return new("Rejected","industry=ReviewedCalendarRequired");
-        var prior=await workspace.IndustryPeRevisionsAsync(from,through,token);var reused=0;var added=0;var pending=0;var dates=calendar.Days.Where(x=>x.Value==true).Select(x=>x.Key).Order().ToArray();
+        var prior=await workspace.Industry.IndustryPeRevisionsAsync(from,through,token);var reused=0;var added=0;var pending=0;var dates=calendar.Days.Where(x=>x.Value==true).Select(x=>x.Key).Order().ToArray();
         foreach(var date in dates)
         {
             token.ThrowIfCancellationRequested();
@@ -29,7 +29,7 @@ public sealed partial class NationalTeamBackgroundSession
             var dayId=new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(commandId.Value.ToString("N")+"|industry-pe|"+date.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture))).AsSpan(0,16));
             try
             {
-                var outcome=await workspace.IndustryPeReceiptAsync(dayId,token);
+                var outcome=await workspace.Industry.IndustryPeReceiptAsync(dayId,token);
                 var receiptReused=outcome is not null;
                 if(outcome is null)
                 {
@@ -45,7 +45,7 @@ public sealed partial class NationalTeamBackgroundSession
                         if(http is IOfficialSourceValidationFeedback feedback)feedback.RejectContract(OfficialIndustryPeSource.Source(date));
                         return new("RetryDeferred",$"industry=SourceContractUnavailable;date={date:yyyy-MM-dd};added={added};reusedDays={reused}",IndustryRetryDelay(date));
                     }
-                    outcome=await workspace.ImportIndustryPeAsync(document,token,dayId);
+                    outcome=await workspace.Industry.ImportIndustryPeAsync(document,token,dayId);
                 }
                 else reused++;
                 // 重放旧回执只表示先前日期已提交，不能制造本次新增/收取计数。
@@ -64,7 +64,7 @@ public sealed partial class NationalTeamBackgroundSession
                 return new("RetryDeferred",$"industry=SourceOrContractUnavailable;date={date:yyyy-MM-dd};added={added};reusedDays={reused}",IndustryRetryDelay(date,(error as SourceBudgetUnavailableException)?.Until));
             }
         }
-        var final=await workspace.IndustryPeRevisionsAsync(from,through,token);
+        var final=await workspace.Industry.IndustryPeRevisionsAsync(from,through,token);
         if(final.Any(x=>(x.State is "Accepted" or "NeedsReview")&&!x.EvidenceHealthy))return new("Rejected","industry=EvidenceUnhealthy");
         pending=final.Count(x=>x.State=="NeedsReview");
         return new(pending>0?"NeedsReview":"Succeeded",$"industryDays={dates.Length};added={added};reusedDays={reused};pending={pending};opportunity=NotEvaluated");

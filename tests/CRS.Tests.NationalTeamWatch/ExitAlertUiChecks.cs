@@ -22,9 +22,9 @@ internal static class ExitAlertUiChecks
                 repository.RegisterAlertDocument(new("SSE","510300","https://www.sse.com.cn/fixture-ui.pdf"),"%PDF-synthetic-ui"u8.ToArray());
                 repository.EvaluateExitAlerts(true);
             }
-            var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
+            var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
             workspace.InitializeAsync(default).GetAwaiter().GetResult();using var lifetime=new CancellationTokenSource();
-            var model=new ExitAlertViewModel(workspace,lifetime.Token);var page=new ExitAlertPage{DataContext=model};
+            var model=new ExitAlertViewModel(new LocalResearchWorkspace(workspace),lifetime.Token);var page=new ExitAlertPage{DataContext=model};
             var window=new Window{Title="预警中心隔离合成验收",Content=new ScrollViewer{Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled},Width=1280,Height=960,ShowInTaskbar=false};
             window.Loaded+=async(_,_)=>{try
             {

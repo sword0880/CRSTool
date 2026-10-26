@@ -88,26 +88,26 @@ internal static class EtfChartChecks
         thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();
         if(failure is not null)throw new InvalidOperationException("缺日连线渲染检查失败。",failure);
     }
-    private sealed class ChartWorkspace:INationalTeamWorkspace
+    private sealed class ChartWorkspace:ResearchWorkspaceStub
     {
         public List<(EtfKey? Key,TaskCompletionSource<List<EtfHistoryPoint>> Reply)> Requests {get;}=[];
-        public bool CanManage => true;
-        public string NetworkStatus=>"test";
-        public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>Task.FromResult(new List<MarketActivityPoint>{new(new(2026,10,11),100000000m,1,"Complete"),new(new(2026,10,12),200000000m,1,"Complete"),new(new(2026,10,13),null,null,"Incomplete")});
-        public Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)
+        public override bool CanManage => true;
+        public override string NetworkStatus=>"test";
+        public override Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>Task.FromResult(new List<MarketActivityPoint>{new(new(2026,10,11),100000000m,1,"Complete"),new(new(2026,10,12),200000000m,1,"Complete"),new(new(2026,10,13),null,null,"Incomplete")});
+        public override Task<List<EtfHistoryPoint>> HistoryAsync(EtfKey? key,CancellationToken token)
         {
             var reply=new TaskCompletionSource<List<EtfHistoryPoint>>(TaskCreationOptions.RunContinuationsAsynchronously);
             Requests.Add((key,reply));return reply.Task;
         }
-        public Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>throw new NotSupportedException();
-        public Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>throw new NotSupportedException();
-        public Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>throw new NotSupportedException();
-        public Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>throw new NotSupportedException();
-        public Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
-        public Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
-        public Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
-        public Task ExportEvidenceAsync(string id,bool original,string destination,CancellationToken token)=>throw new NotSupportedException();
-        public Task ReviewAsync(string id,bool accept,string reviewer,bool comparable,CancellationToken token)=>throw new NotSupportedException();
-        public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<List<EtfSummary>> OverviewAsync(CancellationToken token)=>throw new NotSupportedException();
+        public override Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>throw new NotSupportedException();
+        public override Task SaveConfigurationAsync(EtfKey key,string name,string index,bool active,string reason,long expectedRevision,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<List<EvidenceRow>> EvidenceAsync(CancellationToken token)=>throw new NotSupportedException();
+        public override Task<List<SharePoint>> PointsAsync(EtfKey key,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<CoverageReport> CoverageAsync(EtfKey key,DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
+        public override Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)=>throw new NotSupportedException();
+        public override Task ExportEvidenceAsync(string id,bool original,string destination,CancellationToken token)=>throw new NotSupportedException();
+        public override Task ReviewAsync(string id,bool accept,string reviewer,bool comparable,CancellationToken token)=>throw new NotSupportedException();
+        public override Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>throw new NotSupportedException();
     }
 }

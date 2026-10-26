@@ -57,12 +57,12 @@ internal static class MarketActivityChecks
         {
             var directory=Path.Combine(root,name);
             var raw=new RawEvidenceStore(Path.Combine(directory,"raw"));
-            await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
+            await using var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
             await workspace.InitializeAsync(CancellationToken.None);
             var progress=new List<EtfProgress>();workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});
-            workspace.SetMarketActivitySource(source);
-            var result=await workspace.SyncMarketActivityReportAsync(from,to,CancellationToken.None);
-            var rows=await workspace.MarketActivityAsync(CancellationToken.None);
+            workspace.Activity.SetMarketActivitySource(source);
+            var result=await workspace.Activity.SyncMarketActivityReportAsync(from,to,CancellationToken.None);
+            var rows=await workspace.Activity.MarketActivityAsync(CancellationToken.None);
             Check(rows.Count==result.QueriedDays || result.HasMore,"记录的完成天数与已登记尝试一致："+name);
             var totals=progress.Single(x=>x.Stage=="MarketRangeCompleted");var daily=progress.Where(x=>x.Stage=="MarketDayCompleted").ToArray();
             Check(daily.Length==result.QueriedDays&&daily.Sum(x=>x.Received)==result.ReceivedRows&&totals.Received==result.ReceivedRows
@@ -104,9 +104,9 @@ internal static class MarketActivityChecks
         async Task<MarketActivitySyncReport> Run(IMarketActivitySource source)
         {
             // 每轮重建会话，证明续采依据落盘事实，服务重启不丢失进度。
-            await using var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
-            await workspace.InitializeAsync(default);workspace.SetMarketActivitySource(source);
-            return await workspace.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
+            await using var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
+            await workspace.InitializeAsync(default);workspace.Activity.SetMarketActivitySource(source);
+            return await workspace.Activity.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
         }
         var first=await Run(new FixtureActivitySource((market,day)=>
         {calls.Add((market,day));if((market,day)==missing)throw new System.Text.Json.JsonException("synthetic malformed response");return Value(market,day);}));
@@ -120,12 +120,12 @@ internal static class MarketActivityChecks
 
         var until=DateTimeOffset.UtcNow.AddHours(2);var progress=new List<EtfProgress>();
         var coldRoot=Path.Combine(root,"independent-markets");var coldRaw=new RawEvidenceStore(Path.Combine(coldRoot,"raw"));
-        await using(var workspace=new EtfWorkspace(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(coldRoot,"data"),coldRaw),coldRaw))
+        await using(var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(coldRoot,"data"),coldRaw),coldRaw))
         {
             await workspace.InitializeAsync(default);workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});calls.Clear();
-            workspace.SetMarketActivitySource(new FixtureActivitySource((market,day)=>
+            workspace.Activity.SetMarketActivitySource(new FixtureActivitySource((market,day)=>
             {calls.Add((market,day));if(market=="SSE")throw new CRS.Worker.Abstractions.SourceBudgetUnavailableException("SourceCooldown",until);return Value(market,day);}));
-            var cold=await workspace.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
+            var cold=await workspace.Activity.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
             Check(calls.Count(x=>x.Market=="SSE")==1&&calls.Count(x=>x.Market=="SZSE")==3&&cold is{ReceivedRows:3,HasMore:true},
                 "沪市冷却只请求一次，深市全部日期继续采集");
             Check(cold.RetryAt==until&&progress.Last() is{Stage:"SourceCoolingDown",Until:{} deadline}&&deadline==until,
