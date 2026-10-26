@@ -139,18 +139,26 @@
 
 ## 2026-10-26 外层 CRS 插件公共基础设施分离
 
-本轮按用户要求把 NationalTeamWatch 中**不属于国家队业务**的可复用机制实体迁到外层共享工程 `src/CRS.Plugin.Common`：
+本轮按用户要求把 NationalTeamWatch 中**不属于国家队业务**的可复用机制实体迁到外层共享工程 `src/CRS.Common`：
 
 - 首个迁移项：`PriorityReadAdmission`——有界异步租约、读取优先级与后台防饿、排队取消及活动计数，不持有交易日、市场来源、原件字节、私有密钥、数据库连接。容量和查询突发长度由每个插件实例分别决定，默认每连续8个查询读取让一个后台读取前进。
 - 第二个可复用机制：`ContentFingerprint`——SHA-256 标准十六进制内容指纹、哈希形状校验和字节匹配。`RawEvidenceStore` 的原件保存和导出校验已消费公共方法；正式来源、信任等级、文件路径及原件最大尺寸仍由插件自身决定。
 - 原 `NationalTeam.Jobs/Infrastructure/Evidence/RawEvidenceReadAdmission.cs` 降为兼容适配层，保留原本的 `RawEvidenceReadActivity` 和 `EnterAsync(bool,CancellationToken)` 接口，后续国家队调用方无需重写。
-- `CRS.Plugin.Common` 不引用业务插件、SQLCipher、UI、Worker、私人税务或宿主；NationalTeam.Jobs 自己引用此公共项目，打包时仍遵循完整包的可信哈希索引和版本校验，绝不将各插件变成同一个未隔离的运行时状态。
+- `CRS.Common` 不引用业务插件、SQLCipher、UI、Worker、私人税务或宿主；NationalTeam.Jobs 自己引用此公共项目，打包时仍遵循完整包的可信哈希索引和版本校验，绝不将各插件变成同一个未隔离的运行时状态。
 - 公共契约不等于公共身份：来源允许域名、证据哈希的最大原件大小、知识可得时点、国家队ETF归因和退出风险规则**不得搬到共享工程**。
 - 共享来源节流能力已在外层 Worker 的 `IBackgroundSourceContext` 实现；公共通知已有 `CRS.Notifications`，禁止新建并行预算或第二套邮件引擎。
 
 后续适合评估的可复用机制包括：通用文件原子落盘、通用SHA256内容身份与有界核验、通用来源HTTP禁重定向/超时/响应大小的传输适配；所有行为必须接受插件注入来源许可、原件大小上限、受保护目录和审计归档规则，**不能把NationalTeam的具体数据源规则写死到共享库**。有状态SQLCipher事务与 `IMarketRepositorySession` 目前维持国家队内部边界，不能为了复用而跨插件共享数据库连接、身份凭据、通知发件箱或审计数据。
 
 本轮新增 `--shared-read-admission` 测试，包括容量、队列取消、前台优先/后台防饿、租约归还与不同插件实例的隔离，以及 SHA256 输入字节变更、非规范标识和大小写兼容性的负例。WPF CI、解决方案依赖图及宿主边界门禁已增加对应检查。编译通过和合成测试通过不等于正式已安装Worker验证；未更新正式发行包。
+
+## CRS.Time 合并与二进制兼容（2026-10-26）
+
+目前 `CRS.Time` 仅包含北京时间统一入口 `BeijingClock` 和 JSON 偏移时间转换器 `BeijingDateTimeOffsetConverter`。两者都是纯 .NET BCL 能力，因此将源码迁至外层 `src/CRS.Common/Time/`。**保留公开命名空间 `CRS.Timing` 不变**，避免让仓库内的所有调用方无谓地修改引用。
+
+为防止破坏历史发行物，`CRS.Time` 保留同名程序集、版本与类型转发属性 `TypeForwardedTo`，并以项目引用指向 `CRS.Common`。现阶段 Application、Plugin/Worker Abstractions、Notifications 与 NationalTeam.Core 可以继续引用旧项目，在运行时由CLR把原类型转发到 `CRS.Common`。确认已部署插件、Worker和备份均升级后，才能单独讨论退役旧外壳；**不能在本PR直接删除 `CRS.Time.dll`**。
+
+Worker Runner的手工拷贝清单同时纳入 `CRS.Time.dll` 和 `CRS.Common.dll`。新组件属于可信插件包的完整哈希索引，不允许将 `CRS.Common.dll` 放到不受控的全局DLL目录替换不同版本。增加测试覆盖程序集转发、北京时区序列化与跨日归一化。
 
 ## 反方架构师审查：这次没有解决的问题
 

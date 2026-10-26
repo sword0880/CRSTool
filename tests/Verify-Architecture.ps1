@@ -78,14 +78,16 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
                 $reference.GetAttribute('DevelopmentPlugin') -eq 'true'
             Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.' -or $developmentBuildOnly) "宿主/税务静态引用业务插件：$($projectFile.Name)"
         } else {
-            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions|Common)/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/|CRS\.Time/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
+            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.Common/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.NationalTeam\.Core/|CRS\.Time/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
         }
     }
 }
 [xml]$contract = Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj')
 Assert-Boundary ($contract.SelectNodes('//PackageReference').Count -eq 0 -and @($contract.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../CRS.Time/CRS.Time.csproj'}).Count -eq 0) 'BCL插件契约只能依赖纯BCL时间策略。'
 [xml]$timeProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Time/CRS.Time.csproj')
-Assert-Boundary ($timeProject.SelectNodes('//ProjectReference | //PackageReference | //UseWPF | //UseWindowsForms').Count -eq 0) '时间策略不得依赖业务、UI或外部包。'
+Assert-Boundary ($timeProject.SelectNodes('//ProjectReference').Count -eq 1 -and
+    $timeProject.SelectSingleNode('//ProjectReference').Include -eq '../CRS.Common/CRS.Common.csproj' -and
+    $timeProject.SelectNodes('//PackageReference | //UseWPF | //UseWindowsForms').Count -eq 0) '时间兼容程序集只能转发至无第三方依赖的CRS.Common。'
 foreach($sourceDir in @('src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation','src/Plugins/CRS.Plugins.NationalTeam.Core/Domain')) {
     foreach($file in Get-ChildItem (Join-Path $RepositoryRoot $sourceDir) -Filter '*.cs' -Recurse) {
         $source=Get-Content -Raw $file.FullName
@@ -117,12 +119,19 @@ foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Worker.Servic
     Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using (MailKit|MimeKit|System\.Net\.Mail)')) 'SMTP实现必须归属公共通知组件。'
 }
 # Cross-plugin implementation must be BCL-only. Worker and each feature plugin remain downstream dependants.
-$pluginCommon=Join-Path $RepositoryRoot 'src/CRS.Plugin.Common'
-[xml]$pluginCommonProject=Get-Content -Raw (Join-Path $pluginCommon 'CRS.Plugin.Common.csproj')
-Assert-Boundary ($pluginCommonProject.SelectNodes('//ProjectReference | //PackageReference | //UseWPF | //UseWindowsForms').Count -eq 0) '公共插件组件不得引入宿主、业务或UI依赖。'
+$timeForwarders=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Time/TypeForwarding.cs')
+Assert-Boundary ($timeForwarders -match 'TypeForwardedTo\(typeof\(BeijingClock\)\)' -and
+    $timeForwarders -match 'TypeForwardedTo\(typeof\(BeijingDateTimeOffsetConverter\)\)') '旧CRS.Time必须保留时间类型转发。'
+Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.Time/BeijingClock.cs'))) '旧程序集不能复制一份北京时间实现。'
+Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.Time/BeijingDateTimeOffsetConverter.cs'))) '旧程序集不能复制一份JSON时间转换器。'
+$workerServiceProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/CRS.Worker.Service.csproj')
+Assert-Boundary ($workerServiceProject -match 'CRS.Time.dll' -and $workerServiceProject -match 'CRS.Common.dll') 'Worker Runner发行包必须同时保留CRS.Time兼容层和CRS.Common实现。'
+$pluginCommon=Join-Path $RepositoryRoot 'src/CRS.Common'
+[xml]$pluginCommonProject=Get-Content -Raw (Join-Path $pluginCommon 'CRS.Common.csproj')
+Assert-Boundary ($pluginCommonProject.SelectNodes('//ProjectReference | //PackageReference | //UseWPF | //UseWindowsForms').Count -eq 0) '公共基础组件不得引入宿主、业务或UI依赖。'
 foreach($file in Get-ChildItem $pluginCommon -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
     $source=Get-Content -Raw -LiteralPath $file.FullName
-    Assert-Boundary (-not ($source -match 'using CRS\.(Worker|Plugins|Infrastructure|Application|Desktop)|using Microsoft\.Data\.Sqlite|using System\.Windows')) "公共插件组件存在越界依赖：$($file.Name)"
+    Assert-Boundary (-not ($source -match 'using CRS\.(Worker|Plugins|Infrastructure|Application|Desktop)|using Microsoft\.Data\.Sqlite|using System\.Windows')) "公共基础组件存在越界依赖：$($file.Name)"
 }
 Write-Output '后台服务无 WPF/私人税务依赖门禁通过。'
 # ETF桌面入口必须只使用管道，后台入口必须保持无界面，主程序会话不能再实例化调度器。
