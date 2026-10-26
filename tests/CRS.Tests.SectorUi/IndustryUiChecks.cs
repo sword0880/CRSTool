@@ -16,7 +16,9 @@ internal static class IndustryUiChecks
 {
     public static void Run(string reportFile,string screenshot)
     {
-        var report=JsonSerializer.Deserialize<IndustryPeReport>(File.ReadAllText(reportFile))??throw new InvalidDataException("没有隔离回放报告。");Exception? failure=null;var passed=0;
+        var report=JsonSerializer.Deserialize<IndustryPeReport>(File.ReadAllText(reportFile))??throw new InvalidDataException("没有隔离回放报告。");
+        var isSynthetic=Path.GetFileName(reportFile).StartsWith("synthetic-",StringComparison.OrdinalIgnoreCase);
+        Exception? failure=null;var passed=0;
         var thread=new Thread(()=>
         {
             Window? window=null;
@@ -37,14 +39,15 @@ internal static class IndustryUiChecks
                 }
                 var workspace=DispatchProxy.Create<IEtfWorkspace,IndustryTestWorkspace>();var proxy=(IndustryTestWorkspace)(object)workspace;proxy.Report=report;
                 using var lifetime=new CancellationTokenSource();var model=new IndustryResearchViewModel(workspace,lifetime.Token){From=report.From.ToDateTime(TimeOnly.MinValue),Through=report.Through.ToDateTime(TimeOnly.MinValue)};
-                window=new(){Title="行业公开原件隔离界面验证",Content=new IndustryResearchPage(model,false),Width=1280,Height=1000,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};window.Show();
+                window=new(){Title=isSynthetic?"行业合成数据界面验证":"行业输入报告隔离界面验证",Content=new IndustryResearchPage(model,false),Width=1280,Height=1000,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};window.Show();
                 Pump(model.QueryCommand.ExecuteAsync(null));
                 Check(model.Rows.Count==11&&model.Series.Length==11,"11行业来自后端报告，未用默认合成曲线填补");
-                Check(model.Rows.Single(x=>x.Row.Code=="C07").Row.LatestRollingWeighted==7.36m,"金融公布加权滚动PE保持原件值");
+                Check(model.Rows.Single(x=>x.Row.Code=="C07").Row.LatestRollingWeighted==
+                    report.Rows.Single(x=>x.Code=="C07").LatestRollingWeighted,"金融加权滚动PE来自报告，界面不修改金融数值");
                 Check(model.Rows.All(x=>x.Row.PublishedSeriesPercentile is null),"单日原件不会产生虚假历史分位");
                 model.Rows[0].IsVisible=false;Check(model.Series.Length==10,"行业选择只改变展示");model.Rows[0].IsVisible=true;
                 model.Metric=model.Metrics[1];Check(model.YAxes[0].Name==model.Metrics[1],"加权与中位数切换保持单位标签");model.Metric=model.Metrics[0];
-                model.Status="真实公开原件的隔离回放；非正式服务或完整历史验收。"+model.Status;
+                model.Status=(isSynthetic?"明确合成的金融样本；":"输入报告的隔离回放；")+"非正式服务或完整历史验收。"+model.Status;
                 Pump();Pump();var image=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(window);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);using(var file=File.Create(screenshot)){var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(file);}
                 // 显式改造的UI合成反例：真实原件回放截图不含这些人工分位。
@@ -67,7 +70,7 @@ internal static class IndustryUiChecks
                 proxy.ReceiptCode="Timeout";Pump(model.RefreshTaskCommand.ExecuteAsync(null));Check(model.TaskStatus.Contains("已结束",StringComparison.Ordinal)&&model.TaskStatus.Contains("Timeout",StringComparison.Ordinal)&&!model.TaskStatus.Contains("已受理",StringComparison.Ordinal),"调度失败终态不能显示仍在等待受理");
                 using var sessionLifetime=new CancellationTokenSource();var session=new NationalTeamPluginEntry().CreateSession(null!);Pump(session.StartAsync(sessionLifetime.Token).AsTask());
                 Check(((IPluginWpfSession)session).GetPages().Any(x=>x.RouteKey=="industry-research"),"插件正式注册行业页面且启动不主动查询");Pump(session.DisposeAsync().AsTask());
-                File.WriteAllText(Path.ChangeExtension(screenshot,".json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,InputReport=reportFile,report.Fingerprint,Transport="CapturedOfficialReplayWithUiWorkspaceFixture"},new JsonSerializerOptions{WriteIndented=true}));
+                File.WriteAllText(Path.ChangeExtension(screenshot,".json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,InputReport=reportFile,report.Fingerprint,Transport=isSynthetic?"SyntheticUiFixture":"IsolatedInputReportWithUiWorkspaceFixture"},new JsonSerializerOptions{WriteIndented=true}));
             }
             catch(Exception error){failure=error;}
             finally{window?.Close();}
@@ -77,7 +80,7 @@ internal static class IndustryUiChecks
     }
 }
 
-/// <summary>只替代界面工作区传输，报告来自显式公开原件隔离复算；队列状态为合成反例。</summary>
+/// <summary>只替代界面工作区传输，明确保留传入报告的来源边界；队列状态为合成反例。</summary>
 public class IndustryTestWorkspace:DispatchProxy
 {
     public IndustryPeReport Report {get;set;}=null!;public string Mode="Normal";public string ReceiptCode="NeedsReview";public int Queued;private readonly Guid request=Guid.NewGuid();
