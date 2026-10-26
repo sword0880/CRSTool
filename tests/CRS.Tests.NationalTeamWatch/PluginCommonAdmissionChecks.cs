@@ -37,8 +37,10 @@ internal static class PluginCommonAdmissionChecks
         held.Dispose();
         for(var i=0;i<8;i++)
             using(await queries[i].WaitAsync(TimeSpan.FromSeconds(3))) { }
-        Check(background.IsCompleted,"one background request proceeds after eight priority grants");
-        using(await background.WaitAsync(TimeSpan.FromSeconds(3))) { }
+        // TCS continuations run asynchronously: IsCompleted may still be false immediately after lease grant.
+        // Hold the ninth priority lease queued; the background lease must be granted first or this times out.
+        using(await background.WaitAsync(TimeSpan.FromSeconds(3)))
+            Check(gate.Activity.Active==1,"one background request proceeds after eight priority grants");
         using(await queries[8].WaitAsync(TimeSpan.FromSeconds(3))) { }
         Check(gate.Activity.Active==0 && gate.Activity.PriorityWaiting==0 && gate.Activity.BackgroundWaiting==0,
             "all capacity returned on disposal");
