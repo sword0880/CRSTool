@@ -9,7 +9,7 @@ public sealed partial class MarketRepository
 {
     public IndexCalendarSnapshot IndexSeriesCalendar(DateOnly from,DateOnly through,DateTimeOffset cutoff)
     {
-        var snapshot=ReadPublishedTradingCalendar(from,through,cutoff);return new(snapshot.Days,snapshot.Fingerprint);
+        var snapshot=marketCalendarStore.ReadPublishedTradingCalendar(from,through,cutoff);return new(snapshot.Days,snapshot.Fingerprint);
     }
     private sealed record IndexDocumentIdentity(string Role,string Url,string Hash,DateTimeOffset RetrievedAt);
     private sealed record IndexCaptureProof(string Kind,string? Code,DateOnly From,DateOnly Through,IReadOnlyList<IndexDocumentIdentity> Documents,IReadOnlyDictionary<string,string> PriceReferences,IReadOnlyList<IndexSeriesValue> Values);

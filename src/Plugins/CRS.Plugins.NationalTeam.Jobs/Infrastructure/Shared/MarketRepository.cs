@@ -13,7 +13,9 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private readonly Action? beforeWrite;
     private readonly TimeProvider clock;
     private CancellationToken operationCancellation;
+    private readonly IMarketRepositorySession marketSession;
     private readonly IndustryPeStore industryPeStore;
+    private readonly MarketCalendarStore marketCalendarStore;
 
     private sealed class MarketRepositorySession : IMarketRepositorySession
     {
@@ -53,7 +55,9 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         // 共用宿主锁定的原生提供器版本，但不共用税务连接或加密密钥。
         SQLitePCL.Batteries_V2.Init();
         db = new(new SqliteConnectionStringBuilder { DataSource = Path.Combine(dataPath, "market.db"), Password=Convert.ToHexString(encryptionKey),Pooling = false }.ToString()); db.Open();
-        industryPeStore=new IndustryPeStore(new MarketRepositorySession(this));
+        marketSession=new MarketRepositorySession(this);
+        industryPeStore=new IndustryPeStore(marketSession);
+        marketCalendarStore=new MarketCalendarStore(marketSession);
         readConnectionString=new SqliteConnectionStringBuilder(db.ConnectionString){Mode=SqliteOpenMode.ReadOnly}.ToString();
         Execute("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
         var version = Convert.ToInt32(Scalar("PRAGMA user_version;"));

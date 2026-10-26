@@ -28,7 +28,9 @@ public sealed partial class MarketRepository : IMarketReadSessions,IBoundedMarke
                 System.Security.Cryptography.CryptographicOperations.ZeroMemory(databaseKey);
         }
         db=new(connectionString);
-        industryPeStore=new IndustryPeStore(new MarketRepositorySession(this));
+        marketSession=new MarketRepositorySession(this);
+        industryPeStore=new IndustryPeStore(marketSession);
+        marketCalendarStore=new MarketCalendarStore(marketSession);
         try
         {
             db.Open();
