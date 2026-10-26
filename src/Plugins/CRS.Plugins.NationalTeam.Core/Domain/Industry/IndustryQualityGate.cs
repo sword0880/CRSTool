@@ -83,10 +83,16 @@ public static class IndustryQualityGate
             var source=fact.Evidence;
             var expectedUnit=measure==IndustryQualityMeasure.CashRunwayMonths?IndustryQualityUnit.Months
                 :measure==IndustryQualityMeasure.BalanceSheetLeverage?IndustryQualityUnit.Multiple:IndustryQualityUnit.Ratio;
-            var healthy=fact.Value.HasValue&&fact.Unit==expectedUnit
+            var plausible=fact.Value.HasValue&&(expectedUnit switch
+            {
+                IndustryQualityUnit.Months=>fact.Value is >=0m and <=600m,
+                IndustryQualityUnit.Multiple=>fact.Value is >=-10m and <=100m,
+                _=>fact.Value is >=-5m and <=10m
+            });
+            var healthy=plausible&&fact.Unit==expectedUnit
                 &&fact.MarketCapCoverage is >=MinimumMarketCapCoverage and <=1m
                 &&fact.PeriodEnd<=asOf&&fact.PeriodEnd>=asOf.AddDays(-MaxAgeDays)
-                &&fact.Method.Length>0&&fact.SourceId.Length>0
+                &&!string.IsNullOrWhiteSpace(fact.Method)&&!string.IsNullOrWhiteSpace(fact.SourceId)
                 &&fact.UniverseDefinition==definition.UniverseDefinition
                 &&fact.UniverseSnapshotHash==currentUniverseHash
                 &&fact.ResearchUseAllowed&&!fact.DerivedFromValuation
