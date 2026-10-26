@@ -16,6 +16,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private readonly IMarketRepositorySession marketSession;
     private readonly IndustryPeStore industryPeStore;
     private readonly MarketCalendarStore marketCalendarStore;
+    private readonly IndexSeriesStore indexSeriesStore;
 
     private sealed class MarketRepositorySession : IMarketRepositorySession
     {
@@ -58,6 +59,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         marketSession=new MarketRepositorySession(this);
         industryPeStore=new IndustryPeStore(marketSession);
         marketCalendarStore=new MarketCalendarStore(marketSession);
+        indexSeriesStore=new IndexSeriesStore(marketSession);
         readConnectionString=new SqliteConnectionStringBuilder(db.ConnectionString){Mode=SqliteOpenMode.ReadOnly}.ToString();
         Execute("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
         var version = Convert.ToInt32(Scalar("PRAGMA user_version;"));
