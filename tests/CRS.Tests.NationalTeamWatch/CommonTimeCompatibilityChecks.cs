@@ -33,7 +33,7 @@ internal static class CommonTimeCompatibilityChecks
         var options=new JsonSerializerOptions();
         options.Converters.Add(new BeijingDateTimeOffsetConverter());
         var json=JsonSerializer.Serialize(utc,options);
-        Check(json.Contains("2026-10-27T00:35:00+08:00",StringComparison.Ordinal),
+        Check((JsonSerializer.Deserialize<string>(json)??string.Empty).Contains("2026-10-27T00:35:00+08:00",StringComparison.Ordinal),
             "JSON time conversion writes the stable Beijing offset instead of machine-local offset");
         var oldPayload="\"2026-10-26T16:35:00+00:00\"";
         var decoded=JsonSerializer.Deserialize<DateTimeOffset>(oldPayload,options);
