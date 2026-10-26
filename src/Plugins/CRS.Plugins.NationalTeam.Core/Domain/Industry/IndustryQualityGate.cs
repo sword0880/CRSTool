@@ -20,7 +20,12 @@ public sealed record IndustryQualityObservation(IndustryQualityMeasure Measure,d
     decimal? MarketCapCoverage,string Method,string UniverseDefinition,string UniverseSnapshotHash,string SourceId,
     bool ResearchUseAllowed,bool DerivedFromValuation,SectorEvidence Evidence);
 public sealed record IndustryQualityInput(string SectorId,string Scheme,string SchemeVersion,IndustryQualityProfile Profile,
-    IReadOnlyList<IndustryQualityObservation> Observations);
+    IReadOnlyList<IndustryQualityObservation> Observations)
+{
+    // 手工/来源规则赋予的经营模式分类须单独留痕；没有核验来源不能自行选择最宽松的Profile。
+    public string ProfileRuleSet {get;init;}="";
+    public SectorEvidence? ProfileMappingEvidence {get;init;}
+}
 public sealed record IndustryQualityMetricReview(IndustryQualityMeasure Measure,string State,string Explanation);
 
 /// <summary>Ready仅表示证据齐备可人工反方复核，绝不代表行业盈利质量优秀或已低估。</summary>
@@ -62,6 +67,7 @@ public static class IndustryQualityGate
         input=input is null?null:input with{Observations=Array.AsReadOnly(observations)};
         var frozen=new{Version=AlgorithmVersion,definition,asOf,Cutoff=cutoff.ToUniversalTime(),currentUniverseHash,
             Profile=input?.Profile,InputSector=input?.SectorId,InputScheme=input?.Scheme,InputVersion=input?.SchemeVersion,
+            ProfileRuleSet=input?.ProfileRuleSet,ProfileMappingEvidence=input?.ProfileMappingEvidence,
             Observations=observations.OrderBy(x=>x.Measure).Select(x=>x with
             {
                 Evidence=x.Evidence with{FirstSeenAt=x.Evidence.FirstSeenAt.ToUniversalTime(),
@@ -75,6 +81,14 @@ public static class IndustryQualityGate
             ||!ValidHash(currentUniverseHash))
             return new(definition.Id,input.Profile,"IncompatibleUniverseOrClassification",[],fingerprint);
 
+        var assignment=input.ProfileMappingEvidence;
+        if(input.ProfileRuleSet!="industry-profile-v1"||assignment is null
+            ||assignment.State!="Accepted"||string.IsNullOrWhiteSpace(assignment.RevisionId)
+            ||!ValidHash(assignment.Hash)||assignment.PublishedAt is not {} profilePublished
+            ||profilePublished>assignment.FirstSeenAt||assignment.RetrievedAt==default
+            ||assignment.RetrievedAt>assignment.FirstSeenAt||assignment.FirstSeenAt>assignment.AcceptedAt
+            ||assignment.AcceptedAt>cutoff)
+            return new(definition.Id,input.Profile,"UnverifiedProfileMapping",[],fingerprint);
         var checks=new List<IndustryQualityMetricReview>();
         foreach(var measure in Requirements[input.Profile])
         {
@@ -99,7 +113,8 @@ public static class IndustryQualityGate
                 &&source.State=="Accepted"&&!string.IsNullOrWhiteSpace(source.RevisionId)
                 &&ValidHash(source.Hash)&&source.RetrievedAt!=default
                 &&source.RetrievedAt<=source.FirstSeenAt&&source.FirstSeenAt<=source.AcceptedAt&&source.AcceptedAt<=cutoff
-                &&source.PublishedAt is {} published&&published<=source.FirstSeenAt&&published<=cutoff;
+                &&source.PublishedAt is {} published&&published>=fact.PeriodEnd.ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)
+                &&published<=source.FirstSeenAt&&published<=cutoff;
             // 基本面必须来自可审查原件，不能拿走势图、低PE或同一数值的人工补录充作资料。
             checks.Add(new(measure,healthy?"EvidencePresent":"Unverified","数据未满足来源、许可、期间、单位、市值覆盖或公司池一致性。"));
         }
