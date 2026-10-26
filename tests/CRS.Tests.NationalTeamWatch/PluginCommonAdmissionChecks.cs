@@ -1,4 +1,6 @@
 using CRS.Plugin.Common.Concurrency;
+using CRS.Plugin.Common.Evidence;
+using System.Text;
 
 internal static class PluginCommonAdmissionChecks
 {
@@ -6,6 +8,14 @@ internal static class PluginCommonAdmissionChecks
     {if(!ok)throw new Exception(label);Console.WriteLine("PASS "+label);}
     public static async Task RunAsync()
     {
+        var abc=Encoding.UTF8.GetBytes("abc");
+        const string expected="BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD";
+        Check(ContentFingerprint.Sha256(abc)==expected,"shared SHA256 identity is deterministic and canonical");
+        Check(ContentFingerprint.IsSha256Hex(expected)&&ContentFingerprint.IsSha256Hex(expected.ToLowerInvariant()),"legacy hex validation accepts both cases");
+        Check(ContentFingerprint.Matches(expected,abc)&&!ContentFingerprint.Matches(expected,Encoding.UTF8.GetBytes("abd")),
+            "content identity verifies exact bytes and detects corruption");
+        Check(!ContentFingerprint.Matches(expected.ToLowerInvariant(),abc)&&!ContentFingerprint.IsSha256Hex("../evidence"),
+            "canonical comparison remains case-sensitive and invalid names are rejected");
         foreach(var invalid in new[]{0,-1,257})
         {
             try { _=new PriorityReadAdmission(invalid);throw new Exception("invalid capacity accepted"); }
