@@ -6,6 +6,7 @@
 - [开发规范](CRS开发规范.md)
 - [应用接口](API_SPEC.md)
 - [数据库提供方边界](DATABASE_PORTABILITY.md)
+- [国家队插件功能分类与增长治理](NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)
 - [架构整改计划](ARCHITECTURE_REMEDIATION_PLAN_20261020.md)
 - [当前未完成问题](../KNOWN_ISSUES.md)
 
