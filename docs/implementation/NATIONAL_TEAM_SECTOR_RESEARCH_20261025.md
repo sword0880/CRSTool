@@ -34,6 +34,10 @@ dotnet run --project tests/CRS.Tests.SectorResearch -c Release -- --output artif
 dotnet run --project tests/CRS.Tests.SectorUi -c Release -- artifacts/sector-research-20261025/synthetic-input.json artifacts/sector-research-20261025/sector-ui.png
 ```
 
+## 2026-10-26 审计续项：独立基本面质量闸门
+
+此前此文档只描述 2026-10-25 的行业比较原型。后续已新增 [行业质量证据闸门](NATIONAL_TEAM_INDUSTRY_QUALITY_GATES_20261026.md)，修正仅凭双低 PE/PB、正利润增长即可输出 `ResearchWatch` 的过宽研究状态。无独立已审核的行业基本面证据时返回 `IndependentQualityEvidenceUnavailable`；即使资料齐备也仅返回 `NeedsAdversarialAssessment`，不证明真实低估。该变化尚未接入实际行业财务来源或正式 Worker，不得把旧合成截图和早期 23 项检查当成当前金融模型验收。
+
 ## 仍需完成
 
 2026-10-25 08:13范围更新：[国证公布PE独立事实链](NATIONAL_TEAM_INDUSTRY_PE_20261025.md)已完成正式后台修订、查询、手动采集、第三页主导航注册及真实服务页面回读，4日44条已核对，历史仍回补。该页面展示公布滚动PE及有门槛的公布系列区间分位，不把国证剔亏PE当作本设计已验证的全行业TTM/PB覆盖、行业价格或机会结论。下列完整SectorResearch模型门槛仍开放；另一分支周期原型已由用户合并main，本轮仅补其时间与指纹边界。
