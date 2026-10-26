@@ -38,7 +38,7 @@ internal sealed class AlertEventStore(IMarketRepositorySession session)
             :_session.Scalar("SELECT payload FROM nt_risk_event WHERE id=$id",("$id",id)) as string;
         return json is null?null:JsonSerializer.Deserialize<ExitAlertEvent>(json);
     }
-    private ExitAlertEvent? CurrentAlert(ExitAlertFinding finding,string version)
+    public ExitAlertEvent? CurrentAlert(ExitAlertFinding finding,string version)
     {
         using var command=_session.Command("SELECT payload FROM nt_risk_event WHERE rule_id=$r AND scope_id=$s AND rule_version=$v AND state NOT IN ('Resolved','RetractedByRevision','HistoricalEvidence','RuleSuperseded') ORDER BY julianday(updated_at) DESC LIMIT 1",("$r",finding.RuleId),("$s",finding.ScopeId),("$v",version));
         var json=command.ExecuteScalar() as string;return json is null?null:JsonSerializer.Deserialize<ExitAlertEvent>(json);
