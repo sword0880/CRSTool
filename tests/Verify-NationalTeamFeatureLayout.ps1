@@ -118,12 +118,14 @@ $indexStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSer
 $calendarPersistenceFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/CalendarRepository.cs"
 $activityFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/MarketActivityRepository.cs"
 $activityStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/MarketActivityStore.cs"
+$alertOutboxStorePath = Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertOutboxStore.cs"
 if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $calendarStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $indexStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $activityStorePath -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $navStorePath -PathType Leaf)) {
+    -not (Test-Path -LiteralPath $navStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $alertOutboxStorePath -PathType Leaf)) {
     throw 'Storage extraction requires the shared session, IndustryPeStore, MarketCalendarStore, IndexSeriesStore and MarketActivityStore.'
 }
 $sessionSource = Get-Content -LiteralPath $sessionContractPath -Raw
@@ -139,6 +141,8 @@ $activityFacadeSource = Get-Content -LiteralPath $activityFacadePath -Raw
 $activityStoreSource = Get-Content -LiteralPath $activityStorePath -Raw
 $navFacadeSource = Get-Content -LiteralPath $navFacadePath -Raw
 $navStoreSource = Get-Content -LiteralPath $navStorePath -Raw
+$alertOutboxStoreSource = Get-Content -LiteralPath $alertOutboxStorePath -Raw
+$alertFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertRepository.cs") -Raw
 if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
     $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
@@ -153,6 +157,9 @@ if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $activityStoreSource -match 'partial class MarketRepository' -or
     $navFacadeSource -notmatch 'navStore\.NavPoints' -or
     $navStoreSource -match 'partial class MarketRepository' -or
+    $alertFacadeSource -notmatch 'alertOutboxStore\.AlertOutbox' -or
+    $alertOutboxStoreSource -match 'partial class MarketRepository' -or
+    $alertOutboxStoreSource -match 'trustedCondition' -or
     $calendarStoreSource -match 'partial class MarketRepository') {
     throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind the session contract and compatibility facades.'
 }

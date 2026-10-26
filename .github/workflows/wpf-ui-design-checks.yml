@@ -39,6 +39,9 @@ jobs:
       - name: Verify NAV storage evidence, revisions, schema and rollback
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-storage-checks
+      - name: Verify exit alert outbox restart, evidence and delivery safeguards
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alerts
       - name: Verify equity comparison baselines and ETF collection receipts
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --evidence-adversarial
