@@ -97,6 +97,11 @@ internal static class ExitAlertChecks
                 Sql(connection,"CREATE TRIGGER synthetic_outbox_abort BEFORE INSERT ON nt_alert_outbox BEGIN SELECT RAISE(ABORT,'synthetic failure'); END;");
                 try{repository.EvaluateExitAlerts(true);throw new Exception("注入故障未回滚");}catch(SqliteException){}
                 Check(repository.AlertEvents(new()).Count==0&&repository.AlertOutbox().Count==0,"事件与Outbox插入失败同事务回滚，不产生孤立事件");
+                using(var journal=connection.CreateCommand())
+                {
+                    journal.CommandText="SELECT (SELECT count(*) FROM nt_risk_event_change)+(SELECT count(*) FROM nt_alert_input_snapshot)";
+                    Check(Convert.ToInt32(journal.ExecuteScalar())==0,"模拟Outbox落库失败时变更日志和冻结证据也必须整体回滚");
+                }
                 Sql(connection,"DROP TRIGGER synthetic_outbox_abort;");
             }
             repository.EvaluateExitAlerts(true);var risk=repository.AlertEvents(new("EtfOutflow")).Single();

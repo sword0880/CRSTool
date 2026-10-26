@@ -107,21 +107,23 @@
 - 直接持股、行业估值、指数研究和退出预警的ViewModel改为依赖对应窄端口；ETF ViewModel现在在内部使用ETF端口和预警端口，旧构造入口通过显式兼容适配器转接。
 - 兼容适配器只用于旧调用方；新代码应直接注入领域端口。新端口的默认失败实现仅用于明确报告旧后台不支持的功能，不能将失败折算为空结果。
 
-### 当前存储层解耦状态：行业PE、共享日历与指数序列已拆分
+### 当前存储层解耦状态：领域端口及多项领域存储已拆分
 
 - `IndustryPeStore` 已从 `MarketRepository` partial 中独立出来，负责行业PE核心Schema初始化、官方原件导入、修订查询、审核、双回执幂等及知识时点校验。
 - 新增 `MarketCalendarStore`，统一负责交易日历Schema、官方日历登记、已审核交易日判断，以及行业PE/指数研究共同使用的日历查询与原件核验；`RegisterReviewedCalendar`、`IsReviewedTradingDay`、`IndustryPeCalendar` 与 `IndexSeriesCalendar` 仍保留原公共入口。
 - `IndexSeriesStore` 现已独立承接指数捕获证明、官方原件导入、价格引用、修订历史、审核及命令幂等；`IndexSeriesRepository` 只保留 `IMarketRepository` 兼容转发，指数日历通过共享 `MarketCalendarStore` 查询。
 - `MarketActivityStore` 现已独立承接市场成交额/成交量事实、采集游标、来源原件登记、复核审计与冲突状态计算；原 `MarketActivityRepository` 保留方法签名并转发，复用同一会话和日历Store。
 - `NavStore` 现已独立承接ETF基金NAV原件、修订、审核与知识截止查询；`NavRepository` 保留旧方法兼容。重启时核验 `etf-nav` 迁移登记和5张真实表是否一致，若缺表直接拒绝补建并保全现场。
-- `AlertOutboxStore` 现已独立负责退出预警通知的查询、保存与重启前 `InFlight` 恢复查询；用参数化过滤与固定状态查询代替拼接任意SQL片段，旧 `MarketRepository.WriteOutbox` 仅做转发。完整的预警事件/规则/投递事务尚未提取，不宣称退出预警全部解耦。
+- `AlertOutboxStore` 独立负责退出预警通知的查询、保存与重启前 `InFlight` 恢复查询；固定状态查询杜绝自由SQL条件字符串，兼容入口仍保留。
+- `AlertEventStore` 独立负责事件列表、历史变更、版本查询、活跃事件选取和事件+变更日志写入。`ApplyAlertFinding` **仍从兼容宿主打开唯一事务**，在同一次提交中顺序调用 `AlertEventStore.RecordChange`、冻结输入快照和通知Outbox；没有把三者拆成分别提交。
+- 退出预警规则设置、历史修订回算、待处理标志、领取/投递生命周期仍保留在旧部分实现，不能宣称整个预警系统已经完全解耦。
 - `MarketRepository` 继续保留旧的 `IMarketRepository` 公共入口，行业PE、日历和指数序列方法通过兼容Facade/共享组件转发，没有更改上层用例或Worker IPC。
 - 新增内部 `IMarketRepositorySession` 契约，并由私有的 `MarketRepositorySession` 适配器提供共享连接、取消令牌、时间、原件核验和幂等回执能力。它**暂时仍由MarketRepository持有底层连接**；这一步抽离了领域逻辑，但尚未把数据库生命周期所有权完全搬出聚合类。
 - 本次迁移保留同一个SQLCipher连接、原有事务提交点、原件保存顺序、`feature_schema_migration` 版本和 `nt_industry_*` 表结构。读写都仍经过既有 `ExecuteOperation` 取消门槛。
 
 ### 下一步存储层迁移顺序
 
-1. **继续拆退出预警**：Outbox数据存取已提取，但规则设置、pending标记、事件重放、Outbox状态迁移和投递审计仍共用 `MarketRepository` partial。应按“事件/评估/投递”拆分，同时保留原事务提交边界，防止一侧Outbox已变更、另一侧审计未写入。
+1. **继续拆退出预警**：事件日志和Outbox数据存取已提取。下一步应先梳理 `ClaimAlertNotification`、`CompleteAlertNotification` 和 `RetryAlertNotification` 的租约/状态机、通知受理未知与投递审计，再拆出 `AlertDeliveryStore`；涉及事件改写和历史回算的跨Store事务，必须让统一协调器提交。
 2. **完善存储测试**：除独立NAV真实SQLCipher存储、丢表拒绝自动补建之外，对市场活动、指数和行业PE追加回滚/重启/取消/知识截止对照，并校验来源哈希和两套幂等回执。
 3. **再迁移直接持股，最后迁移ETF核心**：直接持股依赖证券主档和官方披露原件；ETF核心包含份额修订、质量问题、日历、仪表盘与同步游标，跨域耦合最多，最后处理。
 4. **最后迁移连接所有权**：当各领域Store通过共享会话回归稳定后，再将SQLCipher连接/只读快照/Schema组合根抽到独立 `MarketDatabaseSession`，让 `MarketRepository` 退化为纯兼容Facade。
