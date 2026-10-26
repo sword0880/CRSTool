@@ -66,7 +66,7 @@ public sealed class NationalTeamWorkspacePage:UserControl
         title.Text="选择左侧研究功能";
         notice.Text="市场数据、行业估值与机构持仓属于不同证据链；页面切换不触发采集，也不会给出自动买入建议。";
         content.Content=new TextBlock{Text="请选择一项已上线的研究功能。尚未完成真实数据与有效性验证的功能不会以可用菜单出现。",
-            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(4,16)};
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(4,16,4,16)};
     }
 
     public void OpenRoute(string routeKey)
