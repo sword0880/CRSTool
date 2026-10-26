@@ -109,18 +109,29 @@ foreach ($check in $viewModelPortChecks) {
 $sessionContractPath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/IMarketRepositorySession.cs"
 $industryStorePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeStore.cs"
 $industryFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeRepository.cs"
-if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf)) {
-    throw 'Industry PE storage extraction requires IMarketRepositorySession and IndustryPeStore.'
+$calendarStorePath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketCalendarStore.cs"
+$calendarFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeCalendar.cs"
+$indexStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/IndexSeriesRepository.cs"
+if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $calendarStorePath -PathType Leaf)) {
+    throw 'Storage extraction requires IMarketRepositorySession, IndustryPeStore and MarketCalendarStore.'
 }
 $sessionSource = Get-Content -LiteralPath $sessionContractPath -Raw
 $storeSource = Get-Content -LiteralPath $industryStorePath -Raw
 $facadeSource = Get-Content -LiteralPath $industryFacadePath -Raw
 $repositorySource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketRepository.cs") -Raw
+$calendarStoreSource = Get-Content -LiteralPath $calendarStorePath -Raw
+$calendarFacadeSource = Get-Content -LiteralPath $calendarFacadePath -Raw
+$indexStoreSource = Get-Content -LiteralPath $indexStorePath -Raw
 if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
     $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
-    $storeSource -match 'partial class MarketRepository') {
-    throw 'Industry PE storage must stay behind the internal shared-session contract and compatibility facade.'
+    $storeSource -match 'partial class MarketRepository' -or
+    $calendarFacadeSource -notmatch 'marketCalendarStore\.IndustryPeCalendar' -or
+    $indexStoreSource -notmatch 'marketCalendarStore\.ReadPublishedTradingCalendar' -or
+    $calendarStoreSource -match 'partial class MarketRepository') {
+    throw 'Industry PE and shared calendar storage must stay behind the session contract and compatibility facades.'
 }
 $etfViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/Etf/EtfViewModel.cs") -Raw
 $marketActivitySource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/MarketCycle/MarketActivityPresentation.cs") -Raw
