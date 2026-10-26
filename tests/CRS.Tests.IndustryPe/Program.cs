@@ -101,6 +101,22 @@ var begin=new DateOnly(2025,10,1);var end=begin.AddDays(260);var syntheticCalend
 var synthetic=Enumerable.Range(0,261).Select(i=>new IndustryPeRevision("r"+i,begin.AddDays(i),new("C01","能源",100,i==260?5:20,21,22,23),1,"Accepted",clock.Start,clock.Start,"capture"+i,true)).ToArray();
 var report=IndustryPeResearch.Calculate(begin,end,clock.At,synthetic,syntheticCalendar,new('a',64));
 Check(report.Rows[0].PublishedSeriesPercentile==0&&report.Rows[0].PriorSamples==260,"区间分位只比较本行业且排除当日");
+Check(report.Rows[0].PublishedMedianSeriesPercentile==50m&&report.Rows[0].MedianPriorSamples==260
+    &&IndustryPePosition.Classify(report.Rows[0])==IndustryPeObservation.SingleMetricLow,"加权PE低位但中位PE不低，只能是单口径低位");
+IndustryPeReport WithLastMedian(decimal? value)=>IndustryPeResearch.Calculate(begin,end,clock.At,
+    synthetic.Select(x=>x.Date==end?x with{Values=x.Values with{RollingMedian=value}}:x).ToArray(),syntheticCalendar,new('a',64));
+var dual=WithLastMedian(5m).Rows[0];
+Check(dual.PublishedMedianSeriesPercentile==0m&&IndustryPePosition.Classify(dual)==IndustryPeObservation.DualHistoricalLow,"两个独立历史分位都低才列研究观察");
+Check(IndustryPePosition.Classify(WithLastMedian(40m).Rows[0])==IndustryPeObservation.MetricDivergence,"加权与中位PE强烈分歧应显式预警");
+Check(IndustryPePosition.Classify(dual with{PublishedMedianSeriesPercentile=null})==IndustryPeObservation.EvidenceIncomplete,"旧后台没有中位分位不能自动视作双口径低位");
+Check(WithLastMedian(0m).Rows[0].PublishedMedianSeriesPercentile is null,"零和非正中位PE不形成低估信号");
+var insufficientMedian=synthetic.Select((x,i)=>i<40?x with{Values=x.Values with{RollingMedian=0m}}:x).ToArray();
+var partial=IndustryPeResearch.Calculate(begin,end,clock.At,insufficientMedian,syntheticCalendar,new('a',64)).Rows[0];
+Check(partial.PublishedSeriesPercentile==0m&&partial.PublishedMedianSeriesPercentile is null
+    &&IndustryPePosition.Classify(partial)==IndustryPeObservation.EvidenceIncomplete,"中位PE前置正值不足不能借用加权PE覆盖率");
+var zeroCurrent=synthetic.Select(x=>x.Date==end?x with{Values=x.Values with{RollingWeighted=0m}}:x).ToArray();
+Check(IndustryPeResearch.Calculate(begin,end,clock.At,zeroCurrent,syntheticCalendar,new('a',64)).Rows[0].PublishedSeriesPercentile is null,"零PE不排序为最低历史分位");
+
 Check(report.OpportunityState=="NotEvaluatedMissingCoveragePbFundamentals"&&report.TimingProof=="NotProven","低公布PE分位不能升级为低估机会");
 Check(IndustryPeResearch.Calculate(begin,end,clock.At,synthetic.TakeLast(252).ToArray(),syntheticCalendar,new('a',64)).Rows[0].PublishedSeriesPercentile is null,"历史不足252个前置样本保留未知");
 Check(IndustryPeResearch.Calculate(begin,end,clock.At,synthetic,syntheticCalendar,new('b',64)).Fingerprint!=report.Fingerprint,"日历证据换版会改变指纹");
