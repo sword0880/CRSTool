@@ -17,6 +17,8 @@ public sealed partial class EtfWorkspace : IEtfWorkspace, IEtfResearchWorkspace,
     public void SetProgressSink(Func<EtfProgress,Task>? sink)=>progress=sink;
     private Task ReportAsync(EtfProgress value)=>progress?.Invoke(value)??Task.CompletedTask;
     public string NetworkStatus {get;private set;}="等待后台服务采集；关闭或锁定桌面不影响任务运行。";
+    // Preserve the legacy interface's permissive presentation hint; Worker authorization remains authoritative.
+    public bool CanManage=>true;
     public void SetOfficialSource(IOfficialShareSource source)=>officialSource=source;
     public EtfWorkspace(IPluginHostContext context,Func<IMarketRepository> repositoryFactory,IRawEvidenceStore raw) {this.context=context;this.repositoryFactory=repositoryFactory;this.raw=raw;}
     public Task InitializeAsync(CancellationToken token)=>RunAsync(()=>
