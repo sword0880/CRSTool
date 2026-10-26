@@ -37,7 +37,7 @@ public partial class ExitAlertViewModel
     partial void OnProofDocumentChanged(AlertDocument? value){MetadataConfirmed=false;HoldingConfirmed=false;IndependentOwnershipConfirmed=false;}
     private async Task LoadProofFundsAsync()
     {
-        var previous=ProofFund;var funds=await workspace.ConfigurationAsync(lifetime);
+        var previous=ProofFund;var funds=await etfWorkspace.ConfigurationAsync(lifetime);
         ProofFunds.Clear();foreach(var fund in funds)ProofFunds.Add(fund);
         ProofFund=ProofFunds.FirstOrDefault(x=>x.Market==previous?.Market&&x.Ticker==previous?.Ticker)??ProofFunds.FirstOrDefault();
         await ProofLoadTask;
