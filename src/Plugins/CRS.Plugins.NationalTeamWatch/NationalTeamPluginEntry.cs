@@ -18,7 +18,7 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
     {
         token.ThrowIfCancellationRequested();
         var etfWorkspace=new WorkerEtfWorkspace();
-        model=new(etfWorkspace,etfWorkspace,lifetime.Token);
+        model=new(etfWorkspace,etfWorkspace,etfWorkspace,lifetime.Token);
         equity=new(new WorkerEtfWorkspace(),lifetime.Token);
         industry=new(new WorkerEtfWorkspace(),lifetime.Token);
         indices=new(new WorkerEtfWorkspace(),lifetime.Token);
