@@ -1,4 +1,4 @@
-namespace CRS.Plugin.Common.Concurrency;
+namespace CRS.Common.Concurrency;
 
 /// <summary>
 /// Per-instance bounded async admission. Priority queries receive at most a configurable burst

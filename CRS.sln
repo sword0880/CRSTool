@@ -62,7 +62,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "validation", "validation", 
 		docs\validation\TEST_SPEC.md = docs\validation\TEST_SPEC.md
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Plugin.Common", "src\CRS.Plugin.Common\CRS.Plugin.Common.csproj", "{735B1052-3A8C-4F2D-95B9-4CB9DF4621A5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Common", "src\CRS.Common\CRS.Common.csproj", "{735B1052-3A8C-4F2D-95B9-4CB9DF4621A5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CRS.Plugin.Abstractions", "src\CRS.Plugin.Abstractions\CRS.Plugin.Abstractions.csproj", "{7032EFBD-CC8C-4A7C-9B9A-F92D6D3247CA}"
 EndProject

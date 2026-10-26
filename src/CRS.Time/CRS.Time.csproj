@@ -1,1 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compatibility assembly only: preserve the historical assembly identity for existing plugins. -->
+  <ItemGroup>
+    <ProjectReference Include="../CRS.Common/CRS.Common.csproj" />
+  </ItemGroup>
+</Project>

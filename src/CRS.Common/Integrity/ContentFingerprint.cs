@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace CRS.Plugin.Common.Evidence;
+namespace CRS.Common.Integrity;
 
 /// <summary>
 /// Pure SHA-256 identity helpers, reusable across isolated plugin evidence stores.
