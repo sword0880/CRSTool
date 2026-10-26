@@ -109,14 +109,15 @@
 
 ### 当前存储层解耦状态：行业PE已完成首个提取
 
-- `IndustryPeStore` 已从 `MarketRepository` partial 中独立出来，负责行业PE Schema 初始化、官方原件导入、修订查询、审核、双回执幂等及知识时点校验。
-- `MarketRepository` 继续保留旧的 `IMarketRepository` 公共入口，行业PE方法通过兼容Facade转发到 `IndustryPeStore`，没有更改上层用例或Worker IPC。
+- `IndustryPeStore` 已从 `MarketRepository` partial 中独立出来，负责行业PE核心Schema初始化、官方原件导入、修订查询、审核、双回执幂等及知识时点校验。
+- 新增 `MarketCalendarStore`，把行业PE与指数研究共同使用的已审核深交所交易日历查询和原件核验移入共享存储组件；`IndustryPeCalendar` 与 `IndexSeriesCalendar` 仍保留原公共入口。
+- `MarketRepository` 继续保留旧的 `IMarketRepository` 公共入口，行业PE和日历方法通过兼容Facade/共享组件转发，没有更改上层用例或Worker IPC。
 - 新增内部 `IMarketRepositorySession` 契约，并由私有的 `MarketRepositorySession` 适配器提供共享连接、取消令牌、时间、原件核验和幂等回执能力。它**暂时仍由MarketRepository持有底层连接**；这一步抽离了领域逻辑，但尚未把数据库生命周期所有权完全搬出聚合类。
 - 本次迁移保留同一个SQLCipher连接、原有事务提交点、原件保存顺序、`feature_schema_migration` 版本和 `nt_industry_*` 表结构。读写都仍经过既有 `ExecuteOperation` 取消门槛。
 
 ### 下一步存储层迁移顺序
 
-1. **先拆市场周期存储**：指数序列和成交活动共享日历/证据/审批规则，先绘制它们的跨表事务与来源准入图，再迁移为 `MarketCycleStore`。
+1. **拆指数序列存储**：共享日历已提取为 `MarketCalendarStore`；下一步把 `IndexSeriesRepository` 迁移为独立 `IndexSeriesStore`，保留捕获证明、价格引用、估值关联、修订和审核事务。之后再把成交活动迁移为 `MarketActivityStore`，最后将二者组合为市场周期领域端口。
 2. **再迁移NAV和退出预警**：保留NAV独立修订身份、预警pending标记、事件重放和发件箱投递事务；禁止为了拆类而把原来一个事务切成多个提交。
 3. **再迁移直接持股，最后迁移ETF核心**：直接持股依赖证券主档和官方披露原件；ETF核心包含份额修订、质量问题、日历、仪表盘与同步游标，跨域耦合最多，最后处理。
 4. **最后迁移连接所有权**：当各领域Store通过共享会话回归稳定后，再将SQLCipher连接/只读快照/Schema组合根抽到独立 `MarketDatabaseSession`，让 `MarketRepository` 退化为纯兼容Facade。
