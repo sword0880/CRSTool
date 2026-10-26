@@ -17,6 +17,8 @@ public partial class IndustryResearchViewModel(IEtfWorkspace workspace,Cancellat
     private IndustryPeReport? report;
     private Guid? requestId;
     public ObservableCollection<IndustrySeriesSelection> Rows {get;}=[];
+    /// <summary>同一报告的只读研究排序，不改变后台证据和勾选选择。</summary>
+    public ObservableCollection<IndustrySeriesSelection> ComparisonRows {get;}=[];
     public IReadOnlyList<string> Metrics {get;}=["公布滚动PE · 加权平均","公布滚动PE · 中位数"];
     public bool CanQuery=>!Busy;
     public bool CanManage=>workspace.CanManage&&!Busy;
@@ -25,6 +27,8 @@ public partial class IndustryResearchViewModel(IEtfWorkspace workspace,Cancellat
     [ObservableProperty] private bool refreshSource;
     [ObservableProperty] private string metric="公布滚动PE · 加权平均";
     [ObservableProperty] private string caption="尚未读取正式行业资料。";
+    [ObservableProperty] private bool onlyDualLow;
+    [ObservableProperty] private string comparisonSummary="尚未生成行业历史位置比较。";
     [ObservableProperty] private string status="公布PE较低不能单独证明低估；PB、市值覆盖率、价格及基本面仍需独立核对。";
     [ObservableProperty] private string taskStatus="尚未在此页提交行业采集；既有后台计划照常运行。";
     [ObservableProperty] private ISeries[] series=[];
@@ -33,6 +37,7 @@ public partial class IndustryResearchViewModel(IEtfWorkspace workspace,Cancellat
     [ObservableProperty,NotifyPropertyChangedFor(nameof(CanQuery)),NotifyPropertyChangedFor(nameof(CanManage)),NotifyCanExecuteChangedFor(nameof(QueryCommand)),NotifyCanExecuteChangedFor(nameof(QueueCommand)),NotifyCanExecuteChangedFor(nameof(RefreshTaskCommand))]
     private bool busy;
     partial void OnMetricChanged(string value)=>Rebuild();
+    partial void OnOnlyDualLowChanged(bool value)=>Rebuild();
     public async Task EnsureInitializedAsync(){if(initialized)return;initialized=true;await QueryAsync();}
     private (DateOnly From,DateOnly Through) Range()
     {
@@ -87,12 +92,30 @@ public partial class IndustryResearchViewModel(IEtfWorkspace workspace,Cancellat
             :receipt.Code is "Rejected" or "AlreadyRunning"?$"本次未新增可用采集任务（{receipt.Code}），请到任务中心核对原任务与输入。":"任务已受理，尚未确认采集完成；关闭页面不影响后台执行。";
     }
     [RelayCommand]private void Cancel()=>operation?.Cancel();
-    private void Clear(){report=null;Rows.Clear();Series=[];XAxes=[];YAxes=[];Caption="本次未取得可用行业报告。";}
+    private void Clear()
+    {
+        report=null;Rows.Clear();ComparisonRows.Clear();Series=[];XAxes=[];YAxes=[];
+        Caption="本次未取得可用行业报告。";ComparisonSummary="本次未取得可用行业比较结果。";
+    }
     private void Rebuild()
     {
-        if(report is null){Series=[];return;}
+        if(report is null){Series=[];ComparisonRows.Clear();return;}
+        static int Priority(IndustryPeObservation observation)=>observation switch
+        {
+            IndustryPeObservation.DualHistoricalLow=>0,IndustryPeObservation.MetricDivergence=>1,
+            IndustryPeObservation.SingleMetricLow=>2,IndustryPeObservation.NoDualLow=>3,_=>4
+        };
+        ComparisonRows.Clear();
+        foreach(var item in Rows.Where(x=>!OnlyDualLow||x.Observation==IndustryPeObservation.DualHistoricalLow)
+            .OrderBy(x=>Priority(x.Observation))
+            .ThenBy(x=>Math.Max(x.Row.PublishedSeriesPercentile??101m,x.Row.PublishedMedianSeriesPercentile??101m))
+            .ThenBy(x=>x.Row.Code,StringComparer.Ordinal))ComparisonRows.Add(item);
+        var dual=Rows.Count(x=>x.Observation==IndustryPeObservation.DualHistoricalLow);
+        var disagreement=Rows.Count(x=>x.Observation==IndustryPeObservation.MetricDivergence);
+        var unknown=Rows.Count(x=>x.Observation==IndustryPeObservation.EvidenceIncomplete);
+        ComparisonSummary=$"共{Rows.Count}个行业；双口径历史低位{dual}个、明显分歧{disagreement}个、证据不足{unknown}个；当前显示{ComparisonRows.Count}个。排序只用于研究，不是低估或买入排名。";
         var dates=report.Rows.FirstOrDefault()?.Curve.Select(x=>x.Date).ToArray()??[];
-        Series=Rows.Where(x=>x.IsVisible).Select(x=>(ISeries)new LineSeries<ObservablePoint>
+        Series=Rows.Where(x=>x.IsVisible&&(!OnlyDualLow||x.Observation==IndustryPeObservation.DualHistoricalLow)).Select(x=>(ISeries)new LineSeries<ObservablePoint>
         {
             Name=x.Row.Name,Fill=null,GeometrySize=2,LineSmoothness=0,EnableNullSplitting=true,
             Values=x.Row.Curve.Select((point,index)=>new ObservablePoint(index,(Metric==Metrics[0]?point.RollingWeighted:point.RollingMedian) is {} value?(double)value:null)).ToArray()
@@ -105,6 +128,15 @@ public partial class IndustryResearchViewModel(IEtfWorkspace workspace,Cancellat
 public partial class IndustrySeriesSelection(IndustryPeSeries row,Action changed):ObservableObject
 {
     public IndustryPeSeries Row {get;}=row;
+    public IndustryPeObservation Observation=>IndustryPePosition.Classify(Row);
+    public string HistoricalPosition=>Observation switch
+    {
+        IndustryPeObservation.DualHistoricalLow=>"双口径历史低位（待核查）",
+        IndustryPeObservation.MetricDivergence=>"加权与中位明显分歧",
+        IndustryPeObservation.SingleMetricLow=>"仅单口径低位",
+        IndustryPeObservation.NoDualLow=>"不满足双口径低位",
+        _=>"历史证据不足"
+    };
     [ObservableProperty]private bool isVisible=true;
     partial void OnIsVisibleChanged(bool value)=>changed();
     public string State=>Row.State switch

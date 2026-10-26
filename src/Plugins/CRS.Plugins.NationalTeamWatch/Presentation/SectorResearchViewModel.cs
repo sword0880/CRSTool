@@ -46,7 +46,7 @@ public partial class SectorSelection(SectorStudyRow row,Action changed):Observab
     partial void OnIsVisibleChanged(bool value)=>changed();
     public string State=>Row.OpportunityState switch
     {
-        "ResearchWatch"=>"研究观察条件", "ValueTrapRisk"=>"盈利恶化，核查低估陷阱", "FundamentalsUnavailable"=>"基本面不足，无法判断",
+        "NeedsAdversarialAssessment"=>"数据齐备，仍待反方评估", "IndependentQualityEvidenceUnavailable"=>"独立基本面证据未齐备", "ValueTrapRisk"=>"盈利恶化，核查低估陷阱", "FundamentalsUnavailable"=>"基本面不足，无法判断",
         "NoLowValuationCondition"=>"未满足历史低估值条件", "PriceDataIncomplete"=>"走势数据不完整", _=>"估值资料不足，无法判断"
     };
 }

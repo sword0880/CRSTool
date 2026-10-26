@@ -7,7 +7,33 @@ public sealed record IndustryPeRevision(string Id,DateOnly Date,IndustryPeValues
 public sealed record IndustryPeChartPoint(DateOnly Date,decimal? RollingWeighted,decimal? RollingMedian,string State);
 public sealed record IndustryPeSyncReceipt(Guid RequestId,string State,string Code,string? ExecutionId);
 public sealed record IndustryPeSeries(string Code,string Name,IReadOnlyList<IndustryPeChartPoint> Curve,decimal? LatestRollingWeighted,decimal? LatestRollingMedian,
-    decimal? PublishedSeriesPercentile,int PriorSamples,int ExpectedPriorDays,string State,DateOnly? LatestDate);
+    decimal? PublishedSeriesPercentile,int PriorSamples,int ExpectedPriorDays,string State,DateOnly? LatestDate)
+{
+    // 附加字段兼容既有报告；旧Worker不提供时保持null，而不是假设中位数也低。
+    public decimal? PublishedMedianSeriesPercentile {get;init;}
+    public int MedianPriorSamples {get;init;}
+}
+
+/// <summary>仅描述官网剔亏样本PE的历史位置，永远不是行业低估结论。</summary>
+public enum IndustryPeObservation { EvidenceIncomplete, DualHistoricalLow, MetricDivergence, SingleMetricLow, NoDualLow }
+public static class IndustryPePosition
+{
+    public const decimal LowPercentile=20m; // 研究阈值，未完成样本外有效性检验。
+    public static IndustryPeObservation Classify(IndustryPeSeries row)
+    {
+        if(row.State!="PublishedSeriesResearch"||row.LatestRollingWeighted is not >0m||row.LatestRollingMedian is not >0m
+            ||row.PublishedSeriesPercentile is not {} weighted||row.PublishedMedianSeriesPercentile is not {} median
+            ||row.ExpectedPriorDays<252||row.PriorSamples<252||row.MedianPriorSamples<252
+            ||row.PriorSamples>row.ExpectedPriorDays||row.MedianPriorSamples>row.ExpectedPriorDays
+            ||(decimal)row.PriorSamples/row.ExpectedPriorDays<0.8m||(decimal)row.MedianPriorSamples/row.ExpectedPriorDays<0.8m
+            ||weighted<0||weighted>100||median<0||median>100)return IndustryPeObservation.EvidenceIncomplete;
+        if(weighted<=LowPercentile&&median<=LowPercentile)return IndustryPeObservation.DualHistoricalLow;
+        if((weighted<=LowPercentile&&median>=60m)||(median<=LowPercentile&&weighted>=60m))
+            return IndustryPeObservation.MetricDivergence;
+        if(weighted<=LowPercentile||median<=LowPercentile)return IndustryPeObservation.SingleMetricLow;
+        return IndustryPeObservation.NoDualLow;
+    }
+}
 /// <summary>这是公布的剔亏样本序列研究，不填造PB、市值覆盖率、价格指数或盈利证据。</summary>
 public sealed record IndustryPeReport(DateOnly From,DateOnly Through,DateTimeOffset Cutoff,string Fingerprint,bool CalendarVerified,IReadOnlyList<IndustryPeSeries> Rows)
 {
@@ -47,15 +73,25 @@ public static class IndustryPeResearch
                 var pending=versions.Any(x=>x.State=="NeedsReview");var value=!pending&&accepted.Length==1?accepted[0].Values:null;
                 return new IndustryPeChartPoint(day,value?.RollingWeighted,value?.RollingMedian,pending?"NeedsReview":value is null?"Missing":"Published");
             }).ToArray();
-            var latest=curve.LastOrDefault();var history=curve.Take(Math.Max(0,curve.Length-1)).Where(x=>x.RollingWeighted.HasValue).Select(x=>x.RollingWeighted!.Value).ToArray();
-            var expected=Math.Max(0,axis.Length-1);decimal? rank=null;
-            if(verified&&latest?.RollingWeighted is {} current&&history.Length>=252&&expected>0&&(decimal)history.Length/expected>=0.8m)
-                rank=(history.Count(x=>x<current)+history.Count(x=>x==current)/2m)/history.Length*100m;
+            var latest=curve.LastOrDefault();
+            // 官方NA、零和负值不代表可比较的正PE；两种统计口径分别检查历史覆盖。
+            var previous=curve.Take(Math.Max(0,curve.Length-1)).ToArray();
+            var history=previous.Where(x=>x.RollingWeighted>0m).Select(x=>x.RollingWeighted!.Value).ToArray();
+            var medianHistory=previous.Where(x=>x.RollingMedian>0m).Select(x=>x.RollingMedian!.Value).ToArray();
+            var expected=Math.Max(0,axis.Length-1);
+            decimal? Rank(decimal? current,decimal[] prior)=>verified&&current is >0m&&prior.Length>=252&&expected>0
+                &&(decimal)prior.Length/expected>=0.8m
+                ?(prior.Count(x=>x<current.Value)+prior.Count(x=>x==current.Value)/2m)/prior.Length*100m:null;
+            var rank=Rank(latest?.RollingWeighted,history);
+            var medianRank=Rank(latest?.RollingMedian,medianHistory);
             var state=!verified?"CalendarUnavailable":latest is null?"NoData":latest.State!="Published"?latest.State:rank is null?"InsufficientComparableHistory":"PublishedSeriesResearch";
-            series.Add(new(sector.Key,sector.Value,Array.AsReadOnly(curve),latest?.RollingWeighted,latest?.RollingMedian,rank,history.Length,expected,state,latest?.Date));
+            series.Add(new(sector.Key,sector.Value,Array.AsReadOnly(curve),latest?.RollingWeighted,latest?.RollingMedian,rank,history.Length,expected,state,latest?.Date)
+            {
+                PublishedMedianSeriesPercentile=medianRank,MedianPriorSamples=medianHistory.Length
+            });
         }
         // 业务管道可用北京时间展示同一时刻，指纹仍统一UTC，避免仅改变时区表示就失去复算身份。
-        var frozen=new{Version="industry-pe-report-v2",from,through,Cutoff=cutoff.ToUniversalTime(),calendarFingerprint,
+        var frozen=new{Version="industry-pe-report-v3",from,through,Cutoff=cutoff.ToUniversalTime(),calendarFingerprint,
             Revisions=rows.OrderBy(x=>x.Date).ThenBy(x=>x.Values.Code,StringComparer.Ordinal).ThenBy(x=>x.Id,StringComparer.Ordinal)
                 .Select(x=>x with{FirstSeenAt=x.FirstSeenAt.ToUniversalTime(),StateRecordedAt=x.StateRecordedAt.ToUniversalTime()}).ToArray(),Calendar=days};
         var hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(frozen)));

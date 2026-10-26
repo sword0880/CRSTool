@@ -97,6 +97,8 @@ public partial class MainWindow : FluentWindow
             if(forceClose) {await plugins.DisposeAsync();return;}
             foreach(var page in plugins.Pages)
             {
+                // 复合工作台内的兼容直达路由继续注册，但不在侧栏重复堆积入口。
+                if(!page.Contribution.ShowInNavigation)continue;
                 // 插件契约未声明图标时使用统一扩展图标，不按具体业务插件写分支。
                 var item=CreateMenuItem(page.Contribution.Title,SymbolRegular.Apps24);item.Tag=page.Route;
                 item.Click+=(_,_)=>

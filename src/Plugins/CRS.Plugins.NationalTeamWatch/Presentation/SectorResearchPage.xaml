@@ -21,6 +21,7 @@
     <DataGridTextColumn Header="PB" Binding="{Binding Row.Pb,StringFormat=N2,TargetNullValue=不可计算}"/>
     <DataGridTextColumn Header="PE分位(%)" Binding="{Binding Row.PePercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
     <DataGridTextColumn Header="PB分位(%)" Binding="{Binding Row.PbPercentile,StringFormat=N1,TargetNullValue=不可计算}"/>
+    <DataGridTextColumn Header="质量证据" Binding="{Binding Row.QualityReadiness}" Width="2*"/>
     <DataGridTextColumn Header="研究状态" Binding="{Binding State}" Width="2*"/>
    </DataGrid.Columns>
   </DataGrid>

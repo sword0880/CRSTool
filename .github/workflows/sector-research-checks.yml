@@ -34,6 +34,10 @@ jobs:
         run: dotnet run --project tests/CRS.Tests.SectorUi -c Release -- artifacts/sector-research/synthetic-input.json artifacts/sector-research/sector-ui.png
       - name: Check published industry PE parsing, encrypted revisions and source cooldown
         run: dotnet run --project tests/CRS.Tests.IndustryPe -c Release -- --output artifacts/industry-pe-checks
+      - name: Render published industry comparison with synthetic facts and verify filtering
+        run: dotnet run --project tests/CRS.Tests.SectorUi -c Release -- --industry artifacts/industry-pe-checks/synthetic-industry-ui-report.json artifacts/industry-pe-checks/synthetic-industry-ui.png
+      - name: Check categorized NationalTeamWatch navigation and lazy page lifecycle
+        run: dotnet run --project tests/CRS.Tests.SectorUi -c Release -- --navigation
       # 国证真实原件仅保留本地研究证据；未确认再分发许可，不上传原件或在CI联网补取。
       - name: Build index evidence checks without downloading source files
         run: dotnet build tests/CRS.Tests.IndexResearch -c Release
