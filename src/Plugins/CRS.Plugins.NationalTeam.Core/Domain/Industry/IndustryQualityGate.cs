@@ -60,6 +60,8 @@ public static class IndustryQualityGate
         if(asOf<definition.ValidFrom||asOf>definition.ValidThrough||cutoff==default
             ||asOf>DateOnly.FromDateTime(cutoff.ToOffset(TimeSpan.FromHours(8)).DateTime))
             throw new InvalidDataException("基本面审核日与行业有效期或知识时点冲突。");
+        if(input is not null&&input.Observations is null)
+            throw new InvalidDataException("基本面指标集合不能为空；缺来源时应完整标注未知。");
         var observations=input?.Observations?.ToArray()??[];
         if(observations.Length>100||observations.Select(x=>x.Measure).Distinct().Count()!=observations.Length)
             throw new InvalidDataException("基本面指标重复或超过单行业配额，不得择优。");
@@ -67,7 +69,10 @@ public static class IndustryQualityGate
         input=input is null?null:input with{Observations=Array.AsReadOnly(observations)};
         var frozen=new{Version=AlgorithmVersion,definition,asOf,Cutoff=cutoff.ToUniversalTime(),currentUniverseHash,
             Profile=input?.Profile,InputSector=input?.SectorId,InputScheme=input?.Scheme,InputVersion=input?.SchemeVersion,
-            ProfileRuleSet=input?.ProfileRuleSet,ProfileMappingEvidence=input?.ProfileMappingEvidence,
+            ProfileRuleSet=input?.ProfileRuleSet,ProfileMappingEvidence=input?.ProfileMappingEvidence is {} mapEvidence
+                ?mapEvidence with{FirstSeenAt=mapEvidence.FirstSeenAt.ToUniversalTime(),
+                    RetrievedAt=mapEvidence.RetrievedAt.ToUniversalTime(),AcceptedAt=mapEvidence.AcceptedAt.ToUniversalTime(),
+                    PublishedAt=mapEvidence.PublishedAt?.ToUniversalTime()}:null,
             Observations=observations.OrderBy(x=>x.Measure).Select(x=>x with
             {
                 Evidence=x.Evidence with{FirstSeenAt=x.Evidence.FirstSeenAt.ToUniversalTime(),
