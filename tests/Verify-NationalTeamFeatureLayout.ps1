@@ -71,5 +71,38 @@ if (-not (Test-Path -LiteralPath $marketRepository -PathType Leaf)) {
     throw 'The shared MarketRepository entry point must remain explicitly located under Infrastructure/Shared.'
 }
 
+
+# Narrow workspace ports are the new feature boundary; keep the legacy composite contract as a compatibility facade.
+$portFiles = @(
+    "$core/Application/Shared/IWorkspaceAccess.cs",
+    "$core/Application/Shared/IEtfResearchWorkspace.cs",
+    "$core/Application/Shared/IDirectEquityWorkspace.cs",
+    "$core/Application/Shared/IIndustryValuationWorkspace.cs",
+    "$core/Application/Shared/IMarketCycleWorkspace.cs",
+    "$core/Application/Shared/INavWorkspace.cs",
+    "$core/Application/Shared/IExitAlertWorkspace.cs"
+)
+foreach ($port in $portFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $port) -PathType Leaf)) {
+        throw "Required narrow workspace port is missing: $port"
+    }
+}
+$legacyContract = Get-Content -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/IEtfWorkspace.cs") -Raw
+if ($legacyContract -notmatch 'public interface IEtfWorkspace' -or $legacyContract -notmatch 'OverviewAsync') {
+    throw 'The legacy IEtfWorkspace compatibility contract is missing or was unexpectedly replaced.'
+}
+$viewModelPortChecks = @(
+    @{ Path = "$ui/Presentation/Equity/EquityViewModel.cs"; Pattern = 'EquityViewModel\(IDirectEquityWorkspace' },
+    @{ Path = "$ui/Presentation/IndustryValuation/IndustryResearchViewModel.cs"; Pattern = 'IndustryResearchViewModel\(IIndustryValuationWorkspace' },
+    @{ Path = "$ui/Presentation/MarketCycle/IndexResearchViewModel.cs"; Pattern = 'IndexResearchViewModel\(IMarketCycleWorkspace' },
+    @{ Path = "$ui/Presentation/ExitAlerts/ExitAlertViewModel.cs"; Pattern = 'ExitAlertViewModel\(IExitAlertWorkspace' },
+    @{ Path = "$ui/Presentation/Etf/EtfViewModel.cs"; Pattern = 'IEtfResearchWorkspace workspace' }
+)
+foreach ($check in $viewModelPortChecks) {
+    $source = Get-Content -LiteralPath (Join-Path $repoRoot $check.Path) -Raw
+    if ($source -notmatch $check.Pattern) {
+        throw "ViewModel must depend on its feature port: $($check.Path)"
+    }
+}
 Write-Host "PASS NationalTeam feature layout: Core, Jobs, WPF presentation and Worker IPC files are grouped by feature."
-Write-Host "Validated Worker workspace parts: $($workerFiles.Count); WPF pages: $($xamlFiles.Count)."
+Write-Host "Validated Worker workspace parts: $($workerFiles.Count); WPF pages: $($xamlFiles.Count); narrow feature ports: $($portFiles.Count)."
