@@ -6,7 +6,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>公开研究数据仓储；追加修订并保留来源，不接触私人税务库。</summary>
-public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRepository,IEvidenceIntegrityRepository,IMarketRepositorySession
+public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRepository,IEvidenceIntegrityRepository
 {
     private readonly SqliteConnection db;
     private readonly RawEvidenceStore raw;
@@ -15,16 +15,21 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private CancellationToken operationCancellation;
     private readonly IndustryPeStore industryPeStore;
 
-    SqliteConnection IMarketRepositorySession.Connection=>db;
-    RawEvidenceStore IMarketRepositorySession.RawEvidence=>raw;
-    Action? IMarketRepositorySession.BeforeWrite=>beforeWrite;
-    TimeProvider IMarketRepositorySession.Clock=>clock;
-    CancellationToken IMarketRepositorySession.OperationCancellation=>operationCancellation;
-    SqliteCommand IMarketRepositorySession.Command(string sql,params (string,object?)[] args)=>Command(sql,args);
-    void IMarketRepositorySession.Execute(string sql,params (string,object?)[] args)=>Execute(sql,args);
-    object? IMarketRepositorySession.Scalar(string sql,params (string,object?)[] args)=>Scalar(sql,args);
-    void IMarketRepositorySession.CheckReadLimit(int count)=>CheckReadLimit(count);
-    void IMarketRepositorySession.RecordCommand(Guid? id,string operation)=>RecordCommand(id,operation);
+    private sealed class MarketRepositorySession : IMarketRepositorySession
+    {
+        private readonly MarketRepository owner;
+        public MarketRepositorySession(MarketRepository owner)=>this.owner=owner;
+        public SqliteConnection Connection=>owner.db;
+        public RawEvidenceStore RawEvidence=>owner.raw;
+        public Action? BeforeWrite=>owner.beforeWrite;
+        public TimeProvider Clock=>owner.clock;
+        public CancellationToken OperationCancellation=>owner.operationCancellation;
+        public SqliteCommand Command(string sql,params (string,object?)[] args)=>owner.Command(sql,args);
+        public void Execute(string sql,params (string,object?)[] args)=>owner.Execute(sql,args);
+        public object? Scalar(string sql,params (string,object?)[] args)=>owner.Scalar(sql,args);
+        public void CheckReadLimit(int count)=>owner.CheckReadLimit(count);
+        public void RecordCommand(Guid? id,string operation)=>owner.RecordCommand(id,operation);
+    }
 
     /// <summary>应用用例已持有串行门槛，作用域结束恢复令牌，取消不能泄漏到下一次查询。</summary>
     public T ExecuteOperation<T>(Func<T> work,CancellationToken token)
@@ -48,7 +53,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
         // 共用宿主锁定的原生提供器版本，但不共用税务连接或加密密钥。
         SQLitePCL.Batteries_V2.Init();
         db = new(new SqliteConnectionStringBuilder { DataSource = Path.Combine(dataPath, "market.db"), Password=Convert.ToHexString(encryptionKey),Pooling = false }.ToString()); db.Open();
-        industryPeStore=new IndustryPeStore(this);
+        industryPeStore=new IndustryPeStore(new MarketRepositorySession(this));
         readConnectionString=new SqliteConnectionStringBuilder(db.ConnectionString){Mode=SqliteOpenMode.ReadOnly}.ToString();
         Execute("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
         var version = Convert.ToInt32(Scalar("PRAGMA user_version;"));
