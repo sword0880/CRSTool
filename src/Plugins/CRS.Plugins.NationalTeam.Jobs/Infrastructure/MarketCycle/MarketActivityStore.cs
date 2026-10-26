@@ -94,7 +94,7 @@ internal sealed class MarketActivityStore
         _session.ValidateEvidence(activityOnly:true);return ReadMarketActivity();
     }
 
-    private List<MarketActivityPoint> ReadMarketActivity()
+    public List<MarketActivityPoint> ReadMarketActivity()
     {
         var attempts=new Dictionary<(string Market,DateOnly Date),string>();
         using(var command=_session.Command("SELECT market,trade_date,state FROM market_activity_attempt ORDER BY trade_date"))
