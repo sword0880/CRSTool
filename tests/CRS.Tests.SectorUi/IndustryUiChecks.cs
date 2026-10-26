@@ -49,7 +49,8 @@ internal static class IndustryUiChecks
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);using(var file=File.Create(screenshot)){var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(file);}
                 // 显式改造的UI合成反例：真实原件回放截图不含这些人工分位。
                 var candidate=report.Rows[0] with{State="PublishedSeriesResearch",PublishedSeriesPercentile=5m,
-                    PublishedMedianSeriesPercentile=10m,LatestRollingWeighted=8m,LatestRollingMedian=9m};
+                    PublishedMedianSeriesPercentile=10m,LatestRollingWeighted=8m,LatestRollingMedian=9m,
+                    PriorSamples=260,MedianPriorSamples=260,ExpectedPriorDays=260};
                 proxy.Report=report with{Rows=report.Rows.Select((x,i)=>i==0?candidate:x).ToArray()};
                 Pump(model.QueryCommand.ExecuteAsync(null));
                 Check(model.ComparisonRows.Count==11&&model.ComparisonRows[0].Row.Code==candidate.Code
