@@ -33,7 +33,7 @@ public sealed partial class MarketRepository
         var rules=new ExitAlertRules();Execute("INSERT OR IGNORE INTO nt_alert_rule VALUES($v,$p,$now)",("$v",rules.Version),("$p",JsonSerializer.Serialize(rules)),("$now",Now));
         Execute("INSERT OR IGNORE INTO nt_alert_configuration VALUES(1,$v,$r,0)",("$v",rules.Version),("$r",JsonSerializer.Serialize(new[]{new AlertNotificationRoute()})));
         // 进程退出时正在提交的邮件可能已经被服务商接受，重启后不能自动重复外发。
-        foreach(var row in ReadOutbox("state='InFlight'"))
+        foreach(var row in alertOutboxStore.ReadInFlight())
         {
             WriteOutbox(row with{State="OutcomeUnknown",LastCode="ProcessInterruptedDuringDelivery",Lease=null});
             var delivery=new AlertDeliveryRecord(Guid.NewGuid().ToString("N"),row.Id,row.Attempts,Now,"OutcomeUnknown","ProcessInterruptedDuringDelivery",null);
@@ -83,27 +83,7 @@ public sealed partial class MarketRepository
     {
         using var command=Command("SELECT event_id,sequence,kind,at,payload FROM nt_risk_event_change WHERE event_id=$id ORDER BY sequence",("$id",id));
         using var reader=command.ExecuteReader();var rows=new List<ExitAlertChange>();while(reader.Read())rows.Add(new(reader.GetString(0),reader.GetInt32(1),reader.GetString(2),reader.GetString(3),reader.GetString(4)));return rows;
-    }
-    public List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)
-    {
-        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(clock).DateTime);
-        filter??=new(From:today.AddDays(-31),To:today);
-        if(filter.From>filter.To||filter.Search?.Length>120||filter.State is not (null or "Pending" or "InFlight" or "Accepted" or "Retry" or "Disabled" or "Unavailable" or "Failed" or "OutcomeUnknown" or "BlockedAcceptance" or "Superseded"))throw new InvalidDataException("通知筛选无效。");
-        string? Start(DateOnly? day)=>day is {} value?new DateTimeOffset(value.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(8)).ToString("O"):null;
-        using var command=Command("""
-            SELECT payload FROM nt_alert_outbox WHERE ($state IS NULL OR state=$state)
-            AND ($from IS NULL OR julianday(json_extract(payload,'$.CreatedAt'))>=julianday($from)) AND ($to IS NULL OR julianday(json_extract(payload,'$.CreatedAt'))<julianday($to))
-            AND ($search IS NULL OR instr(payload,$search)>0) ORDER BY julianday(json_extract(payload,'$.CreatedAt')) DESC LIMIT 1001
-            """,("$state",filter.State),("$from",Start(filter.From)),("$to",Start(filter.To?.AddDays(1))),("$search",string.IsNullOrWhiteSpace(filter.Search)?null:filter.Search));
-        var rows=ReadJson<AlertOutboxItem>(command);if(rows.Count>1000)throw new InvalidDataException("通知记录过多，请缩小日期、状态或搜索范围。");return rows;
-    }
-    private List<AlertOutboxItem> ReadOutbox(string trustedCondition)
-    {
-        using var command=Command("SELECT payload FROM nt_alert_outbox WHERE "+trustedCondition+" ORDER BY julianday(next_at) LIMIT 1001");
-        var rows=ReadJson<AlertOutboxItem>(command);if(rows.Count>1000)throw new InvalidDataException("通知记录超过查询上限。");return rows;
-    }
-    private void WriteOutbox(AlertOutboxItem row)=>Execute("""
-        INSERT INTO nt_alert_outbox VALUES($id,$event,$change,$channel,$profile,$state,$next,$p)
-        ON CONFLICT(id) DO UPDATE SET state=excluded.state,next_at=excluded.next_at,payload=excluded.payload
-        """,("$id",row.Id),("$event",row.EventId),("$change",row.ChangeNo),("$channel",row.ChannelId),("$profile",row.ProfileId),("$state",row.State),("$next",row.NextAttemptAt),("$p",JsonSerializer.Serialize(row)));
+    }    public List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null)=>alertOutboxStore.AlertOutbox(filter);
+    // Legacy partials keep calling this helper; persistence now belongs exclusively to AlertOutboxStore.
+    private void WriteOutbox(AlertOutboxItem row)=>alertOutboxStore.WriteOutbox(row);;
 }
