@@ -120,6 +120,7 @@ $activityFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/Mark
 $activityStorePath = Join-Path $repoRoot "$jobs/Infrastructure/MarketCycle/MarketActivityStore.cs"
 $alertOutboxStorePath = Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertOutboxStore.cs"
 $alertEventStorePath = Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertEventStore.cs"
+$alertDeliveryStorePath = Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/AlertDeliveryStore.cs"
 if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $calendarStorePath -PathType Leaf) -or
@@ -127,7 +128,8 @@ if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $activityStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $navStorePath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $alertOutboxStorePath -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $alertEventStorePath -PathType Leaf)) {
+    -not (Test-Path -LiteralPath $alertEventStorePath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $alertDeliveryStorePath -PathType Leaf)) {
     throw 'Storage extraction requires the shared session, IndustryPeStore, MarketCalendarStore, IndexSeriesStore and MarketActivityStore.'
 }
 $sessionSource = Get-Content -LiteralPath $sessionContractPath -Raw
@@ -145,6 +147,8 @@ $navFacadeSource = Get-Content -LiteralPath $navFacadePath -Raw
 $navStoreSource = Get-Content -LiteralPath $navStorePath -Raw
 $alertOutboxStoreSource = Get-Content -LiteralPath $alertOutboxStorePath -Raw
 $alertEventStoreSource = Get-Content -LiteralPath $alertEventStorePath -Raw
+$alertDeliveryStoreSource = Get-Content -LiteralPath $alertDeliveryStorePath -Raw
+$alertDeliveryFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertDeliveryRepository.cs") -Raw
 $alertLifecycleSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertLifecycleRepository.cs") -Raw
 $alertFacadeSource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts/ExitAlertRepository.cs") -Raw
 if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
@@ -168,6 +172,9 @@ if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     $alertEventStoreSource -notmatch 'public void RecordChange' -or
     $alertFacadeSource -notmatch 'alertEventStore\.AlertEvents' -or
     $alertLifecycleSource -notmatch 'alertEventStore\.RecordChange\(row,kind\)' -or
+    $alertDeliveryStoreSource -match 'partial class MarketRepository' -or
+    $alertDeliveryFacadeSource -notmatch 'alertDeliveryStore\.CompleteAlertNotification' -or
+    $alertDeliveryFacadeSource -notmatch 'alertDeliveryStore\.DueNotifications' -or
     $calendarStoreSource -match 'partial class MarketRepository') {
     throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind the session contract and compatibility facades.'
 }
