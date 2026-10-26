@@ -104,5 +104,31 @@ foreach ($check in $viewModelPortChecks) {
         throw "ViewModel must depend on its feature port: $($check.Path)"
     }
 }
+
+# Industry PE is the first real storage extraction: the facade must delegate, and the store must not rejoin the legacy partial class.
+$sessionContractPath = Join-Path $repoRoot "$jobs/Infrastructure/Shared/IMarketRepositorySession.cs"
+$industryStorePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeStore.cs"
+$industryFacadePath = Join-Path $repoRoot "$jobs/Infrastructure/IndustryValuation/IndustryPeRepository.cs"
+if (-not (Test-Path -LiteralPath $sessionContractPath -PathType Leaf) -or -not (Test-Path -LiteralPath $industryStorePath -PathType Leaf)) {
+    throw 'Industry PE storage extraction requires IMarketRepositorySession and IndustryPeStore.'
+}
+$sessionSource = Get-Content -LiteralPath $sessionContractPath -Raw
+$storeSource = Get-Content -LiteralPath $industryStorePath -Raw
+$facadeSource = Get-Content -LiteralPath $industryFacadePath -Raw
+$repositorySource = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Shared/MarketRepository.cs") -Raw
+if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
+    $repositorySource -notmatch 'private sealed class MarketRepositorySession : IMarketRepositorySession' -or
+    $facadeSource -notmatch 'industryPeStore\.IndustryPeRevisions' -or
+    $storeSource -match 'partial class MarketRepository') {
+    throw 'Industry PE storage must stay behind the internal shared-session contract and compatibility facade.'
+}
+$etfViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/Etf/EtfViewModel.cs") -Raw
+$marketActivitySource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/MarketCycle/MarketActivityPresentation.cs") -Raw
+$proofViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/ExitAlerts/ExitAlertProofViewModel.cs") -Raw
+if ($etfViewModelSource -notmatch 'IMarketCycleWorkspace marketCycleWorkspace' -or
+    $marketActivitySource -notmatch 'marketCycleWorkspace\.MarketActivityAsync' -or
+    $proofViewModelSource -notmatch 'etfWorkspace\.ConfigurationAsync') {
+    throw 'ETF, market-cycle and exit-alert UI dependencies must use explicit feature ports.'
+}
 Write-Host "PASS NationalTeam feature layout: Core, Jobs, WPF presentation and Worker IPC files are grouped by feature."
 Write-Host "Validated Worker workspace parts: $($workerFiles.Count); WPF pages: $($xamlFiles.Count); narrow feature ports: $($portFiles.Count)."
