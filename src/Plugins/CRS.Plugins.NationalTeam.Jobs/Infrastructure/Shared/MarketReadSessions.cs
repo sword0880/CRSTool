@@ -36,6 +36,7 @@ public sealed partial class MarketRepository : IMarketReadSessions,IBoundedMarke
         navStore=new NavStore(marketSession);
         alertOutboxStore=new AlertOutboxStore(marketSession);
         alertEventStore=new AlertEventStore(marketSession);
+        alertDeliveryStore=new AlertDeliveryStore(marketSession,alertOutboxStore);
         try
         {
             db.Open();

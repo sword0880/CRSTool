@@ -10,8 +10,7 @@ public sealed partial class MarketRepository
     {
         var config=AlertConfiguration();if(!config.Rules.Enabled)return null;
         var now=CRS.Timing.BeijingClock.Read(clock);
-        using var query=Command("SELECT payload FROM nt_alert_outbox WHERE state IN ('Pending','Retry','Disabled','Unavailable') AND julianday(next_at)<=julianday($now) ORDER BY julianday(next_at) LIMIT 20",("$now",now.ToString("O")));
-        var due=ReadJson<AlertOutboxItem>(query);if(due.Count==0)return null;
+        var due=alertDeliveryStore.DueNotifications(now);if(due.Count==0)return null;
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
         foreach(var row in due)
         {
@@ -40,35 +39,8 @@ public sealed partial class MarketRepository
         var row=AlertEvent(id,sequence)??throw new InvalidDataException("事件版本不存在。");ValidateEvidence();
         var ids=row.RevisionIds.Concat(row.HistoricalRevisionIds??[]).ToHashSet(StringComparer.Ordinal);return ReadEvidence().Where(x=>ids.Contains(x.RevisionId)).ToList();
     }
-    /// <summary>匹配持久租约后记录结果及每次尝试；受理结果未知不进入自动重试。</summary>
-    public void CompleteAlertNotification(string id,string lease,AlertDispatchOutcome outcome)
-    {
-        beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
-        var json=Scalar("SELECT payload FROM nt_alert_outbox WHERE id=$id",("$id",id)) as string;
-        var row=json is null?null:JsonSerializer.Deserialize<AlertOutboxItem>(json);
-        if(row is null||row.State!="InFlight"||row.Lease!=lease)throw new InvalidDataException("通知提交租约不匹配。");
-        var failures=outcome.State=="RetryableFailure"?row.Failures+1:row.Failures;
-        var state=outcome.State switch{"Accepted"=>"Accepted","RetryableFailure"=>failures>=8?"Failed":"Retry",
-            "PermanentFailure"=>"Failed","Disabled"=>"Disabled","Unavailable"=>"Unavailable",_=>"OutcomeUnknown"};
-        var delay=state is "Disabled" or "Unavailable"?300:Math.Min(3600,30*Math.Pow(2,Math.Min(failures,7)));
-        var at=Now;var safeCode=outcome.Code is {Length:>0 and <=80}&&outcome.Code.All(c=>char.IsAsciiLetterOrDigit(c)||c is '-' or '_')?outcome.Code:"ProviderResult";
-        var next=row with{State=state,LastCode=safeCode,Lease=null,Failures=failures,NextAttemptAt=CRS.Timing.BeijingClock.Read(clock).AddSeconds(delay).ToString("O"),AcceptedAt=state=="Accepted"?at:null};
-        WriteOutbox(next);
-        var delivery=new AlertDeliveryRecord(Guid.NewGuid().ToString("N"),id,row.Attempts,at,state,safeCode,outcome.ProviderReceipt is {Length:<=256}?outcome.ProviderReceipt:null);
-        Execute("INSERT INTO nt_alert_delivery VALUES($id,$out,$attempt,$at,$p)",("$id",delivery.Id),("$out",id),("$attempt",row.Attempts),("$at",at),("$p",JsonSerializer.Serialize(delivery)));
-        transaction.Commit();
-    }
-    public List<AlertDeliveryRecord> AlertDeliveries(string id)
-    {
-        using var command=Command("SELECT payload FROM nt_alert_delivery WHERE outbox_id=$id ORDER BY julianday(at) DESC LIMIT 100",("$id",id));return ReadJson<AlertDeliveryRecord>(command);
-    }
-    /// <summary>只允许重试明确未受理的记录；未知、已受理和正式门槛阻断的记录不能借重试绕过。</summary>
-    public void RetryAlertNotification(string id,Guid? commandId=null)
-    {
-        if(Committed(commandId))return;beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
-        var json=Scalar("SELECT payload FROM nt_alert_outbox WHERE id=$id",("$id",id)) as string;
-        var row=json is null?null:JsonSerializer.Deserialize<AlertOutboxItem>(json);
-        if(row is null||row.State is not ("Failed" or "Retry" or "Disabled" or "Unavailable"))throw new InvalidDataException("该通知不允许安全重试，请先核对受理情况或正式数据门槛。");
-        WriteOutbox(row with{State="Pending",Failures=0,NextAttemptAt=Now,LastCode="ManualRetry"});RecordCommand(commandId,"alert-retry");transaction.Commit();
-    }
+    /// <summary>Reuse the existing lease, outcome and audit protocol through an isolated delivery store.</summary>
+    public void CompleteAlertNotification(string id,string lease,AlertDispatchOutcome outcome)=>alertDeliveryStore.CompleteAlertNotification(id,lease,outcome);
+    public List<AlertDeliveryRecord> AlertDeliveries(string id)=>alertDeliveryStore.AlertDeliveries(id);
+    public void RetryAlertNotification(string id,Guid? commandId=null)=>alertDeliveryStore.RetryAlertNotification(id,commandId);
 }
