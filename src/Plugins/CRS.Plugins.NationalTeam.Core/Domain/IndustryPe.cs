@@ -23,7 +23,8 @@ public static class IndustryPePosition
     {
         if(row.State!="PublishedSeriesResearch"||row.LatestRollingWeighted is not >0m||row.LatestRollingMedian is not >0m
             ||row.PublishedSeriesPercentile is not {} weighted||row.PublishedMedianSeriesPercentile is not {} median
-            ||row.ExpectedPriorDays<=0||row.PriorSamples<252||row.MedianPriorSamples<252
+            ||row.ExpectedPriorDays<252||row.PriorSamples<252||row.MedianPriorSamples<252
+            ||row.PriorSamples>row.ExpectedPriorDays||row.MedianPriorSamples>row.ExpectedPriorDays
             ||(decimal)row.PriorSamples/row.ExpectedPriorDays<0.8m||(decimal)row.MedianPriorSamples/row.ExpectedPriorDays<0.8m
             ||weighted<0||weighted>100||median<0||median>100)return IndustryPeObservation.EvidenceIncomplete;
         if(weighted<=LowPercentile&&median<=LowPercentile)return IndustryPeObservation.DualHistoricalLow;
