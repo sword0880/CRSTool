@@ -13,18 +13,20 @@ namespace CRS.Plugins.NationalTeamWatch.Presentation;
 public partial class EtfViewModel : ObservableObject
 {
     private readonly IEtfResearchWorkspace workspace;
+    private readonly IMarketCycleWorkspace marketCycleWorkspace;
     private readonly CancellationToken lifetime;
 
-    public EtfViewModel(IEtfResearchWorkspace workspace,IExitAlertWorkspace alertWorkspace,CancellationToken lifetime)
+    public EtfViewModel(IEtfResearchWorkspace workspace,IMarketCycleWorkspace marketCycleWorkspace,IExitAlertWorkspace alertWorkspace,CancellationToken lifetime)
     {
         this.workspace=workspace??throw new ArgumentNullException(nameof(workspace));
+        this.marketCycleWorkspace=marketCycleWorkspace??throw new ArgumentNullException(nameof(marketCycleWorkspace));
         this.lifetime=lifetime;
         Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),lifetime);
     }
 
     /// <summary>Compatibility entry for existing consumers of the legacy composite workspace contract.</summary>
     public EtfViewModel(IEtfWorkspace workspace,CancellationToken lifetime)
-        :this(LegacyEtfResearchWorkspaceAdapter.Create(workspace),ExitAlertViewModel.AsPort(workspace),lifetime) {}
+        :this(LegacyEtfResearchWorkspaceAdapter.Create(workspace),LegacyMarketCycleWorkspaceAdapter.Create(workspace),ExitAlertViewModel.AsPort(workspace),lifetime) {}
     public ExitAlertViewModel Alerts {get;}
     public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EtfSummary> Rows { get; }=[];
