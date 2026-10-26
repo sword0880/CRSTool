@@ -28,7 +28,7 @@ internal static class IndexUiChecks
                 {
                     var watch=Stopwatch.StartNew();do{var frame=new DispatcherFrame();var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(80)};timer.Tick+=(_,_)=>{timer.Stop();frame.Continue=false;};timer.Start();Dispatcher.PushFrame(frame);if(watch.Elapsed>TimeSpan.FromSeconds(12))throw new TimeoutException("指数界面检查超时。");}while(task is not null?!task.IsCompleted:watch.Elapsed<TimeSpan.FromMilliseconds(1600));task?.GetAwaiter().GetResult();
                 }
-                var workspace=DispatchProxy.Create<IEtfWorkspace,IndexTestWorkspace>();var proxy=(IndexTestWorkspace)(object)workspace;proxy.Report=report;
+                var workspace=DispatchProxy.Create<IMarketCycleWorkspace,IndexTestWorkspace>();var proxy=(IndexTestWorkspace)(object)workspace;proxy.Report=report;
                 using var life=new CancellationTokenSource();var model=new IndexResearchViewModel(workspace,life.Token){From=report.From.ToDateTime(TimeOnly.MinValue),Through=report.Through.ToDateTime(TimeOnly.MinValue)};
                 window=new(){Title="公开原件隔离指数页面验证",Content=new IndexResearchPage(model,false),Width=1280,Height=1000,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};window.Show();Pump(model.QueryCommand.ExecuteAsync(null));
                 Check(model.Rows.Count==11&&model.Series.Length==11,"10行业样本指数和宽基参照来自后端报告");
