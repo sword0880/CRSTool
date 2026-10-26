@@ -127,6 +127,11 @@ Check(IndustryPeResearch.Calculate(begin,end,clock.At,synthetic.Reverse().ToArra
 Check(IndustryPeResearch.Calculate(begin,end,clock.At.ToOffset(TimeSpan.FromHours(8)),synthetic.Select(x=>x with{FirstSeenAt=x.FirstSeenAt.ToOffset(TimeSpan.FromHours(8)),StateRecordedAt=x.StateRecordedAt.ToOffset(TimeSpan.FromHours(8))}).ToArray(),syntheticCalendar,new('a',64)).Fingerprint==report.Fingerprint,"管道展示时区不改变同一行业研究身份");
 syntheticCalendar[begin]=null;Check(!IndustryPeResearch.Calculate(begin,end,clock.At,synthetic,syntheticCalendar,new('a',64)).CalendarVerified,"缺日历不产生历史分母");
 await IndustrySourceBudgetChecks.RunAsync(root,Check);
+// CI 专用的11行业合成单日报告；绝不是实际官网PE或投资低估结论。
+var uiFixture=IndustryPeResearch.Calculate(date,date,clock.At,
+    parsed.Select((x,i)=>new IndustryPeRevision("synthetic-ui-"+i,date,x,1,"Accepted",clock.Start,clock.Start,"synthetic-ui",true)).ToArray(),
+    new Dictionary<DateOnly,bool?>{{date,true}},new('a',64));
+File.WriteAllText(Path.Combine(output,"synthetic-industry-ui-report.json"),JsonSerializer.Serialize(uiFixture));
 File.WriteAllText(Path.Combine(output,"acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,Source="SyntheticAndIsolatedEncryptedStorage",Root=root},new JsonSerializerOptions{WriteIndented=true}));
 Console.WriteLine($"PASS 行业PE合计 {passed}；隔离解析/事务/领域，非正式运行或机会验证。");
 
