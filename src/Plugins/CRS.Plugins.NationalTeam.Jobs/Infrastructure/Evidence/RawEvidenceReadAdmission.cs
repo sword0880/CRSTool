@@ -1,4 +1,4 @@
-using CRS.Plugin.Common.Concurrency;
+using CRS.Common.Concurrency;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 

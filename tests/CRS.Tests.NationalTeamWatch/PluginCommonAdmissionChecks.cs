@@ -1,5 +1,5 @@
-using CRS.Plugin.Common.Concurrency;
-using CRS.Plugin.Common.Evidence;
+using CRS.Common.Concurrency;
+using CRS.Common.Integrity;
 using System.Text;
 
 internal static class PluginCommonAdmissionChecks
