@@ -37,5 +37,10 @@ public interface IPluginHttpGateway
 {
     Task<PublicHttpResponse> GetAsync(Uri uri, CancellationToken cancellationToken);
 }
+/// <summary>可选的公开JSON查询能力；调用方仍须按来源约束地址、请求字段及大小，不携带身份凭据。</summary>
+public interface IPluginJsonHttpGateway
+{
+    Task<PublicHttpResponse> PostJsonAsync(Uri uri,byte[] json,CancellationToken cancellationToken);
+}
 /// <summary>公开证券研究诊断，不得写入私人账户、令牌或认证材料。</summary>
 public interface IPluginDiagnostics { void Report(string code, string message); }

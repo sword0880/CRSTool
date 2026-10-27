@@ -29,6 +29,18 @@ jobs:
       - name: Verify atomic tax and performance import commits
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --calculation-commit
+      - name: Verify shared Excel values, formats and limits
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --excel-documents
+      - name: Verify plugin header ownership and shell navigation
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --compact-navigation "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugin-header"
+      - name: Verify NationalTeam lazy navigation and header handoff
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.SectorUi -c Release --no-build -- --navigation
+      - name: Verify shared Beijing formatter ownership
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time
       - name: Verify independent market query snapshots and writer isolation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --read-isolation
@@ -156,6 +168,9 @@ jobs:
       - name: Render national-team plugin previews (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --ui-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugins"
+      - name: Render compact ETF workspace (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --workspace-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/compact-workspace"
       - name: Upload screenshots for review
         if: always()
         uses: actions/upload-artifact@v4

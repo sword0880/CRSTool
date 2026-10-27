@@ -248,6 +248,7 @@
       "crs.plugin.wpf": {
         "type": "Project",
         "dependencies": {
+          "CRS.Common": "[1.0.0, )",
           "CRS.Plugin.Abstractions": "[1.0.0, )"
         }
       },

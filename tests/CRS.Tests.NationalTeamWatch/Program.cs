@@ -5,6 +5,8 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
+if(args is ["--etf-report-index"]){await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--etf-report-index-sources",var etfReportSources]){await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")),etfReportSources);return;}
 if(args is ["--etf-document-boundaries"]){EtfDocumentBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EtfDocumentBoundaries",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--etf-holder-candidates"]){await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--etf-holder-golden",var holderSourceDirectory]){await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")),holderSourceDirectory);return;}
@@ -83,6 +85,7 @@ if(args.Length!=0)throw new ArgumentException("未知的验收参数，拒绝自
 NavResearchChecks.Run();
 EtfDocumentBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EtfDocumentBoundaries",Guid.NewGuid().ToString("N")));
 await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")));
+await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")));
 PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));
 await ApplicationBoundaryChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ApplicationBoundaries",Guid.NewGuid().ToString("N")));
 await NavWorkspaceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.NavWorkspace",Guid.NewGuid().ToString("N")));

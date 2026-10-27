@@ -35,7 +35,7 @@ if (!ContentFingerprint.Matches(identity, payload))
 
 ## 时间处理已经归并
 
-`BeijingClock` 和 `BeijingDateTimeOffsetConverter` 的实现已迁到 `CRS.Common/Time/`，两个公开类型原有的 `CRS.Timing` 命名空间不变。其他 CRS 项目可以通过 `CRS.Common` 项目引用直接使用：
+`BeijingClock`、`BeijingDateTimeOffsetConverter` 和 `BeijingTime` 的实现位于 `CRS.Common/Time/`，统一使用 `CRS.Timing` 命名空间。其他 CRS 项目可以通过 `CRS.Common` 项目引用直接使用：
 
 ```csharp
 using CRS.Timing;
@@ -44,13 +44,15 @@ var now = BeijingClock.Read(TimeProvider.System);  // 同一UTC时间点，以 +
 var reportDay = BeijingClock.Normalize(now).Date;
 ```
 
-**兼容升级规则：** `CRS.Time.dll` 暂时保留原始程序集身份与 `TypeForwardedTo`，旧版客户端或插件仍能解析先前编译的 `CRS.Timing` 类型。发行包需要同时带上 `CRS.Time.dll`（兼容层）和 `CRS.Common.dll`（真正实现）；只拷贝其中一个不符合本次兼容方案。Window Service Runner 与插件可信包需要重新建立 SHA256 索引；不能混用不同提交的 DLL。
+`BeijingClock`在创建及读入边界归一化时间点；`BeijingTime`只直接格式化已带正确偏移的值，缺少时区的来源原样保留。WPF的`BeijingTimestampConverter`仍在`CRS.Plugin.Wpf`，只适配绑定，不让`Common`依赖桌面框架。
+
+旧`CRS.Time`工程与兼容转发层已退役，所有客户端和插件由当前源码重编译，包中只带实际实现的`CRS.Common.dll`。Worker Runner与插件可信包需要重新建立SHA256索引，不能混用不同提交的DLL。
 
 ### 合成验证
 
 ```powershell
 dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release -- --shared-read-admission
-dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release -- --common-time-compat
+dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release -- --common-time
 ```
 
 生产环境打包依旧由 `tests/Publish-NationalTeamPackage.ps1` 的 dotnet publish 收集依赖，发行索引必须对新增DLL逐字节哈希。不能将 `CRS.Common.dll` 手工放进未核验的全局插件目录或通过默认上下文覆盖已加载的不同版本。此仓库更新不代表安装的Worker已升级。

@@ -1,0 +1,12 @@
+using CRS.Plugins.NationalTeamWatch.Domain;
+namespace CRS.Plugins.NationalTeamWatch.Application;
+
+/// <summary>基金持仓研究的目录用例，与预警协调分离；目录不升级持仓批准状态。</summary>
+public sealed class EtfHoldingsUseCases : MarketUseCaseScope
+{
+    internal EtfHoldingsUseCases(MarketApplicationSession session):base(session){}
+    public Task<bool> EtfReportCommandCompleteAsync(Guid id,CancellationToken token)=>ReadPortAsync((IEtfReportIndexReadRepository repository)=>repository.EtfReportCommandComplete(id),token);
+    public Task<EtfReportIndexSnapshot> ReportIndexAsync(EtfKey key,CancellationToken token)=>ReadPortAsync((IEtfReportIndexReadRepository repository)=>repository.EtfReportIndex(key),token);
+    public Task SaveReportIndexAsync(EtfKey key,DateOnly from,DateOnly through,IReadOnlyList<byte[]> pages,CancellationToken token,Guid? commandId=null)
+        =>RunAsync((IEtfReportIndexWriteRepository repository)=>{repository.SaveEtfReportIndex(key,from,through,pages,commandId);return true;},token);
+}

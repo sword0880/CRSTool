@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views;
+using CRS.Plugin.Wpf;
 using Wpf.Ui.Controls;
 using MenuItem = System.Windows.Controls.MenuItem;
 using ContextMenu = System.Windows.Controls.ContextMenu;
@@ -97,6 +98,24 @@ internal static class CompactNavigationChecks
                         "动态菜单沿用原处理器并同步高亮");
                     Check(shell.Navigate("history"),"插件页可返回内置页面");await Task.Delay(100);
                     Check(pluginSurface.Visibility==Visibility.Collapsed&&!extensions.IsActive&&!shell.IsNavigationExpanded,"返回内置页面清除插件选中且保持折叠");
+                    var headerSlot=(ContentControl)shell.FindName("PluginHeaderContent");var fixture=new HeaderFixture();
+                    Method("ShowHostedPage").Invoke(shell,[fixture]);await Task.Delay(80);host.UpdateLayout();
+                    Check(ReferenceEquals(headerSlot.Content,fixture.HeaderContent)&&fixture.Hosted,"插件菜单移交实际窗口顶栏");
+                    foreach(var width in new[]{1040,1280})
+                    {
+                        host.Width=width;await Task.Delay(80);host.UpdateLayout();
+                        var point=fixture.HeaderContent.TranslatePoint(new Point(),layout);
+                        Check(point.Y>=0&&point.Y+fixture.HeaderContent.ActualHeight<=41&&point.X+fixture.HeaderContent.ActualWidth<layout.ActualWidth-145,
+                            $"{width}DIP菜单保持在40DIP顶栏且避开窗口按钮");
+                        Invoke((System.Windows.Controls.Button)fixture.HeaderContent);
+                        await Task.Delay(80);
+                        Capture(canvas,Path.Combine(directory,$"plugin-header-{width}.png"));
+                    }
+                    Check(fixture.Clicks==2,"顶栏菜单保留可点击交互");
+                    Method("ShowHostedPage").Invoke(shell,[new Border()]);
+                    Check(headerSlot.Content is null&&!fixture.Hosted,"切换不提供顶栏的插件清空旧菜单并恢复所有权");
+                    Method("ShowHostedPage").Invoke(shell,[fixture]);shell.Navigate("history");
+                    Check(headerSlot.Content is null&&!fixture.Hosted,"返回普通页面清理顶栏引用");
                     Invoke(investment);await Task.Delay(80);menu=Menu(shell)!;
                     var disabled=(NavigationViewItem)investment.MenuItems[0]!;disabled.IsEnabled=false;
                     await Task.Delay(50);
@@ -117,6 +136,16 @@ internal static class CompactNavigationChecks
     }
 
     private static MethodInfo Method(string name)=>typeof(MainWindow).GetMethod(name,BindingFlags.Instance|BindingFlags.NonPublic)!;
+    private sealed class HeaderFixture:UserControl,IPluginShellHeader
+    {
+        private readonly StackPanel body=new();
+        public FrameworkElement HeaderContent{get;}=new System.Windows.Controls.Button{Content="合成插件菜单",Height=32,Padding=new Thickness(12,4,12,4)};
+        public bool Hosted{get;private set;}
+        public int Clicks{get;private set;}
+        public HeaderFixture(){Content=body;body.Children.Add(HeaderContent);((System.Windows.Controls.Button)HeaderContent).Click+=(_,_)=>Clicks++;}
+        public void SetHeaderHosted(bool hosted)
+        {if(hosted)body.Children.Remove(HeaderContent);else if(!body.Children.Contains(HeaderContent))body.Children.Add(HeaderContent);Hosted=hosted;}
+    }
     private static ContextMenu? Menu(MainWindow shell)=>(ContextMenu?)typeof(MainWindow)
         .GetField("compactNavigationMenu",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(shell);
     private static void Invoke(UIElement item)

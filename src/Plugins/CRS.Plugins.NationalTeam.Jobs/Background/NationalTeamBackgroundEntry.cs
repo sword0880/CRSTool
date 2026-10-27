@@ -23,7 +23,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     public BackgroundExecutionGroup ExecutionGroup(string jobId)=>jobId switch
     {
         "evidence-integrity" or "official-share-sync" or "market-activity-sync" or "official-calendar-sync" or "equity-disclosure-sync"
-            or "equity-report-search" or "equity-review" or "equity-history-import" or "nav-sync" or "industry-pe-sync" or "index-series-sync" or "index-valuation-sync"=>new("collection",2),
+            or "equity-report-search" or "etf-report-search" or "equity-review" or "equity-history-import" or "nav-sync" or "industry-pe-sync" or "index-series-sync" or "index-valuation-sync"=>new("collection",2),
         "alert-evaluate"=>new("evaluation",1),
         _=>new("management",1)
     };
@@ -76,6 +76,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         new("equity-review","直接持股原文核验（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-history-import","历史持股原文登记（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-report-search","查找持股官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("etf-report-search","查找配置ETF官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("activity-review","成交统计修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("nav-sync","官方NAV原件采集（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("nav-review","NAV冲突修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
@@ -144,6 +145,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     return await ManageAlertAsync(request,commandId,token);
                 case "equity-report-search" when request.Operation=="equity-report-search":
                     return await SearchEquityReportsAsync(request,commandId,token);
+                case "etf-report-search" when request.Operation=="etf-report-search":
+                    return await SearchEtfReportsAsync(request,commandId,token);
                 case "activity-review" when request.Operation=="activity-review":
                     await workspace!.Activity.ReviewMarketActivityAsync(request.Revision??"",request.Accept,request.Reviewer??"",token,commandId);return BackgroundJobResult.Success();
                 case "equity-watch" when request.Operation=="equity-watch" && request.EquityWatch is {} watch:
@@ -262,7 +265,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "industry-pe-report" or "industry-pe-revisions" or "index-series-report" or "index-series-revisions" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
                 or "equity-watchlist" or "equity-holdings" or "equity-disclosures" or "equity-events" or "equity-reports" or "equity-history-documents" or "equity-history-receipt"
                 or "alert-overview" or "alert-configuration" or "alert-events" or "alert-event" or "alert-event-version" or "alert-inputs"
-                or "alert-changes" or "alert-outbox" or "alert-deliveries" or "alert-channels" or "alert-documents" or "alert-metadata" or "alert-holdings" or "etf-holder-candidates"
+                or "alert-changes" or "alert-outbox" or "alert-deliveries" or "alert-channels" or "alert-documents" or "alert-metadata" or "alert-holdings" or "etf-holder-candidates" or "etf-report-index"
                 ?operation:"unknown";
         }
         catch(EtfContractException){return "invalid";}
@@ -345,6 +348,9 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "etf-holder-candidates":
                     var holderCandidates=await workspace!.Alerts.EtfHolderCandidatesAsync(Key(request),request.Revision??"",token);
                     rows=CRS.Serialization.JsonDocumentBlocks.Encode(holderCandidates,token).Select(x=>SerializeRow(x)).ToArray();break;
+                case "etf-report-index":
+                    var etfReports=await workspace!.Holdings.ReportIndexAsync(Key(request),token);
+                    rows=CRS.Serialization.JsonDocumentBlocks.Encode(etfReports,token).Select(x=>SerializeRow(x)).ToArray();break;
                 case "dashboard":
                     if((request.Market is null)!=(request.Ticker is null))throw new ArgumentException("ETF标识不完整。");
                     var dashboard=await workspace!.Etf.DashboardAsync(request.Market is null?null:Key(request),token)

@@ -43,12 +43,12 @@ Assert-OnlyExpectedRootCode "$jobs/Background" @('NationalTeamBackgroundEntry.cs
 # IPC客户端按功能归档，后台用例不实现这些客户端合同。
 $workerRoot = Join-Path $repoRoot "$ui/Application/Worker"
 $workerFiles = @(Get-ChildItem -LiteralPath $workerRoot -Recurse -File -Filter 'WorkerEtfWorkspace*.cs')
-if ($workerFiles.Count -ne 7) {
-    throw "Expected 7 WorkerEtfWorkspace source parts, found $($workerFiles.Count)."
+if ($workerFiles.Count -ne 8) {
+    throw "Expected 8 WorkerEtfWorkspace source parts, found $($workerFiles.Count)."
 }
 foreach ($file in $workerFiles) {
     $relative = $file.FullName.Substring($repoRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
-    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|Equity|ExitAlerts|IndustryValuation|MarketCycle|Nav)/WorkerEtfWorkspace[^/]*\.cs$') {
+    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|EtfHoldings|Equity|ExitAlerts|IndustryValuation|MarketCycle|Nav)/WorkerEtfWorkspace[^/]*\.cs$') {
         throw ("Worker workspace partial is not grouped by feature: " + $relative)
     }
 }
@@ -76,6 +76,7 @@ if (-not (Test-Path -LiteralPath $marketRepository -PathType Leaf)) {
 $portFiles = @(
     "$core/Application/Shared/IWorkspaceAccess.cs",
     "$core/Application/Etf/IEtfResearchWorkspace.cs",
+    "$core/Application/EtfHoldings/IEtfHoldingsWorkspace.cs",
     "$core/Application/Equity/IDirectEquityWorkspace.cs",
     "$core/Application/IndustryValuation/IIndustryValuationWorkspace.cs",
     "$core/Application/MarketCycle/IMarketCycleWorkspace.cs",
@@ -103,7 +104,7 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot "$core/Application/Shared/IEtfWo
 $applicationRoot = Join-Path $repoRoot "$jobs/Application"
 foreach ($file in Get-ChildItem -LiteralPath $applicationRoot -Recurse -File -Filter '*.cs') {
     $source = Get-Content -LiteralPath $file.FullName -Raw
-    if ($source -match '\b(EtfWorkspace|INationalTeamWorkspace|IEtfResearchWorkspace|IDirectEquityWorkspace|IIndustryValuationWorkspace|IMarketCycleWorkspace|INavWorkspace|IExitAlertWorkspace)\b') {
+    if ($source -match '\b(EtfWorkspace|INationalTeamWorkspace|IEtfResearchWorkspace|IEtfHoldingsWorkspace|IDirectEquityWorkspace|IIndustryValuationWorkspace|IMarketCycleWorkspace|INavWorkspace|IExitAlertWorkspace)\b') {
         throw "Backend use cases must not implement client workspace contracts: $($file.Name)"
     }
     if ($file.Name -notin @('MarketApplicationSession.cs','NationalTeamApplication.cs') -and $source -match '\bIMarketRepository\b') {

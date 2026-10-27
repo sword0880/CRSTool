@@ -15,6 +15,7 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
     private IndustryResearchViewModel? industry;
     private IndexResearchViewModel? indices;
     private NavStudyViewModel? nav;
+    private EtfHoldingsViewModel? holdings;
     public ValueTask StartAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
@@ -24,14 +25,15 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
         industry=new(new WorkerEtfWorkspace(),lifetime.Token);
         indices=new(new WorkerEtfWorkspace(),lifetime.Token);
         var navWorkspace=new WorkerEtfWorkspace();nav=new(navWorkspace,navWorkspace,lifetime.Token);
+        var holdingsWorkspace=new WorkerEtfWorkspace();holdings=new(holdingsWorkspace,holdingsWorkspace,holdingsWorkspace,lifetime.Token);
         // 启动只注册页面；数据读取在页面打开后执行，不能占用宿主的启动期限。
         return ValueTask.CompletedTask;
     }
     public IReadOnlyList<PluginPageContribution> GetPages()=>[
         // 唯一主菜单入口；模块在工作台内按证据链分类，页面仅在选中时创建。
         new("national-team-workspace","国家队研究工作台",()=>new NationalTeamWorkspacePage(
-            NationalTeamWorkspaceCatalog.Create(model!,equity!,industry!,indices!,nav!)))
+            NationalTeamWorkspaceCatalog.Create(model!,equity!,industry!,indices!,nav!,holdings!)))
     ];
     public ValueTask StopAsync(CancellationToken token){lifetime.Cancel();return ValueTask.CompletedTask;}
-    public ValueTask DisposeAsync(){lifetime.Cancel();lifetime.Dispose();model=null;equity=null;industry=null;indices=null;nav=null;return ValueTask.CompletedTask;}
+    public ValueTask DisposeAsync(){lifetime.Cancel();holdings?.Cancel();lifetime.Dispose();model=null;equity=null;industry=null;indices=null;nav=null;holdings=null;return ValueTask.CompletedTask;}
 }

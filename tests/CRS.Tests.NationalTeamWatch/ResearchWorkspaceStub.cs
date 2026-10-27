@@ -4,6 +4,8 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 /// <summary>测试专用端口：未配置的能力立即失败；生产代码不引用此类型。</summary>
 internal abstract class ResearchWorkspaceStub : INationalTeamWorkspace
 {
+    public virtual Task<EtfReportIndexSnapshot> EtfReportIndexAsync(EtfKey key,CancellationToken token)=>throw new InvalidOperationException("测试未配置ETF报告目录。");
+    public virtual Task<EtfReportSearchReceipt> QueueEtfReportsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>throw new InvalidOperationException("测试未配置ETF报告检索。");
     public virtual Task<EtfNavStudyReport> NavStudyAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>throw new InvalidOperationException("测试未配置此能力。");
     public virtual bool CanManage=>true;
     public virtual Task<List<HistoricalEquityPdf>> HistoricalEquityDocumentsAsync(CancellationToken token) => throw new InvalidOperationException("测试未配置此能力。");

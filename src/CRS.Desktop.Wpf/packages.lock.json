@@ -416,10 +416,8 @@
           "Dapper": "[2.1.89, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
           "NLog": "[6.2.1, )",
-          "NPOI": "[2.8.1, )",
           "QRCoder": "[1.7.0, )",
-          "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )",
-          "SkiaSharp": "[3.119.4, )"
+          "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )"
         }
       },
       "crs.plugin.abstractions": {
@@ -431,6 +429,7 @@
       "crs.plugin.wpf": {
         "type": "Project",
         "dependencies": {
+          "CRS.Common": "[1.0.0, )",
           "CRS.Plugin.Abstractions": "[1.0.0, )"
         }
       },

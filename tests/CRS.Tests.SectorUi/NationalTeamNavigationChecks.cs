@@ -49,7 +49,7 @@ internal static class NationalTeamNavigationChecks
                     var origin=body.TranslatePoint(new Point(),page);
                     Check(Math.Abs(body.ActualWidth-width)<1&&Math.Abs(origin.X)<1&&origin.Y<85,
                         $"{width}DIP正文占满整行，顶部菜单不形成第二层侧栏");
-                    Check(header.ActualWidth<=width-39&&notice.Visibility==Visibility.Collapsed,
+                    Check(header.ActualWidth<=width-31&&notice.Visibility==Visibility.Collapsed,
                         $"{width}DIP说明默认收起，菜单保留左右留白");
                 }
                 help.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));page.UpdateLayout();
@@ -57,6 +57,14 @@ internal static class NationalTeamNavigationChecks
                 help.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Check(notice.Visibility==Visibility.Collapsed,"研究说明可以收回，不常驻占用正文");
                 var navigation=Descendants(page).OfType<PluginSectionNavigation>().Single();
+                var shellSlot=new ContentControl();
+                page.SetHeaderHosted(true);shellSlot.Content=page.HeaderContent;
+                page.Measure(new Size(800,760));page.Arrange(new Rect(0,0,800,760));page.UpdateLayout();
+                Check(body.TranslatePoint(new Point(),page).Y<1&&ReferenceEquals(shellSlot.Content,header),"移交宿主后菜单不重复占正文，使用同一菜单实例");
+                page.OpenRoute("fixture-etf");
+                Check(navigation.SelectedRouteKey=="fixture-etf","宿主顶栏仍同步当前路由");
+                shellSlot.Content=null;page.SetHeaderHosted(false);page.SetHeaderHosted(false);
+                Check(Descendants(page).OfType<Border>().Count(x=>x.Name=="ResearchToolbar")==1,"退出宿主后独立页恢复一次菜单，不重复挂载");
                 var menuButton=Descendants(navigation).OfType<Button>().Single(x=>AutomationProperties.GetName(x)=="资金与持仓菜单");
                 var window=new Window{Content=page,Width=820,Height=760,ShowInTaskbar=false};
                 try

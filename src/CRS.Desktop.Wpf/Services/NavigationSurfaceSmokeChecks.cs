@@ -17,6 +17,7 @@ internal static class NavigationSurfaceSmokeChecks
         var navigation = (NavigationView)window.FindName("Navigation");
         var surface = (Border)window.FindName("PluginSurface");
         var host = (ContentControl)window.FindName("PluginContent");
+        var header = (ContentControl)window.FindName("PluginHeaderContent");
         window.Navigate("history"); await Task.Delay(350);
         var builtIn = Find<NavigationViewContentPresenter>(navigation) ?? throw new InvalidOperationException("没有内置内容容器。");
         if (!builtIn.IsVisible || surface.IsVisible) throw new InvalidOperationException("内置页面未独占显示。");
@@ -32,6 +33,8 @@ internal static class NavigationSurfaceSmokeChecks
             item.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, item));
             await Task.Delay(350); var original = host.Content;
             if (original is null) throw new InvalidOperationException("实际插件页面未打开。");
+            if(original is CRS.Plugin.Wpf.IPluginShellHeader provider && !ReferenceEquals(header.Content,provider.HeaderContent))
+                throw new InvalidOperationException("插件顶栏未移交窗口，或出现重复菜单。");
             foreach (var expanded in new[] { false, true, false, true })
             {
                 window.IsNavigationExpanded = expanded; await Task.Delay(350); window.UpdateLayout();
@@ -42,7 +45,7 @@ internal static class NavigationSurfaceSmokeChecks
                 if (!expanded) capture($"plugin-{index}-collapsed");
             }
             window.Navigate("history"); await Task.Delay(350); window.UpdateLayout();
-            if (!builtIn.IsVisible || surface.IsVisible || host.Content is not null) throw new InvalidOperationException("返回内置页面后仍有插件遮罩。");
+            if (!builtIn.IsVisible || surface.IsVisible || host.Content is not null || header.Content is not null) throw new InvalidOperationException("返回内置页面后仍有插件遮罩或顶栏。");
             index++;
         }
         var management = extensions.MenuItems.OfType<NavigationViewItem>().Single(item => Equals(item.Content, "插件管理"));

@@ -57,7 +57,7 @@ public partial class MainWindow : FluentWindow
         taskCenter.Click+=async (_,_)=>await NavigateScheduledTasksAsync();TasksGroup.MenuItems.Insert(0,taskCenter);
         InitializeCompactNavigation();
         Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
-        Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();taskPageLifetime.Cancel();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
+        Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();taskPageLifetime.Cancel();ClearPluginHeader();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
     }
     /// <summary>扩展页与内置页互斥显示；隐藏原内容但保留布局，避免收窄侧栏露出旧页面。</summary>
     private void ShowHostedPage(System.Windows.UIElement page)
@@ -65,12 +65,12 @@ public partial class MainWindow : FluentWindow
         Navigation.ApplyTemplate();
         builtInContent??=FindNavigationContent(Navigation)??throw new InvalidOperationException("导航内容容器未初始化。");
         builtInContent.Visibility=System.Windows.Visibility.Hidden;
-        PluginContent.Content=page;
+        ClearPluginHeader();PluginContent.Content=page;SetPluginHeader(page);
         PluginSurface.Visibility=System.Windows.Visibility.Visible;
     }
     private void HidePlugin()
     {
-        PluginContent.Content=null;PluginSurface.Visibility=System.Windows.Visibility.Collapsed;
+        ClearPluginHeader();PluginContent.Content=null;PluginSurface.Visibility=System.Windows.Visibility.Collapsed;
         if(builtInContent is not null)builtInContent.Visibility=System.Windows.Visibility.Visible;
     }
     /// <summary>按公开控件类型定位内容区，不依赖主题模板的私有字段和元素名称。</summary>

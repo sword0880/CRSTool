@@ -5,6 +5,6 @@ namespace CRS.DesktopClient.Converters;
 public sealed class UtcTimestampConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => CRS.Plugin.Wpf.BeijingTime.Display(value, "yyyy-MM-dd HH:mm");
+        => CRS.Timing.BeijingTime.Display(value, "yyyy-MM-dd HH:mm");
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }

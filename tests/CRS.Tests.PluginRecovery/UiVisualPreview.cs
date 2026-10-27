@@ -42,13 +42,26 @@ internal static class UiVisualPreview
                 var proofGrid=All(page).OfType<DataGrid>().Single(x=>ReferenceEquals(x.ItemsSource,model.ProofHoldings));
                 proofGrid.BringIntoView();
                 var proofFrame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>proofFrame.Continue=false));Dispatcher.PushFrame(proofFrame);window.UpdateLayout();
-                var proofBitmap=new RenderTargetBitmap((int)Math.Ceiling(proofGrid.ActualWidth),(int)Math.Ceiling(proofGrid.ActualHeight),96,96,PixelFormats.Pbgra32);proofBitmap.Render(proofGrid);
-                var proofEncoder=new PngBitmapEncoder();proofEncoder.Frames.Add(BitmapFrame.Create(proofBitmap));
-                using(var stream=File.Create(Path.Combine(directory,$"holding-status-{width}.png")))proofEncoder.Save(stream);
+                CaptureGrid(proofGrid,Path.Combine(directory,$"holding-status-{width}.png"));
             }
             finally{window.Close();}
         }
         Console.WriteLine("PASS 持有人候选及核验标记：640/1040/1280 DIP真实窗口6张合成渲染，不连接后台。");
+    }
+    private static void CaptureGrid(DataGrid grid,string path)
+    {
+        var parent=(Panel)grid.Parent;var index=parent.Children.IndexOf(grid);var context=grid.DataContext;
+        var local=grid.ReadLocalValue(FrameworkElement.DataContextProperty);var width=grid.ActualWidth;var height=grid.ActualHeight;
+        parent.Children.Remove(grid);grid.DataContext=context;
+        var window=new Window{Content=grid,Width=width,Height=height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false};
+        try
+        {
+            window.Show();window.UpdateLayout();var bitmap=new RenderTargetBitmap((int)Math.Ceiling(grid.ActualWidth),(int)Math.Ceiling(grid.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(grid);
+            var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4];bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
+            if(pixels.Distinct().Count()<8)throw new InvalidOperationException("持仓表截图为空，不能接受。");
+            var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
+        }
+        finally{window.Content=null;window.Close();parent.Children.Insert(index,grid);if(local==DependencyProperty.UnsetValue)grid.ClearValue(FrameworkElement.DataContextProperty);else grid.SetValue(FrameworkElement.DataContextProperty,local);}
     }
     private static T Find<T>(DependencyObject root) where T:DependencyObject
     {
@@ -100,24 +113,42 @@ internal static class UiVisualPreview
         PluginUiResources.Validate(System.Windows.Application.Current.Resources);
         Directory.CreateDirectory(directory);
         var frames=0;
+        var measurements=new List<object>();
         var workspace=new WorkerEtfWorkspace();
         foreach(var width in new[]{640,1040,1280})
         foreach(var scale in new[]{1.0,1.25,1.5})
         {
+            var model=new EtfViewModel(workspace,CancellationToken.None){Status="合成布局验证 · 当前监控24只；部分披露待核验，完整交易日历与NAV金额仍待核验。"};
+            for(var i=0;i<8;i++)model.Rows.Add(new("SSE","SYNTHETIC"+i,"合成ETF "+i,"合成指数","市场观察",new(2026,10,27),123456789m,null,null,null,"待核验",8));
             var view=new NationalTeamWorkspacePage([
-                new("etf-monitor","holdings","ETF份额与市场成交","ETF份额与机构披露分开，市场份额变动不等于国家队交易",()=>new EtfPage(new EtfViewModel(workspace,CancellationToken.None),false)),
+                new("etf-monitor","holdings","ETF份额与市场成交","ETF份额与机构披露分开，市场份额变动不等于国家队交易",()=>new EtfPage(model,false)),
                 new("direct-equity","holdings","机构直接持股","具名持仓以披露证据为准",()=>new EquityPage(new EquityViewModel(workspace,CancellationToken.None),false)),
                 new("industry-pe","industry","全行业公布PE","全行业公布PE独立研究",()=>new TextBlock{Text="行业公布PE预览"}),
                 new("sector-index","industry","行业样本指数与PB","样本指数与PB独立研究",()=>new TextBlock{Text="样本指数预览"})]);
             view.OpenRoute("etf-monitor");
-            var root=new Border{Background=(Brush)System.Windows.Application.Current.FindResource("BrandCanvasBrush"),Child=view};
+            view.SetHeaderHosted(true);var layout=new Grid();layout.RowDefinitions.Add(new(){Height=new GridLength(40)});layout.RowDefinitions.Add(new(){Height=new GridLength(1,GridUnitType.Star)});
+            var slot=new ContentControl{Content=view.HeaderContent,HorizontalContentAlignment=HorizontalAlignment.Left,VerticalContentAlignment=VerticalAlignment.Center,Margin=new Thickness(16,0,150,0)};
+            layout.Children.Add(slot);Grid.SetRow(view,1);layout.Children.Add(view);
+            var root=new Border{Background=(Brush)System.Windows.Application.Current.FindResource("BrandCanvasBrush"),Child=layout};
             root.Measure(new Size(width,760));root.Arrange(new Rect(0,0,width,760));root.UpdateLayout();
+            var tabs=All(view).OfType<TabControl>().First();var page=All(view).OfType<EtfPage>().Single();
+            var details=(System.Windows.Controls.Primitives.ToggleButton)page.FindName("EtfDetailsToggle");
+            var limit=width<800?160:125;
+            if(tabs.TranslatePoint(new Point(),page).Y>limit)throw new InvalidOperationException("紧凑页头仍占用过多正文高度。");
+            measurements.Add(new{Width=width,Scale=scale,ShellMenuHeight=40,PageHeaderHeight=tabs.TranslatePoint(new Point(),page).Y,ContentHeight=tabs.ActualHeight,Source="SyntheticWpfLayout"});
+            if(scale==1)
+            {
+                details.IsChecked=true;root.UpdateLayout();
+                if(((Border)page.FindName("EtfDetailsPanel")).Visibility!=Visibility.Visible)throw new InvalidOperationException("完整研究说明不可展开。");
+                details.IsChecked=false;root.UpdateLayout();
+            }
             var bitmap=new RenderTargetBitmap((int)(width*scale),(int)(760*scale),96*scale,96*scale,PixelFormats.Pbgra32);
             bitmap.Render(root);
             var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
             using var stream=File.Create(Path.Combine(directory,$"workspace-{width}-{(int)(scale*100)}.png"));encoder.Save(stream);frames++;
         }
         // 单独打开通用菜单核验弹层，不挂载任何带Loaded业务行为的页面。
+        File.WriteAllText(Path.Combine(directory,"layout-measurements.json"),System.Text.Json.JsonSerializer.Serialize(measurements,new System.Text.Json.JsonSerializerOptions{WriteIndented=true}));
         var navigation=new PluginSectionNavigation(
             [new("holdings","资金与持仓"),new("industry","行业与估值")],
             [new("etf","holdings","ETF份额与市场成交","ETF份额与机构披露分开"),new("equity","holdings","机构直接持股","以具名披露为准"),
@@ -139,7 +170,7 @@ internal static class UiVisualPreview
             }
         }
         finally{window.Close();}
-        Console.WriteLine($"PASS 顶部菜单工作台：{frames}张原生WPF空状态截图，640/1040/1280 DIP、100/125/150%渲染密度；另2张原生菜单弹层；不调用后台。");
+        Console.WriteLine($"PASS 顶部菜单工作台：{frames}张原生WPF合成行截图，640/1040/1280 DIP、100/125/150%渲染密度；另2张原生菜单弹层；不调用后台。");
     }
 
     public static void Render(string directory)

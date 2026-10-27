@@ -7,7 +7,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 namespace CRS.Plugins.NationalTeam.Jobs;
 /// <summary>公开来源限域、限速和大小保护；不跟随重定向，不绕过403或429。</summary>
-public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceValidationFeedback, IDisposable
+public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGateway, IOfficialSourceValidationFeedback, IDisposable
 {
     private readonly HttpClient client;
     private readonly HttpClient directClient;
@@ -82,6 +82,15 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
         directClient = new(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false }) { Timeout = Timeout.InfiniteTimeSpan };
     }
     public async Task<PublicHttpResponse> GetAsync(Uri uri, CancellationToken cancellationToken)
+        =>await RequestAsync(uri,null,cancellationToken).ConfigureAwait(false);
+    public async Task<PublicHttpResponse> PostJsonAsync(Uri uri,byte[] json,CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if(json.Length is 0 or >4096)throw new InvalidDataException("公开JSON查询请求超过限额。");
+        var frozen=json.ToArray();OfficialEtfReportIndex.ValidatePost(uri,frozen);
+        return await RequestAsync(uri,frozen,cancellationToken).ConfigureAwait(false);
+    }
+    private async Task<PublicHttpResponse> RequestAsync(Uri uri,byte[]? jsonBody,CancellationToken cancellationToken)
     {
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0
             || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)&&!EfundsNavResearch.IsSource(uri)&&!OfficialIndustryPeSource.IsSource(uri)&&!OfficialIndexSeriesSource.IsSource(uri)) throw new InvalidOperationException("Public source not allowed.");
@@ -102,7 +111,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
             deadline.CancelAfter(TimeSpan.FromSeconds(20));
             try
             {
-                using var response = await SendAsync(uri,deadline.Token).ConfigureAwait(false);
+                using var response = await SendAsync(uri,deadline.Token,jsonBody).ConfigureAwait(false);
                 var status = (int)response.StatusCode;
                 await ReportAsync("ResponseReceived",uri,status);
                 if (status is 403 or 429 or >= 500)
@@ -119,6 +128,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
                 }
                 // 已逐页核对的工行原件约13.35MiB；仅该精确且有哈希约束的文件可到16MiB，其余仍限8MiB。
                 var maximumBytes=OfficialEquityDocuments.IsReviewedIssuer(uri)&&uri.Host=="v.icbc.com.cn"?16*1024*1024:8*1024*1024;
+                if(OfficialEtfReportIndex.IsSseRequest(uri)||uri==OfficialEtfReportIndex.SzseEndpoint)maximumBytes=OfficialEtfReportIndex.MaximumPageBytes;
                 var body=await CRS.Common.Net.BoundedContentReader.ReadAsync(response.Content,maximumBytes,deadline.Token).ConfigureAwait(false);
                 if (status is >= 200 and < 300)
                 {
@@ -155,16 +165,19 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IOfficialSourceVal
             throw;
         }
     }
-    private async Task<HttpResponseMessage> SendAsync(Uri uri,CancellationToken token)
+    private async Task<HttpResponseMessage> SendAsync(Uri uri,CancellationToken token,byte[]? jsonBody)
     {
         async Task<HttpResponseMessage> Send(HttpClient transport)
         {
-            using var request=new HttpRequestMessage(HttpMethod.Get,uri);
+            using var request=new HttpRequestMessage(jsonBody is null?HttpMethod.Get:HttpMethod.Post,uri);
+            if(jsonBody is not null){request.Content=new ByteArrayContent(jsonBody);request.Content.Headers.ContentType=new("application/json");}
             // 官方公开页面对应的Referer，不携带Cookie、账号或验证码。
             var activity=uri.Query.Contains("COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C",StringComparison.Ordinal) || uri.Query.Contains("scsj_gprdgk_after",StringComparison.Ordinal);
             request.Headers.Referrer=new Uri(uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)?activity?"https://www.sse.com.cn/market/stockdata/overview/day/":"https://www.sse.com.cn/market/funddata/volumn/etfvolumn/":activity?"https://www.szse.cn/market/stock/situation/daily/index.html":"https://fund.szse.cn/marketdata/etf/");
             if(uri.Query.Contains("COMMON_SSE_PL_XBRL_TOP10SHAREHOLDERS",StringComparison.Ordinal))request.Headers.Referrer=new("https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml");
             if(uri.AbsolutePath=="/security/stock/queryCompanyBulletinNew.do")request.Headers.Referrer=new("https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml");
+            if(OfficialEtfReportIndex.IsSseRequest(uri))request.Headers.Referrer=new("https://www.sse.com.cn/disclosure/fund/announcement/");
+            if(uri==OfficialEtfReportIndex.SzseEndpoint)request.Headers.Referrer=new("https://www.szse.cn/disclosure/fund/notice/index.html");
             if(OfficialEquityDocuments.IsReviewedIssuer(uri))request.Headers.Referrer=OfficialEquityDocuments.IssuerReferrer(uri);
             if(EfundsNavResearch.IsSource(uri))request.Headers.Referrer=new(EfundsNavResearch.ProductUrl);
             if(OfficialIndexSeriesSource.IsSource(uri))request.Headers.Referrer=OfficialIndexSeriesSource.UnitsSource;

@@ -6,6 +6,7 @@ public sealed class NationalTeamApplication : IAsyncDisposable
 {
     private readonly MarketApplicationSession session;
     public EtfUseCases Etf {get;}
+    public EtfHoldingsUseCases Holdings {get;}
     public EquityUseCases Equity {get;}
     public ExitAlertUseCases Alerts {get;}
     public IndustryPeUseCases Industry {get;}
@@ -16,7 +17,7 @@ public sealed class NationalTeamApplication : IAsyncDisposable
     public NationalTeamApplication(IPluginHostContext context,Func<IMarketRepository> factory,IRawEvidenceStore raw,IEtfHolderCandidateParser holderParser)
     {
         session=new(factory);Etf=new(session,context,raw);Equity=new(session);Alerts=new(session,holderParser);
-        Industry=new(session);Index=new(session);Activity=new(session);Nav=new(session);Evidence=new(session,raw);
+        Industry=new(session);Index=new(session);Activity=new(session);Nav=new(session);Evidence=new(session,raw);Holdings=new(session);
     }
     public void SetProgressSink(Func<EtfProgress,Task>? sink)=>session.Progress=sink;
     public Task InitializeAsync(CancellationToken token)=>session.InitializeAsync(token);

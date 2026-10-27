@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.Loader;
 using System.Text.Json;
 using CRS.Documents.Excel;
+using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
 using NPOI.HSSF.UserModel;
@@ -52,7 +53,7 @@ internal static class ExcelDocumentChecks
             Check(row.GetCell(2).CellType==CellType.String&&row.GetCell(2).StringCellValue==""&&row.GetCell(3).CellType==CellType.Numeric
                 &&row.GetCell(3).NumericCellValue==0&&row.GetCell(4).NumericCellValue==7,"空值、真实零及整数区分");
             Check(book.GetFontAt(sheet.GetRow(0).GetCell(0).CellStyle.FontIndex).IsBold&&sheet.GetColumnWidth(1)==12000
-                &&sheet.PaneInformation is {IsFreezePane:true,HorizontalSplitPosition:1},"表头、列宽及冻结行保留");
+                &&sheet.PaneInformation is {HorizontalSplitPosition:1} pane&&pane.IsFreezePane(),"表头、列宽及冻结行保留");
             Check(book.GetSheet("绩效选项").GetRow(1).GetCell(0).CellType==CellType.String
                 &&book.GetSheet("绩效选项").PaneInformation is null,"可保留绩效原整数文本及无冻结选项");
         }
@@ -101,7 +102,7 @@ internal static class ExcelDocumentChecks
         return JsonSerializer.Serialize(Enumerable.Range(0,book.NumberOfSheets).Select(s=>
         {
             var sheet=book.GetSheetAt(s);var pane=sheet.PaneInformation;
-            return new{sheet.SheetName,Freeze=pane is null?"":$"{pane.IsFreezePane}/{pane.HorizontalSplitPosition}/{pane.VerticalSplitPosition}",
+            return new{sheet.SheetName,Freeze=pane is null?"":$"{pane.IsFreezePane()}/{pane.HorizontalSplitPosition}/{pane.VerticalSplitPosition}",
                 Widths=Enumerable.Range(0,sheet.GetRow(0).LastCellNum).Select(sheet.GetColumnWidth).ToArray(),Rows=sheet.Cast<IRow>().Select(r=>new{r.RowNum,
                     Cells=r.Cells.Select(c=>new{c.ColumnIndex,Type=c.CellType.ToString(),Value=c.CellType==CellType.Numeric?c.NumericCellValue.ToString("R",CultureInfo.InvariantCulture):c.ToString(),
                         Format=c.CellStyle.GetDataFormatString(),Bold=book.GetFontAt(c.CellStyle.FontIndex).IsBold}).ToArray()}).ToArray()};

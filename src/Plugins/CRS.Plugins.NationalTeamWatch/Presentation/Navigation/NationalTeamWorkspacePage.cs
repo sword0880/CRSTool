@@ -7,7 +7,7 @@ using CRS.Plugin.Wpf;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>顶部分类导航与全宽内容；按需创建当前页，不执行采集或金融运算。</summary>
-public sealed class NationalTeamWorkspacePage : UserControl
+public sealed class NationalTeamWorkspacePage : UserControl, IPluginShellHeader
 {
     private readonly IReadOnlyDictionary<string, NationalTeamWorkspaceItem> items;
     private readonly ContentControl content = new() { Name = "ResearchContent", HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
@@ -15,6 +15,9 @@ public sealed class NationalTeamWorkspacePage : UserControl
     private readonly TextBlock notice = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, LineHeight = 19 };
     private readonly Border noticePanel;
     private readonly PluginSectionNavigation navigation;
+    private readonly Grid root;
+    private readonly Border header;
+    public FrameworkElement HeaderContent=>header;
     public string? SelectedRouteKey { get; private set; }
     public int CategoryCount { get; }
 
@@ -32,7 +35,7 @@ public sealed class NationalTeamWorkspacePage : UserControl
         notice.SetResourceReference(TextBlock.ForegroundProperty, "BrandTextSecondaryBrush");
         SetResourceReference(BackgroundProperty, "BrandCanvasBrush");
         SetResourceReference(ForegroundProperty, "BrandTextPrimaryBrush");
-        var root = new Grid();
+        root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -44,10 +47,10 @@ public sealed class NationalTeamWorkspacePage : UserControl
         toolbar.Children.Add(navigation);
         Grid.SetColumn(location, 1); toolbar.Children.Add(location);
         var help = new Button { Name = "ResearchNoticeToggle", Content = "研究说明", FontSize = 12, MinWidth = 68,
-            Padding = new Thickness(10, 8, 10, 8), VerticalAlignment = VerticalAlignment.Center };
+            Padding = new Thickness(10, 4, 10, 4), VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetName(help, "展开或收起当前研究资料说明");
-        var header = new Border { Name = "ResearchToolbar", Child = toolbar, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1),
-            Padding = new Thickness(6), Margin = new Thickness(20, 12, 20, 0) };
+        header = new Border { Name = "ResearchToolbar", Child = toolbar, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1),
+            Padding = new Thickness(4), Margin = new Thickness(16, 8, 16, 0) };
         header.SetResourceReference(Border.BackgroundProperty, "BrandSurfaceBrush");
         header.SetResourceReference(Border.BorderBrushProperty, "BrandBorderBrush");
         Grid.SetColumn(help, 2); toolbar.Children.Add(help); root.Children.Add(header);
@@ -67,6 +70,19 @@ public sealed class NationalTeamWorkspacePage : UserControl
         welcome.Children.Add(hint); content.Content = welcome;
     }
 
+    public void SetHeaderHosted(bool hosted)
+    {
+        // 同一个菜单实例在顶栏与独立页之间移交，避免两份选中态及重复事件。
+        if(hosted)root.Children.Remove(header);
+        else if(!root.Children.Contains(header))root.Children.Add(header);
+        location.Visibility=hosted?Visibility.Collapsed:Visibility.Visible;
+        header.Margin=hosted?new Thickness():new Thickness(16,8,16,0);
+        header.Padding=hosted?new Thickness():new Thickness(4);
+        header.BorderThickness=hosted?new Thickness():new Thickness(1);
+        header.HorizontalAlignment=hosted?HorizontalAlignment.Left:HorizontalAlignment.Stretch;
+        header.ToolTip=hosted?location.Text:null;
+    }
+
     public void OpenRoute(string routeKey)
     {
         if (!items.TryGetValue(routeKey, out var item)) throw new InvalidDataException("国家队研究功能路由不存在。");
@@ -79,6 +95,7 @@ public sealed class NationalTeamWorkspacePage : UserControl
         var category = NationalTeamWorkspaceCatalog.Categories.Single(x => x.Key == item.CategoryKey);
         location.Text = category.Title + " / " + item.Title;
         location.ToolTip = location.Text;
+        header.ToolTip=location.Visibility==Visibility.Collapsed?location.Text:null;
         notice.Text = item.EvidenceNotice + " 市场成交用于观察整体冷热，不直接归因具名主体。";
     }
 }

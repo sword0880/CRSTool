@@ -1,5 +1,7 @@
 # 当前架构入口
 
+2026-10-27 公共Excel读写进入`CRS.Documents/Excel`，Infrastructure保留券商/税务/绩效投影及敏感导出协调，见[文档层收拢](../implementation/CRS_DOCUMENTS_EXCEL_20261027.md)。插件菜单通过通用WPF契约移交窗口顶栏；`BeijingTime`归入Common，WPF转换器只适配绑定，见[紧凑顶栏](../implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。
+
 2026-10-27 ETF披露原件统一门槛：可比性、具名持仓、候选、NAV、历史回算及金融通知领取共用来源/Q15/首见/哈希核验。通知另冻结解除或撤销时的本次输入，沿原普通SQLite事务；正式数据迁移未执行。实现与验收边界见[原件一致性记录](../implementation/NATIONAL_TEAM_ETF_DOCUMENT_INTEGRITY_20261027.md)。
 
 2026-10-27 具名ETF持有人候选接线：通用PDF读取迁入无业务依赖的`CRS.Documents`，富途与国家队共用；持有人模板、候选合同和用例分别归`EtfHoldings`功能目录。已登记原件经只读核验后解析，不自动升级人工确认。范围及剩余门槛见[候选接线](../implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)。
@@ -28,7 +30,7 @@
 | CRS.Plugin.Abstractions | CRS.Common | 桌面插件的 BCL 契约 |
 | CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹、有界HTTP正文读取；不依赖业务或宿主 |
 | CRS.Documents | 无 | 公共PDF文字/坐标读取、Excel工作表读取及工作簿生成；文件/行列限额、原始值与显示值分离；依赖PdfPig、NPOI及其运行库，不含券商、税务或持仓规则 |
-| CRS.Plugin.Wpf | CRS.Plugin.Abstractions | WPF 页面贡献契约 |
+| CRS.Plugin.Wpf | CRS.Plugin.Abstractions, CRS.Common | WPF页面贡献、通用分类菜单与宿主顶栏移交契约；时间转换器只适配绑定 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
 | CRS.Worker.Abstractions | CRS.Common | 后台会话、任务、查询及存储上下文契约 |
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |

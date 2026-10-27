@@ -78,8 +78,20 @@ internal static class ExitAlertUiChecks
     }
     private static void ScreenshotElement(FrameworkElement element,string path)
     {
-        element.UpdateLayout();var bitmap=new RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth),(int)Math.Ceiling(element.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(element);
-        var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
+        // 滚动容器会裁剪屏外表格；临时独立承载同一控件和数据，捕获后恢复原位置。
+        var parent=(Panel)element.Parent;var index=parent.Children.IndexOf(element);var context=element.DataContext;
+        var local=element.ReadLocalValue(FrameworkElement.DataContextProperty);var width=element.ActualWidth;var height=element.ActualHeight;
+        parent.Children.Remove(element);element.DataContext=context;
+        var window=new Window{Content=element,Width=width,Height=height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false};
+        try
+        {
+            window.Show();window.UpdateLayout();
+            var bitmap=new RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth),(int)Math.Ceiling(element.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(element);
+            var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4];bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
+            if(pixels.Distinct().Count()<8)throw new InvalidOperationException("表格截图为空，不能用作界面证据。");
+            var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
+        }
+        finally{window.Content=null;window.Close();parent.Children.Insert(index,element);if(local==DependencyProperty.UnsetValue)element.ClearValue(FrameworkElement.DataContextProperty);else element.SetValue(FrameworkElement.DataContextProperty,local);}
     }
     private static IEnumerable<DependencyObject> Children(DependencyObject parent)
     {

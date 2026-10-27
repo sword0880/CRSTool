@@ -10,8 +10,8 @@ internal static class ApplicationBoundaryChecks
         var ports=typeof(INationalTeamWorkspace).GetInterfaces();
         Check(ports.SelectMany(x=>x.GetMethods()).All(x=>x.IsAbstract),"界面端口全部要求显式实现，不含默认抛错或忽略筛选的回退");
         var types=new[]{typeof(NationalTeamApplication),typeof(EtfUseCases),typeof(EquityUseCases),typeof(ExitAlertUseCases),
-            typeof(IndustryPeUseCases),typeof(IndexSeriesUseCases),typeof(MarketActivityUseCases),typeof(NavUseCases),typeof(EvidenceUseCases)};
-        Check(types.All(t=>!t.GetInterfaces().Intersect(ports.Append(typeof(INationalTeamWorkspace))).Any()),"后台组合根与八组用例不实现客户端合同");
+            typeof(IndustryPeUseCases),typeof(IndexSeriesUseCases),typeof(MarketActivityUseCases),typeof(NavUseCases),typeof(EvidenceUseCases),typeof(EtfHoldingsUseCases)};
+        Check(types.All(t=>!t.GetInterfaces().Intersect(ports.Append(typeof(INationalTeamWorkspace))).Any()),"后台组合根与九组用例不实现客户端合同");
         Check(types.Skip(1).SelectMany(t=>t.GetMethods(BindingFlags.Public|BindingFlags.Instance|BindingFlags.DeclaredOnly))
             .All(m=>m.Name is not ("AlertChannelsAsync" or "QueueIndexSeriesAsync" or "QueueIndustryPeAsync")),"渠道由宿主提供，远程排队属于客户端，不以后台空集合占位");
         var opened=0;var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
