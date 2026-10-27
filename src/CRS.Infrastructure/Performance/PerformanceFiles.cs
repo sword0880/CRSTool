@@ -5,7 +5,7 @@ using CRS.Application;
 using CRS.Application.Performance;
 using CRS.Domain.Performance;
 using CRS.Security.Cryptography;
-using NPOI.XSSF.UserModel;
+using CRS.Documents.Excel;
 
 namespace CRS.Infrastructure;
 
@@ -68,18 +68,9 @@ internal sealed class PerformanceFiles(Action<Action> guard,SensitiveDataExportS
         var rowCount=(long)run.Result.Metrics.Length+run.Result.Accounts.Length+run.Result.Flows.Length+run.Result.Issues.Length+run.Result.Reconciliations.Length+run.Result.Exposure.Length+run.Input.Fx.Length;
         if(rowCount>50000)throw new CrsException("绩效报告超过 50,000 行导出限额，请缩小账户或期间范围。");
         if(encrypted)try{PasswordEncryption.ValidatePassword(password);}catch(CryptographicException){throw new CrsException("加密密码需为 12—1024 个字符。");}
-        using var book=new XSSFWorkbook();
+        using var book=new ExcelWriter();
         void Sheet(string name,string[] headers,IEnumerable<object?[]> rows)
-        {
-            var sheet=book.CreateSheet(name);int index=0;var header=sheet.CreateRow(index++);for(var i=0;i<headers.Length;i++)header.CreateCell(i).SetCellValue(headers[i]);
-            foreach(var values in rows)
-            {
-                cancellation.ThrowIfCancellationRequested();var row=sheet.CreateRow(index++);
-                for(var i=0;i<values.Length;i++) {var cell=row.CreateCell(i);if(values[i] is decimal amount)cell.SetCellValue((double)amount);else cell.SetCellValue(values[i]?.ToString()??"");}
-            }
-            // 外部文本始终写字符串，不调用 SetCellFormula；账户键及原账号不进入展示表。
-            sheet.CreateFreezePane(0,1);for(var i=0;i<headers.Length;i++)sheet.SetColumnWidth(i,Math.Min(18000,i==headers.Length-1?14000:6000));
-        }
+            =>book.AddSheet(name,headers,rows,new(ColumnWidths:Enumerable.Range(0,headers.Length).Select(i=>i==headers.Length-1?14000:6000).ToArray(),IntegersAsNumbers:false),cancellation);
         Sheet("绩效指标",["指标","数值","单位","质量","定义与依据"],run.Result.Metrics.Select(m=>new object?[]{m.Name,m.Value,m.Unit,m.Quality,m.Explanation}));
         Sheet("账户汇总",["账户别名","券商","期初NAV","期末NAV","现金","负债","外部净投入","投资损益","币种"],run.Result.Accounts.Select(a=>new object?[]{a.AccountAlias,a.Broker,a.OpeningNav,a.EndingNav,a.Cash,a.Liabilities,a.NetInvestment,a.Profit,a.Currency}));
         Sheet("流量边界",["账户别名","日期","金额","内部消除","说明"],run.Result.Flows.Select(f=>new object?[]{f.AccountAlias,f.Date.ToString("yyyy-MM-dd"),f.Amount,f.Internal,f.Explanation}));
@@ -93,11 +84,11 @@ internal sealed class PerformanceFiles(Action<Action> guard,SensitiveDataExportS
         Sheet("版本依据",["运行编号","输入摘要","引擎版本","成本口径","可信起点","数据模型版本","解析版本记录","来源摘要","外部数据集摘要","结果指纹"],
             [new object?[]{run.Id,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.EffectiveFrom.ToString("yyyy-MM-dd"),manifest.DataModelVersion,manifest.NormalizationVersion+";"+Summary(manifest.ImportProvenance.Select(p=>p.SourceFileHash+":"+p.ReaderVersion+"/"+p.ProjectionVersion)),
                 Summary(manifest.SourceHashes),Summary(manifest.ExternalDatasets.Select(d=>d.Kind+":"+d.SourceHash)),manifest.ResultSeal}]);
-        if(!encrypted) {AtomicExport.Write(path,stream=>book.Write(stream,true),cancellation,guard);return;}
+        if(!encrypted) {AtomicExport.Write(path,stream=>book.Write(stream,cancellation),cancellation,guard);return;}
         byte[]? plain=null;byte[]? excel=null;
         try
         {
-            using(var stream=new BoundedMemory(cancellation)){book.Write(stream,true);excel=stream.ToArray();}
+            using(var stream=new BoundedMemory(cancellation)){book.Write(stream,cancellation);excel=stream.ToArray();}
             var evidence=PerformanceCodec.Encode(new{run.Id,run.ParentId,run.CreatedAt,run.InputHash,run.Result.EngineVersion,run.Result.CostMethodVersion,run.Result.Request,Sources=run.Input.Events.Select(e=>e.Source.DocumentId).Concat(run.Input.Valuations.Select(v=>v.Source.DocumentId)).Distinct().Order().ToArray(),Manifest=manifest});
             plain=JsonSerializer.SerializeToUtf8Bytes(new {Version=1,Files=new[]{new{Name="report.xlsx",Content=excel},new{Name="evidence.json",Content=evidence}}});
             var payload=PasswordEncryption.Seal(plain,password);cancellation.ThrowIfCancellationRequested();

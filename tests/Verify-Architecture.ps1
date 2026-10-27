@@ -128,7 +128,8 @@ foreach($file in Get-ChildItem $pluginCommon -Filter '*.cs' -Recurse | Where-Obj
 Write-Output '后台服务无 WPF/私人税务依赖门禁通过。'
 # 有第三方解析依赖的文档机制独立于纯BCL Common及税务基础设施。
 [xml]$documentsProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Documents/CRS.Documents.csproj')
-Assert-Boundary ($documentsProject.SelectNodes('//ProjectReference | //UseWPF | //UseWindowsForms').Count -eq 0 -and $documentsProject.SelectNodes('//PackageReference').Count -eq 1 -and $documentsProject.SelectSingleNode('//PackageReference').Include -eq 'PdfPig') '文档机制不得依赖宿主、业务或数据库。'
+$documentPackages=@($documentsProject.SelectNodes('//PackageReference') | ForEach-Object Include | Sort-Object)
+Assert-Boundary ($documentsProject.SelectNodes('//ProjectReference | //UseWPF | //UseWindowsForms').Count -eq 0 -and ($documentPackages -join ',') -eq 'NPOI,PdfPig,SkiaSharp,System.Security.Cryptography.Xml') '文档机制只可依赖明确登记的文档解析库及其运行依赖，不得依赖宿主、业务或数据库。'
 foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Documents') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
     Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using CRS\.(Domain|Application|Infrastructure|Plugins|Desktop)|Microsoft\.Data\.Sqlite|System\.Windows')) "文档机制出现业务依赖：$($file.Name)"
 }

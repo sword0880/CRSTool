@@ -1,11 +1,11 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using CRS.Domain;
-using NPOI.SS.UserModel;
+using CRS.Documents.Excel;
 
 namespace CRS.Infrastructure;
 
-/// <summary>NPOI 表格读取与富途字段转换；公式不执行，记录原始工作表行号。</summary>
+/// <summary>富途字段转换；公式不执行，记录原始工作表行号。</summary>
 internal sealed record FutuRow(string Sheet, int Row, Dictionary<string, string> Values)
 {
     /// <summary>读取可选字段，缺失列返回空文本供调用方作明确校验。</summary>
@@ -14,49 +14,59 @@ internal sealed record FutuRow(string Sheet, int Row, Dictionary<string, string>
 
 internal sealed class FutuTable : IDisposable
 {
-    private readonly IWorkbook workbook;
+    private readonly ExcelReader workbook;
+    private readonly CancellationToken cancellation;
     /// <summary>限量打开工作簿并将底层格式异常转换为中文业务错误。</summary>
     public FutuTable(string path):this(FrozenInput.Read(path)) { }
     /// <summary>格式识别与明细读取共用冻结输入，不再次读取本地路径。</summary>
-    internal FutuTable(FrozenInput input)
+    internal FutuTable(FrozenInput input,CancellationToken cancellation=default)
     {
-        try { using var stream = input.OpenRead(); workbook = WorkbookFactory.Create(stream); }
-        catch (Exception e) when (e is not CrsException) { throw new CrsException("无法读取富途 Excel，请检查文件是否损坏或加密。"); }
+        this.cancellation=cancellation;
+        try { using var stream = input.OpenRead(); workbook = ExcelReader.Open(stream,cancellation); }
+        catch (Exception e) when (e is not (CrsException or OperationCanceledException)) { throw new CrsException("无法读取富途 Excel，请检查文件是否损坏或加密。"); }
     }
     /// <summary>按唯一关键词匹配工作表，拒绝歧义，必填表缺失时报错。</summary>
     public List<FutuRow>? Read(string keyword, bool required, params string[] columns)
     {
-        var names = Enumerable.Range(0, workbook.NumberOfSheets).Select(workbook.GetSheetName).Where(n => n.Contains(keyword)).ToArray();
+        var names = workbook.SheetNames.Where(n => n.Contains(keyword)).ToArray();
         if (names.Length > 1) throw new CrsException($"存在多个包含【{keyword}】的工作表，请明确文件范围。");
         if (names.Length == 0) { if (required) throw new CrsException($"未找到【{keyword}】工作表。"); return null; }
-        var sheet = workbook.GetSheet(names[0]);
-        if (sheet.LastRowNum > 100000) throw new CrsException("富途工作表不能超过 100000 行。");
-        var header = sheet.GetRow(0) ?? throw new CrsException($"【{names[0]}】缺少表头。");
-        if (header.LastCellNum > 1000) throw new CrsException("富途工作表列数过多。");
-        var fields = Enumerable.Range(0, Math.Max(0, (int)header.LastCellNum)).Select(i => Text(header.GetCell(i))).ToArray();
+        using var rows=Rows(names[0]).GetEnumerator();
+        if(!rows.MoveNext()||rows.Current.Number!=1)throw new CrsException($"【{names[0]}】缺少表头。");
+        var header=rows.Current;
+        var fields=header.Cells.Select(c=>Text(c,header.Number)).ToArray();
         if (fields.Where(f => f != "").GroupBy(f => f).Any(g => g.Count() > 1)) throw new CrsException($"【{names[0]}】存在重复列名。");
         var missing = columns.Where(c => !fields.Contains(c)).ToArray();
         if (missing.Length > 0) throw new CrsException($"【{names[0]}】缺少字段：{string.Join("、", missing)}。");
         var result = new List<FutuRow>();
-        for (var i = 1; i <= sheet.LastRowNum; i++)
+        while(rows.MoveNext())
         {
-            var row = sheet.GetRow(i); if (row is null) continue;
-            var values = fields.Select((f, c) => (f, value: Text(row.GetCell(c)))).Where(v => v.f != "").ToDictionary(v => v.f, v => v.value);
-            if (values.Values.Any(v => v != "")) result.Add(new(names[0], i + 1, values));
+            var row=rows.Current;
+            var values = fields.Select((f, c) => (f, value: Text(row.GetCell(c),row.Number))).Where(v => v.f != "").ToDictionary(v => v.f, v => v.value);
+            if (values.Values.Any(v => v != "")) result.Add(new(names[0], row.Number, values));
         }
         return result;
     }
     /// <summary>读取真实单元格值；数字不用显示格式截断，日期保持时间精度。</summary>
-    private static string Text(ICell? cell)
+    private static string Text(ExcelCell? cell,int rowNumber)
     {
-        if (cell is null || cell.CellType == CellType.Blank) return "";
-        if (cell.CellType is CellType.Formula or CellType.Error) throw new CrsException($"富途源表第 {cell.RowIndex + 1} 行含公式或错误单元格，请提供券商原始值。");
-        if (cell.CellType == CellType.Numeric)
-            return DateUtil.IsCellDateFormatted(cell) ? cell.DateCellValue?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? ""
-                : cell.NumericCellValue.ToString("R", CultureInfo.InvariantCulture);
-        return cell.ToString()?.Replace('\u3000', ' ').Trim() ?? "";
+        if (cell is null || cell.Kind == ExcelCellKind.Blank) return "";
+        if (cell.Kind is ExcelCellKind.Formula or ExcelCellKind.Error) throw new CrsException($"富途源表第 {rowNumber} 行含公式或错误单元格，请提供券商原始值。");
+        return cell.RawText.Replace('\u3000', ' ').Trim();
     }
-    /// <summary>关闭 NPOI 工作簿，释放文件资源。</summary>
+    private IEnumerable<ExcelRow> Rows(string sheet)
+    {
+        using var rows=workbook.EnumerateRows(sheet,cancellation).GetEnumerator();
+        while(true)
+        {
+            bool next;
+            try{next=rows.MoveNext();}
+            catch(InvalidDataException e){throw new CrsException(e.Message);}
+            if(!next)yield break;
+            yield return rows.Current;
+        }
+    }
+    /// <summary>关闭公共工作簿读取器，释放资源。</summary>
     public void Dispose() => workbook.Dispose();
 }
 

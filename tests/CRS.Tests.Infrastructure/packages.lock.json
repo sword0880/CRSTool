@@ -101,7 +101,10 @@
       "crs.documents": {
         "type": "Project",
         "dependencies": {
-          "PdfPig": "[0.1.16, )"
+          "NPOI": "[2.8.1, )",
+          "PdfPig": "[0.1.16, )",
+          "SkiaSharp": "[3.119.4, )",
+          "System.Security.Cryptography.Xml": "[10.0.13, )"
         }
       },
       "crs.domain": {

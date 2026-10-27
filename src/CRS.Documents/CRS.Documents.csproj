@@ -1,4 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- 跨业务文档读取机制，不引用税务、宿主、数据库或插件。 -->
-  <ItemGroup><PackageReference Include="PdfPig" /></ItemGroup>
+  <!-- 跨业务文档读写机制，不引用税务、宿主、数据库或插件。沿用CRS已有Excel提供方及许可配置。 -->
+  <PropertyGroup><AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="NPOI" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+  </ItemGroup>
 </Project>

@@ -30,7 +30,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
             var extension = Path.GetExtension(path).ToLowerInvariant();
             if (extension == ".pdf") { SetIncome(FrozenInput.Read(path,cancellation),true); continue; }
             if (extension != ".xlsx") throw new CrsException("富途仅支持券商原始 XLSX 和可提取文字的收入 PDF。");
-            var input=FrozenInput.Read(path,cancellation); using var table = new FutuTable(input);
+            var input=FrozenInput.Read(path,cancellation); using var table = new FutuTable(input,cancellation);
             if (table.Read("交易流水", false) is not null)
             {
                 var map = new FutuTradeExcelImporter().Read(input,table, data, year, cancellation);

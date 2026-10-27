@@ -16,7 +16,7 @@ internal static class FutuPerformanceAdapter
         =>rows.Where(r=>r["账户号码"]!="").GroupBy(r=>r["账户号码"]).ToDictionary(g=>AccountId("FUTU","FUTU:"+g.Key),g=>"富途 "+g.First()["账户名称"]+"（"+g.Key+"）");
     internal static PerformanceData Read(FrozenInput input,CancellationToken cancellation)
     {
-        using var table=new FutuTable(input);
+        using var table=new FutuTable(input,cancellation);
         // 年度收入汇总不是现金事件，不能与流水重复计入或冒充完整净值资料。
         if(table.Read("交易流水",false) is null)throw new CrsException("绩效不将富途年度收入汇总转换为资金事件，请选择包含交易流水的年度工作簿。");
         var rows=table.Read("账户信息",true,"年份","账户号码","账户名称")!;var years=rows.Select(r=>FutuFields.Year(r["年份"])).Distinct().ToArray();

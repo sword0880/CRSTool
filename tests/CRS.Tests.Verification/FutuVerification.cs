@@ -88,7 +88,7 @@ internal static class FutuVerification
             var replay = calculator.Replay(r); Assert(replay.Summary == r.Summary && replay.FundMovements.Count == r.FundMovements.Count && replay.TradeAmountChecks.Count == 3);
             var store = TestStores.Create(Path.Combine(workspace, "futu-db")); store.Save(r); Assert(store.Load(r.SnapshotId).AnnualIncome.Count == 1);
             var report = Path.Combine(workspace, "futu-report.xlsx"); ExcelReports.Export(report, r);
-            Assert(ExcelReports.ReadSheet(report, "年度收入主表").Count == 2 && ExcelReports.ReadSheet(report, "成交金额核对").Count == 4);
+            Assert(CRS.Documents.Excel.ExcelReader.ReadSheet(report, "年度收入主表").Count == 2 && CRS.Documents.Excel.ExcelReader.ReadSheet(report, "成交金额核对").Count == 4);
         });
         check("FUTU-002 收入主表与派息明细不重复计税", () => {
             var r = calculator.Calculate(Files(workspace), 2025, true, true);

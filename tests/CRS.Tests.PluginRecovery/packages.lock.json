@@ -376,7 +376,9 @@
       "crs.documents": {
         "type": "Project",
         "dependencies": {
-          "PdfPig": "[0.1.16, )"
+          "NPOI": "[2.8.1, )",
+          "PdfPig": "[0.1.16, )",
+          "SkiaSharp": "[3.119.4, )"
         }
       },
       "crs.domain": {

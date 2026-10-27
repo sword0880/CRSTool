@@ -18,7 +18,7 @@ internal static class EncryptedExportChecks
         var target=Path.Combine(directory,"protected.crsexport"); EncryptedReportFiles.Export(target,result,password);
         var text=File.ReadAllText(target); if(text.Contains(marker) || text.Contains(password) || text.Contains("report.xlsx") || text.Contains("\"Year\"")) throw new Exception("密文外层泄露资料。");
         var restored=EncryptedReportFiles.Restore(target,directory,password);
-        if(ExcelReports.ReadSheet(Path.Combine(restored,"report.xlsx"),"计算说明").Count==0
+        if(CRS.Documents.Excel.ExcelReader.ReadSheet(Path.Combine(restored,"report.xlsx"),"计算说明").Count==0
             || CarryFiles.Read(Path.Combine(restored,"carry.json")).SourceSnapshotId!=result.SnapshotId) throw new Exception("恢复工作簿或结转不一致。");
         var existing=File.ReadAllBytes(target); var folders=Directory.GetDirectories(directory).Length;
         Reject<CrsException>(()=>EncryptedReportFiles.Restore(target,directory,"Incorrect-Export-Password")); Clean();

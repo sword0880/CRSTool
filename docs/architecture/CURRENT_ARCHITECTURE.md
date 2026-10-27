@@ -27,7 +27,7 @@
 | CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc | 桌面进程，具体基础设施仅由 Composition 装配 |
 | CRS.Plugin.Abstractions | CRS.Common | 桌面插件的 BCL 契约 |
 | CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹、有界HTTP正文读取；不依赖业务或宿主 |
-| CRS.Documents | 无 | 公共PDF文字/坐标读取、文件及页面限额；仅依赖PdfPig，不含券商或持仓规则 |
+| CRS.Documents | 无 | 公共PDF文字/坐标读取、Excel工作表读取及工作簿生成；文件/行列限额、原始值与显示值分离；依赖PdfPig、NPOI及其运行库，不含券商、税务或持仓规则 |
 | CRS.Plugin.Wpf | CRS.Plugin.Abstractions | WPF 页面贡献契约 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
 | CRS.Worker.Abstractions | CRS.Common | 后台会话、任务、查询及存储上下文契约 |

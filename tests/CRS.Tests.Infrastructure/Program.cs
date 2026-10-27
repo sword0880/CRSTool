@@ -2,6 +2,8 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--excel-documents"]){ExcelDocumentChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ExcelDocuments",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--compare-excel-before",var excelBaseline]){ExcelDocumentChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ExcelBefore",Guid.NewGuid().ToString("N")),excelBaseline);return;}
 if(args is ["--calculation-commit"]){await CalculationCommitChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.CalculationCommit",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--futu-tax-provenance"]){await FutuTaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.FutuTaxProvenance",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--compare-futu-tax-before",var futuBaseline]){await FutuTaxProvenanceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.FutuTaxBefore",Guid.NewGuid().ToString("N")),futuBaseline);return;}
@@ -48,6 +50,7 @@ var rates=new ExchangeRates(config);
 if (rates.ForYear(2025).Count!=2 || rates.ForYear(2024).Count!=0 || rates.Get(2025,"USD").SourceConfirmed) throw new Exception("汇率列表猜测了来源或缺失年度。");
 Console.WriteLine("Infrastructure 验证通过：旧 JSON、交易隐私、年度汇率列表（3 项）。");
 ImportConsistencyChecks.Run(root);
+ExcelDocumentChecks.Run(Path.Combine(root,"excel-documents"));
 AccountPeriodFileChecks.Run(root);
 await SettingsChecks.RunAsync(root);
 HistoryPagingChecks.Run(root);

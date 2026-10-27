@@ -1,30 +1,11 @@
-using System.Collections;
-using System.Globalization;
 using CRS.Domain;
-using NPOI.SS.UserModel;
-using NPOI.XSSF.UserModel;
+using CRS.Documents.Excel;
 
 namespace CRS.Infrastructure;
 
 public static class ExcelReports
 {
-    // 读写统一使用 NPOI；读取时不执行公式或外部工作簿链接。
-    /// <summary>使用 NPOI 限量读取指定工作表文本，不执行公式或外部链接。</summary>
-    public static List<List<string>> ReadSheet(string path, string sheetName)
-    {
-        if (new FileInfo(path).Length > 25 * 1024 * 1024) throw new CrsException("Excel 文件不能超过 25 MB。");
-        using var input = File.OpenRead(path); using var workbook = WorkbookFactory.Create(input);
-        var sheet = workbook.GetSheet(sheetName) ?? throw new CrsException("Excel 中没有指定工作表。");
-        if (sheet.LastRowNum > 100000) throw new CrsException("工作表记录过多。");
-        var formatter = new DataFormatter(CultureInfo.InvariantCulture); var rows = new List<List<string>>();
-        foreach (IRow row in sheet)
-        {
-            if (row.LastCellNum > 1000) throw new CrsException("工作表列数过多。");
-            rows.Add(Enumerable.Range(0, Math.Max(0, (int)row.LastCellNum)).Select(i => formatter.FormatCellValue(row.GetCell(i))).ToList());
-        }
-        return rows;
-    }
-    /// <summary>使用 NPOI 导出计算、复核、来源及快照，缺失金额保留空白。</summary>
+    /// <summary>定义税务底稿内容并使用公共工作簿生成器导出，缺失金额保留空白。</summary>
     public static void Export(string path, CalculationResult r, IEnumerable<ReviewNote>? reviews = null,
         CancellationToken cancellation = default,Action<Action>? commitGuard=null)
     {
@@ -40,32 +21,11 @@ public static class ExcelReports
         cancellation.ThrowIfCancellationRequested();
         // 直接调用导出适配器也需校验，不能依赖界面先加载过历史记录。
         RunEvidenceSeal.Verify(r); r.Freeze();
-        using var workbook = new XSSFWorkbook();
-        var header = workbook.CreateCellStyle(); var font = workbook.CreateFont(); font.IsBold = true; header.SetFont(font);
-        var number = workbook.CreateCellStyle(); number.DataFormat = workbook.CreateDataFormat().GetFormat("0.00########");
+        using var workbook = new ExcelWriter();
         // 创建固定表头工作表，将外部字符串强制写为文本，金额仅在输出阶段转换。
         void Sheet(string name, string[] titles, IEnumerable<object?[]> rows)
-        {
-            // 每个工作表和数据行都响应取消，避免大量明细继续构建。
-            cancellation.ThrowIfCancellationRequested();
-            var sheet = workbook.CreateSheet(name); var top = sheet.CreateRow(0);
-            for (int i = 0; i < titles.Length; i++) { var cell = top.CreateCell(i); cell.SetCellValue(titles[i]); cell.CellStyle = header; sheet.SetColumnWidth(i, Math.Min(i == 1 ? 48 : 24, 80) * 256); }
-            int index = 1;
-            foreach (var values in rows)
-            {
-                cancellation.ThrowIfCancellationRequested();
-                var row = sheet.CreateRow(index++);
-                for (int i = 0; i < values.Length; i++)
-                {
-                    var cell = row.CreateCell(i); var v = values[i];
-                    if (v is decimal d) { cell.SetCellValue((double)d); cell.CellStyle = number; }
-                    else if (v is int n) cell.SetCellValue(n);
-                    // 始终写文本，避免证券名或人工说明以等号开头被解释为公式。
-                    else cell.SetCellValue(v?.ToString() ?? "");
-                }
-            }
-            sheet.CreateFreezePane(0, 1);
-        }
+            =>workbook.AddSheet(name,titles,rows,new(BoldHeader:true,DecimalFormat:"0.00########",
+                ColumnWidths:Enumerable.Range(0,titles.Length).Select(i=>(i==1?48:24)*256).ToArray()),cancellation);
         Sheet("计算说明", ["项目", "内容"], new object?[][] {
             ["年度", r.Year], ["券商", r.Broker], ["计算状态", ResultLabels.Calculation(r.CalculationStatus)], ["数据完整性", ResultLabels.Completeness(r.DataCompleteness)],
             ["对账状态", ResultLabels.Reconciliation(r.ReconciliationStatus)], ["使用标签", ResultLabels.Usage(r.UsageLabel)], ["可作为完整结果", r.Complete],
@@ -138,6 +98,6 @@ public static class ExcelReports
         Sheet("提示", ["说明"], r.Warnings.Select(w => new object?[] { w }));
         // Excel 单元格限制为 32767 字符；长快照分段存放，禁止静默截断。
         Sheet("计算快照", ["段号", "JSON文本"], Enumerable.Range(0, (r.SnapshotJson.Length + 29999) / 30000).Select(i => new object?[] { i + 1, r.SnapshotJson.Substring(i * 30000, Math.Min(30000, r.SnapshotJson.Length - i * 30000)) }));
-        save(output=>workbook.Write(output,true));
+        save(output=>workbook.Write(output,cancellation));
     }
 }

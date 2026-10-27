@@ -36,7 +36,7 @@ internal static class AccountPeriodFileChecks
         if(loaded.AccountPeriods?.Single()!=evidence || loaded.AccountCoverage?.Single().Kind!="AccountActivity")
             throw new Exception("期间依据未经过加密存储完整往返。");
         var report=Path.Combine(directory,"periods.xlsx"); ExcelReports.Export(report,loaded);
-        var proofRows=ExcelReports.ReadSheet(report,"账户期间依据"); var coverageRows=ExcelReports.ReadSheet(report,"期间覆盖状态");
+        var proofRows=CRS.Documents.Excel.ExcelReader.ReadSheet(report,"账户期间依据"); var coverageRows=CRS.Documents.Excel.ExcelReader.ReadSheet(report,"期间覆盖状态");
         if(proofRows[1][5]!=evidence.EvidenceSha256 || coverageRows[1][3]!="账户活动期" || !coverageRows[0][4].Contains("非税额签认"))
             throw new Exception("底稿遗漏期间依据、活动期类别或验收边界。");
         Console.WriteLine("期间凭证文件通过：相对路径、真实摘要、原件不变、必填／未知／重复字段、未核对及取消拒绝。");

@@ -55,7 +55,7 @@ internal static class ForeignCreditChecks
             || JsonSerializer.Serialize(store.Load(source.SnapshotId)) != before)
             throw new Exception("复核结果、原任务保护或凭证隐私失败。");
         var excel = Path.Combine(directory,"credit.xlsx"); await workflow.ExportAsync(excel,loaded,"",consent:new(true,true));
-        if (ExcelReports.ReadSheet(excel,"抵免国家限额").Count != 3 || ExcelReports.ReadSheet(excel,"抵免凭证关系").Count != 2)
+        if (CRS.Documents.Excel.ExcelReader.ReadSheet(excel,"抵免国家限额").Count != 3 || CRS.Documents.Excel.ExcelReader.ReadSheet(excel,"抵免凭证关系").Count != 2)
             throw new Exception("抵免证据链未导出。");
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         var count = store.QueryHistory(1,50).TotalCount;

@@ -22,7 +22,7 @@ internal static class AnnualAggregationChecks
             || System.Text.Json.JsonSerializer.Serialize(store.Load(a.SnapshotId)) != originalA)
             throw new Exception("跨券商年度汇总金额、来源关系、持久化或原任务保护失败。");
         var path = Path.Combine(root,"annual.xlsx"); await workflow.ExportAsync(path,loaded,"",consent:new(true,true));
-        var sourceRows = ExcelReports.ReadSheet(path,"年度汇总来源");
+        var sourceRows = CRS.Documents.Excel.ExcelReader.ReadSheet(path,"年度汇总来源");
         if (sourceRows.Count != 3 || !sourceRows.Skip(1).Select(r=>r[1]).Order().SequenceEqual(new[]{"FUTU","IBKR"}))
             throw new Exception("年度汇总底稿未披露券商及来源任务。");
 
