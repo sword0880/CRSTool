@@ -9,7 +9,17 @@ public sealed record EquityDirectionFact(string ReviewId,string DisclosureId,str
     string Scheme,string SchemeVersion,string SectorCode,string SectorName,string? Style,string Page,
     decimal? ClosingPriceCny,DateOnly? PriceDate,string? PricePage,DateTimeOffset ReviewedAt);
 
-public sealed record EquityDirectionGap(string Market,string Ticker,string Name,string Code,string Detail);
+public sealed record EquityDirectionGap(string Market,string Ticker,string Name,string Code,string Detail)
+{
+    public string StatusText=>Code switch
+    {
+        "MissingClassification"=>"行业未核验","MissingPeriodPrice"=>"期末价缺失","ValueOverflow"=>"市值不可计算",
+        "NoReviewedHoldingInPeriod"=>"本期快照缺失","MixedClassificationStandards"=>"分类口径不一致",
+        "ConflictingClassificationNames"=>"行业代码含义冲突",
+        "ConflictingDisclosures"=>"同报告期披露冲突","EvidenceUnavailable"=>"原件证据不可用",
+        "UnreviewedAccounts"=>"部分账户未核验","ClassificationEvidenceUnavailable"=>"方向核验依据不可用",_=>"资料待核验"
+    };
+}
 public sealed record EquityDirectionPosition(EquityHoldingRow Holding,EquityDirectionFact? Fact,decimal? MarketValueCny);
 public sealed record EquityDirectionGroup(string Institution,string Nature,string Scheme,string SchemeVersion,
     string SectorCode,string SectorName,string Style,int Securities,int Accounts,decimal? MarketValueCny,decimal? SampleWeightPercent)
@@ -26,7 +36,7 @@ public sealed record EquityDirectionReport(DateOnly? ReportAsOf,DateTimeOffset O
     public string FormatVersion {get;init;}=Version;
     public string Scope=>"CurrentActiveWatchlistReviewedDirectAShares";
     public bool WholePortfolioProven=>false;
-    public string Denominator=>"同报告期已核具名A股样本；按机构、持仓性质及分类标准版本分别计算，未覆盖持仓不计为零。";
+    public string Denominator=>"同报告期已核具名A股样本；统一分类标准版本下，按机构和持仓性质分别计算，未覆盖持仓不计为零。";
 }
 
 public static class EquityDirectionProjection
@@ -41,6 +51,7 @@ public static class EquityDirectionProjection
         if(rows.GroupBy(x=>(x.Market,x.Ticker,x.Account)).Any(x=>x.Count()>1))
             throw new InvalidDataException("同报告期同证券账户出现重复披露，拒绝重复汇总。");
         var gaps=sourceGaps.ToList();var positions=new List<EquityDirectionPosition>();
+        var evidenceBlocked=sourceGaps.Any(x=>x.Code is "EvidenceUnavailable" or "ConflictingDisclosures" or "UnreviewedAccounts");
         foreach(var row in rows)
         {
             var applicable=facts.Where(x=>x.DisclosureId==row.DisclosureId&&x.ReportAsOf==period
@@ -60,8 +71,11 @@ public static class EquityDirectionProjection
         foreach(var cohort in positions.GroupBy(x=>(x.Holding.Institution,x.Holding.Nature)))
         {
             var standards=cohort.Where(x=>x.Fact is not null).Select(x=>(x.Fact!.Scheme,x.Fact.SchemeVersion)).Distinct().ToArray();
+            if(standards.Length>1)foreach(var position in cohort)gaps.Add(new(position.Holding.Market,position.Holding.Ticker,position.Holding.Name,"MixedClassificationStandards","同机构同性质样本使用不同分类标准或版本，权重暂不可计算。"));
+            var namesConflict=cohort.Where(x=>x.Fact is not null).GroupBy(x=>(x.Fact!.Scheme,x.Fact.SchemeVersion,x.Fact.SectorCode)).Any(x=>x.Select(v=>v.Fact!.SectorName).Distinct(StringComparer.Ordinal).Count()>1);
+            if(namesConflict)foreach(var position in cohort)gaps.Add(new(position.Holding.Market,position.Holding.Ticker,position.Holding.Name,"ConflictingClassificationNames","同一分类标准版本中的相同行业代码对应不同名称，请核对原文和更正记录。"));
             decimal? denominator=null;
-            if(standards.Length==1&&cohort.All(x=>x.Fact is not null&&x.MarketValueCny.HasValue))
+            if(!evidenceBlocked&&!namesConflict&&standards.Length==1&&cohort.All(x=>x.Fact is not null&&x.MarketValueCny.HasValue))
             {try{denominator=cohort.Sum(x=>x.MarketValueCny!.Value);}catch(OverflowException){denominator=null;}}
             foreach(var group in cohort.GroupBy(x=>(Scheme:x.Fact?.Scheme??"未归类",Version:x.Fact?.SchemeVersion??"",Code:x.Fact?.SectorCode??"",Name:x.Fact?.SectorName??"未归类",Style:x.Fact?.Style??"风格未核验")))
             {

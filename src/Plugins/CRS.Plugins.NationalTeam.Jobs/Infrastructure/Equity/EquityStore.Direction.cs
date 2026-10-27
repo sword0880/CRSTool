@@ -25,7 +25,7 @@ internal sealed partial class EquityStore
     {
         static bool Text(string? value,int max)=>!string.IsNullOrWhiteSpace(value)&&value.Length<=max&&value==value.Trim()&&!value.Any(char.IsControl);
         if(!review.OriginalConfirmed||disclosure.State!="Accepted"||disclosure.ReportAsOf is null||disclosure.Published is null
-            ||!review.DocumentHash.Equals(originalHash,StringComparison.OrdinalIgnoreCase)||originalHash.Length!=64||!originalHash.All(Uri.IsHexDigit)
+            ||!string.Equals(review.DocumentHash,originalHash,StringComparison.OrdinalIgnoreCase)||originalHash.Length!=64||!originalHash.All(Uri.IsHexDigit)
             ||!Text(review.Scheme,100)||!Text(review.SchemeVersion,100)||!Text(review.SectorCode,100)||!Text(review.SectorName,100)
             ||review.Style is not null&&!Text(review.Style,100)||!Text(review.Page,100)||!Text(review.Reviewer,100)||!Text(review.Reason,500)
             ||review.ClosingPriceCny is not null&&(review.ClosingPriceCny is <=0||review.PriceDate!=disclosure.ReportAsOf||!Text(review.PricePage,100))
@@ -69,7 +69,8 @@ internal sealed partial class EquityStore
     {
         var observed=CRS.Timing.BeijingClock.Read(clock);var today=DateOnly.FromDateTime(observed.DateTime);
         if(reportAsOf>today)throw new InvalidDataException("报告期不能在未来。");
-        ValidateEvidence();var watches=EquityWatchlist();var disclosures=new Dictionary<EtfKey,List<EquityDisclosure>>();
+        if(Convert.ToInt32(Scalar("SELECT version FROM feature_schema_migration WHERE feature='equity-direction'"))!=1)throw new InvalidDataException("方向报告库版本缺失或不兼容。");
+        ValidateEvidence();var watches=EquityWatchlist();session.CheckReadLimit(watches.Count);var disclosures=new Dictionary<EtfKey,List<EquityDisclosure>>();
         foreach(var watch in watches.Where(x=>x.Active))
         {
             operationCancellation.ThrowIfCancellationRequested();disclosures.Add(new(watch.Market,watch.Ticker),ReadEquityDisclosures(new(watch.Market,watch.Ticker)));

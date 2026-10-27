@@ -5,6 +5,7 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
+if(args is ["--equity-direction",var directionDirectory]){await EquityDirectionChecks.RunAsync(directionDirectory);return;}
 if(args is ["--etf-report-index"]){await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--etf-report-index-sources",var etfReportSources]){await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")),etfReportSources);return;}
 if(args is ["--etf-document-boundaries"]){EtfDocumentBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EtfDocumentBoundaries",Guid.NewGuid().ToString("N")));return;}
@@ -126,6 +127,7 @@ MarketActivityChecks.Run(root);
 MarketCycleChecks.Run();
 await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
+await EquityDirectionChecks.RunAsync(Path.Combine(root,"equity-direction"));
 HistoricalEquityChecks.CatalogContracts(Path.Combine(root,"historical-catalog"));
 EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(root,"evidence-adversarial"));
 AcceptanceBatchChecks.Run(Path.Combine(root,"acceptance-batch"));

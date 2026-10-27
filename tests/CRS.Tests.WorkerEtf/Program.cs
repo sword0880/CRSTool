@@ -10,6 +10,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
 if(args is ["--nav-pipe",var navPackage,var navSnapshot,var navOutput]){await NavPipeChecks.Run(navPackage,navSnapshot,navOutput);return;}
+if(args is ["--equity-direction-pipe",var directionPackage,var directionOutput]){await EquityDirectionPipeChecks.Run(directionPackage,directionOutput);return;}
 if(args is ["--etf-holder-pipe",var holderPackage,var holderOriginals,var holderPipeOutput]){await EtfHolderPipeChecks.Run(holderPackage,holderOriginals,holderPipeOutput);return;}
 if(args is ["--etf-report-pipe",var reportPackage,var reportSources,var reportOriginals,var reportOutput]){await EtfReportPipeChecks.Run(reportPackage,reportSources,reportOriginals,reportOutput);return;}
 if(args is ["--industry-pipe",var industryPackage,var industrySource,var industryPipeOutput]){await IndustryPipeChecks.Run(industryPackage,industrySource,industryPipeOutput);return;}

@@ -1,5 +1,7 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+直接持股方向：`CRS.Tests.NationalTeamWatch --equity-direction <新目录>`验证同报告期、市值权重分母、分类核验、原件损坏和界面竞态；纳入默认回归。`CRS.Tests.WorkerEtf --equity-direction-pipe <新候选Worker包> <不存在目录>`验证实际客户端/Runner/持久回执，全部金融事实为合成夹具。`CRS.Tests.PluginRecovery --equity-direction-visual-preview <专项snapshot.json> <截图目录>`仅回放真实只读控件。边界及剩余门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)。
+
 ETF官方报告目录：`CRS.Tests.NationalTeamWatch --etf-report-index`默认回放仓库内两所响应及收据，校验完整分页、来源、事务、原件即时损坏和界面边界。`CRS.Tests.WorkerEtf --etf-report-pipe <候选Worker包> <目录响应夹具> <已保存PDF目录> <不存在的隔离目录>`验证实际桌面排队、Runner、持久回执、明确原件登记和待审候选；不会联网或安装服务。`CRS.Tests.PluginRecovery --etf-report-visual-preview <管道acceptance.json> <截图目录>`只读回放目录渲染真实页面。范围见[实现说明](../docs/implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。
 
 标题栏原生命中：`CRS.Tests.Wpf --plugin-header-native <截图目录>` 保留真实FluentWindow与TitleBar钩子，直接核对菜单中心`WM_NCHITTEST=HTCLIENT`、剩余区域`HTCAPTION`，再检查菜单展开选择、宽度和离开插件的清理；仅有按钮Invoke或普通Window截图不能替代这个检查。修复记录见[紧凑顶栏](../docs/implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。

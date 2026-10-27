@@ -44,6 +44,8 @@
 
 ### P1：股票持仓展示已经实现，主要行业/风格方向仍缺独立投影
 
+2026-10-27续项已增加[同报告期方向后台投影及核验链](../implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)，以下为原复核时的证据。源码运行链缺口已推进，真实行业/价格输入和完整组合仍未验收；不改变2026-10-26的现场快照。
+
 [EquityCharts.RebuildEquityOverview](../../src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Equity/EquityCharts.cs) 当前按市场/证券/名称生成机构矩阵；[EquityStore](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Equity/EquityStore.cs) 返回逐账户快照和可比数量变化。未见将持股映射为同报告期行业/风格、市值权重、覆盖分母及战略/组合性质的独立后台报告。
 
 关闭条件：确认用户需要的方向口径，用有有效期和来源的映射、匹配日期市值及覆盖说明形成后台投影；不将股数跨证券加总当权重。

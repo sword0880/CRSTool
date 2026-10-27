@@ -1,5 +1,7 @@
 # 当前架构入口
 
+2026-10-27 直接持股方向加入Equity功能：Core同报告期投影、普通SQLite原文核验历史、类型化用例、独立Worker客户端和WPF页签接通；复用公共JSON完整分块及原有事务/命令机制。行业及同报告期价格不足不计算权重，战略/组合/未知性质独立分母，不代表完整机构组合；实现、验证与真实数据门槛见[持仓方向](../implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)。
+
 2026-10-27 配置ETF的官方报告目录独立为`EtfHoldings`功能：Core合同、Jobs类型化用例/协议/存储/任务、Watch客户端与展示分别归档；后台九组用例、七个客户端合同。可选公共JSON查询合同与原来源预算配合，目录不批准具名持仓或历史完整性。候选包20项真实监督进程/管道检查通过，未替换已安装Worker，见[目录链路与剩余门槛](../implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。顶栏点击随后改用TitleBar原生Header区域，研究说明声明按钮移除，见[顶栏修复](../implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。
 
 2026-10-27 设置新增运行资料清理：固定合同归Common、设置端口归Application、WPF展示后台预览；Worker核验旧日志与历史升级副本，保留当前快照、至少两份完整历史副本、活动数据库/密钥/原件和维护记录。异步扫描/清理经认证IPC执行，维护锁与摘要核验控制实际删除；未替换已安装服务，见[实现与现场只读盘点](../implementation/CRS_RUNTIME_DATA_CLEANUP_20261027.md)。

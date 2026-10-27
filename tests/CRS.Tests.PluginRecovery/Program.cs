@@ -19,6 +19,16 @@ internal static class Program
         var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+        if(args is ["--equity-direction-visual-preview",var directionInput,var directionDirectory])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                EquityDirectionVisualPreview.Render(directionInput,directionDirectory);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
+        }
         if(args is ["--etf-report-visual-preview",var etfReportAcceptance,var etfReportDirectory])
         {
             try
