@@ -22,7 +22,8 @@ internal static class EtfReportStorageChecks
             var bytes=EtfReportIndexChecks.SsePage();repo.SaveEtfReportIndex(Key,From,Through,[bytes]);var id=repo.EtfReportIndex(Key).SearchId;
             Reject<InvalidOperationException>(()=>repo.Read(r=>{r.SaveEtfReportIndex(Key,From,Through,[bytes]);return true;},default),"独立只读会话拒绝目录写入");
             Check(repo.EtfReportIndex(Key).SearchId==id,"拒绝只读写入后查询身份不变");
-            var large=Enumerable.Range(1,10).Select(page=>System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.UTF8.GetString(EtfReportIndexChecks.SsePage(250,page)).Replace("合成2026年中期报告",new string('研',900),StringComparison.Ordinal))).ToArray();
+            var large=Enumerable.Range(1,10).Select(page=>
+            {var json=System.Text.Json.Nodes.JsonNode.Parse(EtfReportIndexChecks.SsePage(250,page))!;foreach(var row in json["result"]!.AsArray())row!["TITLE"]=new string('研',900);json["pageHelp"]!["data"]=json["result"]!.DeepClone();return System.Text.Encoding.UTF8.GetBytes(json.ToJsonString());}).ToArray();
             Reject<InvalidDataException>(()=>repo.SaveEtfReportIndex(Key,From,Through,large),"提交前拒绝无法通过完整读端合同传输的大目录");
             Check(repo.EtfReportIndex(Key).SearchId==id,"超限拒绝不会覆盖旧目录或留下不可回读的成功记录");
             var hash=raw.Save(bytes);var path=Path.Combine(root,"raw",hash+".raw");File.Delete(path);

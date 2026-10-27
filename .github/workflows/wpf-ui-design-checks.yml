@@ -35,6 +35,9 @@ jobs:
       - name: Verify plugin header ownership and shell navigation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --compact-navigation "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugin-header"
+      - name: Verify native titlebar hit testing and plugin menu interaction
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --plugin-header-native "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugin-header-native"
       - name: Verify NationalTeam lazy navigation and header handoff
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.SectorUi -c Release --no-build -- --navigation

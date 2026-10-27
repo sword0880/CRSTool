@@ -11,4 +11,6 @@ public sealed partial class MarketRepository
     public void ReviewEquity(EquityReview review, byte[] document, Guid? commandId = null) => equityStore.ReviewEquity(review, document, commandId);
     public List<EquityHoldingRow> EquityHoldings(string? search, string? institution, string? nature, bool favorites) => equityStore.EquityHoldings(search, institution, nature, favorites);
     public List<EquityHoldingRow> EquityEvents(EtfKey key) => equityStore.EquityEvents(key);
+    public EquityDirectionReport EquityDirection(DateOnly? reportAsOf)=>equityStore.EquityDirection(reportAsOf);
+    public void ReviewEquityDirection(EquityDirectionReview review,Guid commandId)=>equityStore.ReviewEquityDirection(review,commandId);
 }

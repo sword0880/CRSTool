@@ -41,11 +41,11 @@ public partial class MainWindow : FluentWindow
         ["fifo"] = typeof(FifoPage), ["rates"] = typeof(ExchangeRatesPage), ["tax"] = typeof(TaxCalculationPage),
         ["review"] = typeof(ReconciliationPage), ["reports"] = typeof(ReportsPage), ["history"] = typeof(HistoryPage), ["performance"] = typeof(PerformancePage)
     };
-    public MainWindow(ShellViewModel shell)
+    public MainWindow(ShellViewModel shell,bool startWorkspace=true)
     {
         InitializeComponent(); StartupWindowSizing.Attach(this); DataContext = shell; Navigation.SetPageProviderService(new PageProvider(shell));
         shell.NavigateRequested += page => Navigate(page);
-        Loaded += (_, _) => Navigate("dashboard"); Closing += OnClosing;
+        if(startWorkspace)Loaded += (_, _) => Navigate("dashboard"); Closing += OnClosing;
         // 子菜单也要接回普通页面，避免插件遮罩挡住切换后的业务内容。
         foreach(var item in NavigationEntries().Where(x=>x.TargetPageType is not null)) item.Click+=(_,_)=>HidePlugin();
         foreach(var item in Navigation.FooterMenuItems.OfType<NavigationViewItem>().Where(x=>x.TargetPageType is not null)) item.Click+=(_,_)=>HidePlugin();
@@ -56,7 +56,7 @@ public partial class MainWindow : FluentWindow
         var taskCenter=CreateMenuItem("任务中心",SymbolRegular.CalendarClock24);
         taskCenter.Click+=async (_,_)=>await NavigateScheduledTasksAsync();TasksGroup.MenuItems.Insert(0,taskCenter);
         InitializeCompactNavigation();
-        Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
+        if(startWorkspace)Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
         Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();taskPageLifetime.Cancel();ClearPluginHeader();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
     }
     /// <summary>扩展页与内置页互斥显示；隐藏原内容但保留布局，避免收窄侧栏露出旧页面。</summary>

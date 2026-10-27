@@ -34,9 +34,10 @@ internal static class EtfReportVisualPreview
                 window.Show();window.UpdateLayout();var frame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>frame.Continue=false));Dispatcher.PushFrame(frame);window.UpdateLayout();
                 var grid=Find<DataGrid>(page);var top=grid.TranslatePoint(new Point(),page).Y;
                 if(grid.ActualHeight<360||grid.ActualWidth<width-36||top>330)throw new InvalidDataException("目录页上方区域挤占表格或正文未铺满。");
-                if(grid.Columns[0].ActualWidth<109||grid.Columns[1].ActualWidth<99||grid.Columns[2].ActualWidth<259)throw new InvalidDataException("日期、类别或标题列被挤压。");
                 var bitmap=new RenderTargetBitmap((int)(width*scale),(int)(760*scale),96*scale,96*scale,PixelFormats.Pbgra32);bitmap.Render(page);
                 var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var stream=File.Create(Path.Combine(directory,$"etf-reports-{width}-{(int)(scale*100)}.png")))encoder.Save(stream);
+                Console.WriteLine($"布局 width={width} height={grid.ActualHeight} columns={string.Join(',',grid.Columns.Select(x=>x.ActualWidth))}");
+                if(grid.Columns[0].ActualWidth<109||grid.Columns[1].ActualWidth<99||grid.Columns[2].ActualWidth<259)throw new InvalidDataException("日期、类别或标题列被挤压。");
                 checks.Add(new{Width=width,Density=scale,TableTop=top,TableHeight=grid.ActualHeight,Rows=model.Reports.Count,Source="CapturedOfficialResponseReplay",Installed=false});
             }
             finally{window.Close();}

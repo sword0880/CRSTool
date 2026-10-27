@@ -4,6 +4,8 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 /// <summary>仅供WPF合成测试转发本地用例；正式桌面始终使用授权Worker客户端。</summary>
 internal sealed class LocalResearchWorkspace(NationalTeamApplication application) : ResearchWorkspaceStub
 {
+    public override Task<EquityDirectionReport> EquityDirectionAsync(DateOnly? reportAsOf,CancellationToken token)=>application.Equity.EquityDirectionAsync(reportAsOf,token);
+    public override Task ReviewEquityDirectionAsync(EquityDirectionReview review,CancellationToken token)=>application.Equity.ReviewEquityDirectionAsync(review,token,Guid.NewGuid());
     public override Task<EtfNavStudyReport> NavStudyAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>application.Nav.NavStudyAsync(key,from,through,token);
     public override string NetworkStatus=>application.Etf.NetworkStatus;
     public override Task<List<HistoricalEquityPdf>> HistoricalEquityDocumentsAsync(CancellationToken token)=>application.Equity.HistoricalEquityDocumentsAsync(token);

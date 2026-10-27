@@ -79,10 +79,13 @@
     </Grid>
    </Button>
   </Grid>
-   <ui:TitleBar Grid.Column="1" Title="" AutomationProperties.Name="{x:Static services:ProductIdentity.Name}" Height="40" ShowClose="True" ShowMinimize="True" ShowMaximize="True" ForceShutdown="False"/>
-   <!-- 插件菜单只占左侧所需宽度，保留拖动区域及系统窗口按钮。 -->
-   <ContentControl x:Name="PluginHeaderContent" Grid.Column="1" Margin="8,0,150,0" HorizontalAlignment="Left" VerticalAlignment="Center"
-                   HorizontalContentAlignment="Left" shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+   <!-- 使用TitleBar正式的交互内容区域；同级覆盖层仍会被其原生命中钩子识别为窗口拖动区。 -->
+   <ui:TitleBar Grid.Column="1" Title="" AutomationProperties.Name="{x:Static services:ProductIdentity.Name}" Height="40" ShowClose="True" ShowMinimize="True" ShowMaximize="True" ForceShutdown="False">
+    <ui:TitleBar.Header>
+     <ContentControl x:Name="PluginHeaderContent" Margin="8,0,12,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                     HorizontalContentAlignment="Left" shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+    </ui:TitleBar.Header>
+   </ui:TitleBar>
   </Grid>
   <!-- 扩展页面跟随侧栏实时伸缩，不能保留打开页面时的旧偏移。 -->
   <Border x:Name="PluginSurface" Grid.Row="1" Background="{DynamicResource BrandCanvasBrush}" Visibility="Collapsed">

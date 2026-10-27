@@ -28,6 +28,7 @@ internal sealed partial class EquityStore
         transaction.Commit();
         InitializeEquityReportSchema();
         InitializeHistoricalEquitySchema();
+        InitializeDirectionSchema();
     }
     public List<EquityWatch> EquityWatchlist()
     {

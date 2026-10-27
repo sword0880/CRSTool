@@ -162,11 +162,11 @@ internal static class UiVisualPreview
             {
                 navigation.OpenCategory(category);
                 var frame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>frame.Continue=false));Dispatcher.PushFrame(frame);
-                var button=(Button)((WrapPanel)navigation.Content).Children[index];
-                var menu=button.ContextMenu!;menu.UpdateLayout();
+                var headerItem=(MenuItem)((Menu)navigation.Content).Items[index];
+                var menu=(FrameworkElement)((System.Windows.Controls.Primitives.Popup)headerItem.Template.FindName("PART_Popup",headerItem)).Child;menu.UpdateLayout();
                 var bitmap=new RenderTargetBitmap((int)Math.Ceiling(menu.ActualWidth),(int)Math.Ceiling(menu.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(menu);
                 var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using var stream=File.Create(Path.Combine(directory,$"menu-{category}.png"));encoder.Save(stream);menu.IsOpen=false;
+                using var stream=File.Create(Path.Combine(directory,$"menu-{category}.png"));encoder.Save(stream);headerItem.IsSubmenuOpen=false;
             }
         }
         finally{window.Close();}

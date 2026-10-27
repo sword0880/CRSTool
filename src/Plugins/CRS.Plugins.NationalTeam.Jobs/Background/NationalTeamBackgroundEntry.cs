@@ -74,6 +74,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         new("alert-manage","预警规则与证据管理（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-watch","直接持股观察设置（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-review","直接持股原文核验（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("equity-direction-review","持仓方向原文核验（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-history-import","历史持股原文登记（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("equity-report-search","查找持股官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("etf-report-search","查找配置ETF官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
@@ -151,6 +152,10 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                     await workspace!.Activity.ReviewMarketActivityAsync(request.Revision??"",request.Accept,request.Reviewer??"",token,commandId);return BackgroundJobResult.Success();
                 case "equity-watch" when request.Operation=="equity-watch" && request.EquityWatch is {} watch:
                     await workspace!.Equity.SaveEquityWatchAsync(watch,token,commandId);return BackgroundJobResult.Success();
+                case "equity-direction-review" when request.Operation=="equity-direction-review"&&request.EquityDirectionReview is {} directionReview&&commandId is {} directionCommand:
+                    try{await workspace!.Equity.ReviewEquityDirectionAsync(directionReview,token,directionCommand);}
+                    catch(InvalidDataException){return new("Rejected","equityDirection=ReviewInvalid");}
+                    return BackgroundJobResult.Success("equityDirection=Reviewed");
                 case "equity-review" when request.Operation is "equity-review" or "equity-review-bound" && request.EquityReview is {} review:
                     if(!Uri.TryCreate(review.DocumentUrl,UriKind.Absolute,out var documentUri)||!OfficialEquityDocuments.IsAllowed(documentUri))return new("Rejected","equity=OfficialPdfRequired");
                     var document=await http!.GetAsync(documentUri,token);
@@ -263,7 +268,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             var operation=Parse(payload).Operation;
             return operation is "status" or "release-query" or "export" or "dashboard" or "dashboard-profile" or "acceptance-profile" or "nav-study" or "overview" or "configuration"
                 or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "industry-pe-report" or "industry-pe-revisions" or "index-series-report" or "index-series-revisions" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
-                or "equity-watchlist" or "equity-holdings" or "equity-disclosures" or "equity-events" or "equity-reports" or "equity-history-documents" or "equity-history-receipt"
+                or "equity-watchlist" or "equity-holdings" or "equity-direction" or "equity-disclosures" or "equity-events" or "equity-reports" or "equity-history-documents" or "equity-history-receipt"
                 or "alert-overview" or "alert-configuration" or "alert-events" or "alert-event" or "alert-event-version" or "alert-inputs"
                 or "alert-changes" or "alert-outbox" or "alert-deliveries" or "alert-channels" or "alert-documents" or "alert-metadata" or "alert-holdings" or "etf-holder-candidates" or "etf-report-index"
                 ?operation:"unknown";
@@ -370,6 +375,9 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 case "overview":rows=(await workspace!.Etf.OverviewAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "configuration":rows=(await workspace!.Etf.ConfigurationAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "equity-watchlist":rows=(await workspace!.Equity.EquityWatchlistAsync(token)).Select(x=>SerializeRow(x)).ToArray();break;
+                case "equity-direction":
+                    var direction=await workspace!.Equity.EquityDirectionAsync(request.To,token);
+                    rows=CRS.Serialization.JsonDocumentBlocks.Encode(direction,token).Select(x=>SerializeRow(x)).ToArray();break;
                 case "equity-holdings":rows=(await workspace!.Equity.EquityHoldingsAsync(request.Search,request.Institution,request.Nature,request.Favorites,token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "equity-disclosures":rows=(await workspace!.Equity.EquityDisclosuresAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;
                 case "equity-events":rows=(await workspace!.Equity.EquityEventsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();break;

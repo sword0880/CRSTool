@@ -1,5 +1,11 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+ETF官方报告目录：`CRS.Tests.NationalTeamWatch --etf-report-index`默认回放仓库内两所响应及收据，校验完整分页、来源、事务、原件即时损坏和界面边界。`CRS.Tests.WorkerEtf --etf-report-pipe <候选Worker包> <目录响应夹具> <已保存PDF目录> <不存在的隔离目录>`验证实际桌面排队、Runner、持久回执、明确原件登记和待审候选；不会联网或安装服务。`CRS.Tests.PluginRecovery --etf-report-visual-preview <管道acceptance.json> <截图目录>`只读回放目录渲染真实页面。范围见[实现说明](../docs/implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。
+
+标题栏原生命中：`CRS.Tests.Wpf --plugin-header-native <截图目录>` 保留真实FluentWindow与TitleBar钩子，直接核对菜单中心`WM_NCHITTEST=HTCLIENT`、剩余区域`HTCAPTION`，再检查菜单展开选择、宽度和离开插件的清理；仅有按钮Invoke或普通Window截图不能替代这个检查。修复记录见[紧凑顶栏](../docs/implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。
+
+原生菜单焦点：`CRS.Tests.Wpf --plugin-menu-focus <截图目录>`要求窗口确实取得系统前台焦点，验证首次展开、分类往返、向下键、Esc和快速切换；前台不可用返回2并标记`Unavailable`。常规`--plugin-header-native`在没有前台时仍可检查命中与展开，但不会将未验证的键盘焦点算作通过。`--plugin-header-focus-preview <目录>`提供五分钟合成窗口供现场观察，不执行断言；这些入口均不启动正式服务或个人库，程序化调用不能代替真实鼠标输入回放。
+
 运行资料清理：`CRS.Tests.Background --data-cleanup` 在合成临时目录验证旧日志、至少两份历史副本保留、维护冲突、链接、文件变化、重启未知计数、残留继续清理，并经真实Windows管道确认管理员控制和后台健康。`CRS.Tests.Wpf --data-cleanup-model` 验证预览、范围失效和未知结果查询；`--settings-cleanup-ui <截图目录> <只读预览JSON>` 渲染禁止删除的真实设置窗口。`CRS.Tests.Background --data-cleanup-audit <后台目录>` 是只读审计，不创建目录、不写预览或删除文件。范围和发布边界见[实现记录](../docs/implementation/CRS_RUNTIME_DATA_CLEANUP_20261027.md)。
 
 ETF披露统一核验：`CRS.Tests.NationalTeamWatch --etf-document-boundaries`检查原件来源/Q15/首见、既有确认失效、历史回算和领取闸门、普通SQLite只读/迁移缺损及跨128引用去重；`--exit-alerts`另含解除通知的当前冻结窗口和通知原子回滚；`--etf-holder-candidates`含同值刷新状态反例，`--exit-alert-ui`核对真实核验列。范围见[原件一致性记录](../docs/implementation/NATIONAL_TEAM_ETF_DOCUMENT_INTEGRITY_20261027.md)。

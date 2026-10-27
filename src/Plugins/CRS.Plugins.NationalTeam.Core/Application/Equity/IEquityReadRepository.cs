@@ -10,4 +10,5 @@ public interface IEquityReadRepository
     List<EquityReportDocument> EquityReports(EtfKey key);
     bool EquityReportCommandComplete(Guid id);
     List<EquityDisclosure> EquityDisclosures(EtfKey key);
+    EquityDirectionReport EquityDirection(DateOnly? reportAsOf);
 }

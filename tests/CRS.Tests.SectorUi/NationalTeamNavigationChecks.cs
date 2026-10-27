@@ -41,21 +41,17 @@ internal static class NationalTeamNavigationChecks
                 Check(page.SelectedRouteKey=="fixture-pe"&&secondCreates==1,"行业研究作为独立分类切换，不混合ETF身份");
                 var body=Descendants(page).OfType<ContentControl>().Single(x=>x.Name=="ResearchContent");
                 var header=Descendants(page).OfType<Border>().Single(x=>x.Name=="ResearchToolbar");
-                var help=Descendants(page).OfType<Button>().Single(x=>x.Name=="ResearchNoticeToggle");
-                var notice=Descendants(page).OfType<Border>().Single(x=>x.Name=="ResearchNotice");
                 foreach(var width in new[]{640,800,1280})
                 {
                     page.Measure(new Size(width,760));page.Arrange(new Rect(0,0,width,760));page.UpdateLayout();
                     var origin=body.TranslatePoint(new Point(),page);
                     Check(Math.Abs(body.ActualWidth-width)<1&&Math.Abs(origin.X)<1&&origin.Y<85,
                         $"{width}DIP正文占满整行，顶部菜单不形成第二层侧栏");
-                    Check(header.ActualWidth<=width-31&&notice.Visibility==Visibility.Collapsed,
-                        $"{width}DIP说明默认收起，菜单保留左右留白");
+                    Check(header.ActualWidth<=width-31&&!Descendants(page).OfType<Button>().Any(x=>x.Name=="ResearchNoticeToggle"),
+                        $"{width}DIP移除集中研究声明按钮，菜单保留左右留白");
                 }
-                help.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));page.UpdateLayout();
-                Check(notice.Visibility==Visibility.Visible,"研究说明可按需展开");
-                help.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Check(notice.Visibility==Visibility.Collapsed,"研究说明可以收回，不常驻占用正文");
+                Check(!Descendants(page).OfType<Border>().Any(x=>x.Name=="ResearchNotice"),"不保留无功能的集中声明面板");
+                Check(Descendants(page).OfType<PluginSectionNavigation>().Any(),"功能导航保留，证据提示继续由具体页面及菜单提供");
                 var navigation=Descendants(page).OfType<PluginSectionNavigation>().Single();
                 var shellSlot=new ContentControl();
                 page.SetHeaderHosted(true);shellSlot.Content=page.HeaderContent;
@@ -65,20 +61,20 @@ internal static class NationalTeamNavigationChecks
                 Check(navigation.SelectedRouteKey=="fixture-etf","宿主顶栏仍同步当前路由");
                 shellSlot.Content=null;page.SetHeaderHosted(false);page.SetHeaderHosted(false);
                 Check(Descendants(page).OfType<Border>().Count(x=>x.Name=="ResearchToolbar")==1,"退出宿主后独立页恢复一次菜单，不重复挂载");
-                var menuButton=Descendants(navigation).OfType<Button>().Single(x=>AutomationProperties.GetName(x)=="资金与持仓菜单");
+                var menuButton=Descendants(navigation).OfType<MenuItem>().Single(x=>AutomationProperties.GetName(x)=="资金与持仓菜单");
                 var window=new Window{Content=page,Width=820,Height=760,ShowInTaskbar=false};
                 try
                 {
                     window.Show();Pump();
-                    menuButton.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(menuButton)!,0,Key.Down)
+                    menuButton.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(menuButton)!,0,Key.F4)
                         {RoutedEvent=Keyboard.PreviewKeyDownEvent});Pump();
-                    Check(menuButton.ContextMenu!.IsOpen,"向下键打开原生顶部菜单");
-                    var destination=menuButton.ContextMenu.Items.Cast<MenuItem>().Single();
+                    Check(menuButton.IsSubmenuOpen,"F4打开原生顶部菜单");
+                    var destination=menuButton.Items.Cast<MenuItem>().Single();
                     destination.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                     Check(page.SelectedRouteKey=="fixture-etf"&&navigation.SelectedRouteKey=="fixture-etf"&&destination.IsChecked,
                         "菜单目的地打开对应页并同步选中态");
-                    menuButton.ContextMenu.IsOpen=false;Pump();
-                    Check(!menuButton.ContextMenu.IsOpen,"菜单关闭后不留下遮挡正文的弹层");
+                    menuButton.IsSubmenuOpen=false;Pump();
+                    Check(!menuButton.IsSubmenuOpen,"菜单关闭后不留下遮挡正文的弹层");
                 }
                 finally{window.Content=null;window.Close();}
                 Reject(()=>page.OpenRoute("unknown"),"未知路由拒绝，不静默跳回默认页");

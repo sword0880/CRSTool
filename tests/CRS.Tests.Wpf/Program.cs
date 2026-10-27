@@ -4,6 +4,9 @@ using CRS.Domain;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
 // 独立窗口验收只查询公开后台任务，不创建或解锁个人保险库。
+// 专用副本由交互桌面启动，仅展示合成菜单；普通测试入口仍运行原有默认回归。
+if(args.Length==0&&System.IO.Path.GetFileNameWithoutExtension(Environment.ProcessPath)=="CRS.MenuFocusProbe")
+{PluginHeaderNativeChecks.Run(System.IO.Path.Combine(AppContext.BaseDirectory,"FocusProbe"),true);return;}
 if(args is ["--beijing-time"]){BeijingTimeChecks.Run();return;}
 if(args is ["--market-log"]){MarketExecutionLogChecks.Run();return;}
 if(args is ["--history-date"]){await HistoryDateChecks.RunAsync();return;}
@@ -13,6 +16,9 @@ if(args is ["--settings-cleanup-ui",var cleanupDirectory,var cleanupAudit]){Sett
 if(args is ["--data-cleanup-model"]){await DataCleanupViewChecks.RunAsync();return;}
 if(args is ["--shell-brand-preview",var brandDirectory]){ShellBrandPreview.Run(brandDirectory);return;}
 if(args is ["--compact-navigation",var navigationDirectory]){CompactNavigationChecks.Run(navigationDirectory);return;}
+if(args is ["--plugin-header-native",var headerDirectory]){PluginHeaderNativeChecks.Run(headerDirectory);return;}
+if(args is ["--plugin-menu-focus",var strictFocusDirectory]){try{PluginHeaderNativeChecks.Run(strictFocusDirectory,requireFocus:true);}catch(KeyboardFocusUnavailableException){Console.Error.WriteLine("Unavailable：当前执行桌面没有交互前台，焦点验收未完成。");Environment.ExitCode=2;}return;}
+if(args is ["--plugin-header-focus-preview",var focusDirectory]){PluginHeaderNativeChecks.Run(focusDirectory,true);return;}
 if(args is ["--shell-status-checks"]){ShellStatusBarChecks.Run();return;}
 if(args is ["--task-center-deeplink-checks"]){TaskCenterDeepLinkChecks.Run();return;}
 if(args is ["--task-center-refresh-checks"]){await TaskCenterRefreshChecks.RunAsync();return;}
@@ -23,6 +29,8 @@ if(args is ["--performance-component-preview",var componentDirectory]){Performan
 if(args is ["--plugin-management-preview",var pluginManagementDirectory]){PluginManagementPreview.Run(pluginManagementDirectory);return;}
 if(args is ["--execution-log-ui",var logScreenshot]){ExecutionLogViewChecks.Run(logScreenshot);return;}
 if(args.Contains("--background-ui")){var index=Array.IndexOf(args,"--background-ui");BackgroundServiceViewChecks.Run(args[index+1],args.ElementAtOrDefault(index+2));return;}
+// 未识别的新专项参数必须失败，不能由旧产物静默执行默认套件而制造假通过。
+if(args.Length>0)throw new ArgumentException("未知WPF验证参数，请先构建支持该专项的当前产物。");
 var cases=new FakeUseCases();
 var shell=new ShellViewModel(cases,new SilentInteraction());
 await shell.State.DisplayAsync(cases.Result);

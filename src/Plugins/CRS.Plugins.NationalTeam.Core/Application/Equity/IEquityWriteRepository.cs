@@ -8,4 +8,5 @@ public interface IEquityWriteRepository
     void SaveEquityDisclosure(string market,string ticker,Uri uri,byte[] bytes);
     void SaveEquityReports(EtfKey key,DateOnly from,DateOnly to,IReadOnlyList<byte[]> pages,Guid? commandId=null);
     void ReviewEquity(EquityReview review,byte[] document,Guid? commandId=null);
+    void ReviewEquityDirection(EquityDirectionReview review,Guid commandId);
 }

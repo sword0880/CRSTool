@@ -16,4 +16,6 @@ public sealed partial class EquityUseCases : MarketUseCaseScope
     public Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token,Guid? commandId)=>RunAsync((IEquityWriteRepository repository)=>{repository.SaveEquityWatch(watch,commandId);return true;},token);
     public Task SaveEquityDisclosureAsync(string market,string ticker,Uri uri,byte[] bytes,CancellationToken token)=>RunAsync((IEquityWriteRepository repository)=>{repository.SaveEquityDisclosure(market,ticker,uri,bytes);return true;},token);
     public Task ReviewEquityDocumentAsync(EquityReview review,byte[] document,CancellationToken token,Guid? commandId)=>RunAsync((IEquityWriteRepository repository)=>{repository.ReviewEquity(review,document,commandId);return true;},token);
+    public Task<EquityDirectionReport> EquityDirectionAsync(DateOnly? reportAsOf,CancellationToken token)=>ReadPortAsync((IEquityReadRepository repository)=>repository.EquityDirection(reportAsOf),token);
+    public Task ReviewEquityDirectionAsync(EquityDirectionReview review,CancellationToken token,Guid commandId)=>RunAsync((IEquityWriteRepository repository)=>{repository.ReviewEquityDirection(review,commandId);return true;},token);
 }

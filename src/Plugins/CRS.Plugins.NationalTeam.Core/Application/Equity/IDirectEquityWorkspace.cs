@@ -18,4 +18,6 @@ public interface IDirectEquityWorkspace : IWorkspaceAccess
     Task SaveEquityWatchAsync(EquityWatch watch,CancellationToken token);
     Task SyncEquityAsync(CancellationToken token);
     Task ReviewEquityAsync(EquityReview review,CancellationToken token);
+    Task<EquityDirectionReport> EquityDirectionAsync(DateOnly? reportAsOf,CancellationToken token);
+    Task ReviewEquityDirectionAsync(EquityDirectionReview review,CancellationToken token);
 }
