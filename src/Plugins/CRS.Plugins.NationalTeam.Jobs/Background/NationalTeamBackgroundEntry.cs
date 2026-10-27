@@ -98,7 +98,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         http??=new OfficialHttpGateway(storage.OpenSourcePolicy(Path.Combine(context.DataDirectory,"data")),sources:context as IBackgroundSourceContext);
         if(http is OfficialHttpGateway official)official.Progress=ReportAsync;
         var adapter=new WorkerContext(context.DataDirectory,http);
-        workspace=new(adapter,()=>storage.OpenMarket(Path.Combine(context.DataDirectory,"data"),raw,key),raw);
+        workspace=NationalTeamApplicationComposition.Create(adapter,()=>storage.OpenMarket(Path.Combine(context.DataDirectory,"data"),raw,key),raw);
         workspace.SetProgressSink(ReportAsync);workspace.Etf.SetOfficialSource(new OfficialShareSources(http,raw,ReportAsync));await workspace.InitializeAsync(token);
         workspace.Activity.SetMarketActivitySource(new OfficialMarketActivitySource(http));
     }

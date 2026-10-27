@@ -89,6 +89,9 @@ jobs:
       - name: Verify ETF holder candidates preserve review and UI request boundaries
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-holder-candidates
+      - name: Verify ETF disclosure integrity, notification freeze and shared source gates
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-document-boundaries
       - name: Verify shared plugin read admissions and cancellation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission

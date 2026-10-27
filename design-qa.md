@@ -56,3 +56,9 @@ final result: passed
 使用真实WPF窗口完成640/1040/1280 DIP与100/125/150%密度的9张合成数据截图，带数值/状态列宽断言；没有后台查询或真实金融样本。首次离屏渲染发现星号列压缩，修正列约束并改为实际窗口布局后复验。
 
 已查看[窄窗口](artifacts/national-team-nav-workspace-ui-v2-20261026/nav-640-100.png)及[1040 DIP、150%密度](artifacts/national-team-nav-workspace-ui-v2-20261026/nav-1040-150.png)。日志为`artifacts/national-team-nav-workspace-visual-v2-20261026.log`。该视觉结果不表示NAV覆盖、机构归因或择时模型验收。
+
+# ETF持有人待核验候选（2026-10-27）
+
+原件核验页新增候选表及主动填草稿操作，保留全宽正文；不新增垂直导航。首次640 DIP截图发现份额小数被列宽挤掉，改为数值列最小宽度、较短列名和登记名称换行，分母及受益账户限制在表外完整说明。
+
+最终640/1040/1280 DIP真实窗口3张合成截图通过数值列宽及总列宽断言，查看[640 DIP](artifacts/national-team-holder-ui-v2-20261027/holders-640.png)和[1040 DIP](artifacts/national-team-holder-ui-v2-20261027/holders-1040.png)，份额小数与占比完整。日志为`artifacts/national-team-holder-ui-v2-20261027.log`。截图不连接后台，姓名和数值均是布局夹具；正式候选与金融审核另按证据验收。

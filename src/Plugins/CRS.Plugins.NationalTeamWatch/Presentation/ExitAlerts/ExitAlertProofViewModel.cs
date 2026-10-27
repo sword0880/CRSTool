@@ -39,7 +39,9 @@ public partial class ExitAlertViewModel
     {
         var previous=ProofFund;var funds=await etfWorkspace.ConfigurationAsync(lifetime);
         ProofFunds.Clear();foreach(var fund in funds)ProofFunds.Add(fund);
-        ProofFund=ProofFunds.FirstOrDefault(x=>x.Market==previous?.Market&&x.Ticker==previous?.Ticker)??ProofFunds.FirstOrDefault();
+        var selected=ProofFunds.FirstOrDefault(x=>x.Market==previous?.Market&&x.Ticker==previous?.Ticker)??ProofFunds.FirstOrDefault();
+        if(Equals(ProofFund,selected))ProofLoadTask=LoadProofDataAsync(++proofVersion);
+        else ProofFund=selected;
         await ProofLoadTask;
     }
     private async Task LoadProofDataAsync(int version)

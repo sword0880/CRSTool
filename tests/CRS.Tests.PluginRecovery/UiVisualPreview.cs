@@ -21,6 +21,8 @@ internal static class UiVisualPreview
             var model=new ExitAlertViewModel(new WorkerEtfWorkspace(),default);
             var document=new CRS.Plugins.NationalTeamWatch.Domain.AlertDocument(new('A',64),"SSE","510300","https://www.sse.com.cn/synthetic-holder.pdf",new('B',64),"2026-10-27T10:00:00+08:00");
             model.ProofDocuments.Add(document);model.ProofDocument=document;
+            for(var i=0;i<2;i++)model.ProofHoldings.Add(new("synthetic-"+i,"SSE","510300","synthetic-legal-"+i,"合成登记法人"+i,"合成账户"+i,new(2025,12,31),
+                new(2026,3,31,18,0,0,TimeSpan.FromHours(8)),DateTimeOffset.Parse(document.FirstSeenAt),12345+i,document.Url,document.Hash,"合成物理第75页","synthetic-reviewer",i==1,true));
             model.HolderCandidateStatus="合成布局验证 · 待核验候选 · 报告期2025-12-31；公告日期2026-03-31；准确时刻未知。候选不会自动批准。";
             for(var i=1;i<=11;i++)model.HolderCandidates.Add(new(i,i==1?"合成登记持有人甲有限责任公司":i==2?"合成登记持有人乙有限责任公司":"合成持有人"+i,"合成跨行\n持有人",37858474974-i,42.62m,"合成物理第75页",null));
             var page=new ExitAlertPage(false){DataContext=model};
@@ -30,13 +32,23 @@ internal static class UiVisualPreview
                 window.Show();window.UpdateLayout();
                 Find<TabControl>(page).Items.OfType<TabItem>().Single(x=>Equals(x.Header,"ETF原件与人工核验")).IsSelected=true;
                 var frame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>frame.Continue=false));Dispatcher.PushFrame(frame);window.UpdateLayout();
+                var candidateGrid=All(page).OfType<DataGrid>().Single(x=>ReferenceEquals(x.ItemsSource,model.HolderCandidates));
+                if(candidateGrid.Columns[2].ActualWidth<149||candidateGrid.Columns[3].ActualWidth<124
+                    ||candidateGrid.Columns.Sum(x=>x.ActualWidth)>candidateGrid.ActualWidth)
+                    throw new InvalidOperationException("持有人候选的数值列被窄视口压缩或溢出。");
                 var bitmap=new RenderTargetBitmap(width,960,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
                 var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using var stream=File.Create(Path.Combine(directory,$"holders-{width}.png"));encoder.Save(stream);
+                using(var stream=File.Create(Path.Combine(directory,$"holders-{width}.png")))encoder.Save(stream);
+                var proofGrid=All(page).OfType<DataGrid>().Single(x=>ReferenceEquals(x.ItemsSource,model.ProofHoldings));
+                proofGrid.BringIntoView();
+                var proofFrame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>proofFrame.Continue=false));Dispatcher.PushFrame(proofFrame);window.UpdateLayout();
+                var proofBitmap=new RenderTargetBitmap((int)Math.Ceiling(proofGrid.ActualWidth),(int)Math.Ceiling(proofGrid.ActualHeight),96,96,PixelFormats.Pbgra32);proofBitmap.Render(proofGrid);
+                var proofEncoder=new PngBitmapEncoder();proofEncoder.Frames.Add(BitmapFrame.Create(proofBitmap));
+                using(var stream=File.Create(Path.Combine(directory,$"holding-status-{width}.png")))proofEncoder.Save(stream);
             }
             finally{window.Close();}
         }
-        Console.WriteLine("PASS 持有人候选：640/1040/1280 DIP真实窗口3张合成渲染，不连接后台。");
+        Console.WriteLine("PASS 持有人候选及核验标记：640/1040/1280 DIP真实窗口6张合成渲染，不连接后台。");
     }
     private static T Find<T>(DependencyObject root) where T:DependencyObject
     {
@@ -46,6 +58,11 @@ internal static class UiVisualPreview
             try{return Find<T>(VisualTreeHelper.GetChild(root,i));}catch(InvalidOperationException){}
         }
         throw new InvalidOperationException("视觉元素未找到："+typeof(T).Name);
+    }
+    private static IEnumerable<DependencyObject> All(DependencyObject root)
+    {
+        yield return root;
+        for(var i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)foreach(var item in All(VisualTreeHelper.GetChild(root,i)))yield return item;
     }
     public static void RenderNav(string directory)
     {

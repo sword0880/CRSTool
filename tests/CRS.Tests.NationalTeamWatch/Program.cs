@@ -5,6 +5,7 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
+if(args is ["--etf-document-boundaries"]){EtfDocumentBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EtfDocumentBoundaries",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--etf-holder-candidates"]){await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--etf-holder-golden",var holderSourceDirectory]){await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")),holderSourceDirectory);return;}
 if(args is ["--shared-read-admission"]){await PluginCommonAdmissionChecks.RunAsync();return;}
@@ -80,6 +81,7 @@ if(args is ["--equity-live"]){await EquityLiveChecks.Run();return;}
 if(args is ["--equity-report-sample",var reportSample]){EquityReportChecks.Real(reportSample);return;}
 if(args.Length!=0)throw new ArgumentException("未知的验收参数，拒绝自动退回合成测试。");
 NavResearchChecks.Run();
+EtfDocumentBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EtfDocumentBoundaries",Guid.NewGuid().ToString("N")));
 await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")));
 PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));
 await ApplicationBoundaryChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ApplicationBoundaries",Guid.NewGuid().ToString("N")));
@@ -141,7 +143,7 @@ Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate.
 Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json.Replace("123.45","-1")),onlineDate,1),"Official response negative shares rejected");
 Reject(()=>SseOfficialShareSource.Parse(Encoding.UTF8.GetBytes(json),onlineDate,2),"Official response wrong page rejected");
 var onlineRoot=Path.Combine(root,"online");var onlineRaw=new RawEvidenceStore(Path.Combine(onlineRoot,"raw"));
-await using(var onlineWorkspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(onlineRoot,"data"),onlineRaw),onlineRaw))
+await using(var onlineWorkspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(onlineRoot,"data"),onlineRaw),onlineRaw))
 {
  await onlineWorkspace.InitializeAsync(CancellationToken.None);
  onlineWorkspace.Etf.SetOfficialSource(new SseOfficialShareSource(new FixtureHttp(json),onlineRaw));
@@ -155,7 +157,7 @@ try{await new SseOfficialShareSource(new FixtureHttp(json,403)).FetchAsync(onlin
 try{await new SseOfficialShareSource(new FixtureHttp(json.Replace("\"total\":1","\"total\":2"))).FetchAsync(onlineDate,CancellationToken.None);throw new Exception("Truncated page accepted");}catch(InvalidDataException){Console.WriteLine("PASS Truncated official pagination rejected");}
 // 宿主取消必须传递到界面调度出的采集任务，不能只取消Quartz外层等待。
 var cancelRaw=new RawEvidenceStore(Path.Combine(root,"cancel-raw"));var blockingSource=new BlockingOfficialSource();
-await using(var cancelWorkspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
+await using(var cancelWorkspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"cancel-data"),cancelRaw),cancelRaw))
 {
  await cancelWorkspace.InitializeAsync(CancellationToken.None);cancelWorkspace.Etf.SetOfficialSource(blockingSource);
  var cancelModel=new CRS.Plugins.NationalTeamWatch.Presentation.EtfViewModel(new LocalResearchWorkspace(cancelWorkspace),CancellationToken.None);using var hostCancel=new CancellationTokenSource();

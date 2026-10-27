@@ -15,7 +15,7 @@ internal static class EquityUiChecks
                 DirectEquityChecks.Seed(seed);
                 seed.SaveEquityReports(new("SSE","600036"),new(2026,8,1),new(2026,10,19),[EquityReportChecks.Page()]);
             }
-            using var lifetime=new CancellationTokenSource();var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
+            using var lifetime=new CancellationTokenSource();var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
             workspace.InitializeAsync(default).GetAwaiter().GetResult();var model=new EquityViewModel(new LocalResearchWorkspace(workspace),lifetime.Token);var page=new EquityPage(model);
             var window=new System.Windows.Window{Content=page,Width=1200,Height=850,ShowInTaskbar=false,Title="直接持股隔离合成验收"};
             window.Loaded+=async(_,_)=>

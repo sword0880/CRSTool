@@ -6,9 +6,8 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>
-/// Alert delivery persistence and lease completion.
-/// Claim selection still enforces acceptance and subscription rules in the compatibility coordinator.
-/// All state transitions and delivery attempts commit on the same existing SQLCipher connection.
+/// 投递持久化与租约回执。领取端统一核验数据、订阅和冻结原件；
+/// 状态迁移和每次投递记录沿同一普通SQLite事务提交。
 /// </summary>
 internal sealed class AlertDeliveryStore(IMarketRepositorySession session,AlertOutboxStore outbox)
 {

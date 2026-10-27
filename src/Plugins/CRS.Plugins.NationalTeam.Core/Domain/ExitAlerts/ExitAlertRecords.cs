@@ -27,7 +27,7 @@ public sealed record AlertOutboxItem(string Id,string EventId,int ChangeNo,strin
 {
     public string StatusText=>State switch{"Pending"=>"待发送","InFlight"=>"正在提交","Accepted"=>"渠道已受理，送达未验证","Retry"=>"等待重试",
         "Disabled"=>"渠道未启用","Unavailable"=>"渠道不可用","Failed"=>"发送失败","OutcomeUnknown"=>"受理结果未知，需核对",
-        "BlockedAcceptance"=>"正式数据门槛未通过，禁止外发","Superseded"=>"已被更新替代",_=>State};
+        "BlockedAcceptance"=>LastCode=="DisclosureEvidenceUnavailable"?"原件待重新核验，禁止外发":"正式数据门槛未通过，禁止外发","Superseded"=>"已被更新替代",_=>State};
 }
 public sealed record AlertDeliveryRecord(string Id,string OutboxId,int Attempt,string At,string State,string Code,string? ProviderReceipt);
 /// <summary>业务只接触渠道能力和提交结果，不依赖邮件或具体提供商程序集。</summary>

@@ -22,12 +22,13 @@ internal sealed partial class AlertStore
         using var command=Command("SELECT id,market,ticker,url,hash,first_seen FROM nt_alert_document WHERE market=$m AND ticker=$t ORDER BY julianday(first_seen) DESC LIMIT 1000",("$m",key.Market),("$t",key.Ticker));
         using var reader=command.ExecuteReader();var rows=new List<AlertDocument>();while(reader.Read())rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5)));return rows;
     }
-    private AlertDocument RequireAlertDocument(string id)
+    private AlertDocument RequireAlertDocument(string id,bool verifyRaw=true)
     {
         using var command=Command("SELECT id,market,ticker,url,hash,first_seen FROM nt_alert_document WHERE id=$id",("$id",id));using var reader=command.ExecuteReader();
         if(!reader.Read())throw new InvalidDataException("先登记并核对官方原件。");
         var row=new AlertDocument(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5));
-        if(!raw.Verify(row.Hash))throw new InvalidDataException("原件完整性异常，不能继承旧确认。");return row;
+        if(InspectDocuments([Reference(row)],verifyRaw)[Reference(row)] is not {} valid||valid.Id!=id)
+            throw new InvalidDataException("原件来源、完整性隔离或首见身份异常，不能继承旧确认。");return row;
     }
     public void ReviewAlertMetadata(AlertMetadataReview review,Guid? commandId=null)
     {
@@ -44,7 +45,7 @@ internal sealed partial class AlertStore
     public List<AlertFundMetadata> AlertMetadata()
     {
         using var command=Command("SELECT payload FROM nt_alert_metadata");
-        return ReadJson<AlertFundMetadata>(command).Select(x=>raw.Verify(x.EvidenceHash)?x:x with{OriginalConfirmed=false}).ToList();
+        return ValidateMetadata(ReadJson<AlertFundMetadata>(command)).ToList();
     }
     /// <summary>跨模块研究仅核对本基金的可比性原件，沿用当前查询取消和Q15状态。</summary>
     internal AlertFundMetadata? MetadataForNavStudy(EtfKey key)
@@ -52,14 +53,8 @@ internal sealed partial class AlertStore
         var payload=Scalar("SELECT payload FROM nt_alert_metadata WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker)) as string;
         if(payload is null)return null;
         var value=JsonSerializer.Deserialize<AlertFundMetadata>(payload)??throw new InvalidDataException("基金可比性资料损坏。");
-        var valid=value.Market==key.Market&&value.Ticker==key.Ticker&&Convert.ToInt32(Scalar("""
-            SELECT count(*) FROM nt_alert_document d JOIN source_fetch f ON f.fetch_id=d.fetch_id
-            WHERE d.market=$m AND d.ticker=$t AND d.hash=$hash AND d.url=$url AND f.sha256=d.hash AND f.original_sha256=d.hash
-                AND f.provider='ReviewedEtfAlertPdf' AND f.status!='ParseFailed'
-                AND NOT EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=f.fetch_id AND q.rule_id='Q15' AND q.status='Open')
-            """,("$m",key.Market),("$t",key.Ticker),("$hash",value.EvidenceHash),("$url",value.EvidenceUrl)))==1;
-        var healthy=raw.VerifyMany([value.EvidenceHash],session.OperationCancellation)[value.EvidenceHash];
-        return valid&&healthy?value:value with{OriginalConfirmed=false};
+        if(value.Market!=key.Market||value.Ticker!=key.Ticker)return value with{OriginalConfirmed=false};
+        return ValidateMetadata([value]).Single();
     }
     public void ReviewNamedEtfHolding(NamedEtfHoldingReview review,Guid? commandId=null)
     {
@@ -81,7 +76,7 @@ internal sealed partial class AlertStore
     public List<NamedEtfHolding> NamedEtfHoldings(EtfKey? key=null)
     {
         using var command=Command("SELECT payload FROM nt_named_etf_holding WHERE $m IS NULL OR (market=$m AND ticker=$t)",("$m",key?.Market),("$t",key?.Ticker));
-        return ReadJson<NamedEtfHolding>(command).Select(x=>raw.Verify(x.DocumentHash)?x:x with{OriginalConfirmed=false}).ToList();
+        return ValidateHoldings(ReadJson<NamedEtfHolding>(command)).ToList();
     }
     private static bool Identifier(string? value)=>value is {Length:>0 and <=80}&&value.All(c=>!char.IsControl(c)&&c!='|');
     private static bool ReviewerName(string? value)=>!string.IsNullOrWhiteSpace(value)&&value.Length<=120&&!value.Any(char.IsControl);

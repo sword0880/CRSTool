@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-/// <summary>纯规则与加密库隔离验收；合成原件、模拟时间和进程重建均不冒充真实长期采集或实际送达。</summary>
+/// <summary>纯规则与普通SQLite隔离验收；合成原件、模拟时间和进程重建均不冒充真实长期采集或实际送达。</summary>
 internal static class ExitAlertChecks
 {
     private static void Check(bool value,string label){if(!value)throw new Exception(label);Console.WriteLine("PASS 预警："+label);}
@@ -99,7 +99,7 @@ internal static class ExitAlertChecks
                 Check(repository.AlertEvents(new()).Count==0&&repository.AlertOutbox().Count==0,"事件与Outbox插入失败同事务回滚，不产生孤立事件");
                 using(var journal=connection.CreateCommand())
                 {
-                    journal.CommandText="SELECT (SELECT count(*) FROM nt_risk_event_change)+(SELECT count(*) FROM nt_alert_input_snapshot)";
+                    journal.CommandText="SELECT (SELECT count(*) FROM nt_risk_event_change)+(SELECT count(*) FROM nt_alert_input_snapshot)+(SELECT count(*) FROM nt_alert_notification_input)";
                     Check(Convert.ToInt32(journal.ExecuteScalar())==0,"模拟Outbox落库失败时变更日志和冻结证据也必须整体回滚");
                 }
                 Sql(connection,"DROP TRIGGER synthetic_outbox_abort;");
@@ -164,6 +164,18 @@ internal static class ExitAlertChecks
         Check(repository.AlertEvent(original.Id) is {State:"Active",ClearCount:1},"ALERT-11 停机跨交易日不能累计成连续解除观察");
         clock.Value=new(2026,9,8,0,0,0,TimeSpan.Zero);Metadata(repository,clock);Import(repository,raw,(new(2026,9,7),1000));repository.EvaluateExitAlerts(true);
         Check(repository.AlertEvent(original.Id) is {State:"Resolved",ClearCount:2},"相邻真实交易日的完整正常窗口才解除风险");
+        var resolved=repository.AlertEvent(original.Id)!;var resolution=repository.AlertOutbox().Single(x=>x.EventId==resolved.Id&&x.ChangeNo==resolved.ChangeNo);
+        using(var connection=OpenDatabase(root))
+        {
+            using var proof=connection.CreateCommand();proof.CommandText="SELECT payload FROM nt_alert_notification_input WHERE event_id=$id AND sequence=$n";
+            proof.Parameters.AddWithValue("$id",resolved.Id);proof.Parameters.AddWithValue("$n",resolved.ChangeNo);
+            var inputs=System.Text.Json.JsonSerializer.Deserialize<AlertFundInput[]>((string)proof.ExecuteScalar()!)!;
+            Check(inputs.Single().Points.Any(x=>x.Date==new DateOnly(2026,9,7))&&inputs.Single().EvaluatedAt==clock.Value,"解除通知冻结当次正常窗口，不能借用原触发窗口");
+            var pending=System.Text.Json.JsonSerializer.Serialize(resolution with{State="Pending"}).Replace("'","''",StringComparison.Ordinal);
+            Sql(connection,"UPDATE nt_alert_outbox SET state='Pending',payload='"+pending+"' WHERE id='"+resolution.Id+"'");
+        }
+        Check(repository.ClaimAlertNotification() is null&&repository.AlertOutbox().Single(x=>x.Id==resolution.Id).LastCode=="DataAcceptanceNotPassed",
+            "解除通知的本次原件门槛通过后，仍保留原正式数据门槛");
         Import(repository,raw,(Date,1000));repository.EvaluateExitAlerts(true);
         Check(repository.AlertEvent(original.Id) is {DataHealth:"Unknown"},"已解除历史事件遇到待审修订也保留未知状态，不继续冒充证据完整");
         var revised=repository.Evidence(Key).Single(x=>x.State=="NeedsReview");repository.Review(revised.RevisionId,true,"synthetic-reviewer",true);repository.EvaluateExitAlerts(true);

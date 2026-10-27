@@ -40,7 +40,7 @@ internal static class MarketQueryReliabilityChecks
             if(timer.Elapsed>TimeSpan.FromSeconds(1))throw new Exception("整页只读查询仍等待已有写锁。");
         }
         Console.WriteLine("PASS 整页只读事务不抢占已有写锁。");
-        await using var workspace=new NationalTeamApplication(new Context(),()=>repository,raw);
+        await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new Context(),()=>repository,raw);
         await workspace.InitializeAsync(default);workspace.Activity.SetMarketActivitySource(new Source(Value));
         using var stop=new CancellationTokenSource();Volatile.Write(ref wait,1);
         var query=workspace.Activity.MarketActivityAsync(stop.Token);
@@ -76,7 +76,7 @@ internal static class MarketQueryReliabilityChecks
         {
             if(Volatile.Read(ref hold)==1){entered.Set();if(!release.Wait(TimeSpan.FromSeconds(15)))throw new TimeoutException("隔离写入未释放。");}
         },approvalAuditKey:key);
-        await using var workspace=new NationalTeamApplication(new Context(),()=>repository,raw);
+        await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new Context(),()=>repository,raw);
         await workspace.InitializeAsync(default);Volatile.Write(ref hold,1);
         var writer=workspace.Etf.SaveConfigurationAsync(new("SSE","510300"),"独立读取检查","测试指数",true,"隔离并发检查",0,default);
         try

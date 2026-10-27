@@ -90,13 +90,14 @@ internal sealed partial class AlertStore
     private ExitAlertFinding RecomputeHistorical(SavedAlertInput saved,ExitAlertRules rules,Dictionary<EtfKey,List<SharePoint>> points)
     {
         var original=saved.Original;var date=original.LastTradeDate;
+        var metadataHealth=ValidateMetadata(saved.Inputs.Where(x=>x.Metadata is not null).Select(x=>x.Metadata!)).ToDictionary(Reference);
         var inputs=saved.Inputs.Select(input=>
         {
             if(!points.TryGetValue(input.Key,out var current))points[input.Key]=current=ReadPoints(input.Key);
             var expected=input.TradingDays.Append(date).ToHashSet();var calendar=input.TradingDays.Count==0?[]:ReadCalendar(input.Key.Market).Where(x=>x.Date>=input.TradingDays[0]&&x.Date<=date).ToArray();
             return input with{Points=current.Where(x=>expected.Contains(x.Date)).ToArray(),
                 CalendarVerified=input.CalendarVerified&&calendar.All(x=>x.Valid)&&calendar.Select(x=>x.Date).SequenceEqual(input.TradingDays),
-                Metadata=input.Metadata is {} metadata&&!raw.Verify(metadata.EvidenceHash)?metadata with{OriginalConfirmed=false}:input.Metadata};
+                Metadata=input.Metadata is {} metadata?metadataHealth[Reference(metadata)]:null};
         }).ToArray();
         if(original.RuleId=="EtfShareContraction")return ExitAlertEvaluator.Single(inputs.Single(),date,rules,!original.Preview);
         if(original.RuleId=="SampleBreadth")
@@ -104,7 +105,7 @@ internal sealed partial class AlertStore
             var window=int.Parse(original.ScopeId.Split(':')[1],System.Globalization.CultureInfo.InvariantCulture);
             return ExitAlertEvaluator.Cluster(inputs.Select(x=>(x,ExitAlertEvaluator.Windows(x,date,rules))).ToArray(),date,rules,!original.Preview,window);
         }
-        var holdings=saved.Holdings.Select(x=>raw.Verify(x.DocumentHash)?x:x with{OriginalConfirmed=false}).ToArray();
+        var holdings=ValidateHoldings(saved.Holdings);
         var proof=ExitAlertEvaluator.Minimum(holdings,inputs.Single(),date,saved.Inputs.Max(x=>x.EvaluatedAt));
         return new(original.RuleId,original.ScopeId,original.Lane,original.Severity,original.EvidenceKind,date,original.Headline,proof.Explanation,
             ExitAlertEvaluator.Hash(string.Join('|',proof.EvidenceIds)+"|"+proof.LowerBound),proof.EvidenceIds,proof.LowerBound>0,proof.State=="DerivedMinimumReduction",original.Preview);

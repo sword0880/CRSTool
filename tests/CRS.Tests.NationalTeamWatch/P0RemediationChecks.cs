@@ -19,7 +19,7 @@ internal static class P0RemediationChecks
         await szse.PrepareRangeAsync(day,day.AddDays(1),default);
         foreach(var date in new[]{day,day.AddDays(1)})
             Check((await szse.FetchAsync(date,[new("SZSE","159919")],default)).Failures?.Single() is {State:"AccessBlocked",Reason:"Http429",Ticker:"159919",OriginalHash:not null},"深市区间失败缓存保留限流原因及原件，不退化为普通缺失");
-        await using(var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(data,raw),raw))
+        await using(var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(data,raw),raw))
         {
             await workspace.InitializeAsync(default);workspace.Etf.SetOfficialSource(new OfficialShareSources(http,raw));
             http.Status=403;http.Body="blocked response fixture";

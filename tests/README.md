@@ -1,6 +1,10 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+ETF披露统一核验：`CRS.Tests.NationalTeamWatch --etf-document-boundaries`检查原件来源/Q15/首见、既有确认失效、历史回算和领取闸门、普通SQLite只读/迁移缺损及跨128引用去重；`--exit-alerts`另含解除通知的当前冻结窗口和通知原子回滚；`--etf-holder-candidates`含同值刷新状态反例，`--exit-alert-ui`核对真实核验列。范围见[原件一致性记录](../docs/implementation/NATIONAL_TEAM_ETF_DOCUMENT_INTEGRITY_20261027.md)。
+
 ETF持有人候选：`CRS.Tests.NationalTeamWatch --etf-holder-candidates`检查未知模板、原件/取消/页参数和界面草稿竞态；已纳入默认回归与CI。`--etf-holder-golden <原件目录>`逐行比对510300两份官方年报及独立页面摘录，再经真实后台只读分页回查，使用普通SQLite隔离库；不批准具名持仓、不访问正式Worker。通用PDF读取迁至`CRS.Documents`，富途收入回归独立验证。范围及来源见[候选接线](../docs/implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)。
+
+`CRS.Tests.WorkerEtf --etf-holder-pipe <完整候选包> <原件目录> <新输出目录>`在隔离服务目录回放相同公开原件，经持久命令、监督Runner及真实管道核验候选；测试夹具禁用自动计划并拒绝未列来源，既不安装服务也不联网。`CRS.Tests.PluginRecovery --holder-visual-preview <截图目录>`仅渲染640/1040/1280 DIP合成候选，不访问后台。
 
 行业研究采用独立测试项目。`CRS.Tests.SectorResearch`运行完整模型领域反例；`CRS.Tests.SectorUi`默认渲染明确标记的合成曲线，`--industry-installed`使用真实Worker业务管道读取已登记公布PE。国证公布PE已接通独立后台事实链和第三页导航；完整行业价格/PB/覆盖/基本面及机会门槛仍开放。命令、口径及证据见[行业研究实施](../docs/implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)和[公布PE事实链](../docs/implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)。
 

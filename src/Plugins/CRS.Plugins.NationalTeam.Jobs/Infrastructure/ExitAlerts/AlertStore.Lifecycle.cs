@@ -15,7 +15,11 @@ internal sealed partial class AlertStore
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
         alertEventStore.RecordChange(row,kind);
         if(finding.Triggered&&finding.InputSnapshots is {Count:>0})SaveAlertInputSnapshot(row,finding);
-        if(notify)EnqueueAlertNotifications(row,kind,configuration.Routes);
+        if(notify)
+        {
+            if(row.Lane!=AlertLane.DataQuality)SaveNotificationInput(row,finding);
+            EnqueueAlertNotifications(row,kind,configuration.Routes);
+        }
         transaction.Commit();
     }
     private (ExitAlertEvent Event,string Kind,bool Notify)? NextAlert(ExitAlertEvent? previous,ExitAlertFinding finding,ExitAlertConfiguration configuration)

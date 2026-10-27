@@ -117,7 +117,7 @@ internal static class NationalTeamConcurrencyChecks
             ()=>Volatile.Read(ref pause)==1,entered,release));
         using var repository=new MarketRepository(Path.Combine(root,"data"),raw,approvalAuditKey:key);
         var hash=raw.Save(Encoding.UTF8.GetBytes("synthetic integrity evidence"));repository.RecordFetch(hash,"https://www.sse.com.cn/test",hash);
-        await using var workspace=new NationalTeamApplication(new WorkspaceContext(root),()=>repository,raw);await workspace.InitializeAsync(default);
+        await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new WorkspaceContext(root),()=>repository,raw);await workspace.InitializeAsync(default);
         var row=(await workspace.Etf.ConfigurationAsync(default)).First();
         Volatile.Write(ref pause,1);var check=workspace.Evidence.ReconcileEvidenceIntegrityAsync(default);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));

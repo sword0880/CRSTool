@@ -20,9 +20,11 @@ internal static class ExitAlertUiChecks
             {
                 foreach(var fund in repository.Configuration().Where(x=>x.Ticker!="510300"))repository.SetMembership(new(fund.Market,fund.Ticker),fund.Name,fund.IndexGroup,false,"synthetic UI");
                 repository.RegisterAlertDocument(new("SSE","510300","https://www.sse.com.cn/fixture-ui.pdf"),"%PDF-synthetic-ui"u8.ToArray());
+                repository.ReviewNamedEtfHolding(new(repository.AlertDocuments(new("SSE","510300")).Single().Id,"synthetic-ui-legal","合成具名法人甲","合成独立账户甲",new(2026,6,30),
+                    new(2026,8,28,18,0,0,TimeSpan.FromHours(8)),12345,"合成第10页","synthetic-ui-reviewer",true,true));
                 repository.EvaluateExitAlerts(true);
             }
-            var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
+            var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
             workspace.InitializeAsync(default).GetAwaiter().GetResult();using var lifetime=new CancellationTokenSource();
             var model=new ExitAlertViewModel(new LocalResearchWorkspace(workspace),lifetime.Token);var page=new ExitAlertPage{DataContext=model};
             var window=new Window{Title="预警中心隔离合成验收",Content=new ScrollViewer{Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled},Width=1280,Height=960,ShowInTaskbar=false};
@@ -45,6 +47,22 @@ internal static class ExitAlertUiChecks
                 await Task.Delay(100);Screenshot(window,Path.Combine(root,"notifications.png"));
                 tabs.Single(x=>Equals(x.Header,"规则与订阅")).IsSelected=true;await Task.Delay(100);Screenshot(window,Path.Combine(root,"rules.png"));
                 tabs.Single(x=>Equals(x.Header,"ETF原件与人工核验")).IsSelected=true;await Task.Delay(100);Screenshot(window,Path.Combine(root,"proof.png"));
+                var proofTab=tabs.Single(x=>Equals(x.Header,"ETF原件与人工核验"));var scroll=(ScrollViewer)proofTab.Content;
+                scroll.ScrollToEnd();await Task.Delay(100);window.UpdateLayout();
+                var proofGrid=Children(page).OfType<DataGrid>().Single(x=>ReferenceEquals(x.ItemsSource,model.ProofHoldings));
+                var column=proofGrid.Columns.OfType<DataGridCheckBoxColumn>().Single(x=>(x.Binding as System.Windows.Data.Binding)?.Path.Path==nameof(NamedEtfHolding.OriginalConfirmed));
+                if(model.ProofHoldings.Count!=1||column.GetCellContent(model.ProofHoldings.Single()) is not CheckBox {IsChecked:true})throw new Exception("真实原件核验状态未绑定。");
+                ScreenshotElement(proofGrid,Path.Combine(root,"holdings-verified.png"));
+                using(var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=Path.Combine(root,"data","market.db"),Pooling=false}.ToString()))
+                {
+                    db.Open();using var command=db.CreateCommand();
+                    command.CommandText="INSERT INTO quality_issue SELECT 'ui-proof-q15','Q15','fixture',fetch_id,'Critical','Open',fetch_id,NULL,NULL FROM nt_alert_document WHERE ticker='510300' LIMIT 1";command.ExecuteNonQuery();
+                }
+                await model.RefreshCommand.ExecuteAsync(null);await model.ProofLoadTask;scroll.ScrollToEnd();await Task.Delay(100);window.UpdateLayout();
+                if(model.ProofHoldings.Single().OriginalConfirmed||column.GetCellContent(model.ProofHoldings.Single()) is not CheckBox {IsChecked:false})throw new Exception("相同基金刷新后仍显示旧原件确认。");
+                Screenshot(window,Path.Combine(root,"proof-isolated.png"));
+                ScreenshotElement(proofGrid,Path.Combine(root,"holdings-isolated.png"));
+                Console.WriteLine("PASS 预警WPF：相同基金刷新重新读取证据状态，真实核验列由通过变为隔离，不残留旧确认。");
                 Console.WriteLine("PASS 预警WPF：研究门槛、三车道筛选、事件证据、空结果清理、独立订阅、原件不自动确认及通知状态；截图为合成数据："+root);
             }
             catch(Exception error){failure=error;}
@@ -56,6 +74,11 @@ internal static class ExitAlertUiChecks
     private static void Screenshot(Window window,string path)
     {
         window.UpdateLayout();var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
+        var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
+    }
+    private static void ScreenshotElement(FrameworkElement element,string path)
+    {
+        element.UpdateLayout();var bitmap=new RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth),(int)Math.Ceiling(element.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(element);
         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
     }
     private static IEnumerable<DependencyObject> Children(DependencyObject parent)

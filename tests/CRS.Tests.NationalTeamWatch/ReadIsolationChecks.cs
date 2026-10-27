@@ -13,7 +13,7 @@ internal static class ReadIsolationChecks
         var rawPath=Path.Combine(root,"raw");var bytes=Encoding.UTF8.GetBytes("isolated read evidence");
         var raw=new RawEvidenceStore(rawPath,openRead:path=>block?new PausedStream(File.OpenRead(path),entered,release):File.OpenRead(path));
         MarketRepository? repository=null;
-        await using var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>repository=TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
+        await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>repository=TestMarketData.Open(Path.Combine(root,"data"),raw),raw);
         await workspace.InitializeAsync(default);var key=new EtfKey("SSE","510300");var day=new DateOnly(2026,10,13);
         var hash=raw.Save(bytes);var fetch=repository!.RecordFetch(hash,"https://www.sse.com.cn/synthetic-isolation");
         repository.ImportCalendar(fetch,[("SSE",day)],default);repository.ImportShares(fetch,[new(key,day,100,"份")],default);

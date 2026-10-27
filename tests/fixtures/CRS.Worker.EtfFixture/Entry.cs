@@ -13,7 +13,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory),indexSourceApprovals:new IndexApprovals(context.DataDirectory));
         public int MaximumConcurrentExecutions=>inner.MaximumConcurrentExecutions;
         public BackgroundExecutionGroup ExecutionGroup(string jobId)=>inner.ExecutionGroup(jobId);
-        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-holders.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
         public async ValueTask StartAsync(CancellationToken token)
         {
             // 此故障/去重夹具固定五只合成来源；生产默认全目录由仓储配置专项单独验证。
@@ -64,6 +64,18 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         public async Task<PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
+            var holders=Path.Combine(root,"etf-holders.fixture");
+            if(Directory.Exists(holders))
+            {
+                var year=uri.AbsoluteUri switch
+                {
+                    "https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf"=>2025,
+                    "https://www.sse.com.cn/disclosure/fund/announcement/c/new/2025-03-31/510300_20250331_07Z1.pdf"=>2024,
+                    _=>throw new InvalidDataException("持有人夹具出现未列来源。")
+                };
+                await File.AppendAllTextAsync(Path.Combine(holders,"calls.log"),year+"\n",token);
+                return new(200,await File.ReadAllBytesAsync(Path.Combine(holders,$"510300-{year}.pdf"),token),"application/pdf");
+            }
             var historical=Path.Combine(root,"historical-pdf.fixture");
             if(Directory.Exists(historical))
             {

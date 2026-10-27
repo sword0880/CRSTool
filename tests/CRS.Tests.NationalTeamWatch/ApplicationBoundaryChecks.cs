@@ -15,7 +15,7 @@ internal static class ApplicationBoundaryChecks
         Check(types.Skip(1).SelectMany(t=>t.GetMethods(BindingFlags.Public|BindingFlags.Instance|BindingFlags.DeclaredOnly))
             .All(m=>m.Name is not ("AlertChannelsAsync" or "QueueIndexSeriesAsync" or "QueueIndustryPeAsync")),"渠道由宿主提供，远程排队属于客户端，不以后台空集合占位");
         var opened=0;var raw=new RawEvidenceStore(Path.Combine(root,"raw"));
-        await using var application=new NationalTeamApplication(new QueryOnlyContext(),()=>
+        await using var application=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>
         {Interlocked.Increment(ref opened);return TestMarketData.Open(Path.Combine(root,"data"),raw);},raw);
         await Reject<InvalidOperationException>(()=>application.Etf.ConfigurationAsync(default),"初始化前读取明确拒绝");
         await Reject<InvalidOperationException>(()=>application.Nav.NavRevisionsAsync(new("SZSE","159915"),new(2026,1,1),new(2026,1,2),default),"不同功能共享同一未初始化生命周期");
@@ -29,7 +29,7 @@ internal static class ApplicationBoundaryChecks
         await Reject<ObjectDisposedException>(()=>application.Activity.MarketActivityAsync(default),"关闭后其它功能同样拒绝读取");
         await Reject<ObjectDisposedException>(()=>application.Alerts.EvaluateAlertsAsync(default),"关闭后拒绝写入而不是重新打开仓储");
         var failedRoot=Path.Combine(root,"missing-capability");
-        await using var incomplete=new NationalTeamApplication(new QueryOnlyContext(),()=>
+        await using var incomplete=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>
         {
             var target=TestMarketData.Open(failedRoot,raw);
             var proxy=DispatchProxy.Create<IMarketRepository,ForwardingRepositoryProxy>();

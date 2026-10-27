@@ -57,7 +57,7 @@ internal static class MarketActivityChecks
         {
             var directory=Path.Combine(root,name);
             var raw=new RawEvidenceStore(Path.Combine(directory,"raw"));
-            await using var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
+            await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
             await workspace.InitializeAsync(CancellationToken.None);
             var progress=new List<EtfProgress>();workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});
             workspace.Activity.SetMarketActivitySource(source);
@@ -104,7 +104,7 @@ internal static class MarketActivityChecks
         async Task<MarketActivitySyncReport> Run(IMarketActivitySource source)
         {
             // 每轮重建会话，证明续采依据落盘事实，服务重启不丢失进度。
-            await using var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
+            await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
             await workspace.InitializeAsync(default);workspace.Activity.SetMarketActivitySource(source);
             return await workspace.Activity.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
         }
@@ -120,7 +120,7 @@ internal static class MarketActivityChecks
 
         var until=DateTimeOffset.UtcNow.AddHours(2);var progress=new List<EtfProgress>();
         var coldRoot=Path.Combine(root,"independent-markets");var coldRaw=new RawEvidenceStore(Path.Combine(coldRoot,"raw"));
-        await using(var workspace=new NationalTeamApplication(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(coldRoot,"data"),coldRaw),coldRaw))
+        await using(var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(coldRoot,"data"),coldRaw),coldRaw))
         {
             await workspace.InitializeAsync(default);workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});calls.Clear();
             workspace.Activity.SetMarketActivitySource(new FixtureActivitySource((market,day)=>

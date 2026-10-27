@@ -25,8 +25,28 @@ internal static class EtfHolderCandidateChecks
         Reject(()=>PdfReader.ReadSelected(unknown,[0]),"公共PDF读取拒绝非法页码");
         Reject(()=>PdfReader.ReadSelected(unknown,Enumerable.Range(1,33).ToArray()),"公共PDF选择页保持32页上限");
         await EtfHolderCandidateUiChecks.RunAsync();
+        RepositoryBoundary(Path.Combine(root,"boundary"),unknown);
         if(sourceDirectory is not null)await Golden(root,sourceDirectory);
         Console.WriteLine($"ETF持有人候选检查通过：{passed}项。原件未写入正式数据库。");
+    }
+    private static void RepositoryBoundary(string root,byte[] bytes)
+    {
+        var raw=new RawEvidenceStore(Path.Combine(root,"raw"));var data=Path.Combine(root,"data");
+        using var repository=TestMarketData.Open(data,raw);const string url="https://www.sse.com.cn/unknown.pdf";
+        repository.RegisterAlertDocument(new(Key.Market,Key.Ticker,url),bytes);var doc=repository.AlertDocuments(Key).Single();
+        Check(((IMarketReadSessions)repository).Read(x=>Huatai300HolderPdf.Parse(x.EtfHolderDocument(Key,doc.Id)).State,default)=="UnsupportedTemplate",
+            "真实只读仓储中的未支持模板保留明确状态");
+        using var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=Path.Combine(data,"market.db"),Pooling=false}.ToString());db.Open();
+        void Sql(string sql){using var command=db.CreateCommand();command.CommandText=sql;command.ExecuteNonQuery();}
+        Sql("UPDATE source_fetch SET source_url='https://www.sse.com.cn/wrong.pdf'");
+        Reject(()=>repository.EtfHolderDocument(Key,doc.Id),"来源URL与原件登记不一致不能解析");
+        Sql("UPDATE source_fetch SET source_url='"+url+"'");
+        Sql("INSERT INTO quality_issue SELECT 'holder-q15','Q15','fixture',fetch_id,'Critical','Open',fetch_id,NULL,NULL FROM source_fetch LIMIT 1");
+        Reject(()=>repository.EtfHolderDocument(Key,doc.Id),"未解除Q15即便原件当前哈希正确仍阻断读取");
+        Sql("DELETE FROM quality_issue WHERE id='holder-q15'");
+        Sql("UPDATE source_fetch SET status='ParseFailed'");
+        Reject(()=>repository.EtfHolderDocument(Key,doc.Id),"已失败来源不能升级为候选成功");
+        Check(repository.NamedEtfHoldings(Key).Count==0,"边界检查不产生已审核持仓");
     }
     private static async Task Golden(string root,string directory)
     {

@@ -9,6 +9,10 @@ internal sealed partial class AlertStore
     public void InitializeExitAlertSchema()
     {
         using var transaction=db.BeginTransaction();
+        var proofVersion=Scalar("SELECT version FROM feature_schema_migration WHERE feature='alert-notification-proof'");
+        var proofTable=Convert.ToInt32(Scalar("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='nt_alert_notification_input'"));
+        if(proofVersion is not null&&Convert.ToInt32(proofVersion)!=1||(proofVersion is null?proofTable!=0:proofTable!=1))
+            throw new InvalidDataException("通知冻结证据登记与实际表不一致，拒绝自动重建金融证据。");
         Execute("""
             CREATE TABLE IF NOT EXISTS nt_alert_rule(version TEXT PRIMARY KEY,payload TEXT NOT NULL,created_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS nt_alert_configuration(id INTEGER PRIMARY KEY CHECK(id=1),version TEXT NOT NULL REFERENCES nt_alert_rule(version),routes TEXT NOT NULL,revision INTEGER NOT NULL);
@@ -24,12 +28,15 @@ internal sealed partial class AlertStore
             CREATE INDEX IF NOT EXISTS nt_alert_snapshot_revision_id ON nt_alert_snapshot_revision(revision_id);
             CREATE TABLE IF NOT EXISTS nt_alert_snapshot_source(event_id TEXT NOT NULL,sequence INTEGER NOT NULL,fetch_id TEXT NOT NULL,PRIMARY KEY(event_id,sequence,fetch_id));
             CREATE INDEX IF NOT EXISTS nt_alert_snapshot_source_fetch ON nt_alert_snapshot_source(fetch_id);
+            CREATE TABLE IF NOT EXISTS nt_alert_notification_input(event_id TEXT NOT NULL,sequence INTEGER NOT NULL,payload TEXT NOT NULL,holdings TEXT NOT NULL,
+                PRIMARY KEY(event_id,sequence),FOREIGN KEY(event_id,sequence) REFERENCES nt_risk_event_change(event_id,sequence));
             CREATE TABLE IF NOT EXISTS nt_alert_outbox(id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES nt_risk_event(id),change_no INTEGER NOT NULL,channel_id TEXT NOT NULL,profile_id TEXT NOT NULL,state TEXT NOT NULL,next_at TEXT NOT NULL,payload TEXT NOT NULL,UNIQUE(event_id,change_no,channel_id,profile_id));
             CREATE INDEX IF NOT EXISTS nt_alert_outbox_due ON nt_alert_outbox(state,next_at);
             CREATE TABLE IF NOT EXISTS nt_alert_delivery(id TEXT PRIMARY KEY,outbox_id TEXT NOT NULL REFERENCES nt_alert_outbox(id),attempt INTEGER NOT NULL,at TEXT NOT NULL,payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS nt_alert_pending(id INTEGER PRIMARY KEY CHECK(id=1),changed_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS nt_alert_evaluation(id INTEGER PRIMARY KEY CHECK(id=1),at TEXT NOT NULL);
             """);
+        Execute("INSERT OR IGNORE INTO feature_schema_migration VALUES('alert-notification-proof',1,$now)",("$now",Now));
         var rules=new ExitAlertRules();Execute("INSERT OR IGNORE INTO nt_alert_rule VALUES($v,$p,$now)",("$v",rules.Version),("$p",JsonSerializer.Serialize(rules)),("$now",Now));
         Execute("INSERT OR IGNORE INTO nt_alert_configuration VALUES(1,$v,$r,0)",("$v",rules.Version),("$r",JsonSerializer.Serialize(new[]{new AlertNotificationRoute()})));
         // 进程退出时正在提交的邮件可能已经被服务商接受，重启后不能自动重复外发。
