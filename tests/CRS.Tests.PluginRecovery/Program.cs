@@ -19,6 +19,16 @@ internal static class Program
         var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+        if(args is ["--etf-report-visual-preview",var etfReportAcceptance,var etfReportDirectory])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                EtfReportVisualPreview.Render(etfReportAcceptance,etfReportDirectory);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
+        }
         if(args is ["--ui-visual-preview" or "--workspace-visual-preview" or "--nav-visual-preview" or "--holder-visual-preview",var previewDirectory])
         {
             try
@@ -80,7 +90,7 @@ internal static class Program
             try
             {
                 window.Show();
-                foreach(var route in new[]{"etf-monitor","direct-equity","nav-study","industry-pe","sector-index"})
+                foreach(var route in new[]{"etf-monitor","etf-institution-holdings","direct-equity","nav-study","industry-pe","sector-index"})
                 {
                     page.OpenRoute(route);
                     await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);

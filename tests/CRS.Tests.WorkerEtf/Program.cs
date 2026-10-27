@@ -11,6 +11,7 @@ using Microsoft.Data.Sqlite;
 
 if(args is ["--nav-pipe",var navPackage,var navSnapshot,var navOutput]){await NavPipeChecks.Run(navPackage,navSnapshot,navOutput);return;}
 if(args is ["--etf-holder-pipe",var holderPackage,var holderOriginals,var holderPipeOutput]){await EtfHolderPipeChecks.Run(holderPackage,holderOriginals,holderPipeOutput);return;}
+if(args is ["--etf-report-pipe",var reportPackage,var reportSources,var reportOriginals,var reportOutput]){await EtfReportPipeChecks.Run(reportPackage,reportSources,reportOriginals,reportOutput);return;}
 if(args is ["--industry-pipe",var industryPackage,var industrySource,var industryPipeOutput]){await IndustryPipeChecks.Run(industryPackage,industrySource,industryPipeOutput);return;}
 if(args is ["--index-pipe",var indexPackage,var indexSource,var indexPipeOutput]){await IndexPipeChecks.Run(indexPackage,indexSource,indexPipeOutput);return;}
 if(args is ["--nav-live",var navLiveOutput]){await NavLiveOperations.Run(navLiveOutput,true);return;}

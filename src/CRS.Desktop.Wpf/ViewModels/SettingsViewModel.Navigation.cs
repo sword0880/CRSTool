@@ -29,6 +29,7 @@ public partial class SettingsViewModel
     public IReadOnlyList<SettingsSection> Sections {get;} =
     [
         new("storage","数据管理","数据库与备份","管理本机数据位置、备份与恢复。","数据 存储 目录 路径 主密码 手机绑定"),
+        new("cleanup","数据管理","运行资料清理","查看后台资料用途，清理过期日志和旧升级副本。","清理 缓存 垃圾 空间 ProgramData 维护 快照 备份"),
         new("security","安全","登录与验证","管理当前保险库的登录验证方式。","安全 手机 Windows Hello PIN 指纹 人脸 主密码 验证码"),
         new("documents","安全","文档加密","统一管理文档导出与解密所用的密码。","文档 导出 密码 解密"),
         new("notifications","通知渠道","邮件","配置后台通知使用的邮件发送渠道。","邮件 SMTP 授权码 密码 收件 发件 通知 端口 TLS STARTTLS SSL 服务器"),

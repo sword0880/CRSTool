@@ -11,7 +11,7 @@ using CRS.DesktopClient.Views.Settings;
 /// <summary>使用隔离设置替身渲染真实窗口，不访问个人数据库或发送通知。</summary>
 internal static class SettingsViewChecks
 {
-    public static void Run(string directory)
+    public static void Run(string directory,string? cleanupAudit=null)
     {
         Exception? failure=null;
         var thread=new Thread(()=>
@@ -22,7 +22,7 @@ internal static class SettingsViewChecks
             app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
             app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
             var vault=new VaultInteractionChecks.FakeVault{HelloSupported=true};vault.CompleteEnrollmentAsync(true).GetAwaiter().GetResult();
-            var model=new SettingsViewModel(new WorkspaceState(new SettingsUseCases(),new SilentInteraction()),new Settings(),vault);
+            var model=new SettingsViewModel(new WorkspaceState(new SettingsUseCases(),new SilentInteraction()),new Settings(),vault,cleanupAudit is null?null:new DataCleanupViewChecks.PreviewGateway(cleanupAudit));
             var window=new SettingsWindow(model);
             if(window.FindName("LoggingSection") is not LoggingSettingsView)
                 throw new InvalidOperationException("日志设置未采用独立子视图。");
@@ -42,10 +42,12 @@ internal static class SettingsViewChecks
                     foreach(var section in model.Sections)
                     {
                         model.SelectedSection=section;
+                        if(section.Key=="cleanup"&&cleanupAudit is not null){model.Cleanup.IncludeBackups=true;await model.Cleanup.ScanCommand.ExecuteAsync(null);}
                         await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
                         var viewName=section.Key switch
                         {
                             "storage"=>"StorageSection",
+                            "cleanup"=>"CleanupSection",
                             "security"=>"SecuritySection",
                             "documents"=>"DocumentsSection",
                             "notifications"=>"NotificationsSection",
@@ -57,7 +59,7 @@ internal static class SettingsViewChecks
                         if(window.FindName(viewName) is not FrameworkElement panel || !panel.IsVisible)
                             throw new Exception("设置子视图未随目录显示："+section.Key);
                         // SettingsSectionHost 只折叠非当前分类，子控件必须保留同一实例与草稿。
-                        foreach(var other in new[]{"StorageSection","SecuritySection","DocumentsSection","NotificationsSection","DingTalkSection","WeChatSection","LoggingSection"})
+                        foreach(var other in new[]{"StorageSection","CleanupSection","SecuritySection","DocumentsSection","NotificationsSection","DingTalkSection","WeChatSection","LoggingSection"})
                             if(other!=viewName && window.FindName(other) is FrameworkElement hidden && hidden.IsVisible)
                                 throw new Exception("非当前设置分类仍显示："+other);
                         Capture(window,Path.Combine(directory,section.Key+".png"));

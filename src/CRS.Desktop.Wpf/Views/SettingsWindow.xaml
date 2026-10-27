@@ -27,6 +27,9 @@
 <settings:SettingsSectionHost SectionKey="storage" SelectedKey="{Binding SelectedSection.Key}">
  <settings:StorageSettingsView x:Name="StorageSection"/>
 </settings:SettingsSectionHost>
+<settings:SettingsSectionHost SectionKey="cleanup" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:DataCleanupSettingsView x:Name="CleanupSection"/>
+</settings:SettingsSectionHost>
 <settings:SettingsSectionHost SectionKey="security" SelectedKey="{Binding SelectedSection.Key}">
  <settings:SecuritySettingsView x:Name="SecuritySection"/>
 </settings:SettingsSectionHost>
@@ -51,7 +54,7 @@
   </Grid>
   <!-- 底部保存区常驻；保存继续处理跨分类改动，测试通知必须单独点击。 -->
   <Border Grid.Row="2" Padding="24,14" Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="0,1,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-   <StackPanel VerticalAlignment="Center" Margin="0,0,20,0"><TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12"/><TextBlock Text="保存设置会处理所有分类的改动；测试通知需单独发送。" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+   <StackPanel VerticalAlignment="Center" Margin="0,0,20,0"><TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12"/><TextBlock Text="保存设置会处理表单改动；资料清理和测试通知需在对应页面单独执行。" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><ui:Button x:Name="SaveSettingsButton" Content="保存设置" Appearance="Primary" Command="{Binding SaveCommand}" Margin="0,0,10,0"/><ui:Button Content="关闭" Click="OnClose"/></StackPanel>
   </Grid></Border>
  </Grid>

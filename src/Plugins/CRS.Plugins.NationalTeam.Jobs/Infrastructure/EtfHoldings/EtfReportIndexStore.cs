@@ -21,20 +21,27 @@ internal sealed class EtfReportIndexStore(IMarketRepositorySession session)
             """);
         session.Execute("INSERT OR IGNORE INTO feature_schema_migration VALUES('etf-report-index',1,$now)",("$now",session.Now));transaction.Commit();
     }
-    public bool CommandComplete(Guid id)
+    public bool CommandComplete(Guid id,EtfKey key,DateOnly from,DateOnly through)
     {
         var operation=session.Scalar("SELECT operation FROM worker_business_command WHERE request=$id",("$id",id.ToString("N"))) as string;
-        if(operation is not null&&operation!="etf-report-search")throw new InvalidDataException("ETF目录命令身份属于其他操作。");
-        return operation is not null;
+        using var command=session.Command("SELECT market,ticker,from_date,to_date,pages,(SELECT count(*) FROM nt_etf_report_page p WHERE p.search_id=s.id) FROM nt_etf_report_search s WHERE id=$id",("$id",id.ToString("N")));
+        using var reader=command.ExecuteReader();var found=reader.Read();
+        if(operation is null&&!found)return false;
+        if(operation!="etf-report-search"||!found||reader.GetString(0)!=key.Market||reader.GetString(1)!=key.Ticker||Date(reader.GetString(2))!=from||Date(reader.GetString(3))!=through||reader.GetInt32(4)!=reader.GetInt32(5))
+            throw new InvalidDataException("ETF目录命令与冻结查询身份或页证据不一致。");
+        return true;
     }
     public void Save(EtfKey key,DateOnly from,DateOnly through,IReadOnlyList<byte[]> pages,Guid? commandId)
     {
-        if(commandId is {} committed&&CommandComplete(committed))return;
+        if(commandId is {} committed&&CommandComplete(committed,key,from,through))return;
         _=OfficialEtfReportIndex.Request(key,from,through,1);
         if(through>DateOnly.FromDateTime(CRS.Timing.BeijingClock.Read(session.Clock).DateTime))throw new InvalidDataException("ETF报告查询不能跨到未来。");
         if(Convert.ToInt32(session.Scalar("SELECT count(*) FROM watchlist_membership WHERE market=$m AND ticker=$t",("$m",key.Market),("$t",key.Ticker)))!=1)throw new InvalidDataException("ETF不在用户配置目录中。");
         var parsed=ParsePages(key,from,through,pages);var documents=parsed.SelectMany(x=>x.Documents).ToArray();var payload=JsonSerializer.Serialize(documents);
-        session.BeforeWrite?.Invoke();using var transaction=session.Connection.BeginTransaction();var id=Guid.NewGuid().ToString("N");
+        var id=(commandId??Guid.NewGuid()).ToString("N");
+        // 提交前使用实际读端合同核对传输上限，不能留下“检索成功但永远无法完整回读”的目录。
+        _=CRS.Serialization.JsonDocumentBlocks.Encode(new EtfReportIndexSnapshot(key,"EvidenceUnavailable",id,from,through,session.Now,documents.Length,documents,EtfReportIndexSnapshot.Version),session.OperationCancellation);
+        session.BeforeWrite?.Invoke();using var transaction=session.Connection.BeginTransaction();
         session.Execute("INSERT INTO nt_etf_report_search VALUES($id,$m,$t,$f,$to,$at,$n,$p,$v,$h)",("$id",id),("$m",key.Market),("$t",key.Ticker),("$f",from.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),("$to",through.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),("$at",session.Now),("$n",parsed[0].Total),("$p",parsed.Count),("$v",payload),("$h",ContentFingerprint.Sha256(Encoding.UTF8.GetBytes(payload))));
         for(var index=0;index<pages.Count;index++)
         {
@@ -49,7 +56,7 @@ internal sealed class EtfReportIndexStore(IMarketRepositorySession session)
     }
     public EtfReportIndexSnapshot Read(EtfKey key)
     {
-        _=OfficialEtfReportIndex.Request(key,new(2026,1,1),new(2026,1,1),1);
+        OfficialEtfReportIndex.ValidateKey(key);
         string id,payload,fingerprint,captured;DateOnly from,through;int total,count;
         using(var command=session.Command("SELECT id,from_date,to_date,captured_at,total,pages,payload,fingerprint FROM nt_etf_report_search WHERE market=$m AND ticker=$t ORDER BY rowid DESC LIMIT 1",("$m",key.Market),("$t",key.Ticker)))
         using(var reader=command.ExecuteReader())
@@ -63,7 +70,7 @@ internal sealed class EtfReportIndexStore(IMarketRepositorySession session)
         if(documents.Length!=total||documents.Any(x=>x is null||string.IsNullOrWhiteSpace(x.Title)||string.IsNullOrWhiteSpace(x.DocumentUrl)||x.SecurityCodes is null||!x.SecurityCodes.Contains(key.Ticker)||x.Announced<from||x.Announced>through))throw new InvalidDataException("已存ETF目录行数或字段不符。");
         var references=new List<(int Page,string Url,string Body,string Hash,string Original,string Source,string Provider,string Version,string Status,string At,bool Quarantined)>();
         using(var command=session.Command("""
-            SELECT p.page_no,p.request_url,p.request_body_hash,f.sha256,f.original_hash,f.source_url,f.provider,f.parser_version,f.status,f.retrieved_utc,
+            SELECT p.page_no,p.request_url,p.request_body_hash,f.sha256,f.original_sha256,f.source_url,f.provider,f.parser_version,f.status,f.retrieved_utc,
             EXISTS(SELECT 1 FROM quality_issue q WHERE q.rule_id='Q15' AND q.status='Open' AND q.evidence_id=f.fetch_id)
             FROM nt_etf_report_page p JOIN source_fetch f ON f.fetch_id=p.fetch_id WHERE p.search_id=$s ORDER BY p.page_no
             """,("$s",id)))
@@ -81,7 +88,7 @@ internal sealed class EtfReportIndexStore(IMarketRepositorySession session)
                 ||!DateTimeOffset.TryParseExact(item.At,"O",CultureInfo.InvariantCulture,DateTimeStyles.None,out var at)||at>capturedAt)
             {healthy=false;break;}
             try{pages.Add(session.RawEvidence.ReadVerified(item.Hash,session.OperationCancellation));}
-            catch(Exception error) when(error is IOException or UnauthorizedAccessException){healthy=false;break;}
+            catch(Exception error) when(error is IOException or InvalidDataException or UnauthorizedAccessException){healthy=false;break;}
         }
         if(healthy)
         {

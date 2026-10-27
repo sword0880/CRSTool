@@ -1,0 +1,17 @@
+<UserControl x:Class="CRS.DesktopClient.Views.Settings.DataCleanupSettingsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <StackPanel DataContext="{Binding Cleanup}">
+  <TextBlock Text="{Binding AccessMessage}" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" FontSize="12"/>
+  <Grid Margin="0,16,0,0" IsEnabled="{Binding CanEdit}"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <StackPanel><TextBlock Text="后台日志至少保留（天）" Style="{StaticResource InputLabel}"/><ui:NumberBox Value="{Binding LogRetentionDays,Mode=TwoWay}" Minimum="1" Maximum="365" MaxDecimalPlaces="0"/></StackPanel>
+   <StackPanel Grid.Column="2"><TextBlock Text="历史回退副本至少保留（份）" Style="{StaticResource InputLabel}"/><ui:NumberBox Value="{Binding BackupsToKeep,Mode=TwoWay}" Minimum="2" Maximum="20" MaxDecimalPlaces="0"/></StackPanel>
+  </Grid>
+  <CheckBox Content="同时清理更早的已完成升级副本" IsChecked="{Binding IncludeBackups}" IsEnabled="{Binding CanEdit}" Margin="0,16,0,4"/>
+  <TextBlock Text="当前快照始终保留；旧副本清理后，无法再依靠它回退到对应版本。当前数据库、密钥和国家队原始证据保留。" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource BrandTextHintBrush}"/>
+  <WrapPanel Margin="0,16,0,12"><ui:Button Content="扫描可清理资料" Command="{Binding ScanCommand}" Margin="0,0,8,8"/><ui:Button Content="按预览清理" Appearance="Primary" Command="{Binding ExecuteCommand}" Margin="0,0,8,8"/><ui:Button Content="查询清理结果" Command="{Binding CheckResultCommand}" Margin="0,0,0,8"/></WrapPanel>
+  <Border Background="{DynamicResource BrandSurfaceAltBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="0,6,0,0"/></StackPanel></Border>
+  <ItemsControl ItemsSource="{Binding Entries}" Margin="0,12,0,0"><ItemsControl.ItemTemplate><DataTemplate>
+   <Expander Margin="0,0,0,8" HorizontalContentAlignment="Stretch"><Expander.Header><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="85"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/><TextBlock Text="{Binding Size}" Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,12,0"/><TextBlock Text="{Binding Disposition}" Grid.Column="2" FontWeight="SemiBold"/></Grid></Expander.Header><TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="12" Margin="8,6,8,12" Foreground="{DynamicResource BrandTextHintBrush}"/></Expander>
+  </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+ </StackPanel>
+</UserControl>

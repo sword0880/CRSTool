@@ -13,7 +13,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory),indexSourceApprovals:new IndexApprovals(context.DataDirectory));
         public int MaximumConcurrentExecutions=>inner.MaximumConcurrentExecutions;
         public BackgroundExecutionGroup ExecutionGroup(string jobId)=>inner.ExecutionGroup(jobId);
-        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-holders.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-holders.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-reports.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
         public async ValueTask StartAsync(CancellationToken token)
         {
             // 此故障/去重夹具固定五只合成来源；生产默认全目录由仓储配置专项单独验证。
@@ -59,11 +59,29 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         public bool Verify(string hash)=>File.Exists(PathName)&&Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(PathName)))==hash;
     }
     /// <summary>按请求日期生成标注为测试的公开格式字节，不连接互联网。</summary>
-    private sealed class Gateway(string root):IPluginHttpGateway
+    private sealed class Gateway(string root):IPluginHttpGateway,IPluginJsonHttpGateway
     {
+        public async Task<PublicHttpResponse> PostJsonAsync(Uri uri,byte[] body,CancellationToken token)
+        {
+            var path=Path.Combine(root,"etf-reports.fixture");
+            if(!Directory.Exists(path))throw new InvalidDataException("本夹具没有开启ETF目录POST。");
+            CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialEtfReportIndex.ValidatePost(uri,body);
+            using var expected=JsonDocument.Parse(CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialEtfReportIndex.RequestBody(new("SZSE","159915"),new(2026,1,1),new(2026,10,27),1)!);
+            using var received=JsonDocument.Parse(body);
+            if(!JsonElement.DeepEquals(expected.RootElement,received.RootElement))throw new InvalidDataException("ETF目录夹具POST参数超出已保存响应范围。");
+            await File.AppendAllTextAsync(Path.Combine(path,"calls.log"),"SZSE\n",token);
+            return new(200,await File.ReadAllBytesAsync(Path.Combine(path,"szse.json"),token),"application/json");
+        }
         public async Task<PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
+            var reports=Path.Combine(root,"etf-reports.fixture");
+            if(Directory.Exists(reports)&&CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialEtfReportIndex.IsSseRequest(uri))
+            {
+                if(uri!=CRS.Plugins.NationalTeamWatch.Infrastructure.OfficialEtfReportIndex.Request(new("SSE","510300"),new(2026,1,1),new(2026,10,27),1))throw new InvalidDataException("ETF目录夹具GET参数超出已保存响应范围。");
+                await File.AppendAllTextAsync(Path.Combine(reports,"calls.log"),"SSE\n",token);
+                return new(200,await File.ReadAllBytesAsync(Path.Combine(reports,"sse.json"),token),"application/json");
+            }
             var holders=Path.Combine(root,"etf-holders.fixture");
             if(Directory.Exists(holders))
             {

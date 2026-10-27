@@ -52,6 +52,6 @@ public partial class SettingsWindow : FluentWindow
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         var model=(SettingsViewModel)DataContext;e.Cancel=!locking&&(model.State.IsBusy||model.DingTalk.Busy||model.WeChat.Busy);
-        if(!e.Cancel){model.DingTalk.InputsCleared-=ClearDingTalkInputs;model.WeChat.InputsCleared-=ClearWeChatInputs;ClearDingTalkInputs();ClearWeChatInputs();}
+        if(!e.Cancel){model.Cleanup.StopWaiting();model.DingTalk.InputsCleared-=ClearDingTalkInputs;model.WeChat.InputsCleared-=ClearWeChatInputs;ClearDingTalkInputs();ClearWeChatInputs();}
     }
 }

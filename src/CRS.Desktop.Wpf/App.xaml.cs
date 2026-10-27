@@ -47,7 +47,7 @@ public partial class App : System.Windows.Application
             }
             var runtime = DesktopComposition.Create(true);
             vault=runtime.Vault;
-            var viewModel = new ShellViewModel(runtime.UseCases, smoke ? new SmokeInteraction() : new UserInteraction(), runtime.Settings,runtime.Vault,runtime.Performance);
+            var viewModel = new ShellViewModel(runtime.UseCases, smoke ? new SmokeInteraction() : new UserInteraction(), runtime.Settings,runtime.Vault,runtime.Performance,cleanup:smoke?null:new WorkerDataCleanupGateway());
             if (smoke) Console.Error.WriteLine("smoke: create navigation shell");
             var window = new MainWindow(viewModel); MainWindow = window;
             if (smoke)
@@ -84,7 +84,7 @@ public partial class App : System.Windows.Application
     private void OpenAuthenticatedWorkspace()
     {
         var runtime=DesktopComposition.Create(false,vault,vaultSettings);
-        var shell=new ShellViewModel(runtime.UseCases,new UserInteraction(),runtime.Settings,runtime.Vault,runtime.Performance);
+        var shell=new ShellViewModel(runtime.UseCases,new UserInteraction(),runtime.Settings,runtime.Vault,runtime.Performance,cleanup:new WorkerDataCleanupGateway());
         workspace=new MainWindow(shell); MainWindow=workspace;
         workspace.SecurityRequested+=()=>
         {

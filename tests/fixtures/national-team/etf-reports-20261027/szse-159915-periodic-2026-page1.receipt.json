@@ -1,0 +1,11 @@
+{
+  "StartedUtc": "2026-10-27T04:27:15.9736532+00:00",
+  "SourceProtocolReviewOnly": true,
+  "ExitCode": 0,
+  "Body": "{\"pageNum\":1,\"seDate\":[\"2026-01-01\",\"2026-10-27\"],\"channelCode\":[\"fundinfoNotice_disc\"],\"stock\":[\"159915\"],\"bigCategoryId\":[\"yearreport\",\"halfyearreport\",\"quarterreport\"],\"pageSize\":50}",
+  "DefaultTlsValidation": true,
+  "Sha256": "C4C534144FC3CDD40BFCE72049C4242724597651B62180EA23BD345A12F6952B",
+  "Method": "POST",
+  "Url": "https://www.szse.cn/api/disc/announcement/annList",
+  "CapturedUtc": "2026-10-27T04:27:17.5209143+00:00"
+}

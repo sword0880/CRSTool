@@ -1,0 +1,10 @@
+{
+  "SourceProtocolReviewOnly": true,
+  "StartedUtc": "2026-10-27T04:10:35.0953434+00:00",
+  "CurlExit": 0,
+  "DirectSameOfficialUrl": true,
+  "DefaultTlsValidation": true,
+  "Request": "https://query.sse.com.cn/commonQuery.do?isPagination=true&pageHelp.pageSize=25&pageHelp.pageNo=1&pageHelp.beginPage=1&pageHelp.cacheSize=1&pageHelp.endPage=1&type=inParams&sqlId=COMMON_PL_JJXX_JJGG_NEW_L&TITLE=&SECURITY_CODE=510300&BULLETIN_TYPE=reits03%2Cfund03&START_DATE=2026-01-01&END_DATE=2026-10-27&DATE_DESC=1&DATE_ASC=&CODE_DESC=&CODE_ASC=",
+  "RecordedUtc": "2026-10-27T04:10:36.0900439+00:00",
+  "Sha256": "872953CC2942C37636D71B171949270A674F113EF4F51AEBAB52A73CF41A98DA"
+}

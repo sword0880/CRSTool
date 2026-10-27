@@ -116,7 +116,9 @@ public static class OfficialEtfReportIndex
         return parsed.AsReadOnly();
     }
     private static void Validate(EtfKey key,DateOnly from,DateOnly through,int page)
-    {if(key.Market is not ("SSE" or "SZSE")||key.Ticker is null||key.Ticker.Length!=6||!key.Ticker.All(char.IsAsciiDigit)||from>through||through.DayNumber-from.DayNumber>1100||page is <1 or >40)throw new InvalidDataException("基金目录只接受两市六位代码、1100天内区间及有界分页。");}
+    {ValidateKey(key);if(from>through||through.DayNumber-from.DayNumber>1100||page is <1 or >40)throw new InvalidDataException("基金目录只接受1100天内区间及有界分页。");}
+    internal static void ValidateKey(EtfKey key)
+    {if(key.Market is not ("SSE" or "SZSE")||key.Ticker is null||key.Ticker.Length!=6||!key.Ticker.All(char.IsAsciiDigit))throw new InvalidDataException("基金目录只接受两市六位代码。");}
     private static DateOnly Date(string value)=>DateOnly.ParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture);
     private static string Text(JsonElement row,string key)
     {var value=row.GetProperty(key).GetString();return string.IsNullOrWhiteSpace(value)||value.Length>1000?throw new InvalidDataException("基金目录文字缺失或超限。"):value;}

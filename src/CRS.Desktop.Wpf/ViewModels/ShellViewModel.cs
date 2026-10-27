@@ -20,12 +20,12 @@ public sealed class ShellViewModel : ObservableObject
     public SettingsViewModel? Settings { get; }
     public PerformanceViewModel Performance {get;}
     public event Action<string>? NavigateRequested;
-    public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null,IVaultService? vault=null,CRS.Application.Performance.IPerformanceUseCases? performance=null,Func<string>? documentPassword=null)
+    public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null,IVaultService? vault=null,CRS.Application.Performance.IPerformanceUseCases? performance=null,Func<string>? documentPassword=null,IDataCleanupGateway? cleanup=null)
     {
         State = new(useCases, interaction,documentPassword ?? (vault is null?null:()=>vault.DocumentEncryptionPassword)); Results = new(State); History = new(State, () => NavigateRequested?.Invoke("tax"));
         Dashboard = new(State, History, page => NavigateRequested?.Invoke(page));
         Review = new(State); Reports = new(State); ExchangeRates = new(State);
-        Settings = settings is null ? null : new(State, settings,vault);
+        Settings = settings is null ? null : new(State, settings,vault,cleanup);
         Performance=new(State,performance);
         Import = new(State, () => { NavigateRequested?.Invoke("tax"); _ = History.RefreshCommand.ExecuteAsync(null); });
     }

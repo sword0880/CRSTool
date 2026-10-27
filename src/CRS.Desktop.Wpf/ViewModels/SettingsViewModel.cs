@@ -10,6 +10,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IDesktopSettingsService service;
     private readonly IVaultService? vault;
     public WorkspaceState State { get; }
+    public DataCleanupViewModel Cleanup{get;}
     [ObservableProperty] private string databaseDirectory = "";
     [ObservableProperty] private string logDirectory = "";
     [ObservableProperty] private bool loggingEnabled;
@@ -58,9 +59,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string message = "桌面日志保存后立即生效；数据库目录下次启动生效，原数据库不会移动。";
     public string[] LogLevels { get; } = ["Debug", "Info", "Warn", "Error"];
 
-    public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null)
+    public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null,IDataCleanupGateway? cleanup=null)
     {
-        State = state; this.service = service; this.vault=vault; InitializeWebhooks(); Reload(); InitializeNavigation();
+        State = state; this.service = service; this.vault=vault;Cleanup=new(cleanup); InitializeWebhooks(); Reload(); InitializeNavigation();
         state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
     }
     public void Reload()

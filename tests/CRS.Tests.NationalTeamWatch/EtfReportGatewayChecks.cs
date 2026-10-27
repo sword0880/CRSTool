@@ -20,7 +20,7 @@ internal static class EtfReportGatewayChecks
         await Reject<InvalidDataException>(()=>gateway.PostJsonAsync(OfficialEtfReportIndex.SzseEndpoint,Encoding.UTF8.GetBytes("{}"),default),"缺少字段在联网前拒绝");
         Check(sent==0&&policy.Reservations==0,"非法POST不消耗来源额度或触发HTTP");
         Check((await gateway.PostJsonAsync(OfficialEtfReportIndex.SzseEndpoint,body,default)).StatusCode==403,"403返回实际拒绝状态");
-        await Reject<InvalidOperationException>(()=>gateway.PostJsonAsync(OfficialEtfReportIndex.SzseEndpoint,body,default),"403后来源冷却仍阻止下一请求");
+        await Reject<InvalidOperationException>(()=>gateway.GetAsync(OfficialEtfReportIndex.SzseEndpoint,default),"POST403后来源冷却仍阻止GET请求");
         Check(sent==1&&policy.Failures==1,"HTTP拒绝不尝试直连绕过，GET/POST共用来源策略");
         var started=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var resume=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         string? received=null;bool headers=false;

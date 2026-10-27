@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/CRS.Worker.Service/**'
+      - 'src/CRS.Common/**'
       - 'src/CRS.Worker.Ipc/**'
       - 'src/CRS.Worker.PluginHost/**'
       - 'src/CRS.Security/**'
@@ -37,6 +38,9 @@ jobs:
       - name: Verify synthetic ServiceKey recovery envelope rejection matrix
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --service-key-recovery
+      - name: Verify data cleanup scope, retained rollback snapshots, restart and authenticated IPC
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --data-cleanup
       - name: Verify storage growth above the former entry limit and fail-closed ACL checks
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --storage-growth

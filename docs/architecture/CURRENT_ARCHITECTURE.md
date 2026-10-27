@@ -1,5 +1,7 @@
 # 当前架构入口
 
+2026-10-27 设置新增运行资料清理：固定合同归Common、设置端口归Application、WPF展示后台预览；Worker核验旧日志与历史升级副本，保留当前快照、至少两份完整历史副本、活动数据库/密钥/原件和维护记录。异步扫描/清理经认证IPC执行，维护锁与摘要核验控制实际删除；未替换已安装服务，见[实现与现场只读盘点](../implementation/CRS_RUNTIME_DATA_CLEANUP_20261027.md)。
+
 2026-10-27 公共Excel读写进入`CRS.Documents/Excel`，Infrastructure保留券商/税务/绩效投影及敏感导出协调，见[文档层收拢](../implementation/CRS_DOCUMENTS_EXCEL_20261027.md)。插件菜单通过通用WPF契约移交窗口顶栏；`BeijingTime`归入Common，WPF转换器只适配绑定，见[紧凑顶栏](../implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。
 
 2026-10-27 ETF披露原件统一门槛：可比性、具名持仓、候选、NAV、历史回算及金融通知领取共用来源/Q15/首见/哈希核验。通知另冻结解除或撤销时的本次输入，沿原普通SQLite事务；正式数据迁移未执行。实现与验收边界见[原件一致性记录](../implementation/NATIONAL_TEAM_ETF_DOCUMENT_INTEGRITY_20261027.md)。

@@ -24,6 +24,7 @@ public sealed partial class WorkerEtfWorkspace
         var scope=(key,from,through);
         if(!etfReportSearches.TryGetValue(scope,out var request))
         {
+            if(etfReportSearches.Count>=128)throw new InvalidDataException("尚有较多ETF检索请求未核对，请先查询已有请求的结果。");
             request=new(WorkerProtocol.Version,Guid.NewGuid(),"RunNow",Plugin,"etf-report-search",Payload:JsonSerializer.Serialize(new EtfRequest("etf-report-search",key.Market,key.Ticker,from,through)));
             etfReportSearches.Add(scope,request);
         }

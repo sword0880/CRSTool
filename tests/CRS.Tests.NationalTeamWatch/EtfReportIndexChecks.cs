@@ -25,7 +25,7 @@ internal static class EtfReportIndexChecks
         id=$"{i+1:x8}-0000-0000-0000-000000000001",annId=i+1,title="合成2026年中期报告",publishTime="2026-08-31 00:00:00",attachFormat="PDF",secCode=new[]{"159915"},attachPath=$"/disc/disk03/finalpage/2026-08-31/{i+1:x8}-1111-0000-0000-000000000001.PDF"}).ToArray()});
     internal static async Task RunAsync(string root,string? originals=null)
     {
-        passed=0;Directory.CreateDirectory(root);var sse=SsePage();var szse=SzsePage();
+        passed=0;originals??=Path.Combine(AppContext.BaseDirectory,"Fixtures","EtfReports");Directory.CreateDirectory(root);var sse=SsePage();var szse=SzsePage();
         Check(OfficialEtfReportIndex.Parse(SseKey,From,To,1,sse).Documents.Single().DocumentUrl.Contains("/disclosure/fund/"),"沪市使用基金平面目录，不复用股票公告分组");
         var deep=OfficialEtfReportIndex.Parse(SzseKey,From,To,1,szse).Documents.Single();
         Check(deep.DocumentUrl.StartsWith("https://disc.static.szse.cn/download/disc/",StringComparison.Ordinal)&&deep.OriginalPublication.EndsWith("00:00:00",StringComparison.Ordinal),"深市保留原始时间文字，不推造准确公布时点");
@@ -51,12 +51,14 @@ internal static class EtfReportIndexChecks
         Check(repo.EtfReportIndex(SseKey) is{State:"NotSearched",DeclaredTotal:null},"没有检索记录保持未知，不伪造成零条");
         var command=Guid.NewGuid();repo.SaveEtfReportIndex(SseKey,From,To,[sse],command);var before=repo.EtfReportIndex(SseKey);
         repo.SaveEtfReportIndex(SseKey,From,To,[],command);
-        Check(repo.EtfReportCommandComplete(command)&&repo.EtfReportIndex(SseKey).SearchId==before.SearchId,"已提交命令重放幂等");
+        Check(repo.EtfReportCommandComplete(command,SseKey,From,To)&&repo.EtfReportIndex(SseKey).SearchId==before.SearchId,"已提交命令重放幂等");
+        Reject(()=>repo.SaveEtfReportIndex(SzseKey,From,To,[szse],command),"同命令不能改证券后继承已完成回执");
         Reject(()=>repo.SaveEtfReportIndex(SseKey,From,To,[SsePage(26)]),"尾页失败不覆盖旧目录");
         Check(repo.EtfReportIndex(SseKey).SearchId==before.SearchId,"失败保留旧检索身份");
         repo.SaveEtfReportIndex(SzseKey,From,To,[szse]);
         Check(repo.Read(r=>r.EtfReportIndex(SzseKey),default).State=="IndexedUnreviewed","正式独立只读快照返回未核验目录");
-        var hash=raw.Save(sse);File.WriteAllText(Path.Combine(rawDirectory,hash+".raw"),"damaged");repo.ReconcileEvidenceIntegrity();
+        var hash=raw.Save(sse);File.WriteAllText(Path.Combine(rawDirectory,hash+".raw"),"damaged");
+        Check(repo.EtfReportIndex(SseKey) is{State:"EvidenceUnavailable",Documents.Count:1},"未巡检的原件损坏也立即撤去有效状态并保留线索");repo.ReconcileEvidenceIntegrity();
         Check(repo.EtfReportIndex(SseKey) is{State:"EvidenceUnavailable",Documents.Count:1},"原件损坏保留历史线索并撤去有效来源状态");
         File.WriteAllBytes(Path.Combine(rawDirectory,hash+".raw"),sse);
         Check(repo.EtfReportIndex(SseKey).State=="EvidenceUnavailable","字节恢复但Q15仍Open时不放行");
@@ -68,12 +70,18 @@ internal static class EtfReportIndexChecks
         {
             foreach(var (key,file) in new[]{(SseKey,"sse-510300-periodic-2026-direct.json"),(SzseKey,"szse-159915-periodic-2026-page1.json")})
             {
-                var bytes=File.ReadAllBytes(Path.Combine(originals,file));var parsed=OfficialEtfReportIndex.Parse(key,From,To,1,bytes);repo.SaveEtfReportIndex(key,From,To,[bytes]);
+                var bytes=File.ReadAllBytes(Path.Combine(originals,file));
+                using var receipt=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(originals,Path.GetFileNameWithoutExtension(file)+".receipt.json")));
+                Check(receipt.RootElement.GetProperty("DefaultTlsValidation").GetBoolean()&&receipt.RootElement.GetProperty("SourceProtocolReviewOnly").GetBoolean()
+                    &&Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))==receipt.RootElement.GetProperty("Sha256").GetString(),"保存响应与独立来源收据哈希绑定 "+key.Market);
+                var parsed=OfficialEtfReportIndex.Parse(key,From,To,1,bytes);repo.SaveEtfReportIndex(key,From,To,[bytes]);
                 Check(parsed.Total==6&&parsed.Documents.Count==6&&repo.EtfReportIndex(key).State=="IndexedUnreviewed","真实已保存官方响应6条目录逐字段接入"+key.Market);
             }
         }
         await Jobs(Path.Combine(root,"jobs"));
+        EtfReportStorageChecks.Run(Path.Combine(root,"storage-boundaries"));
         await EtfReportGatewayChecks.RunAsync();
+        await EtfReportIndexUiChecks.RunAsync();
         Console.WriteLine($"ETF目录验证通过：{passed}项；合成库/保存响应，不代表正式Worker或机构持仓验收。");
     }
     private static async Task Jobs(string root)

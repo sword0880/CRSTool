@@ -5,7 +5,7 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 public sealed class EtfHoldingsUseCases : MarketUseCaseScope
 {
     internal EtfHoldingsUseCases(MarketApplicationSession session):base(session){}
-    public Task<bool> EtfReportCommandCompleteAsync(Guid id,CancellationToken token)=>ReadPortAsync((IEtfReportIndexReadRepository repository)=>repository.EtfReportCommandComplete(id),token);
+    public Task<bool> EtfReportCommandCompleteAsync(Guid id,EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>ReadPortAsync((IEtfReportIndexReadRepository repository)=>repository.EtfReportCommandComplete(id,key,from,through),token);
     public Task<EtfReportIndexSnapshot> ReportIndexAsync(EtfKey key,CancellationToken token)=>ReadPortAsync((IEtfReportIndexReadRepository repository)=>repository.EtfReportIndex(key),token);
     public Task SaveReportIndexAsync(EtfKey key,DateOnly from,DateOnly through,IReadOnlyList<byte[]> pages,CancellationToken token,Guid? commandId=null)
         =>RunAsync((IEtfReportIndexWriteRepository repository)=>{repository.SaveEtfReportIndex(key,from,through,pages,commandId);return true;},token);

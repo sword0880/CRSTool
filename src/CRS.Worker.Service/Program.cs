@@ -90,8 +90,9 @@ namespace CRS.Worker.Service
                         new WorkerPluginContext(package.Id,locations.Data,key,notifications,sources),
                         (plugin,phase,code)=>diagnostics.Write("PluginLifecycle",plugin,phase+"."+code)));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
+                await using var cleanup=new WorkerDataCleanup(locations.Data);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
-                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources);
+                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup);
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 var securityTask=StorageSecurity.MonitorAsync(locations.Data,locations.Console,

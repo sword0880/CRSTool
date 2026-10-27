@@ -38,9 +38,15 @@ jobs:
       - name: Verify NationalTeam lazy navigation and header handoff
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.SectorUi -c Release --no-build -- --navigation
+      - name: Verify cleanup preview, option invalidation and unknown result recovery
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --data-cleanup-model
       - name: Verify shared Beijing formatter ownership
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time
+      - name: Verify ETF report protocols, captured official responses, atomic storage and UI boundaries
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-report-index
       - name: Verify independent market query snapshots and writer isolation
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --read-isolation

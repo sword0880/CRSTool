@@ -1,5 +1,7 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+运行资料清理：`CRS.Tests.Background --data-cleanup` 在合成临时目录验证旧日志、至少两份历史副本保留、维护冲突、链接、文件变化、重启未知计数、残留继续清理，并经真实Windows管道确认管理员控制和后台健康。`CRS.Tests.Wpf --data-cleanup-model` 验证预览、范围失效和未知结果查询；`--settings-cleanup-ui <截图目录> <只读预览JSON>` 渲染禁止删除的真实设置窗口。`CRS.Tests.Background --data-cleanup-audit <后台目录>` 是只读审计，不创建目录、不写预览或删除文件。范围和发布边界见[实现记录](../docs/implementation/CRS_RUNTIME_DATA_CLEANUP_20261027.md)。
+
 ETF披露统一核验：`CRS.Tests.NationalTeamWatch --etf-document-boundaries`检查原件来源/Q15/首见、既有确认失效、历史回算和领取闸门、普通SQLite只读/迁移缺损及跨128引用去重；`--exit-alerts`另含解除通知的当前冻结窗口和通知原子回滚；`--etf-holder-candidates`含同值刷新状态反例，`--exit-alert-ui`核对真实核验列。范围见[原件一致性记录](../docs/implementation/NATIONAL_TEAM_ETF_DOCUMENT_INTEGRITY_20261027.md)。
 
 ETF持有人候选：`CRS.Tests.NationalTeamWatch --etf-holder-candidates`检查未知模板、原件/取消/页参数和界面草稿竞态；已纳入默认回归与CI。`--etf-holder-golden <原件目录>`逐行比对510300两份官方年报及独立页面摘录，再经真实后台只读分页回查，使用普通SQLite隔离库；不批准具名持仓、不访问正式Worker。通用PDF读取迁至`CRS.Documents`，富途收入回归独立验证。范围及来源见[候选接线](../docs/implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)。

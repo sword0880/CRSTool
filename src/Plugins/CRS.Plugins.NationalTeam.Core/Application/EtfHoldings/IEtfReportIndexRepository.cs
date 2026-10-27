@@ -3,7 +3,7 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 
 public interface IEtfReportIndexReadRepository
 {
-    bool EtfReportCommandComplete(Guid id);
+    bool EtfReportCommandComplete(Guid id,EtfKey key,DateOnly from,DateOnly through);
     EtfReportIndexSnapshot EtfReportIndex(EtfKey key);
 }
 public interface IEtfReportIndexWriteRepository
