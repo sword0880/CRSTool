@@ -8,7 +8,7 @@ namespace CRS.Worker.PluginHost;
 /// <summary>每插件一个受监督Runner；只转发其专属密钥及窄宿主能力，不在Worker加载业务代码。</summary>
 public sealed class IsolatedPluginSession(string runnerPath,string root,string trustFile,TrustedPackage package,
     IBackgroundHostContext? context=null,Action<string,string,string>? diagnostic=null,TimeProvider? timeProvider=null) : IBackgroundPluginSession,
-    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession
+    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession
 {
     private readonly SemaphoreSlim lifecycle=new(1);
     private readonly ConcurrentDictionary<Guid,IBackgroundSourceLease> leases=[];
@@ -28,6 +28,7 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
     public BackgroundExecutionGroup ExecutionGroup(string id)=>description?.Groups.GetValueOrDefault(id)
         ??new("default",MaximumConcurrentExecutions);
     public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>description?.Jobs??[];
+    public BackgroundQueryRouting? DescribeQueryRouting()=>description?.QueryRouting;
     public async ValueTask StartAsync(CancellationToken token)=>await EnsureStartedAsync(token).ConfigureAwait(false);
 
     private async Task EnsureStartedAsync(CancellationToken token)
@@ -69,8 +70,10 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
                     if(ready.PluginId!=package.Id||ready.PackageHash!=RunnerChannel.PackageHash(package)||ready.Nonce!=nonce||ready.Pid!=process.Id
                         ||ready.Concurrency is <1 or >32||ready.Jobs.Length>32)
                         throw new InvalidDataException("Runner handshake rejected.");
+                    if(ready.QueryRouting is {} routing)ready=ready with{QueryRouting=routing.Validate()};
                     if(description is not null&&(System.Text.Json.JsonSerializer.Serialize(description.Jobs)!=System.Text.Json.JsonSerializer.Serialize(ready.Jobs)
-                        ||description.Concurrency!=ready.Concurrency||System.Text.Json.JsonSerializer.Serialize(description.Groups)!=System.Text.Json.JsonSerializer.Serialize(ready.Groups)))
+                        ||description.Concurrency!=ready.Concurrency||System.Text.Json.JsonSerializer.Serialize(description.Groups)!=System.Text.Json.JsonSerializer.Serialize(ready.Groups)
+                        ||System.Text.Json.JsonSerializer.Serialize(description.QueryRouting)!=System.Text.Json.JsonSerializer.Serialize(ready.QueryRouting)))
                         throw new InvalidDataException("Restart changed Runner scheduling contract.");
                     description=ready;FailureCode=null;
                     diagnostic?.Invoke(package.Id,"Runner","Started");
@@ -97,6 +100,7 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
             // 业务拒绝和证据损坏不等于传输故障，不能因普通查询失败终止正在采集的进程。
             if(error.Code==nameof(ArgumentException))throw new ArgumentException("Runner request rejected.");
             if(error.Code==nameof(InvalidDataException))throw new InvalidDataException("Runner data rejected.");
+            if(error.Code==nameof(CRS.Common.Concurrency.WorkAdmissionException))throw new CRS.Common.Concurrency.WorkAdmissionException("Capacity");
             throw;
         }
         catch(Exception error) when(error is IOException or InvalidDataException)

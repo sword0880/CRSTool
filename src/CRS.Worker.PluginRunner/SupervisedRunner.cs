@@ -42,7 +42,7 @@ internal static class SupervisedRunner
                         if(catalog.Statuses.SingleOrDefault(x=>x.PluginId==id)?.State!="Started")throw new InvalidDataException("Runner plugin startup failed.");
                         var jobs=catalog.Jobs.Where(x=>x.PluginId==id).ToArray();
                         return new RunnerDescription(id,hash,start.Nonce,Environment.ProcessId,jobs.Select(x=>x.Descriptor).ToArray(),
-                            jobs.FirstOrDefault()?.MaximumConcurrency??1,jobs.Where(x=>x.ExecutionGroup is not null).ToDictionary(x=>x.Descriptor.JobId,x=>x.ExecutionGroup!),catalog.SupportsQueries(id));
+                            jobs.FirstOrDefault()?.MaximumConcurrency??1,jobs.Where(x=>x.ExecutionGroup is not null).ToDictionary(x=>x.Descriptor.JobId,x=>x.ExecutionGroup!),catalog.SupportsQueries(id)){QueryRouting=catalog.QueryRouting(id)};
                     }
                     finally{if(start.DataKey is not null)CryptographicOperations.ZeroMemory(start.DataKey);}
                 }

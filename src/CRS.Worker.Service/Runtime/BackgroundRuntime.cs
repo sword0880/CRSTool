@@ -4,6 +4,7 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using System.Data.Common;
 using Quartz;
+using CRS.Common.Concurrency;
 
 namespace CRS.Worker.Service;
 
@@ -17,7 +18,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     private readonly CancellationTokenSource stopping = new();
     private readonly CancellationTokenSource queryStopping = new();
     private readonly HashSet<TaskCompletionSource> activeQueries = [];
-    private readonly HashSet<string> queryingPlugins = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Plugin,BackgroundQueryWorkload Kind),BoundedWorkAdmission> queryAdmissions=[];
     private readonly Dictionary<JobKey, ExecutionCancellation> running = [];
     private readonly Dictionary<JobKey, string> queued = [];
     private readonly Dictionary<string, SemaphoreSlim> pluginWriters = [];
@@ -165,6 +166,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     {
         BackgroundResponse Reply(string code, string? payload = null) => new(WorkerProtocol.Version, request.RequestId, code, Payload: payload);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        BoundedWorkAdmission admission;
         await gate.WaitAsync(token);
         try
         {
@@ -172,13 +174,26 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
             if (maintenance) return Reply("Maintenance");
             if (request.PluginId is null || request.Payload is null || request.Payload.Length > 4096) return Reply("InvalidRequest");
-            // 不允许一个慢插件在宿主内积累无界等待；其它插件和管理命令使用各自路径。
-            if (!queryingPlugins.Add(request.PluginId)) return Reply("PluginBusy");
+            var routing=catalog.QueryRouting(request.PluginId);BackgroundQueryWorkload kind;
+            try{kind=routing?.Classify(request.Payload)??BackgroundQueryWorkload.ResearchRead;}
+            catch(Exception error) when(error is System.Text.Json.JsonException or InvalidDataException){return Reply("InvalidRequest");}
+            if(!queryAdmissions.TryGetValue((request.PluginId,kind),out admission!))
+            {
+                // 旧插件保持单读、不积累等待；声明过静态路由的插件才启用分组并发。
+                admission=new(routing is null?1:BackgroundQueryBudgets.Concurrency(kind),routing is null?0:BackgroundQueryBudgets.Waiting(kind),BackgroundQueryBudgets.Wait(kind));
+                if(queryAdmissions.Count>=128)return Reply("PluginBusy");
+                queryAdmissions.Add((request.PluginId,kind),admission);
+            }
             activeQueries.Add(completed);
         }
         finally { gate.Release(); }
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, queryStopping.Token);
-        try { return Reply("Ok", await catalog.QueryAsync(request.PluginId, request.Payload, cancellation.Token)); }
+        try
+        {
+            using var lease=await admission.EnterAsync(cancellation.Token);
+            return Reply("Ok", await catalog.QueryAsync(request.PluginId, request.Payload, cancellation.Token));
+        }
+        catch(WorkAdmissionException){return Reply("PluginBusy");}
         catch (ArgumentException) { return Reply("UnknownQuery"); }
         catch (System.Text.Json.JsonException) { return Reply("InvalidRequest"); }
         catch (InvalidDataException) { return Reply("InvalidRequest"); }
@@ -193,7 +208,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         finally
         {
             await gate.WaitAsync(CancellationToken.None);
-            try { queryingPlugins.Remove(request.PluginId); activeQueries.Remove(completed); completed.SetResult(); }
+            try { activeQueries.Remove(completed); completed.SetResult(); }
             finally { gate.Release(); }
         }
     }

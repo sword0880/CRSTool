@@ -91,6 +91,7 @@ internal static class AdaptiveQueryPageChecks
         public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
             var query=EtfBusinessProtocol.ParseRequest(request.Payload!);string payload;
+            if(query.Operation=="query-capabilities")return new(WorkerProtocol.Version,request.RequestId,"UnknownQuery");
             if(query.Operation=="release-query"){Released.TrySetResult();payload=JsonSerializer.Serialize("Released");}
             else if(query.Operation=="configuration")
             {
@@ -117,6 +118,7 @@ internal static class AdaptiveQueryPageChecks
         public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
             var query=EtfBusinessProtocol.ParseRequest(request.Payload!);
+            if(query.Operation=="query-capabilities")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"UnknownQuery"));
             if(query.Operation=="release-query"){Released.TrySetResult();return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Payload:JsonSerializer.Serialize("Released")));}
             Counts.Add(query.Count);var count=Math.Min(query.Count,600-query.Offset);if(Fault=="Rows")count=query.Count+1;
             while(true)

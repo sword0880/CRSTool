@@ -43,8 +43,8 @@ Assert-OnlyExpectedRootCode "$jobs/Background" @('NationalTeamBackgroundEntry.cs
 # IPC客户端按功能归档，后台用例不实现这些客户端合同。
 $workerRoot = Join-Path $repoRoot "$ui/Application/Worker"
 $workerFiles = @(Get-ChildItem -LiteralPath $workerRoot -Recurse -File -Filter 'WorkerEtfWorkspace*.cs')
-if ($workerFiles.Count -ne 13) {
-    throw "Expected 13 WorkerEtfWorkspace source parts including joint exit study, found $($workerFiles.Count)."
+foreach ($feature in @('Etf','EtfHoldings','Equity','ExitAlerts','IndustryValuation','MarketCycle','Nav')) {
+    if (-not @($workerFiles | Where-Object { $_.Directory.Name -eq $feature }).Count) { throw "Worker workspace feature is missing: $feature" }
 }
 foreach ($file in $workerFiles) {
     $relative = $file.FullName.Substring($repoRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
@@ -243,6 +243,19 @@ if ($etfViewModelSource -notmatch 'IMarketCycleWorkspace marketCycleWorkspace' -
     $marketActivitySource -notmatch 'marketCycleWorkspace\.MarketActivityAsync' -or
     $proofViewModelSource -notmatch 'etfWorkspace\.ConfigurationAsync') {
     throw 'ETF, market-cycle and exit-alert UI dependencies must use explicit feature ports.'
+}
+$backgroundEntry=Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Background/NationalTeamBackgroundEntry.cs") -Raw
+$registryPath=Join-Path $repoRoot "$jobs/Background/Shared/NationalTeamOperationRegistry.cs"
+if ($backgroundEntry -match 'switch\s*\(\s*(request\.Operation|jobId)\s*\)' -or
+    $backgroundEntry -notmatch 'handler\.Read\(request,token\)' -or
+    $backgroundEntry -notmatch 'handler\.Execute\(request,token,commandId\)' -or -not (Test-Path -LiteralPath $registryPath)) {
+    throw 'NationalTeam entry must dispatch registered feature handlers rather than central business switches.'
+}
+$moduleHandlers=@(Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Background") -Recurse -File -Filter '*.Handlers.cs')
+foreach ($handlerFile in $moduleHandlers) {
+    if ($handlerFile.Directory.Name -notin @('Etf','EtfHoldings','Equity','ExitAlerts','IndustryValuation','MarketCycle','Nav','Evidence')) {
+        throw "Business handler is outside its feature module: $($handlerFile.FullName)"
+    }
 }
 Write-Host "PASS NationalTeam feature layout: Core, Jobs, WPF presentation and Worker IPC files are grouped by feature."
 Write-Host "Validated Worker workspace parts: $($workerFiles.Count); WPF pages: $($xamlFiles.Count); narrow feature ports: $($portFiles.Count)."

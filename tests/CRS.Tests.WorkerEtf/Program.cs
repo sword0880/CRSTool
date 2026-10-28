@@ -62,6 +62,8 @@ if(args is ["--query-performance-live",var performanceOutput]){await EtfQueryPer
 if(args is ["--query-performance-live-load",var loadPerformanceOutput]){await EtfQueryPerformanceLive.RunAsync(loadPerformanceOutput,true);return;}
 if(args is ["--query-cancel-live",var cancelLiveOutput]){await EtfQueryCancelLive.Run(cancelLiveOutput);return;}
 if(args is ["--dashboard-profile-live",var profileOutput]){await DashboardProfileLive.Run(profileOutput);return;}
+if(args is ["--acceptance-profile-live",var acceptanceProfileOutput]){await DashboardProfileLive.Run(acceptanceProfileOutput,new("acceptance-profile",To:DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime).AddDays(-1)));return;}
+if(args is ["--acceptance-profile-live",var acceptanceProfileMarket,var acceptanceProfileTicker,var singleAcceptanceProfileOutput]){await DashboardProfileLive.Run(singleAcceptanceProfileOutput,new("acceptance-profile",acceptanceProfileMarket,acceptanceProfileTicker,To:DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime).AddDays(-1)));return;}
 if(args is ["--cross-day-live",var gapDate,var gapBaseline,var gapOutput]){await EtfCrossDayLive.RunAsync(DateOnly.ParseExact(gapDate,"yyyy-MM-dd"),gapBaseline,gapOutput);return;}
 if(args is ["--market-request-probe",var receiptId])
 {
@@ -298,11 +300,17 @@ using(var service=Start())
             var profile=profileData.RootElement[0];var expectedHash=Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(dashboard)));
             if(profile.GetProperty("DashboardSha256").GetString()!=expectedHash)
                 Console.WriteLine($"DIAGNOSTIC dashboard/profile mismatch: stages={profile.GetProperty("Stages").GetArrayLength()};overview={dashboard!.Overview.Count};history={dashboard.History.Count};activity={dashboard.Activity.Count}");
-            Check(profilePage.TotalRows==1&&profilePage.NextOffset is null&&profile.GetProperty("Stages").GetArrayLength()==7&&profile.GetProperty("DashboardSha256").GetString()==expectedHash,"有限分段诊断经真实Runner/管道返回，完整金融结果指纹与正常整页一致");
+            var profileStages=profile.GetProperty("Stages").EnumerateArray().ToArray();
+            Check(profilePage.TotalRows==1&&profilePage.NextOffset is null&&profileStages.Select(x=>x.GetProperty("Name").GetString()).Distinct().Count()==profileStages.Length
+                &&profileStages.Any(x=>x.GetProperty("Name").GetString()=="RawVerificationIncludingAdmission")&&profileStages.Any(x=>x.GetProperty("Name").GetString()=="PointsSql")
+                &&profileStages.All(x=>x.GetProperty("ElapsedMs").GetDouble()>=0&&x.GetProperty("Items").GetInt32()>=0)
+                &&profile.GetProperty("DashboardSha256").GetString()==expectedHash,"有限分段诊断经真实Runner/管道返回，完整金融结果指纹与正常整页一致");
         }
         var acceptanceThrough=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow,"China Standard Time").DateTime).AddDays(-1);
-        var acceptance=await ui.AcceptanceAsync(acceptanceThrough,default);
+        var acceptancePages=new List<EtfQueryPageMeasurement>();var batchReader=new WorkerEtfWorkspace(client,acceptancePages.Add);
+        var acceptance=await batchReader.AcceptanceAsync(acceptanceThrough,default);
         Check(acceptance.Count==5&&acceptance.All(x=>!x.DataAcceptancePassed&&!x.CalendarVerified),"生产验收查询经真实管道返回，无日历时不得批准250日或连续20日");
+        Check(acceptancePages.Select(x=>x.Operation).SequenceEqual(new[]{"query-capabilities","acceptance-batch"}),"真实Worker/Runner客户端两次往返完整取得五只合成ETF验收");
         var navStudy=await ui.NavStudyAsync(new("SSE","510300"),acceptanceThrough.AddDays(-7),acceptanceThrough,default);
         Check(navStudy.FrozenInputs.Key==new CRS.Plugins.NationalTeamWatch.Domain.EtfKey("SSE","510300")&&navStudy.FrozenInputs.Nav.Points.Count==0&&navStudy.State=="NoRegisteredTradingDays",
             "NAV份额研究经真实Runner和分块管道返回冻结输入，无NAV及日历时明确不可计算");

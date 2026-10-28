@@ -1,4 +1,8 @@
-﻿# 当前问题与验收缺口
+# 当前问题与验收缺口
+
+本文保留历史问题和各时点记录，当前高风险及正式部署状态统一见[当前架构状态](architecture/ARCHITECTURE_STATUS.md)。
+
+2026-10-28：[国家队双库保全迁移](implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)已在正式LocalService完成并Committed，5959份快照、原库归档、服务密钥、24只ETF配置、29条股票投影及10条执行记录回读通过。国家队双库为普通SQLite，收入/报税未改。最终闭日抽检仍有预警总览和联合退出研究两项RequestTimedOut；具名ETF历史、周期及广度查询可用不代表真实披露覆盖或模型通过，完整目标继续开放。
 
 2026-10-25 08:13：[公布行业PE事实链](implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)正式维护已Committed，4日44条真实记录及11行业通过实际Worker和独立WPF页面回读；历史回补正在执行。仅此公布PE页面接通，完整行业价格/PB/市值覆盖/基本面及低估机会仍开放；区域模型与主要持仓方向没有因此验收。以下早期“行业未接通”描述保留其当时时点，当前状态以此项为准。
 

@@ -9,7 +9,10 @@ public sealed record RunnerMessage(int Version,Guid Id,string Kind,string Comman
 /// <summary>启动材料仅经父子进程私有句柄发送，密钥不进入命令行、环境变量或临时文件。</summary>
 public sealed record RunnerStart(string PluginId,string PackageHash,string Nonce,int ParentPid,string? DataDirectory,byte[]? DataKey);
 public sealed record RunnerDescription(string PluginId,string PackageHash,string Nonce,int Pid,BackgroundJobDescriptor[] Jobs,
-    int Concurrency,Dictionary<string,BackgroundExecutionGroup> Groups,bool SupportsQueries);
+    int Concurrency,Dictionary<string,BackgroundExecutionGroup> Groups,bool SupportsQueries)
+{
+    public BackgroundQueryRouting? QueryRouting {get;init;}
+}
 public sealed record RunnerExecution(string JobId,string? Payload,Guid? CommandId);
 public sealed record RunnerProgress(Guid ExecutionId,BackgroundProgress Detail);
 /// <summary>仅固定阶段与分类；宿主复核白名单后写生命周期诊断，不传异常正文。</summary>

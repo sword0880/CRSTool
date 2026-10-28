@@ -43,8 +43,15 @@ internal static class MarketQueryReliabilityChecks
         await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new Context(),()=>repository,raw);
         await workspace.InitializeAsync(default);workspace.Activity.SetMarketActivitySource(new Source(Value));
         using var stop=new CancellationTokenSource();Volatile.Write(ref wait,1);
-        var query=workspace.Activity.MarketActivityAsync(stop.Token);
+        Task<List<MarketActivityPoint>> query;
+        using(CRS.Common.Concurrency.ReadWorkloadScope.Enter(false))query=workspace.Activity.MarketActivityAsync(stop.Token);
         if(!entered.Wait(TimeSpan.FromSeconds(5)))throw new Exception("查询未进入原件读取。");
+        using(CRS.Common.Concurrency.ReadWorkloadScope.Enter(true))
+        {
+            var shortRows=await workspace.Etf.ConfigurationAsync(default).WaitAsync(TimeSpan.FromSeconds(2));
+            if(shortRows.Count==0||query.IsCompleted)throw new Exception("短配置读仍被研究读阻塞。");
+            Console.WriteLine("PASS 真实读会话：研究原件尚未返回时，独立短读已读取完整配置。");
+        }
         var job=workspace.Activity.SyncMarketActivityReportAsync(day.AddDays(1),day.AddDays(1),default);
         Volatile.Write(ref wait,0);var elapsed=Stopwatch.StartNew();stop.Cancel();
         try{await query.WaitAsync(TimeSpan.FromMilliseconds(800));throw new Exception("取消查询返回了部分结果。");}

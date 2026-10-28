@@ -1,10 +1,13 @@
+using CRS.Common.Concurrency;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
 /// <summary>后台用例共用的单写门槛、独立读快照和生命周期；不承载业务规则或界面端口。</summary>
 internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) : IAsyncDisposable
 {
-    private readonly SemaphoreSlim writeGate=new(1,1);
-    private readonly SemaphoreSlim readGate=new(1,1);
+    private readonly BoundedWorkAdmission writeGate=new(1,4,TimeSpan.FromSeconds(5));
+    private readonly BoundedWorkAdmission shortReads=new(2,4,TimeSpan.FromSeconds(1));
+    private readonly BoundedWorkAdmission researchReads=new(1,1,TimeSpan.FromSeconds(2));
+    private readonly BoundedWorkAdmission backgroundReads=new(1,4,TimeSpan.FromSeconds(2));
     private IMarketRepository? repository;
     private IMarketReadSessions? independentReads;
     private bool disposed;
@@ -12,8 +15,7 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     internal Task ReportAsync(EtfProgress value)=>Progress?.Invoke(value)??Task.CompletedTask;
     internal async Task InitializeAsync(CancellationToken token)
     {
-        await writeGate.WaitAsync(token).ConfigureAwait(false);
-        try
+        using(await EnterAsync(writeGate,token).ConfigureAwait(false))
         {
             ObjectDisposedException.ThrowIf(disposed,this);
             if(repository is not null)throw new InvalidOperationException("后台用例会话已初始化。");
@@ -26,41 +28,38 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
                 Volatile.Write(ref independentReads,(IMarketReadSessions)opened);
             },token).ConfigureAwait(false);
         }
-        finally{writeGate.Release();}
     }
     internal async Task<T> WriteAsync<TPort,T>(Func<TPort,T> work,CancellationToken token) where TPort:class
     {
-        await writeGate.WaitAsync(token).ConfigureAwait(false);
-        try
+        using(await EnterAsync(writeGate,token).ConfigureAwait(false))
         {
             ObjectDisposedException.ThrowIf(disposed,this);
             var current=repository??throw new InvalidOperationException("后台用例会话尚未初始化。");
             var port=current as TPort??throw new NotSupportedException("市场仓储缺少请求的业务写入能力。");
             return await Task.Run(()=>current.ExecuteOperation(()=>work(port),token),token).ConfigureAwait(false);
         }
-        finally{writeGate.Release();}
     }
     internal async Task<T> ReadAsync<TPort,T>(Func<TPort,T> query,CancellationToken token) where TPort:class
     {
-        await readGate.WaitAsync(token).ConfigureAwait(false);
-        try
+        var admission=ReadWorkloadScope.Current switch{ReadWorkloadKind.ShortRead=>shortReads,ReadWorkloadKind.ResearchRead=>researchReads,_=>backgroundReads};
+        using(await EnterAsync(admission,token).ConfigureAwait(false))
         {
             ObjectDisposedException.ThrowIf(disposed,this);
             var sessions=Volatile.Read(ref independentReads)??throw new InvalidOperationException("后台用例会话尚未初始化。");
             return await Task.Run(()=>sessions.Read(current=>query(current as TPort
                 ??throw new NotSupportedException("市场仓储缺少请求的业务读取能力。")),token),token).ConfigureAwait(false);
         }
-        finally{readGate.Release();}
     }
     public async ValueTask DisposeAsync()
     {
-        await readGate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            await writeGate.WaitAsync().ConfigureAwait(false);
-            try{disposed=true;Volatile.Write(ref independentReads,null);repository?.Dispose();repository=null;}
-            finally{writeGate.Release();}
-        }
-        finally{readGate.Release();}
+        disposed=true;
+        await Task.WhenAll(shortReads.CloseAsync(),researchReads.CloseAsync(),backgroundReads.CloseAsync(),writeGate.CloseAsync()).ConfigureAwait(false);
+        Volatile.Write(ref independentReads,null);repository?.Dispose();repository=null;
+    }
+    private async ValueTask<IDisposable> EnterAsync(BoundedWorkAdmission admission,CancellationToken token)
+    {
+        ObjectDisposedException.ThrowIf(disposed,this);
+        try{return await admission.EnterAsync(token).ConfigureAwait(false);}
+        catch(WorkAdmissionException error) when(error.Reason=="Closed"){throw new ObjectDisposedException(nameof(MarketApplicationSession));}
     }
 }

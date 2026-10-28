@@ -7,7 +7,7 @@ public sealed partial class WorkerEtfWorkspace
 {
     public async Task<MarketCycleStudyReport> MarketCycleStudyAsync(DateOnly asOf,DateTimeOffset? cutoff,CancellationToken token)
     {
-        var blocks=(await ReadPagesAsync<JsonDocumentBlock>(new("market-cycle-study",To:asOf,KnowledgeCutoff:cutoff,Count:2),token)).Rows;
+        var blocks=(await ReadResearchPagesAsync<JsonDocumentBlock>(new("market-cycle-study",To:asOf,KnowledgeCutoff:cutoff,Count:2),token)).Rows;
         var report=JsonDocumentBlocks.Decode<MarketCycleStudyReport>(blocks,token);
         if(report.FormatVersion!=MarketCycleStudyReport.Version||report.Input.AsOfDate!=asOf||report.Input.Market!="SSE+SZSE"||report.Input.IndexCode!="399317"
             ||cutoff.HasValue&&report.Input.EvaluationCutoff!=cutoff.Value)throw new InvalidDataException("市场周期报告身份或截止时间不符。");

@@ -18,11 +18,14 @@ internal static class DashboardProfileChecks
         Check(JsonSerializer.Serialize(profile.Dashboard)==JsonSerializer.Serialize(expected),"诊断与正常查询金融结果完整一致");
         Check(reads>before,"诊断重新核验原件，不复用前一查询健康结论");
         var names=new[]{"EvidenceSql","RawVerificationIncludingAdmission","EvidenceClassification","PointsSql","OverviewSqlAndProjection","HistorySqlAndProjection","ActivitySqlAndProjection"};
-        Check(profile.Stages.Select(x=>x.Name).SequenceEqual(names)&&profile.Stages.All(x=>x.ElapsedMs>=0&&double.IsFinite(x.ElapsedMs)&&x.Items>=0),"有限阶段包含SQL、含准入的原件核验和投影，计数不是金融值");
+        Check(names.All(name=>profile.Stages.Any(x=>x.Name==name))&&profile.Stages.Select(x=>x.Name).Distinct().Count()==profile.Stages.Count
+            &&profile.Stages.All(x=>x.ElapsedMs>=0&&double.IsFinite(x.ElapsedMs)&&x.Items>=0),"有限阶段包含SQL、含准入的原件核验和投影，计数不是金融值");
         File.WriteAllText(Path.Combine(rawPath,hash+".raw"),"damaged");
         try{repo.ExecuteOperation(()=>repo.ProfileDashboard(null),default);throw new Exception("诊断绕过损坏。");}catch(InvalidDataException){}
         File.WriteAllBytes(Path.Combine(rawPath,hash+".raw"),bytes);
-        Check(repo.ExecuteOperation(()=>repo.ProfileDashboard(null),default).Stages.Count==7,"损坏失败关闭且释放诊断作用域，后续重新核验");
+        before=reads;
+        Check(JsonSerializer.Serialize(repo.ExecuteOperation(()=>repo.ProfileDashboard(null),default).Dashboard)==JsonSerializer.Serialize(expected)&&reads>before,
+            "损坏失败关闭且释放诊断作用域，后续重新核验并返回相同完整结果");
         cancelMid=true;
         try{repo.ExecuteOperation(()=>repo.ProfileDashboard(null),stop.Token);throw new Exception("诊断未取消。");}catch(OperationCanceledException){}
         cancelMid=false;

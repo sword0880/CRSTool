@@ -1,6 +1,8 @@
 # NationalTeamWatch 分层重构续项（2026-10-26）
 
-2026-10-28 存储维护续项：共用路径/认证文件机制外移Common，国家队双库保全迁移接通独立维护Runner及服务组合根；LocalService派生密钥交付、超时回收和认证完成回执已通过隔离验证。正式维护已启动，最终事务及真实资料回读以[迁移记录](NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)为准，不能把隔离机制验证当作金融模型验收。
+本文为实施历史，当前模块边界、开放风险、部署与证据统一见[当前架构状态](../architecture/ARCHITECTURE_STATUS.md)。
+
+2026-10-28 存储维护续项：共用路径/认证文件机制外移Common，国家队双库保全迁移接通独立维护Runner及服务组合根。正式LocalService维护已Committed，国家队双库为普通SQLite，快照/密钥及原24只ETF配置、29条股票投影、10条执行记录回读通过；预警总览及联合退出研究仍超时。当前证据以[迁移记录](NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)为准，不能由存储验收推导金融模型通过。
 
 2026-10-28 具名披露续项：主体目录在Core统一供ETF/股票使用，EtfHoldings独立读端口和协调器拥有多期披露、最新子集及明确排除项；未列示不补零、最新异常不回退，目录外主体不进入国家队下界。机构ETF页把持仓变化和报告目录分开，源码及隔离证据见[具名ETF历史](NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。正式安装、真实主体覆盖与模型门槛仍开放。
 
@@ -78,7 +80,7 @@
 1. 原件完整性、ETF核心、连接和初始化所有权均已拆分。ETF由`EtfStore`拥有，连接由`MarketDatabaseSession`拥有，初始化由存储组合根和各功能Store拥有；按用户最新要求，国家队使用普通SQLite，收入/报税保留加密。实现、旧库导出和验证边界见[存储拆分记录](NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。这两项结构缺口已完成源码与隔离验证，正式资料迁移和整个插件重构仍需后续门槛闭合。
 2. 将预警用例协调与存储协议进一步分离；模块化的 `AlertStore` 已收拢原实现，但不应宣称领域算法、应用协调与SQL已全部独立。
 3. 界面合同默认方法和后台旧工作区已清理，八组后台用例只访问各自类型化仓储端口；后续继续收拢来源审批和预警存储协调，缺少采集记录不得返回假空集合。
-4. 在完整重构回归后再生成新包并通过正式维护流程验证；本轮没有替换已安装服务或改变其正常计划。
+4. 2026-10-28新包已按正式保全流程安装并Committed，原7项计划保留；后续先定位预警总览和联合退出研究的真实查询超时，再推进五项业务的数据与模型门槛。
 
 架构入口见 [当前架构](../architecture/CURRENT_ARCHITECTURE.md)，业务及真实数据门槛见 [研究开发记录](NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md) 和 [周期需求](../architecture/NATIONAL_TEAM_MARKET_REGIME_REQUIREMENTS_20261024.md)。
 
@@ -109,3 +111,15 @@
 最终源码构建记录`artifacts/national-team-acceptance-final-build-20261026.log`：37项目Release零警告、零错误，自动开发包同步完成。批量验收19项通过，合成共享原件实测每次验收只读一次，下一次重新读验；分段诊断5项、完整性/预警专项、反方接收窗口、架构与功能目录门禁、实际开发包四页创建均通过。CI已加入批量验收专项，未声称远端执行。原聚合仓储内两个已无调用的日期格式兼容辅助方法同步移除。
 
 默认受限进程运行完整回归时，创建测试命名管道被Windows权限拒绝；保留失败日志`national-team-acceptance-full-regression-20261026.log`。正常Windows权限重跑使用同一工作区隔离目录，完整默认回归通过、进程退出码0，独立记录为`national-team-acceptance-full-regression-authorized-20261026.log`，不修改正式ACL或连接已安装服务。
+
+## 2026-10-28：入口注册及批量客户端
+
+本段记录本轮实施，不承担当前状态索引；当前状态统一见[ARCHITECTURE_STATUS](../architecture/ARCHITECTURE_STATUS.md)。
+
+中央入口原49个公开查询和25个后台任务移入八个功能目录的`NationalTeamBackgroundSession.Handlers.cs`。模块方法通过受限属性声明操作、任务、执行组与顺序；`Background/Shared/NationalTeamOperationRegistry`只扫描已核验入口自身的方法，启动时校验标识、重复项、签名及查询类别。入口不再包含业务操作或任务的大型switch；新增业务处理器不要求修改中央分派。协议解析、公开读授权边界、响应容量、北京时间归一、分页及生命周期保留。
+
+ETF模块另声明`query-capabilities`及`acceptance-batch`。客户端先协商`etf-acceptance-batch-v1`，再批读同一次验收的全配置池；元数据绑定版本、统计日、完整行数和配置池指纹。24只ETF通过独立测试管道以两次往返读完，异常版本、缺行、重复、日期或池指纹不匹配均拒绝，不回退成逐只循环。现有`--business-contracts`套件扩为50项，模块注册、已有协议及批量反例均通过，不新增相同职责的验收入口。
+
+同一独立只读事务的`EvidenceIntegrityStore`复用本次已完整读验的原件结果，新增依赖继续读验；整个批次成功后才公布复用结果。写入、后台巡检、通知领取及下一次查询不共享该字典。15项真实文件/SQLite反例通过，包括失败批次、取消、锁定的范围外原件、嵌套独立快照和跨查询新损坏，回执`artifacts/research-snapshot-verification-20261028/acceptance.json`。该机制不减少完整性范围，也不证明正式联合查询已经恢复。
+
+已明确仍需贯通的下一步：宿主、Runner、插件、应用读会话及客户端存在多层单查询门闩，不能只调一个Semaphore就宣称解耦。短读与重型读须使用不同的并发/有限等待额度，写入仍走持久命令与单写门槛，后台采集保留独立执行组及来源预算；全局任务并发8不变。长研究应异步受理后按状态/快照ID读取，并闭合有限队列、取消、失败、过期、身份、维护排空和重启边界；尚未实现或验收这些机制，不能把原15秒查询统一延长当作完成。

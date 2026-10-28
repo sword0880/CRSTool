@@ -176,6 +176,12 @@ jobs:
       - name: Verify acceptance batching preserves receipt timing and evidence integrity
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --acceptance-batch-checks
+      - name: Verify registered modules, negotiated batch clients and per-snapshot integrity
+        shell: pwsh
+        run: |
+          dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --business-contracts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --snapshot-verification "$env:GITHUB_WORKSPACE/artifacts/snapshot-verification"
       - name: Verify public research SQLite ownership and preservation of encrypted legacy files
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --public-storage

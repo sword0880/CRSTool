@@ -8,6 +8,9 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>原件完整性独立模块；只读核验与后台状态提交分开，不持有总仓储或跨请求核验缓存。</summary>
 internal sealed class EvidenceIntegrityStore(IMarketRepositorySession session,Action markAlertPending,Action<string,long,int> recordStage)
 {
+    // 每次MarketRepository.Read创建独立会话及本Store；仅复用该只读事务内已经完整读验的原件。
+    // 写入、后台巡检和通知领取不进入此分支；下一次查询重新创建Store，不能沿用旧完整性结论。
+    private readonly Dictionary<string,bool> snapshotVerified=new(StringComparer.Ordinal);
     private SqliteConnection db => session.Connection;
     private RawEvidenceStore raw => session.RawEvidence;
     private Action? beforeWrite => session.BeforeWrite;
@@ -59,9 +62,18 @@ internal sealed class EvidenceIntegrityStore(IMarketRepositorySession session,Ac
                 fetches.Add((reader.GetString(0),reader.GetString(1),reader.GetString(2)));
             }
         recordStage("EvidenceSql",stageStarted,fetches.Count);stageStarted=System.Diagnostics.Stopwatch.GetTimestamp();
-        var verified=raw.VerifyMany(fetches.SelectMany(x=>new[]{x.Hash,x.Original}),operationCancellation);
+        var hashes=fetches.SelectMany(x=>new[]{x.Hash,x.Original}).Distinct(StringComparer.Ordinal).ToArray();
+        var pending=session.IsReadSnapshot?hashes.Where(x=>!snapshotVerified.ContainsKey(x)).ToArray():hashes;
+        var fresh=raw.VerifyMany(pending,operationCancellation);
+        operationCancellation.ThrowIfCancellationRequested();
+        // 整个批次成功才发布复用结果；I/O异常或取消不能留下看似完整的部分核验。
+        if(session.IsReadSnapshot)foreach(var (hash,valid) in fresh)snapshotVerified[hash]=valid;
+        IReadOnlyDictionary<string,bool> verified=session.IsReadSnapshot
+            ?hashes.ToDictionary(x=>x,x=>snapshotVerified[x],StringComparer.Ordinal):fresh;
         // 此阶段包含共享句柄准入、完整读取及SHA核验；不能把它全称为物理磁盘耗时。
-        recordStage("RawVerificationIncludingAdmission",stageStarted,verified.Count);stageStarted=System.Diagnostics.Stopwatch.GetTimestamp();
+        recordStage("RawVerificationIncludingAdmission",stageStarted,pending.Length);
+        recordStage("SnapshotVerificationReuse",System.Diagnostics.Stopwatch.GetTimestamp(),hashes.Length-pending.Length);
+        stageStarted=System.Diagnostics.Stopwatch.GetTimestamp();
         foreach(var fetch in fetches)
         {
             operationCancellation.ThrowIfCancellationRequested();

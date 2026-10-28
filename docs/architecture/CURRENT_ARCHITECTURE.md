@@ -1,6 +1,8 @@
 # 当前架构入口
 
-2026-10-28 存储维护续项：逐级物理路径防护及认证JSON进入Common，独立可信维护入口/Runner与服务组合根接通国家队双库保全迁移；发行计划、服务身份、派生密钥、快照、时限和认证回执独立于普通会话。生产入口与真实LocalService隔离验证通过，正式保全维护已启动，最终现场结果见[迁移协议与剩余门槛](../implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)。
+本文保留架构演进及历史时点，当前模块边界、开放风险、部署与证据统一见[当前架构状态](ARCHITECTURE_STATUS.md)。
+
+2026-10-28 存储维护续项：逐级物理路径防护及认证JSON进入Common，独立可信维护入口/Runner与服务组合根接通国家队双库保全迁移；发行计划、服务身份、派生密钥、快照、时限和认证回执独立于普通会话。正式LocalService维护已Committed，两份国家队库转换为普通SQLite，5959份快照、密钥、原程序和资料回读通过；预警总览及联合退出研究查询仍超时，完整金融验收未完成。详见[迁移协议与剩余门槛](../implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)。
 
 2026-10-28 具名ETF多期持仓加入EtfHoldings功能：逐期变化、未列示未知、最新披露子集和排除原因分别展示；最新期冲突或原件异常不回退。Core统一ETF/股票主体目录，增加梧桐树具名平台及大基金三期法人，人工核验与完整组合门槛保留。联合规则升为v1.1、报告v2；见[具名披露历史与限制](../implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
 

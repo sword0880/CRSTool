@@ -9,7 +9,10 @@ public sealed record EtfRequest(string Operation,string? Market=null,string? Tic
     ExitAlertFilter? AlertFilter=null,ExitAlertConfiguration? AlertConfiguration=null,AlertDocumentRequest? AlertDocument=null,
     AlertMetadataReview? AlertMetadata=null,NamedEtfHoldingReview? NamedEtfHolding=null,int ContractVersion=EtfBusinessProtocol.Version,bool RefreshSource=false,
     EquityDirectionReview? EquityDirectionReview=null,DateTimeOffset? KnowledgeCutoff=null,
-    MarketBreadthSubmission? BreadthSubmission=null,MarketBreadthReview? BreadthReview=null);
+    MarketBreadthSubmission? BreadthSubmission=null,MarketBreadthReview? BreadthReview=null)
+{
+    public EtfRequest? ResearchRequest {get;init;}
+}
 /// <summary>分页使用服务端短期快照，避免采集同时写入导致桌面分页重复或遗漏。</summary>
 public sealed record EtfQueryPage(string Items,string Snapshot,int? NextOffset,string? Metadata=null,int ContractVersion=EtfBusinessProtocol.Version)
 {

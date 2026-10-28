@@ -58,5 +58,34 @@ internal static class PluginCommonAdmissionChecks
         catch(OperationCanceledException) { }
         Check(raced.Activity.Active==0 && raced.Activity.PriorityWaiting==0,
             "cancel/grant race never leaks shared read capacity");
+        await BoundedWorkloads();
+    }
+    private static async Task BoundedWorkloads()
+    {
+        var gate=new BoundedWorkAdmission(1,1,TimeSpan.FromMilliseconds(60));
+        using(var held=await gate.EnterAsync(default))
+        {
+            var waiting=gate.EnterAsync(default).AsTask();
+            try{using var extra=await gate.EnterAsync(default);throw new Exception("无界排队。");}
+            catch(WorkAdmissionException error) when(error.Reason=="Capacity"){Check(true,"工作队列超过有限等待名额即拒绝");}
+            try{using var expired=await waiting;throw new Exception("无限等待。");}
+            catch(WorkAdmissionException error) when(error.Reason=="WaitBudget"){Check(true,"等待预算到期明确失败，不进入执行");}
+            using var cancellation=new CancellationTokenSource();var cancelled=gate.EnterAsync(cancellation.Token).AsTask();cancellation.Cancel();
+            try{using var ignored=await cancelled;throw new Exception("忽略取消。");}catch(OperationCanceledException){}
+            var next=gate.EnterAsync(default).AsTask();held.Dispose();using(await next){Check(true,"取消移除排队项，下一请求可取得释放的名额");}
+        }
+        var draining=new BoundedWorkAdmission(2,2,TimeSpan.FromSeconds(1));
+        var first=await draining.EnterAsync(default);var second=await draining.EnterAsync(default);var pending=draining.EnterAsync(default).AsTask();
+        var close=draining.CloseAsync();
+        try{using var ignored=await pending;throw new Exception("关闭仍等待。");}catch(WorkAdmissionException error) when(error.Reason=="Closed"){}
+        first.Dispose();Check(!close.IsCompleted,"关闭仍等待第二个在途读租约，不能只排空一个名额");second.Dispose();await close;
+        try{using var ignored=await draining.EnterAsync(default);throw new Exception("关闭后重新准入。");}
+        catch(WorkAdmissionException error) when(error.Reason=="Closed"){Check(true,"关闭完成后拒绝新工作");}
+        for(var i=0;i<60;i++)
+        {
+            var slot=await gate.EnterAsync(default);using var stop=new CancellationTokenSource();var racing=gate.EnterAsync(stop.Token).AsTask();
+            slot.Dispose();stop.Cancel();try{using var raced=await racing;}catch(OperationCanceledException){}
+        }
+        using(await gate.EnterAsync(default)){Check(true,"取消与授予竞争重复60次后不泄漏容量");}
     }
 }

@@ -38,7 +38,9 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
     private readonly List<HostedBackgroundJob> jobs = [];
     // 查询能力独立于任务描述列表，支持零 Job 插件。
     private readonly Dictionary<string,IBackgroundQuerySession> querySessions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string,BackgroundQueryRouting> queryRouting=new(StringComparer.Ordinal);
     public bool SupportsQueries(string plugin)=>querySessions.ContainsKey(plugin);
+    public BackgroundQueryRouting? QueryRouting(string plugin)=>queryRouting.GetValueOrDefault(plugin);
     private readonly List<BackgroundPluginStatus> statuses = [];
     private readonly List<string> expectedPlugins = [];
     public IReadOnlyList<string> ExpectedPlugins=>expectedPlugins.ToArray();
@@ -60,7 +62,7 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
             var operation=session is IBackgroundQueryDiagnosticsSession diagnostic?diagnostic.QueryOperation(payload):null;
             if(operation is not null&&Regex.IsMatch(operation,"^[a-z][a-z0-9-]{0,39}$",RegexOptions.CultureInvariant))phase="Query."+operation;
             cancellation.ThrowIfCancellationRequested();result=await session.QueryAsync(payload,cancellation);
-        },token,()=>phase);}
+        },token,()=>phase,queryRouting.TryGetValue(plugin,out var routing)?BackgroundQueryBudgets.Execution(routing.Classify(payload)):null);}
         finally{if(watch.ElapsedMilliseconds>=1000)ReportLifecycle(plugin,phase,"ElapsedMs="+watch.ElapsedMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));}
         if(System.Text.Encoding.UTF8.GetByteCount(result)>48000)throw new InvalidDataException("业务查询响应超限。");
         return result;
@@ -70,6 +72,7 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
     {
         jobs.RemoveAll(x => x.PluginId == pluginId);
         querySessions.Remove(pluginId);
+        queryRouting.Remove(pluginId);
         statuses.RemoveAll(x => x.PluginId == pluginId);
         statuses.Add(new(pluginId, "Failed", errorCode));
     }
@@ -132,7 +135,16 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
                 }
                 jobs.Add(new(package.Id, descriptor, session, maximumConcurrency){ExecutionGroup=group});
             }
-            if(session is IBackgroundQuerySession querySession)querySessions.Add(package.Id,querySession);
+            if(session is IBackgroundQuerySession querySession)
+            {
+                if(session is IBackgroundQueryRoutingSession routed)
+                {
+                    BackgroundQueryRouting? routing=null;
+                    await InvokeAsync(package.Id,"QueryRouting",_=>{routing=routed.DescribeQueryRouting()?.Validate();return Task.CompletedTask;},token);
+                    if(routing is not null)queryRouting.Add(package.Id,routing);
+                }
+                querySessions.Add(package.Id,querySession);
+            }
             statuses.Add(new(package.Id, "Started"));
             }
             catch (PluginLifecycleTimeoutException) { throw; }
@@ -142,6 +154,7 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
                 // 单个包损坏或初始化失败只隔离该插件，保持其它可信任务可用。
                 jobs.RemoveAll(x => x.PluginId == package.Id);
                 querySessions.Remove(package.Id);
+                queryRouting.Remove(package.Id);
                 if (session is not null)
                 {
                     try { await CleanupAsync(package.Id,session, token); }
@@ -159,11 +172,12 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
     {
         try{lifecycleDiagnostic?.Invoke(plugin,phase,code);}catch(Exception){ /* 诊断失败不能跳过退出保护。 */ }
     }
-    private async Task InvokeAsync(string plugin,string phase,Func<CancellationToken, Task> work, CancellationToken token,Func<string>? diagnosticPhase=null)
+    private async Task InvokeAsync(string plugin,string phase,Func<CancellationToken, Task> work, CancellationToken token,Func<string>? diagnosticPhase=null,TimeSpan? workBudget=null)
     {
         EnsureResponsive();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(lifecycleTimeout ?? TimeSpan.FromSeconds(15));
+        var budget=lifecycleTimeout??TimeSpan.FromSeconds(15);
+        deadline.CancelAfter(workBudget is {} limit&&limit<budget?limit:budget);
         var task = Task.Run(() => work(deadline.Token), CancellationToken.None);
         try
         {
@@ -258,7 +272,7 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
             catch (PluginLifecycleTimeoutException) { throw; }
             catch (Exception error) { failures.Add(error); }
         }
-        sessions.Clear(); jobs.Clear();querySessions.Clear();
+        sessions.Clear(); jobs.Clear();querySessions.Clear();queryRouting.Clear();
         foreach (var context in contexts) context.Unload();
         contexts.Clear();
         if (failures.Count != 0) throw new AggregateException("后台插件释放存在异常。", failures);

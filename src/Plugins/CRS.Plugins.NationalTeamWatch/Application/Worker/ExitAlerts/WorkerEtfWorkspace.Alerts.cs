@@ -6,7 +6,7 @@ namespace CRS.Plugins.NationalTeamWatch;
 public sealed partial class WorkerEtfWorkspace
 {
     private async Task<List<T>> AlertRows<T>(EtfRequest query,CancellationToken token)=>(await ReadPagesAsync<T>(query,token)).Rows;
-    public async Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>(await AlertRows<ExitAlertOverview>(new("alert-overview"),token)).Single();
+    public async Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>(await ReadResearchPagesAsync<ExitAlertOverview>(new("alert-overview"),token)).Rows.Single();
     public async Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token)=>(await AlertRows<ExitAlertConfiguration>(new("alert-configuration"),token)).Single();
     public Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>RunAsync("alert-manage",new("alert-settings",AlertConfiguration:value),token);
     public Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>AlertRows<ExitAlertEvent>(new("alert-events",AlertFilter:filter),token);

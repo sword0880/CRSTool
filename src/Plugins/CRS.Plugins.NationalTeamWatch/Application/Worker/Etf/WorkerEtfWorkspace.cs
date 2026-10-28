@@ -5,6 +5,7 @@ using System.Text.Json;
 using CRS.Worker.Ipc;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
+using CRS.Common.Concurrency;
 namespace CRS.Plugins.NationalTeamWatch;
 
 /// <summary>客户端只访问授权管道，不打开市场库或向服务提交桌面文件路径。</summary>
@@ -17,37 +18,66 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     private const string Plugin="crs.national-team";
     private readonly BackgroundPipeClient client=connection??new();
     private BackgroundRequest? uncertain;
-    private readonly SemaphoreSlim queryGate=new(1,1);
+    private readonly BoundedWorkAdmission shortQueries=new(2,4,TimeSpan.FromSeconds(1));
+    private readonly BoundedWorkAdmission researchQueries=new(1,1,TimeSpan.FromSeconds(2));
+    private readonly BoundedWorkAdmission legacyQueries=new(1,1,TimeSpan.FromSeconds(2));
+    private readonly BoundedWorkAdmission capabilityNegotiation=new(1,4,TimeSpan.FromSeconds(1));
+    private EtfQueryCapabilities? queryCapabilities;
+    private bool capabilitiesResolved;
     public string NetworkStatus{get;private set;}="公开采集由独立后台服务执行，关闭桌面后继续运行。";
     public bool CanManage=>new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
 
     /// <summary>限流后有界等待令牌；连接失败不以桌面空库代替。</summary>
     private async Task<BackgroundResponse> SendAsync(BackgroundRequest request,CancellationToken token)
     {
+        var started=Stopwatch.GetTimestamp();
         while(true)
         {
             var response=await client.SendAsync(request,token);
-            if(response.Code=="RateLimited"){await Task.Delay(500,token);continue;}
-            // 同一插件只允许一个在途查询；图表和证据并行读取时等待前一查询结束，写命令不自动重放。
-            if(request.Command=="QueryPlugin"&&response.Code=="PluginBusy"){await Task.Delay(100,token);continue;}
+            if(response.Code=="RateLimited"||request.Command=="QueryPlugin"&&response.Code=="PluginBusy")
+            {
+                if(Stopwatch.GetElapsedTime(started)>=TimeSpan.FromSeconds(response.Code=="RateLimited"?10:2))throw new InvalidDataException("后台繁忙，等待预算已用完，请稍后重试。");
+                await Task.Delay(250,token);continue;
+            }
             if(response.Code=="Forbidden")throw new InvalidDataException("操作需要管理员权限；查询公开结果无需管理员权限。");
             return response;
         }
     }
     private async Task<T> QueryAsync<T>(EtfRequest query,CancellationToken token)
     {
-        // 本客户端先排队，避免并行图表/证据查询不断触发 PluginBusy 并耗尽管道配额。
-        await queryGate.WaitAsync(token);
-        try
+        if(query.Operation!="query-capabilities")await EnsureCapabilitiesAsync(token);
+        var shortRead=query.Snapshot is not null||query.Operation is "status" or "release-query" or "query-capabilities"
+            ||queryCapabilities?.ShortReadOperations?.Contains(query.Operation,StringComparer.Ordinal)==true;
+        var admission=shortRead?shortQueries:queryCapabilities?.ShortReadOperations is null?legacyQueries:researchQueries;
+        using(await admission.EnterAsync(token))
         {
             var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:EtfBusinessProtocol.WriteRequest(query)),token);
             if(query.Operation=="dashboard"&&reply.Code=="UnknownQuery")throw new UnsupportedDashboardException();
+            if(query.Operation=="query-capabilities"&&reply.Code=="UnknownQuery")throw new UnsupportedQueryCapabilitiesException();
             if(reply.Code!="Ok" || reply.Payload is null)throw new InvalidDataException("后台查询失败："+reply.Code+"；请确认服务和ETF后台插件已安装。");
             try{return EtfBusinessProtocol.ReadResponse<T>(reply.Payload);}
             catch(EtfContractException error){throw new InvalidDataException("ETF业务契约校验失败："+error.Code+"；请核对桌面与后台插件版本。",error);}
         }
-        finally{queryGate.Release();}
     }
+    private async Task<EtfQueryCapabilities?> EnsureCapabilitiesAsync(CancellationToken token)
+    {
+        if(Volatile.Read(ref capabilitiesResolved))return queryCapabilities;
+        using(await capabilityNegotiation.EnterAsync(token))
+        {
+            if(Volatile.Read(ref capabilitiesResolved))return queryCapabilities;
+            try
+            {
+                var rows=(await ReadPagesAsync<EtfQueryCapabilities>(new("query-capabilities"),token)).Rows;
+                if(rows.Count!=1||rows[0].Version!=EtfQueryCapabilities.CurrentVersion||rows[0].Capabilities is null||rows[0].MaximumPageCount is <1 or >256
+                    ||rows[0].ShortReadOperations is {} names&&(names.Count>128||names.Distinct(StringComparer.Ordinal).Count()!=names.Count||names.Any(x=>string.IsNullOrWhiteSpace(x)||x.Length>40)))
+                    throw new InvalidDataException("后台查询能力版本或限额无效，请更新后台插件。");
+                queryCapabilities=rows[0];
+            }
+            catch(UnsupportedQueryCapabilitiesException){queryCapabilities=null;}
+            Volatile.Write(ref capabilitiesResolved,true);return queryCapabilities;
+        }
+    }
+    private sealed class UnsupportedQueryCapabilitiesException:Exception;
     /// <summary>同一次读取沿用快照，任何分页失败都不把半份结果交给页面。</summary>
     private async Task<(List<T> Rows,string? Metadata)> ReadPagesAsync<T>(EtfRequest query,CancellationToken token)
     {
@@ -138,16 +168,16 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         =>(await ReadPagesAsync<CollectionAttempt>(new("collection-attempts",key.Market,key.Ticker,from,to),token)).Rows;
     public async Task<List<EtfAcceptance>> AcceptanceAsync(DateOnly through,CancellationToken token)
     {
-        // 每只独立核验份额和市场日历，完整收齐再返回；旧服务忽略证券筛选时明确拒绝。
-        var pool=(await ConfigurationAsync(token)).Where(x=>x.Active).ToArray();var result=new List<EtfAcceptance>();
-        foreach(var item in pool)
-        {
-            var rows=(await ReadPagesAsync<EtfAcceptance>(new("acceptance",item.Market,item.Ticker,To:through),token)).Rows;
-            if(rows.Count!=1||rows[0].Market!=item.Market||rows[0].Ticker!=item.Ticker||rows[0].Through!=through)
-                throw new InvalidDataException("逐证券验收响应不匹配，请更新后台服务或刷新观察池。");
-            result.AddRange(rows);
-        }
-        return result;
+        var capabilities=await EnsureCapabilitiesAsync(token);
+        if(capabilities is null||!capabilities.Capabilities.Contains(EtfQueryCapabilities.BatchAcceptance,StringComparer.Ordinal))
+            throw new InvalidDataException("后台未声明已知版本的批量验收能力，请更新后台插件。");
+        var result=await ReadPagesAsync<EtfAcceptance>(new("acceptance-batch",To:through,Count:capabilities.MaximumPageCount),token);
+        var metadata=JsonSerializer.Deserialize<EtfAcceptanceBatchMetadata>(result.Metadata??"null");
+        if(metadata is null||metadata.Version!=1||metadata.Through!=through||metadata.ExpectedEtfs!=result.Rows.Count
+            ||result.Rows.Any(x=>x.Through!=through)||result.Rows.Select(x=>(x.Market,x.Ticker)).Distinct().Count()!=result.Rows.Count
+            ||metadata.PoolFingerprint!=EtfAcceptanceBatchMetadata.Fingerprint(result.Rows))
+            throw new InvalidDataException("批量验收版本、配置池或分页结果不完整，拒绝返回部分验收。");
+        return result.Rows;
     }
     /// <summary>写操作先持久接受；响应丢失后沿用原ID、原参数，禁止新操作冒充重试。</summary>
     private async Task<Guid> RunAsync(string job,EtfRequest value,CancellationToken token)

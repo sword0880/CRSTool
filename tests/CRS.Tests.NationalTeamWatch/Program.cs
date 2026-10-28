@@ -59,6 +59,7 @@ if(args is ["--etf-loading"]){await EtfLoadingChecks.Run();return;}
 if(args is ["--dashboard-profile-checks"]){DashboardProfileChecks.Run();return;}
 if(args is ["--dashboard-batch-checks"]){DashboardBatchChecks.Run();return;}
 if(args is ["--acceptance-batch-checks"]){AcceptanceBatchChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.AcceptanceBatch",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--snapshot-verification",var snapshotVerificationRoot]){SnapshotVerificationChecks.Run(snapshotVerificationRoot);return;}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
 if(args is ["--business-contracts"]){await BusinessContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.BusinessContracts",Guid.NewGuid().ToString("N")));return;}
@@ -130,6 +131,7 @@ await ReadIsolationChecks.RunAsync(Path.Combine(root,"read-isolation"));
 await BusinessContractChecks.Run(Path.Combine(root,"business-contracts"));
 ExitAlertChecks.Run(Path.Combine(root,"exit-alerts"));
 ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));
+SnapshotVerificationChecks.Run(Path.Combine(root,"snapshot-verification"));
 ExitAlertReplayChecks.Run();
 await GapRecoveryChecks.Run(root);
 MarketActivityChecks.Run(root);
