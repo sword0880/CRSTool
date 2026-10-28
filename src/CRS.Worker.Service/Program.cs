@@ -69,9 +69,11 @@ namespace CRS.Worker.Service
                 using var ownership=new FileStream(Path.Combine(locations.Data,"owner.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
                 // 在Generic Host已接入SCM后核验较大的快照，仍先于密钥、迁移及插件打开。
                 // 未解决状态非零停止；候选先持久标记风险，不能凭未观察到写入自动回退。
-                new WorkerUpgradeJournal(locations.Data).BeforeStorageOpen(AppContext.BaseDirectory);
-                key = ServiceKey.Open(locations.Data);
+                var upgrade=new WorkerUpgradeJournal(locations.Data);
+                upgrade.BeforeStorageOpen(AppContext.BaseDirectory);
+                key = upgrade.Read() is{Stage:"Starting"}?ServiceKey.OpenExisting(locations.Data):ServiceKey.Open(locations.Data);
                 StorageSecurity.Validate(locations.Data, locations.Console,stoppingToken); // 新建密钥也须满足数据树权限策略。
+                await WorkerStorageMigrations.RunAsync(AppContext.BaseDirectory,locations.Data,locations.Plugins,locations.Trust,upgrade,key,stoppingToken);
                 using var repository = new EncryptedTaskRepository(Path.Combine(locations.Data, "scheduler-config.db"), key);
                 // 公共通知组件在组合根装配，宿主不包含SMTP实现或业务风险规则。
                 var email=new CRS.Notifications.EmailNotificationService(locations.Data);
@@ -92,7 +94,7 @@ namespace CRS.Worker.Service
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 await using var cleanup=new WorkerDataCleanup(locations.Data);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
-                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup);
+                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup,documentInbox:new WorkerDocumentInbox(locations.Data));
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 var securityTask=StorageSecurity.MonitorAsync(locations.Data,locations.Console,
@@ -100,7 +102,7 @@ namespace CRS.Worker.Service
                 try
                 {
                     await runtime.StartAsync(stoppingToken);
-                    new WorkerUpgradeJournal(locations.Data).MarkHealthy(AppContext.BaseDirectory);
+                    new WorkerUpgradeJournal(locations.Data).MarkHealthy(AppContext.BaseDirectory,catalog.Statuses,catalog.ExpectedPlugins);
                     diagnostics.Write("Started", "service", "Running");
                     pipeTask = new BackgroundPipeServer(runtime, locations.Pipe,
                         diagnostic:(command,code)=>diagnostics.Write("PipeRequestFailed",command,code)).RunAsync(listeners.Token);

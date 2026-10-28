@@ -24,7 +24,7 @@ internal static class ResearchFeatureAuditTool
                 records.Add(new { Feature = feature, State = "Available", ObservedAt = CRS.Timing.BeijingClock.Now, Data = value });
                 return value;
             }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or OperationCanceledException or InvalidOperationException or NotSupportedException)
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or OperationCanceledException or InvalidOperationException or NotSupportedException)
             {
                 failures++;
                 records.Add(new { Feature = feature, State = "Unavailable", ObservedAt = CRS.Timing.BeijingClock.Now,
@@ -52,6 +52,15 @@ internal static class ResearchFeatureAuditTool
         // 已有NAV适配器的明确基金；不能以一只基金可用声称监控池NAV全部接通。
         if (pool?.Any(x => x.Market == "SZSE" && x.Ticker == "159915") == true)
             await Read("Nav:SZSE:159915", token => client.NavPointsAsync(new("SZSE", "159915"), from, through, token));
+        // 新接口只读抽样验证协议可用；不将一只基金或当前截面的结果推广为全池金融覆盖。
+        if(pool is{Length:>0})
+        {
+            var fund=pool[0];var key=new EtfKey(fund.Market,fund.Ticker);
+            await Read("NamedEtfHoldingHistory:"+key.Market+":"+key.Ticker,token=>client.EtfHoldingHistoryAsync(key,through,token));
+            await Read("JointExitStudy:"+key.Market+":"+key.Ticker,token=>client.JointExitStudyAsync(key,through,token));
+        }
+        await Read("MarketCycleStudyCurrent",token=>client.MarketCycleStudyAsync(through,null,token));
+        await Read("MarketBreadthHistoryCurrent",token=>client.MarketBreadthHistoryAsync(through,token));
         var after = await Read("WorkerHealthAfter", token => pipe.QueryAsync("GetHealth", token));
         var healthStable = before?.Health is { State: "Running" } a && after?.Health is { State: "Running" } b && a.ProcessId == b.ProcessId;
         var summary = new { CheckedAt = CRS.Timing.BeijingClock.Now, ReadOnly = true, HealthStable = healthStable,

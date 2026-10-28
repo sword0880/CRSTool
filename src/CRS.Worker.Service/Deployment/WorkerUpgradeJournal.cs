@@ -6,7 +6,10 @@ namespace CRS.Worker.Service;
 /// <summary>Worker独立维护日志；不复用桌面插件升级状态，也不把“未观察到写入”当作无新事实证明。</summary>
 public sealed record WorkerUpgradeRecord(int Format, string Id, string PreviousReleaseHash,
     string CandidateReleaseHash, string PreviousVersion, string CandidateVersion,
-    string Stage, bool NewFactsPossible, DateTimeOffset UpdatedUtc, string? BackupManifestHash = null);
+    string Stage, bool NewFactsPossible, DateTimeOffset UpdatedUtc, string? BackupManifestHash = null)
+{
+    public string? StorageMigrationReceiptHash {get;init;}
+}
 
 /// <summary>在打开密钥/数据库前持久标记风险。调用方必须持有数据目录的owner.lock。</summary>
 public sealed class WorkerUpgradeJournal(string dataDirectory)
@@ -28,6 +31,7 @@ public sealed class WorkerUpgradeJournal(string dataDirectory)
             || !Hash(record.PreviousReleaseHash) || !Hash(record.CandidateReleaseHash)
             || !Version.TryParse(record.PreviousVersion, out _) || !Version.TryParse(record.CandidateVersion, out _)
             || record.BackupManifestHash is { } backup && !Hash(backup)
+            || record.StorageMigrationReceiptHash is { } receipt && !Hash(receipt)
             || record.Stage is "Switched" or "Starting" or "Healthy" or "Committed" && record.BackupManifestHash is null
             || record.Stage is "Starting" or "Healthy" or "Committed" && !record.NewFactsPossible
             || record.Stage == "RolledBack" && record.NewFactsPossible)
@@ -90,15 +94,28 @@ public sealed class WorkerUpgradeJournal(string dataDirectory)
         if (record.Stage != "Switched" || record.BackupManifestHash is null)
             throw new InvalidOperationException("后台升级尚未解决，需要显式恢复；禁止自动重启改写数据。");
         VerifyBackup(record);
-        Write(record with { Stage = "Starting", NewFactsPossible = true, UpdatedUtc = CRS.Timing.BeijingClock.Now });
+        Write(record with { Stage = "Starting", NewFactsPossible = true, StorageMigrationReceiptHash = null, UpdatedUtc = CRS.Timing.BeijingClock.Now });
     }
-    public void MarkHealthy(string programDirectory)
+    internal void MarkStorageMigrationsReady(string programDirectory,string receiptHash)
+    {
+        var record=Read()??throw new InvalidOperationException("没有维护代次。");
+        if(record.Stage!="Starting"||!record.NewFactsPossible||!ReleaseHash(programDirectory).Equals(record.CandidateReleaseHash,StringComparison.OrdinalIgnoreCase)||!Hash(receiptHash)
+            ||WorkerStorageMigrations.FileHash(WorkerStorageMigrations.ReceiptPath(dataDirectory,record.Id))!=receiptHash)throw new InvalidDataException("存储维护回执没有绑定当前候选。");
+        Write(record with{StorageMigrationReceiptHash=receiptHash,UpdatedUtc=CRS.Timing.BeijingClock.Now});
+    }
+    public void MarkHealthy(string programDirectory,IReadOnlyList<CRS.Worker.Abstractions.BackgroundPluginStatus> plugins,IReadOnlyList<string> expectedPlugins)
     {
         var record = Read();
         if (record is null || record.Stage is "Committed" or "RolledBack") return;
         if (record.Stage != "Starting" || !record.NewFactsPossible
             || !ReleaseHash(programDirectory).Equals(record.CandidateReleaseHash, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("候选升级状态与健康确认不一致。");
+        // 普通运行继续隔离单个插件故障；维护确认必须证明本次加载的插件都已启动。
+        if(plugins.Count>32||expectedPlugins.Count>32||plugins.Select(x=>x.PluginId).Distinct(StringComparer.Ordinal).Count()!=plugins.Count
+            ||expectedPlugins.Distinct(StringComparer.Ordinal).Count()!=expectedPlugins.Count||plugins.Any(x=>x.State!="Started")
+            ||!expectedPlugins.ToHashSet(StringComparer.Ordinal).SetEquals(plugins.Select(x=>x.PluginId)))throw new InvalidOperationException("候选插件未完整启动，不能确认维护健康。");
+        if(WorkerStorageMigrationPlans.Read(programDirectory).Length>0&&(record.StorageMigrationReceiptHash is null
+            ||WorkerStorageMigrations.FileHash(WorkerStorageMigrations.ReceiptPath(dataDirectory,record.Id))!=record.StorageMigrationReceiptHash))throw new InvalidDataException("候选存储维护尚未确认完成。");
         Write(record with { Stage = "Healthy", UpdatedUtc = CRS.Timing.BeijingClock.Now });
     }
 }

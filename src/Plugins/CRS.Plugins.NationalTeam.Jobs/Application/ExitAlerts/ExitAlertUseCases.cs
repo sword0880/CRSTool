@@ -8,6 +8,7 @@ public sealed partial class ExitAlertUseCases : MarketUseCaseScope
     internal ExitAlertUseCases(MarketApplicationSession session,IEtfHolderCandidateParser holderParser):base(session)=>this.holderParser=holderParser;
 
     public Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertOverview(),token);
+    public Task<JointExitStudyReport> JointExitStudyAsync(EtfKey key,DateOnly asOf,CancellationToken token)=>ReadPortAsync<IJointExitStudyReadRepository,JointExitStudyReport>(r=>r.JointExitStudy(key,asOf),token);
     public Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertConfiguration(),token);
     public Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token)=>SaveAlertConfigurationAsync(value,token,null);
     public Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token,Guid? commandId)=>RunAsync((IExitAlertWriteRepository repository)=>{repository.SaveAlertConfiguration(value,commandId);return true;},token);

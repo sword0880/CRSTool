@@ -67,7 +67,7 @@ internal sealed partial class EquityStore
     }
     public EquityDirectionReport EquityDirection(DateOnly? reportAsOf)
     {
-        var observed=CRS.Timing.BeijingClock.Read(clock);var today=DateOnly.FromDateTime(observed.DateTime);
+        var observed=CRS.Timing.BeijingClock.Normalize(session.ReadSnapshotCutoff??clock.GetUtcNow());var today=DateOnly.FromDateTime(observed.DateTime);
         if(reportAsOf>today)throw new InvalidDataException("报告期不能在未来。");
         if(Convert.ToInt32(Scalar("SELECT version FROM feature_schema_migration WHERE feature='equity-direction'"))!=1)throw new InvalidDataException("方向报告库版本缺失或不兼容。");
         ValidateEvidence();var watches=EquityWatchlist();session.CheckReadLimit(watches.Count);var disclosures=new Dictionary<EtfKey,List<EquityDisclosure>>();

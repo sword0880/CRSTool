@@ -67,6 +67,24 @@ function Set-WorkerUpgradeStage([string]$Data, [hashtable]$Record, [string]$Stag
     $Record.Stage = $Stage; $Record.UpdatedUtc = [DateTimeOffset]::UtcNow.ToString('O')
     Write-WorkerJson (Get-WorkerChild $Data 'maintenance/upgrade.json') $Record
 }
+function Get-WorkerStorageMigrationSeconds([hashtable]$Release) {
+    if(-not $Release.ContainsKey('storageMigrations')){return 0}
+    $plans=$Release.storageMigrations
+    if($plans -isnot [array] -or $plans.Count -gt 4){throw '存储维护计划必须是有界数组。'}
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $seconds=0
+    foreach($plan in $plans){
+        if($plan -isnot [Collections.IDictionary] -or $plan.Count -ne 3 -or
+            -not $plan.Contains('pluginId') -or -not $plan.Contains('migrationId') -or -not $plan.Contains('timeoutSeconds') -or
+            $plan.pluginId -isnot [string] -or $plan.pluginId -cnotmatch '^[a-z0-9][a-z0-9.-]{0,79}$' -or
+            $plan.migrationId -isnot [string] -or $plan.migrationId -cnotmatch '^[a-z0-9][a-z0-9.-]{0,79}$' -or
+            ($plan.timeoutSeconds -isnot [int] -and $plan.timeoutSeconds -isnot [long]) -or
+            $plan.timeoutSeconds -lt 1 -or $plan.timeoutSeconds -gt 600 -or -not $seen.Add($plan.pluginId)){throw '存储维护计划字段、期限或插件唯一性无效。'}
+        $seconds+=$plan.timeoutSeconds
+    }
+    if($seconds -gt 1200 -or ($plans.Count -gt 0 -and -not $Release.files.Contains('Runner/CRS.Worker.PluginRunner.exe'))){throw '存储维护总期限超限或缺少独立Runner。'}
+    return $seconds
+}
 function Test-WorkerPackage([string]$Directory, [string]$Publisher, [switch]$Development) {
     $root = [IO.Path]::GetFullPath($Directory)
     Assert-WorkerNoLinks $root
@@ -97,6 +115,7 @@ function Test-WorkerPackage([string]$Directory, [string]$Publisher, [switch]$Dev
         if ($relative -notin @('release.json','release.json.p7s') -and -not $release.files.ContainsKey($relative)) { throw '发行包含未登记文件。' }
     }
     if (-not $release.files.ContainsKey('CRS.Worker.Service.exe') -or -not $release.files.ContainsKey('trusted-background-plugins.json')) { throw '发行缺少Worker入口或插件索引。' }
+    $null=Get-WorkerStorageMigrationSeconds $release
     return $release
 }
 function Copy-WorkerPackage([string]$Source, [string]$Target, [string]$AclSource) {

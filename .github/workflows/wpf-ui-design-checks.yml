@@ -44,6 +44,38 @@ jobs:
       - name: Verify direct equity period, direction evidence and sample denominators
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --equity-direction "$env:GITHUB_WORKSPACE/artifacts/equity-direction"
+      - name: Verify market activity knowledge cutoff, review journal and migration
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --activity-knowledge "$env:GITHUB_WORKSPACE/artifacts/activity-knowledge"
+      - name: Verify cycle query integration, breadth originals and fail-closed inputs
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-cycle-study "$env:GITHUB_WORKSPACE/artifacts/market-cycle-study"
+      - name: Verify bounded document staging and breadth review history
+        shell: pwsh
+        run: |
+          dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --staged-documents "$env:GITHUB_WORKSPACE/artifacts/staged-documents"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --document-ingress-boundaries "$env:GITHUB_WORKSPACE/artifacts/document-ingress-boundaries"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --breadth-workflow "$env:GITHUB_WORKSPACE/artifacts/breadth-workflow"
+      - name: Render breadth workflow (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --breadth-visual-preview "$env:GITHUB_WORKSPACE/artifacts/breadth-workflow" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/breadth-workflow"
+      - name: Verify joint exit snapshot (synthetic normalized inputs)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --joint-exit-study "$env:GITHUB_WORKSPACE/artifacts/joint-exit-study"
+      - name: Verify named ETF multi-period history (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --named-etf-history "$env:GITHUB_WORKSPACE/artifacts/named-etf-history"
+      - name: Render named ETF history and gaps (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --named-etf-history-visual-preview "$env:GITHUB_WORKSPACE/artifacts/named-etf-history" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/named-etf-history"
+      - name: Render joint exit snapshot (synthetic)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --joint-exit-visual-preview "$env:GITHUB_WORKSPACE/artifacts/joint-exit-study" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/joint-exit-study"
+      - name: Render compact cycle study (synthetic, no production predictions)
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --market-cycle-visual-preview "$env:GITHUB_WORKSPACE/artifacts/market-cycle-study" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/market-cycle"
       - name: Verify cleanup preview, option invalidation and unknown result recovery
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --data-cleanup-model
@@ -147,6 +179,9 @@ jobs:
       - name: Verify public research SQLite ownership and preservation of encrypted legacy files
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --public-storage
+      - name: Verify resumable dual database plaintext migration with preserved originals
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --national-team-migration "$env:GITHUB_WORKSPACE/artifacts/national-team-migration"
       - name: Verify backend use cases and mandatory client workspace contracts
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --application-boundaries

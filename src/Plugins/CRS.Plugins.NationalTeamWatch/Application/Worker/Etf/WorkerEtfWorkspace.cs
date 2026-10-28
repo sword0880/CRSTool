@@ -40,7 +40,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         await queryGate.WaitAsync(token);
         try
         {
-            var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:JsonSerializer.Serialize(query)),token);
+            var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:EtfBusinessProtocol.WriteRequest(query)),token);
             if(query.Operation=="dashboard"&&reply.Code=="UnknownQuery")throw new UnsupportedDashboardException();
             if(reply.Code!="Ok" || reply.Payload is null)throw new InvalidDataException("后台查询失败："+reply.Code+"；请确认服务和ETF后台插件已安装。");
             try{return EtfBusinessProtocol.ReadResponse<T>(reply.Payload);}
@@ -150,9 +150,9 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         return result;
     }
     /// <summary>写操作先持久接受；响应丢失后沿用原ID、原参数，禁止新操作冒充重试。</summary>
-    private async Task RunAsync(string job,EtfRequest value,CancellationToken token)
+    private async Task<Guid> RunAsync(string job,EtfRequest value,CancellationToken token)
     {
-        var payload=JsonSerializer.Serialize(value);
+        var payload=EtfBusinessProtocol.WriteRequest(value);
         if(uncertain is not null && (uncertain.JobId!=job || uncertain.Payload!=payload))
             throw new InvalidDataException("上次任务结果尚未确认，请用原参数重试或到任务管理查看记录。");
         var request=uncertain??=new(WorkerProtocol.Version,Guid.NewGuid(),"RunNow",Plugin,job,Payload:payload);
@@ -174,6 +174,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         if(reply.Receipt.Code=="AlreadyRunning")throw new InvalidDataException("同一任务已有执行中或待执行请求，本次未重复创建。请到“任务中心 → 当前任务”查看实际状态；原请求及日期区间保持不变。");
         if(reply.Receipt.Code=="Rejected")throw new InvalidDataException("配置未保存：输入不符合要求或已被其它窗口修改，请刷新目录后重新选择并重试。");
         if(reply.Receipt.Code!="Succeeded")throw new InvalidDataException("后台任务结果："+reply.Receipt.Code+"；已提交事实保留，详情见执行记录。");
+        return request.RequestId;
     }
     public async Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)
     {await RunAsync("official-share-sync",new("sync",From:from,To:to),token);return new(to.DayNumber-from.DayNumber+1,0);}
@@ -181,7 +182,8 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     public Task MembershipAsync(EtfKey key,string name,string index,bool active,string reason,CancellationToken token)=>RunAsync("watchlist",new("watchlist",key.Market,key.Ticker,Name:name,Index:index,Active:active,Reason:reason),token);
 
     /// <summary>只写用户选择的本地导出文件，完整哈希匹配后原子替换目标。</summary>
-    public async Task ExportEvidenceAsync(string revision,bool original,string destination,CancellationToken token)
+    public Task ExportEvidenceAsync(string revision,bool original,string destination,CancellationToken token)=>ExportEvidenceCoreAsync(new("export",Revision:revision,Original:original),destination,token);
+    private async Task ExportEvidenceCoreAsync(EtfRequest request,string destination,CancellationToken token)
     {
         var target=Path.GetFullPath(destination);
         // 即使管理员选择错误位置，也不能让导出覆盖程序、服务库或桌面私有数据。
@@ -200,7 +202,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
             var offset=0;string? expected=null;long? length=null;
             while(true)
             {
-                var chunk=await QueryAsync<EvidenceChunk>(new("export",Revision:revision,Offset:offset,Original:original),token);
+                var chunk=await QueryAsync<EvidenceChunk>(request with{Offset=offset},token);
                 expected??=chunk.Hash;length??=chunk.Length;
                 if(chunk.Hash!=expected || chunk.Length!=length || chunk.Length>8*1024*1024 || chunk.Offset!=offset || chunk.Bytes.Length>16384 || offset+chunk.Bytes.Length>length)
                     throw new InvalidDataException("证据分块不一致。");

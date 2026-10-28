@@ -16,8 +16,8 @@ public partial class EquityViewModel(IDirectEquityWorkspace workspace,Cancellati
     public ObservableCollection<EquityWatch> Watches {get;}=[];
     public ObservableCollection<EquityDisclosure> Disclosures {get;}=[];
     public ObservableCollection<EquityHoldingRow> Events {get;}=[];
-    public IReadOnlyList<string> Institutions {get;}=["全部机构","汇金投资","汇金资管","证金公司","社保基金","养老保险基金","主体待核验"];
-    public IReadOnlyList<string> ReviewInstitutions {get;}=["汇金投资","汇金资管","证金公司","社保基金","养老保险基金"];
+    public IReadOnlyList<string> Institutions {get;}=["全部机构",..InstitutionAccounts.Groups,"主体待核验"];
+    public IReadOnlyList<string> ReviewInstitutions {get;}=InstitutionAccounts.Groups;
     [ObservableProperty] private string? reviewInstitution;
     public IReadOnlyList<string> Natures {get;}=["全部性质","证券投资持仓","战略控股/参股","性质待核验"];
     public IReadOnlyList<string> Markets {get;}=["SSE","SZSE"];

@@ -23,7 +23,7 @@ internal static class WorkerUpgradeChecks
         { Check(true, name); return; }
         throw new InvalidOperationException("未拒绝：" + name);
     }
-    private static WorkerUpgradeRecord Seed(string data, string program, string pluginId, string jobId)
+    internal static WorkerUpgradeRecord Seed(string data, string program, string pluginId, string jobId)
     {
         StorageSecurity.Prepare(data, true);
         var key = ServiceKey.Open(data);
@@ -80,7 +80,11 @@ internal static class WorkerUpgradeChecks
         journal.BeforeStorageOpen(program);
         Check(journal.Read() is { Stage: "Starting", NewFactsPossible: true }, "打开密钥和数据库之前先持久标记新事实风险");
         Reject(() => journal.BeforeStorageOpen(program), "首次打开后强杀不能靠SCM重启清除风险");
-        journal.MarkHealthy(program);
+        Reject(()=>journal.MarkHealthy(program,[new(pluginId,"Failed","SyntheticDatabaseFormat")],[pluginId]),"插件加载失败时不能把宿主运行当作维护健康");
+        Reject(()=>journal.MarkHealthy(program,[],[pluginId]),"遗漏应加载插件不能确认维护健康");
+        Reject(()=>journal.MarkHealthy(program,[new(pluginId,"Started"),new(pluginId,"Started")],[pluginId]),"重复插件状态不能充当完整启动证据");
+        Check(journal.Read()!.Stage=="Starting","失败的健康确认保留本次风险阶段，不误写Healthy");
+        journal.MarkHealthy(program,[new(pluginId,"Started")],[pluginId]);
         Check(journal.Read() is { Stage: "Healthy", NewFactsPossible: true }, "应用就绪不自动提交维护事务");
         Save(data, journal.Read()! with { Stage = "Committed" });
         journal.BeforeStorageOpen(program);
@@ -93,7 +97,10 @@ internal static class WorkerUpgradeChecks
         journal.BeforeStorageOpen(previous);
         Check(journal.Read()!.Stage == "RolledBack", "无新事实且原发行相符才允许回退启动");
         await ProcessStagesAsync(root, program, pluginId, jobId);
+        await PluginFailureAsync(root,program,pluginId,jobId);
+        File.WriteAllText(Path.Combine(root,"upgrade-checks-acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,Source="SyntheticWorkerUpgradeStartupAndPluginHealth",Root=root},new JsonSerializerOptions{WriteIndented=true}));
         Console.WriteLine($"Worker升级启动专项通过：{passed}项。");
+        Console.WriteLine("隔离证据："+Path.Combine(root,"upgrade-checks-acceptance.json"));
     }
     private static Process Launch(string program, string data, string pipe)
     {
@@ -103,6 +110,38 @@ internal static class WorkerUpgradeChecks
         var process = Process.Start(info)!;
         process.OutputDataReceived += (_, _) => { }; process.ErrorDataReceived += (_, _) => { };
         process.BeginOutputReadLine(); process.BeginErrorReadLine(); return process;
+    }
+    private static async Task PluginFailureAsync(string root,string program,string pluginId,string jobId)
+    {
+        // 只改变测试自有发行副本的入口和信任摘要，不修改候选包或已安装服务。
+        var failedProgram=Path.Combine(root,"plugin-failure-program");Directory.CreateDirectory(failedProgram);
+        foreach(var file in Directory.GetFiles(program,"*",SearchOption.AllDirectories))
+        {var target=Path.Combine(failedProgram,Path.GetRelativePath(program,file));Directory.CreateDirectory(Path.GetDirectoryName(target)!);File.Copy(file,target);}
+        var indexPath=Path.Combine(failedProgram,"trusted-background-plugins.json");
+        var packages=JsonSerializer.Deserialize<CRS.Worker.PluginHost.TrustedPackage[]>(File.ReadAllBytes(indexPath),new JsonSerializerOptions{PropertyNameCaseInsensitive=true})!;
+        var package=packages.Single(x=>x.Id==pluginId);var manifest=Path.Combine(failedProgram,"Plugins",package.Directory,"plugin.json");
+        var json=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(File.ReadAllBytes(manifest))!;
+        json["backgroundEntry"]=JsonSerializer.SerializeToElement(new{assembly="CRS.Worker.FixturePlugin.dll",type="CRS.Worker.FixturePlugin.BadStartEntry"});File.WriteAllBytes(manifest,JsonSerializer.SerializeToUtf8Bytes(json));
+        package.Files["plugin.json"]=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest)));File.WriteAllBytes(indexPath,JsonSerializer.SerializeToUtf8Bytes(packages));
+        var data=Path.Combine(root,"plugin-failure-data");var record=Seed(data,failedProgram,pluginId,jobId);Save(data,record with{Stage="Switched"});
+        using(var failed=Launch(failedProgram,data,"CRS.Upgrade.BadPlugin."+Guid.NewGuid().ToString("N")))
+        {
+            try
+            {
+                await failed.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(45));
+                Check(failed.ExitCode!=0&&new WorkerUpgradeJournal(data).Read() is{Stage:"Starting",NewFactsPossible:true},"真实维护候选插件启动失败时非零退出，不能误写Healthy");
+            }
+            finally{if(!failed.HasExited){failed.Kill(entireProcessTree:true);await failed.WaitForExitAsync();}}
+        }
+        var normalData=Path.Combine(root,"ordinary-plugin-failure");var pipe="CRS.Ordinary.BadPlugin."+Guid.NewGuid().ToString("N");using var ordinary=Launch(failedProgram,normalData,pipe);
+        try
+        {
+            var client=new BackgroundPipeClient(pipe);var response=await WorkerProcessReadiness.WaitAsync(client,ordinary);
+            var jobs=await client.QueryAsync("GetJobs");
+            Check(response.Health?.State=="Degraded"&&response.Plugins?.SingleOrDefault(x=>x.PluginId==pluginId)?.State=="Failed"
+                &&jobs.Code=="Ok"&&jobs.Jobs?.Count==0,"普通启动保留Degraded及失败插件诊断，查询通道可用且不登记故障插件任务");
+        }
+        finally{if(!ordinary.HasExited){ordinary.Kill(entireProcessTree:true);await ordinary.WaitForExitAsync();}}
     }
     private static async Task ProcessStagesAsync(string root, string program, string pluginId, string jobId)
     {

@@ -8,6 +8,12 @@ public static class EtfBusinessProtocol
 {
     public const int Version=1;
     public const int MaximumRequestBytes=4096;
+    private static readonly JsonSerializerOptions WireJson=new(){DefaultIgnoreCondition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,Encoder=System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping};
+    public static string WriteRequest(EtfRequest request)
+    {
+        var payload=JsonSerializer.Serialize(request,WireJson);
+        if(Encoding.UTF8.GetByteCount(payload)>MaximumRequestBytes)throw new InvalidDataException("业务参数超过限额，请缩短说明或来源地址。");return payload;
+    }
     private static readonly JsonSerializerOptions Json=new(){MaxDepth=32,RespectRequiredConstructorParameters=true,RespectNullableAnnotations=true};
 
     public static EtfRequest ParseRequest(string payload)

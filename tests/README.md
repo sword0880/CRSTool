@@ -1,5 +1,21 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+国家队双库迁移：`CRS.Tests.NationalTeamWatch --national-team-migration <新隔离目录>`验证双库保全、认证日志、八处中断恢复、WAL强杀和自增高水位；默认国家队回归及CI也包含此检查。`Prepare-WorkerUpgradeFixture.ps1 -Destination <新目录>`创建不可发行的合成Worker夹具，`CRS.Tests.Background --upgrade-only <夹具目录>`验证升级启动；`--storage-migration-host <夹具目录> <新目录>`验证独立维护Runner、密钥绑定、超时回收及同代次恢复。
+
+完整迁移发行须显式使用`Publish-BackgroundService.ps1 -OutputDirectory <新目录> -MigrateNationalTeamStorage`。`CRS.Tests.WorkerEtf --storage-migration-pipe <完整迁移候选> <新目录>`使用未经修改的候选、生产国家队入口及真实客户端回读合成资料。管理员运行`Test-NationalTeamScmStorageMigration.ps1 -PackageDirectory <完整迁移候选>`仅创建并最终移除唯一命名的LocalService测试服务，验证真实身份、迁移后中断与禁止旧库覆盖；工作区隔离现场保留，不操作正式服务。新CI工作流登记了这些入口，远端执行不能凭配置修改宣称通过。源码、隔离LocalService与正式数据证据分别见[迁移边界](../docs/implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)。
+
+具名ETF历史：`CRS.Tests.NationalTeamWatch --named-etf-history <隔离目录>`；`CRS.Tests.WorkerEtf --named-etf-history-pipe <完整候选> <不存在目录>`；`CRS.Tests.PluginRecovery --named-etf-history-visual-preview <专项输出> <截图目录>`。同账户报告期差额、最新期冲突/原件损坏、主体分类及未知缺口见[实现与限制](../docs/implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
+
+联合观察：`CRS.Tests.NationalTeamWatch --joint-exit-study <隔离目录>`；`CRS.Tests.WorkerEtf --joint-exit-pipe <完整候选> <不存在目录>`；`CRS.Tests.PluginRecovery --joint-exit-visual-preview <专项输出> <截图目录>`。候选分支为合成归一输入，跨进程为实际Runner中的缺失资料场景，不关闭真实金融模型门槛，见[联合观察](../docs/implementation/NATIONAL_TEAM_JOINT_EXIT_STUDY_20261028.md)。
+
+广度工作流：`CRS.Tests.Background --staged-documents <新目录>`核对共用暂存；`CRS.Tests.NationalTeamWatch --breadth-workflow <新目录>`核对待核验登记、状态历史及页面；`CRS.Tests.WorkerEtf --breadth-pipe <完整候选> <不存在目录>`核对实际管理员管道、监督Runner和双回执；`CRS.Tests.PluginRecovery --breadth-visual-preview <专项输出> <截图目录>`渲染合成档案。正式来源与模型验收边界见[广度工作流](../docs/implementation/NATIONAL_TEAM_BREADTH_WORKFLOW_20261028.md)。
+
+文件入口反向边界：`CRS.Tests.Background --document-ingress-boundaries <新目录>`验证服务端普通身份拒绝、实际公共通道禁止写入、仅文件块放宽至32KB和独立限流。传输分派Spy只证明协议与权限，完整金融登记仍以前述`--breadth-pipe`的Service/Runner/业务回执为证。
+
+周期接入：`CRS.Tests.NationalTeamWatch --market-cycle-study <新目录>`覆盖只读仓储实际评估、两市成交、广度原件、知识截止、幂等与日历核对。`CRS.Tests.PluginRecovery --market-cycle-visual-preview <专项输出> <截图目录>`渲染12张合成页面。周期真实客户端跨监督进程验收纳入`--activity-knowledge-pipe`；不代表正式完整行情或模型有效性。见[周期查询接入](../docs/implementation/NATIONAL_TEAM_MARKET_CYCLE_STUDY_20261027.md)。
+
+成交知识：`CRS.Tests.NationalTeamWatch --activity-knowledge <新目录>`验证首次系统可知、审核历史、迁移不倒填、事件完整性、回滚及界面竞态，纳入默认回归。`CRS.Tests.WorkerEtf --activity-knowledge-pipe <候选包> <不存在目录>`核对真实客户端、Runner、持久回执和历史指纹。`CRS.Tests.PluginRecovery --activity-knowledge-visual-preview <专项snapshot.json> <输出目录>`仅以合成资料渲染实际控件。范围及周期输入剩余门槛见[成交知识时间链](../docs/implementation/NATIONAL_TEAM_MARKET_ACTIVITY_KNOWLEDGE_20261027.md)。
+
 直接持股方向：`CRS.Tests.NationalTeamWatch --equity-direction <新目录>`验证同报告期、市值权重分母、分类核验、原件损坏和界面竞态；纳入默认回归。`CRS.Tests.WorkerEtf --equity-direction-pipe <新候选Worker包> <不存在目录>`验证实际客户端/Runner/持久回执，全部金融事实为合成夹具。`CRS.Tests.PluginRecovery --equity-direction-visual-preview <专项snapshot.json> <截图目录>`仅回放真实只读控件。边界及剩余门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)。
 
 ETF官方报告目录：`CRS.Tests.NationalTeamWatch --etf-report-index`默认回放仓库内两所响应及收据，校验完整分页、来源、事务、原件即时损坏和界面边界。`CRS.Tests.WorkerEtf --etf-report-pipe <候选Worker包> <目录响应夹具> <已保存PDF目录> <不存在的隔离目录>`验证实际桌面排队、Runner、持久回执、明确原件登记和待审候选；不会联网或安装服务。`CRS.Tests.PluginRecovery --etf-report-visual-preview <管道acceptance.json> <截图目录>`只读回放目录渲染真实页面。范围见[实现说明](../docs/implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。

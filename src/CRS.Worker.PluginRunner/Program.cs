@@ -16,6 +16,8 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        if(args.Contains("--maintenance",StringComparer.Ordinal))
+            return args.Contains("--supervised",StringComparer.Ordinal)?1:await MaintenanceRunner.RunAsync(args);
         if(args.Contains("--supervised",StringComparer.Ordinal))return await SupervisedRunner.RunAsync(args);
         try
         {

@@ -19,6 +19,10 @@ internal sealed class NationalTeamStores
     public readonly EtfStore Etf;
     public readonly EtfNavStudyStore NavStudy;
     public readonly EtfReportIndexStore EtfReports;
+    public readonly MarketBreadthStore Breadth;
+    public readonly MarketCycleStudyStore Cycle;
+    public readonly JointExitStudyStore JointExit;
+    public readonly EtfHoldingHistoryStore HoldingHistory;
     public NationalTeamStores(MarketDatabaseSession session)
     {
         Calendar=new(session);Activity=new(session,Calendar);
@@ -30,5 +34,8 @@ internal sealed class NationalTeamStores
         Industry=new(session);Equity=new(session);Index=new(session);Nav=new(session);
         NavStudy=new(session,Nav,Etf,Alerts);
         EtfReports=new(session);
+        Breadth=new(session);Cycle=new(session,Index,Calendar,Activity,Breadth);
+        JointExit=new(session,Etf,Alerts,NavStudy,Cycle,Industry,Calendar,Equity);
+        HoldingHistory=new(session,Etf,Alerts);
     }
 }

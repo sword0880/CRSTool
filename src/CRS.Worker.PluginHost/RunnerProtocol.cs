@@ -16,6 +16,9 @@ public sealed record RunnerProgress(Guid ExecutionId,BackgroundProgress Detail);
 public sealed record RunnerLifecycle(string Phase,string Code);
 public sealed record RunnerSource(string Host,SourceBudgetState? State=null,int Status=0,DateTimeOffset? Until=null,Guid? Lease=null,string? FailureCode=null);
 public sealed record RunnerNotification(string Channel,string Profile,BackgroundNotification Message);
+/// <summary>仅私有句柄传递；维护上下文不进入普通RPC、命令行或临时文件。</summary>
+public sealed record RunnerMaintenanceStart(string PackageHash,string Nonce,int ParentPid,BackgroundStorageMigrationContext Context);
+public sealed record RunnerMaintenanceResult(string PluginId,string PackageHash,string Nonce,int Pid,BackgroundStorageMigrationResult Result);
 
 /// <summary>私有继承stdio双向RPC；并行请求、取消和能力调用不经过桌面管道。</summary>
 public sealed class RunnerChannel : IAsyncDisposable

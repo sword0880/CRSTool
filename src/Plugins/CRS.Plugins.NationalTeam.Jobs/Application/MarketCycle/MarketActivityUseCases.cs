@@ -1,4 +1,5 @@
 using CRS.Worker.Abstractions;
+using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
 public sealed class MarketActivityUseCases : MarketUseCaseScope
@@ -9,6 +10,8 @@ public sealed class MarketActivityUseCases : MarketUseCaseScope
     public void SetMarketActivitySource(IMarketActivitySource source)=>activitySource=source;
     public Task<List<MarketActivityPoint>> MarketActivityAsync(CancellationToken token)=>ReadPortAsync((IMarketActivityReadRepository current)=>current.MarketActivity(),token);
     public Task<List<MarketActivityRevision>> MarketActivityRevisionsAsync(CancellationToken token)=>ReadPortAsync((IMarketActivityReadRepository current)=>current.MarketActivityRevisions(),token);
+    public Task<MarketActivityKnowledgeReport> MarketActivityKnowledgeAsync(DateOnly from,DateOnly through,DateTimeOffset? cutoff,CancellationToken token)
+        =>ReadPortAsync((IMarketActivityReadRepository current)=>current.MarketActivityKnowledge(from,through,cutoff),token);
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token)=>ReviewMarketActivityAsync(id,accept,reviewer,token,null);
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token,Guid? commandId)=>RunAsync((IMarketActivityWriteRepository repository)=>{repository.ReviewMarketActivity(id,accept,reviewer,commandId);return true;},token);
     public async Task<MarketActivitySyncReport> SyncRecentMarketActivityAsync(CancellationToken token)

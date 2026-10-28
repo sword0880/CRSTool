@@ -68,7 +68,7 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
             {
                 var archive=Child("maintenance/"+directory.Name+".json");
                 // 当前备份没有历史归档也必须保留；只读取当前维护状态，不把它列为清理候选。
-                if(current?.Id==directory.Name){entries.Add(entry with{Name="当前升级备份 "+directory.Name[..8],Reason="当前维护事务引用的回退快照，必须保留。"});continue;}
+                if(current?.Id==directory.Name){entries.Add(entry with{Reason="当前维护事务引用的回退快照，必须保留。"});continue;}
                 if(!File.Exists(archive)){entries.Add(entry);continue;}
                 var record=ReadRecord(archive);
                 if(record.Id!=directory.Name||record.Stage is not ("Committed" or "RolledBack")||record.BackupManifestHash is null||record.UpdatedUtc>Now)
@@ -89,7 +89,7 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
         foreach(var backup in backups.OrderByDescending(x=>x.Record.UpdatedUtc))
         {
             var eligible=current is not null&&current.UpdatedUtc<=Now&&(current.Stage is "Committed" or "RolledBack")&&!retained.Contains(backup.Record.Id)&&!damaged.Contains(backup.Record.Id);
-            var entry=backup.Target.Entry with{Name="升级前备份 · "+CRS.Timing.BeijingClock.Normalize(backup.Record.UpdatedUtc).ToString("yyyy-MM-dd HH:mm",CultureInfo.InvariantCulture)+" · "+backup.Record.PreviousVersion+" ["+backup.Record.Id[..8]+"]",Eligible=eligible,Selected=eligible&&operation.Options.IncludeHistoricalBackups,
+            var entry=backup.Target.Entry with{Eligible=eligible,Selected=eligible&&operation.Options.IncludeHistoricalBackups,
                 Reason=eligible?"已完成的旧升级副本；清理后不能依靠此副本回退到该历史版本。":retained.Contains(backup.Record.Id)?"保留最近两份或所选数量的已验证历史回退副本。":damaged.Contains(backup.Record.Id)?"备份字节与清单不符，保留现场供管理员处理。":"当前维护状态未确认完成，保留全部升级副本。"};
             entries.Add(entry);if(entry.Selected)targets.Add(backup.Target with{Entry=entry});
         }
@@ -120,13 +120,10 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
     {
         if(!Directory.Exists(directory))return [];
         StorageSecurity.RejectLinks(directory);
-        var files=new List<FileInfo>();var pending=new Stack<DirectoryInfo>();pending.Push(new(directory));var visited=0;
+        var files=new List<FileInfo>();var pending=new Stack<DirectoryInfo>();pending.Push(new(directory));
         while(pending.TryPop(out var parent))foreach(var entry in parent.EnumerateFileSystemInfos())
         {
-            // 父目录已在有界遍历中核实；利用枚举元数据逐层拒绝链接，避免每个文件重复查询整条祖先链。
-            // 真正删除及移动前仍对完整目标路径重新检查。
-            token.ThrowIfCancellationRequested();if((entry.Attributes&FileAttributes.ReparsePoint)!=0)throw new StorageSecurityException();
-            if(++visited>MaximumFiles)throw new InvalidDataException("清理目录超过安全枚举限额。");
+            token.ThrowIfCancellationRequested();StorageSecurity.RejectLinks(entry.FullName);
             if(entry is DirectoryInfo child)pending.Push(child);else files.Add((FileInfo)entry);
             if(files.Count>MaximumFiles)throw new InvalidDataException("清理目录超过安全枚举限额。");
         }

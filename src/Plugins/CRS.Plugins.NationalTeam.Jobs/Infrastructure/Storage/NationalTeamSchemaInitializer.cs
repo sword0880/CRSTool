@@ -18,6 +18,7 @@ internal static class NationalTeamSchemaInitializer
         stores.Alerts.InitializeExitAlertSchema();stores.Nav.InitializeSchema();stores.Industry.InitializeSchema();stores.Index.InitializeSchema();
         initializeApprovals();
         stores.EtfReports.InitializeSchema();
+        stores.Breadth.InitializeSchema();
         session.Execute("INSERT OR IGNORE INTO plugin_schema_migration VALUES(2,$now,'2.0.0'); PRAGMA user_version=2;",("$now",session.Now));
     }
 }

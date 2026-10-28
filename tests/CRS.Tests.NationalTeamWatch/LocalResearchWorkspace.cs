@@ -4,6 +4,9 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 /// <summary>仅供WPF合成测试转发本地用例；正式桌面始终使用授权Worker客户端。</summary>
 internal sealed class LocalResearchWorkspace(NationalTeamApplication application) : ResearchWorkspaceStub
 {
+    public override Task<JointExitStudyReport> JointExitStudyAsync(EtfKey key,DateOnly asOf,CancellationToken token)=>application.Alerts.JointExitStudyAsync(key,asOf,token);
+    public override Task<MarketCycleStudyReport> MarketCycleStudyAsync(DateOnly asOf,DateTimeOffset? cutoff,CancellationToken token)=>application.Cycle.MarketCycleStudyAsync(asOf,cutoff,token);
+    public override Task<MarketActivityKnowledgeReport> MarketActivityKnowledgeAsync(DateOnly from,DateOnly through,DateTimeOffset? cutoff,CancellationToken token)=>application.Activity.MarketActivityKnowledgeAsync(from,through,cutoff,token);
     public override Task<EquityDirectionReport> EquityDirectionAsync(DateOnly? reportAsOf,CancellationToken token)=>application.Equity.EquityDirectionAsync(reportAsOf,token);
     public override Task ReviewEquityDirectionAsync(EquityDirectionReview review,CancellationToken token)=>application.Equity.ReviewEquityDirectionAsync(review,token,Guid.NewGuid());
     public override Task<EtfNavStudyReport> NavStudyAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)=>application.Nav.NavStudyAsync(key,from,through,token);
@@ -47,6 +50,7 @@ internal sealed class LocalResearchWorkspace(NationalTeamApplication application
     public override Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>application.Alerts.AlertMetadataAsync(token);
     public override Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>application.Alerts.ReviewAlertMetadataAsync(review,token);
     public override Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>application.Alerts.NamedEtfHoldingsAsync(key,token);
+    public override Task<NamedEtfHoldingHistoryReport> EtfHoldingHistoryAsync(EtfKey key,DateOnly asOf,CancellationToken token)=>application.Holdings.HoldingHistoryAsync(key,asOf,token);
     public override Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token)=>application.Alerts.ReviewNamedEtfHoldingAsync(review,token);
     public override Task<EtfHolderCandidateReport> EtfHolderCandidatesAsync(EtfKey key,string documentId,CancellationToken token)=>application.Alerts.EtfHolderCandidatesAsync(key,documentId,token);
     public override Task<IndustryPeReport> IndustryPeReportAsync(DateOnly from,DateOnly through,CancellationToken token)=>application.Industry.IndustryPeReportAsync(from,through,token);

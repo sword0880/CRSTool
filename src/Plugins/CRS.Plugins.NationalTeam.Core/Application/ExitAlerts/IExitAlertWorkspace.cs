@@ -5,6 +5,7 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>Narrow V2 port for exit-alert evaluation, review, evidence, and delivery workflows.</summary>
 public interface IExitAlertWorkspace : IWorkspaceAccess
 {
+    Task<JointExitStudyReport> JointExitStudyAsync(EtfKey key,DateOnly asOf,CancellationToken token);
     Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token);
     Task<ExitAlertConfiguration> AlertConfigurationAsync(CancellationToken token);
     Task SaveAlertConfigurationAsync(ExitAlertConfiguration value,CancellationToken token);

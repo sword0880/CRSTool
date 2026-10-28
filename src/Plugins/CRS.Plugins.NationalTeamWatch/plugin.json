@@ -3,6 +3,7 @@
  "minHostVersion":"1.0.0", "schemaVersion":2,
  "entryAssembly":"CRS.Plugins.NationalTeamWatch.dll", "entryType":"CRS.Plugins.NationalTeamWatch.NationalTeamPluginEntry",
  "backgroundEntry":{"assembly":"CRS.Plugins.NationalTeam.Jobs.dll","type":"CRS.Plugins.NationalTeam.Jobs.NationalTeamBackgroundEntry"},
+ "storageMigrationEntry":{"assembly":"CRS.Plugins.NationalTeam.Jobs.dll","type":"CRS.Plugins.NationalTeam.Jobs.NationalTeamStorageMigrationEntry"},
  "requestedCapabilities":["navigation"],
  "files":["CRS.Plugins.NationalTeamWatch.dll","CRS.Plugins.NationalTeamWatch.deps.json"]
 }

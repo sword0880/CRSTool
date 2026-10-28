@@ -11,6 +11,7 @@ internal interface IMarketRepositorySession
 {
     SqliteConnection Connection { get; }
     bool IsReadSnapshot { get; }
+    DateTimeOffset? ReadSnapshotCutoff {get;}
     RawEvidenceStore RawEvidence { get; }
     Action? BeforeWrite { get; }
     TimeProvider Clock { get; }

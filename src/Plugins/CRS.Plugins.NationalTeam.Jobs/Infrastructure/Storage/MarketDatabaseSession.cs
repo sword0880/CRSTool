@@ -17,6 +17,7 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
     public TimeProvider Clock {get;}
     public CancellationToken OperationCancellation {get;private set;}
     public bool IsReadSnapshot {get;private set;}
+    public DateTimeOffset? ReadSnapshotCutoff {get;private set;}
     public string Now=>CRS.Timing.BeijingClock.Read(Clock).ToString("O");
     private MarketDatabaseSession(string path,RawEvidenceStore raw,Action? beforeWrite,TimeProvider clock,bool readOnly)
     {
@@ -74,13 +75,13 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
     }
     public T ReadSnapshot<T>(Func<T> query,CancellationToken token)=>ExecuteOperation(()=>
     {
-        using var transaction=Connection.BeginTransaction(deferred:true);IsReadSnapshot=true;
+        var cutoff=Clock.GetUtcNow();using var transaction=Connection.BeginTransaction(deferred:true);IsReadSnapshot=true;ReadSnapshotCutoff=cutoff;
         try
         {
             _=Scalar("SELECT count(*) FROM plugin_schema_migration");
             var result=query();token.ThrowIfCancellationRequested();transaction.Commit();return result;
         }
-        finally{IsReadSnapshot=false;}
+        finally{IsReadSnapshot=false;ReadSnapshotCutoff=null;}
     },token);
     public void Snapshot(string target)
     {

@@ -31,9 +31,9 @@ internal static class EtfReportVisualPreview
             var page=new EtfHoldingsPage(model,false);var window=new Window{Content=page,Width=width,Height=760,ShowInTaskbar=false,ShowActivated=false,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize};
             try
             {
-                window.Show();window.UpdateLayout();var frame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>frame.Continue=false));Dispatcher.PushFrame(frame);window.UpdateLayout();
+                window.Show();((TabControl)page.FindName("HoldingTabs")).SelectedIndex=1;window.UpdateLayout();var frame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>frame.Continue=false));Dispatcher.PushFrame(frame);window.UpdateLayout();
                 var grid=Find<DataGrid>(page);var top=grid.TranslatePoint(new Point(),page).Y;
-                if(grid.ActualHeight<360||grid.ActualWidth<width-36||top>330)throw new InvalidDataException("目录页上方区域挤占表格或正文未铺满。");
+                if(grid.ActualHeight<360||grid.ActualWidth<width-36||top>330)throw new InvalidDataException($"目录页上方区域挤占表格或正文未铺满：宽{grid.ActualWidth}，高{grid.ActualHeight}，顶部{top}，窗口{width}。");
                 var bitmap=new RenderTargetBitmap((int)(width*scale),(int)(760*scale),96*scale,96*scale,PixelFormats.Pbgra32);bitmap.Render(page);
                 var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var stream=File.Create(Path.Combine(directory,$"etf-reports-{width}-{(int)(scale*100)}.png")))encoder.Save(stream);
                 Console.WriteLine($"布局 width={width} height={grid.ActualHeight} columns={string.Join(',',grid.Columns.Select(x=>x.ActualWidth))}");

@@ -2,7 +2,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
 /// <summary>预警事件、版本、依据及通知记录读取。</summary>
-public interface IExitAlertReadRepository
+public interface IExitAlertReadRepository : IJointExitStudyReadRepository
 {
     ExitAlertOverview AlertOverview();
     ExitAlertConfiguration AlertConfiguration();

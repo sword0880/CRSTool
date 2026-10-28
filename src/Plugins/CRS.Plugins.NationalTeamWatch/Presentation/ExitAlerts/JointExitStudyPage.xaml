@@ -1,0 +1,27 @@
+<UserControl x:Class="CRS.Plugins.NationalTeamWatch.Presentation.JointExitStudyPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{DynamicResource BrandCanvasBrush}" Foreground="{DynamicResource BrandTextPrimaryBrush}">
+ <UserControl.Resources><DataTemplate x:Key="EvidenceItem"><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="8"/></DataTemplate></UserControl.Resources>
+ <Grid Margin="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <DockPanel Margin="0,0,0,8"><TextBlock Text="联合退出观察" FontSize="23" FontWeight="SemiBold"/><TextBlock Text="候选研究 · 模型未验证" Margin="16,0,0,0" VerticalAlignment="Center"/></DockPanel>
+  <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+   <ComboBox Width="225" ItemsSource="{Binding Funds}" SelectedItem="{Binding Selected}" AutomationProperties.Name="联合观察ETF"><ComboBox.ItemTemplate><DataTemplate><TextBlock><Run Text="{Binding Ticker}"/><Run Text=" · "/><Run Text="{Binding Name}"/></TextBlock></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+   <DatePicker Width="145" SelectedDateFormat="Short" SelectedDate="{Binding AsOf}" Margin="8,0" AutomationProperties.Name="联合观察统计日期"/>
+   <Button Content="查询" Command="{Binding QueryCommand}"/><Button Content="取消" Command="{Binding CancelCommand}" Margin="8,0"/>
+  </WrapPanel>
+  <TextBlock Grid.Row="2" Text="{Binding Status}" ToolTip="{Binding Status}" TextTrimming="CharacterEllipsis" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
+  <TabControl Grid.Row="3">
+   <TabItem Header="五项证据"><DataGrid ItemsSource="{Binding Components}" Style="{DynamicResource UiDenseDataGrid}" IsReadOnly="True" CanUserAddRows="False" AutoGenerateColumns="False"><DataGrid.Columns>
+    <DataGridTextColumn Header="分量" Binding="{Binding Value.Title}" MinWidth="155"/><DataGridTextColumn Header="输入门槛" Binding="{Binding Readiness}" MinWidth="145"/><DataGridTextColumn Header="数据日期" Binding="{Binding DateText}" MinWidth="115"/><DataGridTextColumn Header="证据口径" Binding="{Binding Value.Detail}" MinWidth="340"/><DataGridTextColumn Header="原件或报告引用" Binding="{Binding References}" MinWidth="260"/>
+   </DataGrid.Columns></DataGrid></TabItem>
+   <TabItem Header="支持线索"><ListBox ItemsSource="{Binding Support}" ItemTemplate="{StaticResource EvidenceItem}" BorderThickness="0" HorizontalContentAlignment="Stretch"/></TabItem>
+   <TabItem Header="反向证据"><ListBox ItemsSource="{Binding Counter}" ItemTemplate="{StaticResource EvidenceItem}" BorderThickness="0" HorizontalContentAlignment="Stretch"/></TabItem>
+   <TabItem Header="待补资料"><ListBox ItemsSource="{Binding Gaps}" ItemTemplate="{StaticResource EvidenceItem}" BorderThickness="0" HorizontalContentAlignment="Stretch"/></TabItem>
+   <TabItem Header="计算口径"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="12">
+    <TextBlock Text="{Binding Report.Basis}" TextWrapping="Wrap"/>
+    <TextBlock Text="本页使用查询时的当前已核版本。选择旧统计日仍是当前快照研究，不能重建当时已知信息或用于宣称历史择时表现。输入来自各模块归一结果和报告摘要；完整原件与明细须在对应页面核查。" TextWrapping="Wrap" Margin="0,12,0,0"/>
+    <TextBlock Text="只有五项证据通过门槛、周期高位风险、同窗口份额收缩与NAV负金额、具名基准最低净减少下界共同出现，才形成核查候选。直接持股和行业PE作为背景及反向核查，不再堆叠分数。披露时效过滤默认370日，阈值尚未校准。" TextWrapping="Wrap" Margin="0,12,0,0"/>
+    <TextBlock Text="关键资料不足时关闭联合判断。本页不发退出通知；未形成候选不代表安全。" TextWrapping="Wrap" Margin="0,12,0,0"/>
+    <TextBlock Text="{Binding Report.Fingerprint,StringFormat=输入与结果摘要：{0}}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+   </StackPanel></ScrollViewer></TabItem>
+  </TabControl>
+ </Grid>
+</UserControl>

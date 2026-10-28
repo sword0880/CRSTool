@@ -7,6 +7,8 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--staged-documents",var stagedRoot]){StagedDocumentChecks.Run(stagedRoot);return;}
+if(args is ["--document-ingress-boundaries",var ingressRoot]){await DocumentIngressBoundaryChecks.RunAsync(ingressRoot);return;}
 if(args is ["--data-cleanup"]){await DataCleanupChecks.RunAsync();await DataCleanupPipeChecks.RunAsync();return;}
 if(args is ["--data-cleanup-audit",var cleanupRoot]){await using var audit=new WorkerDataCleanup(cleanupRoot);Console.WriteLine(JsonSerializer.Serialize(audit.Audit(new(14,2,true))));return;}
 if(args is ["--supervised-plugins"]){await SupervisedPluginChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.SupervisedPlugins",Guid.NewGuid().ToString("N")));return;}
@@ -127,6 +129,8 @@ if(args is ["--upgrade-only", var upgradePackage])
     Directory.CreateDirectory(upgradeRoot);
     await WorkerUpgradeChecks.RunAsync(upgradeRoot,Path.GetFullPath(upgradePackage),"crs.fixture","one");return;
 }
+if(args is ["--storage-migration-host",var migrationProgram,var migrationOutput])
+{await StorageMigrationHostChecks.RunAsync(migrationProgram,migrationOutput);return;}
 if(args is ["--scheduling-only"])
 {
     var schedulingRoot=Path.Combine(Path.GetTempPath(),"CRS.Worker.Scheduling.Tests",Guid.NewGuid().ToString("N"));

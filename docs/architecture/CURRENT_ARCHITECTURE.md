@@ -1,5 +1,17 @@
 # 当前架构入口
 
+2026-10-28 存储维护续项：逐级物理路径防护及认证JSON进入Common，独立可信维护入口/Runner与服务组合根接通国家队双库保全迁移；发行计划、服务身份、派生密钥、快照、时限和认证回执独立于普通会话。生产入口与真实LocalService隔离验证通过，正式保全维护已启动，最终现场结果见[迁移协议与剩余门槛](../implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)。
+
+2026-10-28 具名ETF多期持仓加入EtfHoldings功能：逐期变化、未列示未知、最新披露子集和排除原因分别展示；最新期冲突或原件异常不回退。Core统一ETF/股票主体目录，增加梧桐树具名平台及大基金三期法人，人工核验与完整组合门槛保留。联合规则升为v1.1、报告v2；见[具名披露历史与限制](../implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
+
+2026-10-28 “周期与风险”增加联合退出观察：按当前配置池单只ETF，在同一读快照串接份额/NAV、具名下界、周期成交、直接持股样本及行业PE。Core拥有归一共现规则，Jobs拥有协调读，Watch展示及重算；缺失关闭判断，不发退出通知。历史时点、模型及真实全池覆盖仍未验证，见[联合观察](../implementation/NATIONAL_TEAM_JOINT_EXIT_STUDY_20261028.md)。
+
+2026-10-28 广度档案补齐页面登记、独立人工核验、冲突选定与原件导出。共用文件暂存/严格JSON进入Common，客户端传输进入Worker.Ipc，授权和私有目录装配进入Worker.Service；插件仅定义用途、金融档案及审核事件。登记不自动批准，规则仅读取所需六日广度窗口；正式数据与模型门槛仍开放，见[广度工作流](../implementation/NATIONAL_TEAM_BREADTH_WORKFLOW_20261028.md)。
+
+2026-10-27 周期评估接入第十组类型化后台用例及顶部“周期与风险”页面：同一独立只读事务组装价格、两市成交、核验日历及广度档案，调用领域评估器；客户端重算冻结输入及结果。原件、派生摘要及各自口径分开，资料不足关闭信号，择时能力未证明。正式广度采集及核验操作、真实完整行情链仍未验收，见[周期查询与剩余门槛](../implementation/NATIONAL_TEAM_MARKET_CYCLE_STUDY_20261027.md)。
+
+2026-10-27 市场周期输入前提补齐成交知识时间链：MarketCycle目录拥有逐原件登记、追加审核和截止时点查询，Common提供指纹/时间/完整JSON分块机制；旧资料只从实际迁移时刻起可知。桌面在成交修订内按需读取，不写库、不轮询。见[成交知识时间链](../implementation/NATIONAL_TEAM_MARKET_ACTIVITY_KNOWLEDGE_20261027.md)。
+
 2026-10-27 直接持股方向加入Equity功能：Core同报告期投影、普通SQLite原文核验历史、类型化用例、独立Worker客户端和WPF页签接通；复用公共JSON完整分块及原有事务/命令机制。行业及同报告期价格不足不计算权重，战略/组合/未知性质独立分母，不代表完整机构组合；实现、验证与真实数据门槛见[持仓方向](../implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)。
 
 2026-10-27 配置ETF的官方报告目录独立为`EtfHoldings`功能：Core合同、Jobs类型化用例/协议/存储/任务、Watch客户端与展示分别归档；后台九组用例、七个客户端合同。可选公共JSON查询合同与原来源预算配合，目录不批准具名持仓或历史完整性。候选包20项真实监督进程/管道检查通过，未替换已安装Worker，见[目录链路与剩余门槛](../implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。顶栏点击随后改用TitleBar原生Header区域，研究说明声明按钮移除，见[顶栏修复](../implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。

@@ -12,14 +12,17 @@ namespace CRS.Worker.PluginHost;
 /// <summary>信任索引位于管理员控制的宿主目录，不能由插件清单自行声明信任。</summary>
 public sealed record TrustedPackage(string Id, string Version, string Directory, Dictionary<string, string> Files);
 public sealed record BackgroundEntry(string Assembly, string Type);
-public sealed record BackgroundManifest(string Id, string Version, string HostContract, BackgroundEntry? BackgroundEntry);
+public sealed record BackgroundManifest(string Id, string Version, string HostContract, BackgroundEntry? BackgroundEntry)
+{
+    public BackgroundEntry? StorageMigrationEntry {get;init;}
+}
 public sealed record HostedBackgroundJob(string PluginId, BackgroundJobDescriptor Descriptor, IBackgroundPluginSession Session, int MaximumConcurrency = 1)
 {
     public BackgroundExecutionGroup? ExecutionGroup {get;init;}
 }
 
 /// <summary>只加载后台入口。完整包哈希验证后，私有依赖仍逐次校验，禁止链接逃逸。</summary>
-public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null,
+public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, Action? onUnresponsive = null,
     Func<string,IBackgroundHostContext>? hostContext = null, Action<string,string,string>? lifecycleDiagnostic = null,
     Func<TrustedPackage,IBackgroundPluginSession>? processSessions=null) : IAsyncDisposable
 {
@@ -37,6 +40,8 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     private readonly Dictionary<string,IBackgroundQuerySession> querySessions = new(StringComparer.Ordinal);
     public bool SupportsQueries(string plugin)=>querySessions.ContainsKey(plugin);
     private readonly List<BackgroundPluginStatus> statuses = [];
+    private readonly List<string> expectedPlugins = [];
+    public IReadOnlyList<string> ExpectedPlugins=>expectedPlugins.ToArray();
     public IReadOnlyList<HostedBackgroundJob> Jobs => jobs;
     public IReadOnlyList<BackgroundPluginStatus> Statuses => statuses.Select(status=>
         sessions.FirstOrDefault(x=>x.Plugin==status.PluginId).Session is IsolatedPluginSession {FailureCode:{} code}
@@ -75,33 +80,17 @@ public sealed class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout = null, A
     private async Task LoadCoreAsync(string root, string trustFile,string? selectedPlugin, CancellationToken token)
     {
         EnsureResponsive();
-        if (!File.Exists(trustFile)) throw new InvalidDataException("缺少宿主信任索引，拒绝启动后台任务。");
-        if (new FileInfo(trustFile).Length > 1024 * 1024) throw new InvalidDataException("信任索引过大。");
-        var packages = JsonSerializer.Deserialize<TrustedPackage[]>(await File.ReadAllTextAsync(trustFile, token), Json)
-            ?? throw new InvalidDataException("信任索引格式错误。");
-        if (packages.Length > 32) throw new InvalidDataException("后台插件数量超过上限。");
-        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var packages = await ReadPackagesAsync(trustFile,token);
         foreach (var package in packages)
         {
-            if (!ValidId(package.Id) || !ids.Add(package.Id) || package.Files.Count is < 1 or > 256)
-                throw new InvalidDataException("插件标识重复或不合法。");
             if(selectedPlugin is not null&&package.Id!=selectedPlugin)continue;
             IBackgroundPluginSession? session = null;
             VerifiedContext? context = null;
             try
             {
-            var directory = Contained(root, package.Directory);
-            foreach (var file in EnumerateSafe(directory))
-            {
-                var relative = Path.GetRelativePath(directory, file).Replace('\\', '/');
-                if (!package.Files.ContainsKey(relative)) throw new InvalidDataException("发行包包含未登记文件。");
-            }
-            foreach (var (file, hash) in package.Files) Verify(directory, file, hash);
-            var manifest = JsonSerializer.Deserialize<BackgroundManifest>(File.ReadAllText(Contained(directory, "plugin.json")), Json)
-                ?? throw new InvalidDataException("插件清单错误。");
-            if (manifest.Id != package.Id || manifest.Version != package.Version || manifest.HostContract != "2.0")
-                throw new InvalidDataException("插件版本或契约不兼容。");
+            var manifest = VerifyManifest(root,package,out var directory);
             if (manifest.BackgroundEntry is not { } entry) continue; // UI-only 发行包不进入后台会话。
+            expectedPlugins.Add(package.Id);
             RejectDesktopDependencies(Contained(directory, entry.Assembly));
             if(processSessions is not null)session=processSessions(package);
             else

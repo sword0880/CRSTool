@@ -11,9 +11,20 @@ public sealed record NationalTeamPlaintextExport(string DatabaseKind,int SchemaV
 /// <summary>显式离线导出旧国家队加密库到新文件；不覆盖、替换或删除原库，不由正常启动自动调用。</summary>
 public static class LegacyNationalTeamExport
 {
+    /// <summary>迁移回读只读检查结构及逐行摘要，不运行应用初始化。</summary>
+    public static NationalTeamPlaintextExport InspectPlain(string path)
+    {
+        var kind=Path.GetFileName(path) switch{"market.db"=>"Market","source-policy.db"=>"SourcePolicy",_=>throw new InvalidDataException("未知国家队资料库名称。")};
+        using var db=PublicResearchSqlite.Open(path,true);var version=Convert.ToInt32(Scalar(db,"PRAGMA user_version"));
+        var marker=kind=="Market"?"plugin_schema_migration":"source_policy";
+        if(version!=(kind=="Market"?2:1)||Convert.ToInt32(Scalar(db,"SELECT count(*) FROM sqlite_master WHERE type='table' AND name=$name",("$name",marker)))!=1)throw new InvalidDataException("普通库身份或版本不属于国家队。");
+        RequireIntegrity(db);using var command=db.CreateCommand();command.CommandText="PRAGMA foreign_key_check";using var reader=command.ExecuteReader();if(reader.Read())throw new InvalidDataException("普通库外键检查失败。");reader.Close();
+        return Describe(db,kind,version);
+    }
     public static NationalTeamPlaintextExport Export(string sourcePath,string destinationPath,byte[] legacyKey)
     {
-        var source=Path.GetFullPath(sourcePath);var destination=Path.GetFullPath(destinationPath);
+        var source=CRS.IO.PhysicalPathGuard.RejectLinks(sourcePath);var destination=CRS.IO.PhysicalPathGuard.RejectLinks(destinationPath);
+        if(File.Exists(source+"-journal")||Directory.EnumerateFiles(Path.GetDirectoryName(source)!,Path.GetFileName(source)+"-mj*").Any())throw new InvalidDataException("存在未支持的回滚日志，先完成显式离线恢复；不能忽略后导出。");
         var kind=Path.GetFileName(source) switch{"market.db"=>"Market","source-policy.db"=>"SourcePolicy",_=>throw new InvalidDataException("只允许迁移国家队市场库或来源策略库。")};
         if(legacyKey is not {Length:32}||string.Equals(source,destination,StringComparison.OrdinalIgnoreCase)
             ||!File.Exists(source)||File.Exists(destination)||Directory.Exists(destination))
@@ -24,8 +35,9 @@ public static class LegacyNationalTeamExport
             if(file.Read(header)==16&&header.SequenceEqual("SQLite format 3\0"u8))throw new InvalidDataException("来源已为普通SQLite，不需要旧加密导出。");
         }
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-        var staging=destination+".preparing-"+Guid.NewGuid().ToString("N");
-        var input=staging+".input.db";
+        // 工作文件与目标同目录以保持原子发布；短文件名避免原生SQLite长路径限制。
+        var staging=Path.Combine(Path.GetDirectoryName(destination)!,".m-"+Guid.NewGuid().ToString("N"));
+        var input=staging+".in";
         try
         {
             // 独占读取原库及可能尚未检查点的WAL；正在使用的库拒绝迁移，只在副本上恢复/解密。
@@ -85,7 +97,7 @@ public static class LegacyNationalTeamExport
         var tables=new List<string>();
         using(var command=db.CreateCommand())
         {
-            command.CommandText="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name";
+            command.CommandText="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' OR (type='table' AND name='sqlite_sequence') ORDER BY type,name";
             using var reader=command.ExecuteReader();
             while(reader.Read())
             {

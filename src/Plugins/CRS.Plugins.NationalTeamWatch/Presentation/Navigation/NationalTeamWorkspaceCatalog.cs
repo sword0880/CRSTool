@@ -12,11 +12,12 @@ public static class NationalTeamWorkspaceCatalog
 {
     public static IReadOnlyList<NationalTeamWorkspaceCategory> Categories {get;}=[
         new("holdings","资金与持仓","ETF份额与机构披露分开，市场份额变动不等于国家队交易"),
-        new("industry","行业与估值","官方全行业PE与样本指数PB的证券宇宙不同，禁止跨来源拼接")
+        new("industry","行业与估值","官方全行业PE与样本指数PB的证券宇宙不同，禁止跨来源拼接"),
+        new("cycle","周期与风险","周期候选与修复条件分开研究，关键资料不足时关闭信号")
     ];
 
     public static IReadOnlyList<NationalTeamWorkspaceItem> Create(EtfViewModel etfs,EquityViewModel equity,
-        IndustryResearchViewModel industry,IndexResearchViewModel indices,NavStudyViewModel nav,EtfHoldingsViewModel holdings)
+        IndustryResearchViewModel industry,IndexResearchViewModel indices,NavStudyViewModel nav,EtfHoldingsViewModel holdings,MarketCycleStudyViewModel cycle,JointExitStudyViewModel joint)
     {
         var result=new NationalTeamWorkspaceItem[]{
             new("etf-monitor","holdings","ETF份额与市场成交","ETF全市场份额不是中央汇金独立持仓。",()=>new EtfPage(etfs)),
@@ -24,7 +25,9 @@ public static class NationalTeamWorkspaceCatalog
             new("direct-equity","holdings","机构直接持股","公告报告期快照不等于逐日真实成交。",()=>new EquityPage(equity)),
             new("nav-study","holdings","NAV与份额金额","同日净值估算为基金整体观察，不能归因国家队成交。",()=>new NavStudyPage(nav)),
             new("industry-pe","industry","全行业公布PE","国证一级行业剔亏PE的短区间历史位置不等于低估。",()=>new IndustryResearchPage(industry)),
-            new("sector-index","industry","行业样本指数与PB","国证1000行业样本不能冒充全部上市公司估值。",()=>new IndexResearchPage(indices))
+            new("sector-index","industry","行业样本指数与PB","国证1000行业样本不能冒充全部上市公司估值。",()=>new IndexResearchPage(indices)),
+            new("market-cycle","cycle","市场周期观察","候选研究；输入不足不判断顶部或底部，择时能力未验证。",()=>new MarketCycleStudyPage(cycle)),
+            new("joint-exit-study","cycle","联合退出观察","当前快照的证据共现研究；关键资料不足时关闭判断，不发送退出通知。",()=>new JointExitStudyPage(joint))
         };
         Validate(result);
         return Array.AsReadOnly(result);

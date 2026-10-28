@@ -17,6 +17,15 @@ $program=Join-Path $root 'program';$candidate=Join-Path $root 'candidate';$data=
 Package $program '2.0.0';Package $candidate '2.0.1'
 $null=Test-WorkerPackage $candidate '' -Development
 Check $true '开发包必须显式豁免，完整文件核验通过'
+$migrationPlan=@{pluginId='crs.fixture';migrationId='synthetic-v1';timeoutSeconds=600}
+$migrationRelease=@{files=@{'Runner/CRS.Worker.PluginRunner.exe'='synthetic'};storageMigrations=@($migrationPlan)}
+Check ((Get-WorkerStorageMigrationSeconds $migrationRelease) -eq 600) '显式维护预算只追加到启动等待，不修改普通查询期限'
+Reject {Get-WorkerStorageMigrationSeconds @{files=$migrationRelease.files;storageMigrations=@($migrationPlan,$migrationPlan)}} '同一插件重复迁移计划拒绝'
+Reject {Get-WorkerStorageMigrationSeconds @{files=$migrationRelease.files;storageMigrations=@(@{pluginId='crs.fixture';migrationId='synthetic-v1';timeoutSeconds='600'})}} '字符串时限不能绕过整数协议'
+Reject {Get-WorkerStorageMigrationSeconds @{files=$migrationRelease.files;storageMigrations=@(@{pluginId='crs.fixture';migrationId='synthetic-v1';timeoutSeconds=600;extra=$true})}} '迁移计划未知字段拒绝'
+Reject {Get-WorkerStorageMigrationSeconds @{files=$migrationRelease.files;storageMigrations=$migrationPlan}} '单个对象不能冒充计划数组'
+Reject {Get-WorkerStorageMigrationSeconds @{files=@{};storageMigrations=@($migrationPlan)}} '显式迁移发行必须含独立Runner索引'
+Reject {Get-WorkerStorageMigrationSeconds @{files=$migrationRelease.files;storageMigrations=@(@{pluginId='p1';migrationId='synthetic-v1';timeoutSeconds=600},@{pluginId='p2';migrationId='synthetic-v1';timeoutSeconds=600},@{pluginId='p3';migrationId='synthetic-v1';timeoutSeconds=600})}} '多插件总维护预算超限拒绝'
 Reject {Test-WorkerPackage $candidate ''} '正式维护拒绝无外部发布者的未签名包'
 $entry=Join-Path $candidate 'CRS.Worker.Service.exe';$original=[IO.File]::ReadAllBytes($entry)
 Add-Content -LiteralPath $entry -Value 'tampered'

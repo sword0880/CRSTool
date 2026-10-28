@@ -79,6 +79,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         new("equity-report-search","查找持股官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("etf-report-search","查找配置ETF官方报告（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("activity-review","成交统计修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("market-breadth-submit","广度档案登记（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
+        new("market-breadth-review","广度原件与修订核验（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("nav-sync","官方NAV原件采集（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("nav-review","NAV冲突修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
         new("industry-pe-sync","国证行业公布PE采集（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true),
@@ -123,6 +125,11 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             catch(EtfContractException error){return new("Rejected","contract="+error.Code);}
             switch(jobId)
             {
+                case "market-breadth-submit" when request.Operation=="market-breadth-submit"&&request.BreadthSubmission is {} breadthSubmission&&commandId is {} breadthCommand:
+                    return await SubmitMarketBreadthAsync(breadthSubmission,breadthCommand,token);
+                case "market-breadth-review" when request.Operation=="market-breadth-review"&&request.BreadthReview is {} breadthReview&&commandId is {} breadthReviewCommand:
+                    try{await workspace!.Cycle.ReviewMarketBreadthAsync(breadthReview,breadthReviewCommand,token);return BackgroundJobResult.Success("breadth=Reviewed");}
+                    catch(InvalidDataException){return new("Rejected","breadth=ReviewInvalidOrChanged");}
                 case "industry-pe-sync": return await SyncIndustryPeAsync(request,token,commandId);
                 case "index-series-sync":return await SyncIndexSeriesAsync(request,token,commandId);
                 case "index-valuation-sync":return await SyncIndexValuationAsync(request,token,commandId);
@@ -266,8 +273,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         try
         {
             var operation=Parse(payload).Operation;
-            return operation is "status" or "release-query" or "export" or "dashboard" or "dashboard-profile" or "acceptance-profile" or "nav-study" or "overview" or "configuration"
-                or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "industry-pe-report" or "industry-pe-revisions" or "index-series-report" or "index-series-revisions" or "market-activity" or "activity-revisions" or "collection-attempts" or "acceptance" or "coverage"
+            return operation is "status" or "release-query" or "export" or "export-breadth" or "joint-exit-study" or "etf-holding-history" or "dashboard" or "dashboard-profile" or "acceptance-profile" or "nav-study" or "overview" or "configuration"
+                or "history" or "evidence" or "points" or "nav-points" or "nav-revisions" or "industry-pe-report" or "industry-pe-revisions" or "index-series-report" or "index-series-revisions" or "market-activity" or "activity-revisions" or "activity-knowledge" or "market-cycle-study" or "market-breadth-history" or "market-breadth-receipt" or "collection-attempts" or "acceptance" or "coverage"
                 or "equity-watchlist" or "equity-holdings" or "equity-direction" or "equity-disclosures" or "equity-events" or "equity-reports" or "equity-history-documents" or "equity-history-receipt"
                 or "alert-overview" or "alert-configuration" or "alert-events" or "alert-event" or "alert-event-version" or "alert-inputs"
                 or "alert-changes" or "alert-outbox" or "alert-deliveries" or "alert-channels" or "alert-documents" or "alert-metadata" or "alert-holdings" or "etf-holder-candidates" or "etf-report-index"
@@ -304,7 +311,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
                 if(request.Snapshot is {} released)snapshots.Remove(released);
                 return JsonSerializer.Serialize("Released");
             }
-            if(request.Operation=="export")return await ExportAsync(request,token);
+            if(request.Operation is "export" or "export-breadth")return await ExportAsync(request,token);
             // 页大小只影响传输，不能改变同一快照的金融范围；证券、日期和其他筛选仍完整绑定。
             var canonical=JsonSerializer.Serialize(request with{Offset=0,Snapshot=null,Count=10});
             if(request.Snapshot is { } existing)
@@ -317,6 +324,26 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
             string[] rows;
             switch(request.Operation)
             {
+                case "etf-holding-history":
+                    if(request.To is not {} holdingHistoryDate||request.KnowledgeCutoff is not null)throw new InvalidDataException("具名ETF历史只提供当前已核快照，不支持重建历史审核知识。");
+                    rows=CRS.Serialization.JsonDocumentBlocks.Encode(await workspace!.Holdings.HoldingHistoryAsync(Key(request),holdingHistoryDate,token),token).Select(x=>SerializeRow(x)).ToArray();break;
+                case "joint-exit-study":
+                    if(request.To is not {} jointDate||request.KnowledgeCutoff is not null)throw new InvalidDataException("联合观察只提供当前读快照，不支持重建历史知识截止。");
+                    rows=CRS.Serialization.JsonDocumentBlocks.Encode(await workspace!.Alerts.JointExitStudyAsync(Key(request),jointDate,token),token).Select(x=>SerializeRow(x)).ToArray();break;
+                case "market-breadth-history":
+                    if(request.From is not {} breadthFrom||request.To is not {} breadthThrough)throw new InvalidDataException("广度档案需要日期区间。");
+                    rows=CRS.Serialization.JsonDocumentBlocks.Encode(await workspace!.Cycle.MarketBreadthHistoryAsync(breadthFrom,breadthThrough,request.KnowledgeCutoff,token),token).Select(x=>SerializeRow(x)).ToArray();break;
+                case "market-breadth-receipt":
+                    if(!Guid.TryParse(request.Revision,out var breadthRequest)||request.BreadthSubmission is not {} submittedBreadth)throw new InvalidDataException("广度回执查询参数无效。");
+                    rows=[SerializeRow(await workspace!.Cycle.MarketBreadthSubmissionReceiptAsync(breadthRequest,submittedBreadth,token))];break;
+                case "market-cycle-study":
+                    if(request.To is not {} cycleAsOf)throw new InvalidDataException("周期研究需要统计日期。");
+                    var cycle=await workspace!.Cycle.MarketCycleStudyAsync(cycleAsOf,request.KnowledgeCutoff,token);
+                    rows=CRS.Serialization.JsonDocumentBlocks.Encode(cycle,token).Select(x=>SerializeRow(x)).ToArray();break;
+                case "activity-knowledge":
+                    if(request.From is not {} activityFrom||request.To is not {} activityThrough)throw new InvalidDataException("成交知识研究需要完整日期区间。");
+                    var activityKnowledge=await workspace!.Activity.MarketActivityKnowledgeAsync(activityFrom,activityThrough,request.KnowledgeCutoff,token);
+                    rows=CRS.Serialization.JsonDocumentBlocks.Encode(activityKnowledge,token).Select(x=>SerializeRow(x)).ToArray();break;
                 case "index-series-report":
                     if(request.From is not {} indexFrom||request.To is not {} indexThrough)throw new InvalidDataException("指数研究需要完整日期区间。");
                     var indexReport=await workspace!.Index.IndexSeriesReportAsync(indexFrom,indexThrough,token);
@@ -457,14 +484,17 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     /// <summary>只导出登记过且哈希完好的原件；短期字节快照避免分块期间文件变化。</summary>
     private async Task<string> ExportAsync(EtfRequest request,CancellationToken token)
     {
-        var id=(request.Revision??"")+":"+request.Original;
+        var id=request.Operation+":"+(request.Revision??"")+":"+request.Original;
         if(!exports.TryGetValue(id,out var cached))
         {
             if(exports.Count>=2)throw new ArgumentException("导出额度已满。");
-            var row=(await workspace!.Etf.EvidenceAsync(token)).SingleOrDefault(x=>x.RevisionId==request.Revision)
-                ??throw new ArgumentException("证据不存在。");
-            if(row.State=="Critical")throw new InvalidDataException("证据损坏。");
-            var hash=request.Original?row.OriginalHash:row.Hash;
+            string hash;
+            if(request.Operation=="export-breadth")hash=await workspace!.Cycle.MarketBreadthEvidenceAsync(request.Revision??"",request.Original,token);
+            else
+            {
+                var row=(await workspace!.Etf.EvidenceAsync(token)).SingleOrDefault(x=>x.RevisionId==request.Revision)??throw new ArgumentException("证据不存在。");
+                if(row.State=="Critical")throw new InvalidDataException("证据损坏。");hash=request.Original?row.OriginalHash:row.Hash;
+            }
             var bytes=await raw!.ReadImportFileAsync(Path.Combine(rawPath,hash+".raw"),token);
             if(Convert.ToHexString(SHA256.HashData(bytes))!=hash)throw new InvalidDataException("证据哈希不匹配。");
             cached=(CRS.Timing.BeijingClock.Now.AddMinutes(5),hash,bytes);exports[id]=cached;

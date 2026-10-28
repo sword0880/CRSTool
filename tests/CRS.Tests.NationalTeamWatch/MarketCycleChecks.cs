@@ -105,6 +105,11 @@ internal static class MarketCycleChecks
             days, indexPoints, activityPoints, breadthPoints,"synthetic-calendar-v1",Hash(string.Join(',',days)));
     }
 
+    internal static MarketCycleStudyReport StudyPreview()
+    {
+        var input=Input(Series(260)) with{Market="SSE+SZSE",IndexCode="399317"};
+        return MarketCycleStudyReport.Freeze(input,[],Hash("synthetic-activity-knowledge"));
+    }
     public static void Run()
     {
         var baseline = Series(260);

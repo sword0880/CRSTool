@@ -10,7 +10,7 @@ namespace CRS.Worker.Service;
 /// <summary>加密仓储是唯一权威；内存触发器、命令恢复和开始执行按同一门闩排序。</summary>
 public sealed partial class BackgroundRuntime(ITaskRepository repository, BackgroundPluginCatalog catalog,
     Action<string, string, string>? diagnostics = null, Action? onUnresponsive = null,
-    TimeSpan? executionTimeout = null, WorkerExecutionSettings? executionSettings = null,WorkerNotificationGateway? notifications=null,SourceBudgetRegistry? sources=null,WorkerDataCleanup? cleanup=null) : IBackgroundControl, IAsyncDisposable
+    TimeSpan? executionTimeout = null, WorkerExecutionSettings? executionSettings = null,WorkerNotificationGateway? notifications=null,SourceBudgetRegistry? sources=null,WorkerDataCleanup? cleanup=null,WorkerDocumentInbox? documentInbox=null) : IBackgroundControl, IAsyncDisposable
 {
     private readonly WorkerExecutionSettings settings = (executionSettings ?? new()).Validate();
     private readonly SemaphoreSlim gate = new(1);
@@ -142,6 +142,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request, BackgroundCaller caller, CancellationToken token)
     {
         if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, token);
+        if(request.Command is "PutPluginDocument" or "GetPluginDocument" or "ListPluginDocuments")return await HandleDocumentsAsync(request,caller,token);
         if(request.Command is "BeginDataCleanupPreview" or "GetDataCleanupStatus" or "ExecuteDataCleanup")return HandleCleanup(request,caller,token);
         if(request.Command is "GetEmailSettings" or "SaveEmailSettings" or "TestEmailSettings" or "GetWebhookSettings" or "SaveWebhookSettings" or "TestWebhookSettings")return await HandleEmailAsync(request,caller,token);
         await gate.WaitAsync(token);

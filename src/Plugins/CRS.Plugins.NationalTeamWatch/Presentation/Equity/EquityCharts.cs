@@ -21,6 +21,8 @@ public sealed record EquityMatrixStock(string Market,string Ticker,string Name,I
     public EquityMatrixCell Csf=>Cells["证金公司"];
     public EquityMatrixCell Social=>Cells["社保基金"];
     public EquityMatrixCell Pension=>Cells["养老保险基金"];
+    public EquityMatrixCell Safe=>Cells["外汇局投资平台"];
+    public EquityMatrixCell ChipFund=>Cells["国家大基金"];
     public EquityMatrixCell Pending=>Cells["主体待核验"];
 }
 

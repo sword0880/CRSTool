@@ -43,8 +43,8 @@ Assert-OnlyExpectedRootCode "$jobs/Background" @('NationalTeamBackgroundEntry.cs
 # IPC客户端按功能归档，后台用例不实现这些客户端合同。
 $workerRoot = Join-Path $repoRoot "$ui/Application/Worker"
 $workerFiles = @(Get-ChildItem -LiteralPath $workerRoot -Recurse -File -Filter 'WorkerEtfWorkspace*.cs')
-if ($workerFiles.Count -ne 9) {
-    throw "Expected 9 WorkerEtfWorkspace source parts including the Equity direction projection, found $($workerFiles.Count)."
+if ($workerFiles.Count -ne 13) {
+    throw "Expected 13 WorkerEtfWorkspace source parts including joint exit study, found $($workerFiles.Count)."
 }
 foreach ($file in $workerFiles) {
     $relative = $file.FullName.Substring($repoRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
@@ -125,6 +125,7 @@ $viewModelPortChecks = @(
     @{ Path = "$ui/Presentation/IndustryValuation/IndustryResearchViewModel.cs"; Pattern = 'IndustryResearchViewModel\(IIndustryValuationWorkspace' },
     @{ Path = "$ui/Presentation/MarketCycle/IndexResearchViewModel.cs"; Pattern = 'IndexResearchViewModel\(IMarketCycleWorkspace' },
     @{ Path = "$ui/Presentation/ExitAlerts/ExitAlertViewModel.cs"; Pattern = 'ExitAlertViewModel\(IExitAlertWorkspace' },
+    @{ Path = "$ui/Presentation/EtfHoldings/EtfHoldingHistoryViewModel.cs"; Pattern = 'EtfHoldingHistoryViewModel\(IEtfHoldingsWorkspace' },
     @{ Path = "$ui/Presentation/Etf/EtfViewModel.cs"; Pattern = 'IEtfResearchWorkspace workspace' }
 )
 foreach ($check in $viewModelPortChecks) {

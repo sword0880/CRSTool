@@ -10,7 +10,13 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
 if(args is ["--nav-pipe",var navPackage,var navSnapshot,var navOutput]){await NavPipeChecks.Run(navPackage,navSnapshot,navOutput);return;}
+if(args is ["--storage-migration-pipe",var migrationPackage,var migrationOutput]){await StorageMigrationPipeChecks.Run(migrationPackage,migrationOutput);return;}
+if(args is ["--storage-migration-scm-read",var migrationPipe,var migrationMetadata,var scmMigrationOutput]){await StorageMigrationPipeChecks.ProbeAsync(migrationPipe,migrationMetadata,scmMigrationOutput);return;}
+if(args is ["--breadth-pipe",var breadthPackage,var breadthOutput]){await MarketBreadthPipeChecks.Run(breadthPackage,breadthOutput);return;}
+if(args is ["--joint-exit-pipe",var jointPackage,var jointOutput]){await MarketActivityKnowledgePipeChecks.Run(jointPackage,jointOutput,true);return;}
+if(args is ["--named-etf-history-pipe",var namedPackage,var namedOutput]){await MarketActivityKnowledgePipeChecks.Run(namedPackage,namedOutput,true,true);return;}
 if(args is ["--equity-direction-pipe",var directionPackage,var directionOutput]){await EquityDirectionPipeChecks.Run(directionPackage,directionOutput);return;}
+if(args is ["--activity-knowledge-pipe",var knowledgePackage,var knowledgeOutput]){await MarketActivityKnowledgePipeChecks.Run(knowledgePackage,knowledgeOutput);return;}
 if(args is ["--etf-holder-pipe",var holderPackage,var holderOriginals,var holderPipeOutput]){await EtfHolderPipeChecks.Run(holderPackage,holderOriginals,holderPipeOutput);return;}
 if(args is ["--etf-report-pipe",var reportPackage,var reportSources,var reportOriginals,var reportOutput]){await EtfReportPipeChecks.Run(reportPackage,reportSources,reportOriginals,reportOutput);return;}
 if(args is ["--industry-pipe",var industryPackage,var industrySource,var industryPipeOutput]){await IndustryPipeChecks.Run(industryPackage,industrySource,industryPipeOutput);return;}

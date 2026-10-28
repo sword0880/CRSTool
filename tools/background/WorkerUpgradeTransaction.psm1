@@ -32,10 +32,11 @@ function New-WorkerServiceOperations([string]$Name,[string]$Program,[scriptblock
     }
     return @{Disable=$disable;Stop=$stop;Enable=$enable;Start=$start;Health=$HealthProbe}
 }
-function Wait-WorkerHealthy([hashtable]$Service){
+function Wait-WorkerHealthy([hashtable]$Service,[int]$MigrationSeconds=0){
     # 候选完整核验约六千份快照后还须检查全部受保护归档的ACL；实测两阶段已接近原180秒。
     # 启动确认最多五分钟，不跳过任何安全检查；金融查询的15秒期限及运行任务期限均不因此改变。
-    $deadline=[DateTime]::UtcNow.AddSeconds(300)
+    # 显式迁移有独立进程期限；总启动等待追加该已验证预算，不改变普通查询或采集时限。
+    $deadline=[DateTime]::UtcNow.AddSeconds(300+$MigrationSeconds)
     do{
         if(& $Service.Health){return}
         Start-Sleep -Milliseconds 250
@@ -61,6 +62,7 @@ function Invoke-WorkerUpgradeTransaction {
         $existing=Read-WorkerUpgrade $Data
         if($existing -and $existing.Stage -notin @('Committed','RolledBack')){throw '存在未解决维护日志。'}
         $candidate=Test-WorkerPackage $Source $Publisher -Development:$Development
+        $migrationSeconds=Get-WorkerStorageMigrationSeconds $candidate
         $previous=Test-WorkerPackage $Program $Publisher -Development:$Development
         if(-not $candidate.ContainsKey('maintenanceFormat') -or $candidate.maintenanceFormat -ne 1 -or
             -not $candidate.ContainsKey('upgradeFromVersions') -or $previous.version -notin $candidate.upgradeFromVersions -or
@@ -88,7 +90,7 @@ function Invoke-WorkerUpgradeTransaction {
         if($Checkpoint){$null=& $Checkpoint 'Switched'}
         $lease.Dispose();$lease=$null
         & $Service.Enable;& $Service.Start
-        Wait-WorkerHealthy $Service
+        Wait-WorkerHealthy $Service $migrationSeconds
         $current=Read-WorkerUpgrade $Data
         if($current.Id -ne $record.Id -or $current.Stage -ne 'Healthy'){throw '候选维护代次未就绪。'}
         if($Checkpoint){$null=& $Checkpoint 'CandidateHealthy'}
@@ -139,9 +141,11 @@ function Invoke-WorkerRecoveryTransaction {
                 if((Get-FileHash (Join-Path $paths.Active 'release.json')).Hash -ne $expected){throw '活动发行不是已确认代次。'}
             }
         }
+        $activeRelease=Test-WorkerPackage $paths.Active $Publisher -Development:$Development
+        $migrationSeconds=Get-WorkerStorageMigrationSeconds $activeRelease
         $lease.Dispose();$lease=$null
         & $Service.Enable;& $Service.Start
-        Wait-WorkerHealthy $Service
+        Wait-WorkerHealthy $Service $migrationSeconds
         $current=Read-WorkerUpgrade $Data
         $expectedStage=if($Action -eq 'RetryCandidate'){'Healthy'}elseif($Action -eq 'RestorePrevious'){'RolledBack'}else{$record.Stage}
         if($current.Id -ne $record.Id -or $current.Stage -ne $expectedStage){throw '恢复后维护代次不一致。'}

@@ -1,20 +1,4 @@
-using System.Text.RegularExpressions;
 namespace CRS.Plugins.NationalTeamWatch.Domain;
-
-public static class InstitutionAccounts
-{
-    public static string? CandidateGroup(string account)=>Group(account)??(account.Trim() is "汇金公司" or "社保基金会" || account.Contains("社保基金",StringComparison.Ordinal)||account.Contains("基本养老保险基金",StringComparison.Ordinal)?"主体待核验":null);
-    public static string? Group(string account)=>account.Trim() switch
-    {
-        "中央汇金投资有限责任公司"=>"汇金投资",
-        "中央汇金资产管理有限责任公司"=>"汇金资管",
-        "中国证券金融股份有限公司"=>"证金公司",
-        "全国社会保障基金理事会"=>"社保基金",
-        var name when Regex.IsMatch(name,@"^全国社保基金[〇零一二三四五六七八九十百0-9]+组合$",RegexOptions.None,TimeSpan.FromMilliseconds(100))=>"社保基金",
-        var name when Regex.IsMatch(name,@"^基本养老保险基金[〇零一二三四五六七八九十百0-9]+组合$",RegexOptions.None,TimeSpan.FromMilliseconds(100))=>"养老保险基金",
-        _=>null
-    };
-}
 
 public sealed record EquityWatch(string Market,string Ticker,string Name,bool Active,bool Favorite);
 public sealed record EquityReportDocument(string Id,string Market,string Ticker,string BulletinId,string Title,DateOnly Announced,string DocumentUrl,string State,string ListSourceUrl);

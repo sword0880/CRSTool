@@ -22,12 +22,14 @@ public partial class EtfViewModel : ObservableObject
         this.marketCycleWorkspace=marketCycleWorkspace??throw new ArgumentNullException(nameof(marketCycleWorkspace));
         this.lifetime=lifetime;
         Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),workspace,lifetime);
+        ActivityKnowledge=new(marketCycleWorkspace,lifetime);
     }
 
     /// <summary>装配入口直接拆为窄端口注入，不再保留旧接口适配器。</summary>
     public EtfViewModel(INationalTeamWorkspace workspace,CancellationToken lifetime)
         :this(workspace,workspace,workspace,lifetime) {}
     public ExitAlertViewModel Alerts {get;}
+    public MarketActivityKnowledgeViewModel ActivityKnowledge {get;}
     public bool CanManage=>workspace.CanManage;
     public ObservableCollection<EtfSummary> Rows { get; }=[];
     public ObservableCollection<EtfConfiguration> Configurations {get;}=[];

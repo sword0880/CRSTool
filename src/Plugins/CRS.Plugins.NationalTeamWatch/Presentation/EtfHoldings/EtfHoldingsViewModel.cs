@@ -9,6 +9,7 @@ namespace CRS.Plugins.NationalTeamWatch.Presentation;
 /// <summary>展示配置ETF的目录及后台请求状态，不下载、解析或计算持仓。</summary>
 public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfResearchWorkspace etfs,IExitAlertWorkspace evidence,CancellationToken lifetime):ObservableObject
 {
+    public EtfHoldingHistoryViewModel History {get;}=new(workspace,lifetime);
     private CancellationTokenSource? operation;
     private int generation;
     private bool settingFunds,indexHealthy;
@@ -27,6 +28,7 @@ public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfRe
     private bool CanRegister=>CanSearch&&indexHealthy&&SelectedReport is not null;
     partial void OnSelectedFundChanged(EtfConfiguration? value)
     {
+        History.Fund=value;
         if(settingFunds)return;
         SearchReportsCommand.NotifyCanExecuteChanged();
         if(value is null){Cancel();Reports.Clear();SelectedReport=null;indexHealthy=false;Status="请选择ETF。";return;}
@@ -79,5 +81,5 @@ public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfRe
         finally{if(version==generation)Busy=false;}
     }
     [RelayCommand]
-    public void Cancel(){generation++;operation?.Cancel();operation?.Dispose();operation=null;Busy=false;Status="已取消页面等待；已受理后台任务须在任务中心核对。";}
+    public void Cancel(){generation++;operation?.Cancel();operation?.Dispose();operation=null;Busy=false;History.Cancel();Status="已取消页面等待；已受理后台任务须在任务中心核对。";}
 }

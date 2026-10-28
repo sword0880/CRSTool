@@ -8,7 +8,7 @@ internal sealed class EtfNavStudyStore(IMarketRepositorySession session,NavStore
 {
     internal EtfNavStudyRequest Freeze(EtfKey key,DateOnly from,DateOnly through)
     {
-        var cutoff=session.Clock.GetUtcNow();
+        var cutoff=session.ReadSnapshotCutoff??session.Clock.GetUtcNow();
         if(!session.IsReadSnapshot)throw new InvalidOperationException("NAV份额研究必须使用独立一致性快照。");
         if(from>through||from.DayNumber<90||through.DayNumber-from.DayNumber>366||through>DateOnly.FromDateTime(cutoff.ToOffset(TimeSpan.FromHours(8)).DateTime))
             throw new InvalidDataException("NAV份额研究区间须不超过366日，不能包含未来日期。");

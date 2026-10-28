@@ -14,10 +14,12 @@ public sealed class NationalTeamApplication : IAsyncDisposable
     public MarketActivityUseCases Activity {get;}
     public NavUseCases Nav {get;}
     public EvidenceUseCases Evidence {get;}
+    public MarketCycleStudyUseCases Cycle {get;}
     public NationalTeamApplication(IPluginHostContext context,Func<IMarketRepository> factory,IRawEvidenceStore raw,IEtfHolderCandidateParser holderParser)
     {
         session=new(factory);Etf=new(session,context,raw);Equity=new(session);Alerts=new(session,holderParser);
         Industry=new(session);Index=new(session);Activity=new(session);Nav=new(session);Evidence=new(session,raw);Holdings=new(session);
+        Cycle=new(session);
     }
     public void SetProgressSink(Func<EtfProgress,Task>? sink)=>session.Progress=sink;
     public Task InitializeAsync(CancellationToken token)=>session.InitializeAsync(token);

@@ -4,6 +4,15 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 /// <summary>测试专用端口：未配置的能力立即失败；生产代码不引用此类型。</summary>
 internal abstract class ResearchWorkspaceStub : INationalTeamWorkspace
 {
+    public virtual Task<NamedEtfHoldingHistoryReport> EtfHoldingHistoryAsync(EtfKey key,DateOnly asOf,CancellationToken token)=>throw new InvalidOperationException("测试未配置具名ETF历史。");
+    public virtual Task<JointExitStudyReport> JointExitStudyAsync(EtfKey key,DateOnly asOf,CancellationToken token)=>throw new InvalidOperationException("测试未配置联合退出观察。");
+    public virtual Task<MarketBreadthHistory> MarketBreadthHistoryAsync(DateOnly date,CancellationToken token)=>throw new InvalidOperationException("测试未配置广度档案。");
+    public virtual Task<MarketBreadthSubmissionReceipt> SubmitMarketBreadthAsync(string originalPath,string normalizedPath,string sourceUrl,DateTimeOffset retrievedAt,string submitter,string reason,CancellationToken token,IProgress<(int Received,int Total)>? progress=null)=>throw new InvalidOperationException("测试未配置广度登记。");
+    public virtual Task ReviewMarketBreadthAsync(MarketBreadthReview review,CancellationToken token)=>throw new InvalidOperationException("测试未配置广度审核。");
+    public virtual Task<MarketBreadthSubmissionReceipt> ConfirmMarketBreadthSubmissionAsync(CancellationToken token)=>throw new InvalidOperationException("测试未配置广度回读。");
+    public virtual Task ExportMarketBreadthEvidenceAsync(string revision,bool original,string destination,CancellationToken token)=>throw new InvalidOperationException("测试未配置广度原件导出。");
+    public virtual Task<MarketCycleStudyReport> MarketCycleStudyAsync(DateOnly asOf,DateTimeOffset? cutoff,CancellationToken token)=>throw new InvalidOperationException("测试未配置周期研究。");
+    public virtual Task<MarketActivityKnowledgeReport> MarketActivityKnowledgeAsync(DateOnly from,DateOnly through,DateTimeOffset? cutoff,CancellationToken token)=>throw new InvalidOperationException("测试未配置成交知识时间链。");
     public virtual Task<EquityDirectionReport> EquityDirectionAsync(DateOnly? reportAsOf,CancellationToken token)=>throw new InvalidOperationException("测试未配置持仓方向。");
     public virtual Task ReviewEquityDirectionAsync(EquityDirectionReview review,CancellationToken token)=>throw new InvalidOperationException("测试未配置方向核验。");
     public virtual Task<EtfReportIndexSnapshot> EtfReportIndexAsync(EtfKey key,CancellationToken token)=>throw new InvalidOperationException("测试未配置ETF报告目录。");

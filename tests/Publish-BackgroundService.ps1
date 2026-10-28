@@ -1,5 +1,6 @@
-param([Parameter(Mandatory)][string]$OutputDirectory,[ValidateSet('Debug','Release')][string]$Configuration='Release',[switch]$HeartbeatOnly)
+param([Parameter(Mandatory)][string]$OutputDirectory,[ValidateSet('Debug','Release')][string]$Configuration='Release',[switch]$HeartbeatOnly,[switch]$MigrateNationalTeamStorage)
 $ErrorActionPreference='Stop'
+if($HeartbeatOnly -and $MigrateNationalTeamStorage){throw '国家队存储迁移发行必须包含国家队插件。'}
 $repository=Split-Path $PSScriptRoot -Parent
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 if(Test-Path -LiteralPath $output){throw '发布目录必须不存在，以保持发行包不可变。'}
@@ -30,5 +31,8 @@ if(-not $HeartbeatOnly){
 Copy-Item -LiteralPath (Join-Path $repository 'tools/background/Install-Service.ps1'),(Join-Path $repository 'tools/background/Uninstall-Service.ps1'),(Join-Path $repository 'tools/background/Upgrade-Service.ps1'),(Join-Path $repository 'tools/background/Recover-Service.ps1'),(Join-Path $repository 'tools/background/WorkerMaintenance.psm1'),(Join-Path $repository 'tools/background/WorkerUpgradeTransaction.psm1') -Destination $output
 $files=@{}
 foreach($file in Get-ChildItem -LiteralPath $output -Recurse -File){$relative=[IO.Path]::GetRelativePath($output,$file.FullName).Replace('\','/');$files[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
-@{format=1;product='CRS.Worker.Service';version='2.0.0';development=$true;maintenanceFormat=1;upgradeFromVersions=@('2.0.0');files=$files} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $output 'release.json') -Encoding utf8
+$release=@{format=1;product='CRS.Worker.Service';version='2.0.0';development=$true;maintenanceFormat=1;upgradeFromVersions=@('2.0.0');files=$files}
+# 迁移只属于显式维护发行；日常构建、首次安装及普通重启不自动改写旧资料格式。
+if($MigrateNationalTeamStorage){$release.storageMigrations=@(@{pluginId='crs.national-team';migrationId='national-team-plaintext-v1';timeoutSeconds=600})}
+$release | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $output 'release.json') -Encoding utf8
 Write-Output "已生成独立服务开发发行包：$output（尚未签署生产发行签名）。"

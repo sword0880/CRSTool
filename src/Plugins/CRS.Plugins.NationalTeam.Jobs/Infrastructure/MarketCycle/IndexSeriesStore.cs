@@ -5,7 +5,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-internal sealed class IndexSeriesStore
+internal sealed partial class IndexSeriesStore
 {
     private readonly IMarketRepositorySession _session;
     public IndexSeriesStore(IMarketRepositorySession session)=>_session=session;

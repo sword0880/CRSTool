@@ -13,7 +13,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory),indexSourceApprovals:new IndexApprovals(context.DataDirectory));
         public int MaximumConcurrentExecutions=>inner.MaximumConcurrentExecutions;
         public BackgroundExecutionGroup ExecutionGroup(string jobId)=>inner.ExecutionGroup(jobId);
-        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"equity-direction.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-holders.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-reports.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"market-knowledge.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"equity-direction.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-holders.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-reports.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
         public async ValueTask StartAsync(CancellationToken token)
         {
             // 此故障/去重夹具固定五只合成来源；生产默认全目录由仓储配置专项单独验证。
@@ -26,6 +26,8 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                     using(var seed=new CRS.Plugins.NationalTeamWatch.Infrastructure.MarketRepository(Path.GetDirectoryName(path)!,new(Path.Combine(context.DataDirectory,"raw")),approvalAuditKey:key))
                     {
                         EquityDirectionSeed.Apply(seed,context.DataDirectory);
+                        MarketActivityKnowledgeSeed.Apply(seed,context.DataDirectory);
+                        NamedEtfHoldingHistorySeed.Apply(seed,context.DataDirectory);
                         // 仅行业管道夹具显式携带合成休市公告；沿生产解析器登记，不让其它测试凭空获得日历。
                         var calendar=Path.Combine(context.DataDirectory,"industry-pe.fixture","calendar-2026.html");
                         if(File.Exists(calendar))seed.RegisterReviewedCalendar("SZSE",2026,File.ReadAllBytes(calendar),CRS.Plugins.NationalTeamWatch.Domain.ReviewedExchangeCalendar.Source("SZSE",2026));

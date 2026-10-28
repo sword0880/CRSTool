@@ -1,0 +1,57 @@
+name: National Team storage maintenance
+
+on:
+  pull_request:
+    paths:
+      - 'src/CRS.Common/**'
+      - 'src/CRS.Worker.*/**'
+      - 'src/Plugins/CRS.Plugins.NationalTeam*/**'
+      - 'tools/background/**'
+      - 'tests/CRS.Tests.Background/**'
+      - 'tests/CRS.Tests.WorkerEtf/**'
+      - 'tests/fixtures/CRS.Worker.EtfFixture/**'
+      - 'tests/Test-NationalTeamScmStorageMigration.ps1'
+      - 'tests/Publish-*.ps1'
+      - '.github/workflows/national-team-storage-maintenance-checks.yml'
+      - 'Directory.*.props'
+      - 'global.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build current solution
+        shell: pwsh
+        run: |
+          dotnet restore CRS.sln
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build CRS.sln -c Release --no-restore -m:4 -nodeReuse:false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish immutable candidate with explicit migration plan
+        shell: pwsh
+        run: ./tests/Publish-BackgroundService.ps1 -OutputDirectory artifacts/storage-maintenance-worker -MigrateNationalTeamStorage
+      - name: Verify production migration entry and real client readback
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --storage-migration-pipe artifacts/storage-maintenance-worker artifacts/storage-maintenance-pipe
+      - name: Verify isolated LocalService migration and interrupted maintenance recovery
+        shell: pwsh
+        run: ./tests/Test-NationalTeamScmStorageMigration.ps1 -PackageDirectory artifacts/storage-maintenance-worker
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-maintenance-evidence
+          path: |
+            artifacts/storage-maintenance-pipe/acceptance.json
+            artifacts/storage-maintenance-pipe/data/stdout-*.log
+            artifacts/storage-maintenance-pipe/data/stderr-*.log
+            .test_tmp-storage-scm/**/acceptance.json
+            .test_tmp-storage-scm/**/client-readback.json

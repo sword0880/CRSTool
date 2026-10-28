@@ -19,6 +19,56 @@ internal static class Program
         var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
         app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+        if(args is ["--named-etf-history-visual-preview",var historyInput,var historyOutput])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                NamedEtfHoldingHistoryVisualPreview.Render(historyInput,historyOutput);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
+        }
+        if(args is ["--joint-exit-visual-preview",var jointInput,var jointOutput])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                JointExitStudyVisualPreview.Render(jointInput,jointOutput);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
+        }
+        if(args is ["--breadth-visual-preview",var breadthInput,var breadthOutput])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                MarketBreadthVisualPreview.Render(breadthInput,breadthOutput);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
+        }
+        if(args is ["--market-cycle-visual-preview",var cycleInput,var cycleOutput])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                MarketCycleStudyVisualPreview.Render(cycleInput,cycleOutput);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
+        }
+        if(args is ["--activity-knowledge-visual-preview",var knowledgeInput,var knowledgeOutput])
+        {
+            try
+            {
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
+                MarketActivityKnowledgeVisualPreview.Render(knowledgeInput,knowledgeOutput);
+            }
+            catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
+        }
         if(args is ["--equity-direction-visual-preview",var directionInput,var directionDirectory])
         {
             try

@@ -8,4 +8,5 @@ public interface IMarketActivityReadRepository
     HashSet<(string Market,DateOnly Date)> VerifiedMarketActivityDates(DateOnly from,DateOnly to);
     DateOnly? ReadMarketActivityCursor();
     List<MarketActivityRevision> MarketActivityRevisions();
+    MarketActivityKnowledgeReport MarketActivityKnowledge(DateOnly from,DateOnly through,DateTimeOffset? cutoff);
 }

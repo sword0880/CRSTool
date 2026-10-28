@@ -8,7 +8,7 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// Persistence for market turnover/volume observations, collection cursor, and review audit.
 /// Shares the writer/read snapshot session and the reviewed calendar store; no second SQLite writer is created.
 /// </summary>
-internal sealed class MarketActivityStore
+internal sealed partial class MarketActivityStore
 {
     private readonly IMarketRepositorySession _session;
     private readonly MarketCalendarStore _calendar;
@@ -44,7 +44,7 @@ internal sealed class MarketActivityStore
             CREATE TABLE IF NOT EXISTS market_activity_observation(market TEXT,trade_date TEXT,amount_yuan TEXT NOT NULL,volume_shares TEXT NOT NULL,fetch_id TEXT NOT NULL,PRIMARY KEY(market,trade_date,fetch_id),FOREIGN KEY(fetch_id) REFERENCES source_fetch(fetch_id));
             """);
         _session.Execute("CREATE TABLE IF NOT EXISTS market_activity_review(fetch_id TEXT PRIMARY KEY REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS market_activity_review_audit(id TEXT PRIMARY KEY,fetch_id TEXT NOT NULL REFERENCES source_fetch(fetch_id),decision TEXT NOT NULL,reviewer TEXT NOT NULL,reviewed_at TEXT NOT NULL);");
-
+        InitializeKnowledgeSchema();
     }
 
     public List<MarketActivityRevision> MarketActivityRevisions()
@@ -59,16 +59,15 @@ internal sealed class MarketActivityStore
         if(_session.Committed(commandId))return;if(string.IsNullOrWhiteSpace(reviewer)||reviewer.Length>100)throw new InvalidDataException("成交统计审核人不能为空。");
         var row=MarketActivityRevisions().Single(x=>x.Id==id);
         if(Convert.ToInt32(_session.Scalar("SELECT count(*) FROM quality_issue WHERE evidence_id=$id AND rule_id='Q15' AND status='Open'",("$id",id)))>0)throw new InvalidDataException("原件损坏，不能接受。");
-        _session.BeforeWrite?.Invoke();using var transaction=_session.Connection.BeginTransaction();
+        _session.BeforeWrite?.Invoke();using var transaction=_session.Connection.BeginTransaction();var at=ActivityWriteAt();
         if(accept)
         {
             // 接受所选值，显式否决当前已见的其他不同值；未来新修订仍会触发冲突。
             var competing=MarketActivityRevisions().Where(x=>x.Market==row.Market&&x.Date==row.Date&&x.Id!=id&&(x.AmountYuan!=row.AmountYuan||x.VolumeShares!=row.VolumeShares)).ToArray();
-            foreach(var other in competing)_session.Execute("INSERT INTO market_activity_review VALUES($id,'Rejected',$who,$now) ON CONFLICT(fetch_id) DO UPDATE SET decision='Rejected',reviewer=excluded.reviewer,reviewed_at=excluded.reviewed_at",("$id",other.Id),("$who",reviewer),("$now",_session.Now));
+            foreach(var other in competing)RecordActivityDecision(other.Id,"Rejected",reviewer,at,"CompetingValueRejected",commandId);
         }
-        _session.Execute("INSERT INTO market_activity_review VALUES($id,$s,$who,$now) ON CONFLICT(fetch_id) DO UPDATE SET decision=excluded.decision,reviewer=excluded.reviewer,reviewed_at=excluded.reviewed_at",("$id",id),("$s",accept?"Accepted":"Rejected"),("$who",reviewer),("$now",_session.Now));
-        _session.Execute("INSERT INTO market_activity_review_audit VALUES($event,$id,$s,$who,$now)",("$event",Guid.NewGuid().ToString("N")),("$id",id),("$s",accept?"Accepted":"Rejected"),("$who",reviewer),("$now",_session.Now));
-        _session.RecordCommand(commandId,"activity-review");transaction.Commit();
+        RecordActivityDecision(id,accept?"Accepted":"Rejected",reviewer,at,"ExplicitReview",commandId);
+        _session.RecordCommand(commandId,"activity-review");_session.OperationCancellation.ThrowIfCancellationRequested();transaction.Commit();
     }
 
     public DateOnly? ReadMarketActivityCursor()=>_session.Scalar("SELECT checked_through FROM market_activity_cursor WHERE id=1") is string date?DateOnly.ParseExact(date,"yyyy-MM-dd",CultureInfo.InvariantCulture):null;
@@ -93,6 +92,7 @@ internal sealed class MarketActivityStore
                 var fetch=_session.RecordFetch(hash,source.Uri.AbsoluteUri,hash,"OfficialMarketActivity","market-activity-v1");
                 _session.Execute("INSERT INTO market_activity_observation VALUES($m,$d,$a,$v,$f)",("$m",market),("$d",date),("$a",Decimal(value.AmountYuan)),("$v",Decimal(value.VolumeShares)),("$f",fetch));
                 _session.Execute("UPDATE source_fetch SET status='Accepted' WHERE fetch_id=$f",("$f",fetch));
+                RegisterActivityKnowledge(fetch,"Native",ActivityWriteAt());
             }
         }
         transaction.Commit();

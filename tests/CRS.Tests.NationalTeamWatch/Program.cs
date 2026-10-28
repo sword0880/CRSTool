@@ -5,6 +5,13 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
+if(args is ["--national-team-migration",var migrationRoot]){NationalTeamMigrationChecks.Run(migrationRoot);return;}
+if(args is ["--national-team-migration-wal-child",var migrationWalRoot]){NationalTeamMigrationChecks.WalChild(migrationWalRoot);return;}
+if(args is ["--named-etf-history",var historyDirectory]){await NamedEtfHoldingHistoryChecks.RunAsync(historyDirectory);return;}
+if(args is ["--joint-exit-study",var jointDirectory]){await JointExitStudyChecks.RunAsync(jointDirectory);return;}
+if(args is ["--breadth-workflow",var breadthWorkflowDirectory]){await MarketBreadthWorkflowChecks.RunAsync(breadthWorkflowDirectory);return;}
+if(args is ["--market-cycle-study",var cycleStudyDirectory]){await MarketCycleStudyChecks.RunAsync(cycleStudyDirectory);return;}
+if(args is ["--activity-knowledge",var knowledgeDirectory]){await MarketActivityKnowledgeChecks.RunAsync(knowledgeDirectory);return;}
 if(args is ["--equity-direction",var directionDirectory]){await EquityDirectionChecks.RunAsync(directionDirectory);return;}
 if(args is ["--etf-report-index"]){await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--etf-report-index-sources",var etfReportSources]){await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")),etfReportSources);return;}
@@ -88,6 +95,7 @@ EtfDocumentBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EtfDocumentBo
 await EtfHolderCandidateChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfHolders",Guid.NewGuid().ToString("N")));
 await EtfReportIndexChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.EtfReportIndex",Guid.NewGuid().ToString("N")));
 PublicResearchStorageChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.PublicResearchStorage",Guid.NewGuid().ToString("N")));
+NationalTeamMigrationChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.NationalTeamMigrationChecks",Guid.NewGuid().ToString("N")));
 await ApplicationBoundaryChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ApplicationBoundaries",Guid.NewGuid().ToString("N")));
 await NavWorkspaceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.NavWorkspace",Guid.NewGuid().ToString("N")));
 await IcbcSourceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.IcbcSource",Guid.NewGuid().ToString("N")));
@@ -124,7 +132,12 @@ ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));
 ExitAlertReplayChecks.Run();
 await GapRecoveryChecks.Run(root);
 MarketActivityChecks.Run(root);
+await MarketActivityKnowledgeChecks.RunAsync(Path.Combine(root,"activity-knowledge"));
 MarketCycleChecks.Run();
+await MarketCycleStudyChecks.RunAsync(Path.Combine(root,"market-cycle-study"));
+await JointExitStudyChecks.RunAsync(Path.Combine(root,"joint-exit-study"));
+await NamedEtfHoldingHistoryChecks.RunAsync(Path.Combine(root,"named-etf-history"));
+await MarketBreadthWorkflowChecks.RunAsync(Path.Combine(root,"breadth-workflow"));
 await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
 await EquityDirectionChecks.RunAsync(Path.Combine(root,"equity-direction"));

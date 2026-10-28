@@ -16,8 +16,9 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly object rateGate = new();
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
+    private readonly Dictionary<string, (DateTimeOffset Started, int Count)> uploads = [];
     private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus"];
-    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup"];
+    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument"];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)
     {
@@ -70,7 +71,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
             caller = new(identity.User!.Value, principal.IsInRole(WindowsBuiltInRole.Administrator));
         });
         if (caller is null) throw new UnauthorizedAccessException();
-        var invalid = Limit(caller, management) ?? Validate(request, caller, management);
+        var invalid = Limit(caller, management,request.Command=="PutPluginDocument") ?? Validate(request, caller, management);
         var response = invalid is null ? request.Command=="QueryPlugin"?
             await ExecuteConnectedQueryAsync(pipe,request,caller,token):await ExecuteRequestAsync(request,caller,token)
             : new BackgroundResponse(WorkerProtocol.Version, request.RequestId, invalid);
@@ -122,19 +123,19 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     {
         if (request.ProtocolVersion != WorkerProtocol.Version) return "ProtocolMismatch";
         if (request.RequestId == Guid.Empty || request.Command is null || request.Command.Length > 40) return "InvalidRequest";
-        if (!Reads.Contains(request.Command) && !Writes.Contains(request.Command)) return "UnknownCommand";
+        if (!Reads.Contains(request.Command) && !Writes.Contains(request.Command)&&request.Command is not ("GetPluginDocument" or "ListPluginDocuments")) return "UnknownCommand";
         // 邮件设置单独有界；业务插件参数仍保持原4096字符上限。
-        var payloadLimit=request.Command=="SaveEmailSettings"?8192:4096;
+        var payloadLimit=request.Command=="PutPluginDocument"?32768:request.Command=="SaveEmailSettings"?8192:4096;
         if (request.PluginId?.Length > 80 || request.JobId?.Length > 80 || request.Cron?.Length > 120 || request.TimeZoneId?.Length > 100 || request.Cursor?.Length > 200 || request.Payload?.Length>payloadLimit || request.ExecutionId?.Length>32 || request.PageSize < 1 || request.PageSize > (request.Command=="GetHistoryByDate"?50:10)) return "InvalidRequest";
         if (Writes.Contains(request.Command) && (!caller.CanManage || !management)) return "Forbidden";
         return null;
     }
-    private string? Limit(BackgroundCaller caller, bool management)
+    private string? Limit(BackgroundCaller caller, bool management,bool upload=false)
     {
         lock (rateGate)
         {
             // 只读请求无需重放缓存；身份配额独立，修改请求在加密仓储中进行持久幂等校验。
-            var bucket = management ? commands : queries; var now = CRS.Timing.BeijingClock.Now;
+            var bucket = upload ? uploads : management ? commands : queries; var now = CRS.Timing.BeijingClock.Now;
             foreach (var sid in bucket.Where(x => now - x.Value.Started > TimeSpan.FromSeconds(10)).Select(x => x.Key).ToArray()) bucket.Remove(sid);
             if (!bucket.TryGetValue(caller.Sid, out var limit))
             {

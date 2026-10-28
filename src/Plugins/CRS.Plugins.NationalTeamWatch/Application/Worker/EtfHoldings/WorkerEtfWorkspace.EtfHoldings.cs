@@ -8,6 +8,14 @@ namespace CRS.Plugins.NationalTeamWatch;
 
 public sealed partial class WorkerEtfWorkspace
 {
+    public async Task<NamedEtfHoldingHistoryReport> EtfHoldingHistoryAsync(EtfKey key,DateOnly asOf,CancellationToken token)
+    {
+        var blocks=(await ReadPagesAsync<JsonDocumentBlock>(new("etf-holding-history",key.Market,key.Ticker,To:asOf,Count:2),token)).Rows;
+        var report=JsonDocumentBlocks.Decode<NamedEtfHoldingHistoryReport>(blocks,token);
+        if(report.FormatVersion!=NamedEtfHoldingHistoryReport.Version||report.Input.Key!=key||report.Input.AsOf!=asOf)throw new InvalidDataException("具名ETF历史证券、统计日或版本不符。");
+        var rebuilt=NamedEtfHoldingHistory.Evaluate(report.Input);
+        if(rebuilt.Fingerprint!=report.Fingerprint)throw new InvalidDataException("具名ETF历史归一输入或结果指纹不符。");return rebuilt;
+    }
     private readonly Dictionary<(EtfKey Key,DateOnly From,DateOnly Through),BackgroundRequest> etfReportSearches=[];
     public async Task<EtfReportIndexSnapshot> EtfReportIndexAsync(EtfKey key,CancellationToken token)
     {
