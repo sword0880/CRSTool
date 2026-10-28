@@ -23,6 +23,37 @@ internal static class DeploymentOperationsTool
         await Save(directory,"state.json",new{CheckedAt=CRS.Timing.BeijingClock.Now,Health=after.Health,Jobs=jobs.Jobs,History=history.History,Configuration=configuration,Equity=holdings},token);
         Console.WriteLine($"READ 正式服务Running，PID={after.Health.ProcessId}，计划{jobs.Jobs.Count}项，ETF配置{configuration.Count}只，股票记录{holdings.Count}条；完整状态已保存。");
     }
+    public static async Task Compare(string beforeDirectory,string afterDirectory)
+    {
+        using var before=JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(beforeDirectory,"state.json")));
+        using var after=JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(afterDirectory,"state.json")));
+        var oldConfiguration=JsonSerializer.Deserialize<EtfConfiguration[]>(before.RootElement.GetProperty("Configuration"))!;
+        var newConfiguration=JsonSerializer.Deserialize<EtfConfiguration[]>(after.RootElement.GetProperty("Configuration"))!;
+        var oldEquity=JsonSerializer.Deserialize<EquityHoldingRow[]>(before.RootElement.GetProperty("Equity"))!;
+        var newEquity=JsonSerializer.Deserialize<EquityHoldingRow[]>(after.RootElement.GetProperty("Equity"))!;
+        var configurationsEqual=oldConfiguration.Length==newConfiguration.Length&&oldConfiguration.ToHashSet().SetEquals(newConfiguration);
+        var projectionUnchanged=oldEquity.Length==newEquity.Length&&oldEquity.ToHashSet().SetEquals(newEquity);
+        var oldHistory=JsonSerializer.Deserialize<CRS.Worker.Abstractions.ExecutionRecord[]>(before.RootElement.GetProperty("History"))!;
+        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(2));var pipe=new BackgroundPipeClient();var readbacks=new List<object>();var retained=true;
+        foreach(var old in oldHistory)
+        {
+            var reply=await Read(pipe,new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:old.ExecutionId),deadline.Token);
+            var row=reply.Execution;
+            // 旧在途执行允许进入终态；已经结束的事实不能被新执行覆盖或改写。
+            var exact=row is not null&&row.ExecutionId==old.ExecutionId&&row.PluginId==old.PluginId&&row.JobId==old.JobId&&row.ScheduledUtc==old.ScheduledUtc
+                &&row.StartedUtc==old.StartedUtc&&row.Attempt==old.Attempt&&(!old.EndedUtc.HasValue||row.EndedUtc==old.EndedUtc&&row.Result==old.Result&&row.Checkpoint==old.Checkpoint);
+            retained&=exact;readbacks.Add(new{old.ExecutionId,Matched=exact,Before=old,After=row});
+        }
+        var health=await Read(pipe,new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"),deadline.Token);
+        var expectedPid=after.RootElement.GetProperty("Health").GetProperty("ProcessId").GetInt32();var stable=health.Health is{State:"Running"}&&health.Health.ProcessId==expectedPid;
+        await Save(afterDirectory,"baseline-comparison.json",new{CheckedAt=CRS.Timing.BeijingClock.Now,Installed=true,ReadOnly=true,
+            ConfigurationUnchanged=configurationsEqual,BeforeConfiguration=oldConfiguration.Length,AfterConfiguration=newConfiguration.Length,
+            EquityLatestProjectionUnchanged=projectionUnchanged,BeforeEquity=oldEquity.Length,AfterEquity=newEquity.Length,
+            BaselineExecutionsRead=oldHistory.Length,BaselineExecutionsPreserved=retained,HealthStable=stable,Readbacks=readbacks},deadline.Token);
+        Console.WriteLine($"COMPARE 配置一致={configurationsEqual}，股票当前投影一致={projectionUnchanged}，旧执行回读={oldHistory.Length}/{retained}，健康稳定={stable}。");
+        // 当前投影可能受恢复后的合法新采集影响；不同不自动推断底层原件丢失，仍保留独立对比结果。
+        if(!configurationsEqual||!retained||!stable)Environment.ExitCode=2;
+    }
     public static async Task Reports(string directory,bool submit,string ticker="600153")
     {
         Directory.CreateDirectory(directory);var path=Path.Combine(directory,"report-request.json");
