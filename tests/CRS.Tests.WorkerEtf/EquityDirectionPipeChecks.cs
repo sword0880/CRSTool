@@ -40,7 +40,7 @@ internal static class EquityDirectionPipeChecks
                 await Task.Delay(250,token);
             }
             Check(before.Health?.State=="Running","完整候选宿主在独立目录启动");
-            var assemblyReply=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:"fixture-assemblies"));
+            var assemblyReply=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:JsonSerializer.Serialize(new{Operation="fixture-assemblies"})));
             var assemblies=JsonSerializer.Deserialize<string[]>(assemblyReply.Payload??"[]")!;
             Check(assemblies.Contains("CRS.Worker.PluginRunner")&&!assemblies.Contains("CRS.Worker.Service"),"后台实际位于监督Runner进程，不在服务进程内执行");
             var workspace=new WorkerEtfWorkspace(client);var period=new DateOnly(2026,6,30);var initial=await workspace.EquityDirectionAsync(period,token);

@@ -9,6 +9,27 @@ using CRS.Plugins.NationalTeamWatch;
 using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
 
+if(args is ["--fixture-execution-history",var fixtureData,var fixtureOutput])
+{
+    // 只允许本套件唯一临时夹具；不开放正式密钥、ProgramData或任意数据库诊断入口。
+    var source=Path.GetFullPath(fixtureData);var boundary=Path.GetFullPath(Path.Combine(Path.GetTempPath(),"CRS.Worker.Etf"))+Path.DirectorySeparatorChar;
+    if(!source.StartsWith(boundary,StringComparison.OrdinalIgnoreCase)||Path.GetFileName(source)!="service"||!Guid.TryParseExact(Path.GetFileName(Path.GetDirectoryName(source)),"N",out _))throw new InvalidDataException("仅允许自有ETF隔离夹具。");
+    if(File.Exists(fixtureOutput))throw new IOException("诊断结果已存在。");
+    StorageSecurity.Validate(source,true);
+    using var ownership=new FileStream(Path.Combine(source,"owner.lock"),FileMode.Open,FileAccess.Read,FileShare.None);
+    // 复用内部的仅开旧钥入口，保留身份/路径核对，不为测试扩大发行API。
+    var diagnosticKey=(byte[])typeof(ServiceKey).GetMethod("OpenExisting",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)!.Invoke(null,[source])!;
+    try
+    {
+        SQLitePCL.Batteries_V2.Init();using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(source,"scheduler-config.db"),Password=Convert.ToHexString(diagnosticKey),Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());db.Open();
+        using var command=db.CreateCommand();command.CommandText="SELECT job,result,checkpoint,started,ended FROM execution ORDER BY julianday(started)";
+        using var reader=command.ExecuteReader();var rows=new List<object>();
+        while(reader.Read())rows.Add(new{Job=reader.GetString(0),Result=reader.GetString(1),Checkpoint=reader.IsDBNull(2)?null:reader.GetString(2),Started=reader.GetString(3),Ended=reader.IsDBNull(4)?null:reader.GetString(4)});
+        File.WriteAllText(fixtureOutput,JsonSerializer.Serialize(rows,new JsonSerializerOptions{WriteIndented=true}));Console.WriteLine("READ 自有隔离执行"+rows.Count+"条。");
+    }
+    finally{CryptographicOperations.ZeroMemory(diagnosticKey);}return;
+}
+
 if(args is ["--nav-pipe",var navPackage,var navSnapshot,var navOutput]){await NavPipeChecks.Run(navPackage,navSnapshot,navOutput);return;}
 if(args is ["--storage-migration-pipe",var migrationPackage,var migrationOutput]){await StorageMigrationPipeChecks.Run(migrationPackage,migrationOutput);return;}
 if(args is ["--storage-migration-scm-read",var migrationPipe,var migrationMetadata,var scmMigrationOutput]){await StorageMigrationPipeChecks.ProbeAsync(migrationPipe,migrationMetadata,scmMigrationOutput);return;}
@@ -18,6 +39,9 @@ if(args is ["--named-etf-history-pipe",var namedPackage,var namedOutput]){await 
 if(args is ["--equity-direction-pipe",var directionPackage,var directionOutput]){await EquityDirectionPipeChecks.Run(directionPackage,directionOutput);return;}
 if(args is ["--activity-knowledge-pipe",var knowledgePackage,var knowledgeOutput]){await MarketActivityKnowledgePipeChecks.Run(knowledgePackage,knowledgeOutput);return;}
 if(args is ["--etf-holder-pipe",var holderPackage,var holderOriginals,var holderPipeOutput]){await EtfHolderPipeChecks.Run(holderPackage,holderOriginals,holderPipeOutput);return;}
+if(args is ["--etf-holder-recovery-pipe",var recoveryPackage,var recoveryOriginals,var recoveryOutput]){await EtfHolderPipeChecks.Run(recoveryPackage,recoveryOriginals,recoveryOutput,recovery:true);return;}
+if(args is ["--etf-holder-efund-pipe",var efundPackage,var efundOriginals,var efundPipeOutput]){await EtfHolderPipeChecks.Run(efundPackage,efundOriginals,efundPipeOutput,true);return;}
+if(args is ["--etf-holding-publication-pipe",var publicationPackage,var publicationOutput]){await EtfHolderPipeChecks.Run(publicationPackage,"",publicationOutput,publication:true);return;}
 if(args is ["--etf-report-pipe",var reportPackage,var reportSources,var reportOriginals,var reportOutput]){await EtfReportPipeChecks.Run(reportPackage,reportSources,reportOriginals,reportOutput);return;}
 if(args is ["--industry-pipe",var industryPackage,var industrySource,var industryPipeOutput]){await IndustryPipeChecks.Run(industryPackage,industrySource,industryPipeOutput);return;}
 if(args is ["--index-pipe",var indexPackage,var indexSource,var indexPipeOutput]){await IndexPipeChecks.Run(indexPackage,indexSource,indexPipeOutput);return;}
@@ -348,7 +372,7 @@ using(var service=Start())
         var first=(await Query("GetHistory")).History!.First(x=>x.PluginId=="crs.national-team" && x.JobId=="official-share-sync" && x.Result=="Succeeded");
         var firstLog=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:first.ExecutionId));
         Check(firstLog.Execution?.Progress is{Count:>0} stages && stages.Any(x=>x.Detail.Stage=="SourceParsed") && stages.Any(x=>x.Detail.Stage=="DayCommitted") && stages[^1].Detail.Stage=="RangeCompleted","真实管道提供来源解析、事实提交及区间汇总阶段");
-        var assemblies=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:"fixture-assemblies"));
+        var assemblies=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:JsonSerializer.Serialize(new{Operation="fixture-assemblies"})));
         var loaded=JsonSerializer.Deserialize<string[]>(assemblies.Payload!)!;
         Check(!loaded.Any(x=>x.StartsWith("Presentation",StringComparison.Ordinal)||x is "CRS.Plugins.NationalTeamWatch" or "CRS.Infrastructure" or "CRS.Security"),"服务不加载WPF、UI插件或私人税务程序集");
         var market=Path.Combine(data,"plugins","crs.national-team","data","market.db");

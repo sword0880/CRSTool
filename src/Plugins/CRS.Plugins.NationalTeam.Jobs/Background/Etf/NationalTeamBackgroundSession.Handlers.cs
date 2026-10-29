@@ -169,9 +169,9 @@ public sealed partial class NationalTeamBackgroundSession
         var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         var report=request.From is null && request.To is null?await workspace!.Etf.SyncRecentAsync(token):
             await workspace!.Etf.SyncAsync(request.From??today.AddDays(-7),request.To??today,token);
-        await workspace!.Alerts.EvaluateAlertsAsync(token);
+        // 采集事务已持久标记待评价；独立评价任务接手，不能让评价冲突改写已完成采集的终态。
         return new(report.SourceIssues>0 || report.HasMore?"RetryDeferred":report.ReceivedRows==0?"NotPublished":"Succeeded",
-            $"days={report.QueriedDays};sourceIssues={report.SourceIssues};rows={report.ReceivedRows}",report.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
+            $"days={report.QueriedDays};sourceIssues={report.SourceIssues};rows={report.ReceivedRows};evaluation=IndependentJob;importPrepareMs={report.ImportPreparationMilliseconds};importCommitHeldMs={report.ImportCommitHeldMilliseconds};importAttempts={report.ImportPreparationAttempts}",report.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
     }
 
     [NationalTeamJob("review","ETF修订审核（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true,Group="management",MaximumConcurrency=1,Order=23)]

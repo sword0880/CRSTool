@@ -34,6 +34,8 @@ if(args is ["--nav-research-verify",var navSnapshot]){NavResearchTool.Verify(nav
 if(args is ["--nav-share-study-live",var studyNav,var studyFrom,var studyThrough,var studyOutput]){await EtfNavStudyTool.Capture(studyNav,studyFrom,studyThrough,studyOutput);return;}
 if(args is ["--nav-share-study-verify",var frozenStudy]){EtfNavStudyTool.Verify(frozenStudy);return;}
 if(args is ["--read-isolation"]){await ReadIsolationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.ReadIsolation",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--collection-commit"]){await CollectionCommitChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.CollectionCommit",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--prepared-alert-evaluation",var preparedEvaluationRoot]){await ExitAlertPreparedChecks.RunAsync(preparedEvaluationRoot);return;}
 if(args is ["--repository-contracts"]){RepositoryContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.RepositoryContracts",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--evidence-adversarial"]){EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EvidenceAdversarial",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--equity-status-live"]){await EquityStatusAuditTool.Run();return;}
@@ -51,6 +53,11 @@ if(args is ["--abc-review-live",var abcReviewDirectory]){await AbcEquityAcceptan
 if(args is ["--deployment-state-live",var stateDirectory]){await DeploymentOperationsTool.State(stateDirectory);return;}
 if(args is ["--deployment-compare-live",var previousStateDirectory,var currentStateDirectory]){await DeploymentOperationsTool.Compare(previousStateDirectory,currentStateDirectory);return;}
 if(args is ["--research-feature-audit-live",var auditDirectory]){await ResearchFeatureAuditTool.RunAsync(auditDirectory);return;}
+if(args is ["--etf-report-coverage-live",var reportCoverageDirectory]){await ResearchFeatureAuditTool.EtfReportCoverageAsync(reportCoverageDirectory);return;}
+if(args is ["--etf-report-sync-live",var etfReportMarket,var etfReportTicker,var etfReportDirectory]){await DeploymentOperationsTool.Reports(etfReportDirectory,true,etfReportTicker,true,etfReportMarket);return;}
+if(args is ["--etf-report-status-live",var etfStatusMarket,var etfStatusTicker,var etfStatusDirectory]){await DeploymentOperationsTool.Reports(etfStatusDirectory,false,etfStatusTicker,true,etfStatusMarket);return;}
+if(args is ["--etf-document-live",var documentMarket,var documentTicker,var documentUrl,var documentDirectory]){await DeploymentOperationsTool.EtfDocument(documentMarket,documentTicker,documentUrl,documentDirectory,true);return;}
+if(args is ["--etf-document-status-live",var documentStatusMarket,var documentStatusTicker,var documentStatusUrl,var documentStatusDirectory]){await DeploymentOperationsTool.EtfDocument(documentStatusMarket,documentStatusTicker,documentStatusUrl,documentStatusDirectory,false);return;}
 if(args is ["--equity-report-sync-live",var reportDirectory]){await DeploymentOperationsTool.Reports(reportDirectory,true);return;}
 if(args is ["--equity-report-status-live",var reportStatusDirectory]){await DeploymentOperationsTool.Reports(reportStatusDirectory,false);return;}
 if(args is ["--equity-report-sync-live",var reportTicker,var tickerReportDirectory]){await DeploymentOperationsTool.Reports(tickerReportDirectory,true,reportTicker);return;}
@@ -61,6 +68,7 @@ if(args is ["--dashboard-batch-checks"]){DashboardBatchChecks.Run();return;}
 if(args is ["--acceptance-batch-checks"]){AcceptanceBatchChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.AcceptanceBatch",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--snapshot-verification",var snapshotVerificationRoot]){SnapshotVerificationChecks.Run(snapshotVerificationRoot);return;}
 if(args is ["--exit-alerts"]){var alertRoot=Path.Combine(Path.GetTempPath(),"CRS.ExitAlerts.Tests",Guid.NewGuid().ToString("N"));ExitAlertChecks.Run(alertRoot);ScopedEvidenceChecks.Run(Path.Combine(alertRoot,"scoped-evidence"));ExitAlertReplayChecks.Run();await ExitAlertJobChecks.Run(Path.Combine(alertRoot,"jobs"));return;}
+if(args is ["--etf-document-recovery"]){await ExitAlertJobChecks.DocumentRecovery(Path.Combine(Path.GetTempPath(),"CRS.EtfDocumentRecovery",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--monitor-audit-live"]){await MonitorReadinessTool.Audit();return;}
 if(args is ["--business-contracts"]){await BusinessContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.BusinessContracts",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--monitor-backfill-status"]){await MonitorReadinessTool.BackfillStatus();return;}
@@ -128,8 +136,10 @@ Reject(()=>ImportFormat.Shares("market,ticker,trade_date,total_shares,unit\nSSE,
 var root=Path.Combine(Path.GetTempPath(),"CRS-ETF-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
 await P0RemediationChecks.Run(root);
 await ReadIsolationChecks.RunAsync(Path.Combine(root,"read-isolation"));
+await ExitAlertPreparedChecks.RunAsync(Path.Combine(root,"prepared-alert-evaluation"));
 await BusinessContractChecks.Run(Path.Combine(root,"business-contracts"));
 ExitAlertChecks.Run(Path.Combine(root,"exit-alerts"));
+await ExitAlertJobChecks.Run(Path.Combine(root,"exit-alert-jobs"));
 ScopedEvidenceChecks.Run(Path.Combine(root,"scoped-evidence"));
 SnapshotVerificationChecks.Run(Path.Combine(root,"snapshot-verification"));
 ExitAlertReplayChecks.Run();

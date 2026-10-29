@@ -1,0 +1,8 @@
+{
+  "SyntheticOnly": true,
+  "Origin": "CapturedBeforePublicationPrecisionChange",
+  "FirstSeenAt": "2026-10-28T10:00:00+08:00",
+  "RawPdfText": "%PDF-synthetic-history-2026/3/31",
+  "Payload": "{\"Id\":\"F0C588402B0538D4041B0BB62C966124EA4A64954A6D4D728ECAFD20391B5247\",\"Market\":\"SSE\",\"Ticker\":\"510300\",\"LegalEntityId\":\"legal-safe\",\"LegalName\":\"\\u68A7\\u6850\\u6811\\u6295\\u8D44\\u5E73\\u53F0\\u6709\\u9650\\u8D23\\u4EFB\\u516C\\u53F8\",\"Account\":\"account-safe\",\"HoldingAsOf\":\"2026-03-31\",\"PublishedAt\":\"2026-10-27T10:00:00+08:00\",\"FirstSeenAt\":\"2026-10-28T10:00:00+08:00\",\"Shares\":100,\"DocumentUrl\":\"https://www.sse.com.cn/synthetic-holding-history.pdf?period=2026/3/31\",\"DocumentHash\":\"3C7461465E9775DE7665CD32115311F17EB538B3197413A23C9D03E41F6CAB3E\",\"EvidencePage\":\"\\u5408\\u6210P10\",\"Reviewer\":\"synthetic-reviewer\",\"OriginalConfirmed\":true,\"IndependentOwnershipConfirmed\":true}",
+  "PayloadSha256": "137DDA9F9DD2D32B7E4804686BA5F182EE463366D90EC572602256819AB1E265"
+}

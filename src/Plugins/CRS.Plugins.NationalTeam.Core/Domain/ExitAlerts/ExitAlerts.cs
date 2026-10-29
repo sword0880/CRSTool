@@ -44,8 +44,16 @@ public sealed record ExitAlertFinding(string RuleId,string ScopeId,AlertLane Lan
 
 /// <summary>具名机构的ETF持仓，与股票直接持股分别存储；首见时间由系统记录，匿名名称不能据数额匹配身份。</summary>
 public sealed record NamedEtfHolding(string Id,string Market,string Ticker,string LegalEntityId,string LegalName,string Account,
-    DateOnly HoldingAsOf,DateTimeOffset PublishedAt,DateTimeOffset FirstSeenAt,decimal Shares,string DocumentUrl,string DocumentHash,
-    string EvidencePage,string Reviewer,bool OriginalConfirmed,bool IndependentOwnershipConfirmed);
+    DateOnly HoldingAsOf,[property:System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)] DateTimeOffset? PublishedAt,DateTimeOffset FirstSeenAt,decimal Shares,string DocumentUrl,string DocumentHash,
+    string EvidencePage,string Reviewer,bool OriginalConfirmed,bool IndependentOwnershipConfirmed)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public DateOnly? PublicationDate {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public EtfPublicationPrecision PublicationPrecision {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string PublicationText=>EtfHoldingPublication.Describe(this);
+}
 public sealed record MinimumReductionProof(string State,decimal? BaselineShares,decimal? CurrentShares,decimal? LowerBound,
     DateOnly? BaselineDate,IReadOnlyList<string> LegalEntities,IReadOnlyList<string> EvidenceIds,string Explanation);
 
@@ -106,7 +114,7 @@ public static class ExitAlertEvaluator
         if(!input.CalendarVerified||!input.TradingDays.Contains(date)||string.IsNullOrWhiteSpace(current.RevisionId))
             return NoProof("未核验的交易日历、非交易日或缺少有效份额修订，不形成机构最低净减持证明。");
         if(input.Metadata is not {} metadata||metadata.Market!=input.Key.Market||metadata.Ticker!=input.Key.Ticker)return NoProof("可比性核验不属于同一证券。");
-        if(holdings.Any(x=>x.Market!=input.Key.Market||x.Ticker!=input.Key.Ticker||x.HoldingAsOf>date||x.PublishedAt>cutoff||x.FirstSeenAt>cutoff))
+        if(holdings.Any(x=>x.Market!=input.Key.Market||x.Ticker!=input.Key.Ticker||x.HoldingAsOf>date||EtfHoldingPublication.KnownAfter(x,cutoff)))
             return NoProof("证券或时序不一致；不使用截止时点之后公布或首次取得的证据。");
         if(holdings.Select(x=>x.HoldingAsOf).Distinct().Count()!=1||holdings.Select(x=>x.LegalEntityId+"|"+x.Account).Distinct().Count()!=holdings.Count
             ||holdings.Any(x=>!NamedVerified(x))||input.Metadata?.Covers(holdings[0].HoldingAsOf,date)!=true)
@@ -117,7 +125,7 @@ public static class ExitAlertEvaluator
             "下界=max(0,具名机构基准持有份额之和－随后全市场总份额)。仅证明相对该披露基准日至少净减少，不代表单日成交、全部减持量或清仓。");
     }
     public static bool NamedVerified(NamedEtfHolding value)=>value.OriginalConfirmed&&value.IndependentOwnershipConfirmed&&value.Shares>0
-        &&value.PublishedAt<=value.FirstSeenAt&&value.HoldingAsOf<=DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(value.PublishedAt,"China Standard Time").DateTime)
+        &&EtfHoldingPublication.IsValid(value)
         &&value.LegalEntityId.Length>0&&value.LegalName.Length>0&&!System.Text.RegularExpressions.Regex.IsMatch(value.LegalName,@"匿名|未知|机构\s*[一二三四五六七八九十0-9]|institution\s*\d",System.Text.RegularExpressions.RegexOptions.IgnoreCase)
         &&value.DocumentHash.Length==64&&value.DocumentHash.All(Uri.IsHexDigit)&&!string.IsNullOrWhiteSpace(value.EvidencePage)
         &&!string.IsNullOrWhiteSpace(value.Reviewer)&&Uri.TryCreate(value.DocumentUrl,UriKind.Absolute,out var uri)&&OfficialEquityDocuments.IsAllowed(uri);

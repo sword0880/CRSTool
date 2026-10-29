@@ -24,12 +24,12 @@ internal sealed partial class EtfStore
     public List<ShareGap> DueShareGaps(DateOnly from,DateOnly to,DateTimeOffset now)
     {
         if(from>to||to.DayNumber-from.DayNumber>400)throw new InvalidDataException("缺口区间无效。");
-        ValidateEvidence();var facts=ReadEvidence();var result=new List<ShareGap>();
+        ValidateEvidence();var result=new List<ShareGap>();
         foreach(var item in Configuration().Where(x=>x.Active))
         {
             var key=new EtfKey(item.Market,item.Ticker);
             var accepted=ReadPoints(key).Select(x=>x.Date).ToHashSet();
-            var pending=facts.Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker&&x.State=="NeedsReview").Select(x=>DateOnly.Parse(x.TradeDate,CultureInfo.InvariantCulture)).ToHashSet();
+            var pending=ReadPendingGapDates(key,from,to);
             var attempts=CollectionAttempts(key,from,to).GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.ToArray());
             foreach(var day in ReadCalendar(key.Market).Where(x=>x.Valid&&x.Date>=from&&x.Date<=to).Select(x=>x.Date))
             {
@@ -50,5 +50,17 @@ internal sealed partial class EtfStore
         }
         // 没尝试过的缺口先行；同一长期不发布日期不会永远挡住其它日期。
         return result.OrderBy(x=>x.LastAttempt??DateTimeOffset.MinValue).ThenBy(x=>x.Date).ThenBy(x=>x.Key.Market).ThenBy(x=>x.Key.Ticker).ToList();
+    }
+    /// <summary>缺口只需本证券、区间内的待审日期；不构造整库证据行，也不缩小原件完整性核验范围。</summary>
+    private HashSet<DateOnly> ReadPendingGapDates(EtfKey key,DateOnly from,DateOnly to)
+    {
+        using var command=Command("""
+            SELECT DISTINCT r.trade_date FROM share_observation_revision r
+            WHERE r.market=$m AND r.ticker=$t AND r.trade_date BETWEEN $from AND $to AND r.status='NeedsReview'
+                AND NOT EXISTS(SELECT 1 FROM quality_issue q WHERE q.evidence_id=r.fetch_id AND q.rule_id='Q15' AND q.status='Open')
+            """,("$m",key.Market),("$t",key.Ticker),("$from",from.ToString("yyyy-MM-dd")),("$to",to.ToString("yyyy-MM-dd")));
+        using var reader=command.ExecuteReader();var days=new HashSet<DateOnly>();
+        while(reader.Read()){operationCancellation.ThrowIfCancellationRequested();days.Add(DateOnly.ParseExact(reader.GetString(0),"yyyy-MM-dd",CultureInfo.InvariantCulture));}
+        return days;
     }
 }

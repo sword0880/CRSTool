@@ -100,7 +100,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
         {
             var state = ReadPolicy(uri.Host);
             using var lease = await AcquireSourceAsync(uri,state,cancellationToken).ConfigureAwait(false);
-            if (state.Blocked > CRS.Timing.BeijingClock.Now) {await ReportAsync("Cooldown",uri,until:state.Blocked);throw new InvalidOperationException($"来源冷却中，最早重试时间{state.Blocked:O}。");}
+            if (state.Blocked > CRS.Timing.BeijingClock.Now) {await ReportAsync("Cooldown",uri,until:state.Blocked);throw new SourceBudgetUnavailableException("SourceCooldown",state.Blocked);}
             var wait = state.Next - CRS.Timing.BeijingClock.Now;
             if (wait > TimeSpan.Zero) {await ReportAsync("RateWait",uri,until:state.Next);await Task.Delay(wait, cancellationToken).ConfigureAwait(false);}
             cancellationToken.ThrowIfCancellationRequested();

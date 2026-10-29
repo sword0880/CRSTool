@@ -27,11 +27,18 @@ public partial class ExitAlertViewModel
     [ObservableProperty] private string holdingAccount="";
     [ObservableProperty] private DateTime? holdingAsOf;
     [ObservableProperty] private string publishedAt="";
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(HasExactPublicationTime)),NotifyPropertyChangedFor(nameof(PublicationTimeHint))] private bool onlyPublicationDate;
+    [ObservableProperty] private DateTime? holdingPublicationDate;
+    public bool HasExactPublicationTime=>!OnlyPublicationDate;
+    public string PublicationTimeHint=>OnlyPublicationDate?"仅记录原件公告日期，准确时刻保持未知；后台保留真实系统首见时间。":"填写已核实且带时区的准确公告时刻；只有日期时请选择“仅有公告日期”。";
     [ObservableProperty] private decimal holdingShares;
     [ObservableProperty] private string evidencePage="";
     [ObservableProperty] private bool holdingConfirmed;
     [ObservableProperty] private bool independentOwnershipConfirmed;
     private int proofVersion;
+    partial void OnOnlyPublicationDateChanged(bool value)=>HoldingConfirmed=false;
+    partial void OnHoldingPublicationDateChanged(DateTime? value)=>HoldingConfirmed=false;
+    partial void OnPublishedAtChanged(string value)=>HoldingConfirmed=false;
     public Task ProofLoadTask {get;private set;}=Task.CompletedTask;
     partial void OnProofFundChanged(EtfConfiguration? value)=>ProofLoadTask=LoadProofDataAsync(++proofVersion);
     partial void OnProofDocumentChanged(AlertDocument? value){MetadataConfirmed=false;HoldingConfirmed=false;IndependentOwnershipConfirmed=false;ClearHolderCandidates();}
@@ -76,10 +83,21 @@ public partial class ExitAlertViewModel
     });
     [RelayCommand] private Task SaveNamedHolding()=>Run(async()=>
     {
-        // 公告时间要求显式时区；没有准确时间不能把日期午夜填成已证实的公布时点。
-        if(!CanManage||ProofDocument is null||HoldingAsOf is null||!(PublishedAt.EndsWith('Z')||System.Text.RegularExpressions.Regex.IsMatch(PublishedAt,@"[+-]\d{2}:\d{2}$"))
-            ||!DateTimeOffset.TryParse(PublishedAt,CultureInfo.InvariantCulture,DateTimeStyles.None,out var published))throw new InvalidDataException("请填写报告期及带时区的已核对公布时间，例如2026-08-28T18:00:00+08:00；时间未知时不能确认。");
-        await workspace.ReviewNamedEtfHoldingAsync(new(ProofDocument.Id,LegalEntityId,LegalName,HoldingAccount,DateOnly.FromDateTime(HoldingAsOf.Value),published,HoldingShares,EvidencePage,ProofReviewer,HoldingConfirmed,IndependentOwnershipConfirmed),lifetime);
+        if(!CanManage||ProofDocument is null||HoldingAsOf is null)throw new InvalidDataException("请先选择原件并填写报告基准日。");
+        DateTimeOffset? published=null;DateOnly? date=null;
+        if(OnlyPublicationDate)
+        {
+            if(HoldingPublicationDate is not {} publication)throw new InvalidDataException("请填写原件中已核实的公告日期。");
+            date=DateOnly.FromDateTime(publication);
+        }
+        else
+        {
+            if(!(PublishedAt.EndsWith('Z')||System.Text.RegularExpressions.Regex.IsMatch(PublishedAt,@"[+-]\d{2}:\d{2}$"))
+                ||!DateTimeOffset.TryParse(PublishedAt,CultureInfo.InvariantCulture,DateTimeStyles.None,out var moment))throw new InvalidDataException("请填写带时区的准确公告时刻；时刻未知时请选择仅有公告日期。");
+            published=moment;
+        }
+        await workspace.ReviewNamedEtfHoldingAsync(new(ProofDocument.Id,LegalEntityId,LegalName,HoldingAccount,DateOnly.FromDateTime(HoldingAsOf.Value),published,HoldingShares,EvidencePage,ProofReviewer,HoldingConfirmed,IndependentOwnershipConfirmed)
+            {PublicationDate=date,PublicationPrecision=OnlyPublicationDate?EtfPublicationPrecision.DateOnly:EtfPublicationPrecision.ExactTime},lifetime);
         await LoadProofDataAsync(++proofVersion);await LoadEventsAsync();Status="具名持仓已保存，首见时点由后台原件登记记录固定；不将匿名机构按份额匹配身份。";
     });
 }

@@ -29,6 +29,11 @@ public interface IBackgroundQueryRoutingSession
 {
     BackgroundQueryRouting? DescribeQueryRouting();
 }
+/// <summary>停止接收查询并取消、排空脱离单次RPC的只读作业；维护结束前不得释放其资料连接。</summary>
+public interface IBackgroundQueryLifetimeSession
+{
+    Task QuiesceQueriesAsync(CancellationToken token);
+}
 /// <summary>只约束公开查询；写入和采集仍由宿主持久执行组调度，不进入查询队列。</summary>
 public static class BackgroundQueryBudgets
 {

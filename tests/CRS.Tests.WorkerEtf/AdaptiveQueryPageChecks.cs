@@ -64,7 +64,7 @@ internal static class AdaptiveQueryPageChecks
             }
         }
         finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
-        await CleanupQueue();Check(true,"取消快照的清理可等待在途读取，不因本地排队超过两秒而丢弃");
+        await CleanupQueue();Check(true,"取消快照走独立短读清理，在途配置尚未返回时已释放快照");
         Console.WriteLine($"PASS 自适应分页合计 {passed}；隔离会话/管道，不替代正式性能验收。");
     }
     private static async Task CleanupQueue()
@@ -75,10 +75,12 @@ internal static class AdaptiveQueryPageChecks
         {
             var reader=new WorkerEtfWorkspace(new(pipe));using var cancelled=new CancellationTokenSource();
             var old=reader.DashboardAsync(null,cancelled.Token);await control.SecondPage.Task.WaitAsync(TimeSpan.FromSeconds(3));
-            // 新读取先进入本地队列，取消旧分页后清理排在它后面；不把清理的网络期限当成排队期限。
+            // 新配置尚未返回时，取消分页的清理使用独立短读准入。
             var next=reader.ConfigurationAsync(default);cancelled.Cancel();
             try{await old;throw new Exception("取消仍返回不完整整页。");}catch(OperationCanceledException){}
-            await control.ConfigurationEntered.Task.WaitAsync(TimeSpan.FromSeconds(3));await Task.Delay(2300);
+            await control.ConfigurationEntered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await control.Released.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            if(next.IsCompleted)throw new Exception("配置未保持在途，不能证明独立清理。");
             control.ConfigurationRelease.TrySetResult();await next;
             await control.Released.Task.WaitAsync(TimeSpan.FromSeconds(3));
         }

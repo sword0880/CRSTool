@@ -13,7 +13,7 @@ public sealed class EvidenceUseCases : MarketUseCaseScope
         {
             if(raw is not IRawEvidenceVerifier verifier)
             {await RunAsync((IEvidenceMaintenanceRepository r)=>{r.ReconcileEvidenceIntegrity();return true;},token);return;}
-            var snapshot=await RunAsync((IEvidenceIntegrityRepository r)=>r.CaptureIntegrityEvidence(),token);
+            var snapshot=await ReadPortAsync((IEvidenceIntegrityRepository r)=>r.CaptureIntegrityEvidence(),token);
             var verified=await Task.Run(()=>verifier.VerifyMany(snapshot.SelectMany(x=>new[]{x.Hash,x.OriginalHash}),token),token);
             await RunAsync((IEvidenceIntegrityRepository r)=>{r.ApplyIntegrityEvidence(snapshot,verified);return true;},token);
         }

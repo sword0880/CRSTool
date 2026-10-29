@@ -9,10 +9,14 @@ public sealed record EtfQueryCapabilities(int Version,IReadOnlyList<string> Capa
     public const int CurrentVersion=1;
     public const string BatchAcceptance="etf-acceptance-batch-v1";
     public const string AsyncResearch="research-snapshot-jobs-v1";
+    public const string PublicationDateHoldings="named-etf-publication-date-v1";
     public IReadOnlyList<string>? ShortReadOperations {get;init;}
 }
 /// <summary>作业受理和结果就绪分开；失败、取消、过期均不返回金融行。</summary>
-public sealed record EtfResearchTicket(string Id,string State,string? Snapshot,string? Failure,DateTimeOffset ExpiresAt,string RequestFingerprint,int Version=1);
+public sealed record EtfResearchTicket(string Id,string State,string? Snapshot,string? Failure,DateTimeOffset ExpiresAt,string RequestFingerprint,int Version=1)
+{
+    public const int MaximumWaitSeconds=100;
+}
 public sealed record EtfAcceptanceBatchMetadata(int Version,DateOnly Through,int ExpectedEtfs,string PoolFingerprint)
 {
     public static string Fingerprint(IEnumerable<EtfAcceptance> rows)=>ContentFingerprint.Sha256(JsonSerializer.SerializeToUtf8Bytes(

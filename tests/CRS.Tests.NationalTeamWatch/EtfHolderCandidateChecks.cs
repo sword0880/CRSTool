@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using CRS.Worker.Ipc;
+using CRS.Plugins.NationalTeamWatch;
 using CRS.Documents.Pdf;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
@@ -24,10 +26,64 @@ internal static class EtfHolderCandidateChecks
         Reject(()=>PdfReader.ReadSelected(unknown,[1,1]),"公共PDF读取拒绝重复页");
         Reject(()=>PdfReader.ReadSelected(unknown,[0]),"公共PDF读取拒绝非法页码");
         Reject(()=>PdfReader.ReadSelected(unknown,Enumerable.Range(1,33).ToArray()),"公共PDF选择页保持32页上限");
+        var layout=new PdfPageContent(1,100,100,[new("甲",10,80,20),new("乙",10,60,20),new("9",70,80,80)],[]);
+        Check(PdfTextLayout.Cell(layout,0,50,50,90)=="甲\n乙","公共坐标截取保留跨行账户，不串入相邻数字列");
+        Reject(()=>PdfTextLayout.Cell(layout,50,0,50,90),"公共坐标截取拒绝倒置矩形");
+        Reject(()=>PdfTextLayout.Cell(layout,0,101,50,90),"公共坐标截取拒绝越出页面");
+        Reject(()=>PdfTextLayout.Cell(layout,0,double.NaN,50,90),"公共坐标截取拒绝非有限坐标");
+        try{PdfTextLayout.Lines(layout.Letters,new(true));throw new Exception("忽略版式取消。");}catch(OperationCanceledException){Check(true,"公共版式读取取消不返回空字符串");}
+        var efundUnknown=document with{Market="SZSE",Ticker="159915"};
+        Check(EfundChiNextHolderPdf.Parse(new(efundUnknown,unknown)).State=="UnsupportedTemplate","159915未知原件保持未支持，不当作未披露或零持仓");
         await EtfHolderCandidateUiChecks.RunAsync();
         RepositoryBoundary(Path.Combine(root,"boundary"),unknown);
-        if(sourceDirectory is not null)await Golden(root,sourceDirectory);
+        await ClientContracts();
+        if(sourceDirectory is not null)
+        {
+            if(File.Exists(Path.Combine(sourceDirectory,"159915-2024.pdf")))await EfundGolden(root,sourceDirectory);
+            else await Golden(root,sourceDirectory);
+        }
         Console.WriteLine($"ETF持有人候选检查通过：{passed}项。原件未写入正式数据库。");
+    }
+    private static async Task ClientContracts()
+    {
+        var control=new HolderControl();var name="CRS.EtfHolder.Contracts."+Guid.NewGuid().ToString("N");
+        using var stop=new CancellationTokenSource(TimeSpan.FromSeconds(20));var server=new BackgroundPipeServer(control,name).RunAsync(stop.Token);
+        try
+        {
+            var reader=new WorkerEtfWorkspace(new(name));var key=new EtfKey("SZSE","159915");var original=control.Report;var id=original.Document.Id;
+            Check((await reader.EtfHolderCandidatesAsync(key,id,stop.Token)).Holders.Count==11,"真实客户端接受159915已知候选版本");
+            control.Report=original with{State="NotDisclosed",Scope="AggregateOnlyNoNamedTable",PercentBasis=null,Holders=[]};
+            Check((await reader.EtfHolderCandidatesAsync(key,id,stop.Token)).State=="NotDisclosed","真实客户端保留未披露状态，不将空表升级成零持仓");
+            foreach(var (label,invalid) in new[]{("未知解析版本",original with{ParserVersion="future-parser"}),("未知披露状态",original with{State="UnknownSuccess"}),
+                ("未披露却携带持仓行",original with{State="NotDisclosed",Scope="AggregateOnlyNoNamedTable",PercentBasis=null}),
+                ("未披露状态继承其他解析器",original with{ParserVersion=EtfHolderParserVersions.Huatai300,State="NotDisclosed",Scope="AggregateOnlyNoNamedTable",PercentBasis=null,Holders=[]}),
+                ("完整表缺行",original with{Holders=original.Holders.Take(10).ToArray()}),("候选行号重复",original with{Holders=original.Holders.Select(x=>x with{Rank=1}).ToArray()}),
+                ("另一基金解析版本",original with{ParserVersion=EtfHolderParserVersions.Huatai300}),("报告期丢失",original with{ReportAsOf=null}),
+                ("空持仓字段",original with{Holders=null!}),("空持仓行",original with{Holders=[null!,..original.Holders.Skip(1)]}),
+                ("另一原件身份",original with{Document=original.Document with{Id=new('C',64)}})})
+            {
+                control.Report=invalid;
+                try{await reader.EtfHolderCandidatesAsync(key,id,stop.Token);throw new Exception("接受损坏持有人合同："+label);}
+                catch(InvalidDataException){Check(true,"客户端拒绝"+label);}
+            }
+        }
+        finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
+    }
+    private sealed class HolderControl:IBackgroundControl
+    {
+        internal EtfHolderCandidateReport Report=new(new(new('A',64),"SZSE","159915",EfundChiNextHolderPdf.Annual2025Url,new('B',64),"2026-10-28T00:00:00+08:00"),
+            EtfHolderParserVersions.EfundChiNext,"NeedsReview","合成合同",new(2025,12,31),new(2026,3,31),64,"份","ListedFundUnits","ListedTopTenTableWithSeparateFeederRow",
+            Enumerable.Range(1,11).Select(i=>new EtfHolderCandidate(i,"合成账户"+i,"合成账户"+i,1,1,"合成页面",null)).ToArray());
+        public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
+        {
+            if(request.Command!="QueryPlugin")throw new Exception("候选读取不得提交写命令。");
+            var query=EtfBusinessProtocol.ParseRequest(request.Payload!);
+            if(query.Operation=="query-capabilities")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"UnknownQuery"));
+            var blocks=CRS.Serialization.JsonDocumentBlocks.Encode(Report,token);var rows=blocks.Skip(query.Offset).Take(query.Count).ToArray();
+            var next=query.Offset+rows.Length<blocks.Count?query.Offset+rows.Length:(int?)null;
+            return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Payload:JsonSerializer.Serialize(
+                new EtfQueryPage(JsonSerializer.Serialize(rows),new('D',32),next){TotalRows=blocks.Count})));
+        }
     }
     private static void RepositoryBoundary(string root,byte[] bytes)
     {
@@ -83,17 +139,61 @@ internal static class EtfHolderCandidateChecks
         Check(repository.NamedEtfHoldings(Key).Count==0,"解析真实原件不写入已审核具名持仓");
         var last=reports[^1].Document;
         Reject(()=>repository.EtfHolderDocument(new("SZSE","159919"),last.Id),"仓储按证券绑定原件");
-        await Endpoint(root,last,reports[^1]);
+        await Endpoint(root,Key,last,reports[^1]);
         File.WriteAllText(Path.Combine(root,"holder-candidate-reports.json"),JsonSerializer.Serialize(reports,new JsonSerializerOptions{WriteIndented=true}));
         File.WriteAllText(Path.Combine(root,"raw",last.Hash+".raw"),"damaged");
         Reject(()=>repository.EtfHolderDocument(Key,last.Id),"解析前原件损坏拒绝返回候选");
         Console.WriteLine("候选及隔离证据："+root);
     }
-    private static async Task Endpoint(string root,AlertDocument document,EtfHolderCandidateReport expected)
+    private static async Task EfundGolden(string root,string directory)
+    {
+        var rawPath=Path.Combine(root,"efund","raw");var raw=new RawEvidenceStore(rawPath);
+        var workspace=Path.Combine(root,"efund");var key=new EtfKey("SZSE","159915");
+        using var repository=TestMarketData.Open(Path.Combine(workspace,"data"),raw);
+        var reports=new List<EtfHolderCandidateReport>();
+        using var expected=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(directory,"159915-holder-table-expected.json")));
+        foreach(var (name,url,asOf) in new[]{("159915-2024",EfundChiNextHolderPdf.Annual2024Url,new DateOnly(2024,12,31)),
+            ("159915-2025",EfundChiNextHolderPdf.Annual2025Url,new DateOnly(2025,12,31)),("159915-2026H1",EfundChiNextHolderPdf.Interim2026Url,new DateOnly(2026,6,30))})
+        {
+            var bytes=File.ReadAllBytes(Path.Combine(directory,name+".pdf"));
+            using var receipt=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(directory,name+"-receipt.json")));
+            Check(receipt.RootElement.GetProperty("Sha256").GetString()==Hash(bytes)&&receipt.RootElement.GetProperty("TlsVerification").GetBoolean(),"官方原件与独立下载收据摘要一致 "+name);
+            repository.RegisterAlertDocument(new(key.Market,key.Ticker,url),bytes);
+            var registered=repository.AlertDocuments(key).Single(x=>x.Url==url);
+            var frozen=((IMarketReadSessions)repository).Read(x=>x.EtfHolderDocument(key,registered.Id),default);
+            var report=EfundChiNextHolderPdf.Parse(frozen);reports.Add(report);
+            Check(report.ParserVersion==EtfHolderParserVersions.EfundChiNext&&report.ReportAsOf==asOf&&report.PublishedAt is null,"159915报告期与未知准确公布时刻保留 "+name);
+            if(asOf.Month==12)
+            {
+                var annual=expected.RootElement.GetProperty(name);
+                Check(report.State=="NeedsReview"&&report.Holders.Count==11&&report.Holders.Select(x=>x.Rank).SequenceEqual(Enumerable.Range(1,11)),"跨页或单页完整读取11名持有人 "+name);
+                foreach(var row in annual.EnumerateArray())
+                {
+                    var actual=report.Holders.Single(x=>x.Rank==row.GetProperty("Rank").GetInt32());
+                    Check(actual.RegisteredHolder==row.GetProperty("Name").GetString()&&actual.Shares==row.GetProperty("Shares").GetDecimal()
+                        &&actual.PercentOfListedUnits==row.GetProperty("Percent").GetDecimal(),"逐行对照独立页面摘录 "+name+"/"+actual.Rank);
+                }
+                Check(report.Holders.All(x=>!x.OriginalConfirmed&&!x.IndependentOwnershipConfirmed)&&report.Holders[^1].RawHolder.Contains('\n')
+                    &&report.PercentBasis=="ListedFundUnits","候选、跨行原文和上市份额分母不自动升级 "+name);
+                Check(report.Holders.Single(x=>x.RegisteredHolder=="香港中央结算有限公司").SuggestedInstitution is null,"名义结算账户不自动归国家队 "+name);
+            }
+            else Check(report is{State:"NotDisclosed",Scope:"AggregateOnlyNoNamedTable",Holders.Count:0},"仅汇总的中期报告明确未披露具名表，不冒充清仓");
+            Reject(()=>EfundChiNextHolderPdf.Parse(frozen with{Document=registered with{Ticker="159919"}}),"真实原件不能串证券 "+name);
+            Reject(()=>EfundChiNextHolderPdf.Parse(frozen with{Document=registered with{Url=url+"?v=1"}}),"真实原件不能继承变体路径 "+name);
+            var beforePublication=report.PublicationDate!.Value.AddDays(-1).ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture)+"T23:59:59+08:00";
+            Reject(()=>EfundChiNextHolderPdf.Parse(frozen with{Document=registered with{FirstSeenAt=beforePublication}}),"存储目录日期不能替代公告日期准入 "+name);
+            await Endpoint(workspace,key,registered,report);
+        }
+        Check(repository.NamedEtfHoldings(key).Count==0&&repository.AlertEvents(new()).Count==0&&repository.AlertOutbox().Count==0,"真实159915候选不写入审核持仓、退出事件或通知");
+        var last=reports[^1].Document;File.WriteAllText(Path.Combine(rawPath,last.Hash+".raw"),"damaged");
+        Reject(()=>repository.EtfHolderDocument(key,last.Id),"未披露表报告也不能跳过原件即时完整性核验");
+        File.WriteAllText(Path.Combine(root,"efund-holder-candidate-reports.json"),JsonSerializer.Serialize(reports,new JsonSerializerOptions{WriteIndented=true}));
+    }
+    private static async Task Endpoint(string root,EtfKey key,AlertDocument document,EtfHolderCandidateReport expected)
     {
         await using var session=new CRS.Plugins.NationalTeam.Jobs.NationalTeamBackgroundSession(new Context(root),new NoHttp());
         await session.StartAsync(default);
-        var query=new EtfRequest("etf-holder-candidates",Key.Market,Key.Ticker,Revision:document.Id,Count:1);
+        var query=new EtfRequest("etf-holder-candidates",key.Market,key.Ticker,Revision:document.Id,Count:1);
         var blocks=new List<CRS.Serialization.JsonDocumentBlock>();var pages=0;
         Check(session.QueryOperation(JsonSerializer.Serialize(query))==query.Operation,"候选查询接入真实后台只读白名单");
         while(true)
@@ -104,7 +204,7 @@ internal static class EtfHolderCandidateChecks
             query=query with{Snapshot=page.Snapshot,Offset=next};
         }
         var report=CRS.Serialization.JsonDocumentBlocks.Decode<EtfHolderCandidateReport>(blocks,default);
-        Check(JsonSerializer.Serialize(report)==JsonSerializer.Serialize(expected),"真实后台分块完整传回11行和原件身份，不联网");
+        Check(JsonSerializer.Serialize(report)==JsonSerializer.Serialize(expected),"真实后台分块完整传回候选、披露状态和原件身份，不联网");
         Check(pages==blocks.Count&&blocks.Count==CRS.Serialization.JsonDocumentBlocks.Encode(expected,default).Count,
             "按实际冻结文档长度取得全部块，不要求短报告人为扩成多页");
     }

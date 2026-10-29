@@ -17,7 +17,7 @@ public sealed class MarketActivityUseCases : MarketUseCaseScope
     public async Task<MarketActivitySyncReport> SyncRecentMarketActivityAsync(CancellationToken token)
     {
         var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
-        var cursor=await RunAsync((IMarketActivityReadRepository repository)=>repository.ReadMarketActivityCursor(),token);
+        var cursor=await ReadPortAsync((IMarketActivityReadRepository repository)=>repository.ReadMarketActivityCursor(),token);
         var from=cursor?.AddDays(-7)??today.AddDays(-35);var to=from.AddDays(29)<today?from.AddDays(29):today;
         var result=await SyncMarketActivityRangeAsync(from,to,token,true);
         return result with{HasMore=result.HasMore || to<today};
@@ -34,7 +34,7 @@ public sealed class MarketActivityUseCases : MarketUseCaseScope
         if(from>to || to>today || to.DayNumber-from.DayNumber>400)throw new InvalidDataException("采集区间必须不超过400个自然日，不能包含未来日期。");
         if(activitySource is null)throw new InvalidOperationException("成交统计来源未注册。");
         // 手动历史请求按事实续采；自动近段采集保留原有的官方修订发现能力。
-        var existing=track?new HashSet<(string Market,DateOnly Date)>():await RunAsync((IMarketActivityReadRepository repository)=>repository.VerifiedMarketActivityDates(from,to),token);
+        var existing=track?new HashSet<(string Market,DateOnly Date)>():await ReadPortAsync((IMarketActivityReadRepository repository)=>repository.VerifiedMarketActivityDates(from,to),token);
         var downloaded=new HashSet<(string Market,DateOnly Date)>();
         int issues=0,received=0,days=0,sourceCalls=0,closed=0,empty=0,skipped=0,deferred=0;
         string? firstFailure=null,firstMarket=null;DateOnly? firstDate=null;
@@ -56,7 +56,7 @@ public sealed class MarketActivityUseCases : MarketUseCaseScope
             var beforeEmpty=empty;var beforeSkipped=skipped;var beforeDeferred=deferred;
             token.ThrowIfCancellationRequested();await ReportAsync(new("DayStarted",day));
             // 每日先固定日历快照，独立来源并行下载；汇总与事实提交仍逐项串行。
-            var tradingDays=await RunAsync((IShareCollectionRepository repository)=>new[]{"SSE","SZSE"}.ToDictionary(m=>m,m=>repository.IsReviewedTradingDay(m,day)),token);
+            var tradingDays=await ReadPortAsync((IShareCollectionRepository repository)=>new[]{"SSE","SZSE"}.ToDictionary(m=>m,m=>repository.IsReviewedTradingDay(m,day)),token);
             async Task<(MarketActivitySource? Source,Exception? Error)> Fetch(string market)
             {
                 await ReportAsync(new("SourceStarted",day,market));
@@ -123,7 +123,7 @@ public sealed class MarketActivityUseCases : MarketUseCaseScope
                 Deferred=deferred-beforeDeferred,Issues=issues-beforeIssues});
         }
         // 冲突/损坏事实即使重新下载了同值也不能冒充已核验完成。
-        var verified=await RunAsync((IMarketActivityReadRepository repository)=>repository.VerifiedMarketActivityDates(from,to),token);
+        var verified=await ReadPortAsync((IMarketActivityReadRepository repository)=>repository.VerifiedMarketActivityDates(from,to),token);
         foreach(var missing in downloaded.Except(verified))Failure("ObservationUnverified",missing.Date,missing.Market);
         await ReportAsync(new("MarketRangeCompleted",to,Received:received){Reused=skipped,Closed=closed,Empty=empty,Deferred=deferred,Issues=issues});
         if(blocked.Count>0)

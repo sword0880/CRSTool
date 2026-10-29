@@ -2,9 +2,13 @@
 
 国家队双库迁移：`CRS.Tests.NationalTeamWatch --national-team-migration <新隔离目录>`验证双库保全、认证日志、八处中断恢复、WAL强杀和自增高水位；默认国家队回归及CI也包含此检查。`Prepare-WorkerUpgradeFixture.ps1 -Destination <新目录>`创建不可发行的合成Worker夹具，`CRS.Tests.Background --upgrade-only <夹具目录>`验证升级启动；`--storage-migration-host <夹具目录> <新目录>`验证独立维护Runner、密钥绑定、超时回收及同代次恢复。
 
+维护事务：`tests/Test-WorkerUpgradeTransactions.ps1`仅使用唯一临时目录和合成包，不创建或控制Windows服务。149项覆盖中断、快照损坏、禁止有新事实后回退，以及升级/恢复启动等待参数越界时无停机副作用。正式`Upgrade-Service.ps1`及`Recover-Service.ps1`的`StartupTimeoutSeconds`默认300秒，管理员可显式设300至1800秒以容纳归档权限及快照核验，所有核验和失败停机规则仍保留；不改变业务查询或后台任务期限。
+
 完整迁移发行须显式使用`Publish-BackgroundService.ps1 -OutputDirectory <新目录> -MigrateNationalTeamStorage`。`CRS.Tests.WorkerEtf --storage-migration-pipe <完整迁移候选> <新目录>`使用未经修改的候选、生产国家队入口及真实客户端回读合成资料。管理员运行`Test-NationalTeamScmStorageMigration.ps1 -PackageDirectory <完整迁移候选>`仅创建并最终移除唯一命名的LocalService测试服务，验证真实身份、迁移后中断与禁止旧库覆盖；工作区隔离现场保留，不操作正式服务。新CI工作流登记了这些入口，远端执行不能凭配置修改宣称通过。源码、隔离LocalService与正式数据证据分别见[迁移边界](../docs/implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)。
 
 具名ETF历史：`CRS.Tests.NationalTeamWatch --named-etf-history <隔离目录>`；`CRS.Tests.WorkerEtf --named-etf-history-pipe <完整候选> <不存在目录>`；`CRS.Tests.PluginRecovery --named-etf-history-visual-preview <专项输出> <截图目录>`。同账户报告期差额、最新期冲突/原件损坏、主体分类及未知缺口见[实现与限制](../docs/implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
+
+具名持仓公布日期：上述历史专项同时检查日期/准确时刻精度、真实首见、坏字段关闭最新基准、旧载荷字节及指纹不变。`CRS.Tests.WorkerEtf --etf-holding-publication-pipe <完整候选> <不存在目录>`验证实际客户端、管理员管道、监督Runner和普通SQLite：日期记录显式传输`PublishedAt:null`，版本协商后使用新审核操作，旧操作拒绝日期载荷。全部金融事实为隔离合成；既有资料质量事件保留，不新增金融事件、重复排队或实际投递。最终日期编辑器/候选/持仓表共9张截图覆盖640/1040/1280 DIP，控件渲染不能替代真实桌面点击验收。
 
 联合观察：`CRS.Tests.NationalTeamWatch --joint-exit-study <隔离目录>`；`CRS.Tests.WorkerEtf --joint-exit-pipe <完整候选> <不存在目录>`；`CRS.Tests.PluginRecovery --joint-exit-visual-preview <专项输出> <截图目录>`。候选分支为合成归一输入，跨进程为实际Runner中的缺失资料场景，不关闭真实金融模型门槛，见[联合观察](../docs/implementation/NATIONAL_TEAM_JOINT_EXIT_STUDY_20261028.md)。
 
@@ -30,7 +34,7 @@ ETF披露统一核验：`CRS.Tests.NationalTeamWatch --etf-document-boundaries`�
 
 ETF持有人候选：`CRS.Tests.NationalTeamWatch --etf-holder-candidates`检查未知模板、原件/取消/页参数和界面草稿竞态；已纳入默认回归与CI。`--etf-holder-golden <原件目录>`逐行比对510300两份官方年报及独立页面摘录，再经真实后台只读分页回查，使用普通SQLite隔离库；不批准具名持仓、不访问正式Worker。通用PDF读取迁至`CRS.Documents`，富途收入回归独立验证。范围及来源见[候选接线](../docs/implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)。
 
-`CRS.Tests.WorkerEtf --etf-holder-pipe <完整候选包> <原件目录> <新输出目录>`在隔离服务目录回放相同公开原件，经持久命令、监督Runner及真实管道核验候选；测试夹具禁用自动计划并拒绝未列来源，既不安装服务也不联网。`CRS.Tests.PluginRecovery --holder-visual-preview <截图目录>`仅渲染640/1040/1280 DIP合成候选，不访问后台。
+`CRS.Tests.WorkerEtf --etf-holder-pipe <完整候选包> <原件目录> <新输出目录>`在隔离服务目录回放相同公开原件，经持久命令、监督Runner及真实管道核验候选；测试夹具禁用自动计划并拒绝未列来源，既不安装服务也不联网。`--etf-holder-efund-pipe <完整候选包> <159915原件目录> <新输出目录>`复用同一验收流程，覆盖2024/2025年报与2026中期的未披露具名表状态。`CRS.Tests.NationalTeamWatch --etf-holder-golden <159915原件目录>`按已保存页面摘录逐行核对两张11行表、跨页表头、百分号、原件边界及后台分块；目录需包含三份PDF、下载收据及`159915-holder-table-expected.json`。原件保留在本地artifacts，默认回归/CI仅覆盖目录响应、公共文字坐标及客户端合同反例，不宣称运行了这些真实PDF金样。`CRS.Tests.PluginRecovery --holder-visual-preview <截图目录>`仅渲染640/1040/1280 DIP合成候选，不访问后台。
 
 行业研究采用独立测试项目。`CRS.Tests.SectorResearch`运行完整模型领域反例；`CRS.Tests.SectorUi`默认渲染明确标记的合成曲线，`--industry-installed`使用真实Worker业务管道读取已登记公布PE。国证公布PE已接通独立后台事实链和第三页导航；完整行业价格/PB/覆盖/基本面及机会门槛仍开放。命令、口径及证据见[行业研究实施](../docs/implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)和[公布PE事实链](../docs/implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)。
 
@@ -40,7 +44,7 @@ NAV存储新增：`CRS.Tests.NationalTeamWatch --nav-storage-checks`检查独立
 
 国家队研究新增：`CRS.Tests.NationalTeamWatch --nav-research-checks`运行官方NAV解析及同日份额/NAV计算反例，也纳入默认回归。`--nav-research-snapshot <原件目录> <新目录>`离线导出单只159915研究样本；`--nav-research-verify <样本目录>`按冻结时间核验原件并复算完整JSON。`--nav-share-study-live <样本目录> <开始日期> <截止日期> <新目录>`只读正式Worker的份额/证据/日历/可比性，生成RetrospectiveOnly报告；`--nav-share-study-verify <报告目录>`重新核验NAV原件并复算。缺日、待审、可比性未知时保持不可计算，不写正式市场库或通知。见[开发清单](../docs/implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)及[NAV来源约束](../docs/implementation/NATIONAL_TEAM_NAV_RESEARCH_20261024.md)。
 
-本机配套安装留证：`CRS.Tests.NationalTeamWatch --deployment-state-live <目录>`只读保存健康、计划、ETF配置和股票记录，并要求读取前后同一Running进程。`--equity-report-sync-live <目录>`仅为600153创建一个稳定报告请求ID，文件存在时沿用；`--equity-report-status-live <目录>`只查询该ID。目录读取失败前先保存独立命令终态，超时不冒充空目录。`--p0-review-live --human-confirmed`仅用于已确认固定原件的五账户，先跑真实黄金样本；已成功账户跳过，仅正式执行证明正文前超时/冷却的终态失败才另记尝试，未知结果和业务拒绝不换ID。见[正式回执与边界](../docs/implementation/ETF_EQUITY_DEPLOYMENT_20261024.md)。
+本机配套安装留证：`CRS.Tests.NationalTeamWatch --deployment-state-live <目录>`只读保存健康、计划、ETF配置和股票记录，并要求读取前后同一Running进程。`--deployment-compare-live <升级前目录> <升级后目录>`逐项核对计划身份、Cron、时区、启用及修订，ETF配置和原执行记录；股票投影单独报告，运行中的退避/失败计数允许合法变化。`--research-feature-audit-live <目录>`保留每项耗时及失败分类，普通查询20秒，三个异步研究客户端110秒，总观察上限6分钟；记录全池批量验收和已完成的具名持仓查询范围，拒绝覆盖原报告。它们均不提交采集或审核，不证明模型有效。`--equity-report-sync-live <目录>`仅为600153创建一个稳定报告请求ID，文件存在时沿用；`--equity-report-status-live <目录>`只查询该ID。目录读取失败前先保存独立命令终态，超时不冒充空目录。`--p0-review-live --human-confirmed`仅用于已确认固定原件的五账户，先跑真实黄金样本；已成功账户跳过，仅正式执行证明正文前超时/冷却的终态失败才另记尝试，未知结果和业务拒绝不换ID。见[正式回执与边界](../docs/implementation/ETF_EQUITY_DEPLOYMENT_20261024.md)。
 
 ETF/股票2026-10-24续验：`CRS.Tests.NationalTeamWatch --evidence-adversarial`为16项隔离反例，验证股票历史插入/更正不继承旧比较基线、旧页面确认拒绝、旧库缺基线保留A类快照但无差额，以及ETF原件接收/接受阶段的北京时间窗口；已加入默认回归和Windows CI。`--business-contracts`覆盖基线序列化、新绑定操作及旧服务拒绝后不降级。`--equity-ui`检查实际比较前期展示及修改报告期清除可比勾选。新增`--equity-status-live`只读正式持仓/观察池/样本目录/计划和持久历史，失败不保存完整结果；不采集、不审核、不发消息。真实数据与未关闭门槛见[续项记录](../docs/implementation/ETF_EQUITY_FOLLOWUP_20261024.md)。
 
@@ -299,10 +303,22 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 
 `CRS.Tests.NationalTeamWatch --acceptance-batch-checks`在真实隔离普通SQLite库验证超过128证券的批量验收、同次原件去重、跨请求重新核验、跨市场同代码、最新阶段/独立尝试、额外阶段原件、取消及损坏失败关闭。诊断JSON保存在该次隔离目录并打印路径；不使用磁盘耗时断言替代正式性能。`--exit-alerts`另经真实插件入口验证`acceptance-profile`与正常验收结果一致且不投递通知。两者不操作已安装Worker，也不证明正式总览超时已关闭。
 
-模块注册及批量客户端统一由现有`--business-contracts`覆盖：真实会话保留25项任务和全部查询，独立测试管道验证能力版本、24只ETF两次往返，以及缺行、重复、日期、池指纹和版本失败。`--snapshot-verification <独立新目录>`以原件打开计数、独占锁、损坏及取消验证只读事务内复用，不在写入/通知或跨查询保留结果；默认NationalTeam回归包含该项。当前证据和待关闭的并发/异步研究边界统一见[当前架构状态](../docs/architecture/ARCHITECTURE_STATUS.md)。
+模块注册、批量及异步研究客户端统一由现有`--business-contracts`覆盖：保留25项任务，24只ETF两次往返，以及缺行、重复、日期、池指纹和版本失败；研究提交幂等、固定分母、参数绑定、两项额度、重复释放、失败及重启失效；真实测试管道验证客户端取消只释放原作业、本地队列满返回可展示的繁忙错误及取消后短读恢复。`--shared-read-admission`同时验证公共有界队列的满额、等待预算、取消竞争及多租约排空。`--snapshot-verification <独立新目录>`验证只读事务内原件复用，不在写入/通知或跨查询保留结果。默认NationalTeam回归包含上述业务/原件专项。
+
+`CRS.Tests.Background --query-workloads`在进程内及真实Runner分别验证同插件短读/研究读并行、独立并发和等待预算、排队取消、后续恢复以及维护取消并排空异步研究。`CRS.Tests.WorkerEtf --market-query-reliability`以实际文件读取阻塞验证研究读期间短配置读、写入、采集及取消隔离。`CRS.Tests.NationalTeamWatch --read-isolation`当前28条通过，另覆盖采集自身的成交前后核验和历史缺口读验暂停时写入仍提交、取消不返回部分成功及恢复；一万条以上范围外修订不阻断缺口投影，待审/Q15语义保留。该入口已在默认回归及Windows CI中，未声称远端CI已执行。当前实现、候选包和正式服务证据统一见[当前架构状态](../docs/architecture/ARCHITECTURE_STATUS.md)，这些隔离测试不代替正式资料验收。
+
+`CRS.Tests.Background --runner-failures <不存在的目录>`验证公共准入异常实际跨加载/Runner边界、固定错误白名单、研究容量PluginBusy、原命令自然30秒退避后一次写入、同PID及Common字节不符拒绝；合成包同时包含Common，不能靠缺失依赖绕过真实重复加载。当前39项含InputsChanged退避，不触发正式服务或真实通知。`--read-isolation`及默认NationalTeam回归新增写门槛占用时巡检仍捕获只读依赖、核验原件、取消不影响原写入和恢复检查。源码、反例、候选及安装状态分别见[模块续项](../docs/implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)与唯一状态索引。
+
+`CRS.Tests.NationalTeamWatch --prepared-alert-evaluation <不存在目录>`及默认回归当前34项，验证旧新评价九张表一致、Windows原件稳定锁、同库/其它连接变更拒绝、三次持续变更后退避、并发写入、取消、尾部提交故障、跨库/重复提交拒绝、6000份文件规模及句柄排空。正式耗时回执区分准备总时间、持有单写名额及提交体，跳过评价不用于提交耗时证明。`CRS.Tests.WorkerEtf --fixture-execution-history <本套件GUID临时目录/service> <新JSON>`仅在已结束的合成夹具上取得独占租约、验证ACL并只读调度回执，硬性拒绝正式路径，不创建新密钥；用于保留失败原因，不替代正式IPC验收。准备/短提交及采集解耦见上述模块续项，内存/句柄上限明确失败关闭，不截断金融结果。
+
+`CRS.Tests.NationalTeamWatch --collection-commit`当前18条，包含份额提交前原件暂停时配置仍能保存、启用池变化重算、原始/规范化文件锁、取消、其它连接持续池变更三次退避、无关写入不触发重算、并行新增原件及损坏/同哈希修复、下载后读预算超限保存中断及恢复、跨库/伪造/重复能力、旧耗时保持未知和可取消重复保存。现有`--read-isolation`、默认回归及对应Windows CI入口均包含该专项，不新增重复工作流或正式采集。提交体仍复核当前库原完整范围及期间新增引用，逐页事务和未完成/失败语义保留；源码、候选与正式安装证据分别验收。
 
 
 ## 国家队公开研究存储与连接所有权
+
+正式ETF资料取证复用`CRS.Tests.NationalTeamWatch`：`--etf-report-coverage-live <新目录>`只读配置池的目录、登记原件、候选状态及已核验持仓，不可用保留null；`--etf-report-sync-live <SSE或SZSE> <代码> <目录>`显式检索2025-01-01至首次请求当日的公告，`--etf-document-live <市场> <代码> <正式目录URL> <目录>`显式登记原件并读取待审候选。后两者会写正式公开研究资料，不能当普通回归；同名`--etf-report-status-live`和`--etf-document-status-live`沿原参数/目录只回查。先保存稳定ID，不覆盖身份，不审核持仓或发送通知；同一RunNow任务须串行，AlreadyRunning不代表该证券已受理，来源失败保留冷却。见[当前架构状态](../docs/architecture/ARCHITECTURE_STATUS.md)。
+
+`--etf-document-recovery`复用预警后台专项的24项检查，验证连接/超时/来源冷却/排队、实际HTTP适配器403、取消、无效原件与同命令恢复；默认国家队回归、既有`--exit-alerts`及其CI步骤均包含，不新增测试工作流。`CRS.Tests.WorkerEtf --etf-holder-recovery-pipe <完整候选包> <510300已保存年报目录> <新目录>`沿实际宿主、监督Runner、加密命令库和公开研究普通SQLite验证一次合成来源排队失败，重启后保留原请求和NotBefore，真实等待至少30秒后恢复。它使用本机保存的公开PDF和合成HTTP，不联网、不安装、不缩短生产预算，也不批准金融事实；不能替代正式服务来源可用性验收。
 
 `CRS.Tests.NationalTeamWatch --public-storage`验证普通SQLite文件/快照、无密码读取、只读写入拒绝、连接释放、旧加密库保留式离线导出、错误密钥/占用/已有目标拒绝、来源退避保留以及真实隔离子进程崩溃遗留WAL的恢复。`--public-storage-wal-fixture`仅供该专项创建并强制结束合成子进程，不连接正式服务。默认回归及CI包含专项。原市场库测试连接已同步去除密码；收入/报税保险库及Worker管理存储测试保持原加密边界。完整实现及迁移发布限制见[ETF存储拆分](../docs/implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。
 

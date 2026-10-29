@@ -35,7 +35,7 @@ internal static class ExitAlertJobChecks
             if(result.Status!="Succeeded"||context.Calls!=1||first.Single().State!="Accepted"||context.Profile!="research")throw new Exception("后台入口没有按选定渠道提交质量提醒。");
             await session.ExecuteAsync("alert-evaluate",null,default);
             if(context.Calls!=1)throw new Exception("重复评价重复外发。");
-            Console.WriteLine("PASS 预警后台：真实插件入口共用既有调度、加密库和公共渠道端口，指定钉钉Profile提交且重复运行不重发；提供商为假实现。");
+            Console.WriteLine("PASS 预警后台：真实插件入口共用既有调度、普通SQLite和公共渠道端口，指定钉钉Profile提交且重复运行不重发；提供商为假实现。");
         }
         await using(var reopened=new NationalTeamBackgroundSession(context,new NoHttp()))
         {
@@ -43,6 +43,86 @@ internal static class ExitAlertJobChecks
             if(context.Calls!=1||(await Outbox(reopened)).Single().State!="Accepted")throw new Exception("重启丢失已受理状态。");
             Console.WriteLine("PASS 预警后台：重建后台会话保留事件和受理记录，桌面关闭不参与投递。");
         }
+        await DocumentRecovery(Path.Combine(root,"document-recovery"));
+    }
+    public static async Task DocumentRecovery(string root)
+    {
+        var context=new Context(root);var gateway=new DocumentGateway();var requestId=Guid.NewGuid();var passed=0;
+        const string url="https://www.sse.com.cn/synthetic-document-recovery.pdf";
+        var payload=JsonSerializer.Serialize(new EtfRequest("alert-document",AlertDocument:new("SSE","510300",url)));
+        void Check(bool value,string name){if(!value)throw new Exception(name);passed++;Console.WriteLine("PASS 原件恢复："+name);}
+        await using var session=new NationalTeamBackgroundSession(context,gateway);await session.StartAsync(default);
+        async Task<List<AlertDocument>> Documents()
+        {
+            var page=JsonSerializer.Deserialize<EtfQueryPage>(await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("alert-documents","SSE","510300")),default))!;
+            return JsonSerializer.Deserialize<List<AlertDocument>>(page.Items)!;
+        }
+        async Task Deferred(Exception error,string reason,DateTimeOffset? until=null)
+        {
+            gateway.Read=(_,_)=>Task.FromException<PublicHttpResponse>(error);
+            var result=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+            var checkpoint=result.Checkpoint??"";
+            Check(result.Status=="RetryDeferred"&&checkpoint.StartsWith("alert="+reason+";",StringComparison.Ordinal),reason+"保留明确原因");
+            Check(result.RetryAfter>TimeSpan.Zero&&checkpoint.Contains("retryAt=")&&checkpoint.Contains("+08:00"),reason+"回执包含北京时间重试时刻");
+            if(until is{} expected)Check(CRS.Timing.BeijingClock.Now+result.RetryAfter>=expected,reason+"不缩短来源冷却");
+            Check((await Documents()).Count==0&&context.Calls==0,reason+"不登记原件或投递通知");
+        }
+        var blockedUntil=CRS.Timing.BeijingClock.Now.AddHours(7);
+        await Deferred(new SourceBudgetUnavailableException("SourceCooldown",blockedUntil),"DocumentSourceCooldown",blockedUntil);
+        await Deferred(new SourceBudgetUnavailableException("SourceQueueFull"),"DocumentSourceQueueFull");
+        var network=new HttpRequestException("合成连接失败");network.Data["SourceRetryAt"]=blockedUntil;
+        await Deferred(network,"DocumentConnectionFailed",blockedUntil);
+        var timeout=new TimeoutException("合成来源超时");timeout.Data["SourceRetryAt"]=blockedUntil;
+        await Deferred(timeout,"DocumentTimedOut",blockedUntil);
+        gateway.Read=(_,_)=>Task.FromResult(new PublicHttpResponse(503,[],null));
+        var unavailable=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        Check(unavailable is{Status:"RetryDeferred",RetryAfter:not null}&&unavailable.Checkpoint!.Contains("DocumentHttpUnavailable;http=503;"),"非200响应保留状态码和退避");
+        gateway.Read=(_,_)=>Task.FromException<PublicHttpResponse>(new IOException("合成非网络故障"));
+        var escaped=false;try{await session.ExecuteAsync("alert-manage",payload,default,requestId);}catch(IOException){escaped=true;}
+        Check(escaped,"非网络异常不伪装为来源冷却");
+        using(var cancel=new CancellationTokenSource())
+        {
+            var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            gateway.Read=async(_,token)=>{entered.SetResult();await Task.Delay(Timeout.InfiniteTimeSpan,token);return new(200,[],null);};
+            var waiting=session.ExecuteAsync("alert-manage",payload,cancel.Token,requestId);await entered.Task;cancel.Cancel();
+            var cancelled=false;try{await waiting;}catch(OperationCanceledException){cancelled=true;}
+            Check(cancelled&&(await Documents()).Count==0,"调用方取消传播且不登记原件");
+        }
+        gateway.Read=(_,_)=>Task.FromResult(new PublicHttpResponse(200,"not-a-pdf"u8.ToArray(),"application/pdf"));
+        var invalid=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        Check(invalid.Status=="Rejected"&&(await Documents()).Count==0,"200但原件无效仍拒绝，不进入网络重试");
+        gateway.Read=(_,_)=>Task.FromResult(new PublicHttpResponse(200,"%PDF-synthetic-document-recovery"u8.ToArray(),"application/pdf"));
+        var recovered=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        Check(recovered.Status=="Succeeded"&&(await Documents()).Count==1,"来源恢复后同一命令ID可完成登记");
+        var original=(await Documents()).Single();
+        var replay=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        Check(replay.Status=="Succeeded"&&(await Documents()).Single()==original,"相同命令重放不覆盖原件身份及首见时间");
+        var holdingsPage=JsonSerializer.Deserialize<EtfQueryPage>(await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("alert-holdings","SSE","510300")),default))!;
+        Check(JsonSerializer.Deserialize<List<NamedEtfHolding>>(holdingsPage.Items)!.Count==0&&context.Calls==0,"登记与重放均不批准持仓或发送通知");
+        // 用实际HTTP适配器回放403，验证持久六小时限制传到业务回执；不连接任何外网。
+        using(var policy=new SourceRequestPolicy(Path.Combine(root,"source-policy")))
+        using(var transport=new ForbiddenTransport())
+        using(var official=new OfficialHttpGateway(policy,transport))
+        {
+            await using var deniedSession=new NationalTeamBackgroundSession(new Context(Path.Combine(root,"forbidden")),official);
+            await deniedSession.StartAsync(default);
+            var forbidden=await deniedSession.ExecuteAsync("alert-manage",payload,default,Guid.NewGuid());
+            Check(forbidden is{Status:"RetryDeferred"}&&forbidden.Checkpoint!.Contains("http=403")&&forbidden.RetryAfter>TimeSpan.FromHours(5.9),"实际HTTP适配器403的持久冷却不缩成30分钟");
+            var cooldown=await deniedSession.ExecuteAsync("alert-manage",payload,default,Guid.NewGuid());
+            Check(cooldown.Checkpoint!.Contains("DocumentSourceCooldown")&&transport.Calls==1,"冷却中再次执行不发起HTTP且保持来源原因");
+        }
+        Console.WriteLine($"DOCUMENT_RECOVERY passed={passed};installed=false;network=synthetic");
+    }
+    private sealed class DocumentGateway:IPluginHttpGateway
+    {
+        public Func<Uri,CancellationToken,Task<PublicHttpResponse>> Read{get;set;}=(_,_)=>throw new InvalidOperationException("未指定合成来源。");
+        public Task<PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)=>Read(uri,token);
+    }
+    private sealed class ForbiddenTransport:HttpMessageHandler
+    {
+        public int Calls;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
+        {token.ThrowIfCancellationRequested();Calls++;return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden){Content=new ByteArrayContent([])});}
     }
     private static async Task<List<AlertOutboxItem>> Outbox(NationalTeamBackgroundSession session)
     {

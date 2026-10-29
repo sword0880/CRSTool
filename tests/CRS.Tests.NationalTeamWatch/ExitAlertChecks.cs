@@ -63,7 +63,7 @@ internal static class ExitAlertChecks
         Check(!ExitAlertEvaluator.Single(input with{Metadata=metadata with{Ticker="159919"}},Date,rules,true).Triggered
             &&ExitAlertEvaluator.Minimum([holding with{PublishedAt=new(2026,1,1,0,0,0,TimeSpan.Zero)}],input,Date,cutoff).LowerBound is null,"其它证券的可比性或早于报告基准的公布时点不能产生证明");
     }
-    private static MarketRepository Setup(string root,ManualClock clock,out RawEvidenceStore raw)
+    internal static MarketRepository Setup(string root,ManualClock clock,out RawEvidenceStore raw)
     {
         raw=new(Path.Combine(root,"raw"));var repository=TestMarketData.Open(Path.Combine(root,"data"),raw,timeProvider:clock);
         foreach(var item in repository.Configuration().Where(x=>x.Market!=Key.Market||x.Ticker!=Key.Ticker))repository.SetMembership(new(item.Market,item.Ticker),item.Name,item.IndexGroup,false,"synthetic alert fixture");
@@ -185,7 +185,7 @@ internal static class ExitAlertChecks
         repository.EvaluateExitAlerts(true);
         Check(repository.AlertChanges(original.Id).Count==changes,"历史回算指纹持久化，不在每次评价重复更正");
     }
-    private sealed class ManualClock:TimeProvider
+    internal sealed class ManualClock:TimeProvider
     {
         public DateTimeOffset Value=new(2026,9,2,0,0,0,TimeSpan.Zero);
         public override DateTimeOffset GetUtcNow()=>Value;

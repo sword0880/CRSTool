@@ -46,7 +46,7 @@ public static class ExitAlertReplay
                 if(frozen.Rules.Enabled&&single.Triggered)findings.Add(single);
                 // 先裁剪可知披露，再取最新共同基准；不允许次日公告或次日首见信息穿越。
                 var available=frozen.Holdings.Where(h=>h.Market==input.Key.Market&&h.Ticker==input.Key.Ticker
-                    &&h.PublishedAt<=cutoff&&h.FirstSeenAt<=cutoff&&h.HoldingAsOf<=date).ToArray();
+                    &&!EtfHoldingPublication.KnownAfter(h,cutoff)&&h.HoldingAsOf<=date).ToArray();
                 if(available.Length==0)continue;
                 var baseline=available.Max(h=>h.HoldingAsOf);var holdings=available.Where(h=>h.HoldingAsOf==baseline).ToArray();
                 var proof=ExitAlertEvaluator.Minimum(holdings,input,date,cutoff);

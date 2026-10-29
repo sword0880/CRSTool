@@ -30,6 +30,8 @@ internal static class ExitAlertReplayChecks
             "https://www.sse.com.cn/holding.pdf",new('b',64),"第1页","fixture",true,true);
         var named=ExitAlertReplay.Run(request with{Holdings=[holding]});
         Check(named.FirstTriggers.Single(x=>x.RuleId=="MinimumReduction").Date==new DateOnly(2026,1,23),"1月22公告且23日首见，不能用于21日或22日证明");
+        var dateOnly=holding with{PublishedAt=null,PublicationDate=new(2026,1,22),PublicationPrecision=EtfPublicationPrecision.DateOnly};
+        Check(ExitAlertReplay.Run(request with{Holdings=[dateOnly]}).FirstTriggers.Single(x=>x.RuleId=="MinimumReduction").Date==new DateOnly(2026,1,23),"公告仅日期的回放仍由真实首见限制，不提前至公告日");
         Check(!ExitAlertReplay.Run(request with{Holdings=[holding with{LegalName="机构1"}]}).FirstTriggers.Any(x=>x.RuleId=="MinimumReduction"),"匿名数额匹配不形成具名回放证明");
         Check(ExitAlertReplay.Run(request with{Rules=request.Rules with{Enabled=false}}).FirstTriggers.Count==0,"禁用规则保留覆盖统计但不触发");
         Reject(request with{Members=[members[0],members[0]]},"重复样本拒绝");

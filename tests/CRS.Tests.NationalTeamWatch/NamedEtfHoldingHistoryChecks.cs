@@ -6,6 +6,9 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 using CRS.Plugins.NationalTeamWatch.Presentation;
 using CRS.Plugin.Abstractions;
 using CRS.Serialization;
+using CRS.Worker.Ipc;
+using CRS.Worker.Abstractions;
+using CRS.Plugins.NationalTeamWatch;
 
 internal static class NamedEtfHoldingHistoryChecks
 {
@@ -24,6 +27,8 @@ internal static class NamedEtfHoldingHistoryChecks
         Check(InstitutionAccounts.CandidateGroup("某国家大基金ETF") is null&&InstitutionAccounts.Group("梧桐树投资平台有限责任公司附属账户") is null,"近似名称和产品名不自动认定身份");
         Check(InstitutionAccounts.Group("全国社保基金一零一组合")=="社保基金"&&InstitutionAccounts.Group("基本养老保险基金一零零一组合")=="养老保险基金","既有社保与养老组合仍分开");
         var input=Fixture();var report=NamedEtfHoldingHistory.Evaluate(input);
+        Check(report.Fingerprint=="AC1B90A7CF823868FA9EB48AF0477CAA31A9E95ACC73249C028480BBB91EF921","日期精度扩展不改变修改前冻结的准确时刻指纹");
+        Publication(input);PublicationStorage(Path.Combine(root,"publication"));await PublicationClient();await PublicationBackground(Path.Combine(root,"publication-background"));
         Check(report.Rows.Single(x=>x.ReportAsOf==Second&&x.LegalName==Huijin) is{Delta:-50,PreviousShares:100,Shares:50,State:"Decreased"},"同一账户相邻已登记报告期正确比较，不当作单日交易");
         var fractional=NamedEtfHoldingHistory.Evaluate(input with{Holdings=input.Holdings.Select(x=>x.Id=="first-a"?x with{Shares=100.12m}:x.Id=="second-a"?x with{Shares=50.10m}:x).ToArray()});
         Check(fractional.Rows.Single(x=>x.ReportAsOf==Second&&x.LegalName==Huijin).Delta==-50.02m,"披露份额和期间差额保持原始小数精度");
@@ -72,6 +77,111 @@ internal static class NamedEtfHoldingHistoryChecks
         Holding("first-a","legal-huijin",Huijin,"account-huijin",First,100),Holding("first-b","legal-safe",Safe,"account-safe",First,200),
         Holding("second-a","legal-huijin",Huijin,"account-huijin",Second,50),Holding("third-a","legal-huijin",Huijin,"account-huijin",Third,40),Holding("third-b","legal-safe",Safe,"account-safe",Third,150)]);
     private static NamedEtfHolding Holding(string id,string legal,string name,string account,DateOnly day,decimal shares)=>new(id,Key.Market,Key.Ticker,legal,name,account,day,Cutoff.AddDays(-2),Cutoff.AddDays(-1),shares,Url,Hash,"合成P10","synthetic-reviewer",true,true);
+    private static void Publication(NamedEtfHistoryInput input)
+    {
+        var dated=input.Holdings[^1] with{PublishedAt=null,PublicationDate=new(2026,10,26),PublicationPrecision=EtfPublicationPrecision.DateOnly};
+        Check(ExitAlertEvaluator.NamedVerified(dated)&&dated.PublishedAt is null&&dated.PublicationText.Contains("仅日期")&&!dated.PublicationText.Contains("00:00"),"日期精度保留真实日期，不补造零点或准确时刻");
+        Check(!EtfHoldingPublication.KnownAfter(dated,dated.FirstSeenAt)&&EtfHoldingPublication.KnownAfter(dated,dated.FirstSeenAt.AddTicks(-1)),"日期证据只在真实系统首见后可用，边界前一刻仍未知");
+        var overnight=dated with{PublicationDate=new(2026,10,28),FirstSeenAt=new(2026,10,27,16,30,0,TimeSpan.Zero)};
+        Check(ExitAlertEvaluator.NamedVerified(overnight)&&EtfHoldingPublication.KnownAfter(overnight,new(2026,10,27,23,59,59,TimeSpan.FromHours(8))),"UTC跨北京时间午夜不提前使用次日公告");
+        foreach(var invalid in new[]{dated with{PublicationDate=null},dated with{PublicationDate=default(DateOnly)},dated with{PublicationDate=new(2026,10,28)},
+            dated with{PublicationDate=Third.AddDays(-1)},dated with{PublishedAt=Cutoff.AddDays(-2)},dated with{PublicationPrecision=(EtfPublicationPrecision)9},
+            dated with{PublicationPrecision=EtfPublicationPrecision.ExactTime,PublicationDate=null},dated with{IndependentOwnershipConfirmed=false}})
+            Check(!ExitAlertEvaluator.NamedVerified(invalid),"缺失、矛盾、未来日期或持有关系不足均关闭具名核验");
+        var datedHistory=NamedEtfHoldingHistory.Evaluate(input with{Holdings=[..input.Holdings.SkipLast(1),dated]});
+        Check(datedHistory.Baseline.Holdings.Count==2&&datedHistory.Fingerprint!=NamedEtfHoldingHistory.Evaluate(input).Fingerprint,"日期精度参与冻结指纹，已核日期可保留披露子集");
+        var invalidLatest=NamedEtfHoldingHistory.Evaluate(input with{Holdings=[..input.Holdings.SkipLast(1),dated with{PublicationDate=null}]});
+        Check(invalidLatest.Baseline is{State:"LatestBaselineUnavailable",Holdings.Count:0},"最新期缺少公布资料时不回退旧期或忽略损坏记录");
+        var future=NamedEtfHoldingHistory.Evaluate(input with{Holdings=[..input.Holdings.SkipLast(1),dated with{FirstSeenAt=Cutoff.AddTicks(1)}]});
+        Check(future.Baseline.Exclusions.Any(x=>x.HoldingId==dated.Id&&x.Reason=="KnownAfterCutoff"),"日期精度不绕过截止之后的真实首见");
+    }
+    private static void PublicationStorage(string root)
+    {
+        var rawPath=Path.Combine(root,"raw");var raw=new RawEvidenceStore(rawPath);var data=Path.Combine(root,"data");
+        using var repo=TestMarketData.Open(data,raw,timeProvider:new Clock());
+        repo.RegisterAlertDocument(new(Key.Market,Key.Ticker,Url),"%PDF-synthetic-publication-only"u8.ToArray());var document=repo.AlertDocuments(Key).Single();
+        var review=new NamedEtfHoldingReview(document.Id,"synthetic-date-legal",Huijin,"synthetic-date-account",Third,null,150,"合成P1","synthetic-reviewer",true,true)
+            {PublicationDate=new(2026,10,27),PublicationPrecision=EtfPublicationPrecision.DateOnly};
+        repo.ReviewNamedEtfHolding(review);repo.ReviewNamedEtfHolding(review);
+        var row=repo.NamedEtfHoldings(Key).Single();
+        Check(row is{PublishedAt:null,PublicationPrecision:EtfPublicationPrecision.DateOnly}&&row.PublicationDate==review.PublicationDate&&row.FirstSeenAt==Cutoff&&ExitAlertEvaluator.NamedVerified(row),"实际普通SQLite保留日期精度、空时刻及后台固定首见，重复核验幂等");
+        foreach(var invalid in new[]{review with{PublicationDate=null},review with{PublicationDate=new(2026,10,29)},review with{PublishedAt=Cutoff.AddDays(-1)},review with{IndependentOwnershipConfirmed=false}})
+            Reject(()=>repo.ReviewNamedEtfHolding(invalid),"持久核验拒绝缺失、未来、混填或独立关系未核");
+        Check(repo.NamedEtfHoldings(Key).Count==1,"失败审核不覆盖已保存日期事实");
+        File.WriteAllText(Path.Combine(rawPath,document.Hash+".raw"),"damaged");
+        Check(!repo.NamedEtfHoldings(Key).Single().OriginalConfirmed,"日期精度不跳过当前原件即时损坏核验");
+        var legacyPath=Path.Combine(root,"legacy");var legacyRaw=new RawEvidenceStore(Path.Combine(legacyPath,"raw"));
+        using var legacy=TestMarketData.Open(Path.Combine(legacyPath,"data"),legacyRaw,timeProvider:new Clock());
+        using var fixture=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"Fixtures","EtfHoldingPublicationLegacy.json")));
+        var payload=fixture.RootElement.GetProperty("Payload").GetString()!;var old=JsonSerializer.Deserialize<NamedEtfHolding>(payload)!;
+        Check(fixture.RootElement.GetProperty("SyntheticOnly").GetBoolean()&&JsonSerializer.Serialize(old)==payload,"修改前保存的旧JSON逐字节回读一致，不自动加日期或精度字段");
+        legacy.RegisterAlertDocument(new(old.Market,old.Ticker,old.DocumentUrl),System.Text.Encoding.UTF8.GetBytes(fixture.RootElement.GetProperty("RawPdfText").GetString()!));
+        using(var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=Path.Combine(legacyPath,"data","market.db"),Pooling=false}.ToString()))
+        {
+            db.Open();using var command=db.CreateCommand();command.CommandText="INSERT INTO nt_named_etf_holding VALUES($id,$m,$t,$p)";
+            command.Parameters.AddWithValue("$id",old.Id);command.Parameters.AddWithValue("$m",old.Market);command.Parameters.AddWithValue("$t",old.Ticker);command.Parameters.AddWithValue("$p",payload);command.ExecuteNonQuery();
+        }
+        var original=legacy.AlertDocuments(Key).Single();
+        legacy.ReviewNamedEtfHolding(new(original.Id,old.LegalEntityId,old.LegalName,old.Account,old.HoldingAsOf,old.PublishedAt,old.Shares,old.EvidencePage,old.Reviewer,true,true));
+        Check(legacy.NamedEtfHoldings(Key).Single()==old&&old.PublicationPrecision==EtfPublicationPrecision.ExactTime,"旧表内准确时刻记录保持原值，复核不触发不可变事实误冲突");
+    }
+    private static async Task PublicationClient()
+    {
+        var control=new PublicationControl();var name="CRS.Holding.Publication."+Guid.NewGuid().ToString("N");
+        using var stop=new CancellationTokenSource(TimeSpan.FromSeconds(20));var server=new BackgroundPipeServer(control,name).RunAsync(stop.Token);
+        var review=new NamedEtfHoldingReview(new('A',64),"synthetic-legal",Huijin,"synthetic-account",Third,null,1,"合成P1","synthetic-reviewer",true,true)
+            {PublicationDate=new(2026,10,27),PublicationPrecision=EtfPublicationPrecision.DateOnly};
+        try
+        {
+            var wire=EtfBusinessProtocol.WriteRequest(new("alert-holding-review-date-v1",NamedEtfHolding:review));
+            Check(wire.Contains("\"PublishedAt\":null",StringComparison.Ordinal)&&EtfBusinessProtocol.ParseRequest(wire).NamedEtfHolding?.PublishedAt is null,"日期请求显式保存空时刻，严格构造参数校验仍可回读");
+            foreach(var mode in new[]{"Old","NoFeature","BadVersion"})
+            {
+                control.Mode=mode;
+                try{await new WorkerEtfWorkspace(new(name)).ReviewNamedEtfHoldingAsync(review,stop.Token);throw new Exception("旧后台或能力异常被放行。");}
+                catch(InvalidDataException){Check(control.Writes.Count==0,"能力协商拒绝日期写入且不降级旧操作："+mode);}
+            }
+            control.Mode="Supported";var reader=new WorkerEtfWorkspace(new(name));await reader.ReviewNamedEtfHoldingAsync(review,stop.Token);
+            Check(control.Writes.Single().Operation=="alert-holding-review-date-v1"&&control.Writes.Single().NamedEtfHolding is{PublishedAt:null,PublicationPrecision:EtfPublicationPrecision.DateOnly},"真实客户端经新操作发送日期精度，不创建伪时刻");
+            try{await reader.ReviewNamedEtfHoldingAsync(review with{PublishedAt=Cutoff},stop.Token);throw new Exception("混填可发送。");}catch(InvalidDataException){Check(control.Writes.Count==1,"混填在客户端发送前拒绝");}
+            control.Mode="Old";await new WorkerEtfWorkspace(new(name)).ReviewNamedEtfHoldingAsync(review with{PublishedAt=Cutoff.AddDays(-1),PublicationDate=null,PublicationPrecision=EtfPublicationPrecision.ExactTime},stop.Token);
+            Check(control.Writes.Last().Operation=="alert-holding-review"&&!control.LastPayload!.Contains("PublicationPrecision",StringComparison.Ordinal)&&!control.LastPayload.Contains("PublicationDate",StringComparison.Ordinal),"旧准确时刻操作保留旧载荷，不新增能力要求");
+        }
+        finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
+    }
+    private sealed class PublicationControl:IBackgroundControl
+    {
+        internal string Mode="Old";internal string? LastPayload;internal List<EtfRequest> Writes=[];
+        public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
+        {
+            var query=EtfBusinessProtocol.ParseRequest(request.Payload!);
+            if(request.Command=="QueryPlugin")
+            {
+                if(Mode=="Old")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"UnknownQuery"));
+                var cap=new EtfQueryCapabilities(Mode=="BadVersion"?2:1,Mode=="Supported"?[EtfQueryCapabilities.PublicationDateHoldings]:[],256);
+                return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Payload:JsonSerializer.Serialize(new EtfQueryPage(JsonSerializer.Serialize(new[]{cap}),Guid.NewGuid().ToString("N"),null))));
+            }
+            if(request.Command!="RunNow")throw new Exception("出现未列测试命令。");
+            Writes.Add(query);LastPayload=request.Payload;
+            return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Succeeded",Receipt:new(request.RequestId,"Completed","Succeeded","synthetic-date-execution")));
+        }
+    }
+    private static async Task PublicationBackground(string root)
+    {
+        AlertDocument document;
+        using(var repo=TestMarketData.Open(Path.Combine(root,"data"),new RawEvidenceStore(Path.Combine(root,"raw")),timeProvider:new Clock()))
+        {repo.RegisterAlertDocument(new(Key.Market,Key.Ticker,Url),"%PDF-synthetic-backend-date"u8.ToArray());document=repo.AlertDocuments(Key).Single();}
+        await using var session=new NationalTeamBackgroundSession(new Context(root),new NoNetwork());await session.StartAsync(default);
+        var review=new NamedEtfHoldingReview(document.Id,"synthetic-backend-date",Huijin,"synthetic-account",Third,null,1,"合成P1","synthetic-reviewer",true,true)
+            {PublicationDate=new(2026,10,27),PublicationPrecision=EtfPublicationPrecision.DateOnly};
+        var result=await session.ExecuteAsync("alert-manage",EtfBusinessProtocol.WriteRequest(new("alert-holding-review-date-v1",NamedEtfHolding:review)),default,Guid.NewGuid());
+        Check(result.Status=="Succeeded","实际后台管理入口接受独立日期核验操作");
+        var denied=await session.ExecuteAsync("alert-manage",EtfBusinessProtocol.WriteRequest(new("alert-holding-review",NamedEtfHolding:review)),default,Guid.NewGuid());
+        Check(denied.Status=="Rejected","实际旧操作拒绝日期字段，不能忽略精度降级保存");
+        var page=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(await session.QueryAsync(EtfBusinessProtocol.WriteRequest(new("alert-holdings",Key.Market,Key.Ticker)),default));
+        var value=JsonSerializer.Deserialize<NamedEtfHolding[]>(page.Items)!.Single();
+        Check(value.PublishedAt is null&&value.FirstSeenAt==Cutoff&&value.PublicationDate==review.PublicationDate,"后台回读保留空时刻及固定首见，不采信客户端猜测的时点");
+    }
     private static async Task Model(NamedEtfHoldingHistoryReport report)
     {
         var workspace=new Workspace(report);var model=new EtfHoldingHistoryViewModel(workspace,default){Fund=new("SSE","510300","合成ETF","fixture",true,"fixture","fixture",1),AsOf=Day.ToDateTime(TimeOnly.MinValue)};

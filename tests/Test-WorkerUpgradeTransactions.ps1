@@ -172,6 +172,12 @@ try{
     # 包验证/兼容性失败必须发生在停止服务和创建维护事务之前。
     $bad=New-Fixture 'preflight-tamper'
     $service=New-MockService $bad.Data
+    foreach($invalidBudget in @(299,1801)){
+        $rejected=$false
+        try{Invoke-WorkerUpgradeTransaction -Data $bad.Data -Program $bad.Program -Source $bad.Candidate -Service $service -Development -StartupTimeoutSeconds $invalidBudget}
+        catch [System.Management.Automation.ParameterBindingException]{$rejected=$true}
+        Check ($rejected -and -not $service.State.Stopped -and -not (Test-Path (Join-Path $bad.Data 'maintenance/upgrade.json'))) '升级启动等待预算越界时不停止服务或创建事务'
+    }
     [IO.File]::AppendAllText((Join-Path $bad.Candidate 'CRS.Worker.Service.exe'),'-tampered')
     $rejected=$false
     try{Invoke-WorkerUpgradeTransaction -Data $bad.Data -Program $bad.Program -Source $bad.Candidate -Service $service -Development}
@@ -226,7 +232,13 @@ try{
     catch{$blocked=$_.Exception.Message -match '新事实'}
     Check $blocked '候选健康探针失败后拒绝覆盖旧数据库回退'
     $service.State.FailHealth=$false
-    Invoke-WorkerRecoveryTransaction -Data $healthFailure.Data -Program $healthFailure.Program -Service $service -Action RetryCandidate -Development
+    foreach($invalidBudget in @(299,1801)){
+        $rejected=$false
+        try{Invoke-WorkerRecoveryTransaction -Data $healthFailure.Data -Program $healthFailure.Program -Service $service -Action RetryCandidate -Development -StartupTimeoutSeconds $invalidBudget}
+        catch [System.Management.Automation.ParameterBindingException]{$rejected=$true}
+        Check ($rejected -and (Read-WorkerUpgrade $healthFailure.Data).Stage -eq 'NeedsManualRepair') '无界或过短恢复等待预算在事务之前拒绝'
+    }
+    Invoke-WorkerRecoveryTransaction -Data $healthFailure.Data -Program $healthFailure.Program -Service $service -Action RetryCandidate -Development -StartupTimeoutSeconds 600
     Check ((Read-WorkerUpgrade $healthFailure.Data).Stage -eq 'Committed') '修复健康探针后可继续原候选'
     Check ([IO.File]::ReadAllText((Join-Path $healthFailure.Data 'scheduler-config.db')).Contains('candidate-fact')) '健康探针恢复后保留候选新事实'
 

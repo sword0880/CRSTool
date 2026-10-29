@@ -60,6 +60,7 @@ internal static class WorkerRemediationChecks
             await PendingRecoveryAsync(root, package, servicePackage);
             await ConcurrencyAsync(root, catalog, key);
             await QueryIsolationAsync(root, key);
+            await QueryWorkloadChecks.RunAsync(Path.Combine(root,"query-workloads"));
             Migration(root, key, catalog.Jobs[0].Descriptor);
             await RetryAsync(root, key, catalog);
             var badJob=Package(root,("crs.fixture","BadJobEntry"));

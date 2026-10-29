@@ -60,12 +60,12 @@ internal sealed partial class AlertStore
     {
         if(Committed(commandId))return;var document=RequireAlertDocument(review.DocumentId);
         if(!Identifier(review.LegalEntityId)||review.LegalName is not {Length:>0 and <=150}||review.Account is not {Length:>0 and <=150}
-            ||review.EvidencePage is not {Length:>0 and <=300}||!ReviewerName(review.Reviewer)||review.PublishedAt>CRS.Timing.BeijingClock.Read(clock)
-            ||review.PublishedAt>DateTimeOffset.Parse(document.FirstSeenAt,CultureInfo.InvariantCulture)
-            ||review.HoldingAsOf>DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(review.PublishedAt,"China Standard Time").DateTime))throw new InvalidDataException("具名持仓的主体、时序、报告期或证据位置无效。");
+            ||review.EvidencePage is not {Length:>0 and <=300}||!ReviewerName(review.Reviewer))throw new InvalidDataException("具名持仓的主体、报告期或证据位置无效。");
         var id=ExitAlertEvaluator.Hash(document.Id+"|"+review.LegalEntityId+"|"+review.Account+"|"+review.HoldingAsOf.ToString("yyyy-MM-dd"));
         var row=new NamedEtfHolding(id,document.Market,document.Ticker,review.LegalEntityId,review.LegalName,review.Account,review.HoldingAsOf,
-            review.PublishedAt,DateTimeOffset.Parse(document.FirstSeenAt,CultureInfo.InvariantCulture),review.Shares,document.Url,document.Hash,review.EvidencePage,review.Reviewer,review.OriginalConfirmed,review.IndependentOwnershipConfirmed);
+            review.PublishedAt,DateTimeOffset.Parse(document.FirstSeenAt,CultureInfo.InvariantCulture),review.Shares,document.Url,document.Hash,review.EvidencePage,review.Reviewer,review.OriginalConfirmed,review.IndependentOwnershipConfirmed)
+            {PublicationDate=review.PublicationDate,PublicationPrecision=review.PublicationPrecision};
+        if(EtfHoldingPublication.KnownAfter(row,CRS.Timing.BeijingClock.Read(clock)))throw new InvalidDataException("具名持仓的公告日期、时刻或系统首见晚于当前时点。");
         if(!ExitAlertEvaluator.NamedVerified(row))throw new InvalidDataException("匿名机构、重叠持有关系或未经原件确认不能产生具名证据。");
         var payload=JsonSerializer.Serialize(row);var old=Scalar("SELECT payload FROM nt_named_etf_holding WHERE id=$id",("$id",id)) as string;
         if(old is not null&&old!=payload)throw new InvalidDataException("已确认持仓不能覆盖，修订需登记新的官方原件。");

@@ -32,7 +32,7 @@ internal static class MarketActivityKnowledgePipeChecks
         {
             BackgroundResponse before;while(true){token.ThrowIfCancellationRequested();if(process.HasExited)throw new IOException("隔离宿主提前退出。");try{before=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"));if(before.Health?.State=="Running")break;}catch(IOException){}await Task.Delay(250,token);}
             Check(before.Health?.State=="Running","完整候选宿主在独立目录启动");
-            var assemblyReply=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:"fixture-assemblies"));var assemblies=JsonSerializer.Deserialize<string[]>(assemblyReply.Payload??"[]")!;
+            var assemblyReply=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:JsonSerializer.Serialize(new{Operation="fixture-assemblies"})));var assemblies=JsonSerializer.Deserialize<string[]>(assemblyReply.Payload??"[]")!;
             Check(assemblies.Contains("CRS.Worker.PluginRunner")&&!assemblies.Contains("CRS.Worker.Service"),"业务在监督Runner中执行");
             var workspace=new WorkerEtfWorkspace(client);var day=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime).AddDays(-7);var initial=await workspace.MarketActivityKnowledgeAsync(day,day,null,token);
             Check(initial.Revisions.Count==3&&initial.Revisions.Count(x=>x.State==MarketCycleObservationState.NeedsReview)==2,"实际客户端完整读取两市原件与待审冲突");

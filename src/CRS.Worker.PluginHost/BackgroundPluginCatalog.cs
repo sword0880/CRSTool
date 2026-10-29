@@ -41,6 +41,13 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
     private readonly Dictionary<string,BackgroundQueryRouting> queryRouting=new(StringComparer.Ordinal);
     public bool SupportsQueries(string plugin)=>querySessions.ContainsKey(plugin);
     public BackgroundQueryRouting? QueryRouting(string plugin)=>queryRouting.GetValueOrDefault(plugin);
+    public bool SupportsQueryLifetime(string plugin)=>sessions.Any(x=>x.Plugin==plugin&&x.Session is IBackgroundQueryLifetimeSession);
+    public async Task DrainQueriesAsync(CancellationToken token)
+    {
+        foreach(var (plugin,session) in sessions.ToArray())
+            if(session is IBackgroundQueryLifetimeSession lifetime)
+                await InvokeAsync(plugin,"DrainQueries",cancellation=>lifetime.QuiesceQueriesAsync(cancellation),token);
+    }
     private readonly List<BackgroundPluginStatus> statuses = [];
     private readonly List<string> expectedPlugins = [];
     public IReadOnlyList<string> ExpectedPlugins=>expectedPlugins.ToArray();
@@ -289,6 +296,20 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
         protected override Assembly? Load(AssemblyName name)
         {
             if (name.Name == typeof(IBackgroundPluginEntry).Assembly.GetName().Name) return typeof(IBackgroundPluginEntry).Assembly;
+            if(name.Name==typeof(CRS.Common.Concurrency.WorkAdmissionException).Assembly.GetName().Name)
+            {
+                // 公共异常/执行上下文也是后台契约的一部分，不能在两个加载上下文形成不相等的类型。
+                // 包若携带公共库，仍逐字节核验与宿主相同；不能静默替换成另一版本。
+                var shared=typeof(CRS.Common.Concurrency.WorkAdmissionException).Assembly;
+                if(files.TryGetValue("CRS.Common.dll",out var commonHash))
+                {
+                    Verify(directory,"CRS.Common.dll",commonHash);
+                    using var input=File.OpenRead(shared.Location);
+                    if(!Convert.ToHexString(SHA256.HashData(input)).Equals(commonHash,StringComparison.OrdinalIgnoreCase))
+                        throw new FileLoadException("后台公共契约与宿主发行不一致。");
+                }
+                return shared;
+            }
             if (name.Name is null || name.Name.StartsWith("Presentation", StringComparison.Ordinal) || name.Name.StartsWith("System.Windows", StringComparison.Ordinal)
                 || name.Name.StartsWith("CRS.Security", StringComparison.Ordinal) || name.Name.StartsWith("CRS.Infrastructure", StringComparison.Ordinal))
                 throw new FileLoadException("后台插件不允许加载桌面或私人数据程序集。");

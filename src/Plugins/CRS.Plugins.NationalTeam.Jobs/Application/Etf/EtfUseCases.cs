@@ -1,4 +1,5 @@
 using System.Text;
+using CRS.Common.Concurrency;
 using CRS.Plugin.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
@@ -27,13 +28,16 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
         var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
         // 最新数据先采；历史失败不能把所有后续日期挡在旧游标后面。
         var recent=await SyncAsync(today.AddDays(-7),today,token,true);
-        var gaps=await RunAsync((IEtfRepository repository)=>repository!.DueHistoricalShareGaps(today.AddDays(-8),CRS.Timing.BeijingClock.Now),token);
+        var gaps=await ReadPortAsync((IShareCollectionRepository repository)=>repository.DueHistoricalShareGaps(today.AddDays(-8),CRS.Timing.BeijingClock.Now),token);
         if(gaps.Count==0)return recent;
         var from=gaps[0].Date;var to=from.AddDays(29)<today.AddDays(-8)?from.AddDays(29):today.AddDays(-8);
         var batch=gaps.Where(x=>x.Date>=from&&x.Date<=to).GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.Select(g=>g.Key).ToHashSet());
         var backlog=await SyncAsync(from,to,token,false,batch);
         return new(recent.QueriedDays+backlog.QueriedDays,recent.SourceIssues+backlog.SourceIssues,recent.ReceivedRows+backlog.ReceivedRows,
-            gaps.Any(x=>x.Date<from||x.Date>to));
+            gaps.Any(x=>x.Date<from||x.Date>to))
+        {ImportPreparationMilliseconds=recent.ImportPreparationMilliseconds+backlog.ImportPreparationMilliseconds,
+            ImportCommitHeldMilliseconds=recent.ImportCommitHeldMilliseconds+backlog.ImportCommitHeldMilliseconds,
+            ImportPreparationAttempts=recent.ImportPreparationAttempts+backlog.ImportPreparationAttempts};
     }
     public Task<SyncReport> SyncAsync(DateOnly from,DateOnly to,CancellationToken token)=>SyncAsync(from,to,token,false);
     /// <summary>自动补采逐日提交查询游标；来源故障日阻断游标前进，但保留其它已提交事实。</summary>
@@ -45,6 +49,8 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
         // 手动补历史与计划任务不重叠，避免同一来源突发请求。
         if(!await syncGate.WaitAsync(0,token))throw new InvalidDataException("已有联网采集运行中，请等待或取消当前操作。");
         var completed=0;var receivedRows=0;var issues=new HashSet<string>();var contiguous=true;int totalAdded=0,totalDuplicates=0,totalPending=0;
+        long importPreparation=0,importHeld=0;var importAttempts=0;
+        SyncReport Finish()=>new(completed,issues.Count,receivedRows){ImportPreparationMilliseconds=importPreparation,ImportCommitHeldMilliseconds=importHeld,ImportPreparationAttempts=importAttempts};
         try
         {
             await ReportAsync(new("RangeStarted",from));
@@ -54,9 +60,9 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
                 token.ThrowIfCancellationRequested();NetworkStatus=$"两市正在获取 {day:yyyy-MM-dd}；已完成{completed}个查询日。";
                 await ReportAsync(new("DayStarted",day));
                 // 这里只读取监控配置，不为确定请求池重复计算全池指标和扫描全部原件。
-                var activeKeys=await RunAsync((IEtfRepository repository)=>repository!.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
-                if(activeKeys.Count==0){NetworkStatus="当前没有启用监控的ETF，已停止本次采集；已提交事实保留。";return new(completed,issues.Count,receivedRows);}
-                var poolKeys=await RunAsync((IEtfRepository repository)=>activeKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)!=false
+                var activeKeys=await ReadPortAsync((IEtfReadRepository repository)=>repository.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToList(),token);
+                if(activeKeys.Count==0){NetworkStatus="当前没有启用监控的ETF，已停止本次采集；已提交事实保留。";return Finish();}
+                var poolKeys=await ReadPortAsync((IShareCollectionRepository repository)=>activeKeys.Where(key=>repository.IsReviewedTradingDay(key.Market,day)!=false
                     && (gapBatch is null||gapBatch.TryGetValue(day,out var due)&&due.Contains(key))).ToList(),token);
                 if(poolKeys.Count==0)
                 {
@@ -78,21 +84,20 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
                     throw;
                 }
                 if(result.Issues?.Count>0||result.Failures?.Count>0)contiguous=false;
-                var missing=await RunAsync((IEtfRepository repository)=>poolKeys.Where(key=>repository!.IsReviewedTradingDay(key.Market,day)==true&&!result.Pages.Any(p=>p.Rows.Any(r=>r.Key==key&&r.Date==day))).ToArray(),token);
+                CollectionCommitResult committed;
+                try
+                {
+                var missing=await ReadPortAsync((IShareCollectionRepository repository)=>poolKeys.Where(key=>repository.IsReviewedTradingDay(key.Market,day)==true&&!result.Pages.Any(p=>p.Rows.Any(r=>r.Key==key&&r.Date==day))).ToArray(),token);
                 if(missing.Length>0){contiguous=false;foreach(var key in missing)issues.Add($"{key.Market}:{key.Ticker}:{day:yyyy-MM-dd}:NotPublished");}
                 receivedRows+=result.Pages.Sum(page=>page.Rows.Count(row=>poolKeys.Contains(row.Key)));
                 foreach(var issue in result.Issues??[])issues.Add(issue);
-                ShareImportOutcome outcome;
-                try { outcome=await RunAsync((IEtfRepository repository)=>
+                committed=await CommitCollectedDayAsync(result.Pages,poolKeys,day,(repository,preparedPages)=>
                 {
                     int added=0,duplicates=0,pending=0;
-                    var pool=repository!.Configuration().Where(x=>x.Active).Select(x=>new EtfKey(x.Market,x.Ticker)).ToHashSet();
-                    foreach(var page in result.Pages)
+                    foreach(var prepared in preparedPages)
                     {
-                        token.ThrowIfCancellationRequested();var original=raw.Save(page.Content);
-                        var rows=page.Rows.Where(x=>pool.Contains(x.Key)&&poolKeys.Contains(x.Key)&&x.Date==day).ToList();
-                        var normalized=Encoding.UTF8.GetBytes("market,ticker,trade_date,total_shares,unit\n"+string.Join('\n',rows.Select(x=>$"{x.Key.Market},{x.Key.Ticker},{x.Date:yyyy-MM-dd},{x.Original.ToString(System.Globalization.CultureInfo.InvariantCulture)},万份")));
-                        var fetch=repository.RecordFetch(raw.Save(normalized),page.Uri.AbsoluteUri,original,page.Market=="SZSE"?"OfficialSzseEtfJson":"OfficialSseEtfJson",page.Market=="SZSE"?"szse-etf-json-v1":"sse-etf-json-v1");
+                        token.ThrowIfCancellationRequested();var page=prepared.Source;var rows=prepared.Rows;
+                        var fetch=repository.RecordFetch(prepared.NormalizedHash,page.Uri.AbsoluteUri,prepared.OriginalHash,page.Market=="SZSE"?"OfficialSzseEtfJson":"OfficialSseEtfJson",page.Market=="SZSE"?"szse-etf-json-v1":"sse-etf-json-v1");
                         var pageKeys=poolKeys.Where(key=>key.Market==page.Market && (rows.Any(row=>row.Key==key)
                             || !result.Pages.Any(p=>p.Rows.Any(row=>row.Key==key)) && (page.Market=="SSE" || page.Uri.Query.Contains("txtDm="+key.Ticker,StringComparison.Ordinal)))).ToArray();
                         foreach(var key in pageKeys)
@@ -109,7 +114,7 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
                         }
                         catch{repository.MarkFailed(fetch);throw;}
                     }
-                    var evidence=repository.Evidence();
+                    // 批事实仍核验原有仪表盘依赖；待审修订会在事实SQL中阻断该日，勿再次物化整库证据行。
                     var points=repository.PointsForKeys(poolKeys);
                     foreach(var key in poolKeys)
                     {
@@ -117,10 +122,8 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
                         if(failure is not null){RecordCollectionFailure(repository,attempts[key],failure);continue;}
                         var attempt=repository.CollectionAttempts(key,day,day).First(x=>x.Id==attempts[key]);
                         var received=result.Pages.Any(p=>p.Rows.Any(r=>r.Key==key&&r.Date==day));
-                        var revisions=evidence.Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker&&x.TradeDate==day.ToString("yyyy-MM-dd")).ToArray();
                         var sourceFailed=result.Issues?.Any(issue=>issue.StartsWith(key.Market=="SSE"?"SSE":"SZSE "+key.Ticker,StringComparison.Ordinal))==true;
                         var state=!received?sourceFailed?"SourceFailed":repository.IsReviewedTradingDay(key.Market,day)==true?"NotPublished":"Missing"
-                            :revisions.Any(x=>x.State=="NeedsReview")?"NeedsReview"
                             :points[key].Any(x=>x.Date==day)?"Accepted":"NeedsReview";
                         repository.RecordCollection(attempts[key],state,!received?sourceFailed?"SourceRequestFailed":"NoObservationReturned":state=="Accepted"?"AcceptedFactVerified":"QualityReviewRequired",attempt.FetchId);
                     }
@@ -132,10 +135,14 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
                     await RunAsync((IEtfRepository repository)=>{foreach(var pair in attempts)
                     {
                         var attempt=repository!.CollectionAttempts(pair.Key,day,day).First(x=>x.Id==pair.Value);
-                        repository.RecordCollection(pair.Value,error is OperationCanceledException?"Interrupted":"ParseFailed",error is OperationCanceledException?"Cancelled":"ImportOrValidationFailed",attempt.FetchId);
+                        var deferred=error is WorkAdmissionException;
+                        repository.RecordCollection(pair.Value,error is OperationCanceledException||deferred?"Interrupted":"ParseFailed",
+                            error is OperationCanceledException?"Cancelled":error is WorkAdmissionException{Reason:"InputsChanged"}?"InputsChanged":deferred?"AdmissionDeferred":"ImportOrValidationFailed",attempt.FetchId);
                     }return true;},CancellationToken.None);
                     throw;
                 }
+                var outcome=committed.Outcome;
+                importPreparation+=committed.PreparationMilliseconds;importHeld+=committed.CommitHeldMilliseconds;importAttempts+=committed.Attempts;
                 // 只有事实提交完成后才报告成功计数，取消或回滚不能产生已写入假象。
                 totalAdded+=outcome.Added;totalDuplicates+=outcome.Duplicates;totalPending+=outcome.Pending;
                 await ReportAsync(new("DayCommitted",day,Received:result.Pages.Sum(page=>page.Rows.Count(row=>poolKeys.Contains(row.Key))),Added:outcome.Added,Duplicates:outcome.Duplicates,Pending:outcome.Pending));
@@ -143,7 +150,7 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
             }
             NetworkStatus=$"两市联网采集完成（{completed}个查询日）；{(issues.Count==0?"本次没有来源错误":string.Join("；",issues.Take(3)))}；完整交易日历与NAV金额仍待核验。";
             await ReportAsync(new("RangeCompleted",to,Received:receivedRows,Added:totalAdded,Duplicates:totalDuplicates,Pending:totalPending));
-            return new(completed,issues.Count,receivedRows);
+            return Finish();
         }
         catch(OperationCanceledException){NetworkStatus=$"采集已取消，已完成{completed}日保留。";throw;}
         catch(Exception error){NetworkStatus=$"采集停止，已完成{completed}日保留；{error.Message}";throw;}

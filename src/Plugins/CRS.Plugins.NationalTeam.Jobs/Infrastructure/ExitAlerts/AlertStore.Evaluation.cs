@@ -44,6 +44,12 @@ internal sealed partial class AlertStore
         Execute("DELETE FROM nt_alert_pending WHERE id=1");Execute("INSERT INTO nt_alert_evaluation VALUES(1,$at) ON CONFLICT(id) DO UPDATE SET at=excluded.at",("$at",Now));transaction.Commit();
         return AlertOverview();
     }
+    internal bool NeedsEvaluation(bool force)
+    {
+        if(force||Scalar("SELECT changed_at FROM nt_alert_pending WHERE id=1") is not null)return true;
+        var last=Scalar("SELECT at FROM nt_alert_evaluation WHERE id=1") as string;
+        return last is null||DateTimeOffset.Parse(last,CultureInfo.InvariantCulture)<=clock.GetUtcNow().AddMinutes(-10);
+    }
     private void EvaluateQuality(EtfKey key,DateOnly date,IReadOnlyList<CRS.Plugins.NationalTeamWatch.Application.EvidenceRow> facts,ExitAlertConfiguration configuration,bool calendarVerified,bool proofDamaged)
     {
         var pending=facts.Where(x=>x.Market==key.Market&&x.Ticker==key.Ticker&&x.State is "NeedsReview" or "Critical").ToArray();
@@ -64,12 +70,12 @@ internal sealed partial class AlertStore
     }
     private void EvaluateMinimum(AlertFundInput input,DateOnly date,ExitAlertConfiguration configuration,bool gate,DateTimeOffset now,IReadOnlyList<NamedEtfHolding> holdings)
     {
-        var available=holdings.Where(x=>x.PublishedAt<=now&&x.FirstSeenAt<=now).ToArray();
+        var available=holdings.Where(x=>!EtfHoldingPublication.KnownAfter(x,now)).ToArray();
         var baseline=available.Length==0?(DateOnly?)null:available.Max(x=>x.HoldingAsOf);
         var selected=available.Where(x=>x.HoldingAsOf==baseline).ToArray();var proof=ExitAlertEvaluator.Minimum(selected,input,date,now);
         var complete=proof.State=="DerivedMinimumReduction";
         var description=complete?$"基准日{proof.BaselineDate:yyyy-MM-dd}：具名持有{proof.BaselineShares:N0}份；{date:yyyy-MM-dd}全市场{proof.CurrentShares:N0}份；至少净减少下界{proof.LowerBound:N0}份。"+proof.Explanation
-            +string.Join("；",selected.Select(x=>$"{x.LegalEntityId}/{x.LegalName}，公告{x.PublishedAt:O}，首见{x.FirstSeenAt:O}，{x.DocumentUrl} {x.EvidencePage}")):proof.Explanation;
+            +string.Join("；",selected.Select(x=>$"{x.LegalEntityId}/{x.LegalName}，公告{x.PublicationText}，首见{x.FirstSeenAt:O}，{x.DocumentUrl} {x.EvidencePage}")):proof.Explanation;
         ApplyAlertFinding(new("MinimumReduction",input.Key.Market+":"+input.Key.Ticker,AlertLane.InstitutionEvidence,AlertSeverity.Watch,
             complete?AlertEvidenceKind.DerivedMinimumReduction:AlertEvidenceKind.InsufficientEvidence,date,"机构持仓相对披露基准的最低净减少",description,
             ExitAlertEvaluator.Hash(string.Join('|',proof.EvidenceIds)+"|"+proof.LowerBound),proof.EvidenceIds,proof.LowerBound>0,complete,!gate,proof.LowerBound,

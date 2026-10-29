@@ -18,7 +18,7 @@ public sealed class NationalTeamBackgroundEntry:IContextualBackgroundPluginEntry
 /// <summary>采集、查询和审核共用一个会话；不持有 WPF、桌面登录态或个人税务密钥。</summary>
 public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext context,IPluginHttpGateway? gateway=null,
     string? databaseProvider=null,NationalTeamStorageProviders? storageProviders=null,IMarketCycleSourceApprovalReader? indexSourceApprovals=null):IBackgroundPluginSession,
-    IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession
+    IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IBackgroundQueryDiagnosticsSession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession
 {
     public int MaximumConcurrentExecutions=>4;
     public BackgroundExecutionGroup ExecutionGroup(string jobId)
@@ -251,6 +251,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     private static EtfRequest Parse(string payload)=>EtfBusinessProtocol.ParseRequest(payload);
     private static EtfKey Key(EtfRequest request)=>new(request.Market??"",request.Ticker??"");
     public async ValueTask StopAsync(CancellationToken token)=>await StopQueriesAsync().WaitAsync(token);
+    public Task QuiesceQueriesAsync(CancellationToken token)=>StopQueriesAsync().WaitAsync(token);
     public async ValueTask DisposeAsync()
     {
         await StopQueriesAsync();

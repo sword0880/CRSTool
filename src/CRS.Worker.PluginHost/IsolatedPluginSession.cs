@@ -8,7 +8,7 @@ namespace CRS.Worker.PluginHost;
 /// <summary>每插件一个受监督Runner；只转发其专属密钥及窄宿主能力，不在Worker加载业务代码。</summary>
 public sealed class IsolatedPluginSession(string runnerPath,string root,string trustFile,TrustedPackage package,
     IBackgroundHostContext? context=null,Action<string,string,string>? diagnostic=null,TimeProvider? timeProvider=null) : IBackgroundPluginSession,
-    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession
+    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession
 {
     private readonly SemaphoreSlim lifecycle=new(1);
     private readonly ConcurrentDictionary<Guid,IBackgroundSourceLease> leases=[];
@@ -73,7 +73,8 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
                     if(ready.QueryRouting is {} routing)ready=ready with{QueryRouting=routing.Validate()};
                     if(description is not null&&(System.Text.Json.JsonSerializer.Serialize(description.Jobs)!=System.Text.Json.JsonSerializer.Serialize(ready.Jobs)
                         ||description.Concurrency!=ready.Concurrency||System.Text.Json.JsonSerializer.Serialize(description.Groups)!=System.Text.Json.JsonSerializer.Serialize(ready.Groups)
-                        ||System.Text.Json.JsonSerializer.Serialize(description.QueryRouting)!=System.Text.Json.JsonSerializer.Serialize(ready.QueryRouting)))
+                        ||System.Text.Json.JsonSerializer.Serialize(description.QueryRouting)!=System.Text.Json.JsonSerializer.Serialize(ready.QueryRouting)
+                        ||description.SupportsQueryLifetime!=ready.SupportsQueryLifetime))
                         throw new InvalidDataException("Restart changed Runner scheduling contract.");
                     description=ready;FailureCode=null;
                     diagnostic?.Invoke(package.Id,"Runner","Started");
@@ -93,14 +94,16 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
     private async Task<T> InvokeAsync<T>(string command,object? data,CancellationToken token,Func<BackgroundProgress,Task>? progress=null)
     {
         await EnsureStartedAsync(token).ConfigureAwait(false);
-        var current=channel!;
+        return await InvokeChannelAsync<T>(channel!,command,data,token,progress).ConfigureAwait(false);
+    }
+    private async Task<T> InvokeChannelAsync<T>(RunnerChannel current,string command,object? data,CancellationToken token,Func<BackgroundProgress,Task>? progress=null)
+    {
         try{return await current.CallAsync<T>(command,data,token,progress).ConfigureAwait(false);}
         catch(RunnerCallException error)
         {
             // 业务拒绝和证据损坏不等于传输故障，不能因普通查询失败终止正在采集的进程。
             if(error.Code==nameof(ArgumentException))throw new ArgumentException("Runner request rejected.");
             if(error.Code==nameof(InvalidDataException))throw new InvalidDataException("Runner data rejected.");
-            if(error.Code==nameof(CRS.Common.Concurrency.WorkAdmissionException))throw new CRS.Common.Concurrency.WorkAdmissionException("Capacity");
             throw;
         }
         catch(Exception error) when(error is IOException or InvalidDataException)
@@ -125,6 +128,19 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
         =>InvokeAsync<BackgroundJobResult>("Execute",new RunnerExecution(id,payload,commandId),token,progress);
     public Task<string> QueryAsync(string payload,CancellationToken token)=>description?.SupportsQueries==false
         ?throw new ArgumentException("Plugin has no queries."):InvokeAsync<string>("Query",payload,token);
+    public async Task QuiesceQueriesAsync(CancellationToken token)
+    {
+        RunnerChannel current;
+        await lifecycle.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            if(description?.SupportsQueryLifetime!=true||process is not {HasExited:false}||channel is null)return;
+            current=channel;
+        }
+        finally{lifecycle.Release();}
+        // 维护只调用现有进程；退出/故障的Runner不能为了排空而重新启动。
+        _=await InvokeChannelAsync<bool>(current,"DrainQueries",null,token).ConfigureAwait(false);
+    }
 
     private async Task<object?> HandleCapabilityAsync(RunnerChannel connection,long epoch,RunnerMessage message,CancellationToken token)
     {

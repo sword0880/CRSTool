@@ -41,4 +41,10 @@ public sealed record AlertDocumentRequest(string Market,string Ticker,string Url
 public sealed record AlertMetadataReview(string DocumentId,string FundId,string ManagerId,string IndexId,DateOnly ComparableFrom,
     DateOnly ComparableThrough,string Reviewer,bool OriginalConfirmed);
 public sealed record NamedEtfHoldingReview(string DocumentId,string LegalEntityId,string LegalName,string Account,DateOnly HoldingAsOf,
-    DateTimeOffset PublishedAt,decimal Shares,string EvidencePage,string Reviewer,bool OriginalConfirmed,bool IndependentOwnershipConfirmed);
+    [property:System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)] DateTimeOffset? PublishedAt,decimal Shares,string EvidencePage,string Reviewer,bool OriginalConfirmed,bool IndependentOwnershipConfirmed)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public DateOnly? PublicationDate {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public EtfPublicationPrecision PublicationPrecision {get;init;}
+}

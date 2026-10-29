@@ -16,7 +16,7 @@ public partial class ExitAlertViewModel
     {
         holderVersion++;holderCancellation?.Cancel();HolderCandidates.Clear();HolderCandidate=null;holderReport=null;
         HolderCandidateStatus="选择已登记原件后可读取待核验候选。";
-        LegalEntityId="";LegalName="";HoldingAccount="";HoldingAsOf=null;PublishedAt="";HoldingShares=0;EvidencePage="";
+        LegalEntityId="";LegalName="";HoldingAccount="";HoldingAsOf=null;PublishedAt="";HoldingPublicationDate=null;OnlyPublicationDate=false;HoldingShares=0;EvidencePage="";
         HoldingConfirmed=false;IndependentOwnershipConfirmed=false;
     }
     [RelayCommand] private async Task ReadHolderCandidates()
@@ -46,7 +46,8 @@ public partial class ExitAlertViewModel
         if(HolderCandidate is not {} candidate||holderReport is not {State:"NeedsReview"} report||ProofDocument?.Id!=report.Document.Id)return;
         LegalEntityId="";LegalName=candidate.RegisteredHolder;HoldingAccount=candidate.RegisteredHolder;
         HoldingAsOf=report.ReportAsOf?.ToDateTime(TimeOnly.MinValue);HoldingShares=candidate.Shares;EvidencePage=candidate.EvidencePage;
-        PublishedAt="";HoldingConfirmed=false;IndependentOwnershipConfirmed=false;
-        HolderCandidateStatus="候选已填入核验草稿。法人标识、准确公告时刻和独立持有关系仍需补证；保存前请逐项核对原件。";
+        PublishedAt="";HoldingPublicationDate=report.PublicationDate?.ToDateTime(TimeOnly.MinValue);OnlyPublicationDate=report.PublicationDate is not null;
+        HoldingConfirmed=false;IndependentOwnershipConfirmed=false;
+        HolderCandidateStatus="候选已填入核验草稿，仅带入报告中的公告日期，准确时刻保持未知。法人标识和独立持有关系仍需补证；保存前请逐项核对原件。";
     }
 }

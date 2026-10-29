@@ -32,11 +32,12 @@ function New-WorkerServiceOperations([string]$Name,[string]$Program,[scriptblock
     }
     return @{Disable=$disable;Stop=$stop;Enable=$enable;Start=$start;Health=$HealthProbe}
 }
-function Wait-WorkerHealthy([hashtable]$Service,[int]$MigrationSeconds=0){
-    # 候选完整核验约六千份快照后还须检查全部受保护归档的ACL；实测两阶段已接近原180秒。
-    # 启动确认最多五分钟，不跳过任何安全检查；金融查询的15秒期限及运行任务期限均不因此改变。
+function Wait-WorkerHealthy([hashtable]$Service,[int]$MigrationSeconds=0,[ValidateRange(300,1800)][int]$StartupTimeoutSeconds=300){
+    # 启动须核验快照及全部受保护归档的ACL；归档增长会增加完整核验耗时。
+    # 默认启动等待五分钟，显式恢复有独立上限；不跳过安全检查，不改变金融查询或任务期限。
     # 显式迁移有独立进程期限；总启动等待追加该已验证预算，不改变普通查询或采集时限。
-    $deadline=[DateTime]::UtcNow.AddSeconds(300+$MigrationSeconds)
+    # 历次保全归档也须逐项核验权限；显式恢复可采用有上限的启动预算，不改变查询或任务期限。
+    $deadline=[DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds+$MigrationSeconds)
     do{
         if(& $Service.Health){return}
         Start-Sleep -Milliseconds 250
@@ -52,7 +53,8 @@ function Stop-WorkerForRepair([string]$Data,[hashtable]$Service){
 }
 function Invoke-WorkerUpgradeTransaction {
     param([string]$Data,[string]$Program,[string]$Source,[hashtable]$Service,
-        [string]$Publisher,[switch]$Development,[scriptblock]$Checkpoint=$null)
+        [string]$Publisher,[switch]$Development,[scriptblock]$Checkpoint=$null,
+        [ValidateRange(300,1800)][int]$StartupTimeoutSeconds=300)
     Assert-WorkerNoLinks $Data;Assert-WorkerNoLinks $Program
     $Program=[IO.Path]::GetFullPath($Program);$Source=[IO.Path]::GetFullPath($Source)
     if($Source -eq $Program -or $Source.StartsWith($Program+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw '候选必须位于活动程序目录之外。'}
@@ -90,7 +92,7 @@ function Invoke-WorkerUpgradeTransaction {
         if($Checkpoint){$null=& $Checkpoint 'Switched'}
         $lease.Dispose();$lease=$null
         & $Service.Enable;& $Service.Start
-        Wait-WorkerHealthy $Service $migrationSeconds
+        Wait-WorkerHealthy $Service $migrationSeconds $StartupTimeoutSeconds
         $current=Read-WorkerUpgrade $Data
         if($current.Id -ne $record.Id -or $current.Stage -ne 'Healthy'){throw '候选维护代次未就绪。'}
         if($Checkpoint){$null=& $Checkpoint 'CandidateHealthy'}
@@ -104,7 +106,8 @@ function Invoke-WorkerUpgradeTransaction {
 function Invoke-WorkerRecoveryTransaction {
     param([string]$Data,[string]$Program,[hashtable]$Service,
         [ValidateSet('RetryCandidate','RestorePrevious','ResumeConfirmed')][string]$Action,
-        [string]$Publisher,[switch]$Development,[scriptblock]$Checkpoint=$null)
+        [string]$Publisher,[switch]$Development,[scriptblock]$Checkpoint=$null,
+        [ValidateRange(300,1800)][int]$StartupTimeoutSeconds=300)
     $operation=[IO.FileStream]::new((Get-WorkerChild $Data 'maintenance.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
     $lease=$null;$quiescing=$false
     try{
@@ -145,7 +148,7 @@ function Invoke-WorkerRecoveryTransaction {
         $migrationSeconds=Get-WorkerStorageMigrationSeconds $activeRelease
         $lease.Dispose();$lease=$null
         & $Service.Enable;& $Service.Start
-        Wait-WorkerHealthy $Service $migrationSeconds
+        Wait-WorkerHealthy $Service $migrationSeconds $StartupTimeoutSeconds
         $current=Read-WorkerUpgrade $Data
         $expectedStage=if($Action -eq 'RetryCandidate'){'Healthy'}elseif($Action -eq 'RestorePrevious'){'RolledBack'}else{$record.Stage}
         if($current.Id -ne $record.Id -or $current.Stage -ne $expectedStage){throw '恢复后维护代次不一致。'}

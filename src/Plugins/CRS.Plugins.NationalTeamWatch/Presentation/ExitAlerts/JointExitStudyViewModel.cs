@@ -42,7 +42,7 @@ public partial class JointExitStudyViewModel(IExitAlertWorkspace workspace,IEtfR
     [RelayCommand(CanExecute=nameof(CanCancel))]private void Cancel()=>operation?.Cancel();
     public async Task ReadAsync()
     {
-        var stamp=++generation;operation?.Cancel();using var current=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=current;current.CancelAfter(TimeSpan.FromSeconds(30));
+        var stamp=++generation;operation?.Cancel();using var current=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=current;current.CancelAfter(TimeSpan.FromSeconds(EtfResearchTicket.MaximumWaitSeconds+10));
         Clear();Busy=true;Status="正在核对五项证据与时点…";
         try
         {

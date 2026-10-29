@@ -39,7 +39,7 @@ public partial class MarketCycleStudyViewModel(IMarketCycleWorkspace workspace,C
     [RelayCommand(CanExecute=nameof(CanCancel))]private void Cancel()=>operation?.Cancel();
     public async Task ReadAsync()
     {
-        var currentVersion=++version;operation?.Cancel();using var current=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=current;current.CancelAfter(TimeSpan.FromSeconds(30));
+        var currentVersion=++version;operation?.Cancel();using var current=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=current;current.CancelAfter(TimeSpan.FromSeconds(EtfResearchTicket.MaximumWaitSeconds+10));
         Clear();Busy=true;Status="正在核对同一知识截止下的周期输入…";
         try
         {

@@ -110,10 +110,10 @@ public sealed partial class NationalTeamBackgroundSession
         {
             lock(cacheGate)
             {
-                job.State=error is OperationCanceledException?"Cancelled":"Failed";
+                job.State=error is OperationCanceledException?researchStopping.IsCancellationRequested||job.Release is not null?"Cancelled":"TimedOut":"Failed";
                 job.Failure=error switch
                 {
-                    OperationCanceledException=>researchStopping.IsCancellationRequested?"Stopped":"CancelledOrTimedOut",
+                    OperationCanceledException=>researchStopping.IsCancellationRequested?"Stopped":job.Release is not null?"Cancelled":"ConstructionBudget",
                     WorkAdmissionException=>"Busy",InvalidDataException=>"EvidenceOrRequestInvalid",ArgumentException=>"InvalidRequest",_=>"ConstructionFailed"
                 };
             }

@@ -11,6 +11,10 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
     private readonly SourceFetchStore fetches;
     private EvidenceIntegrityStore? integrity;
     private int disposed;
+    private readonly MarketDatabaseSession evaluationOwner;
+    private SqliteConnection? evaluationMonitor;
+    internal object EvaluationOwner=>evaluationOwner;
+    internal Action<string,(string,object?)[]>? RecordEvaluationMutation {get;set;}
     public SqliteConnection Connection {get;}
     public RawEvidenceStore RawEvidence {get;}
     public Action? BeforeWrite {get;}
@@ -19,8 +23,9 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
     public bool IsReadSnapshot {get;private set;}
     public DateTimeOffset? ReadSnapshotCutoff {get;private set;}
     public string Now=>CRS.Timing.BeijingClock.Read(Clock).ToString("O");
-    private MarketDatabaseSession(string path,RawEvidenceStore raw,Action? beforeWrite,TimeProvider clock,bool readOnly)
+    private MarketDatabaseSession(string path,RawEvidenceStore raw,Action? beforeWrite,TimeProvider clock,bool readOnly,MarketDatabaseSession? evaluationOwner=null)
     {
+        this.evaluationOwner=evaluationOwner??this;
         this.path=path;RawEvidence=raw;Clock=clock;
         BeforeWrite=readOnly?()=>throw new InvalidOperationException("只读查询不允许写入。"):beforeWrite;
         Connection=PublicResearchSqlite.Open(path,readOnly);
@@ -32,7 +37,7 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
     public static MarketDatabaseSession OpenWriter(string directory,RawEvidenceStore raw,Action? beforeWrite,TimeProvider clock)
     {Directory.CreateDirectory(directory);return new(Path.Combine(directory,"market.db"),raw,beforeWrite,clock,false);}
     public MarketDatabaseSession OpenReader()
-    {ThrowIfDisposed();return new(path,RawEvidence,null,Clock,true);}
+    {ThrowIfDisposed();return new(path,RawEvidence,null,Clock,true,evaluationOwner);}
     public void AttachIntegrity(EvidenceIntegrityStore value)
     {
         if(integrity is not null)throw new InvalidOperationException("完整性模块不可重复装配。");
@@ -48,7 +53,7 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
         return command;
     }
     public void Execute(string sql,params (string,object?)[] args)
-    {using var command=Command(sql,args);command.ExecuteNonQuery();}
+    {using var command=Command(sql,args);command.ExecuteNonQuery();RecordEvaluationMutation?.Invoke(sql,args);}
     public object? Scalar(string sql,params (string,object?)[] args)
     {using var command=Command(sql,args);return command.ExecuteScalar();}
     public bool Committed(Guid? id)=>id is {} value&&Convert.ToInt64(Scalar("SELECT count(*) FROM worker_business_command WHERE request=$r",("$r",value.ToString("N"))))>0;
@@ -91,5 +96,23 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
         if(check.ExecuteScalar() as string!="ok")throw new InvalidDataException("Snapshot integrity failure.");
     }
     private void ThrowIfDisposed()=>ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed)!=0,this);
-    public void Dispose(){if(Interlocked.Exchange(ref disposed,1)==0)Connection.Dispose();}
+    internal long EvaluationVersion()
+    {
+        ThrowIfDisposed();if(!ReferenceEquals(this,evaluationOwner))throw new InvalidOperationException("只有写会话能签发和核对评价版本。");
+        evaluationMonitor??=PublicResearchSqlite.Open(path,true);
+        using var command=evaluationMonitor.CreateCommand();command.CommandText="PRAGMA data_version";command.CommandTimeout=1;
+        return Convert.ToInt64(command.ExecuteScalar());
+    }
+    internal MarketDatabaseSession CopyForEvaluation()
+    {
+        ThrowIfDisposed();OperationCancellation.ThrowIfCancellationRequested();
+        // 只允许已经冻结的公开研究读事务；有界内存副本不创建磁盘临时库，不复制收入报税资料。
+        if(!IsReadSnapshot)throw new InvalidOperationException("评价副本必须来自独立只读快照。");
+        var pages=Convert.ToInt64(Scalar("PRAGMA page_count"));var pageBytes=Convert.ToInt64(Scalar("PRAGMA page_size"));
+        if(pages>256L*1024*1024/pageBytes)throw new InvalidDataException("评价数据库快照超过256MiB，请先调整研究资料范围。");
+        var copy=new MarketDatabaseSession(":memory:",RawEvidence,null,Clock,false,evaluationOwner);
+        try{Connection.BackupDatabase(copy.Connection);OperationCancellation.ThrowIfCancellationRequested();return copy;}
+        catch{copy.Dispose();throw;}
+    }
+    public void Dispose(){if(Interlocked.Exchange(ref disposed,1)==0){evaluationMonitor?.Dispose();Connection.Dispose();}}
 }

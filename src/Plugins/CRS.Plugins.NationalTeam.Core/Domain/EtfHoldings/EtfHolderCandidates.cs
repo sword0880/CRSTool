@@ -1,5 +1,12 @@
 namespace CRS.Plugins.NationalTeamWatch.Domain;
 
+/// <summary>客户端接受的已知候选解析版本；没有声明的版本不能当作已核验表格读取。</summary>
+public static class EtfHolderParserVersions
+{
+    public const string Huatai300="huatai300-holders-pdf-v1";
+    public const string EfundChiNext="efund-chinext-holders-pdf-v1";
+}
+
 /// <summary>报告表格的登记持有人候选；不推断受益人、独立持有关系或成交。</summary>
 public sealed record EtfHolderCandidate(int Rank,string RegisteredHolder,string RawHolder,decimal Shares,decimal PercentOfListedUnits,
     string EvidencePage,string? SuggestedInstitution)

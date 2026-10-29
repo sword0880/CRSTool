@@ -29,6 +29,9 @@ internal static class EtfReportIndexChecks
         Check(OfficialEtfReportIndex.Parse(SseKey,From,To,1,sse).Documents.Single().DocumentUrl.Contains("/disclosure/fund/"),"沪市使用基金平面目录，不复用股票公告分组");
         var deep=OfficialEtfReportIndex.Parse(SzseKey,From,To,1,szse).Documents.Single();
         Check(deep.DocumentUrl.StartsWith("https://disc.static.szse.cn/download/disc/",StringComparison.Ordinal)&&deep.OriginalPublication.EndsWith("00:00:00",StringComparison.Ordinal),"深市保留原始时间文字，不推造准确公布时点");
+        var storedEarlier=OfficialEtfReportIndex.Parse(SzseKey,From,To,1,Change(szse,"/finalpage/2026-08-31/","/finalpage/2026-08-30/")).Documents.Single();
+        Check(storedEarlier.Announced==new DateOnly(2026,8,31)&&storedEarlier.DocumentUrl.Contains("/2026-08-30/"),"深市附件存储日与公告日分开保留");
+        Reject(()=>OfficialEtfReportIndex.Parse(SzseKey,From,To,1,Change(szse,"/finalpage/2026-08-31/","/finalpage/2026-02-30/")),"附件存储路径仍须为有效日期");
         foreach(var key in new[]{SseKey,SzseKey})Reject(()=>OfficialEtfReportIndex.Request(key,From,To.AddYears(4),1),"过大日期区间拒绝"+key.Market);
         Reject(()=>OfficialEtfReportIndex.Parse(SseKey,From,To,1,Change(sse,"510300","510050")),"沪市证券错配拒绝");
         Reject(()=>OfficialEtfReportIndex.Parse(SzseKey,From,To,1,Change(szse,"159915","159919")),"深市证券错配拒绝");
@@ -45,6 +48,14 @@ internal static class EtfReportIndexChecks
         try{CultureInfo.CurrentCulture=new("th-TH");Check(OfficialEtfReportIndex.Request(SseKey,From,To,1).Query.Contains("START_DATE=2026-01-01")&&Encoding.UTF8.GetString(OfficialEtfReportIndex.RequestBody(SzseKey,From,To,1)!).Contains("2026-01-01"),"请求日期不受系统历法影响");}
         finally{CultureInfo.CurrentCulture=culture;}
         OfficialEtfReportIndex.ValidatePost(OfficialEtfReportIndex.SzseEndpoint,OfficialEtfReportIndex.RequestBody(SzseKey,From,To,1)!);
+        var realAnnualDirectory=Path.Combine(AppContext.BaseDirectory,"Fixtures","EtfReports");
+        var realAnnual=File.ReadAllBytes(Path.Combine(realAnnualDirectory,"szse-159915-annual-2025.json"));
+        using(var receipt=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(realAnnualDirectory,"szse-159915-annual-2025.receipt.json"))))
+        {
+            Check(receipt.RootElement.GetProperty("TlsVerification").GetBoolean()&&Hash(realAnnual)==receipt.RootElement.GetProperty("Sha256").GetString(),"真实跨日附件目录与独立收据绑定");
+            var row=OfficialEtfReportIndex.Parse(SzseKey,new(2025,1,1),new(2025,12,31),1,realAnnual).Documents.Single();
+            Check(row.Announced==new DateOnly(2025,3,31)&&row.DocumentUrl==EfundChiNextHolderPdf.Annual2024Url,"真实159915年报不再因附件存储日早一天被拒绝");
+        }
         Reject(()=>OfficialEtfReportIndex.ValidatePost(new("https://www.szse.cn/api/other"),OfficialEtfReportIndex.RequestBody(SzseKey,From,To,1)!),"JSON查询不允许其他POST地址");
         Reject(()=>OfficialEtfReportIndex.ValidatePost(OfficialEtfReportIndex.SzseEndpoint,Change(OfficialEtfReportIndex.RequestBody(SzseKey,From,To,1)!,"50","500")),"JSON查询不允许放宽分页");
         var rawDirectory=Path.Combine(root,"raw");var raw=new RawEvidenceStore(rawDirectory);using var repo=TestMarketData.Open(Path.Combine(root,"data"),raw);
@@ -57,6 +68,10 @@ internal static class EtfReportIndexChecks
         Check(repo.EtfReportIndex(SseKey).SearchId==before.SearchId,"失败保留旧检索身份");
         repo.SaveEtfReportIndex(SzseKey,From,To,[szse]);
         Check(repo.Read(r=>r.EtfReportIndex(SzseKey),default).State=="IndexedUnreviewed","正式独立只读快照返回未核验目录");
+        repo.SaveEtfReportIndex(SzseKey,new(2025,1,1),new(2025,12,31),[realAnnual]);
+        var savedAnnual=repo.Read(r=>r.EtfReportIndex(SzseKey),default);
+        Check(savedAnnual.State=="IndexedUnreviewed"&&savedAnnual.Documents.Single().DocumentUrl==EfundChiNextHolderPdf.Annual2024Url
+            &&savedAnnual.Documents.Single().Announced==new DateOnly(2025,3,31),"跨日附件经真实SQLite存证后回读仍保留公告日及原路径");
         var hash=raw.Save(sse);File.WriteAllText(Path.Combine(rawDirectory,hash+".raw"),"damaged");
         Check(repo.EtfReportIndex(SseKey) is{State:"EvidenceUnavailable",Documents.Count:1},"未巡检的原件损坏也立即撤去有效状态并保留线索");repo.ReconcileEvidenceIntegrity();
         Check(repo.EtfReportIndex(SseKey) is{State:"EvidenceUnavailable",Documents.Count:1},"原件损坏保留历史线索并撤去有效来源状态");
@@ -110,6 +125,7 @@ internal static class EtfReportIndexChecks
         public Task<PublicHttpResponse> PostJsonAsync(Uri uri,byte[] bytes,CancellationToken token){Calls++;OfficialEtfReportIndex.ValidatePost(uri,bytes);return Task.FromResult(new PublicHttpResponse(Status,SzsePage(),"application/json"));}
     }
     private static byte[] Change(byte[] bytes,string from,string to)=>Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(bytes).Replace(from,to,StringComparison.Ordinal));
+    private static string Hash(byte[] bytes)=>Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
     private static void Check(bool value,string text){if(!value)throw new Exception(text);passed++;Console.WriteLine("PASS ETF目录："+text);}
     private static void Reject(Action work,string text){try{work();}catch(InvalidDataException){Check(true,text);return;}throw new Exception("未拒绝："+text);}
 }

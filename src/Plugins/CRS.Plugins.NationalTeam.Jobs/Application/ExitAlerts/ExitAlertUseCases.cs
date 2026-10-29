@@ -5,7 +5,10 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 public sealed partial class ExitAlertUseCases : MarketUseCaseScope
 {
     private readonly IEtfHolderCandidateParser holderParser;
-    internal ExitAlertUseCases(MarketApplicationSession session,IEtfHolderCandidateParser holderParser):base(session)=>this.holderParser=holderParser;
+    private readonly MarketApplicationSession evaluationSession;
+    private readonly IRawEvidenceStore raw;
+    internal ExitAlertUseCases(MarketApplicationSession session,IEtfHolderCandidateParser holderParser,IRawEvidenceStore raw):base(session)
+    {this.holderParser=holderParser;this.raw=raw;evaluationSession=session;}
 
     public Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertOverview(),token);
     public Task<JointExitStudyReport> JointExitStudyAsync(EtfKey key,DateOnly asOf,CancellationToken token)=>ReadPortAsync<IJointExitStudyReadRepository,JointExitStudyReport>(r=>r.JointExitStudy(key,asOf),token);
@@ -23,7 +26,31 @@ public sealed partial class ExitAlertUseCases : MarketUseCaseScope
     public Task RetryAlertNotificationAsync(string id,CancellationToken token)=>RetryAlertNotificationAsync(id,token,null);
     public Task RetryAlertNotificationAsync(string id,CancellationToken token,Guid? commandId)=>RunAsync((IExitAlertWriteRepository repository)=>{repository.RetryAlertNotification(id,commandId);return true;},token);
     public Task EvaluateAlertsAsync(CancellationToken token)=>EvaluateAlertsAsync(false,token);
-    public Task EvaluateAlertsAsync(bool force,CancellationToken token)=>RunAsync((IExitAlertWriteRepository repository)=>repository.EvaluateExitAlerts(force),token);
+    public Task<ExitAlertEvaluationRun> EvaluateAlertsAsync(bool force,CancellationToken token)=>evaluationSession.EvaluateAsync(async()=>
+    {
+        if(raw is not IRawEvidenceStability stability)throw new NotSupportedException("预警评价需要有界原件稳定租约。");
+        long preparationMs=0,commitMs=0,heldMs=0;
+        for(var attempt=0;;attempt++)
+        {
+            token.ThrowIfCancellationRequested();using var evidence=stability.HoldVerifiedEvidence();
+            var preparing=System.Diagnostics.Stopwatch.GetTimestamp();
+            var version=await RunAsync((IExitAlertEvaluationRepository repository)=>repository.CaptureExitAlertEvaluationVersion(),token).ConfigureAwait(false);
+            using var prepared=await ReadPortAsync((IExitAlertEvaluationRepository repository)=>repository.PrepareExitAlertEvaluation(version,force),token).ConfigureAwait(false);
+            preparationMs+=(long)System.Diagnostics.Stopwatch.GetElapsedTime(preparing).TotalMilliseconds;
+            if(prepared is null)return new ExitAlertEvaluationRun(preparationMs,commitMs,heldMs,attempt+1,true);
+            try
+            {
+                await RunMeasuredAsync((IExitAlertEvaluationRepository repository)=>
+                {
+                    var committing=System.Diagnostics.Stopwatch.GetTimestamp();
+                    try{repository.CommitExitAlertEvaluation(prepared);return true;}
+                    finally{commitMs+=(long)System.Diagnostics.Stopwatch.GetElapsedTime(committing).TotalMilliseconds;}
+                },token,value=>heldMs+=value).ConfigureAwait(false);
+                return new ExitAlertEvaluationRun(preparationMs,commitMs,heldMs,attempt+1,false);
+            }
+            catch(CRS.Common.Concurrency.WorkAdmissionException error) when(error.Reason=="InputsChanged"&&attempt<2){}
+        }
+    },token);
     public Task<AlertOutboxItem?> ClaimAlertNotificationAsync(CancellationToken token)=>RunAsync((IExitAlertWriteRepository repository)=>repository.ClaimAlertNotification(),token);
     public Task CompleteAlertNotificationAsync(AlertOutboxItem item,AlertDispatchOutcome result)=>RunAsync((IExitAlertWriteRepository repository)=>{repository.CompleteAlertNotification(item.Id,item.Lease!,result);return true;},CancellationToken.None);
     public Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertDocuments(key),token);

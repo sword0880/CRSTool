@@ -148,8 +148,9 @@ public sealed partial class NationalTeamBackgroundSession
     {
         if(!(request.Operation is "sync" or "alert-evaluate"))throw new InvalidDataException("任务与业务参数不匹配。");
         await workspace!.Evidence.ReconcileEvidenceIntegrityAsync(token);
-        await workspace!.Alerts.EvaluateAlertsAsync(request.Operation=="alert-evaluate",token);
-        return await DispatchAlertNotificationsAsync(token);
+        var evaluation=await workspace!.Alerts.EvaluateAlertsAsync(request.Operation=="alert-evaluate",token);
+        var result=await DispatchAlertNotificationsAsync(token);
+        return result with{Checkpoint=result.Checkpoint+$";evaluationPrepareMs={evaluation.PreparationMilliseconds};evaluationCommitMs={evaluation.CommitHeldMilliseconds};evaluationCommitBodyMs={evaluation.CommitBodyMilliseconds};evaluationAttempts={evaluation.Attempts};evaluationSkipped={evaluation.Skipped}"};
     }
 
     [NationalTeamJob("alert-manage","预警规则与证据管理（手动）","0 0 0 1 1 ?","China Standard Time",false,false,true,Group="management",MaximumConcurrency=1,Order=6)]

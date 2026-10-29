@@ -35,9 +35,10 @@ public static class LegacyNationalTeamExport
             if(file.Read(header)==16&&header.SequenceEqual("SQLite format 3\0"u8))throw new InvalidDataException("来源已为普通SQLite，不需要旧加密导出。");
         }
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-        // 工作文件与目标同目录以保持原子发布；短文件名避免原生SQLite长路径限制。
-        var staging=Path.Combine(Path.GetDirectoryName(destination)!,".m-"+Guid.NewGuid().ToString("N"));
-        var input=staging+".in";
+        // 工作文件与目标同目录以保持原子发布；给SQLite的回滚/主日志后缀留足路径空间。
+        // 独立随机名配合输入CreateNew拒绝冲突，文件名不承担认证用途。
+        var staging=Path.Combine(Path.GetDirectoryName(destination)!,".m-"+Convert.ToHexString(RandomNumberGenerator.GetBytes(8)));
+        var input=staging+".i";
         try
         {
             // 独占读取原库及可能尚未检查点的WAL；正在使用的库拒绝迁移，只在副本上恢复/解密。

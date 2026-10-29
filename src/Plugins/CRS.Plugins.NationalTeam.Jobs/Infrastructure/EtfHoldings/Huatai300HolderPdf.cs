@@ -66,6 +66,5 @@ public static class Huatai300HolderPdf
             new(profile.Year,12,31),new(profile.Year+1,3,31),profile.Page,"份","ListedFundUnits","TopTenExcludingFeederPlusFeeder",rows);
     }
     private static string Normalized(string value)=>string.Concat(value.Where(x=>!char.IsWhiteSpace(x)));
-    private static string Text(IEnumerable<PdfLetter> letters)=>string.Join('\n',letters.GroupBy(x=>Math.Round(x.BaselineY/1.5)*1.5)
-        .OrderByDescending(x=>x.Key).Select(x=>string.Concat(x.OrderBy(x=>x.X).Select(x=>x.Value))));
+    private static string Text(IEnumerable<PdfLetter> letters)=>PdfTextLayout.Lines(letters);
 }

@@ -80,6 +80,58 @@ internal static class BusinessContractChecks
         await ClientCompatibility();
         await BatchClientCompatibility();
         await ResearchJobs(Path.Combine(root,"research-jobs"));
+        await ResearchClientCancellation();
+    }
+    private static async Task ResearchClientCancellation()
+    {
+        var control=new ResearchControl();var name="CRS.Research.Client."+Guid.NewGuid().ToString("N");
+        using var stop=new CancellationTokenSource(TimeSpan.FromSeconds(15));var server=new BackgroundPipeServer(control,name).RunAsync(stop.Token);
+        try
+        {
+            var reader=new WorkerEtfWorkspace(new(name));using var cancelled=new CancellationTokenSource();
+            var research=reader.AlertOverviewAsync(cancelled.Token);await control.Submitted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var shortRows=await reader.ConfigurationAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(2));
+            Check(shortRows.Count==0&&!research.IsCompleted,"真实管道客户端等待研究作业期间，短配置读通过独立准入完成");
+            cancelled.Cancel();try{await research;throw new Exception("研究取消返回了金融结果。");}catch(OperationCanceledException){}
+            await control.Released.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Check(control.Submissions==1,"取消只释放原研究作业，未重复提交、未执行采集命令");
+            using var heldCancellation=new CancellationTokenSource();using var queuedCancellation=new CancellationTokenSource();
+            var held=reader.HistoryAsync(null,heldCancellation.Token);await control.HistoryEntered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var queued=reader.HistoryAsync(null,queuedCancellation.Token);
+            try
+            {
+                try{await reader.HistoryAsync(null,stop.Token);throw new Exception("本地研究准入未限制等待数量。");}
+                catch(InvalidDataException){Check(true,"客户端队列满返回可呈现的繁忙错误，不泄漏内部准入异常");}
+            }
+            finally
+            {
+                heldCancellation.Cancel();queuedCancellation.Cancel();
+                foreach(var pending in new[]{held,queued})try{await pending;}catch(OperationCanceledException){}
+            }
+            Check((await reader.ConfigurationAsync(stop.Token)).Count==0,"本地繁忙及取消后短查询准入恢复");
+        }
+        finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
+    }
+    private sealed class ResearchControl:IBackgroundControl
+    {
+        public TaskCompletionSource Submitted=new(TaskCreationOptions.RunContinuationsAsynchronously),Released=new(TaskCreationOptions.RunContinuationsAsynchronously),HistoryEntered=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Submissions;
+        public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
+        {
+            if(request.Command!="QueryPlugin")throw new Exception("只读研究发送了写命令。");
+            var query=EtfBusinessProtocol.ParseRequest(request.Payload!);string items;
+            if(query.Operation=="query-capabilities")items=JsonSerializer.Serialize(new[]{new EtfQueryCapabilities(1,[EtfQueryCapabilities.AsyncResearch],256){ShortReadOperations=["configuration","research-submit","research-status","research-release"]}});
+            else if(query.Operation=="configuration")items="[]";
+            else if(query.Operation=="history"){HistoryEntered.TrySetResult();await Task.Delay(Timeout.Infinite,token);items="[]";}
+            else if(query.Operation=="research-release"){Released.TrySetResult();items="[\"Released\"]";}
+            else
+            {
+                if(query.Operation=="research-submit"){Submissions++;Submitted.TrySetResult();}
+                var fingerprint=CRS.Common.Integrity.ContentFingerprint.Sha256(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(query.ResearchRequest! with{Offset=0,Snapshot=null,Count=10})));
+                items=JsonSerializer.Serialize(new[]{new EtfResearchTicket(query.Revision!,"Queued",null,null,CRS.Timing.BeijingClock.Now.AddMinutes(1),fingerprint)});
+            }
+            return new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Payload:JsonSerializer.Serialize(new EtfQueryPage(items,Guid.NewGuid().ToString("N"),null)));
+        }
     }
     private static async Task ResearchJobs(string root)
     {

@@ -18,11 +18,23 @@ internal static class EtfHolderCandidateUiChecks
         model.HolderCandidate=model.HolderCandidates.Single();model.UseHolderCandidateCommand.Execute(null);
         Check(model.HoldingAccount=="合成登记持有人"&&model.HoldingShares==123&&model.LegalEntityId==""&&model.PublishedAt==""
             &&!model.HoldingConfirmed&&!model.IndependentOwnershipConfirmed,"显式填草稿仍不补造法人标识、公告时点或审核");
+        Check(model.OnlyPublicationDate&&model.HoldingPublicationDate==new DateTime(2026,3,31)&&!model.HasExactPublicationTime,"候选公告日期进入日期模式，准确时刻保持未知");
+        model.HoldingConfirmed=true;model.OnlyPublicationDate=false;Check(!model.HoldingConfirmed&&model.HasExactPublicationTime,"切换公布精度清除原确认");
+        model.HoldingConfirmed=true;model.PublishedAt="2026-03-31T18:00:00+08:00";Check(!model.HoldingConfirmed,"修改准确公告时刻清除旧确认");
         model.HoldingConfirmed=true;model.IndependentOwnershipConfirmed=true;
         query=model.ReadHolderCandidatesCommand.ExecuteAsync(null);workspace.Replies[^1].SetException(new IOException("synthetic unavailable"));await query;
         Check(model.HolderCandidates.Count==0&&model.HoldingAccount==""&&!model.HoldingConfirmed&&!model.IndependentOwnershipConfirmed&&model.HolderCandidateStatus.Contains("不可用"),"重读失败清空候选、草稿和原确认");
         query=model.ReadHolderCandidatesCommand.ExecuteAsync(null);workspace.Replies[^1].SetResult(Report(first));await query;
         Check(model.HolderCandidates.Count==0&&model.HolderCandidateStatus.Contains("不可用"),"返回另一原件候选必须拒绝");
+        query=model.ReadHolderCandidatesCommand.ExecuteAsync(null);
+        workspace.Replies[^1].SetResult(Report(next) with{State="NotDisclosed",Explanation="本期未披露具名持有人表，不代表清仓。",Holders=[]});await query;
+        Check(model.HolderCandidates.Count==0&&model.HoldingAccount==""&&!model.HoldingConfirmed&&!model.IndependentOwnershipConfirmed
+            &&model.HolderCandidateStatus.Contains("未披露"),"未披露具名表清空旧候选与确认，不复用上一期草稿");
+        model.ProofDocument=next;model.HoldingAsOf=new(2025,12,31);model.OnlyPublicationDate=true;model.HoldingPublicationDate=new(2026,3,31);
+        model.LegalEntityId="synthetic-ui-date";model.LegalName="合成日期法人";model.HoldingAccount="合成日期账户";model.HoldingShares=1;model.EvidencePage="合成P1";
+        model.HoldingConfirmed=true;model.IndependentOwnershipConfirmed=true;model.ProofReviewer="synthetic-reviewer";
+        await model.SaveNamedHoldingCommand.ExecuteAsync(null);
+        Check(workspace.Saved is{PublishedAt:null,PublicationPrecision:EtfPublicationPrecision.DateOnly}&&workspace.Saved.PublicationDate==new DateOnly(2026,3,31),"日期模式保存草稿只提交日期，不填入零点或盘中时刻");
         var refreshed=new RefreshWorkspace();var current=new ExitAlertViewModel(refreshed,default);
         await current.RefreshCommand.ExecuteAsync(null);await current.ProofLoadTask;
         Check(current.ProofHoldings.Count==1&&current.ProofHoldings.Single().OriginalConfirmed,"无控件副作用时首次刷新显示当前原件确认");
@@ -34,6 +46,9 @@ internal static class EtfHolderCandidateUiChecks
     private sealed class Workspace:ResearchWorkspaceStub
     {
         internal List<TaskCompletionSource<EtfHolderCandidateReport>> Replies=[];
+        internal NamedEtfHoldingReview? Saved;
+        public override Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token){Saved=review;return Task.CompletedTask;}
+        public override Task<List<ExitAlertEvent>> AlertEventsAsync(ExitAlertFilter filter,CancellationToken token)=>Task.FromResult(new List<ExitAlertEvent>());
         public override Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>Task.FromResult(new List<AlertDocument>());
         public override Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>Task.FromResult(new List<AlertFundMetadata>());
         public override Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>Task.FromResult(new List<NamedEtfHolding>());

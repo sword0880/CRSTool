@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using CRS.Worker.Abstractions;
+using CRS.Common.Concurrency;
 
 namespace CRS.Worker.PluginHost;
 
@@ -12,6 +13,7 @@ public sealed record RunnerDescription(string PluginId,string PackageHash,string
     int Concurrency,Dictionary<string,BackgroundExecutionGroup> Groups,bool SupportsQueries)
 {
     public BackgroundQueryRouting? QueryRouting {get;init;}
+    public bool SupportsQueryLifetime {get;init;}
 }
 public sealed record RunnerExecution(string JobId,string? Payload,Guid? CommandId);
 public sealed record RunnerProgress(Guid ExecutionId,BackgroundProgress Detail);
@@ -76,6 +78,8 @@ public sealed class RunnerChannel : IAsyncDisposable
             if(response.Command!=command)throw new InvalidDataException("Runner response binding mismatch.");
             if(response.Error is {} error)
             {
+                if(error is "Admission.Capacity" or "Admission.WaitBudget" or "Admission.Closed" or "Admission.ResearchCapacity" or "Admission.SnapshotCapacity" or "Admission.InputsChanged")
+                    throw new WorkAdmissionException(error["Admission.".Length..]);
                 if(error==nameof(OperationCanceledException))throw new OperationCanceledException(token);
                 if(error==nameof(SourceBudgetUnavailableException))
                 {
@@ -154,7 +158,13 @@ public sealed class RunnerChannel : IAsyncDisposable
             catch(SourceBudgetUnavailableException failure){error=nameof(SourceBudgetUnavailableException);result=new RunnerSource("",Until:failure.Until,FailureCode:failure.Code);}
             // 仅跨进程传递固定错误分类，禁止透传第三方异常正文和堆栈。
             catch(Exception failure){error=failure switch
-            {OperationCanceledException=>nameof(OperationCanceledException),ArgumentException=>nameof(ArgumentException),InvalidDataException=>nameof(InvalidDataException),_=>"OperationFailed"};}
+            {
+                WorkAdmissionException {Reason:"Capacity" or "WaitBudget" or "Closed" or "ResearchCapacity" or "SnapshotCapacity" or "InputsChanged"} admission=>"Admission."+admission.Reason,
+                OperationCanceledException=>nameof(OperationCanceledException),ArgumentException=>nameof(ArgumentException),
+                InvalidDataException=>nameof(InvalidDataException),IOException=>nameof(IOException),TimeoutException=>nameof(TimeoutException),
+                ObjectDisposedException=>nameof(ObjectDisposedException),InvalidOperationException=>nameof(InvalidOperationException),
+                NotSupportedException=>nameof(NotSupportedException),UnauthorizedAccessException=>nameof(UnauthorizedAccessException),_=>"OperationFailed"
+            };}
             await SendAsync(new(Version,message.Id,"Response",message.Command,Element(result),error),stopping.Token).ConfigureAwait(false);
         }
         finally{incoming.TryRemove(message.Id,out _);source.Dispose();}
@@ -167,4 +177,9 @@ public sealed class RunnerChannel : IAsyncDisposable
     }
 }
 public sealed class RunnerOutcomeUnknownException() : IOException("Runner stopped before its operation outcome was confirmed.");
-public sealed class RunnerCallException(string code) : Exception("Runner operation failed.") {public string Code{get;}=code;}
+public sealed class RunnerCallException(string code) : Exception("Runner operation failed.")
+{
+    // 即使通过非协议调用构造，也只允许公开固定分类，不能把任意远端字符串写入执行历史。
+    public string Code{get;}=code is nameof(ArgumentException) or nameof(InvalidDataException) or nameof(IOException) or nameof(TimeoutException)
+        or nameof(ObjectDisposedException) or nameof(InvalidOperationException) or nameof(NotSupportedException) or nameof(UnauthorizedAccessException)?code:"OperationFailed";
+}

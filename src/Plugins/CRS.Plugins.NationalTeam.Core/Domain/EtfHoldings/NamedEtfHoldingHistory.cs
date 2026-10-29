@@ -37,7 +37,7 @@ public static class NamedEtfHoldingHistory
         var exclusions=new List<NamedEtfHistoryExclusion>();var available=new List<NamedEtfHolding>();
         foreach(var holding in input.Holdings)
         {
-            var reason=holding.HoldingAsOf>input.AsOf?"ReportAfterAsOf":holding.PublishedAt>input.SnapshotCutoff||holding.FirstSeenAt>input.SnapshotCutoff?"KnownAfterCutoff":null;
+            var reason=holding.HoldingAsOf>input.AsOf?"ReportAfterAsOf":EtfHoldingPublication.KnownAfter(holding,input.SnapshotCutoff)?"KnownAfterCutoff":null;
             if(reason is null)available.Add(holding);else exclusions.Add(new(holding.Id,reason));
         }
         var periods=available.Select(x=>x.HoldingAsOf).Distinct().Order().ToArray();var rows=new List<NamedEtfHistoryRow>();
@@ -92,7 +92,7 @@ public static class NamedEtfHoldingHistory
     {
         var selected=values.OrderByDescending(x=>x.FirstSeenAt).ThenBy(x=>x.Id,StringComparer.Ordinal).First();
         var conflict=values.Select(x=>(x.Shares,Name:x.LegalName.Trim())).Distinct().Count()!=1;
-        var state=conflict?"ConflictingDisclosures":values.All(x=>x.HoldingAsOf!=default&&x.PublishedAt!=default&&x.FirstSeenAt!=default&&ExitAlertEvaluator.NamedVerified(x))?"ReviewedDisclosure":"EvidenceUnavailable";
+        var state=conflict?"ConflictingDisclosures":values.All(ExitAlertEvaluator.NamedVerified)?"ReviewedDisclosure":"EvidenceUnavailable";
         return new(selected,values.Select(x=>x.Id).Order(StringComparer.Ordinal).ToArray(),state);
     }
 }

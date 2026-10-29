@@ -36,9 +36,19 @@ Core拥有具名披露历史及名称目录；Jobs的`EtfHoldings/EtfHoldingHist
 
 没有因新增目录就宣称已覆盖外汇局全部平台，地方产业基金、近似简称和未列出的平台不自动归入国家队。现有历史股票PDF专用解析档案仍按已核机构及金样范围开放，未扩成所有主体的通用解析器。真实配置池各ETF的报告、账户和经济持有关系、NAV及完整行情仍须分别验收。
 
-本轮不安装候选、不迁移真实历史库、不清理ProgramData、不访问真实收入报税数据；国家队仍为普通SQLite，收入报税核心继续加密。正式部署仍需保全维护事务及安装后回读。
+以上为原实施时点的边界：当时未安装候选、迁移真实历史库、清理ProgramData或访问收入报税数据；国家队仍为普通SQLite，收入报税核心继续加密。后续正式部署及安装后回读以[当前架构状态](../architecture/ARCHITECTURE_STATUS.md)的维护回执为准。
 
 ## 验证入口
+
+### 公布日期精度续项（2026-10-28）
+
+基金报告通常只提供公布日期。具名ETF审核现分别保存“仅日期”和“准确时刻”，仅日期记录的`PublishedAt`明确为null，另存`PublicationDate`及精度；页面展示“仅日期，时刻未知”。不会生成当日零点。系统首次取得时间继续来自已登记原件，调用方不能覆盖；回放和下界判断均不得早于该实际首见时刻。
+
+领域层统一核对报告期、北京时间公布日、首见日及准确时刻的先后。缺失或互相冲突的时间字段使最新记录失效，不能借此回退较早报告期。旧准确时刻记录的序列化字节、持久化载荷和历史指纹保持不变，不迁移旧审核事实。
+
+日期审核使用独立`alert-holding-review-date-v1`操作，先协商`named-etf-publication-date-v1`。旧Worker不支持时明确拒绝；旧准确时刻操作拒绝日期载荷，没有自动降级。日期、精度或时刻变更会清除页面原确认，候选只带入报告中实际存在的公布日。
+
+本轮隔离证据为`artifacts/holding-time-wire-checks-20261028/acceptance.json`（84项）、`artifacts/holding-time-pipe-verified-20261028/acceptance.json`（10项）及完整国家队、回放和联合观察回归日志。实际管道只写隔离合成原件和合成账户；沿用原有资料质量事件，核对没有新增金融事件、重复排队或实际投递。9张最终控件截图位于`artifacts/holding-time-visual-verified-20261028/`。这不等于正式机构审核或真实桌面交互验收。正式安装状态以[当前架构状态](../architecture/ARCHITECTURE_STATUS.md)及其维护回执为准。
 
 `CRS.Tests.NationalTeamWatch --named-etf-history <隔离目录>`；`CRS.Tests.WorkerEtf --named-etf-history-pipe <完整候选> <不存在目录>`；`CRS.Tests.PluginRecovery --named-etf-history-visual-preview <专项输出> <截图目录>`。
 

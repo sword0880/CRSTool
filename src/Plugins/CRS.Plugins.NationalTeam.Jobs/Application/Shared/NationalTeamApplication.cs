@@ -17,7 +17,8 @@ public sealed class NationalTeamApplication : IAsyncDisposable
     public MarketCycleStudyUseCases Cycle {get;}
     public NationalTeamApplication(IPluginHostContext context,Func<IMarketRepository> factory,IRawEvidenceStore raw,IEtfHolderCandidateParser holderParser)
     {
-        session=new(factory);Etf=new(session,context,raw);Equity=new(session);Alerts=new(session,holderParser);
+        if(raw is not IRawEvidenceVerifier||raw is not IRawEvidenceStability)throw new NotSupportedException("后台原件存储缺少必需的完整核验或稳定租约能力。");
+        session=new(factory);Etf=new(session,context,raw);Equity=new(session);Alerts=new(session,holderParser,raw);
         Industry=new(session);Index=new(session);Activity=new(session);Nav=new(session);Evidence=new(session,raw);Holdings=new(session);
         Cycle=new(session);
     }

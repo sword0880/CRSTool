@@ -84,9 +84,11 @@ public static class OfficialEtfReportIndex
             var date=DateOnly.FromDateTime(stamp);var path=Text(row,"attachPath");var codes=row.GetProperty("secCode");
             if(codes.ValueKind!=JsonValueKind.Array||codes.GetArrayLength() is <1 or >20)throw new InvalidDataException("公告证券数组无效。");
             var securities=codes.EnumerateArray().Select(x=>x.GetString()??"").ToArray();
+            // 附件目录是存储日期，不是公告公布日期；真实2024年年报路径早于公布日一天。
+            var attachment=Regex.Match(path,@"^/disc/disk[0-9]{2}/finalpage/(?<stored>[0-9]{4}-[0-9]{2}-[0-9]{2})/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.PDF$",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant,TimeSpan.FromSeconds(1));
             if(!securities.Contains(key.Ticker,StringComparer.Ordinal)||securities.Any(x=>x.Length!=6||!x.All(char.IsAsciiDigit))||securities.Distinct().Count()!=securities.Length
                 ||!Text(row,"attachFormat").Equals("PDF",StringComparison.OrdinalIgnoreCase)
-                ||!Regex.IsMatch(path,FormattableString.Invariant($@"^/disc/disk[0-9]{{2}}/finalpage/{date:yyyy-MM-dd}/[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}\.PDF$"),RegexOptions.IgnoreCase|RegexOptions.CultureInvariant,TimeSpan.FromSeconds(1)))throw new InvalidDataException("深交所公告证券、格式或路径不匹配。");
+                ||!attachment.Success||!DateOnly.TryParseExact(attachment.Groups["stored"].Value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out _))throw new InvalidDataException("深交所公告证券、格式或路径不匹配。");
             var title=Text(row,"title");var kind=title.Contains("季度报告",StringComparison.Ordinal)?"季度报告":title.Contains("半年度报告",StringComparison.Ordinal)||title.Contains("中期报告",StringComparison.Ordinal)?"中期报告":title.Contains("年度报告",StringComparison.Ordinal)?"年度报告":throw new InvalidDataException("目录返回了定期报告之外的文档。");
             Add(result,new(id,title,kind,date,rawTime,"https://disc.static.szse.cn/download"+path,Array.AsReadOnly(securities)),from,through);
         }

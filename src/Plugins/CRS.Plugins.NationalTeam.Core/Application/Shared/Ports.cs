@@ -4,6 +4,7 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 public interface IRawEvidenceStore
 {
     string Save(byte[] content);
+    string Save(byte[] content,CancellationToken cancellationToken);
     Task<byte[]> ReadImportFileAsync(string path,CancellationToken cancellationToken);
     Task ExportVerifiedAsync(string hash,string destination,IReadOnlyList<string> protectedDirectories,CancellationToken cancellationToken);
 }

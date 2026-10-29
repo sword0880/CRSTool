@@ -37,6 +37,7 @@ internal static class EtfQueryCancellationChecks
         public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
             var query=EtfBusinessProtocol.ParseRequest(request.Payload!);
+            if(query.Operation=="query-capabilities")return new(WorkerProtocol.Version,request.RequestId,"UnknownQuery");
             if(query.Operation=="history")
             {
                 Entered.TrySetResult();

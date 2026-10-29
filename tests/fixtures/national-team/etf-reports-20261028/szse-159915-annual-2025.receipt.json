@@ -1,0 +1,27 @@
+{
+  "Kind": "SourceReviewOnly",
+  "Url": "https://www.szse.cn/api/disc/announcement/annList",
+  "Request": {
+    "pageNum": 1,
+    "seDate": [
+      "2025-01-01",
+      "2025-12-31"
+    ],
+    "channelCode": [
+      "fundinfoNotice_disc"
+    ],
+    "stock": [
+      "159915"
+    ],
+    "bigCategoryId": [
+      "yearreport"
+    ],
+    "pageSize": 50
+  },
+  "RetrievedAt": "2026-10-28T09:04:25.485392+00:00",
+  "TlsVerification": true,
+  "InstalledDatabaseChanged": false,
+  "Status": 200,
+  "Sha256": "BC12FDA26C889908D7584B3571907FA8836CF195011991EE54BCA4ABA09D5EB9",
+  "Outcome": "Downloaded"
+}

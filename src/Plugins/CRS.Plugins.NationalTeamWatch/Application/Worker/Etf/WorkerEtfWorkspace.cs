@@ -49,7 +49,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         var shortRead=query.Snapshot is not null||query.Operation is "status" or "release-query" or "query-capabilities"
             ||queryCapabilities?.ShortReadOperations?.Contains(query.Operation,StringComparer.Ordinal)==true;
         var admission=shortRead?shortQueries:queryCapabilities?.ShortReadOperations is null?legacyQueries:researchQueries;
-        using(await admission.EnterAsync(token))
+        using(await EnterClientAsync(admission,token))
         {
             var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:EtfBusinessProtocol.WriteRequest(query)),token);
             if(query.Operation=="dashboard"&&reply.Code=="UnknownQuery")throw new UnsupportedDashboardException();
@@ -62,7 +62,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     private async Task<EtfQueryCapabilities?> EnsureCapabilitiesAsync(CancellationToken token)
     {
         if(Volatile.Read(ref capabilitiesResolved))return queryCapabilities;
-        using(await capabilityNegotiation.EnterAsync(token))
+        using(await EnterClientAsync(capabilityNegotiation,token))
         {
             if(Volatile.Read(ref capabilitiesResolved))return queryCapabilities;
             try
@@ -76,6 +76,11 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
             catch(UnsupportedQueryCapabilitiesException){queryCapabilities=null;}
             Volatile.Write(ref capabilitiesResolved,true);return queryCapabilities;
         }
+    }
+    private static async ValueTask<IDisposable> EnterClientAsync(BoundedWorkAdmission admission,CancellationToken token)
+    {
+        try{return await admission.EnterAsync(token);}
+        catch(WorkAdmissionException error){throw new InvalidDataException("当前查询繁忙，等待预算已用完，请稍后重试。",error);}
     }
     private sealed class UnsupportedQueryCapabilitiesException:Exception;
     /// <summary>同一次读取沿用快照，任何分页失败都不把半份结果交给页面。</summary>

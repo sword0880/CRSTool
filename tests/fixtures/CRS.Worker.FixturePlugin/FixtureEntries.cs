@@ -3,6 +3,41 @@ namespace CRS.Worker.FixturePlugin;
 
 /// <summary>真实加载的多任务与生命周期故障夹具，所有副作用限定在测试显式给定的目录。</summary>
 public sealed class QueryOnlyEntry : IBackgroundPluginEntry { public IBackgroundPluginSession CreateSession() => new Session("QueryOnly"); }
+/// <summary>成本路由夹具仅接收测试创建的标记文件，用于等待真实进入处理器。</summary>
+public sealed class QueryWorkloadEntry:IBackgroundPluginEntry
+{
+    public IBackgroundPluginSession CreateSession()=>new WorkloadSession();
+    private sealed class WorkloadSession:IBackgroundPluginSession,IBackgroundQuerySession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession
+    {
+        private readonly CancellationTokenSource stopped=new();
+        private readonly System.Collections.Concurrent.ConcurrentBag<Task> jobs=[];
+        public BackgroundQueryRouting DescribeQueryRouting()=>new("Operation","Snapshot",[new("short",BackgroundQueryWorkload.ShortRead),new("research",BackgroundQueryWorkload.ResearchRead),new("start-research",BackgroundQueryWorkload.ShortRead)]);
+        public async Task<string> QueryAsync(string payload,CancellationToken token)
+        {
+            using var doc=System.Text.Json.JsonDocument.Parse(payload);var root=doc.RootElement;
+            if(root.GetProperty("Operation").GetString()=="start-research")
+            {
+                var path=root.GetProperty("Marker").GetString()!;
+                jobs.Add(Task.Run(async()=>
+                {
+                    File.WriteAllText(path,"running");
+                    try{await Task.Delay(Timeout.Infinite,stopped.Token);}catch(OperationCanceledException){}
+                    finally{File.WriteAllText(path+".stopped","stopped");}
+                }));
+                return "submitted";
+            }
+            if(root.TryGetProperty("Marker",out var marker)&&marker.ValueKind==System.Text.Json.JsonValueKind.String)File.WriteAllText(marker.GetString()!,"entered");
+            if(root.TryGetProperty("Block",out var block)&&block.GetBoolean())await Task.Delay(Timeout.Infinite,token);
+            return "fixture-workload-ok";
+        }
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>[];
+        public ValueTask StartAsync(CancellationToken token)=>ValueTask.CompletedTask;
+        public Task<BackgroundJobResult> ExecuteAsync(string job,CancellationToken token)=>throw new NotSupportedException();
+        public async Task QuiesceQueriesAsync(CancellationToken token){await stopped.CancelAsync();await Task.WhenAll(jobs).WaitAsync(token);}
+        public ValueTask StopAsync(CancellationToken token)=>new(QuiesceQueriesAsync(token));
+        public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
+    }
+}
 public sealed class DiagnosticQueryEntry:IBackgroundPluginEntry
 {
     public IBackgroundPluginSession CreateSession()=>new DiagnosticSession();

@@ -174,6 +174,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
             if (maintenance) return Reply("Maintenance");
             if (request.PluginId is null || request.Payload is null || request.Payload.Length > 4096) return Reply("InvalidRequest");
+            if(!catalog.SupportsQueries(request.PluginId))return Reply("UnknownQuery");
             var routing=catalog.QueryRouting(request.PluginId);BackgroundQueryWorkload kind;
             try{kind=routing?.Classify(request.Payload)??BackgroundQueryWorkload.ResearchRead;}
             catch(Exception error) when(error is System.Text.Json.JsonException or InvalidDataException){return Reply("InvalidRequest");}
@@ -414,12 +415,10 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             catch (Exception) { }
             // 令牌取消不是业务回滚证明；收尾完成后保留插件实际返回的结果。
             if(work.IsCompletedSuccessfully)result=work.Result;
-            else if(work.IsFaulted)result=work.Exception!.GetBaseException() is RunnerOutcomeUnknownException
-                ?new("Failed","RunnerOutcomeUnknown"):new("Failed","error="+work.Exception.GetBaseException().GetType().Name);
+            else if(work.IsFaulted)result=ClassifyExecutionFailure(work.Exception!.GetBaseException());
         }
         // 仅记录异常类型，不能把插件异常消息中的凭据、地址参数或本机路径写入公开日志。
-        catch (RunnerOutcomeUnknownException) {result=new("Failed","RunnerOutcomeUnknown");}
-        catch (Exception error) { result = new("Failed","error="+error.GetType().Name[..Math.Min(error.GetType().Name.Length,128)]); }
+        catch (Exception error) { result = ClassifyExecutionFailure(error); }
         if (result.Status is not ("Succeeded" or "NotPublished" or "AccessBlocked" or "SourceSchemaChanged" or "RetryDeferred" or "Rejected" or "Failed" or "Cancelled") || result.Checkpoint?.Length > 1024) result = new("Failed");
         await gate.WaitAsync(CancellationToken.None);
         try
@@ -453,6 +452,14 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         if(request is not null && result.Status=="RetryDeferred")await ReconcileAsync(CancellationToken.None);
     }
     /// <summary>阶段记录与控制查询共享短数据库门槛，落盘失败立即停止采集，避免产生虚假进度。</summary>
+    private static BackgroundJobResult ClassifyExecutionFailure(Exception error)=>error switch
+    {
+        RunnerOutcomeUnknownException=>new("Failed","RunnerOutcomeUnknown"),
+        WorkAdmissionException {Reason:"Capacity" or "WaitBudget" or "InputsChanged"} admission=>new("RetryDeferred","admission="+admission.Reason,TimeSpan.FromSeconds(30)),
+        WorkAdmissionException {Reason:"Closed"}=>new("Failed","admission=Closed"),
+        RunnerCallException remote=>new("Failed","runner="+remote.Code),
+        _=>new("Failed","error="+error.GetType().Name[..Math.Min(error.GetType().Name.Length,128)])
+    };
     private async Task SaveProgressAsync(string execution,BackgroundProgress progress,CancellationToken token)
     {
         await gate.WaitAsync(token);
@@ -477,6 +484,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         queryStopping.Cancel(); // 插件取消回调不能在全局锁内执行。
         await Task.WhenAll(queries).WaitAsync(token);
         if (scheduler is not null && scheduler.Status != SchedulerStatus.Shutdown) await scheduler.Shutdown(waitForJobsToComplete: true, token);
+        await catalog.DrainQueriesAsync(token);
     }
     public async ValueTask DisposeAsync()
     {

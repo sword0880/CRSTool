@@ -5,8 +5,16 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>SHA-256内容寻址存证；保存、核验和导出均保留原始字节。</summary>
-public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<string,Stream>? openRead=null) : IRawEvidenceStore,IRawEvidenceVerifier
+public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<string,Stream>? openRead=null) : IRawEvidenceStore,IRawEvidenceVerifier,IRawEvidenceStability
 {
+    private readonly AsyncLocal<VerifiedContentLease?> stableEvidence=new();
+    internal VerifiedContentLease? StableEvidence=>stableEvidence.Value;
+    public IDisposable HoldVerifiedEvidence()
+    {
+        if(stableEvidence.Value is not null)throw new InvalidOperationException("原件稳定租约不能嵌套。");
+        var lease=new VerifiedContentLease();stableEvidence.Value=lease;
+        return new QueryScope(()=>{stableEvidence.Value=null;lease.Dispose();});
+    }
     private readonly int verificationParallelism=8;
     private readonly RawEvidenceReadAdmission verificationReads=new(8);
     private readonly AsyncLocal<bool> queryVerification=new();
@@ -69,24 +77,31 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         {if(content.Length+read>maximumBytes)throw new InvalidDataException("原件超过允许的文件大小。");await content.WriteAsync(buffer.AsMemory(0,read),cancellationToken).ConfigureAwait(false);}
         return content.ToArray();
     }
-    public string Save(byte[] content)
+    public string Save(byte[] content)=>Save(content,CancellationToken.None);
+    public string Save(byte[] content,CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         // 即便稍后失败或去重，也先通过宿主写入门槛；升级时保守保留候选数据。
         beforeWrite?.Invoke();
         Directory.CreateDirectory(root);
         var hash = ContentFingerprint.Sha256(content); var target = Path.Combine(root, hash + ".raw");
         // 大小及身份不符在写临时原件前拒绝，不能留下之后必然无法核验的金融证据。
         if(content.Length>OfficialEquityDocuments.MaximumEvidenceBytes(hash))throw new InvalidDataException("原件超过允许的文件大小。");
-        if (File.Exists(target)) { if (!Verify(hash)) throw new InvalidDataException("Evidence integrity failure."); return hash; }
+        if (File.Exists(target)) { if (!VerifyAsync(hash,token).GetAwaiter().GetResult()) throw new InvalidDataException("Evidence integrity failure."); return hash; }
         var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { output.Write(content); output.Flush(true); }
+            using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                for(var offset=0;offset<content.Length;offset+=65536){token.ThrowIfCancellationRequested();output.Write(content.AsSpan(offset,Math.Min(65536,content.Length-offset)));}
+                output.Flush(true);
+            }
+            token.ThrowIfCancellationRequested();
             try{File.Move(temporary, target);}
             catch(IOException) when(File.Exists(target))
             {
                 // 并行来源可能取得相同原件；只接受另一执行已原子保存且哈希正确的文件。
-                if(!Verify(hash))throw new InvalidDataException("Evidence integrity failure.");
+                if(!VerifyAsync(hash,token).GetAwaiter().GetResult())throw new InvalidDataException("Evidence integrity failure.");
             }
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
@@ -98,6 +113,16 @@ public sealed class RawEvidenceStore(string root,Action? beforeWrite=null,Func<s
         token.ThrowIfCancellationRequested();
         if (!ContentFingerprint.IsSha256Hex(hash)) return false;
         var path = Path.Combine(root, hash + ".raw");
+        if(stableEvidence.Value is {} stable)
+        {
+            using var reading=await verificationReads.EnterAsync(queryVerification.Value,token).ConfigureAwait(false);
+            return await stable.VerifyAsync(path,hash,OfficialEquityDocuments.MaximumEvidenceBytes(hash),token,
+                openRead is null?null:async cancellation=>
+                {
+                    // 注入的读取器只作为受控观察点；实际SHA始终读取租约持有的真实文件。
+                    await using var observed=openRead(path);await observed.ReadAsync(new byte[1],cancellation).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+        }
         try
         {
             // 每个批次仍有界并行，同一库的所有批次还共享额度；后台巡检不能把句柄数乘到24并与查询争抢磁盘。

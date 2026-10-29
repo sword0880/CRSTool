@@ -7,11 +7,12 @@ using CRS.Worker.Service;
 using CRS.Plugins.NationalTeamWatch;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
+using CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>候选发行、监督进程、持久命令与真实管道；仅回放已保存公开PDF，不联网或安装服务。</summary>
 internal static class EtfHolderPipeChecks
 {
-    public static async Task Run(string package,string originals,string output)
+    public static async Task Run(string package,string originals,string output,bool efund=false,bool publication=false,bool recovery=false)
     {
         package=Path.GetFullPath(package);var root=Path.GetFullPath(output);
         if(Directory.Exists(root))throw new IOException("隔离验收目录必须不存在。");
@@ -26,14 +27,22 @@ internal static class EtfHolderPipeChecks
         var hashes=Directory.EnumerateFiles(target,"*",SearchOption.AllDirectories).ToDictionary(f=>Path.GetRelativePath(target,f).Replace('\\','/'),f=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(f))));
         var trust=Path.Combine(root,"trust.json");File.WriteAllText(trust,JsonSerializer.Serialize(new[]{new{id="crs.national-team",version="2.0.0",directory="crs.national-team/2.0.0",files=hashes}}));
         var data=Path.Combine(root,"service");var fixture=Path.Combine(data,"plugins","crs.national-team","etf-holders.fixture");Directory.CreateDirectory(fixture);
-        foreach(var year in new[]{2024,2025})File.Copy(Path.Combine(originals,$"510300-{year}.pdf"),Path.Combine(fixture,$"510300-{year}.pdf"));
+        var key=efund?new EtfKey("SZSE","159915"):new EtfKey("SSE","510300");
+        (string File,string Url,DateOnly AsOf,bool Named)[] captures=publication?[]:efund?
+            [("159915-2024",EfundChiNextHolderPdf.Annual2024Url,new(2024,12,31),true),("159915-2025",EfundChiNextHolderPdf.Annual2025Url,new(2025,12,31),true),
+             ("159915-2026H1",EfundChiNextHolderPdf.Interim2026Url,new(2026,6,30),false)]:
+            [("510300-2024","https://www.sse.com.cn/disclosure/fund/announcement/c/new/2025-03-31/510300_20250331_07Z1.pdf",new(2024,12,31),true),
+             ("510300-2025","https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf",new(2025,12,31),true)];
+        foreach(var capture in captures)File.Copy(Path.Combine(originals,capture.File+".pdf"),Path.Combine(fixture,capture.File+".pdf"));
+        if(publication)File.WriteAllBytes(Path.Combine(fixture,"publication-synthetic.pdf"),"%PDF-synthetic-publication-time"u8.ToArray());
+        if(recovery)File.WriteAllText(Path.Combine(fixture,"source-queue-once.fixture"),"synthetic source queue unavailable once");
         var pipe="CRS.EtfHolders."+Guid.NewGuid().ToString("N");var client=new BackgroundPipeClient(pipe);using var limit=new CancellationTokenSource(TimeSpan.FromMinutes(4));var token=limit.Token;var passed=0;
         void Check(bool ok,string message){if(!ok)throw new InvalidDataException(message);passed++;Console.WriteLine("PASS 持有人真实管道："+message);}
         async Task<BackgroundResponse> Send(BackgroundRequest request)
         {while(true){var reply=await client.SendAsync(request,token);if(reply.Code is not ("RateLimited" or "PluginBusy"))return reply;await Task.Delay(250,token);}}
         var info=new ProcessStartInfo(Path.Combine(package,"CRS.Worker.Service.exe")){UseShellExecute=false,CreateNoWindow=true,RedirectStandardError=true,RedirectStandardOutput=true};
         foreach(var arg in new[]{"--console","--data",data,"--plugins",plugins,"--trust",trust,"--pipe",pipe})info.ArgumentList.Add(arg);
-        using var process=Process.Start(info)!;var stdout=process.StandardOutput.ReadToEndAsync();var stderr=process.StandardError.ReadToEndAsync();
+        var process=Process.Start(info)!;var stdout=process.StandardOutput.ReadToEndAsync();var stderr=process.StandardError.ReadToEndAsync();
         try
         {
             BackgroundResponse health;
@@ -45,30 +54,82 @@ internal static class EtfHolderPipeChecks
             }
             Check(health.Health?.State=="Running","完整候选包在隔离目录启动");
             var reader=new WorkerEtfWorkspace(client);var reports=new List<EtfHolderCandidateReport>();
-            foreach(var year in new[]{2024,2025})
+            foreach(var capture in captures)
             {
-                var url=year==2025?"https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf":"https://www.sse.com.cn/disclosure/fund/announcement/c/new/2025-03-31/510300_20250331_07Z1.pdf";
-                var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team","alert-manage",Payload:JsonSerializer.Serialize(new EtfRequest("alert-document",AlertDocument:new("SSE","510300",url))));
-                Check((await Send(request)).Code=="Accepted","原件登记命令持久接收"+year);
+                var url=capture.Url;var label=capture.File;
+                var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team","alert-manage",Payload:JsonSerializer.Serialize(new EtfRequest("alert-document",AlertDocument:new(key.Market,key.Ticker,url))));
+                Check((await Send(request)).Code=="Accepted","原件登记命令持久接收"+label);
                 BackgroundResponse status;
+                if(recovery&&reports.Count==0)
+                {
+                    do{status=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId));if(status.Receipt?.Code!="RetryDeferred")await Task.Delay(250,token);}while(status.Receipt?.Code!="RetryDeferred");
+                    Check(status.Receipt is{State:"Pending",Code:"RetryDeferred"},"Runner传回来源退避，原命令保持Pending而非Failed");
+                    var deferred=(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHistory","crs.national-team"))).History!.Single(x=>x.JobId=="alert-manage");
+                    Check(deferred.Result=="RetryDeferred"&&deferred.Checkpoint!.StartsWith("alert=DocumentSourceQueueFull;"),"真实执行保留具名来源原因，不丢成OperationFailed");
+                    var plan=(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",PageSize:10))).TaskActivity!.Rows.Single(x=>x.RequestId==request.RequestId);
+                    Check(plan.NotBefore>CRS.Timing.BeijingClock.Now&&(await reader.AlertDocumentsAsync(key,token)).Count==0,"宿主持久等待时间，失败不登记原件");
+                    File.WriteAllText(Path.Combine(root,"deferred-before-restart.json"),JsonSerializer.Serialize(new{Request=request,Status=status,Execution=deferred,Plan=plan}));
+                    var oldPid=process.Id;process.Kill();await process.WaitForExitAsync();
+                    File.WriteAllText(Path.Combine(root,"stdout-before-restart.log"),await stdout);File.WriteAllText(Path.Combine(root,"stderr-before-restart.log"),await stderr);process.Dispose();
+                    process=Process.Start(info)!;stdout=process.StandardOutput.ReadToEndAsync();stderr=process.StandardError.ReadToEndAsync();
+                    while(true)
+                    {
+                        token.ThrowIfCancellationRequested();if(process.HasExited)throw new IOException("恢复宿主提前退出。");
+                        try{health=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"));if(health.Health?.State=="Running")break;}catch(IOException){}
+                        await Task.Delay(250,token);
+                    }
+                    reader=new WorkerEtfWorkspace(client);
+                    var restored=(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",PageSize:10))).TaskActivity!.Rows.Single(x=>x.RequestId==request.RequestId);
+                    Check(process.Id!=oldPid&&restored.NotBefore==plan.NotBefore,"宿主重启保留原来源等待预算");
+                    var replayed=await Send(request);
+                    Check(replayed.Receipt is{State:"Pending",Code:"RetryDeferred"},"原请求重放沿原ID等待，不重建工作或立即再下载");
+                }
                 do{status=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId));if(status.Receipt?.State!="Completed")await Task.Delay(250,token);}while(status.Receipt?.State!="Completed");
-                Check(status.Receipt?.Code=="Succeeded","按本次命令身份核对完成"+year);
-                var document=(await reader.AlertDocumentsAsync(new("SSE","510300"),token)).Single(x=>x.Url==url);
-                var report=await reader.EtfHolderCandidatesAsync(new("SSE","510300"),document.Id,token);reports.Add(report);
-                Check(report.Holders.Count==11&&report.State=="NeedsReview"&&report.PublishedAt is null&&report.Holders.All(x=>!x.OriginalConfirmed&&!x.IndependentOwnershipConfirmed),"监督Runner加载公共PDF库并传回11条待核验候选"+year);
-                Check(report.Document.Hash==Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(originals,$"510300-{year}.pdf"))))&&report.ReportAsOf==new DateOnly(year,12,31),"原件哈希及报告期完整跨进程绑定"+year);
+                Check(status.Receipt?.Code=="Succeeded","按本次命令身份核对完成"+label);
+                var document=(await reader.AlertDocumentsAsync(key,token)).Single(x=>x.Url==url);
+                var report=await reader.EtfHolderCandidatesAsync(key,document.Id,token);reports.Add(report);
+                Check((capture.Named?report is{Holders.Count:11,State:"NeedsReview"}:report is{Holders.Count:0,State:"NotDisclosed",Scope:"AggregateOnlyNoNamedTable"})
+                    &&report.PublishedAt is null&&report.Holders.All(x=>!x.OriginalConfirmed&&!x.IndependentOwnershipConfirmed),"监督Runner保留候选或未披露状态，不自动确认"+label);
+                Check(report.Document.Hash==Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(originals,capture.File+".pdf"))))&&report.ReportAsOf==capture.AsOf,"原件哈希及报告期完整跨进程绑定"+label);
                 _=await Send(request);var replay=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId));
-                Check(replay.Receipt?.ExecutionId==status.Receipt?.ExecutionId,"原命令重放保持执行身份"+year);
+                Check(replay.Receipt?.ExecutionId==status.Receipt?.ExecutionId,"原命令重放保持执行身份"+label);
             }
-            Check((await reader.NamedEtfHoldingsAsync(new("SSE","510300"),token)).Count==0,"候选解析不写已审核具名持仓");
-            Check(File.ReadAllLines(Path.Combine(fixture,"calls.log")).Length==2,"只登记两次原件，候选查询及重放不重新采集");
+            Check((await reader.NamedEtfHoldingsAsync(key,token)).Count==0,"候选解析不写已审核具名持仓");
+            if(captures.Length>0)Check(File.ReadAllLines(Path.Combine(fixture,"calls.log")).Length==captures.Length,"只登记明确原件，候选查询及重放不重新采集");
+            NamedEtfHolding? publicationHolding=null;
+            if(publication)
+            {
+                const string syntheticUrl="https://www.sse.com.cn/synthetic-publication-time.pdf";
+                var register=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team","alert-manage",Payload:EtfBusinessProtocol.WriteRequest(new("alert-document",AlertDocument:new(key.Market,key.Ticker,syntheticUrl))));
+                Check((await Send(register)).Code=="Accepted","合成时间精度原件登记持久受理");
+                BackgroundResponse registered;
+                do{registered=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:register.RequestId));if(registered.Receipt?.State!="Completed")await Task.Delay(250,token);}while(registered.Receipt?.State!="Completed");
+                Check(registered.Receipt?.Code=="Succeeded","合成原件登记已完成，不把排队当成功");
+                var document=(await reader.AlertDocumentsAsync(key,token)).Single();
+                var originalEvents=await reader.AlertEventsAsync(new(),token);var originalOutbox=await reader.AlertOutboxAsync(token);
+                var dated=new NamedEtfHoldingReview(document.Id,"synthetic-publication-legal","合成日期披露法人","合成日期账户",new(2025,12,31),null,1,"合成P1","synthetic-publication-reviewer",true,true)
+                    {PublicationDate=new(2026,3,31),PublicationPrecision=EtfPublicationPrecision.DateOnly};
+                await reader.ReviewNamedEtfHoldingAsync(dated,token);publicationHolding=(await reader.NamedEtfHoldingsAsync(key,token)).Single();
+                Check(publicationHolding.PublishedAt is null&&publicationHolding.PublicationDate==dated.PublicationDate&&publicationHolding.PublicationPrecision==EtfPublicationPrecision.DateOnly,"真实客户端及监督Runner保存日期精度，准确时刻保持空值");
+                Check(publicationHolding.FirstSeenAt==DateTimeOffset.Parse(document.FirstSeenAt)&&publicationHolding.PublicationText.Contains("仅日期"),"首见由已登记原件固定，显示明确区分日期与时刻");
+                var downgrade=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team","alert-manage",Payload:EtfBusinessProtocol.WriteRequest(new("alert-holding-review",NamedEtfHolding:dated)));
+                _=await Send(downgrade);BackgroundResponse denied;
+                do{denied=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:downgrade.RequestId));if(denied.Receipt?.State!="Completed")await Task.Delay(250,token);}while(denied.Receipt?.State!="Completed");
+                Check(denied.Receipt?.Code=="Rejected"&&(await reader.NamedEtfHoldingsAsync(key,token)).Count==1,"实际旧操作拒绝日期载荷，不覆盖或重复写入");
+                Check(File.ReadAllLines(Path.Combine(fixture,"calls.log")).Length==1,"核验和回读不重复下载合成原件");
+                var afterEvents=await reader.AlertEventsAsync(new(),token);var afterOutbox=await reader.AlertOutboxAsync(token);
+                Check(afterEvents.All(x=>x.Lane==AlertLane.DataQuality)&&afterEvents.Select(x=>x.Id).ToHashSet().SetEquals(originalEvents.Select(x=>x.Id))
+                    &&afterOutbox.Select(x=>x.Id).ToHashSet().SetEquals(originalOutbox.Select(x=>x.Id))&&afterOutbox.All(x=>x.Attempts==0&&x.AcceptedAt is null),
+                    "日期核验沿用既有数据核查，不新增金融事件、不重复排队或投递通知");
+            }
             var after=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"));Check(after.Health?.ProcessId==health.Health?.ProcessId&&after.Health?.State=="Running","读取前后同一健康宿主");
-            File.WriteAllText(Path.Combine(root,"acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,Source="CapturedOfficialFilesFixture",Reports=reports,Health=after.Health},new JsonSerializerOptions{WriteIndented=true}));
+            File.WriteAllText(Path.Combine(root,"acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,RecoveryAcrossHostRestart=recovery,Source=publication?"SyntheticPublicationDateReview":"CapturedOfficialFilesFixture",Reports=reports,PublicationHolding=publicationHolding,Health=after.Health},new JsonSerializerOptions{WriteIndented=true}));
         }
         finally
         {
             if(!process.HasExited)process.Kill();await process.WaitForExitAsync();
             File.WriteAllText(Path.Combine(root,"stdout.log"),await stdout);File.WriteAllText(Path.Combine(root,"stderr.log"),await stderr);
+            process.Dispose();
         }
     }
 }

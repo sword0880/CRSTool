@@ -11,3 +11,8 @@ public interface IRawEvidenceVerifier
 {
     IReadOnlyDictionary<string,bool> VerifyMany(IEnumerable<string> hashes,CancellationToken token);
 }
+/// <summary>跨计算和提交保持已核原件稳定；数量有界，取消/完成后释放，不是按时长缓存。</summary>
+public interface IRawEvidenceStability
+{
+    IDisposable HoldVerifiedEvidence();
+}

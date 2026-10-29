@@ -22,11 +22,13 @@ internal static class UiVisualPreview
             var document=new CRS.Plugins.NationalTeamWatch.Domain.AlertDocument(new('A',64),"SSE","510300","https://www.sse.com.cn/synthetic-holder.pdf",new('B',64),"2026-10-27T10:00:00+08:00");
             model.ProofDocuments.Add(document);model.ProofDocument=document;
             for(var i=0;i<2;i++)model.ProofHoldings.Add(new("synthetic-"+i,"SSE","510300","synthetic-legal-"+i,"合成登记法人"+i,"合成账户"+i,new(2025,12,31),
-                new(2026,3,31,18,0,0,TimeSpan.FromHours(8)),DateTimeOffset.Parse(document.FirstSeenAt),12345+i,document.Url,document.Hash,"合成物理第75页","synthetic-reviewer",i==1,true));
+                i==0?null:new DateTimeOffset(2026,3,31,18,0,0,TimeSpan.FromHours(8)),DateTimeOffset.Parse(document.FirstSeenAt),12345+i,document.Url,document.Hash,"合成物理第75页","synthetic-reviewer",i==1,true)
+                {PublicationPrecision=i==0?CRS.Plugins.NationalTeamWatch.Domain.EtfPublicationPrecision.DateOnly:CRS.Plugins.NationalTeamWatch.Domain.EtfPublicationPrecision.ExactTime,PublicationDate=i==0?new DateOnly(2026,3,31):null});
+            model.HoldingAsOf=new(2025,12,31);model.OnlyPublicationDate=true;model.HoldingPublicationDate=new(2026,3,31);
             model.HolderCandidateStatus="合成布局验证 · 待核验候选 · 报告期2025-12-31；公告日期2026-03-31；准确时刻未知。候选不会自动批准。";
             for(var i=1;i<=11;i++)model.HolderCandidates.Add(new(i,i==1?"合成登记持有人甲有限责任公司":i==2?"合成登记持有人乙有限责任公司":"合成持有人"+i,"合成跨行\n持有人",37858474974-i,42.62m,"合成物理第75页",null));
             var page=new ExitAlertPage(false){DataContext=model};
-            var window=new Window{Content=page,Width=width,Height=960,ShowInTaskbar=false,WindowStyle=WindowStyle.None};
+            var window=new Window{Content=page,Width=width,Height=960,ShowInTaskbar=false,ShowActivated=false,WindowStyle=WindowStyle.None};
             try
             {
                 window.Show();window.UpdateLayout();
@@ -42,26 +44,32 @@ internal static class UiVisualPreview
                 var proofGrid=All(page).OfType<DataGrid>().Single(x=>ReferenceEquals(x.ItemsSource,model.ProofHoldings));
                 proofGrid.BringIntoView();
                 var proofFrame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>proofFrame.Continue=false));Dispatcher.PushFrame(proofFrame);window.UpdateLayout();
-                CaptureGrid(proofGrid,Path.Combine(directory,$"holding-status-{width}.png"));
+                CaptureElement(proofGrid,Path.Combine(directory,$"holding-status-{width}.png"));
+                var editor=All(page).OfType<GroupBox>().Single(x=>Equals(x.Header,"具名机构基准持仓"));
+                var date=All(editor).OfType<DatePicker>().Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="已核验的公告日期");
+                var exact=All(editor).OfType<TextBox>().Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="已核验的公告时点");
+                if(!date.IsEnabled||date.SelectedDate!=new DateTime(2026,3,31)||exact.IsEnabled||exact.Text.Length!=0)
+                    throw new InvalidOperationException("日期模式控件绑定或未知时刻状态异常。");
+                CaptureElement(editor,Path.Combine(directory,$"holding-date-editor-{width}.png"));
             }
             finally{window.Close();}
         }
-        Console.WriteLine("PASS 持有人候选及核验标记：640/1040/1280 DIP真实窗口6张合成渲染，不连接后台。");
+        Console.WriteLine("PASS 持有人候选、核验标记及日期编辑：640/1040/1280 DIP真实窗口9张合成渲染，不连接后台。");
     }
-    private static void CaptureGrid(DataGrid grid,string path)
+    private static void CaptureElement(FrameworkElement grid,string path)
     {
         var parent=(Panel)grid.Parent;var index=parent.Children.IndexOf(grid);var context=grid.DataContext;
-        var local=grid.ReadLocalValue(FrameworkElement.DataContextProperty);var width=grid.ActualWidth;var height=grid.ActualHeight;
-        parent.Children.Remove(grid);grid.DataContext=context;
-        var window=new Window{Content=grid,Width=width,Height=height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false};
+        var local=grid.ReadLocalValue(FrameworkElement.DataContextProperty);var width=grid.ActualWidth;var height=grid.ActualHeight;var margin=grid.Margin;
+        parent.Children.Remove(grid);grid.DataContext=context;grid.Margin=default;
+        var window=new Window{Content=grid,Width=width,Height=height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false,ShowActivated=false,Background=Brushes.White};
         try
         {
-            window.Show();window.UpdateLayout();var bitmap=new RenderTargetBitmap((int)Math.Ceiling(grid.ActualWidth),(int)Math.Ceiling(grid.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(grid);
+            window.Show();window.UpdateLayout();var bitmap=new RenderTargetBitmap((int)Math.Ceiling(grid.ActualWidth),(int)Math.Ceiling(grid.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(window);
             var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4];bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
             if(pixels.Distinct().Count()<8)throw new InvalidOperationException("持仓表截图为空，不能接受。");
             var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
         }
-        finally{window.Content=null;window.Close();parent.Children.Insert(index,grid);if(local==DependencyProperty.UnsetValue)grid.ClearValue(FrameworkElement.DataContextProperty);else grid.SetValue(FrameworkElement.DataContextProperty,local);}
+        finally{window.Content=null;window.Close();grid.Margin=margin;parent.Children.Insert(index,grid);if(local==DependencyProperty.UnsetValue)grid.ClearValue(FrameworkElement.DataContextProperty);else grid.SetValue(FrameworkElement.DataContextProperty,local);}
     }
     private static T Find<T>(DependencyObject root) where T:DependencyObject
     {

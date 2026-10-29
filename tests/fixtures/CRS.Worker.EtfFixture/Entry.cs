@@ -8,11 +8,16 @@ public sealed class Entry:IContextualBackgroundPluginEntry
 {
     public IBackgroundPluginSession CreateSession()=>throw new InvalidOperationException();
     public IBackgroundPluginSession CreateSession(IBackgroundHostContext context)=>new Session(context);
-    private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IGroupedBackgroundSession
+    private sealed class Session(IBackgroundHostContext context):IBackgroundPluginSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IProgressBackgroundSession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession
     {
         private readonly NationalTeamBackgroundSession inner=new(context,new Gateway(context.DataDirectory),indexSourceApprovals:new IndexApprovals(context.DataDirectory));
         public int MaximumConcurrentExecutions=>inner.MaximumConcurrentExecutions;
         public BackgroundExecutionGroup ExecutionGroup(string jobId)=>inner.ExecutionGroup(jobId);
+        public BackgroundQueryRouting DescribeQueryRouting()
+        {
+            var routing=inner.DescribeQueryRouting();return routing with{Routes=[..routing.Routes,new("fixture-assemblies",BackgroundQueryWorkload.ShortRead)]};
+        }
+        public Task QuiesceQueriesAsync(CancellationToken token)=>inner.QuiesceQueriesAsync(token);
         public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs()=>inner.DescribeJobs().Select(x=>Directory.Exists(Path.Combine(context.DataDirectory,"market-knowledge.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"equity-direction.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"historical-pdf.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-holders.fixture"))||Directory.Exists(Path.Combine(context.DataDirectory,"etf-reports.fixture"))||x.JobId is "official-calendar-sync" or "equity-disclosure-sync"?x with{EnabledByDefault=false,RunOnStartup=false}:x).ToArray();
         public async ValueTask StartAsync(CancellationToken token)
         {
@@ -44,7 +49,7 @@ public sealed class Entry:IContextualBackgroundPluginEntry
         public Task<BackgroundJobResult> ExecuteWithProgressAsync(string id,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)=>inner.ExecuteWithProgressAsync(id,payload,report,token,commandId);
         public ValueTask StopAsync(CancellationToken token)=>inner.StopAsync(token);
         public ValueTask DisposeAsync()=>inner.DisposeAsync();
-        public Task<string> QueryAsync(string payload,CancellationToken token)=>payload=="fixture-assemblies"
+        public Task<string> QueryAsync(string payload,CancellationToken token)=>payload=="{\"Operation\":\"fixture-assemblies\"}"
             ?Task.FromResult(JsonSerializer.Serialize(AppDomain.CurrentDomain.GetAssemblies().Select(x=>x.GetName().Name).ToArray())):inner.QueryAsync(payload,token);
     }
     /// <summary>仅测试包读取显式合成许可标记；生产发行不含此入口，不把公开原件替身算作真实来源授权。</summary>
@@ -88,14 +93,25 @@ public sealed class Entry:IContextualBackgroundPluginEntry
             var holders=Path.Combine(root,"etf-holders.fixture");
             if(Directory.Exists(holders))
             {
-                var year=uri.AbsoluteUri switch
+                var retryOnce=Path.Combine(holders,"source-queue-once.fixture");
+                if(File.Exists(retryOnce))
                 {
-                    "https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf"=>2025,
-                    "https://www.sse.com.cn/disclosure/fund/announcement/c/new/2025-03-31/510300_20250331_07Z1.pdf"=>2024,
+                    // 仅合成恢复验收消费一次标记；正式发行不携带该夹具，不缩短生产冷却。
+                    File.Move(retryOnce,retryOnce+".consumed");
+                    throw new SourceBudgetUnavailableException("SourceQueueFull");
+                }
+                var file=uri.AbsoluteUri switch
+                {
+                    "https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf"=>"510300-2025",
+                    "https://www.sse.com.cn/disclosure/fund/announcement/c/new/2025-03-31/510300_20250331_07Z1.pdf"=>"510300-2024",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.EfundChiNextHolderPdf.Annual2024Url=>"159915-2024",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.EfundChiNextHolderPdf.Annual2025Url=>"159915-2025",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.EfundChiNextHolderPdf.Interim2026Url=>"159915-2026H1",
+                    "https://www.sse.com.cn/synthetic-publication-time.pdf"=>"publication-synthetic",
                     _=>throw new InvalidDataException("持有人夹具出现未列来源。")
                 };
-                await File.AppendAllTextAsync(Path.Combine(holders,"calls.log"),year+"\n",token);
-                return new(200,await File.ReadAllBytesAsync(Path.Combine(holders,$"510300-{year}.pdf"),token),"application/pdf");
+                await File.AppendAllTextAsync(Path.Combine(holders,"calls.log"),file+"\n",token);
+                return new(200,await File.ReadAllBytesAsync(Path.Combine(holders,file+".pdf"),token),"application/pdf");
             }
             var historical=Path.Combine(root,"historical-pdf.fixture");
             if(Directory.Exists(historical))

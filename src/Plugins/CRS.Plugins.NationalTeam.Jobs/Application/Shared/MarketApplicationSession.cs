@@ -8,6 +8,7 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     private readonly BoundedWorkAdmission shortReads=new(2,4,TimeSpan.FromSeconds(1));
     private readonly BoundedWorkAdmission researchReads=new(1,1,TimeSpan.FromSeconds(2));
     private readonly BoundedWorkAdmission backgroundReads=new(1,4,TimeSpan.FromSeconds(2));
+    private readonly BoundedWorkAdmission evaluations=new(1,1,TimeSpan.FromSeconds(2));
     private IMarketRepository? repository;
     private IMarketReadSessions? independentReads;
     private bool disposed;
@@ -29,15 +30,25 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
             },token).ConfigureAwait(false);
         }
     }
-    internal async Task<T> WriteAsync<TPort,T>(Func<TPort,T> work,CancellationToken token) where TPort:class
+    internal async Task<T> WriteAsync<TPort,T>(Func<TPort,T> work,CancellationToken token,Action<long>? heldMilliseconds=null) where TPort:class
     {
         using(await EnterAsync(writeGate,token).ConfigureAwait(false))
         {
+            var holding=System.Diagnostics.Stopwatch.GetTimestamp();
+            try
+            {
             ObjectDisposedException.ThrowIf(disposed,this);
             var current=repository??throw new InvalidOperationException("后台用例会话尚未初始化。");
             var port=current as TPort??throw new NotSupportedException("市场仓储缺少请求的业务写入能力。");
             return await Task.Run(()=>current.ExecuteOperation(()=>work(port),token),token).ConfigureAwait(false);
+            }
+            finally{heldMilliseconds?.Invoke((long)System.Diagnostics.Stopwatch.GetElapsedTime(holding).TotalMilliseconds);}
         }
+    }
+    internal async Task<T> EvaluateAsync<T>(Func<Task<T>> work,CancellationToken token)
+    {
+        using(await EnterAsync(evaluations,token).ConfigureAwait(false))
+        {ObjectDisposedException.ThrowIf(disposed,this);return await work().ConfigureAwait(false);}
     }
     internal async Task<T> ReadAsync<TPort,T>(Func<TPort,T> query,CancellationToken token) where TPort:class
     {
@@ -53,7 +64,7 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     public async ValueTask DisposeAsync()
     {
         disposed=true;
-        await Task.WhenAll(shortReads.CloseAsync(),researchReads.CloseAsync(),backgroundReads.CloseAsync(),writeGate.CloseAsync()).ConfigureAwait(false);
+        await Task.WhenAll(shortReads.CloseAsync(),researchReads.CloseAsync(),backgroundReads.CloseAsync(),writeGate.CloseAsync(),evaluations.CloseAsync()).ConfigureAwait(false);
         Volatile.Write(ref independentReads,null);repository?.Dispose();repository=null;
     }
     private async ValueTask<IDisposable> EnterAsync(BoundedWorkAdmission admission,CancellationToken token)

@@ -13,7 +13,8 @@ public sealed partial class WorkerEtfWorkspace
         var id=Guid.NewGuid().ToString("N");
         var fingerprint=ContentFingerprint.Sha256(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(query with{Offset=0,Snapshot=null,Count=10})));
         var request=new EtfRequest("research-submit",Revision:id){ResearchRequest=query};
-        using var budget=CancellationTokenSource.CreateLinkedTokenSource(token);budget.CancelAfter(TimeSpan.FromSeconds(100));
+        var completed=false;
+        using var budget=CancellationTokenSource.CreateLinkedTokenSource(token);budget.CancelAfter(TimeSpan.FromSeconds(EtfResearchTicket.MaximumWaitSeconds));
         try
         {
             while(true)
@@ -25,7 +26,7 @@ public sealed partial class WorkerEtfWorkspace
                 if(ticket.State=="Ready")
                 {
                     if(ticket.Snapshot is not {Length:32} snapshot||!snapshot.All(Uri.IsHexDigit)||ticket.Failure is not null)throw new InvalidDataException("研究结果快照无效。");
-                    return await ReadPagesAsync<T>(query with{Snapshot=snapshot},budget.Token);
+                    var result=await ReadPagesAsync<T>(query with{Snapshot=snapshot},budget.Token);completed=true;return result;
                 }
                 if(ticket.State is not ("Queued" or "Running")||ticket.Snapshot is not null||ticket.Failure is not null)
                     throw new InvalidDataException("研究快照未完成："+ticket.State+" / "+ticket.Failure);
@@ -36,7 +37,8 @@ public sealed partial class WorkerEtfWorkspace
         finally
         {
             // 界面退出只取消本次研究，后台采集和持久写命令不受影响；清理失败由作业TTL兜底。
-            _=ReleaseResearchAsync(request with{Operation="research-release"});
+            var release=ReleaseResearchAsync(request with{Operation="research-release"});
+            if(completed)await release;
         }
     }
     private async Task ReleaseResearchAsync(EtfRequest request)

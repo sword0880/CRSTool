@@ -12,6 +12,8 @@ if(args is ["--document-ingress-boundaries",var ingressRoot]){await DocumentIngr
 if(args is ["--data-cleanup"]){await DataCleanupChecks.RunAsync();await DataCleanupPipeChecks.RunAsync();return;}
 if(args is ["--data-cleanup-audit",var cleanupRoot]){await using var audit=new WorkerDataCleanup(cleanupRoot);Console.WriteLine(JsonSerializer.Serialize(audit.Audit(new(14,2,true))));return;}
 if(args is ["--supervised-plugins"]){await SupervisedPluginChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.SupervisedPlugins",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--query-workloads"]){await QueryWorkloadChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.QueryWorkloads",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--runner-failures",var failureRoot]){await RunnerFailureChecks.RunAsync(failureRoot);return;}
 if(args is ["--runner-diagnostic-cancel"]){await RunnerDiagnosticCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.RunnerDiagnostic",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--storage-growth"]){await StorageGrowthChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.StorageGrowth",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--cancellation-boundaries"]){await WorkerCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.Cancellation",Guid.NewGuid().ToString("N")));return;}
