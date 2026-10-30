@@ -43,6 +43,7 @@ if(args is ["--etf-holder-recovery-pipe",var recoveryPackage,var recoveryOrigina
 if(args is ["--etf-holder-efund-pipe",var efundPackage,var efundOriginals,var efundPipeOutput]){await EtfHolderPipeChecks.Run(efundPackage,efundOriginals,efundPipeOutput,true);return;}
 if(args is ["--etf-holder-harvest-pipe",var harvestPackage,var harvestOriginals,var harvestPipeOutput]){await EtfHolderPipeChecks.Run(harvestPackage,harvestOriginals,harvestPipeOutput,harvest:true);return;}
 if(args is ["--etf-holder-source-budget-pipe",var budgetPackage,var budgetOriginals,var budgetOutput]){await EtfHolderPipeChecks.Run(budgetPackage,budgetOriginals,budgetOutput,recovery:true,sourceBudget:true);return;}
+if(args is ["--etf-document-isolation-pipe",var documentPackage,var sseOriginals,var szseOriginals,var documentOutput]){await EtfHolderPipeChecks.Run(documentPackage,sseOriginals,documentOutput,recovery:true,sourceBudget:true,isolateManagement:true,otherMarketOriginals:szseOriginals);return;}
 if(args is ["--etf-holding-publication-pipe",var publicationPackage,var publicationOutput]){await EtfHolderPipeChecks.Run(publicationPackage,"",publicationOutput,publication:true);return;}
 if(args is ["--etf-report-pipe",var reportPackage,var reportSources,var reportOriginals,var reportOutput]){await EtfReportPipeChecks.Run(reportPackage,reportSources,reportOriginals,reportOutput);return;}
 if(args is ["--industry-pipe",var industryPackage,var industrySource,var industryPipeOutput]){await IndustryPipeChecks.Run(industryPackage,industrySource,industryPipeOutput);return;}

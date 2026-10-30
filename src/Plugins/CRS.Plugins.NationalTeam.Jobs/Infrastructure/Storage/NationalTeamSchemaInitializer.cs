@@ -15,7 +15,7 @@ internal static class NationalTeamSchemaInitializer
         session.Execute("CREATE TABLE IF NOT EXISTS plugin_schema_migration(schema_version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL,plugin_package_version TEXT NOT NULL); CREATE TABLE IF NOT EXISTS worker_business_command(request TEXT PRIMARY KEY,operation TEXT NOT NULL,completed_utc TEXT NOT NULL);");
         EvidenceSchema.Initialize(session);stores.Etf.InitializeSchema();
         stores.Calendar.InitializeSchema();stores.Equity.InitializeEquitySchema();stores.Activity.InitializeSchema();
-        stores.Alerts.InitializeExitAlertSchema();stores.Nav.InitializeSchema();stores.Industry.InitializeSchema();stores.Index.InitializeSchema();
+        stores.EtfEvidence.InitializeSchema();stores.Alerts.InitializeExitAlertSchema();stores.Nav.InitializeSchema();stores.Industry.InitializeSchema();stores.Index.InitializeSchema();
         initializeApprovals();
         stores.EtfReports.InitializeSchema();
         stores.Breadth.InitializeSchema();

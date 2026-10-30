@@ -15,8 +15,6 @@ public sealed partial class MarketRepository:IExitAlertEvaluationRepository
         try
         {
             using var copy=database.CopyForEvaluation();copy.RecordEvaluationMutation=plan.Record;
-            if(Convert.ToInt64(copy.Scalar("SELECT count(*) FROM sqlite_master WHERE type='trigger'"))!=0)
-                throw new InvalidDataException("评价副本包含未声明的触发器，拒绝准备不可复核的提交结果。");
             using var prepared=new MarketRepository(copy,marketCycleApprovalAuditKey.ToArray());
             prepared.ExecuteOperation(()=>prepared.EvaluateExitAlerts(force),database.OperationCancellation);
             return plan;

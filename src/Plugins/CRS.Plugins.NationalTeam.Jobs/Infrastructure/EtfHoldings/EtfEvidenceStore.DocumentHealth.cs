@@ -2,15 +2,15 @@ using System.Globalization;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-internal sealed partial class AlertStore
+internal sealed partial class EtfEvidenceStore
 {
-    private sealed record DocumentReference(string Market,string Ticker,string Url,string Hash,DateTimeOffset? FirstSeenAt=null);
-    private static DocumentReference Reference(AlertFundMetadata value)=>new(value.Market,value.Ticker,value.EvidenceUrl,value.EvidenceHash);
-    private static DocumentReference Reference(NamedEtfHolding value)=>new(value.Market,value.Ticker,value.DocumentUrl,value.DocumentHash,value.FirstSeenAt);
-    private static DocumentReference Reference(AlertDocument value)=>new(value.Market,value.Ticker,value.Url,value.Hash);
+    internal sealed record DocumentReference(string Market,string Ticker,string Url,string Hash,DateTimeOffset? FirstSeenAt=null);
+    internal static DocumentReference Reference(AlertFundMetadata value)=>new(value.Market,value.Ticker,value.EvidenceUrl,value.EvidenceHash);
+    internal static DocumentReference Reference(NamedEtfHolding value)=>new(value.Market,value.Ticker,value.DocumentUrl,value.DocumentHash,value.FirstSeenAt);
+    internal static DocumentReference Reference(AlertDocument value)=>new(value.Market,value.Ticker,value.Url,value.Hash);
 
     /// <summary>同次操作批量绑定证券、原件、来源版本及未解除Q15；不缓存到下次操作，不修复或写入任何审核状态。</summary>
-    private Dictionary<DocumentReference,AlertDocument?> InspectDocuments(IEnumerable<DocumentReference> references,bool verifyRaw=true)
+    internal Dictionary<DocumentReference,AlertDocument?> InspectDocuments(IEnumerable<DocumentReference> references,bool verifyRaw=true)
     {
         var requested=references.Distinct().ToArray();
         if(requested.Length>10000)throw new InvalidDataException("ETF原件引用超过读取限额。");
@@ -61,12 +61,12 @@ internal sealed partial class AlertStore
         }
         return result;
     }
-    private AlertFundMetadata[] ValidateMetadata(IEnumerable<AlertFundMetadata> values)
+    internal AlertFundMetadata[] ValidateMetadata(IEnumerable<AlertFundMetadata> values)
     {
         var rows=values.ToArray();var health=InspectDocuments(rows.Select(Reference));
         return rows.Select(x=>health[Reference(x)] is not null?x:x with{OriginalConfirmed=false}).ToArray();
     }
-    private NamedEtfHolding[] ValidateHoldings(IEnumerable<NamedEtfHolding> values)
+    internal NamedEtfHolding[] ValidateHoldings(IEnumerable<NamedEtfHolding> values)
     {
         var rows=values.ToArray();var health=InspectDocuments(rows.Select(Reference));
         return rows.Select(x=>health[Reference(x)] is not null?x:x with{OriginalConfirmed=false}).ToArray();

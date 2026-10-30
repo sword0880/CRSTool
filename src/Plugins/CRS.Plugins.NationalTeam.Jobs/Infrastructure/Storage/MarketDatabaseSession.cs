@@ -111,7 +111,14 @@ internal sealed class MarketDatabaseSession : IMarketRepositorySession,IDisposab
         var pages=Convert.ToInt64(Scalar("PRAGMA page_count"));var pageBytes=Convert.ToInt64(Scalar("PRAGMA page_size"));
         if(pages>256L*1024*1024/pageBytes)throw new InvalidDataException("评价数据库快照超过256MiB，请先调整研究资料范围。");
         var copy=new MarketDatabaseSession(":memory:",RawEvidence,null,Clock,false,evaluationOwner);
-        try{Connection.BackupDatabase(copy.Connection);OperationCancellation.ThrowIfCancellationRequested();return copy;}
+        try
+        {
+            Connection.BackupDatabase(copy.Connection);
+            // 副本结构校验由连接所有者完成，聚合仓储不再直接查询SQLite元数据。
+            if(Convert.ToInt64(copy.Scalar("SELECT count(*) FROM sqlite_master WHERE type='trigger'"))!=0)
+                throw new InvalidDataException("评价副本包含未声明的触发器，拒绝准备不可复核的提交结果。");
+            OperationCancellation.ThrowIfCancellationRequested();return copy;
+        }
         catch{copy.Dispose();throw;}
     }
     public void Dispose(){if(Interlocked.Exchange(ref disposed,1)==0){evaluationMonitor?.Dispose();Connection.Dispose();}}

@@ -45,8 +45,20 @@ public sealed class Entry:IContextualBackgroundPluginEntry
             await inner.StartAsync(token);
         }
         public Task<BackgroundJobResult> ExecuteAsync(string id,CancellationToken token)=>inner.ExecuteAsync(id,token);
-        public Task<BackgroundJobResult> ExecuteAsync(string id,string? payload,CancellationToken token,Guid? commandId=null)=>inner.ExecuteAsync(id,payload,token,commandId);
-        public Task<BackgroundJobResult> ExecuteWithProgressAsync(string id,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)=>inner.ExecuteWithProgressAsync(id,payload,report,token,commandId);
+        public Task<BackgroundJobResult> ExecuteAsync(string id,string? payload,CancellationToken token,Guid? commandId=null)=>AfterDocumentCommit(inner.ExecuteAsync(id,payload,token,commandId),id,token);
+        public Task<BackgroundJobResult> ExecuteWithProgressAsync(string id,string? payload,Func<BackgroundProgress,Task> report,CancellationToken token,Guid? commandId=null)=>AfterDocumentCommit(inner.ExecuteWithProgressAsync(id,payload,report,token,commandId),id,token);
+        private async Task<BackgroundJobResult> AfterDocumentCommit(Task<BackgroundJobResult> work,string id,CancellationToken token)
+        {
+            var result=await work;
+            var hold=Path.Combine(context.DataDirectory,"etf-holders.fixture","commit-hold.fixture");
+            if(id==CRS.Plugins.NationalTeamWatch.Application.EtfDocumentCollectionProtocol.SseJob&&result.Status=="Succeeded"&&File.Exists(hold))
+            {
+                // 只在隔离夹具中把业务提交与宿主终态隔开，真实杀宿主覆盖两个数据库间的中断窗口。
+                File.Move(hold,hold+".consumed");File.WriteAllText(hold+".reached",result.Checkpoint);
+                await Task.Delay(Timeout.InfiniteTimeSpan,token);
+            }
+            return result;
+        }
         public ValueTask StopAsync(CancellationToken token)=>inner.StopAsync(token);
         public ValueTask DisposeAsync()=>inner.DisposeAsync();
         public Task<string> QueryAsync(string payload,CancellationToken token)=>payload=="{\"Operation\":\"fixture-assemblies\"}"

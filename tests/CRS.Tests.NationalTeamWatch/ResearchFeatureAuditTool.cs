@@ -8,6 +8,29 @@ using CRS.Worker.Ipc;
 /// <summary>只读复核已配置ETF和现有研究契约；逐项保留不可用，绝不触发采集、审核或通知。</summary>
 internal static class ResearchFeatureAuditTool
 {
+    public static async Task BatchAsync(DateOnly through,string directory)
+    {
+        if(through>=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime))throw new ArgumentException("只接受已结束统计日。");
+        var path=Path.Combine(Path.GetFullPath(directory),"acceptance-batch.json");
+        if(File.Exists(path))throw new IOException("批量回查结果已存在，拒绝覆盖。");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(EtfResearchTicket.MaximumWaitSeconds+10));
+        var pipe=new BackgroundPipeClient();var pages=new List<EtfQueryPageMeasurement>();var client=new WorkerEtfWorkspace(pipe,pages.Add);
+        var before=await pipe.QueryAsync("GetHealth",budget.Token);var started=Stopwatch.GetTimestamp();
+        List<EtfAcceptance>? rows=null;string? failure=null;
+        try{rows=await client.AcceptanceAsync(through,budget.Token);}
+        catch(Exception error) when(error is IOException or InvalidDataException or OperationCanceledException or UnauthorizedAccessException)
+        {failure=error is BackgroundServiceException service?service.Code:error.GetType().Name;}
+        var elapsed=(long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        var after=await pipe.QueryAsync("GetHealth",budget.Token);
+        var stable=before.Health is{State:"Running"}a&&after.Health is{State:"Running"}b&&a.ProcessId==b.ProcessId;
+        var report=new{CheckedAt=CRS.Timing.BeijingClock.Now,ReadOnly=true,Through=through,State=rows is null?"Unavailable":"Available",Failure=failure,
+            ElapsedMs=elapsed,HealthStable=stable,Before=before.Health,After=after.Health,Rows=rows,Pages=pages,FinancialAcceptance=rows is{Count:>0}&&rows.All(x=>x.DataAcceptancePassed)};
+        await using(var file=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None))
+            await JsonSerializer.SerializeAsync(file,report,new JsonSerializerOptions{WriteIndented=true});
+        Console.WriteLine($"BATCH readonly;state={report.State};rows={rows?.Count};elapsedMs={elapsed};healthy={stable};financialAcceptance={report.FinancialAcceptance}");
+        if(rows is null||!stable)Environment.ExitCode=2;
+    }
     public static async Task EtfReportCoverageAsync(string directory)
     {
         var output=Path.GetFullPath(directory);Directory.CreateDirectory(output);
@@ -114,7 +137,7 @@ internal static class ResearchFeatureAuditTool
             await Read("Nav:SZSE:159915", token => client.NavPointsAsync(new("SZSE", "159915"), from, through, token));
         // 新研究接口只接受已结束日；当天未收盘不能作为收盘事实，沿用页面的昨日默认口径。
         var studyAsOf=through.AddDays(-1);
-        var acceptance=await Read("EtfAcceptanceBatch",token=>client.AcceptanceAsync(studyAsOf,token));
+        var acceptance=await Read("EtfAcceptanceBatch",token=>client.AcceptanceAsync(studyAsOf,token),research:true);
         // 只读抽样验证协议可用；不将一只基金或当前截面的结果推广为全池金融覆盖。
         if(pool is{Length:>0})
         {

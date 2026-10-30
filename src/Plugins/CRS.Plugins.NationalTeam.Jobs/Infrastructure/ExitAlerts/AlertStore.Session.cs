@@ -10,15 +10,17 @@ internal sealed partial class AlertStore
     private readonly IMarketRepositorySession session;
     private readonly IAlertMarketFacts facts;
     private readonly AlertPendingStore pending;
+    private readonly EtfEvidenceStore etfEvidence;
     private readonly AlertOutboxStore alertOutboxStore;
     private readonly AlertEventStore alertEventStore;
     private readonly AlertDeliveryStore alertDeliveryStore;
 
-    public AlertStore(IMarketRepositorySession session, IAlertMarketFacts facts,AlertPendingStore pending)
+    public AlertStore(IMarketRepositorySession session, IAlertMarketFacts facts,AlertPendingStore pending,EtfEvidenceStore etfEvidence)
     {
         this.session = session;
         this.facts = facts;
         this.pending=pending;
+        this.etfEvidence=etfEvidence;
         alertOutboxStore = new(session);
         alertEventStore = new(session);
         alertDeliveryStore = new(session, alertOutboxStore);

@@ -26,7 +26,7 @@ internal sealed partial class AlertStore
         var hashes=inputs.Select(x=>x.Metadata?.EvidenceHash).Concat((finding.HoldingSnapshots??[]).Select(x=>x.DocumentHash)).Where(x=>x is not null).Distinct();
         foreach(var hash in hashes)
         {
-            using var command=Command("SELECT DISTINCT fetch_id FROM nt_alert_document WHERE hash=$h",("$h",hash));using var reader=command.ExecuteReader();while(reader.Read())sources.Add(reader.GetString(0));
+            foreach(var fetchId in etfEvidence.FetchIdsForHash(hash!))sources.Add(fetchId);
         }
         foreach(var source in sources)Execute("INSERT INTO nt_alert_snapshot_source VALUES($id,$n,$f)",("$id",row.Id),("$n",row.ChangeNo),("$f",source));
     }

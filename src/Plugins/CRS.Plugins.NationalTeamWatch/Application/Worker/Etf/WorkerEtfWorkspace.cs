@@ -17,7 +17,7 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         =>this.pageMeasurement=pageMeasurement??throw new ArgumentNullException(nameof(pageMeasurement));
     private const string Plugin="crs.national-team";
     private readonly BackgroundPipeClient client=connection??new();
-    private BackgroundRequest? uncertain;
+    private readonly BackgroundCommandTracker commands=new();
     private readonly BoundedWorkAdmission shortQueries=new(2,4,TimeSpan.FromSeconds(1));
     private readonly BoundedWorkAdmission researchQueries=new(1,1,TimeSpan.FromSeconds(2));
     private readonly BoundedWorkAdmission legacyQueries=new(1,1,TimeSpan.FromSeconds(2));
@@ -176,7 +176,10 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
         var capabilities=await EnsureCapabilitiesAsync(token);
         if(capabilities is null||!capabilities.Capabilities.Contains(EtfQueryCapabilities.BatchAcceptance,StringComparer.Ordinal))
             throw new InvalidDataException("后台未声明已知版本的批量验收能力，请更新后台插件。");
-        var result=await ReadPagesAsync<EtfAcceptance>(new("acceptance-batch",To:through,Count:capabilities.MaximumPageCount),token);
+        var query=new EtfRequest("acceptance-batch",To:through,Count:capabilities.MaximumPageCount);
+        var result=capabilities.Capabilities.Contains(EtfQueryCapabilities.AsyncResearch,StringComparer.Ordinal)
+            ?await ReadResearchPagesAsync<EtfAcceptance>(query,token)
+            :await ReadPagesAsync<EtfAcceptance>(query,token);
         var metadata=JsonSerializer.Deserialize<EtfAcceptanceBatchMetadata>(result.Metadata??"null");
         if(metadata is null||metadata.Version!=1||metadata.Through!=through||metadata.ExpectedEtfs!=result.Rows.Count
             ||result.Rows.Any(x=>x.Through!=through)||result.Rows.Select(x=>(x.Market,x.Ticker)).Distinct().Count()!=result.Rows.Count
@@ -188,24 +191,39 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
     private async Task<Guid> RunAsync(string job,EtfRequest value,CancellationToken token)
     {
         var payload=EtfBusinessProtocol.WriteRequest(value);
-        if(uncertain is not null && (uncertain.JobId!=job || uncertain.Payload!=payload))
-            throw new InvalidDataException("上次任务结果尚未确认，请用原参数重试或到任务管理查看记录。");
-        var request=uncertain??=new(WorkerProtocol.Version,Guid.NewGuid(),"RunNow",Plugin,job,Payload:payload);
+        var previous=commands.Find(Plugin,job);
+        if(previous is not null&&previous.Payload!=payload)
+        {
+            // 参数改变前只核对旧请求；UnknownRequest不证明旧提交从未到达，不能借此换ID。
+            var status=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:previous.RequestId),token);
+            if(status.Code!="Ok"||status.Receipt is not{State:"Completed"} prior||prior.RequestId!=previous.RequestId)
+                throw new InvalidDataException("该任务的上次结果尚未确认，请保留原参数或到任务中心核对；其它任务仍可操作。");
+            commands.Forget(previous);
+        }
+        BackgroundCommandTracker.Lease lease;
+        try{lease=commands.Acquire(Plugin,job,payload);}
+        catch(BackgroundCommandTrackingException error)
+        {throw new InvalidDataException(error.Reason=="Capacity"?"待确认操作已达上限，请先到任务中心核对。":"该任务仍有待确认操作，请保留原参数重试或到任务中心核对。",error);}
+        using var tracking=lease;var request=lease.Request;
         var reply=await SendAsync(request,token);
+        if(reply.Receipt is{} initial&&initial.RequestId!=request.RequestId)throw new InvalidDataException("后台回执身份不一致，请保留原请求核对。");
         if(reply.Code is not ("Accepted" or "Succeeded" or "RetryDeferred") && reply.Receipt?.State!="Completed")
-        {uncertain=null;throw new InvalidDataException("后台未接受任务："+reply.Code);}
+        {
+            var rejected=reply.Code is "Forbidden" or "InvalidRequest" or "ManualOnly" or "ParametersRequired" or "JobUnavailable" or "PluginBusy" or "Maintenance";
+            if(lease.FirstAttempt&&rejected){commands.Forget(request);throw new InvalidDataException("后台未接受本次操作："+reply.Code);}
+            throw new InvalidDataException("无法确认后台是否受理，请保留原请求到任务中心核对。");
+        }
         while(reply.Receipt?.State!="Completed")
         {
             if(reply.Receipt is {State:"Pending",Code:"RetryDeferred"})
             {
-                uncertain=null;
                 throw new InvalidDataException("后台已尝试执行，当前等待重试；原请求已保留，无需重复提交。请到“任务中心 → 当前任务”查看等待原因和重试时间。");
             }
             await Task.Delay(750,token);
             reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId),token);
-            if(reply.Code!="Ok" || reply.Receipt is null)throw new InvalidDataException("无法确认后台任务，请保留原参数重试。");
+            if(reply.Code!="Ok" || reply.Receipt is null||reply.Receipt.RequestId!=request.RequestId)throw new InvalidDataException("无法确认后台任务，请保留原参数重试。");
         }
-        uncertain=null;
+        commands.Forget(request);
         if(reply.Receipt.Code=="AlreadyRunning")throw new InvalidDataException("同一任务已有执行中或待执行请求，本次未重复创建。请到“任务中心 → 当前任务”查看实际状态；原请求及日期区间保持不变。");
         if(reply.Receipt.Code=="Rejected")throw new InvalidDataException("配置未保存：输入不符合要求或已被其它窗口修改，请刷新目录后重新选择并重试。");
         if(reply.Receipt.Code!="Succeeded")throw new InvalidDataException("后台任务结果："+reply.Receipt.Code+"；已提交事实保留，详情见执行记录。");

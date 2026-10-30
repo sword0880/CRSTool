@@ -4,7 +4,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>跨功能只读投影：只从同一会话已核验的事实取输入，不下载或写入研究数据。</summary>
-internal sealed class EtfNavStudyStore(IMarketRepositorySession session,NavStore nav,EtfStore etf,AlertStore alerts)
+internal sealed class EtfNavStudyStore(IMarketRepositorySession session,NavStore nav,EtfStore etf,EtfEvidenceStore holdings)
 {
     internal EtfNavStudyRequest Freeze(EtfKey key,DateOnly from,DateOnly through)
     {
@@ -17,7 +17,7 @@ internal sealed class EtfNavStudyStore(IMarketRepositorySession session,NavStore
         var points=etf.Points(key).Where(x=>x.Date>=warm&&x.Date<=through).ToArray();
         var evidence=etf.Evidence(key,warm,through,10000);
         var snapshot=nav.ResearchSnapshot(key,warm,through,cutoff);
-        var metadata=alerts.MetadataForNavStudy(key);
+        var metadata=holdings.MetadataForNavStudy(key);
         return new(key,from,through,cutoff,snapshot.Dataset,coverage,points,evidence,metadata,snapshot.Revisions);
     }
 }

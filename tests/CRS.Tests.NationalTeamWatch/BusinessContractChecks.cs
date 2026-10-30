@@ -36,7 +36,7 @@ internal static class BusinessContractChecks
         await using(var session=new NationalTeamBackgroundSession(new Context(root),new NoHttp()))
         {
             var jobs=session.DescribeJobs();
-            Check(jobs.Count==25&&jobs.Select(x=>x.JobId).Distinct().Count()==25,"模块注册保留全部25项独立任务描述");
+            Check(jobs.Count==27&&jobs.Select(x=>x.JobId).Distinct().Count()==27,"模块注册保留原25项及两市独立原件采集任务描述");
             Check(jobs.All(x=>session.ExecutionGroup(x.JobId).MaximumConcurrency is >=1 and <=2),"每项任务从所属模块声明取得受限执行组");
             Check(session.QueryOperation(JsonSerializer.Serialize(new EtfRequest("acceptance-batch")))=="acceptance-batch"
                 &&session.QueryOperation(JsonSerializer.Serialize(new EtfRequest("query-capabilities")))=="query-capabilities"
@@ -136,7 +136,7 @@ internal static class BusinessContractChecks
     private static async Task ResearchJobs(string root)
     {
         var through=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime).AddDays(-1);
-        var target=new EtfRequest("acceptance",To:through,Count:256);
+        var target=new EtfRequest("acceptance-batch",To:through,Count:256);
         var id=Guid.NewGuid().ToString("N");
         var submit=new EtfRequest("research-submit",Revision:id){ResearchRequest=target};
         await using(var session=new NationalTeamBackgroundSession(new Context(root),new NoHttp()))
@@ -209,22 +209,42 @@ internal static class BusinessContractChecks
                 catch(InvalidDataException){Check(true,"客户端拒绝不完整批量且不返回部分资料："+fault);}
                 Check(control.Operations.All(x=>x is "query-capabilities" or "acceptance-batch"),"版本或批量异常不降级为逐只请求："+fault);
             }
+            control.Async=true;control.Fault="";control.Operations.Clear();
+            client=new WorkerEtfWorkspace(new BackgroundPipeClient(name));
+            result=await client.AcceptanceAsync(control.Through,stop.Token);
+            Check(result.Count==24&&control.Operations.SequenceEqual(new[]{"query-capabilities","research-submit","acceptance-batch","research-release"}),"批量与异步能力均已声明时先提交作业，再凭冻结快照读取全池并释放");
+            foreach(var fault in new[]{"MetadataVersion","Truncated","Duplicate","Date","Pool"})
+            {
+                control.Fault=fault;control.Operations.Clear();client=new WorkerEtfWorkspace(new BackgroundPipeClient(name));
+                try{await client.AcceptanceAsync(control.Through,stop.Token);throw new Exception("异步批量接受损坏元数据。");}
+                catch(InvalidDataException){Check(control.Operations.Count(x=>x=="research-submit")==1&&control.Operations.Count(x=>x=="research-release")==1,"异步批量同样拒绝不完整结果且释放作业："+fault);}
+            }
         }
         finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
     }
     private sealed class BatchControl:IBackgroundControl
     {
-        public string Fault="";public List<string> Operations=[];public DateOnly Through=new(2026,9,1);
+        public string Fault="";public bool Async;public List<string> Operations=[];public DateOnly Through=new(2026,9,1);
         public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
             var query=EtfBusinessProtocol.ParseRequest(request.Payload!);Operations.Add(query.Operation);string payload;
             if(query.Operation=="query-capabilities")
             {
-                var capabilities=new EtfQueryCapabilities(Fault=="CapabilityVersion"?2:1,Fault=="MissingCapability"?[]:[EtfQueryCapabilities.BatchAcceptance],Fault=="PageCapability"?512:256);
+                var features=Async?new[]{EtfQueryCapabilities.BatchAcceptance,EtfQueryCapabilities.AsyncResearch}:new[]{EtfQueryCapabilities.BatchAcceptance};
+                var capabilities=new EtfQueryCapabilities(Fault=="CapabilityVersion"?2:1,Fault=="MissingCapability"?[]:features,Fault=="PageCapability"?512:256);
                 payload=JsonSerializer.Serialize(new EtfQueryPage(JsonSerializer.Serialize(new[]{capabilities}),"capability",null){TotalRows=1});
             }
+            else if(query.Operation=="research-submit"&&Async)
+            {
+                if(query.ResearchRequest is not{Operation:"acceptance-batch",Snapshot:null,Offset:0} target||target.To!=Through)throw new Exception("异步批量作业请求未绑定完整原参数。");
+                var fingerprint=CRS.Common.Integrity.ContentFingerprint.Sha256(JsonSerializer.SerializeToUtf8Bytes(target with{Count=10}));
+                payload=JsonSerializer.Serialize(new EtfQueryPage(JsonSerializer.Serialize(new[]{new EtfResearchTicket(query.Revision!,"Ready",new('E',32),null,CRS.Timing.BeijingClock.Now.AddMinutes(1),fingerprint)}),"ticket",null){TotalRows=1});
+            }
+            else if(query.Operation=="research-release"&&Async)
+                payload=JsonSerializer.Serialize(new EtfQueryPage(JsonSerializer.Serialize(new[]{"Released"}),"released",null){TotalRows=1});
             else if(query.Operation=="acceptance-batch")
             {
+                if(Async&&query.Snapshot!=new string('E',32))throw new Exception("批量构造不能退回同步查询。");
                 var rows=Enumerable.Range(0,24).Select(i=>new EtfAcceptance("SSE",(510000+i).ToString(),Through,null,0,0,0,0,false)).ToArray();
                 var metadata=new EtfAcceptanceBatchMetadata(Fault=="MetadataVersion"?2:1,Through,24,EtfAcceptanceBatchMetadata.Fingerprint(rows));
                 if(Fault=="Truncated")rows=rows[..^1];if(Fault=="Duplicate")rows[1]=rows[0];

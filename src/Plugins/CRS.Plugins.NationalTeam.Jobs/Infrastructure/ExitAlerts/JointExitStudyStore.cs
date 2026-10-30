@@ -5,7 +5,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>联合观察协调器只读同一快照，金融模型不放回聚合仓储或通知协调器。</summary>
-internal sealed class JointExitStudyStore(IMarketRepositorySession session,EtfStore etf,AlertStore alerts,
+internal sealed class JointExitStudyStore(IMarketRepositorySession session,EtfStore etf,AlertStore alerts,EtfEvidenceStore evidence,
     EtfNavStudyStore nav,MarketCycleStudyStore cycle,IndustryPeStore industry,MarketCalendarStore calendar,EquityStore equity)
 {
     private sealed record FundPack(AlertFundInput Input,IReadOnlyList<NamedEtfHolding> Holdings,EtfAcceptance? Acceptance);
@@ -27,9 +27,9 @@ internal sealed class JointExitStudyStore(IMarketRepositorySession session,EtfSt
         {
             var acceptance=etf.Acceptance(key,asOf).SingleOrDefault();var data=(IAlertMarketFacts)etf;
             var days=data.Calendar(key.Market).Where(x=>x.Date<=asOf).TakeLast(251).ToArray();var points=etf.Points(key).Where(x=>x.Date<=asOf&&days.Any(d=>d.Date==x.Date)).ToArray();
-            var metadata=alerts.MetadataForNavStudy(key);
+            var metadata=evidence.MetadataForNavStudy(key);
             var input=new AlertFundInput(key,configuration.Name,days.Select(x=>x.Date).ToArray(),points,metadata,acceptance?.CalendarVerified==true&&days.All(x=>x.Valid),cutoff);
-            return new FundPack(input,alerts.NamedEtfHoldings(key).ToArray(),acceptance);
+            return new FundPack(input,evidence.NamedEtfHoldings(key).ToArray(),acceptance);
         });
         var market=ReadPart("市场周期与成交",()=>cycle.Read(asOf,cutoff));
         var navReport=ReadPart("NAV金额",()=>EtfNavStudy.Run(nav.Freeze(key,asOf,asOf)));

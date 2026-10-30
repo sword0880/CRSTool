@@ -1,21 +1,42 @@
 using System.Globalization;
 using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Domain;
+using CRS.Plugins.NationalTeamWatch.Application;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-internal sealed partial class AlertStore
+internal sealed partial class EtfEvidenceStore
 {
     /// <summary>登记独立官方ETF原件，首次取得时间由后台固定；登记本身不升级具名持仓或可比性。</summary>
     public void RegisterAlertDocument(AlertDocumentRequest request,byte[] document,Guid? commandId=null)
+        =>RegisterDocument(request,document,commandId,false);
+    public void RegisterEtfDocument(AlertDocumentRequest request,byte[] document,Guid commandId)
+        =>RegisterDocument(request,document,commandId,true);
+    private void RegisterDocument(AlertDocumentRequest request,byte[] document,Guid? commandId,bool isolated)
     {
-        if(Committed(commandId))return;
+        if(isolated?EtfDocumentCommandComplete(commandId!.Value,request):Committed(commandId))return;
         if(!Uri.TryCreate(request.Url,UriKind.Absolute,out var uri)||!OfficialEquityDocuments.IsAllowed(uri)||OfficialEquityDocuments.IsReviewedIssuer(uri))throw new InvalidDataException("ETF证据只接受交易所官方PDF。");
         if(document.Length<5||document.Length>8*1024*1024||!document.AsSpan(0,5).SequenceEqual("%PDF-"u8))throw new InvalidDataException("ETF证据不是有效PDF原件。");
         if(!Configuration().Any(x=>x.Market==request.Market&&x.Ticker==request.Ticker))throw new InvalidDataException("ETF未登记。");
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();var hash=raw.Save(document);var id=ExitAlertEvaluator.Hash(request.Market+"|"+request.Ticker+"|"+uri.AbsoluteUri+"|"+hash);
         var fetch=RecordFetch(hash,uri.AbsoluteUri,hash,"ReviewedEtfAlertPdf","human-etf-proof-v1");
         Execute("INSERT OR IGNORE INTO nt_alert_document VALUES($id,$m,$t,$u,$h,$at,$f)",("$id",id),("$m",request.Market),("$t",request.Ticker),("$u",uri.AbsoluteUri),("$h",hash),("$at",Now),("$f",fetch));
-        RecordCommand(commandId,"alert-document");transaction.Commit();
+        var operation=isolated?"etf-document-v1|"+EtfDocumentCollectionProtocol.RequestFingerprint(request)+"|"+id:"alert-document";
+        MarkAlertPending();RecordCommand(commandId,operation);transaction.Commit();
+    }
+    /// <summary>只确认原登记事务已提交；绑定原请求及文档身份，不把历史回执当作当前原件健康。</summary>
+    public bool EtfDocumentCommandComplete(Guid id,AlertDocumentRequest request)
+    {
+        var operation=Scalar("SELECT operation FROM worker_business_command WHERE request=$r",("$r",id.ToString("N"))) as string;
+        if(operation is null)return false;
+        var parts=operation.Split('|');
+        if(parts.Length!=3||parts[0]!="etf-document-v1"||parts[1]!=EtfDocumentCollectionProtocol.RequestFingerprint(request)||parts[2].Length!=64||!parts[2].All(Uri.IsHexDigit))
+            throw new InvalidDataException("ETF原件命令与已提交请求身份不一致。");
+        using var command=Command("SELECT market,ticker,url,hash FROM nt_alert_document WHERE id=$id",("$id",parts[2]));
+        using var reader=command.ExecuteReader();
+        if(!reader.Read()||reader.GetString(0)!=request.Market||reader.GetString(1)!=request.Ticker||reader.GetString(2)!=new Uri(request.Url).AbsoluteUri
+            ||ExitAlertEvaluator.Hash(request.Market+"|"+request.Ticker+"|"+reader.GetString(2)+"|"+reader.GetString(3))!=parts[2])
+            throw new InvalidDataException("ETF原件提交记录缺少对应文档身份。");
+        return true;
     }
     public List<AlertDocument> AlertDocuments(EtfKey key)
     {

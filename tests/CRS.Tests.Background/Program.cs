@@ -7,6 +7,7 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--command-tracker"]){BackgroundCommandTrackerChecks.Run();return;}
 if(args is ["--staged-documents",var stagedRoot]){StagedDocumentChecks.Run(stagedRoot);return;}
 if(args is ["--document-ingress-boundaries",var ingressRoot]){await DocumentIngressBoundaryChecks.RunAsync(ingressRoot);return;}
 if(args is ["--data-cleanup"]){await DataCleanupChecks.RunAsync();await DataCleanupPipeChecks.RunAsync();return;}
@@ -177,6 +178,7 @@ if (args.Contains("--probe"))
 }
 var package = args.Length > 0 ? Path.GetFullPath(args[0]) : throw new ArgumentException("需指定 Publish-BackgroundService 生成的发行目录。");
 var root = Path.Combine(Path.GetTempPath(), "CRS.Background.Tests", Guid.NewGuid().ToString("N"));
+BackgroundCommandTrackerChecks.Run();
 Directory.CreateDirectory(root); StorageSecurity.Prepare(root, true);
 int passed = 0;
 void Check(bool value, string name) { if (!value) throw new Exception(name); passed++; Console.WriteLine("PASS " + name); }

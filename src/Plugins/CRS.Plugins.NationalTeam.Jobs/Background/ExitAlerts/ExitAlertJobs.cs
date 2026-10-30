@@ -1,5 +1,4 @@
 using CRS.Worker.Abstractions;
-using CRS.Plugin.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeam.Jobs;
@@ -39,29 +38,9 @@ public sealed partial class NationalTeamBackgroundSession
                 case "alert-settings" when request.AlertConfiguration is {} settings:await workspace!.Alerts.SaveAlertConfigurationAsync(settings,token,commandId);break;
                 case "alert-retry":await workspace!.Alerts.RetryAlertNotificationAsync(request.Revision??"",token,commandId);break;
                 case "alert-document" when request.AlertDocument is {} document:
-                    if(!Uri.TryCreate(document.Url,UriKind.Absolute,out var uri)||!OfficialEquityDocuments.IsAllowed(uri)||OfficialEquityDocuments.IsReviewedIssuer(uri))return new("Rejected","alert=OfficialEtfPdfRequired");
-                    PublicHttpResponse response;
-                    // 只在下载边界分类来源异常；原件/存储故障不能伪装成网络退避，调用方取消仍向宿主传播。
-                    try{response=await http!.GetAsync(uri,token);}
-                    catch(SourceBudgetUnavailableException error)
-                    {
-                        token.ThrowIfCancellationRequested();
-                        var reason=error.Code switch{"SourceCooldown"=>"DocumentSourceCooldown","SourceQueueFull"=>"DocumentSourceQueueFull",_=>"DocumentSourceUnavailable"};
-                        return AlertDocumentDeferred(uri,reason,error.Until);
-                    }
-                    catch(HttpRequestException error)
-                    {
-                        token.ThrowIfCancellationRequested();
-                        return AlertDocumentDeferred(uri,"DocumentConnectionFailed",error.Data["SourceRetryAt"] as DateTimeOffset?);
-                    }
-                    catch(TimeoutException error)
-                    {
-                        token.ThrowIfCancellationRequested();
-                        return AlertDocumentDeferred(uri,"DocumentTimedOut",error.Data["SourceRetryAt"] as DateTimeOffset?);
-                    }
-                    token.ThrowIfCancellationRequested();
-                    if(response.StatusCode!=200)return AlertDocumentDeferred(uri,"DocumentHttpUnavailable",httpStatus:response.StatusCode);
-                    await workspace!.Alerts.RegisterAlertDocumentAsync(document,response.Content,token,commandId);break;
+                    var captured=await DownloadAndRegisterEtfDocumentAsync(document,commandId,token);
+                    if(captured.Status!="Succeeded")return captured;
+                    break;
                 case "alert-metadata-review" when request.AlertMetadata is {} metadata:await workspace!.Alerts.ReviewAlertMetadataAsync(metadata,token,commandId);break;
                 case "alert-holding-review" when request.NamedEtfHolding is {PublicationPrecision:EtfPublicationPrecision.ExactTime,PublicationDate:null,PublishedAt:not null} holding:
                     await workspace!.Alerts.ReviewNamedEtfHoldingAsync(holding,token,commandId);break;
@@ -72,18 +51,5 @@ public sealed partial class NationalTeamBackgroundSession
             await workspace!.Alerts.EvaluateAlertsAsync(token);return BackgroundJobResult.Success();
         }
         catch(InvalidDataException){return new("Rejected","alert=InvalidOrStaleInput");}
-    }
-    private BackgroundJobResult AlertDocumentDeferred(Uri uri,string reason,DateTimeOffset? until=null,int? httpStatus=null)
-    {
-        var now=CRS.Timing.BeijingClock.Now;
-        var local=(http as OfficialHttpGateway)?.RetryAt(uri);
-        // 已知来源截止只受最小重试间隔约束；不把五分钟冷却额外扩大为三十分钟。
-        // 未知截止、连接失败及HTTP错误仍使用保守预算，较长来源限制始终优先。
-        var knownCooldown=reason=="DocumentSourceCooldown"&&(until>now||local>now);
-        var retry=now.Add(reason=="DocumentSourceQueueFull"||knownCooldown?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
-        if(local>retry)retry=local.Value;
-        if(until>retry)retry=until.Value;
-        var status=httpStatus is{} value?";http="+value.ToString(System.Globalization.CultureInfo.InvariantCulture):"";
-        return new("RetryDeferred","alert="+reason+status+";retryAt="+retry.ToOffset(TimeSpan.FromHours(8)).ToString("O"),retry-now);
     }
 }

@@ -8,7 +8,7 @@ public sealed partial class NationalTeamBackgroundSession
     private Task<NationalTeamQueryResult> QueryCapabilities(EtfRequest request,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        return Task.FromResult(new NationalTeamQueryResult([JsonSerializer.Serialize(new EtfQueryCapabilities(EtfQueryCapabilities.CurrentVersion,[EtfQueryCapabilities.BatchAcceptance,EtfQueryCapabilities.AsyncResearch,EtfQueryCapabilities.PublicationDateHoldings],256)
+        return Task.FromResult(new NationalTeamQueryResult([JsonSerializer.Serialize(new EtfQueryCapabilities(EtfQueryCapabilities.CurrentVersion,[EtfQueryCapabilities.BatchAcceptance,EtfQueryCapabilities.AsyncResearch,EtfQueryCapabilities.PublicationDateHoldings,EtfDocumentCollectionProtocol.Capability],256)
             {ShortReadOperations=DescribeQueryRouting().Routes.Where(x=>x.Workload==CRS.Worker.Abstractions.BackgroundQueryWorkload.ShortRead).Select(x=>x.Operation).ToArray()})]));
     }
     [NationalTeamQuery("acceptance-batch")]

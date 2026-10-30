@@ -125,13 +125,22 @@ internal static class DeploymentOperationsTool
             // 只登记已由正式后台保存的该基金目录URL；不把研究目录中的本机PDF路径交给服务。
             var index=await reader.EtfReportIndexAsync(key,token);
             if(index.State!="IndexedUnreviewed"||index.Documents.Count(x=>x.DocumentUrl==url)!=1)throw new InvalidDataException("所选原件不在可读的正式ETF目录中。");
-            request=new(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team","alert-manage",
-                Payload:EtfBusinessProtocol.WriteRequest(new("alert-document",AlertDocument:new(market,ticker,url))));
+            var capability=await Read(pipe,new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",
+                Payload:EtfBusinessProtocol.WriteRequest(new("query-capabilities"))),token);
+            var page=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(capability.Payload!);
+            var support=JsonSerializer.Deserialize<EtfQueryCapabilities[]>(page.Items)?.SingleOrDefault();
+            if(support?.Capabilities.Contains(EtfDocumentCollectionProtocol.Capability,StringComparer.Ordinal)!=true)
+                throw new InvalidDataException("后台未声明独立ETF原件采集能力，请先完成后台升级；不会回退管理命令。");
+            request=new(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team",EtfDocumentCollectionProtocol.Job(market),
+                Payload:EtfBusinessProtocol.WriteRequest(new(EtfDocumentCollectionProtocol.Operation,AlertDocument:new(market,ticker,url))));
             await using var file=new FileStream(requestPath,FileMode.CreateNew,FileAccess.Write,FileShare.None);
             await JsonSerializer.SerializeAsync(file,request,Json,token);await file.FlushAsync(token);
         }
         var saved=EtfBusinessProtocol.ParseRequest(request.Payload??"");
-        if(request.Command!="RunNow"||request.PluginId!="crs.national-team"||request.JobId!="alert-manage"||saved.Operation!="alert-document"
+        // 原目录内的旧持久命令保持原入口；新命令只能经能力协商进入分市场采集。
+        var validRoute=request.JobId=="alert-manage"&&saved.Operation=="alert-document"
+            ||request.JobId==EtfDocumentCollectionProtocol.Job(market)&&saved.Operation==EtfDocumentCollectionProtocol.Operation;
+        if(request.Command!="RunNow"||request.PluginId!="crs.national-team"||!validRoute
             ||saved.AlertDocument is not{} document||document.Market!=market||document.Ticker!=ticker||document.Url!=url)
             throw new InvalidDataException("原件请求身份、证券或URL不匹配。");
         if(submit)

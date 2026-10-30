@@ -17,6 +17,7 @@ internal sealed class NationalTeamStores
     public readonly AlertStore Alerts;
     public readonly EvidenceIntegrityStore Integrity;
     public readonly EtfStore Etf;
+    public readonly EtfEvidenceStore EtfEvidence;
     public readonly EtfNavStudyStore NavStudy;
     public readonly EtfReportIndexStore EtfReports;
     public readonly MarketBreadthStore Breadth;
@@ -28,14 +29,15 @@ internal sealed class NationalTeamStores
         Calendar=new(session);Activity=new(session,Calendar);
         var pending=new AlertPendingStore(session);
         Etf=new(session,pending.Mark,Calendar,Activity);
-        Alerts=new(session,Etf,pending);
+        EtfEvidence=new(session,Etf,pending.Mark);
+        Alerts=new(session,Etf,pending,EtfEvidence);
         Integrity=new(session,pending.Mark,Etf.RecordQueryStage);
         session.AttachIntegrity(Integrity);
         Industry=new(session);Equity=new(session);Index=new(session);Nav=new(session);
-        NavStudy=new(session,Nav,Etf,Alerts);
+        NavStudy=new(session,Nav,Etf,EtfEvidence);
         EtfReports=new(session);
         Breadth=new(session);Cycle=new(session,Index,Calendar,Activity,Breadth);
-        JointExit=new(session,Etf,Alerts,NavStudy,Cycle,Industry,Calendar,Equity);
-        HoldingHistory=new(session,Etf,Alerts);
+        JointExit=new(session,Etf,Alerts,EtfEvidence,NavStudy,Cycle,Industry,Calendar,Equity);
+        HoldingHistory=new(session,Etf,EtfEvidence);
     }
 }

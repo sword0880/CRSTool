@@ -24,6 +24,7 @@ public sealed partial class MarketRepository : IMarketRepository,IEtfDashboardRe
     private AlertStore alertStore=>stores.Alerts;
     private EquityStore equityStore=>stores.Equity;
     private EtfStore etfStore=>stores.Etf;
+    private EtfEvidenceStore etfEvidenceStore=>stores.EtfEvidence;
     private EvidenceIntegrityStore evidenceIntegrityStore=>stores.Integrity;
     public MarketRepository(string dataPath,RawEvidenceStore rawStore,Action? beforeWrite=null,byte[]? approvalAuditKey=null,TimeProvider? timeProvider=null,IMarketCycleApprovalWriteAuthority? approvalWriteAuthority=null)
     {

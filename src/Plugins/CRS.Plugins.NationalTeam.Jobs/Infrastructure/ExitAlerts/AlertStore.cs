@@ -16,10 +16,6 @@ internal sealed partial class AlertStore
         Execute("""
             CREATE TABLE IF NOT EXISTS nt_alert_rule(version TEXT PRIMARY KEY,payload TEXT NOT NULL,created_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS nt_alert_configuration(id INTEGER PRIMARY KEY CHECK(id=1),version TEXT NOT NULL REFERENCES nt_alert_rule(version),routes TEXT NOT NULL,revision INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS nt_alert_document(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,url TEXT NOT NULL,hash TEXT NOT NULL,first_seen TEXT NOT NULL,fetch_id TEXT NOT NULL REFERENCES source_fetch(fetch_id));
-            CREATE TABLE IF NOT EXISTS nt_alert_metadata(market TEXT NOT NULL,ticker TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(market,ticker));
-            CREATE TABLE IF NOT EXISTS nt_alert_metadata_review(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,document_id TEXT NOT NULL,at TEXT NOT NULL,payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS nt_named_etf_holding(id TEXT PRIMARY KEY,market TEXT NOT NULL,ticker TEXT NOT NULL,payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS nt_risk_event(id TEXT PRIMARY KEY,rule_id TEXT NOT NULL,scope_id TEXT NOT NULL,rule_version TEXT NOT NULL,first_date TEXT NOT NULL,last_date TEXT NOT NULL,lane TEXT NOT NULL,state TEXT NOT NULL,updated_at TEXT NOT NULL,payload TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS nt_risk_event_query ON nt_risk_event(lane,state,last_date,updated_at);
             CREATE TABLE IF NOT EXISTS nt_risk_event_change(event_id TEXT NOT NULL REFERENCES nt_risk_event(id),sequence INTEGER NOT NULL,kind TEXT NOT NULL,at TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(event_id,sequence));

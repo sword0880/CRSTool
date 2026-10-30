@@ -21,7 +21,6 @@ public sealed partial class WorkerEtfWorkspace
     public Task EvaluateAlertsAsync(CancellationToken token)=>RunAsync("alert-evaluate",new("alert-evaluate"),token);
     public Task<List<AlertChannel>> AlertChannelsAsync(CancellationToken token)=>AlertRows<AlertChannel>(new("alert-channels"),token);
     public Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>AlertRows<AlertDocument>(new("alert-documents",key.Market,key.Ticker),token);
-    public Task RegisterAlertDocumentAsync(AlertDocumentRequest request,CancellationToken token)=>RunAsync("alert-manage",new("alert-document",AlertDocument:request),token);
     public Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>AlertRows<AlertFundMetadata>(new("alert-metadata"),token);
     public Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>RunAsync("alert-manage",new("alert-metadata-review",AlertMetadata:review),token);
     public Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>AlertRows<NamedEtfHolding>(new("alert-holdings",key.Market,key.Ticker),token);

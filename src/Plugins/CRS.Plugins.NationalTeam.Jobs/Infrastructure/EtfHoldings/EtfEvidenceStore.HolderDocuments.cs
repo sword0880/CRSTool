@@ -1,9 +1,9 @@
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-internal sealed partial class AlertStore
+internal sealed partial class EtfEvidenceStore
 {
-    /// <summary>本模块提供已登记原件窄端口；当前证券、来源记录及Q15在同一快照绑定，不写审核或通知。</summary>
+    /// <summary>ETF持仓模块提供已登记原件窄端口；当前证券、来源记录及Q15在同一快照绑定，不写审核或通知。</summary>
     public EtfHolderDocument EtfHolderDocument(EtfKey key,string documentId)
     {
         if(documentId.Length!=64||!documentId.All(Uri.IsHexDigit))throw new InvalidDataException("ETF原件标识无效。");

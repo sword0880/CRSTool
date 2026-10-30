@@ -209,10 +209,22 @@ if ($sessionSource -notmatch 'internal interface IMarketRepositorySession' -or
     throw 'Industry PE, shared calendar, index-series and market-activity storage must stay behind explicit sessions and feature stores.'
 }
 # 已迁移领域的总仓储入口只允许转发，禁止SQL重新混入兼容入口。
-foreach ($feature in @('Equity','ExitAlerts','Evidence','Etf')) {
+foreach ($feature in @('Equity','ExitAlerts','Evidence','Etf','EtfHoldings')) {
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/$feature") -Filter '*Repository.cs') {
         $source = Get-Content -LiteralPath $file.FullName -Raw
-        if ($source -match '\b(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)\b') { throw "Feature SQL leaked back into facade: $($file.Name)" }
+        # SQL关键字后须有空白；LINQ的Select(...)不是数据库语句。
+        if ($source -match '\b(SELECT|INSERT|UPDATE|DELETE|CREATE\s+TABLE)\s+') { throw "Feature SQL leaked back into facade: $($file.Name)" }
+    }
+}
+$etfEvidencePath=Join-Path $repoRoot "$jobs/Infrastructure/EtfHoldings/EtfEvidenceStore.Session.cs"
+if(-not(Test-Path -LiteralPath $etfEvidencePath)){throw 'ETF evidence storage must have an explicit owner in EtfHoldings.'}
+$etfEvidenceSource=Get-Content -LiteralPath $etfEvidencePath -Raw
+foreach($table in @('nt_alert_document','nt_alert_metadata','nt_alert_metadata_review','nt_named_etf_holding')){
+    if($etfEvidenceSource -notmatch ('CREATE TABLE IF NOT EXISTS '+$table+'\(')){throw "ETF evidence schema has no feature owner: $table"}
+}
+foreach($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/ExitAlerts") -Filter 'AlertStore*.cs'){
+    if((Get-Content -LiteralPath $file.FullName -Raw) -match '\b(nt_alert_document|nt_alert_metadata|nt_alert_metadata_review|nt_named_etf_holding)\b'){
+        throw "ETF evidence table ownership leaked back into alerts: $($file.Name)"
     }
 }
 $databaseSession = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastructure/Storage/MarketDatabaseSession.cs") -Raw

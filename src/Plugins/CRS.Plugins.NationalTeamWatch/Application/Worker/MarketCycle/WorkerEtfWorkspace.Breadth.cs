@@ -20,7 +20,7 @@ public sealed partial class WorkerEtfWorkspace
     public async Task<MarketBreadthSubmissionReceipt> SubmitMarketBreadthAsync(string originalPath,string normalizedPath,string sourceUrl,DateTimeOffset retrievedAt,string submitter,string reason,CancellationToken token,IProgress<(int Received,int Total)>? progress=null)
     {
         if(!CanManage)throw new UnauthorizedAccessException("资料登记需要管理员权限。");
-        if(uncertain is not null&&pendingBreadth is null)throw new InvalidDataException("上一项业务命令尚待确认，请先用原参数回读结果。");
+        if(commands.Find(Plugin,"market-breadth-submit") is not null&&pendingBreadth is null)throw new InvalidDataException("上次广度登记尚待确认，请先用原参数回读结果。");
         if(pendingBreadth is not null)throw new InvalidDataException("上次资料登记尚待确认，请先回读登记结果；新文件尚未提交。");
         if(pendingBreadth is null)
         {
@@ -42,7 +42,7 @@ public sealed partial class WorkerEtfWorkspace
             if(result.RequestId!=completedBreadthRequest||result.OriginalHash!=pendingBreadth.Original.Sha256||result.NormalizedHash!=pendingBreadth.Normalized.Sha256)throw new InvalidDataException("广度业务回执与提交文件不符。");
             pendingBreadth=null;completedBreadthRequest=null;return result;
         }
-        catch{if(uncertain is null&&completedBreadthRequest is null)pendingBreadth=null;throw;}
+        catch{if(commands.Find(Plugin,"market-breadth-submit") is null&&completedBreadthRequest is null)pendingBreadth=null;throw;}
     }
     public Task ReviewMarketBreadthAsync(MarketBreadthReview review,CancellationToken token)=>RunAsync("market-breadth-review",new("market-breadth-review",BreadthReview:review),token);
     public Task ExportMarketBreadthEvidenceAsync(string revision,bool original,string destination,CancellationToken token)=>ExportEvidenceCoreAsync(new("export-breadth",Revision:revision,Original:original),destination,token);
