@@ -7,7 +7,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>展示配置ETF的目录及后台请求状态，不下载、解析或计算持仓。</summary>
-public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfResearchWorkspace etfs,IExitAlertWorkspace evidence,CancellationToken lifetime):ObservableObject
+public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfResearchWorkspace etfs,CancellationToken lifetime):ObservableObject
 {
     public EtfHoldingHistoryViewModel History {get;}=new(workspace,lifetime);
     private CancellationTokenSource? operation;
@@ -69,7 +69,7 @@ public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfRe
     private Task RegisterReport()=>RunAsync(async token=>
     {
         var fund=SelectedFund??throw new InvalidDataException("请选择ETF。");var report=SelectedReport??throw new InvalidDataException("请选择报告。");
-        await evidence.RegisterAlertDocumentAsync(new(fund.Market,fund.Ticker,report.DocumentUrl),token);token.ThrowIfCancellationRequested();
+        await workspace.RegisterAlertDocumentAsync(new(fund.Market,fund.Ticker,report.DocumentUrl),token);token.ThrowIfCancellationRequested();
         Status="原件登记请求已提交；请核对后台结果，再到ETF观察的预警中心读取原件候选并人工核验。登记不批准持仓或准确公布时点。";
     });
     private async Task RunAsync(Func<CancellationToken,Task> action)

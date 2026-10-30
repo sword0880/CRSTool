@@ -1,6 +1,7 @@
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
+// 旧通信方法名保留，存储及应用端口归ETF持仓模块所有。
 public sealed partial class MarketRepository
 {
     // 聚合入口只转发；预警实现、事务及状态由独立模块负责。

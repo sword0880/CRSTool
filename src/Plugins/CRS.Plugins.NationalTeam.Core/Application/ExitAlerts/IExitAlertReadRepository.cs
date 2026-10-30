@@ -13,8 +13,4 @@ public interface IExitAlertReadRepository : IJointExitStudyReadRepository
     List<ExitAlertChange> AlertChanges(string id);
     List<AlertOutboxItem> AlertOutbox(ExitAlertFilter? filter=null);
     List<AlertDeliveryRecord> AlertDeliveries(string id);
-    List<AlertDocument> AlertDocuments(EtfKey key);
-    List<AlertFundMetadata> AlertMetadata();
-    List<NamedEtfHolding> NamedEtfHoldings(EtfKey? key=null);
-    EtfHolderDocument EtfHolderDocument(EtfKey key,string documentId);
 }

@@ -2,7 +2,7 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
-/// <summary>Narrow V2 port for exit-alert evaluation, review, evidence, and delivery workflows.</summary>
+/// <summary>预警事件、规则、依据及投递的远程窄端口。</summary>
 public interface IExitAlertWorkspace : IWorkspaceAccess
 {
     Task<JointExitStudyReport> JointExitStudyAsync(EtfKey key,DateOnly asOf,CancellationToken token);
@@ -20,11 +20,4 @@ public interface IExitAlertWorkspace : IWorkspaceAccess
     Task RetryAlertNotificationAsync(string id,CancellationToken token);
     Task EvaluateAlertsAsync(CancellationToken token);
     Task<List<AlertChannel>> AlertChannelsAsync(CancellationToken token);
-    Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token);
-    Task RegisterAlertDocumentAsync(AlertDocumentRequest request,CancellationToken token);
-    Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token);
-    Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token);
-    Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token);
-    Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token);
-    Task<EtfHolderCandidateReport> EtfHolderCandidatesAsync(EtfKey key,string documentId,CancellationToken token);
 }

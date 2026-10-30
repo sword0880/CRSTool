@@ -2,9 +2,19 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
 /// <summary>基金持仓研究的目录用例，与预警协调分离；目录不升级持仓批准状态。</summary>
-public sealed class EtfHoldingsUseCases : MarketUseCaseScope
+public sealed partial class EtfHoldingsUseCases : MarketUseCaseScope
 {
-    internal EtfHoldingsUseCases(MarketApplicationSession session):base(session){}
+    private readonly IEtfHolderCandidateParser holderParser;
+    internal EtfHoldingsUseCases(MarketApplicationSession session,IEtfHolderCandidateParser holderParser):base(session)
+    {this.holderParser=holderParser;}
+    public Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>ReadPortAsync((IEtfDocumentReadRepository current)=>current.AlertDocuments(key),token);
+    public Task RegisterAlertDocumentAsync(AlertDocumentRequest request,byte[] bytes,CancellationToken token,Guid? commandId)=>RunAsync((IEtfDocumentWriteRepository repository)=>{repository.RegisterAlertDocument(request,bytes,commandId);return true;},token);
+    public Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>ReadPortAsync((IEtfHoldingEvidenceReadRepository current)=>current.AlertMetadata(),token);
+    public Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>ReviewAlertMetadataAsync(review,token,null);
+    public Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token,Guid? commandId)=>RunAsync((IEtfHoldingEvidenceWriteRepository repository)=>{repository.ReviewAlertMetadata(review,commandId);return true;},token);
+    public Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>ReadPortAsync((IEtfHoldingEvidenceReadRepository current)=>current.NamedEtfHoldings(key),token);
+    public Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token)=>ReviewNamedEtfHoldingAsync(review,token,null);
+    public Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token,Guid? commandId)=>RunAsync((IEtfHoldingEvidenceWriteRepository repository)=>{repository.ReviewNamedEtfHolding(review,commandId);return true;},token);
     public Task<bool> DocumentCommandCompleteAsync(Guid id,AlertDocumentRequest request,CancellationToken token)
         =>ReadPortAsync((IEtfDocumentReadRepository repository)=>repository.EtfDocumentCommandComplete(id,request),token);
     public Task RegisterDocumentAsync(AlertDocumentRequest request,byte[] bytes,Guid id,CancellationToken token)

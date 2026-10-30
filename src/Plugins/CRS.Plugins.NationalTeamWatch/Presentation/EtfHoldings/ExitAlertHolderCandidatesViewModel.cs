@@ -27,7 +27,7 @@ public partial class ExitAlertViewModel
         HolderCandidateStatus="正在核验所选原件并读取持有人表…";
         try
         {
-            var result=await workspace.EtfHolderCandidatesAsync(new(fund.Market,fund.Ticker),document.Id,pending.Token);
+            var result=await etfEvidence.EtfHolderCandidatesAsync(new(fund.Market,fund.Ticker),document.Id,pending.Token);
             if(version!=holderVersion||pending.IsCancellationRequested)return;
             if(result.Document.Id!=document.Id||result.Document.Hash!=document.Hash||result.Document.Market!=fund.Market||result.Document.Ticker!=fund.Ticker)
                 throw new InvalidDataException("候选结果与所选原件不一致。");

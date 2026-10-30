@@ -4,11 +4,10 @@ namespace CRS.Plugins.NationalTeamWatch.Application;
 /// <summary>预警仍共用既有市场库门槛；联网投递由宿主适配，不能在数据库锁内等待提供商。</summary>
 public sealed partial class ExitAlertUseCases : MarketUseCaseScope
 {
-    private readonly IEtfHolderCandidateParser holderParser;
     private readonly MarketApplicationSession evaluationSession;
     private readonly IRawEvidenceStore raw;
-    internal ExitAlertUseCases(MarketApplicationSession session,IEtfHolderCandidateParser holderParser,IRawEvidenceStore raw):base(session)
-    {this.holderParser=holderParser;this.raw=raw;evaluationSession=session;}
+    internal ExitAlertUseCases(MarketApplicationSession session,IRawEvidenceStore raw):base(session)
+    {this.raw=raw;evaluationSession=session;}
 
     public Task<ExitAlertOverview> AlertOverviewAsync(CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertOverview(),token);
     public Task<JointExitStudyReport> JointExitStudyAsync(EtfKey key,DateOnly asOf,CancellationToken token)=>ReadPortAsync<IJointExitStudyReadRepository,JointExitStudyReport>(r=>r.JointExitStudy(key,asOf),token);
@@ -53,12 +52,4 @@ public sealed partial class ExitAlertUseCases : MarketUseCaseScope
     },token);
     public Task<AlertOutboxItem?> ClaimAlertNotificationAsync(CancellationToken token)=>RunAsync((IExitAlertWriteRepository repository)=>repository.ClaimAlertNotification(),token);
     public Task CompleteAlertNotificationAsync(AlertOutboxItem item,AlertDispatchOutcome result)=>RunAsync((IExitAlertWriteRepository repository)=>{repository.CompleteAlertNotification(item.Id,item.Lease!,result);return true;},CancellationToken.None);
-    public Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertDocuments(key),token);
-    public Task RegisterAlertDocumentAsync(AlertDocumentRequest request,byte[] bytes,CancellationToken token,Guid? commandId)=>RunAsync((IExitAlertWriteRepository repository)=>{repository.RegisterAlertDocument(request,bytes,commandId);return true;},token);
-    public Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.AlertMetadata(),token);
-    public Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token)=>ReviewAlertMetadataAsync(review,token,null);
-    public Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token,Guid? commandId)=>RunAsync((IExitAlertWriteRepository repository)=>{repository.ReviewAlertMetadata(review,commandId);return true;},token);
-    public Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token)=>ReadPortAsync((IExitAlertReadRepository current)=>current.NamedEtfHoldings(key),token);
-    public Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token)=>ReviewNamedEtfHoldingAsync(review,token,null);
-    public Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token,Guid? commandId)=>RunAsync((IExitAlertWriteRepository repository)=>{repository.ReviewNamedEtfHolding(review,commandId);return true;},token);
 }

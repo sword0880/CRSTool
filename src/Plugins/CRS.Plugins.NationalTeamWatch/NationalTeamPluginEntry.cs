@@ -22,14 +22,14 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
     {
         token.ThrowIfCancellationRequested();
         var etfWorkspace=new WorkerEtfWorkspace();
-        model=new(etfWorkspace,etfWorkspace,etfWorkspace,lifetime.Token);
+        model=new(etfWorkspace,etfWorkspace,etfWorkspace,etfWorkspace,lifetime.Token);
         equity=new(new WorkerEtfWorkspace(),lifetime.Token);
         industry=new(new WorkerEtfWorkspace(),lifetime.Token);
         indices=new(new WorkerEtfWorkspace(),lifetime.Token);
         cycle=new(new WorkerEtfWorkspace(),lifetime.Token);
         var jointWorkspace=new WorkerEtfWorkspace();joint=new(jointWorkspace,jointWorkspace,lifetime.Token);
         var navWorkspace=new WorkerEtfWorkspace();nav=new(navWorkspace,navWorkspace,lifetime.Token);
-        var holdingsWorkspace=new WorkerEtfWorkspace();holdings=new(holdingsWorkspace,holdingsWorkspace,holdingsWorkspace,lifetime.Token);
+        var holdingsWorkspace=new WorkerEtfWorkspace();holdings=new(holdingsWorkspace,holdingsWorkspace,lifetime.Token);
         // 启动只注册页面；数据读取在页面打开后执行，不能占用宿主的启动期限。
         return ValueTask.CompletedTask;
     }

@@ -52,7 +52,7 @@ public sealed partial class NationalTeamBackgroundSession
         token.ThrowIfCancellationRequested();
         if(response.StatusCode!=200)return AlertDocumentDeferred(uri,"DocumentHttpUnavailable",httpStatus:response.StatusCode);
         if(isolated)await workspace!.Holdings.RegisterDocumentAsync(document,response.Content,commandId!.Value,token);
-        else await workspace!.Alerts.RegisterAlertDocumentAsync(document,response.Content,token,commandId);
+        else await workspace!.Holdings.RegisterAlertDocumentAsync(document,response.Content,token,commandId);
         return BackgroundJobResult.Success();
     }
 

@@ -27,7 +27,7 @@ public sealed partial class NationalTeamBackgroundSession
         var serialization=new NationalTeamQuerySerialization(token);
         string SerializeRow<T>(T value)=>serialization.Row(value);
         string[] rows;string? metadata=null;
-        var holderCandidates=await workspace!.Alerts.EtfHolderCandidatesAsync(Key(request),request.Revision??"",token);
+        var holderCandidates=await workspace!.Holdings.EtfHolderCandidatesAsync(Key(request),request.Revision??"",token);
         rows=CRS.Serialization.JsonDocumentBlocks.Encode(holderCandidates,token).Select(x=>SerializeRow(x)).ToArray();
         return new(rows,metadata);
     }
@@ -49,4 +49,34 @@ public sealed partial class NationalTeamBackgroundSession
         if(!(request.Operation=="etf-report-search"))throw new InvalidDataException("任务与业务参数不匹配。");
         return await SearchEtfReportsAsync(request,commandId,token);
     }
+    [NationalTeamQuery("alert-documents",NationalTeamQueryKind.ResearchRead)]
+    private async Task<NationalTeamQueryResult> QueryAlertDocuments(EtfRequest request,CancellationToken token)
+    {
+        var serialization=new NationalTeamQuerySerialization(token);
+        string SerializeRow<T>(T value)=>serialization.Row(value);
+        string[] rows;string? metadata=null;
+        rows=(await workspace!.Holdings.AlertDocumentsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();
+        return new(rows,metadata);
+    }
+
+    [NationalTeamQuery("alert-metadata",NationalTeamQueryKind.ResearchRead)]
+    private async Task<NationalTeamQueryResult> QueryAlertMetadata(EtfRequest request,CancellationToken token)
+    {
+        var serialization=new NationalTeamQuerySerialization(token);
+        string SerializeRow<T>(T value)=>serialization.Row(value);
+        string[] rows;string? metadata=null;
+        rows=(await workspace!.Holdings.AlertMetadataAsync(token)).Select(x=>SerializeRow(x)).ToArray();
+        return new(rows,metadata);
+    }
+
+    [NationalTeamQuery("alert-holdings",NationalTeamQueryKind.ResearchRead)]
+    private async Task<NationalTeamQueryResult> QueryAlertHoldings(EtfRequest request,CancellationToken token)
+    {
+        var serialization=new NationalTeamQuerySerialization(token);
+        string SerializeRow<T>(T value)=>serialization.Row(value);
+        string[] rows;string? metadata=null;
+        rows=(await workspace!.Holdings.NamedEtfHoldingsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();
+        return new(rows,metadata);
+    }
+
 }

@@ -41,11 +41,11 @@ public sealed partial class NationalTeamBackgroundSession
                     var captured=await DownloadAndRegisterEtfDocumentAsync(document,commandId,token);
                     if(captured.Status!="Succeeded")return captured;
                     break;
-                case "alert-metadata-review" when request.AlertMetadata is {} metadata:await workspace!.Alerts.ReviewAlertMetadataAsync(metadata,token,commandId);break;
+                case "alert-metadata-review" when request.AlertMetadata is {} metadata:await workspace!.Holdings.ReviewAlertMetadataAsync(metadata,token,commandId);break;
                 case "alert-holding-review" when request.NamedEtfHolding is {PublicationPrecision:EtfPublicationPrecision.ExactTime,PublicationDate:null,PublishedAt:not null} holding:
-                    await workspace!.Alerts.ReviewNamedEtfHoldingAsync(holding,token,commandId);break;
+                    await workspace!.Holdings.ReviewNamedEtfHoldingAsync(holding,token,commandId);break;
                 case "alert-holding-review-date-v1" when request.NamedEtfHolding is {PublicationPrecision:EtfPublicationPrecision.DateOnly,PublicationDate:not null,PublishedAt:null} datedHolding:
-                    await workspace!.Alerts.ReviewNamedEtfHoldingAsync(datedHolding,token,commandId);break;
+                    await workspace!.Holdings.ReviewNamedEtfHoldingAsync(datedHolding,token,commandId);break;
                 default:return new("Rejected","alert=InvalidOperation");
             }
             await workspace!.Alerts.EvaluateAlertsAsync(token);return BackgroundJobResult.Success();

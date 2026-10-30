@@ -9,7 +9,4 @@ public interface IExitAlertWriteRepository
     AlertOutboxItem? ClaimAlertNotification();
     void CompleteAlertNotification(string id,string lease,AlertDispatchOutcome outcome);
     void RetryAlertNotification(string id,Guid? commandId=null);
-    void RegisterAlertDocument(AlertDocumentRequest request,byte[] document,Guid? commandId=null);
-    void ReviewAlertMetadata(AlertMetadataReview review,Guid? commandId=null);
-    void ReviewNamedEtfHolding(NamedEtfHoldingReview review,Guid? commandId=null);
 }

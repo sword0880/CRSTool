@@ -25,7 +25,7 @@ internal static class EtfReportVisualPreview
         foreach(var width in new[]{640,1040,1280})
         foreach(var scale in new[]{1.0,1.5})
         {
-            var model=new EtfHoldingsViewModel(workspace,workspace,workspace,default){From=new(2026,1,1),Through=new(2026,10,27)};
+            var model=new EtfHoldingsViewModel(workspace,workspace,default){From=new(2026,1,1),Through=new(2026,10,27)};
             model.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
             if(model.Reports.Count!=6)throw new InvalidDataException("页面没有完整展示已保存六条报告。");
             var page=new EtfHoldingsPage(model,false);var window=new Window{Content=page,Width=width,Height=760,ShowInTaskbar=false,ShowActivated=false,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize};

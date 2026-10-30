@@ -58,9 +58,9 @@ public partial class ExitAlertViewModel
         if(ProofFund is not {} fund)return;
         try
         {
-            var key=new EtfKey(fund.Market,fund.Ticker);var documents=await workspace.AlertDocumentsAsync(key,lifetime);
-            var metadata=(await workspace.AlertMetadataAsync(lifetime)).SingleOrDefault(x=>x.Market==key.Market&&x.Ticker==key.Ticker);
-            var holdings=await workspace.NamedEtfHoldingsAsync(key,lifetime);
+            var key=new EtfKey(fund.Market,fund.Ticker);var documents=await etfEvidence.AlertDocumentsAsync(key,lifetime);
+            var metadata=(await etfEvidence.AlertMetadataAsync(lifetime)).SingleOrDefault(x=>x.Market==key.Market&&x.Ticker==key.Ticker);
+            var holdings=await etfEvidence.NamedEtfHoldingsAsync(key,lifetime);
             if(version!=proofVersion||lifetime.IsCancellationRequested)return;
             foreach(var document in documents)ProofDocuments.Add(document);
             foreach(var holding in holdings)ProofHoldings.Add(holding);
@@ -72,13 +72,13 @@ public partial class ExitAlertViewModel
     [RelayCommand] private Task RegisterDocument()=>Run(async()=>
     {
         if(!CanManage||ProofFund is not {} fund)throw new InvalidDataException("请先选择ETF。");
-        await workspace.RegisterAlertDocumentAsync(new(fund.Market,fund.Ticker,ProofUrl),lifetime);await LoadProofDataAsync(++proofVersion);
+        await etfEvidence.RegisterAlertDocumentAsync(new(fund.Market,fund.Ticker,ProofUrl),lifetime);await LoadProofDataAsync(++proofVersion);
         Status="原件已登记。请打开官方PDF逐项核对；登记不等于已确认可比性或具名持仓。";
     });
     [RelayCommand] private Task SaveMetadata()=>Run(async()=>
     {
         if(!CanManage||ProofDocument is null||ComparableFrom is null||ComparableThrough is null)throw new InvalidDataException("请先选择原件并填写可比区间。");
-        await workspace.ReviewAlertMetadataAsync(new(ProofDocument.Id,FundId,ManagerId,IndexId,DateOnly.FromDateTime(ComparableFrom.Value),DateOnly.FromDateTime(ComparableThrough.Value),ProofReviewer,MetadataConfirmed),lifetime);
+        await etfEvidence.ReviewAlertMetadataAsync(new(ProofDocument.Id,FundId,ManagerId,IndexId,DateOnly.FromDateTime(ComparableFrom.Value),DateOnly.FromDateTime(ComparableThrough.Value),ProofReviewer,MetadataConfirmed),lifetime);
         MetadataConfirmed=false;await LoadEventsAsync();Status="可比口径审核已保存，仅在明确核验的日期范围内生效。";
     });
     [RelayCommand] private Task SaveNamedHolding()=>Run(async()=>
@@ -96,7 +96,7 @@ public partial class ExitAlertViewModel
                 ||!DateTimeOffset.TryParse(PublishedAt,CultureInfo.InvariantCulture,DateTimeStyles.None,out var moment))throw new InvalidDataException("请填写带时区的准确公告时刻；时刻未知时请选择仅有公告日期。");
             published=moment;
         }
-        await workspace.ReviewNamedEtfHoldingAsync(new(ProofDocument.Id,LegalEntityId,LegalName,HoldingAccount,DateOnly.FromDateTime(HoldingAsOf.Value),published,HoldingShares,EvidencePage,ProofReviewer,HoldingConfirmed,IndependentOwnershipConfirmed)
+        await etfEvidence.ReviewNamedEtfHoldingAsync(new(ProofDocument.Id,LegalEntityId,LegalName,HoldingAccount,DateOnly.FromDateTime(HoldingAsOf.Value),published,HoldingShares,EvidencePage,ProofReviewer,HoldingConfirmed,IndependentOwnershipConfirmed)
             {PublicationDate=date,PublicationPrecision=OnlyPublicationDate?EtfPublicationPrecision.DateOnly:EtfPublicationPrecision.ExactTime},lifetime);
         await LoadProofDataAsync(++proofVersion);await LoadEventsAsync();Status="具名持仓已保存，首见时点由后台原件登记记录固定；不将匿名机构按份额匹配身份。";
     });

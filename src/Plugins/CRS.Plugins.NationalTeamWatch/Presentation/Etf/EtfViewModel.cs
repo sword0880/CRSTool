@@ -16,18 +16,18 @@ public partial class EtfViewModel : ObservableObject
     private readonly IMarketCycleWorkspace marketCycleWorkspace;
     private readonly CancellationToken lifetime;
 
-    public EtfViewModel(IEtfResearchWorkspace workspace,IMarketCycleWorkspace marketCycleWorkspace,IExitAlertWorkspace alertWorkspace,CancellationToken lifetime)
+    public EtfViewModel(IEtfResearchWorkspace workspace,IMarketCycleWorkspace marketCycleWorkspace,IExitAlertWorkspace alertWorkspace,IEtfHoldingsWorkspace holdingsWorkspace,CancellationToken lifetime)
     {
         this.workspace=workspace??throw new ArgumentNullException(nameof(workspace));
         this.marketCycleWorkspace=marketCycleWorkspace??throw new ArgumentNullException(nameof(marketCycleWorkspace));
         this.lifetime=lifetime;
-        Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),workspace,lifetime);
+        Alerts=new ExitAlertViewModel(alertWorkspace??throw new ArgumentNullException(nameof(alertWorkspace)),workspace,holdingsWorkspace??throw new ArgumentNullException(nameof(holdingsWorkspace)),lifetime);
         ActivityKnowledge=new(marketCycleWorkspace,lifetime);
     }
 
     /// <summary>装配入口直接拆为窄端口注入，不再保留旧接口适配器。</summary>
     public EtfViewModel(INationalTeamWorkspace workspace,CancellationToken lifetime)
-        :this(workspace,workspace,workspace,lifetime) {}
+        :this(workspace,workspace,workspace,workspace,lifetime) {}
     public ExitAlertViewModel Alerts {get;}
     public MarketActivityKnowledgeViewModel ActivityKnowledge {get;}
     public bool CanManage=>workspace.CanManage;

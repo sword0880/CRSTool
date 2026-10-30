@@ -7,4 +7,11 @@ public interface IEtfHoldingsWorkspace:IWorkspaceAccess
     Task<NamedEtfHoldingHistoryReport> EtfHoldingHistoryAsync(EtfKey key,DateOnly asOf,CancellationToken token);
     Task<EtfReportIndexSnapshot> EtfReportIndexAsync(EtfKey key,CancellationToken token);
     Task<EtfReportSearchReceipt> QueueEtfReportsAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token);
+    Task<List<AlertDocument>> AlertDocumentsAsync(EtfKey key,CancellationToken token);
+    Task RegisterAlertDocumentAsync(AlertDocumentRequest request,CancellationToken token);
+    Task<List<AlertFundMetadata>> AlertMetadataAsync(CancellationToken token);
+    Task ReviewAlertMetadataAsync(AlertMetadataReview review,CancellationToken token);
+    Task<List<NamedEtfHolding>> NamedEtfHoldingsAsync(EtfKey key,CancellationToken token);
+    Task ReviewNamedEtfHoldingAsync(NamedEtfHoldingReview review,CancellationToken token);
+    Task<EtfHolderCandidateReport> EtfHolderCandidatesAsync(EtfKey key,string documentId,CancellationToken token);
 }

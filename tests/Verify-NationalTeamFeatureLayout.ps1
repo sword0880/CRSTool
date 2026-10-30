@@ -250,7 +250,7 @@ $equitySession = Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Infrastruc
 if ($equitySession -notmatch 'EquityStore\(IMarketRepositorySession session\)') { throw 'Equity feature session boundary missing.' }
 $etfViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/Etf/EtfViewModel.cs") -Raw
 $marketActivitySource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/MarketCycle/MarketActivityPresentation.cs") -Raw
-$proofViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/ExitAlerts/ExitAlertProofViewModel.cs") -Raw
+$proofViewModelSource = Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/EtfHoldings/ExitAlertViewModel.EtfEvidence.cs") -Raw
 if ($etfViewModelSource -notmatch 'IMarketCycleWorkspace marketCycleWorkspace' -or
     $marketActivitySource -notmatch 'marketCycleWorkspace\.MarketActivityAsync' -or
     $proofViewModelSource -notmatch 'etfWorkspace\.ConfigurationAsync') {

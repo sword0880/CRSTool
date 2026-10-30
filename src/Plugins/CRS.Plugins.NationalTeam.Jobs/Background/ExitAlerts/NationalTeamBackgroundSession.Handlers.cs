@@ -113,36 +113,6 @@ public sealed partial class NationalTeamBackgroundSession
         return new(rows,metadata);
     }
 
-    [NationalTeamQuery("alert-documents",NationalTeamQueryKind.ResearchRead)]
-    private async Task<NationalTeamQueryResult> QueryAlertDocuments(EtfRequest request,CancellationToken token)
-    {
-        var serialization=new NationalTeamQuerySerialization(token);
-        string SerializeRow<T>(T value)=>serialization.Row(value);
-        string[] rows;string? metadata=null;
-        rows=(await workspace!.Alerts.AlertDocumentsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();
-        return new(rows,metadata);
-    }
-
-    [NationalTeamQuery("alert-metadata",NationalTeamQueryKind.ResearchRead)]
-    private async Task<NationalTeamQueryResult> QueryAlertMetadata(EtfRequest request,CancellationToken token)
-    {
-        var serialization=new NationalTeamQuerySerialization(token);
-        string SerializeRow<T>(T value)=>serialization.Row(value);
-        string[] rows;string? metadata=null;
-        rows=(await workspace!.Alerts.AlertMetadataAsync(token)).Select(x=>SerializeRow(x)).ToArray();
-        return new(rows,metadata);
-    }
-
-    [NationalTeamQuery("alert-holdings",NationalTeamQueryKind.ResearchRead)]
-    private async Task<NationalTeamQueryResult> QueryAlertHoldings(EtfRequest request,CancellationToken token)
-    {
-        var serialization=new NationalTeamQuerySerialization(token);
-        string SerializeRow<T>(T value)=>serialization.Row(value);
-        string[] rows;string? metadata=null;
-        rows=(await workspace!.Alerts.NamedEtfHoldingsAsync(Key(request),token)).Select(x=>SerializeRow(x)).ToArray();
-        return new(rows,metadata);
-    }
-
     [NationalTeamJob("alert-evaluate","预警评价与通知提交","0 0/5 * * * ?","China Standard Time",true,true,Group="evaluation",MaximumConcurrency=1,Order=5)]
     private async Task<BackgroundJobResult> ExecuteAlertEvaluate(EtfRequest request,CancellationToken token,Guid? commandId)
     {

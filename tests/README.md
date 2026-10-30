@@ -326,6 +326,8 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 
 `--etf-document-collection`当前36项，验证按市场的手动采集声明、来源和参数校验、取消、登记与待评价标记同事务、命令绑定及会话重建复用，并用真实测试管道复现同一客户端等待沪市时仍能保存设置和登记深市。`CRS.Tests.Background --command-tracker`的10项无网络检查覆盖跨任务隔离、原ID重试、同任务互斥、容量和迟到回执。`CRS.Tests.WorkerEtf --etf-document-isolation-pipe <完整候选包> <510300原件目录> <159919原件目录> <新目录>`进一步验证来源延期与已提交但未回执两个窗口的实际宿主重启；不连接或安装正式服务。新版`--etf-document-live`为新请求协商`etf-document-collection-v1`，缺能力明确拒绝；已有请求文件仍保留其旧入口、ID和参数，禁止转换旧Pending来绕过等待。
 
+`--etf-evidence-ownership <旧发行Jobs程序集> <不存在的目录>`通过隔离加载旧发行，对照新旧表结构、登记、审核、命令、来源失效、原ID恢复及待评价故障的整事务回滚，22项通过后直接用新代码重开旧库复查；不连接正式库或发送通知。默认国家队回归包含新实现自身10项，不要求CI额外准备旧发行。分层检查另外拒绝预警Store直接查询或初始化ETF证据四张表，窄端口转发不允许SQL回流。正式状态只以[唯一架构索引](../docs/architecture/ARCHITECTURE_STATUS.md)为准。
+
 评价准备专项当前36项，新增在真实原件读暂停时采集配置仍能读取的两条反例，分别验证准备取消与版本变更后重算。评价准备读的独立1项名额、1项等待及2秒准入随应用统一排空，采集读预算与全局任务8并发保留。离线迁移工作副本名缩短，为原生SQLite回滚/主日志后缀预留路径空间；全部原长目录迁移和篡改用例保留，不以缩短测试目录或放宽超时通过回归。
 
 `CRS.Tests.NationalTeamWatch --public-storage`验证普通SQLite文件/快照、无密码读取、只读写入拒绝、连接释放、旧加密库保留式离线导出、错误密钥/占用/已有目标拒绝、来源退避保留以及真实隔离子进程崩溃遗留WAL的恢复。`--public-storage-wal-fixture`仅供该专项创建并强制结束合成子进程，不连接正式服务。默认回归及CI包含专项。原市场库测试连接已同步去除密码；收入/报税保险库及Worker管理存储测试保持原加密边界。完整实现及迁移发布限制见[ETF存储拆分](../docs/implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。

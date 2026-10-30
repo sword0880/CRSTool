@@ -6,11 +6,11 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
 /// <summary>预警中心只维护筛选、选择及编辑草稿，计算、原件、数据库和投递均在后台。</summary>
-public partial class ExitAlertViewModel(IExitAlertWorkspace workspace,IEtfResearchWorkspace etfWorkspace,CancellationToken lifetime):ObservableObject
+public partial class ExitAlertViewModel(IExitAlertWorkspace workspace,IEtfResearchWorkspace etfWorkspace,IEtfHoldingsWorkspace etfEvidence,CancellationToken lifetime):ObservableObject
 {
-    /// <summary>组合工作区只用于装配；页面内部依赖预警和ETF两个窄端口。</summary>
+    /// <summary>组合工作区只用于装配；预警、ETF配置和持仓证据分别注入。</summary>
     public ExitAlertViewModel(INationalTeamWorkspace workspace,CancellationToken lifetime)
-        :this(workspace,workspace,lifetime) {}
+        :this(workspace,workspace,workspace,lifetime) {}
     public bool CanManage=>workspace.CanManage;
     public bool CanEdit=>CanManage&&!Busy;
     public ObservableCollection<ExitAlertEvent> Events {get;}=[];

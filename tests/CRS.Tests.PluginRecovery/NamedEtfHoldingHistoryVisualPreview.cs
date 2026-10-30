@@ -22,7 +22,7 @@ internal static class NamedEtfHoldingHistoryVisualPreview
             foreach(var width in new[]{640,1040,1280})foreach(var density in new[]{1d,1.5d})
             {
                 var workspace=DispatchProxy.Create<INationalTeamWorkspace,NamedEtfHistoryPreviewProxy>();((NamedEtfHistoryPreviewProxy)workspace).Snapshot=report;
-                var model=new EtfHoldingsViewModel(workspace,workspace,workspace,default);var fund=new EtfConfiguration(report.Input.Key.Market,report.Input.Key.Ticker,"合成ETF","fixture",true,"fixture","fixture",1);
+                var model=new EtfHoldingsViewModel(workspace,workspace,default);var fund=new EtfConfiguration(report.Input.Key.Market,report.Input.Key.Ticker,"合成ETF","fixture",true,"fixture","fixture",1);
                 model.Funds.Add(fund);model.SelectedFund=fund;model.LoadTask.GetAwaiter().GetResult();model.History.AsOf=report.Input.AsOf.ToDateTime(TimeOnly.MinValue);model.History.ReadAsync().GetAwaiter().GetResult();
                 model.History.Status="合成布局验收 · "+model.History.Status;var page=new EtfHoldingsPage(model,false);var window=new Window{Content=page,Width=width,Height=700,ShowInTaskbar=false,ShowActivated=false,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize};
                 try

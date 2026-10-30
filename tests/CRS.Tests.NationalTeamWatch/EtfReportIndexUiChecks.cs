@@ -7,7 +7,7 @@ internal static class EtfReportIndexUiChecks
 {
     internal static async Task RunAsync()
     {
-        var fixture=new Workspace();var model=new EtfHoldingsViewModel(fixture,fixture,fixture,default);
+        var fixture=new Workspace();var model=new EtfHoldingsViewModel(fixture,fixture,default);
         await model.RefreshCommand.ExecuteAsync(null);
         Check(model.Funds.Count==2&&model.Reports.Count==1&&model.SelectedFund?.Ticker=="510300","仅从用户启用配置建立ETF选择，不另建固定池");
         model.SelectedReport=model.Reports[0];Check(model.RegisterReportCommand.CanExecute(null),"健康目录仍须明确选中报告后才能提交原件登记");
