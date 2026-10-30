@@ -100,6 +100,12 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                     File.Move(retryOnce,retryOnce+".consumed");
                     throw new SourceBudgetUnavailableException("SourceQueueFull");
                 }
+                var cooldownOnce=Path.Combine(holders,"source-cooldown-once.fixture");
+                if(File.Exists(cooldownOnce))
+                {
+                    File.Move(cooldownOnce,cooldownOnce+".consumed");
+                    throw new SourceBudgetUnavailableException("SourceCooldown",CRS.Timing.BeijingClock.Now.AddSeconds(35));
+                }
                 var file=uri.AbsoluteUri switch
                 {
                     "https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf"=>"510300-2025",
@@ -107,6 +113,8 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                     CRS.Plugins.NationalTeamWatch.Infrastructure.EfundChiNextHolderPdf.Annual2024Url=>"159915-2024",
                     CRS.Plugins.NationalTeamWatch.Infrastructure.EfundChiNextHolderPdf.Annual2025Url=>"159915-2025",
                     CRS.Plugins.NationalTeamWatch.Infrastructure.EfundChiNextHolderPdf.Interim2026Url=>"159915-2026H1",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.HarvestCsi300HolderPdf.Annual2024Url=>"159919-2024",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.HarvestCsi300HolderPdf.Annual2025Url=>"159919-2025",
                     "https://www.sse.com.cn/synthetic-publication-time.pdf"=>"publication-synthetic",
                     _=>throw new InvalidDataException("持有人夹具出现未列来源。")
                 };

@@ -67,6 +67,20 @@ internal static class ExitAlertJobChecks
             if(until is{} expected)Check(CRS.Timing.BeijingClock.Now+result.RetryAfter>=expected,reason+"不缩短来源冷却");
             Check((await Documents()).Count==0&&context.Calls==0,reason+"不登记原件或投递通知");
         }
+        var shortCooldown=CRS.Timing.BeijingClock.Now.AddMinutes(5);
+        gateway.Read=(_,_)=>Task.FromException<PublicHttpResponse>(new SourceBudgetUnavailableException("SourceCooldown",shortCooldown));
+        var budgeted=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        var retryAt=DateTimeOffset.Parse(budgeted.Checkpoint!.Split("retryAt=",StringSplitOptions.None)[^1],System.Globalization.CultureInfo.InvariantCulture);
+        Check(budgeted.Status=="RetryDeferred"&&retryAt==shortCooldown,"明确五分钟来源冷却不额外延长为三十分钟");
+        gateway.Read=(_,_)=>Task.FromException<PublicHttpResponse>(new SourceBudgetUnavailableException("SourceCooldown"));
+        var unknownBudget=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        Check(unknownBudget.Status=="RetryDeferred"&&unknownBudget.RetryAfter>=TimeSpan.FromMinutes(29.9),"来源未提供截止时刻仍保留保守退避");
+        gateway.Read=(_,_)=>Task.FromException<PublicHttpResponse>(new SourceBudgetUnavailableException("SourceCooldown",CRS.Timing.BeijingClock.Now.AddSeconds(5)));
+        var briefBudget=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        Check(briefBudget.RetryAfter>=TimeSpan.FromSeconds(30)&&briefBudget.RetryAfter<=TimeSpan.FromSeconds(31),"临近来源截止仍保留三十秒最小间隔，避免忙重试");
+        gateway.Read=(_,_)=>Task.FromException<PublicHttpResponse>(new SourceBudgetUnavailableException("SourceCooldown",CRS.Timing.BeijingClock.Now.AddMinutes(-1)));
+        var expiredBudget=await session.ExecuteAsync("alert-manage",payload,default,requestId);
+        Check(expiredBudget.RetryAfter>=TimeSpan.FromMinutes(29.9),"异常返回过期截止不能触发立即重试");
         var blockedUntil=CRS.Timing.BeijingClock.Now.AddHours(7);
         await Deferred(new SourceBudgetUnavailableException("SourceCooldown",blockedUntil),"DocumentSourceCooldown",blockedUntil);
         await Deferred(new SourceBudgetUnavailableException("SourceQueueFull"),"DocumentSourceQueueFull");

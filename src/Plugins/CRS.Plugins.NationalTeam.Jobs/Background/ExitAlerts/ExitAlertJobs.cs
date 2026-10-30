@@ -76,8 +76,11 @@ public sealed partial class NationalTeamBackgroundSession
     private BackgroundJobResult AlertDocumentDeferred(Uri uri,string reason,DateTimeOffset? until=null,int? httpStatus=null)
     {
         var now=CRS.Timing.BeijingClock.Now;
-        var retry=now.Add(reason=="DocumentSourceQueueFull"?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
         var local=(http as OfficialHttpGateway)?.RetryAt(uri);
+        // 已知来源截止只受最小重试间隔约束；不把五分钟冷却额外扩大为三十分钟。
+        // 未知截止、连接失败及HTTP错误仍使用保守预算，较长来源限制始终优先。
+        var knownCooldown=reason=="DocumentSourceCooldown"&&(until>now||local>now);
+        var retry=now.Add(reason=="DocumentSourceQueueFull"||knownCooldown?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
         if(local>retry)retry=local.Value;
         if(until>retry)retry=until.Value;
         var status=httpStatus is{} value?";http="+value.ToString(System.Globalization.CultureInfo.InvariantCulture):"";

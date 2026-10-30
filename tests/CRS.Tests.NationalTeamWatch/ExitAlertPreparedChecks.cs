@@ -82,6 +82,8 @@ internal static class ExitAlertPreparedChecks
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var configured=await workspace.Etf.ConfigurationAsync(default).WaitAsync(TimeSpan.FromSeconds(1));
+            Check(configured.Any(x=>x.Market==key.Market&&x.Ticker==key.Ticker)&&!evaluation.IsCompleted,"评价长读暂停时采集配置读仍独立完成，不争用背景读名额");
             await workspace.Etf.SaveConfigurationAsync(key,"并发更名",row.IndexGroup,true,"synthetic",row.Revision,default).WaitAsync(TimeSpan.FromSeconds(2));
             Check(!evaluation.IsCompleted,"原件读取仍暂停时配置写入已独立提交");
             if(cancel)

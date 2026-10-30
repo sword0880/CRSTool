@@ -68,3 +68,19 @@
 159915三份PDF由正式后台下载、登记并回读：2024/2025年报各11行NeedsReview（含另列联接基金），四行给出两个汇金登记法人的待审线索；2026中期为NotDisclosed，不能补零或判断清仓。既有四份其它ETF原件仍UnsupportedTemplate。510300首份年报下载连接失败，执行进度保存RequestFailed与来源退避，外层管理命令只返回Failed/OperationFailed；保留故障而未写原件、候选或审核记录，停止该来源后续下载，深市独立继续。此路径的失败分类/恢复尚未关闭。
 
 报告覆盖82项、既有研究40项只读查询全部完成且同PID；7项计划、24只ETF配置、29条股票投影、10条旧执行及4份既有原件保留。已核验具名持仓仍0行，实际持仓未知，预警资料验收false。可复核数据、命令回执、哈希与待审表格集中在[本轮证据](../../artifacts/etf-report-coverage-20261029/acceptance.json)及[审核候选包](../../artifacts/etf-report-coverage-20261029/REVIEW_PACKET.md)，不新增并行的当前状态索引。
+
+### 原件下载失败的恢复边界
+
+后续工作区修正只在原件HTTP下载调用内捕获连接、超时及带原因的来源预算异常，返回DocumentConnectionFailed、DocumentTimedOut、DocumentSourceCooldown或DocumentSourceQueueFull；非200响应保留状态码。回执保留北京时间retryAt，等待取既有30分钟默认与本地/宿主来源截止中的较晚者，排队容量默认30秒；403等长冷却不缩短。调用方取消继续传播，原件内容/存储故障不进入网络异常捕获；无效PDF仍Rejected。网关无宿主时的本地冷却亦使用既有SourceBudgetUnavailableException，避免丢失原因和Until。
+
+24项合成入口检查覆盖无写入、取消、无效原件、真实HTTP适配器403及同ID恢复；候选经真实宿主、监督Runner、加密命令库和普通研究库验证跨重启Pending/NotBefore及到期恢复。它们不证明官方源可用，也不把历史Failed命令改成成功；旧终态保留，正式再次尝试须独立稳定ID并关联旧失败。安装与最终验证状态仅看[当前状态索引](../architecture/ARCHITECTURE_STATUS.md)。
+
+该修正已随代次`dd4ac7dd954d412a9a080921689cf82f`于2026-10-29 21:36:43正式Committed。正式510300重试`c6f5d272480b428894347483d3a27d0d`保存Pending/RetryDeferred，来源截止2026-10-30 01:43:19且没有RequestStarted；原失败终态仍保留。延后回执会清空执行ID，具体分类执行按本次唯一管理任务时间窗及同一等待截止核对，未将其描述为直接历史关联字段。实际源恢复后的下载仍未验收；22:01的82项覆盖查询确认24只/298条目录及7份原件可读，具名持仓仍待人工核验。见[正式验收](../../artifacts/etf-document-recovery-20261029/acceptance.json)。
+
+## 2026-10-29：159919年报候选扩展
+
+已从正式目录保留的深交所官方URL研究下载嘉实沪深300 ETF两份年报，维持TLS校验、不跟随跳转，未把研究文件直接写入正式库。2024报告公告日期2025-03-28，附件路径2025-03-27不能替代公告；2025报告公告日期2026-03-30。两个固定SHA256及完整路径约束`harvest-csi300-holders-pdf-v1`，未知原件不继承模板。
+
+表格各11条，含另列联接基金，单位份、分母上市总份额，脚注限定场内份额。2024第11行名称跨物理第62至63页；2025续表从第66页前三行延至第67页第4至11行。使用外层CRS.Documents坐标及单元格能力，不在界面层解析或计算。独立图片摘录22行，完整原件82项检查通过；黄金报告和研究下载收据保存在[本轮来源目录](../../artifacts/harvest-holders-20261029/research-downloads.json)，后续候选及正式状态只索引[权威状态文件](../architecture/ARCHITECTURE_STATUS.md)。
+
+汇金投资、汇金资管分别保留登记名称，四条线索均NeedsReview；原件确认和独立所有权确认均false，不生成正式具名持仓、退出判断或资金流。此扩展不代表24只ETF披露覆盖完整，也不自动认定其它国有登记持有人属于目标国家队主体。

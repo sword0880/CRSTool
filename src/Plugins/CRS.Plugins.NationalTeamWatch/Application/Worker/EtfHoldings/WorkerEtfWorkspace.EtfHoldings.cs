@@ -26,8 +26,9 @@ public sealed partial class WorkerEtfWorkspace
         var blocks=(await ReadPagesAsync<JsonDocumentBlock>(new("etf-holder-candidates",key.Market,key.Ticker,Revision:documentId,Count:2),token)).Rows;
         var report=JsonDocumentBlocks.Decode<EtfHolderCandidateReport>(blocks,token);
         if(report.Document is null||report.Holders is null||report.Holders.Any(x=>x is null)||report.Document.Id!=documentId||report.Document.Market!=key.Market||report.Document.Ticker!=key.Ticker
-            ||report.ParserVersion is not (EtfHolderParserVersions.Huatai300 or EtfHolderParserVersions.EfundChiNext)
+            ||report.ParserVersion is not (EtfHolderParserVersions.Huatai300 or EtfHolderParserVersions.EfundChiNext or EtfHolderParserVersions.HarvestCsi300)
             ||report.ParserVersion==EtfHolderParserVersions.EfundChiNext&&(key.Market!="SZSE"||key.Ticker!="159915")
+            ||report.ParserVersion==EtfHolderParserVersions.HarvestCsi300&&(key.Market!="SZSE"||key.Ticker!="159919")
             ||report.State is not ("NeedsReview" or "UnsupportedTemplate" or "NotDisclosed")
             ||report.State=="UnsupportedTemplate"&&(report.Holders.Count!=0||report.ReportAsOf is not null||report.PublicationDate is not null)
             ||report.State!="UnsupportedTemplate"&&(report.ReportAsOf is null||report.PublicationDate is null||report.PhysicalPage is null)

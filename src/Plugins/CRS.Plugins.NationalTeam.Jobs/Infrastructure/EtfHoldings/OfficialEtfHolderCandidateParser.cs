@@ -4,6 +4,10 @@ namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 internal sealed class OfficialEtfHolderCandidateParser : IEtfHolderCandidateParser
 {
-    public EtfHolderCandidateReport Parse(EtfHolderDocument captured,CancellationToken token)=>
-        captured.Document is{Market:"SZSE",Ticker:"159915"}?EfundChiNextHolderPdf.Parse(captured,token):Huatai300HolderPdf.Parse(captured,token);
+    public EtfHolderCandidateReport Parse(EtfHolderDocument captured,CancellationToken token)=>captured.Document switch
+    {
+        {Market:"SZSE",Ticker:"159915"}=>EfundChiNextHolderPdf.Parse(captured,token),
+        {Market:"SZSE",Ticker:"159919"}=>HarvestCsi300HolderPdf.Parse(captured,token),
+        _=>Huatai300HolderPdf.Parse(captured,token)
+    };
 }

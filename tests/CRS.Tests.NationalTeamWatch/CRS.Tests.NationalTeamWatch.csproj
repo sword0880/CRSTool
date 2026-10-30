@@ -4,4 +4,5 @@
  <ItemGroup><Content Include="../fixtures/national-team/etf-reports-20261027/*.json" Link="Fixtures/EtfReports/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
  <ItemGroup><Content Include="../fixtures/national-team/etf-reports-20261028/*.json" Link="Fixtures/EtfReports/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
  <ItemGroup><Content Include="../fixtures/national-team/holding-publication-legacy-20261028.json" Link="Fixtures/EtfHoldingPublicationLegacy.json" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
+ <ItemGroup><Content Include="../fixtures/national-team/etf-holders-159919-20261029.json" Link="Fixtures/EtfHolders159919.json" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
 </Project>

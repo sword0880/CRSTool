@@ -8,6 +8,7 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     private readonly BoundedWorkAdmission shortReads=new(2,4,TimeSpan.FromSeconds(1));
     private readonly BoundedWorkAdmission researchReads=new(1,1,TimeSpan.FromSeconds(2));
     private readonly BoundedWorkAdmission backgroundReads=new(1,4,TimeSpan.FromSeconds(2));
+    private readonly BoundedWorkAdmission evaluationReads=new(1,1,TimeSpan.FromSeconds(2));
     private readonly BoundedWorkAdmission evaluations=new(1,1,TimeSpan.FromSeconds(2));
     private IMarketRepository? repository;
     private IMarketReadSessions? independentReads;
@@ -50,9 +51,16 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
         using(await EnterAsync(evaluations,token).ConfigureAwait(false))
         {ObjectDisposedException.ThrowIf(disposed,this);return await work().ConfigureAwait(false);}
     }
-    internal async Task<T> ReadAsync<TPort,T>(Func<TPort,T> query,CancellationToken token) where TPort:class
+    internal Task<T> ReadAsync<TPort,T>(Func<TPort,T> query,CancellationToken token) where TPort:class
     {
         var admission=ReadWorkloadScope.Current switch{ReadWorkloadKind.ShortRead=>shortReads,ReadWorkloadKind.ResearchRead=>researchReads,_=>backgroundReads};
+        return ReadWithAdmissionAsync(admission,query,token);
+    }
+    // 评价准备使用独立连接和名额；长时间核验不能占住采集的只读门槛，关闭仍统一排空。
+    internal Task<IPreparedExitAlertEvaluation?> PrepareExitAlertEvaluationAsync(IExitAlertEvaluationVersion version,bool force,CancellationToken token)
+        =>ReadWithAdmissionAsync<IExitAlertEvaluationRepository,IPreparedExitAlertEvaluation?>(evaluationReads,repository=>repository.PrepareExitAlertEvaluation(version,force),token);
+    private async Task<T> ReadWithAdmissionAsync<TPort,T>(BoundedWorkAdmission admission,Func<TPort,T> query,CancellationToken token) where TPort:class
+    {
         using(await EnterAsync(admission,token).ConfigureAwait(false))
         {
             ObjectDisposedException.ThrowIf(disposed,this);
@@ -64,7 +72,7 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     public async ValueTask DisposeAsync()
     {
         disposed=true;
-        await Task.WhenAll(shortReads.CloseAsync(),researchReads.CloseAsync(),backgroundReads.CloseAsync(),writeGate.CloseAsync(),evaluations.CloseAsync()).ConfigureAwait(false);
+        await Task.WhenAll(shortReads.CloseAsync(),researchReads.CloseAsync(),backgroundReads.CloseAsync(),evaluationReads.CloseAsync(),writeGate.CloseAsync(),evaluations.CloseAsync()).ConfigureAwait(false);
         Volatile.Write(ref independentReads,null);repository?.Dispose();repository=null;
     }
     private async ValueTask<IDisposable> EnterAsync(BoundedWorkAdmission admission,CancellationToken token)

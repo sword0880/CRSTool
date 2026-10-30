@@ -36,6 +36,8 @@ ETF持有人候选：`CRS.Tests.NationalTeamWatch --etf-holder-candidates`检查
 
 `CRS.Tests.WorkerEtf --etf-holder-pipe <完整候选包> <原件目录> <新输出目录>`在隔离服务目录回放相同公开原件，经持久命令、监督Runner及真实管道核验候选；测试夹具禁用自动计划并拒绝未列来源，既不安装服务也不联网。`--etf-holder-efund-pipe <完整候选包> <159915原件目录> <新输出目录>`复用同一验收流程，覆盖2024/2025年报与2026中期的未披露具名表状态。`CRS.Tests.NationalTeamWatch --etf-holder-golden <159915原件目录>`按已保存页面摘录逐行核对两张11行表、跨页表头、百分号、原件边界及后台分块；目录需包含三份PDF、下载收据及`159915-holder-table-expected.json`。原件保留在本地artifacts，默认回归/CI仅覆盖目录响应、公共文字坐标及客户端合同反例，不宣称运行了这些真实PDF金样。`CRS.Tests.PluginRecovery --holder-visual-preview <截图目录>`仅渲染640/1040/1280 DIP合成候选，不访问后台。
 
+159919新增：`--etf-holder-golden <159919原件目录>`要求`159919-2024.pdf`和`159919-2025.pdf`，以[独立页面摘录](fixtures/national-team/etf-holders-159919-20261029.json)逐行核对22条，覆盖2024第62至63物理页的账户名称续行、2025第66至67页的完整续表、仅日期精度及错误证券/路径/哈希/提前首见/取消反例。`CRS.Tests.WorkerEtf --etf-holder-harvest-pipe <完整候选包> <159919原件目录> <新输出目录>`经隔离宿主、持久命令、Runner和真实客户端回放两份原件，核对跨页证据与命令重放，不批准持仓、不联网。未知159919原件保持UnsupportedTemplate。
+
 行业研究采用独立测试项目。`CRS.Tests.SectorResearch`运行完整模型领域反例；`CRS.Tests.SectorUi`默认渲染明确标记的合成曲线，`--industry-installed`使用真实Worker业务管道读取已登记公布PE。国证公布PE已接通独立后台事实链和第三页导航；完整行业价格/PB/覆盖/基本面及机会门槛仍开放。命令、口径及证据见[行业研究实施](../docs/implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)和[公布PE事实链](../docs/implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)。
 
 NAV来源入口专项：`CRS.Tests.NationalTeamWatch --nav-source-checks`验证固定地址、持久冷却、真实插件同步/审核/查询、提交后重放和待审不升级；HTTP均为替身。宿主预算以`CRS.Tests.WorkerEtf --source-budget`另验基金双域共享及与其他来源独立。范围见[来源接入实施](../docs/implementation/NATIONAL_TEAM_NAV_SOURCE_20261024.md)。
@@ -319,6 +321,8 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 正式ETF资料取证复用`CRS.Tests.NationalTeamWatch`：`--etf-report-coverage-live <新目录>`只读配置池的目录、登记原件、候选状态及已核验持仓，不可用保留null；`--etf-report-sync-live <SSE或SZSE> <代码> <目录>`显式检索2025-01-01至首次请求当日的公告，`--etf-document-live <市场> <代码> <正式目录URL> <目录>`显式登记原件并读取待审候选。后两者会写正式公开研究资料，不能当普通回归；同名`--etf-report-status-live`和`--etf-document-status-live`沿原参数/目录只回查。先保存稳定ID，不覆盖身份，不审核持仓或发送通知；同一RunNow任务须串行，AlreadyRunning不代表该证券已受理，来源失败保留冷却。见[当前架构状态](../docs/architecture/ARCHITECTURE_STATUS.md)。
 
 `--etf-document-recovery`复用预警后台专项的24项检查，验证连接/超时/来源冷却/排队、实际HTTP适配器403、取消、无效原件与同命令恢复；默认国家队回归、既有`--exit-alerts`及其CI步骤均包含，不新增测试工作流。`CRS.Tests.WorkerEtf --etf-holder-recovery-pipe <完整候选包> <510300已保存年报目录> <新目录>`沿实际宿主、监督Runner、加密命令库和公开研究普通SQLite验证一次合成来源排队失败，重启后保留原请求和NotBefore，真实等待至少30秒后恢复。它使用本机保存的公开PDF和合成HTTP，不联网、不安装、不缩短生产预算，也不批准金融事实；不能替代正式服务来源可用性验收。
+
+评价准备专项当前36项，新增在真实原件读暂停时采集配置仍能读取的两条反例，分别验证准备取消与版本变更后重算。评价准备读的独立1项名额、1项等待及2秒准入随应用统一排空，采集读预算与全局任务8并发保留。离线迁移工作副本名缩短，为原生SQLite回滚/主日志后缀预留路径空间；全部原长目录迁移和篡改用例保留，不以缩短测试目录或放宽超时通过回归。
 
 `CRS.Tests.NationalTeamWatch --public-storage`验证普通SQLite文件/快照、无密码读取、只读写入拒绝、连接释放、旧加密库保留式离线导出、错误密钥/占用/已有目标拒绝、来源退避保留以及真实隔离子进程崩溃遗留WAL的恢复。`--public-storage-wal-fixture`仅供该专项创建并强制结束合成子进程，不连接正式服务。默认回归及CI包含专项。原市场库测试连接已同步去除密码；收入/报税保险库及Worker管理存储测试保持原加密边界。完整实现及迁移发布限制见[ETF存储拆分](../docs/implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。
 

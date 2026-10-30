@@ -35,7 +35,7 @@ public sealed partial class ExitAlertUseCases : MarketUseCaseScope
             token.ThrowIfCancellationRequested();using var evidence=stability.HoldVerifiedEvidence();
             var preparing=System.Diagnostics.Stopwatch.GetTimestamp();
             var version=await RunAsync((IExitAlertEvaluationRepository repository)=>repository.CaptureExitAlertEvaluationVersion(),token).ConfigureAwait(false);
-            using var prepared=await ReadPortAsync((IExitAlertEvaluationRepository repository)=>repository.PrepareExitAlertEvaluation(version,force),token).ConfigureAwait(false);
+            using var prepared=await evaluationSession.PrepareExitAlertEvaluationAsync(version,force,token).ConfigureAwait(false);
             preparationMs+=(long)System.Diagnostics.Stopwatch.GetElapsedTime(preparing).TotalMilliseconds;
             if(prepared is null)return new ExitAlertEvaluationRun(preparationMs,commitMs,heldMs,attempt+1,true);
             try

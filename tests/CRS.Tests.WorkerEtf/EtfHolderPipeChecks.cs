@@ -12,7 +12,7 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>候选发行、监督进程、持久命令与真实管道；仅回放已保存公开PDF，不联网或安装服务。</summary>
 internal static class EtfHolderPipeChecks
 {
-    public static async Task Run(string package,string originals,string output,bool efund=false,bool publication=false,bool recovery=false)
+    public static async Task Run(string package,string originals,string output,bool efund=false,bool publication=false,bool recovery=false,bool harvest=false,bool sourceBudget=false)
     {
         package=Path.GetFullPath(package);var root=Path.GetFullPath(output);
         if(Directory.Exists(root))throw new IOException("隔离验收目录必须不存在。");
@@ -27,15 +27,16 @@ internal static class EtfHolderPipeChecks
         var hashes=Directory.EnumerateFiles(target,"*",SearchOption.AllDirectories).ToDictionary(f=>Path.GetRelativePath(target,f).Replace('\\','/'),f=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(f))));
         var trust=Path.Combine(root,"trust.json");File.WriteAllText(trust,JsonSerializer.Serialize(new[]{new{id="crs.national-team",version="2.0.0",directory="crs.national-team/2.0.0",files=hashes}}));
         var data=Path.Combine(root,"service");var fixture=Path.Combine(data,"plugins","crs.national-team","etf-holders.fixture");Directory.CreateDirectory(fixture);
-        var key=efund?new EtfKey("SZSE","159915"):new EtfKey("SSE","510300");
-        (string File,string Url,DateOnly AsOf,bool Named)[] captures=publication?[]:efund?
+        var key=harvest?new EtfKey("SZSE","159919"):efund?new EtfKey("SZSE","159915"):new EtfKey("SSE","510300");
+        (string File,string Url,DateOnly AsOf,bool Named)[] captures=publication?[]:harvest?
+            [("159919-2024",HarvestCsi300HolderPdf.Annual2024Url,new(2024,12,31),true),("159919-2025",HarvestCsi300HolderPdf.Annual2025Url,new(2025,12,31),true)]:efund?
             [("159915-2024",EfundChiNextHolderPdf.Annual2024Url,new(2024,12,31),true),("159915-2025",EfundChiNextHolderPdf.Annual2025Url,new(2025,12,31),true),
              ("159915-2026H1",EfundChiNextHolderPdf.Interim2026Url,new(2026,6,30),false)]:
             [("510300-2024","https://www.sse.com.cn/disclosure/fund/announcement/c/new/2025-03-31/510300_20250331_07Z1.pdf",new(2024,12,31),true),
              ("510300-2025","https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf",new(2025,12,31),true)];
         foreach(var capture in captures)File.Copy(Path.Combine(originals,capture.File+".pdf"),Path.Combine(fixture,capture.File+".pdf"));
         if(publication)File.WriteAllBytes(Path.Combine(fixture,"publication-synthetic.pdf"),"%PDF-synthetic-publication-time"u8.ToArray());
-        if(recovery)File.WriteAllText(Path.Combine(fixture,"source-queue-once.fixture"),"synthetic source queue unavailable once");
+        if(recovery)File.WriteAllText(Path.Combine(fixture,sourceBudget?"source-cooldown-once.fixture":"source-queue-once.fixture"),"synthetic source budget unavailable once");
         var pipe="CRS.EtfHolders."+Guid.NewGuid().ToString("N");var client=new BackgroundPipeClient(pipe);using var limit=new CancellationTokenSource(TimeSpan.FromMinutes(4));var token=limit.Token;var passed=0;
         void Check(bool ok,string message){if(!ok)throw new InvalidDataException(message);passed++;Console.WriteLine("PASS 持有人真实管道："+message);}
         async Task<BackgroundResponse> Send(BackgroundRequest request)
@@ -65,9 +66,10 @@ internal static class EtfHolderPipeChecks
                     do{status=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId));if(status.Receipt?.Code!="RetryDeferred")await Task.Delay(250,token);}while(status.Receipt?.Code!="RetryDeferred");
                     Check(status.Receipt is{State:"Pending",Code:"RetryDeferred"},"Runner传回来源退避，原命令保持Pending而非Failed");
                     var deferred=(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHistory","crs.national-team"))).History!.Single(x=>x.JobId=="alert-manage");
-                    Check(deferred.Result=="RetryDeferred"&&deferred.Checkpoint!.StartsWith("alert=DocumentSourceQueueFull;"),"真实执行保留具名来源原因，不丢成OperationFailed");
+                    Check(deferred.Result=="RetryDeferred"&&deferred.Checkpoint!.StartsWith(sourceBudget?"alert=DocumentSourceCooldown;":"alert=DocumentSourceQueueFull;"),"真实执行保留具名来源原因，不丢成OperationFailed");
                     var plan=(await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",PageSize:10))).TaskActivity!.Rows.Single(x=>x.RequestId==request.RequestId);
                     Check(plan.NotBefore>CRS.Timing.BeijingClock.Now&&(await reader.AlertDocumentsAsync(key,token)).Count==0,"宿主持久等待时间，失败不登记原件");
+                    if(sourceBudget)Check(plan.NotBefore<CRS.Timing.BeijingClock.Now.AddSeconds(40),"明确三十五秒来源截止跨Runner后不扩大为三十分钟");
                     File.WriteAllText(Path.Combine(root,"deferred-before-restart.json"),JsonSerializer.Serialize(new{Request=request,Status=status,Execution=deferred,Plan=plan}));
                     var oldPid=process.Id;process.Kill();await process.WaitForExitAsync();
                     File.WriteAllText(Path.Combine(root,"stdout-before-restart.log"),await stdout);File.WriteAllText(Path.Combine(root,"stderr-before-restart.log"),await stderr);process.Dispose();
@@ -91,6 +93,13 @@ internal static class EtfHolderPipeChecks
                 Check((capture.Named?report is{Holders.Count:11,State:"NeedsReview"}:report is{Holders.Count:0,State:"NotDisclosed",Scope:"AggregateOnlyNoNamedTable"})
                     &&report.PublishedAt is null&&report.Holders.All(x=>!x.OriginalConfirmed&&!x.IndependentOwnershipConfirmed),"监督Runner保留候选或未披露状态，不自动确认"+label);
                 Check(report.Document.Hash==Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(originals,capture.File+".pdf"))))&&report.ReportAsOf==capture.AsOf,"原件哈希及报告期完整跨进程绑定"+label);
+                if(harvest)
+                {
+                    Check(report.ParserVersion==HarvestCsi300HolderPdf.Version&&report.Holders[0].RegisteredHolder=="中央汇金投资有限责任公司"
+                        &&report.Holders[1].RegisteredHolder=="中央汇金资产管理有限责任公司"&&report.Holders[^1].RegisteredHolder.EndsWith("联接基金(LOF)",StringComparison.Ordinal),"真实管道保留汇金两个登记法人和完整联接基金名称"+label);
+                    Check(capture.AsOf.Year==2024?report.Holders[^1].EvidencePage.Contains("62至63")&&report.Holders[^1].RawHolder.Contains('\n'):
+                        report.Holders[2].EvidencePage.Contains("66页")&&report.Holders[3].EvidencePage.Contains("67页")&&report.Holders[^1].EvidencePage.Contains("67页"),"实际跨页证据位置完整传回桌面客户端"+label);
+                }
                 _=await Send(request);var replay=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId));
                 Check(replay.Receipt?.ExecutionId==status.Receipt?.ExecutionId,"原命令重放保持执行身份"+label);
             }

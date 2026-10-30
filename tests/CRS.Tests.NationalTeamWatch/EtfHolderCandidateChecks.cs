@@ -34,12 +34,14 @@ internal static class EtfHolderCandidateChecks
         try{PdfTextLayout.Lines(layout.Letters,new(true));throw new Exception("忽略版式取消。");}catch(OperationCanceledException){Check(true,"公共版式读取取消不返回空字符串");}
         var efundUnknown=document with{Market="SZSE",Ticker="159915"};
         Check(EfundChiNextHolderPdf.Parse(new(efundUnknown,unknown)).State=="UnsupportedTemplate","159915未知原件保持未支持，不当作未披露或零持仓");
+        Check(HarvestCsi300HolderPdf.Parse(new(document with{Market="SZSE",Ticker="159919"},unknown)).State=="UnsupportedTemplate","159919未知原件保持未支持，不截取半张表或补零");
         await EtfHolderCandidateUiChecks.RunAsync();
         RepositoryBoundary(Path.Combine(root,"boundary"),unknown);
         await ClientContracts();
         if(sourceDirectory is not null)
         {
-            if(File.Exists(Path.Combine(sourceDirectory,"159915-2024.pdf")))await EfundGolden(root,sourceDirectory);
+            if(File.Exists(Path.Combine(sourceDirectory,"159919-2024.pdf")))await HarvestGolden(root,sourceDirectory);
+            else if(File.Exists(Path.Combine(sourceDirectory,"159915-2024.pdf")))await EfundGolden(root,sourceDirectory);
             else await Golden(root,sourceDirectory);
         }
         Console.WriteLine($"ETF持有人候选检查通过：{passed}项。原件未写入正式数据库。");
@@ -65,6 +67,15 @@ internal static class EtfHolderCandidateChecks
                 control.Report=invalid;
                 try{await reader.EtfHolderCandidatesAsync(key,id,stop.Token);throw new Exception("接受损坏持有人合同："+label);}
                 catch(InvalidDataException){Check(true,"客户端拒绝"+label);}
+            }
+            var harvest=original with{Document=original.Document with{Ticker="159919",Url=HarvestCsi300HolderPdf.Annual2025Url},ParserVersion=EtfHolderParserVersions.HarvestCsi300,PhysicalPage=66};
+            control.Report=harvest;
+            Check((await reader.EtfHolderCandidatesAsync(new("SZSE","159919"),id,stop.Token)).ParserVersion==EtfHolderParserVersions.HarvestCsi300,"真实客户端接受159919固定版式候选合同");
+            foreach(var invalid in new[]{harvest with{Holders=harvest.Holders.Take(3).ToArray()},harvest with{State="NotDisclosed",Scope="AggregateOnlyNoNamedTable",PercentBasis=null,Holders=[]},harvest with{Document=harvest.Document with{Ticker="159915"}}})
+            {
+                control.Report=invalid;
+                try{await reader.EtfHolderCandidatesAsync(new("SZSE","159919"),id,stop.Token);throw new Exception("接受不完整或串证券的159919合同。");}
+                catch(InvalidDataException){Check(true,"159919合同拒绝半张表、错误未披露或串证券");}
             }
         }
         finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
@@ -188,6 +199,41 @@ internal static class EtfHolderCandidateChecks
         var last=reports[^1].Document;File.WriteAllText(Path.Combine(rawPath,last.Hash+".raw"),"damaged");
         Reject(()=>repository.EtfHolderDocument(key,last.Id),"未披露表报告也不能跳过原件即时完整性核验");
         File.WriteAllText(Path.Combine(root,"efund-holder-candidate-reports.json"),JsonSerializer.Serialize(reports,new JsonSerializerOptions{WriteIndented=true}));
+    }
+    private static async Task HarvestGolden(string root,string directory)
+    {
+        var workspace=Path.Combine(root,"harvest");var rawPath=Path.Combine(workspace,"raw");var raw=new RawEvidenceStore(rawPath);var key=new EtfKey("SZSE","159919");
+        using var repository=TestMarketData.Open(Path.Combine(workspace,"data"),raw);
+        using var expected=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"Fixtures","EtfHolders159919.json")));
+        var reports=new List<EtfHolderCandidateReport>();
+        foreach(var (year,url,publication) in new[]{(2024,HarvestCsi300HolderPdf.Annual2024Url,new DateOnly(2025,3,28)),(2025,HarvestCsi300HolderPdf.Annual2025Url,new DateOnly(2026,3,30))})
+        {
+            var label="159919-"+year;var bytes=File.ReadAllBytes(Path.Combine(directory,label+".pdf"));
+            repository.RegisterAlertDocument(new(key.Market,key.Ticker,url),bytes);
+            var registered=repository.AlertDocuments(key).Single(x=>x.Url==url);
+            var frozen=((IMarketReadSessions)repository).Read(x=>x.EtfHolderDocument(key,registered.Id),default);
+            var report=HarvestCsi300HolderPdf.Parse(frozen);reports.Add(report);
+            Check(report is{State:"NeedsReview",Holders.Count:11,PublishedAt:null}&&report.ReportAsOf==new DateOnly(year,12,31)&&report.PublicationDate==publication,"159919完整跨页报告、期末和日期精度 "+year);
+            foreach(var row in expected.RootElement.GetProperty(label).EnumerateArray())
+            {
+                var actual=report.Holders.Single(x=>x.Rank==row.GetProperty("Rank").GetInt32());
+                Check(actual.RegisteredHolder==row.GetProperty("Name").GetString()&&actual.Shares==row.GetProperty("Shares").GetDecimal()&&actual.PercentOfListedUnits==row.GetProperty("Percent").GetDecimal(),"159919逐行对照独立视觉摘录 "+year+"/"+actual.Rank);
+            }
+            Check(report.Holders.All(x=>!x.OriginalConfirmed&&!x.IndependentOwnershipConfirmed)&&report.Holders[^1].RegisteredHolder.EndsWith("联接基金(LOF)",StringComparison.Ordinal)&&report.PercentBasis=="ListedFundUnits","159919保留另列联接基金、场内分母和待审状态 "+year);
+            Check(report.Holders[0].SuggestedInstitution=="汇金投资"&&report.Holders[1].SuggestedInstitution=="汇金资管","159919分别标识两类汇金登记法人 "+year);
+            if(year==2024)Check(report.Holders[^1].EvidencePage.Contains("62至63")&&report.Holders[^1].RawHolder.Contains("\n"),"2024跨页账户名称完整拼接且证据注明两页");
+            else Check(report.Holders[2].EvidencePage.Contains("66页")&&report.Holders[3].EvidencePage.Contains("67页")&&report.Holders[^1].EvidencePage.Contains("67页"),"2025续表第4至11行保留实际物理页");
+            Reject(()=>HarvestCsi300HolderPdf.Parse(frozen with{Document=registered with{Ticker="159915"}}),"159919原件不能串证券 "+year);
+            Reject(()=>HarvestCsi300HolderPdf.Parse(frozen with{Document=registered with{Url=url+"?v=1"}}),"159919原件不能继承变体路径 "+year);
+            Reject(()=>HarvestCsi300HolderPdf.Parse(frozen with{Document=registered with{FirstSeenAt=publication.AddDays(-1).ToString("yyyy-MM-dd")+"T23:59:59+08:00"}}),"159919附件存储日不能替代公告日期 "+year);
+            var damaged=bytes.ToArray();damaged[^1]^=1;
+            Reject(()=>HarvestCsi300HolderPdf.Parse(frozen with{Content=damaged}),"159919原件字节变化拒绝沿用模板 "+year);
+            try{HarvestCsi300HolderPdf.Parse(frozen,new(true));throw new Exception("取消返回了候选。");}catch(OperationCanceledException){Check(true,"159919取消不返回半张表 "+year);}
+            await Endpoint(workspace,key,registered,report);
+        }
+        Check(repository.NamedEtfHoldings(key).Count==0&&repository.AlertEvents(new()).Count==0&&repository.AlertOutbox().Count==0,"159919解析和后台读均不审核真实持仓或新增退出通知");
+        File.WriteAllText(Path.Combine(root,"harvest-holder-candidate-reports.json"),JsonSerializer.Serialize(reports,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("159919黄金原件隔离报告："+root);
     }
     private static async Task Endpoint(string root,EtfKey key,AlertDocument document,EtfHolderCandidateReport expected)
     {
