@@ -1,3 +1,4 @@
+// 机构股票历史披露的仓储转发，目录与原件审核记录交由历史持股存储管理。
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;

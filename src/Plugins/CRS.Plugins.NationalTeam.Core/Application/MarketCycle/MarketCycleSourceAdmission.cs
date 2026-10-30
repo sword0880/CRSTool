@@ -1,3 +1,4 @@
+// 周期数据来源的用途与审批准入合同；公开可访问不等于获准采集、存储或回填，授权证明只在验证期间使用，许可原件须能按摘要复核。
 using System.IO;
 
 namespace CRS.Plugins.NationalTeamWatch.Application;

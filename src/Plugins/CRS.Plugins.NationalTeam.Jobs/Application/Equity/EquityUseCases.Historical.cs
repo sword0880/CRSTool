@@ -1,3 +1,4 @@
+// 股票历史披露用例，复用应用会话的读取快照及写入门槛，来源登记与持仓批准分别处理。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 

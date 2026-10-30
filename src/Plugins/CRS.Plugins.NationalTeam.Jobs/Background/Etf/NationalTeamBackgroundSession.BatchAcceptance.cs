@@ -1,3 +1,4 @@
+// 后台查询能力及ETF批量验收入口，冻结配置池并返回版本化元数据，客户端据此检查完整性。
 using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Application;
 namespace CRS.Plugins.NationalTeam.Jobs;

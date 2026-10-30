@@ -1,3 +1,4 @@
+// 机构直接持股页面的展示装配，界面命令由展示模型管理，股票披露与方向计算由后台负责。
 using System.Windows.Controls;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 

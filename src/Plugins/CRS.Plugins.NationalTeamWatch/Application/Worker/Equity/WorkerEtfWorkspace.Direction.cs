@@ -1,3 +1,4 @@
+// 机构直接持股方向的远程客户端，读取后台分类和价格核验结果，并将人工复核作为持久命令提交。
 using System.IO;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;

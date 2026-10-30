@@ -1,3 +1,4 @@
+// 原件核验读取的有界准入，控制并发、等待与取消，结束时排空租约避免泄漏文件句柄。
 using CRS.Common.Concurrency;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;

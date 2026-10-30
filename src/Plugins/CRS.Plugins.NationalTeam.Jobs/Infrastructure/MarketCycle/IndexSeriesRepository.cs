@@ -1,3 +1,4 @@
+// 指数序列的查询、登记及复核转发，样本指数PE、PB与公布行业口径保持独立。
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 

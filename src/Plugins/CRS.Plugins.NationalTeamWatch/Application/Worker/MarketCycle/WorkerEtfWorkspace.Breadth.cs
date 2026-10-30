@@ -1,3 +1,4 @@
+// 广度原件的分块上传、登记与回执确认；中断后保留本任务的原提交身份，未知结果不得被新文件替换。
 using System.IO;
 using System.Text.Json;
 using CRS.IO.Staging;

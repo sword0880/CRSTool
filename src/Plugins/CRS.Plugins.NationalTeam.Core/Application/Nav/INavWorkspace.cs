@@ -1,3 +1,4 @@
+// NAV功能的远程读取与采集合同，按证券和日期请求后台资料，调用方显式传递取消。
 using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Application;

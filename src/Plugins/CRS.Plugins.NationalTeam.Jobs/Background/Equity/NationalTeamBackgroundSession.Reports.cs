@@ -1,3 +1,4 @@
+// 国家队后台股票报告检索协调，将官方目录采集、持久命令和进度记录连接起来。
 using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;

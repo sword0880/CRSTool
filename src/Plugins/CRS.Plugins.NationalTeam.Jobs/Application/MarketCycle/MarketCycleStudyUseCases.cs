@@ -1,3 +1,4 @@
+// 周期及市场广度的后台用例，显式传递统计日、资料时点和取消，计算消费冻结输入。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 public sealed class MarketCycleStudyUseCases:MarketUseCaseScope

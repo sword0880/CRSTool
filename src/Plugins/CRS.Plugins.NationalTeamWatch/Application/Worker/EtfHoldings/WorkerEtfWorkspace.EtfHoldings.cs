@@ -1,3 +1,4 @@
+// ETF持仓研究客户端，核验公告日期形状与后台能力，目录、原件候选及具名历史分别读取。
 using System.IO;
 using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Domain;

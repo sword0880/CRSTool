@@ -1,3 +1,4 @@
+// 后台暂存文件控制入口，按调用者和插件隔离上传、封存与读取，避免业务命令直接访问任意本机文件。
 using System.Text.Json;
 using CRS.IO.Staging;
 using CRS.Serialization;

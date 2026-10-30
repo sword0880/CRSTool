@@ -1,3 +1,4 @@
+// 加密保险库内的文档配置读写，沿用保险库连接与设置序列化，报表配置与正式计算数据分开保存。
 using CRS.Security.Cryptography;
 using System.Security.Cryptography;
 using Dapper;

@@ -1,3 +1,4 @@
+// 按取得及记录时点重建可知的市场成交事实，后续更正保留历史版本，缺失资料不补成零。
 using System.Globalization;
 using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Domain;

@@ -1,3 +1,4 @@
+// 市场周期研究客户端：读取完整冻结报告并核对请求身份，资料缺口沿用后台返回的研究状态。
 using System.IO;
 using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Domain;

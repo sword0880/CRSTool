@@ -1,3 +1,4 @@
+// 纯SHA-256内容身份工具，供不同插件共用；只计算和检查指纹，原件读取、来源授权、大小限制及金融审核由调用模块负责。
 using System.Security.Cryptography;
 
 namespace CRS.Common.Integrity;

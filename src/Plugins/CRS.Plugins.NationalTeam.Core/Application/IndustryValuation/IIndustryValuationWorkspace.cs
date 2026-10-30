@@ -1,3 +1,4 @@
+// 行业估值的远程研究与采集合同，公布行业PE和样本指数资料保持各自口径。
 using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Application;

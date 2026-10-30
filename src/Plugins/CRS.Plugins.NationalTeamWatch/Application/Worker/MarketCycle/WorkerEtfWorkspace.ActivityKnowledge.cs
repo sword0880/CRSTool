@@ -1,3 +1,4 @@
+// 市场成交历史知识视角的远程读取，证券范围、统计日期与资料取得时点分别绑定。
 using System.IO;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;

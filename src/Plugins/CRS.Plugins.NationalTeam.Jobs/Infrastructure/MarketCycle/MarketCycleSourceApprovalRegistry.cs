@@ -1,3 +1,4 @@
+// 周期来源审批的持久记录与防重放控制；审批内容、许可原件、授权身份和审计链一起核对，认证密钥用于完整性而非公开研究库加密。
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;

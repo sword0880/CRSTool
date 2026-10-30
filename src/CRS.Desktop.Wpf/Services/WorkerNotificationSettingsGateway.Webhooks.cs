@@ -1,3 +1,4 @@
+// 桌面Webhook设置的后台网关，转换应用与Worker合同，读取仅暴露凭据存在状态。
 using System.Text.Json;
 using CRS.Application.Abstractions;
 using CRS.Worker.Abstractions;

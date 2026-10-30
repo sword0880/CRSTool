@@ -1,3 +1,4 @@
+// 投资业绩输入的公共校验入口，在计算前检查账户、事件与估值资料的一致性，问题由上层按缺口处理。
 namespace CRS.Domain.Performance;
 
 internal static class PerformanceInputValidator

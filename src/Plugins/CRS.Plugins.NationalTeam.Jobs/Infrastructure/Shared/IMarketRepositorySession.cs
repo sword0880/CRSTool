@@ -1,3 +1,4 @@
+// 领域Store共享的SQLite会话合同，统一连接、取消、命令记录和存证；独立查询由只读会话及快照承接。
 using Microsoft.Data.Sqlite;
 using CRS.Plugins.NationalTeamWatch.Domain;
 

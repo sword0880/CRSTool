@@ -1,3 +1,4 @@
+// 后台当前任务的分页展示，完整核对同一快照和状态数量后更新列表，读取失败时明确保留上次快照。
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CRS.Worker.Ipc;

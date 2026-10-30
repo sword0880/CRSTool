@@ -1,3 +1,4 @@
+// 独立ETF原件命令的仓储转发，提交确认与登记均由ETF证据Store拥有。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 

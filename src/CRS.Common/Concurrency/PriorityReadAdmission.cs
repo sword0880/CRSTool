@@ -1,3 +1,4 @@
+// 按优先级管理有界读取名额；等待预算、取消与关闭必须释放等待者，优先级不能绕过容量上限。
 namespace CRS.Common.Concurrency;
 
 /// <summary>

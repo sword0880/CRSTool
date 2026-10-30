@@ -1,3 +1,4 @@
+// 机构直接持股功能的远程合同，披露目录、原件复核和持仓方向请求通过后台执行。
 using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Application;

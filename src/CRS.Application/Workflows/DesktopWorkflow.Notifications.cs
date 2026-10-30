@@ -1,3 +1,4 @@
+// 桌面通知设置工作流：把读取、保存与测试交给通知服务，并将调用取消与桌面会话生命周期关联。
 using CRS.Application.Abstractions;
 namespace CRS.Application;
 public sealed partial class DesktopWorkflow

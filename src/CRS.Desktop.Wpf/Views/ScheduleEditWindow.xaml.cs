@@ -1,3 +1,4 @@
+// 计划编辑窗口的模型装配与生命周期绑定，保存或会话关闭时回收事件订阅和取消注册。
 using System.Windows;
 using CRS.DesktopClient.ViewModels;
 using Wpf.Ui.Controls;

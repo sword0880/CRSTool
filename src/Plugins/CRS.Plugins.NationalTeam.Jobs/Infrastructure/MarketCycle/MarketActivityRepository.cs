@@ -1,3 +1,4 @@
+// 市场整体成交仓储的窄接口转发，冷热度资料与ETF机构持仓分开持久化。
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 

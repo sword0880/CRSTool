@@ -1,3 +1,4 @@
+// 直接持股方向视图的交互绑定，分类及价格复核通过展示模型提交后台。
 using System.Windows.Controls;
 using CRS.Plugins.NationalTeamWatch.Domain;
 

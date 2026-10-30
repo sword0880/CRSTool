@@ -1,3 +1,4 @@
+// 直接持股方向的界面模型，报告期、分类标准和原文价格由用户显式选择；草稿修改后重新要求原件确认。
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;

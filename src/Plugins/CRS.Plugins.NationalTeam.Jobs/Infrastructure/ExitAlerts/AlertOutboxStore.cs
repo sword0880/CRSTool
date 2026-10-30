@@ -1,3 +1,4 @@
+// 通知Outbox的持久化与查询，领取、重试和受理未知状态由投递协调流程管理。
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using CRS.Plugins.NationalTeamWatch.Domain;

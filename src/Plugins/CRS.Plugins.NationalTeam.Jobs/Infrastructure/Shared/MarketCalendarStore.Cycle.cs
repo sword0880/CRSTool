@@ -1,3 +1,4 @@
+// 周期研究使用的交易日历读取，按范围、知识时点和原件有效性构建研究输入。
 using System.Globalization;
 using System.Text;
 using System.Text.Json;

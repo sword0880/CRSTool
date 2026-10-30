@@ -1,3 +1,4 @@
+// ETF官方报告目录的读取、命令确认与保存端口；目录线索不代表原件或持仓已通过审核。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 

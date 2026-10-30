@@ -1,3 +1,4 @@
+// ETF后台只读用例的集中转发，配置、份额和证据读取沿用独立快照及有界准入。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 

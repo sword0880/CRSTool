@@ -1,3 +1,4 @@
+// 联合退出观察的远程读取，按原请求取得完整冻结结果，报告仍保留资料缺口与研究边界。
 using System.IO;
 using System.Text.Json;
 using CRS.Plugins.NationalTeamWatch.Application;

@@ -1,3 +1,4 @@
+// 机构直接持股的后台用例，协调目录、披露和方向复核的窄存储端口，不承担WPF展示。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 

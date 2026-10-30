@@ -1,3 +1,4 @@
+// 券商导入的统一中间结果，分别保留收入、交易、期初成本、现金对账、来源和问题，供后续校验及税务计算使用。
 using System.Text.Json.Serialization;
 
 namespace CRS.Application;

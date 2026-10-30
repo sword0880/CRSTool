@@ -1,3 +1,4 @@
+// 聚合仓储的独立只读会话入口，为每次查询建立一致性快照并沿用取消，读取不复用写连接。
 using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;

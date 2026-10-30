@@ -1,3 +1,4 @@
+// ETF原件候选的界面状态管理，切换证券或原件时取消旧等待，解析候选与人工持仓确认保持分离。
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

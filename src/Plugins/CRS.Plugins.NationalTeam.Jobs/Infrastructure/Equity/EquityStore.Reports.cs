@@ -1,3 +1,4 @@
+// 股票官方报告目录的持久化，保留原始页面及检索范围，目录线索不能替代已核持仓。
 using System.Globalization;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;

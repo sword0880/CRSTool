@@ -1,3 +1,4 @@
+// 市场整体成交的图表展示与筛选状态；保留未覆盖和不可计算区间，市场冷热度不归因为国家队成交。
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;

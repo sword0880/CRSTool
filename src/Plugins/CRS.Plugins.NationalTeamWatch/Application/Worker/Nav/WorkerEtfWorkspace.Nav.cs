@@ -1,3 +1,4 @@
+// NAV研究的远程客户端：按证券和日期读取后台冻结结果，保持分页完整性，界面端不计算正式净值。
 using System.IO;
 using CRS.Serialization;
 using CRS.Plugins.NationalTeamWatch.Application;

@@ -1,3 +1,4 @@
+// 公开研究库的来源、质量问题及完整性事件表初始化，供各领域在同一存储会话中引用。
 using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;

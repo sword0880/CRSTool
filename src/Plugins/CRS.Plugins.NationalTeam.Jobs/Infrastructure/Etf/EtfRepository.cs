@@ -1,3 +1,4 @@
+// ETF仓储的聚合转发及有界读取入口，份额、覆盖和验收计算交给ETF领域Store。
 using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;

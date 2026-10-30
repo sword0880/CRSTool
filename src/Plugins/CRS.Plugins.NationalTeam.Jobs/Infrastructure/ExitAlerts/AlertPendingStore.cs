@@ -1,3 +1,4 @@
+// 预警待评价标记的单一持久化入口，由资料写入事务调用，确保已提交事实能触发后续评价。
 using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;

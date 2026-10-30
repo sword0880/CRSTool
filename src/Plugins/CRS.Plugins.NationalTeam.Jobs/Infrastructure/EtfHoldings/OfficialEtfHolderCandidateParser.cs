@@ -1,3 +1,4 @@
+// 按已支持原件模板选择ETF持有人解析器；未知模板返回明确状态，候选解析不写入具名持仓审核。
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;

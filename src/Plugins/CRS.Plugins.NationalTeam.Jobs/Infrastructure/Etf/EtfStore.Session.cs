@@ -1,3 +1,4 @@
+// ETF领域Store的共享会话装配，统一连接、取消、存证及待评价通知；跨模块事实通过窄端口取得。
 using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;

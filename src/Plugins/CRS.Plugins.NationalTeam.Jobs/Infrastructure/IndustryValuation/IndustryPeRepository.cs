@@ -1,3 +1,4 @@
+// 官方行业PE仓储的窄接口转发，原件、修订和知识时点由行业估值模块管理。
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 

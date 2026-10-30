@@ -1,3 +1,4 @@
+// 周期研究的聚合仓储转发入口，冻结日历、行情和广度输入后交由独立研究算法处理。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 public sealed partial class MarketRepository

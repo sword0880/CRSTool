@@ -1,3 +1,4 @@
+// 市场广度资料提交、复核与历史查询的数据合同；原件和规范化文件分别绑定暂存身份、指纹及记录时点。
 using CRS.IO.Staging;
 using CRS.Common.Integrity;
 using System.Text.Json;

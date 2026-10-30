@@ -1,3 +1,4 @@
+// 市场广度视图的交互适配，将用户选择和页面事件交给展示模型，原件处理与审核留在后台。
 using System.Windows;
 using System.Windows.Controls;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;

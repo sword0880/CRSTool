@@ -1,3 +1,4 @@
+// 券商业绩输入的公共映射，统一账户身份与资金事件类别；无法识别的类型保留为未知。
 using System.Text;
 using CRS.Domain.Performance;
 namespace CRS.Infrastructure;

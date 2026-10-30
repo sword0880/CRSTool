@@ -1,3 +1,4 @@
+// 人工业绩补录入口：要求账户、来源及完整性确认，再转换为统一导入文档；缺少流水不能视为零流量，估值必须先确认账户基础币种。
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CRS.Domain.Performance;

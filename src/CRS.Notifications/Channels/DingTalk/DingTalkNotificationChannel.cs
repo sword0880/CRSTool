@@ -1,3 +1,4 @@
+// 钉钉通知渠道适配：读取对应Webhook配置并生成签名请求，沿用统一投递结果和凭据保护边界。
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;

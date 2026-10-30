@@ -1,3 +1,4 @@
+// 来源取得记录的聚合转发入口，原件身份、解析版本和失败状态由来源存储统一保存。
 using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;

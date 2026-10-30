@@ -1,3 +1,4 @@
+// 后台资料清理控制入口：校验调用权限与清理请求，再交给清理协调器执行并返回可核验的结果。
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CRS.Maintenance;

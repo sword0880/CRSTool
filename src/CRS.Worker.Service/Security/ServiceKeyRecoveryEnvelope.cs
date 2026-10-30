@@ -1,3 +1,4 @@
+// 服务密钥恢复封装原语：把密钥绑定到包身份与清单摘要；恢复凭据是独立随机秘密，实际授权、停机快照和目标激活由上层协调。
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 

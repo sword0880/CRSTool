@@ -1,3 +1,4 @@
+// 交易日历仓储的窄接口转发，日历持久化及核验由对应Store负责，聚合入口不重复实现。
 using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;

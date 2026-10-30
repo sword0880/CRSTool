@@ -1,3 +1,4 @@
+// 市场周期、广度和成交知识研究的远程窄接口；来源资料、研究快照与复核操作通过后台完成。
 using CRS.Plugins.NationalTeamWatch.Domain;
 
 namespace CRS.Plugins.NationalTeamWatch.Application;

@@ -1,3 +1,4 @@
+// ETF报告目录仓储的转发入口，目录来源和持久命令身份由独立目录Store管理。
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 

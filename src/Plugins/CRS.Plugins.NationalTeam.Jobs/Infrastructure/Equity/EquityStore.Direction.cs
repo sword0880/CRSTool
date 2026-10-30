@@ -1,3 +1,4 @@
+// 直接持股方向的复核存储，绑定已接受披露、分类版本、页码及报告日价格；同一命令不得换参数或覆盖旧确认。
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
