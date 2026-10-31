@@ -1,18 +1,18 @@
 # 当前架构状态
 
-更新：2026-10-30。本文件是模块边界、未关闭高风险、正式部署及证据的唯一当前索引；实施文档保留历史。时刻均为北京时间，源码、隔离回放、正式后台和金融审核分别验收。
+更新：2026-10-31。本文件是模块边界、未关闭高风险、正式部署及证据的唯一当前索引；实施文档保留历史。时刻均为北京时间，源码、隔离回放、正式后台和金融审核分别验收。
 
-当前正式发行：代次`d2a33786b9b3404fb707cb10c98c65f6`于2026-10-30 17:40:09 Committed，PID10716 / Running / Auto / LocalService。新旧程序各182项、6048份快照及原密钥摘要逐项通过；7项计划、24只ETF配置、29条股票投影、10条旧执行和原11份登记原件逐项保留。索引SHA256：`DA2067FDE20EEFF0DF26765D98DD2797786AFB37E3F432E1857AADBA68B95FFC`。见[正式汇总](../../artifacts/etf-evidence-ports-20261030/acceptance.json)、[保全回执](../../artifacts/etf-evidence-ports-installed-20261030/preservation-acceptance.json)及[最终健康](../../artifacts/etf-evidence-ports-installed-20261030/final-health.json)。未恢复旧库或删除归档。
+当前正式发行：代次`c84d1bf74522495fa91a4cf4ce3a272b`于2026-10-31 19:58:15 Committed，PID42984 / Running / Auto / LocalService。新旧程序各182项、6051份快照及原密钥摘要逐项通过；7项计划、24只ETF配置、29条股票投影、10条旧执行和原11份登记原件逐项保留。索引SHA256：`C681100F7D077FDAB52F85277CE82BCD6E6299D35D61DF8E3C0B716DA5302800`。见[正式汇总](../../artifacts/china50-holders-20261031/acceptance.json)、[保全回执](../../artifacts/china50-holders-installed-20261031/preservation-acceptance.json)及[最终健康](../../artifacts/china50-holders-installed-20261031/final-health.json)。未恢复旧库或删除归档。
 
-已安装ETF证据从存储到应用、通信客户端及界面的归层，保留分市场采集、公共请求跟踪、明确来源预算及异步批量路径。完整业务回归通过，随后补中文注释及六项边界断言，再完整编译0警告/0错误；最终20项应用边界、22项旧发行逐项对照及分层检查通过，候选28项验证两个实际重启窗口、另20项验证旧入口恢复。四张表结构及根格式2不变，新代码可直接重开旧发行所建库。见[本轮源码/候选](../../artifacts/etf-evidence-ports-20261030/source-acceptance.json)。
+当前发行保留ETF证据从存储到应用、客户端及界面的归层、分市场采集、公共请求跟踪、明确来源预算及异步批量路径。本轮510050三份原件106项、完整默认回归、分层检查及26项实际进程检查通过，最终完整构建0警告/0错误；四表结构及根格式2不变。见[本轮源码/候选](../../artifacts/china50-holders-20261031/source-acceptance.json)；前轮20项应用边界、22项旧发行对照及28+20项恢复范围另见[归层凭据](../../artifacts/etf-evidence-ports-20261030/source-acceptance.json)。
 
-最新资料回查：24只ETF、298条目录、11份登记原件；510300、159915、159919各两份年报共66行NeedsReview，一份中期NotDisclosed、四份UnsupportedTemplate。已核验具名持仓0行，实际持仓未知。本轮86项覆盖及40项研究回读均可用、同一健康PID，批量完整读取24只；原件和候选内容均与升级前逐项一致。NAV/联合观察/周期仍为既有样本与口径，不能推广为全池金融资料完整。见[原件覆盖](../../artifacts/etf-evidence-ports-installed-20261030/after/report-coverage/etf-report-coverage.json)、[研究回读](../../artifacts/etf-evidence-ports-installed-20261030/after/feature-audit/feature-audit.json)及[逐项保全](../../artifacts/etf-evidence-ports-installed-20261030/after/baseline-comparison.json)。前轮查询失败负例保留，不用本轮成功改写。
+最新资料回查：24只ETF、298条目录、11份登记原件；510300、159915、159919各两份年报共66行NeedsReview，两份中报NotDisclosed、三份UnsupportedTemplate。已核验具名持仓0行，实际持仓未知。本轮86项覆盖及40项研究回读均可用、同一健康PID，批量完整读取24只；NAV、联合观察及周期仍为既有样本和口径，不能推广为全池金融资料完整。见[原件覆盖](../../artifacts/china50-holders-installed-20261031/after/report-coverage/etf-report-coverage.json)、[研究回读](../../artifacts/china50-holders-installed-20261031/after/feature-audit/feature-audit.json)及[逐项保全](../../artifacts/china50-holders-installed-20261031/after/baseline-comparison.json)。历史查询失败负例保留。
 
-新协议`etf-document-collection-v1`及沪深手动任务保留，任务共27项。沪市510300-2025原请求`70f579ede5384e478443fbb060ddd9ee`沿原ID于17:09:16.867 Completed/Succeeded，直接绑定执行`26c5295def8a4a4fab70856d12051a26`；原件SHA256为`9790CC85C6EE6611D52E653F4154632EFF35D588185D1269CADC77082F5FB4C4`，候选11行仍NeedsReview。17:43升级后回查仍为同请求、同执行、同原件和候选内容，当前任务无Pending；没有重新提交。深市前轮成功同样保留待审边界。见[升级后终态](../../artifacts/etf-evidence-ports-installed-20261030/after/sse-510300-2025/document-status.json)及[当前任务](../../artifacts/etf-evidence-ports-installed-20261030/after/task-activity.jsonl)。先前连接失败、超时和延期记录保留。
+新协议`etf-document-collection-v1`及沪深手动任务保留，共27项。本轮510050候选解析已安装：两份年报在研究副本及候选进程完整读取22行；正式已存2026中报从UnsupportedTemplate变为NotDisclosed，仅有汇总结构，不代表零持仓或清仓。正式2025年报原请求`b8a42f06-f41b-4a75-aa3e-bace8a0c3517`跨升级保持Pending/RetryDeferred，NotBefore仍为2026-10-31 20:16:01.989 +08:00；尚未登记该年报，也未提交第二份年报取证。见[升级后请求](../../artifacts/china50-holders-installed-20261031/after/510050-2025/document-status.json)、[当前任务快照](../../artifacts/china50-holders-installed-20261031/after/task-activity.jsonl)和[待审资料](../../artifacts/china50-holders-20261031/REVIEW_PACKET.md)。不以研究副本冒充正式采集，不更换请求绕过等待。
 
 ## 模块边界
 
-ETF原件、口径、具名持仓和候选解析已从预警仓储/应用/界面合同移到ETF持仓端口，查询声明及调用点同步归层，原通信操作名和持久命令身份保留，已随本次正式发行安装。另按用户要求清点全部623份C#源码，给87份旧文件补中文说明、14处关键流程补注释；移除新增注释后原代码字节逐项一致。见[本轮源码/候选](../../artifacts/etf-evidence-ports-20261030/source-acceptance.json)及[中文注释核验](../../artifacts/chinese-comments-20261030/acceptance.json)。初次候选因旧PDF夹具目录缺失未启动宿主，失败保留；改用已保存且匹配模板SHA256的公开原件副本后通过。
+ETF原件、口径、具名持仓和候选解析已从预警仓储/应用/界面合同移到ETF持仓端口，查询声明及调用点同步归层，原通信操作名和持久命令身份保留，已随本次正式发行安装。另于2026-10-30按用户要求清点当时623份C#源码，给87份旧文件补中文说明、14处关键流程补注释；移除新增注释后原代码字节逐项一致。见[本轮源码/候选](../../artifacts/etf-evidence-ports-20261030/source-acceptance.json)及[中文注释核验](../../artifacts/chinese-comments-20261030/acceptance.json)。初次候选因旧PDF夹具目录缺失未启动宿主，失败保留；改用已保存且匹配模板SHA256的公开原件副本后通过。
 
 | 模块 | 当前职责与约束 |
 | --- | --- |
@@ -46,10 +46,10 @@ ETF原件、口径、具名持仓和候选解析已从预警仓储/应用/界面
 
 | 项目 | 当前缺口与证据 |
 | --- | --- |
-| 来源和原件管理 | 沪深原件均已实际下载完成，沪市沿原ID17:09:16成功且升级后终态保持；候选未批准，24只全池报告覆盖仍不完整。明确来源截止最短30秒，未知/过期及网络失败保守退避，长限制优先。每市场仍仅一条Pending/Running；本次端口归层已正式安装，不据研究入口可用推定持仓资料完整 |
+| 来源和原件管理 | 本轮510050年报原请求仍Pending至20:16，第二份年报尚未提交，24只全池报告覆盖仍不完整。明确来源截止最短30秒，未知/过期及网络失败保守退避，长限制优先；每市场仍仅一条Pending/Running。模板支持及查询可用不代表下载、审核或历史完整 |
 | 查询和写入性能 | 本轮86项覆盖及40项研究全部可用，批量完整回读24只；普通5/15秒预算和研究90秒构造保持。前轮批量15秒超时、86项初查一次失败及后续异步成功均保留。单次可用不证明受控提速率或所有并发；持续负载、界面竞争、取消、排空及其它长读/通知/导出仍开放 |
-| 启动及资料规模 | 本次17:27:47开始保全、17:40:09 Committed，包含6048份完整快照、核验、切换及启动；显式600秒启动预算内完成，没有恢复或归档删除。系统进程早于应用健康启动，不能混称可用；档案增长和维护停机成本仍需改进，不是普通查询耗时 |
-| 持仓及方向 | 298条未冻结目录不能证明全部历史完整，六份年报66行候选未批准。法人/账户、独立持有、准确公布时刻、跨期可比性、其它ETF/报告和完整组合分母仍缺。股票29条/披露15条仍为样本，缺失不补零 |
+| 启动及资料规模 | 本次19:43:37开始保全、19:58:15 Committed，包含6051份完整快照、核验、切换及启动；显式600秒启动预算内完成。系统进程早于应用健康启动，不能混称可用；档案增长和维护停机成本仍需改进，不是普通查询耗时 |
+| 持仓及方向 | 298条未冻结目录不能证明全部历史完整，六份已登记年报66行候选未批准；新增510050年报22行仍仅为研究副本候选。法人/账户、独立持有、准确公布时刻、跨期可比性和完整组合分母仍缺。股票29条/披露15条仍为样本，缺失不补零 |
 | 估值/周期/退出有效性 | 行业公布PE不等于完整PE/PB估值，NAV不等于周期；行情/广度、知识时间轴、样本外和影子验证仍开放。联合观察不发正式退出通知，金融资料验收false |
 | 发行和恢复 | 当前为开发包显式豁免；签名发行、第三方权限隔离、完整跨机灾备及桌面真人交互未由本机Committed关闭 |
 
@@ -57,14 +57,10 @@ ETF原件、口径、具名持仓和候选解析已从预警仓储/应用/界面
 
 | 范围 | 当前证据 |
 | --- | --- |
-| ETF证据全链路归属 | 当前代次d2a337已安装EtfEvidenceStore及ETF应用/客户端/界面端口归层，四表结构不变，登记/来源/待评价/命令同事务，来源与Q15失效不能继承旧审核。20项应用边界、22项新旧发行对照及旧库重开、完整业务回归和候选28+20项通过；正式86+40项可用，原11份原件及候选内容逐项保留。见[源码/候选](../../artifacts/etf-evidence-ports-20261030/source-acceptance.json)及[正式汇总](../../artifacts/etf-evidence-ports-20261030/acceptance.json)。金融及真人界面验收仍开放 |
-| 分市场原件与请求隔离 | 代次7bb915安装的27任务新协议由当前发行保留。36项采集、10项公共跟踪、36项最终评价准备及当轮候选28+20项通过；两次实际候选重启分别覆盖Pending与业务已提交但宿主回执Running，原件首见、摘要和原ID保持且不重复下载。正式沪深请求均已完成，沪市原ID成功终态跨本次升级保持。见[历史分层与候选](../../artifacts/document-collection-20261030/source-acceptance.json)、[当轮正式汇总](../../artifacts/document-collection-20261030/acceptance.json)及[本次终态保全](../../artifacts/etf-evidence-ports-20261030/acceptance.json)，真人界面和金融审核继续开放 |
-| 159919解析发行 | 随前代次a1bde于昨晚23:18:01安装并由当前发行保留；各11行，2024名称跨62至63页、2025表跨66至67页。来源金样82项、原159915/510300回归90/74项、真实候选通信18项及当轮完整默认回归通过，解决方案0警告/0错误。见[实现记录](../implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)、[159919闭环验收](../../artifacts/harvest-holders-20261029/acceptance.json)和[候选真实通信](../../artifacts/harvest-holders-pipe-20261029/acceptance.json)；不宣称远端CI或真人桌面验收 |
-| 已恢复的SSE原请求 | 同一`c6f5d272480b428894347483d3a27d0d`最终绑定执行`73c05a20b15c4a6382d19311aad062e8`，01:43:19.544启动、HTTP200、01:43:33.646 Succeeded并返回11行NeedsReview；旧Failed记录仍保留。见[正式终态](../../artifacts/harvest-holders-installed-20261029/sse-510300-2024-status-20261030/document-status.json) |
-| 159919正式闭环 | 两份年报分别Succeeded/11行NeedsReview，2024原请求在08:34:33.936启动、08:34:46.945完成，哈希和逐行内容对照独立图片摘录一致。见[2024原请求](../../artifacts/harvest-holders-installed-20261029/159919-2024/document-status.json)、[2025原请求](../../artifacts/harvest-holders-installed-20261029/159919-2025/document-status.json)和[四条汇金待审资料](../../artifacts/harvest-holders-20261029/REVIEW_PACKET.md)；首轮Pending快照另存，不删除历史延期 |
-| 原请求跨正式升级恢复 | SSE510300-2025原请求`3b97b7ea5cf54498b1330eee3b2241db`及09:06:23.1191847截止跨本次维护逐项保留，09:06:23.122才启动，09:06:24.921 Succeeded/11行NeedsReview，执行`26a3fd69cf2347cfa171a9440edbc8d0`直接绑定回执。见[原请求恢复核验](../../artifacts/document-source-budget-installed-20261030/pending-request-restoration.json)，没有用新ID或重置来源绕过期限 |
+| 510050版式及正式回读 | 三份原件106项、完整默认回归、分层检查及26项实际进程检查通过，完整构建0警告/0错误；正式中报明确NotDisclosed，原年报请求身份及等待截止保留。见[源码/候选](../../artifacts/china50-holders-20261031/source-acceptance.json)及[正式验收](../../artifacts/china50-holders-20261031/acceptance.json) |
+| ETF证据全链路归属 | 当前发行保留前轮EtfEvidenceStore及ETF应用、客户端、界面端口归层，四表结构不变，登记/来源/待评价/命令同事务，来源与Q15失效不能继承旧审核。前轮20项边界、22项新旧对照及旧库重开等范围见[归层源码/候选](../../artifacts/etf-evidence-ports-20261030/source-acceptance.json)及[前轮正式汇总](../../artifacts/etf-evidence-ports-20261030/acceptance.json)。金融及真人界面验收仍开放 |
+| 分市场原件与请求隔离 | 当前发行保留27任务的新协议、公共跟踪及两个实际重启窗口的恢复机制。历史沪深取证成功不替代本轮510050年报请求结果。见[机制与恢复范围](../../artifacts/document-collection-20261030/source-acceptance.json)和[历史报告取证记录](../implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)；真人界面和金融审核继续开放 |
 | 预算及批量客户端续项 | 已安装明确来源预算及批量异步路径，保留冻结分母、元数据校验和旧服务兼容，普通5/15秒期限不变。见[源码/候选](../../artifacts/document-source-budget-20261030/source-acceptance.json)、[旧批量超时](../../artifacts/harvest-holders-installed-20261029/after/feature-audit-20261030/feature-audit.json)、[新正式批量](../../artifacts/document-source-budget-installed-20261030/after/acceptance-batch/acceptance-batch.json)及[旧事实对照](../../artifacts/document-source-budget-installed-20261030/after/baseline-comparison.json)；真人桌面交互未验收 |
-| 前轮性能及机制 | 评价准备36项、来源恢复24项及旧候选跨重启19项等历史范围，均见[前轮验收](../../artifacts/etf-document-recovery-20261029/acceptance.json)。正式40项研究与旧性能样本有各自时点，不冒充本次负载测试 |
 
 整个NationalTeam目标仍未完成。源码、候选包、正式安装、金融资料和模型有效性分别闭合；Pending、NeedsReview、NotDisclosed和不可计算状态均不能写成全部成功。
 

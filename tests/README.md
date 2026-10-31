@@ -328,6 +328,8 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 
 `--etf-evidence-ownership <旧发行Jobs程序集> <不存在的目录>`通过隔离加载旧发行，对照新旧表结构、登记、审核、命令、来源失效、原ID恢复及待评价故障的整事务回滚，22项通过后直接用新代码重开旧库复查；不连接正式库或发送通知。默认国家队回归包含新实现自身10项，不要求CI额外准备旧发行。分层检查另外拒绝预警Store直接查询或初始化ETF证据四张表，窄端口转发不允许SQL回流。正式状态只以[唯一架构索引](../docs/architecture/ARCHITECTURE_STATUS.md)为准。
 
+`--etf-holder-golden <510050三份原件目录>`复用已有持有人候选入口，读取`510050-2024.pdf`、`510050-2025.pdf`和`510050-2026-interim.pdf`；独立视觉金样保存在`tests/fixtures/national-team/etf-holders-510050-20261030.json`，核对22行、跨页续表、公告日期、损坏、证券/URL错配、取消及中报未披露。默认回归含新版本/状态合同的真实管道检查，不要求CI取得远端PDF。`CRS.Tests.WorkerEtf --etf-holder-china50-pipe <完整候选包> <原件目录> <新目录>`经实际宿主/Runner验证三份原件及同ID重放；仅替换HTTP为公开副本，既不安装服务，也不批准持仓。源码及正式取证范围见[本轮凭据](../artifacts/china50-holders-20261031/source-acceptance.json)。
+
 `--application-boundaries`现含20项，额外检查ETF原件/口径/具名持仓的仓储和远程合同归属、预警用例不持有候选解析器，以及ETF页面不注入预警接口。源码中新增或修改的关键说明使用中文，注释应交代业务口径、授权、事务、取消和恢复条件。2026-10-30全src目录623份C#源码的文件级中文说明清点、87份旧文件及14处流程注释的逐字节还原核验见[注释凭据](../artifacts/chinese-comments-20261030/acceptance.json)；该核验仅证明注释阶段未改原代码，不替代同期功能接口迁移的业务回归。
 
 本次端口归层候选的实际进程28项及旧入口20项恢复通过后，按既有授权正式保全安装；正式回读另逐项比较原件和候选内容，并核对升级前已成功的沪市原请求仍保留同一执行绑定。见[本次正式凭据](../artifacts/etf-evidence-ports-20261030/acceptance.json)，当前发行及未关闭门槛仍只由上述架构索引汇总。
