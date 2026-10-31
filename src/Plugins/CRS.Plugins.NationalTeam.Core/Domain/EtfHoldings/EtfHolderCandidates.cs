@@ -6,6 +6,7 @@ public static class EtfHolderParserVersions
     public const string Huatai300="huatai300-holders-pdf-v1";
     public const string EfundChiNext="efund-chinext-holders-pdf-v1";
     public const string HarvestCsi300="harvest-csi300-holders-pdf-v1";
+    public const string China50="china50-holders-pdf-v1";
 }
 
 /// <summary>报告表格的登记持有人候选；不推断受益人、独立持有关系或成交。</summary>

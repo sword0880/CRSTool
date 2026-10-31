@@ -28,6 +28,7 @@ public sealed partial class PerformanceUseCases
             input.Security,input.Market,input.Quantity,input.Fee,input.Withholding,Confirmed:input.Confirmed)]},token);
     });
 
+    // 估值补录先确认账户基础币种和当日资产负债完整性，再把资产、应收和负债转换为统一估值分量。
     public Task<bool> AddValuationAsync(ManualPerformanceValuation input,CancellationToken cancellation=default)=>Run(cancellation,token=>
     {
         var account=RequireManualAccount(input.AccountId,input.Source,"请选择账户，填写来源，并明确确认本日资产/负债完整。");
@@ -44,6 +45,7 @@ public sealed partial class PerformanceUseCases
             new("",input.Source),PerformanceQuality.Estimated)]},token);
     });
 
+    // 完整性来自账户、来源与明确确认；没有确认的流水区间不能用零资金流参与收益计算。
     public Task<bool> ConfirmCoverageAsync(ManualPerformanceCoverage input,CancellationToken cancellation=default)=>Run(cancellation,token=>
     {
         var account=RequireManualAccount(input.AccountId,input.Source,"完整性确认需要账户、来源和明确勾选，不能将缺失资金流水视为零。");

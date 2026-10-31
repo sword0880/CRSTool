@@ -127,6 +127,9 @@ public sealed class Entry:IContextualBackgroundPluginEntry
                     CRS.Plugins.NationalTeamWatch.Infrastructure.EfundChiNextHolderPdf.Interim2026Url=>"159915-2026H1",
                     CRS.Plugins.NationalTeamWatch.Infrastructure.HarvestCsi300HolderPdf.Annual2024Url=>"159919-2024",
                     CRS.Plugins.NationalTeamWatch.Infrastructure.HarvestCsi300HolderPdf.Annual2025Url=>"159919-2025",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.China50HolderPdf.Annual2024Url=>"510050-2024",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.China50HolderPdf.Annual2025Url=>"510050-2025",
+                    CRS.Plugins.NationalTeamWatch.Infrastructure.China50HolderPdf.Interim2026Url=>"510050-2026-interim",
                     "https://www.sse.com.cn/synthetic-publication-time.pdf"=>"publication-synthetic",
                     _=>throw new InvalidDataException("持有人夹具出现未列来源。")
                 };

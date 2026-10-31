@@ -12,7 +12,7 @@ using CRS.Plugins.NationalTeamWatch.Infrastructure;
 /// <summary>候选发行、监督进程、持久命令与真实管道；仅回放已保存公开PDF，不联网或安装服务。</summary>
 internal static class EtfHolderPipeChecks
 {
-    public static async Task Run(string package,string originals,string output,bool efund=false,bool publication=false,bool recovery=false,bool harvest=false,bool sourceBudget=false,bool isolateManagement=false,string? otherMarketOriginals=null)
+    public static async Task Run(string package,string originals,string output,bool efund=false,bool publication=false,bool recovery=false,bool harvest=false,bool sourceBudget=false,bool isolateManagement=false,string? otherMarketOriginals=null,bool china50=false)
     {
         package=Path.GetFullPath(package);var root=Path.GetFullPath(output);
         if(Directory.Exists(root))throw new IOException("隔离验收目录必须不存在。");
@@ -27,8 +27,10 @@ internal static class EtfHolderPipeChecks
         var hashes=Directory.EnumerateFiles(target,"*",SearchOption.AllDirectories).ToDictionary(f=>Path.GetRelativePath(target,f).Replace('\\','/'),f=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(f))));
         var trust=Path.Combine(root,"trust.json");File.WriteAllText(trust,JsonSerializer.Serialize(new[]{new{id="crs.national-team",version="2.0.0",directory="crs.national-team/2.0.0",files=hashes}}));
         var data=Path.Combine(root,"service");var fixture=Path.Combine(data,"plugins","crs.national-team","etf-holders.fixture");Directory.CreateDirectory(fixture);
-        var key=harvest?new EtfKey("SZSE","159919"):efund?new EtfKey("SZSE","159915"):new EtfKey("SSE","510300");
-        (string File,string Url,DateOnly AsOf,bool Named)[] captures=publication?[]:harvest?
+        var key=china50?new EtfKey("SSE","510050"):harvest?new EtfKey("SZSE","159919"):efund?new EtfKey("SZSE","159915"):new EtfKey("SSE","510300");
+        (string File,string Url,DateOnly AsOf,bool Named)[] captures=publication?[]:china50?
+            [("510050-2024",China50HolderPdf.Annual2024Url,new(2024,12,31),true),("510050-2025",China50HolderPdf.Annual2025Url,new(2025,12,31),true),
+             ("510050-2026-interim",China50HolderPdf.Interim2026Url,new(2026,6,30),false)]:harvest?
             [("159919-2024",HarvestCsi300HolderPdf.Annual2024Url,new(2024,12,31),true),("159919-2025",HarvestCsi300HolderPdf.Annual2025Url,new(2025,12,31),true)]:efund?
             [("159915-2024",EfundChiNextHolderPdf.Annual2024Url,new(2024,12,31),true),("159915-2025",EfundChiNextHolderPdf.Annual2025Url,new(2025,12,31),true),
              ("159915-2026H1",EfundChiNextHolderPdf.Interim2026Url,new(2026,6,30),false)]:
@@ -60,8 +62,8 @@ internal static class EtfHolderPipeChecks
             foreach(var capture in captures)
             {
                 var url=capture.Url;var label=capture.File;
-                var jobId=isolateManagement?EtfDocumentCollectionProtocol.Job(key.Market):"alert-manage";
-                var operation=isolateManagement?EtfDocumentCollectionProtocol.Operation:"alert-document";
+                var jobId=isolateManagement||china50?EtfDocumentCollectionProtocol.Job(key.Market):"alert-manage";
+                var operation=isolateManagement||china50?EtfDocumentCollectionProtocol.Operation:"alert-document";
                 var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team",jobId,Payload:JsonSerializer.Serialize(new EtfRequest(operation,AlertDocument:new(key.Market,key.Ticker,url))));
                 Check((await Send(request)).Code=="Accepted","原件登记命令持久接收"+label);
                 BackgroundResponse status;
@@ -140,6 +142,17 @@ internal static class EtfHolderPipeChecks
                 Check((capture.Named?report is{Holders.Count:11,State:"NeedsReview"}:report is{Holders.Count:0,State:"NotDisclosed",Scope:"AggregateOnlyNoNamedTable"})
                     &&report.PublishedAt is null&&report.Holders.All(x=>!x.OriginalConfirmed&&!x.IndependentOwnershipConfirmed),"监督Runner保留候选或未披露状态，不自动确认"+label);
                 Check(report.Document.Hash==Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(originals,capture.File+".pdf"))))&&report.ReportAsOf==capture.AsOf,"原件哈希及报告期完整跨进程绑定"+label);
+                if(china50)
+                {
+                    Check(report.ParserVersion==EtfHolderParserVersions.China50,"510050监督Runner与客户端使用同一已知候选版本"+label);
+                    if(capture.Named)
+                    {
+                        Check(report.Holders[0].RegisteredHolder=="中央汇金投资有限责任公司"&&report.Holders[1].RegisteredHolder=="中央汇金资产管理有限责任公司"
+                            &&report.Holders[^1].RegisteredHolder.EndsWith("联接基金",StringComparison.Ordinal),"510050完整传回两个汇金登记法人及另列联接基金"+label);
+                        Check(capture.AsOf.Year==2024?report.Holders[7].EvidencePage.Contains("55页")&&report.Holders[8].EvidencePage.Contains("56页"):
+                            report.Holders.All(x=>x.EvidencePage.Contains("53页")),"510050实际续表页和物理页码跨进程保留"+label);
+                    }
+                }
                 if(harvest)
                 {
                     Check(report.ParserVersion==HarvestCsi300HolderPdf.Version&&report.Holders[0].RegisteredHolder=="中央汇金投资有限责任公司"
@@ -179,7 +192,7 @@ internal static class EtfHolderPipeChecks
                     "日期核验沿用既有数据核查，不新增金融事件、不重复排队或投递通知");
             }
             var after=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"));Check(after.Health?.ProcessId==health.Health?.ProcessId&&after.Health?.State=="Running","读取前后同一健康宿主");
-            File.WriteAllText(Path.Combine(root,"acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,RecoveryAcrossHostRestart=recovery,IsolatedDocumentCollection=isolateManagement,Source=publication?"SyntheticPublicationDateReview":"CapturedOfficialFilesFixture",Reports=reports,OtherMarketReport=otherMarketReport,PublicationHolding=publicationHolding,Health=after.Health},new JsonSerializerOptions{WriteIndented=true}));
+            File.WriteAllText(Path.Combine(root,"acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,RecoveryAcrossHostRestart=recovery,IsolatedDocumentCollection=isolateManagement,China50Profiles=china50,Source=publication?"SyntheticPublicationDateReview":"CapturedOfficialFilesFixture",Reports=reports,OtherMarketReport=otherMarketReport,PublicationHolding=publicationHolding,Health=after.Health},new JsonSerializerOptions{WriteIndented=true}));
         }
         finally
         {

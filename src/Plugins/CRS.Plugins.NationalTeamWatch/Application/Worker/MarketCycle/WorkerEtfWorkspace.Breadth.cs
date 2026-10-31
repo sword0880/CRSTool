@@ -32,6 +32,7 @@ public sealed partial class WorkerEtfWorkspace
         }
         return await ConfirmMarketBreadthSubmissionAsync(token);
     }
+    // 只有任务身份和两个文件摘要均匹配的业务回执，才结束这次待确认登记。
     public async Task<MarketBreadthSubmissionReceipt> ConfirmMarketBreadthSubmissionAsync(CancellationToken token)
     {
         if(pendingBreadth is null)throw new InvalidDataException("当前没有待确认的已封存登记；中断于上传时可重新选择原文件续传。");

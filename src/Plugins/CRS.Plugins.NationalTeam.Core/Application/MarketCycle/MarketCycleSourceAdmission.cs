@@ -146,6 +146,7 @@ public static class MarketCycleSourceAdmission
     /// trusted host composition root. It binds the operation's actual target and dataset to the reviewed source base;
     /// checking an approval object alone does not authorize an arbitrary URI.
     /// </summary>
+    // 先核对本次数据集与目标范围，来源批准不能被其它证券或用途借用。
     public static void RequireTarget(
         MarketCycleSourceApproval approval,
         string requestedSourceId,
@@ -185,6 +186,7 @@ public static class MarketCycleSourceAdmission
         Require(approval, operation, operationAt, approvalRegistry);
     }
 
+    // 来源准入同时核对用途、状态、有效期与许可原件；公开URL可访问不足以代替批准。
     public static void Require(
         MarketCycleSourceApproval approval,
         MarketCycleSourceOperation operation,

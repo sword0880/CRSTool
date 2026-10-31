@@ -24,6 +24,7 @@ public sealed class PriorityReadAdmission
         get { lock(sync)return new(active,queries.Count(x=>!x.Task.IsCompleted),background.Count(x=>!x.Task.IsCompleted)); }
     }
 
+    // 读取先申请有界名额；取消只结束本次等待，已取得的名额由租约归还。
     public async ValueTask<IDisposable> EnterAsync(bool priority,CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -46,6 +47,7 @@ public sealed class PriorityReadAdmission
         return lease;
     }
     private bool HasWaiting()=>queries.Any(x=>!x.Task.IsCompleted)||background.Any(x=>!x.Task.IsCompleted);
+    // 释放名额时按优先级与查询连发上限选择等待者，避免后台读取长期饥饿。
     private void Release()
     {
         lock(sync)

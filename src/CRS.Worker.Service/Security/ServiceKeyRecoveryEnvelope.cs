@@ -18,6 +18,7 @@ internal static class ServiceKeyRecoveryEnvelope
     private static ReadOnlySpan<byte> Magic => "CRSWKR01"u8;
     private static ReadOnlySpan<byte> Domain => "CRS.Worker.Service/recovery-key/v1"u8;
 
+    // 包身份和清单摘要写入认证头，恢复秘密经派生后只用于本次密钥封装，临时密钥在退出时清零。
     internal static byte[] Seal(ReadOnlySpan<byte> serviceKey, ReadOnlySpan<byte> recoverySecret,
         Guid bundleId, ReadOnlySpan<byte> manifestSha256)
     {
@@ -42,6 +43,7 @@ internal static class ServiceKeyRecoveryEnvelope
         finally { CryptographicOperations.ZeroMemory(kek); }
     }
 
+    // 解封前核对格式及绑定上下文；认证失败统一拒绝，不能把损坏或串包内容当成可用密钥。
     internal static RecoveredKey Open(ReadOnlySpan<byte> envelope, ReadOnlySpan<byte> recoverySecret,
         Guid expectedBundleId, ReadOnlySpan<byte> expectedManifestSha256)
     {

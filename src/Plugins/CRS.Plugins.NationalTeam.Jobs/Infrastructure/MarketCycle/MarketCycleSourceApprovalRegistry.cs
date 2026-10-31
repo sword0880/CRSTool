@@ -113,6 +113,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
     /// Writes are disabled unless the repository was created by a trusted host with an approval authority.
     /// Authorization proof is checked in memory and is never persisted or logged.
     /// </summary>
+    // 写入前验证管理授权及命令身份；重复请求保持原内容，审批事件和审计链共同保留历史依据。
     public MarketCycleSourceApprovalWriteReceipt Apply(MarketCycleSourceApprovalWriteCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -276,6 +277,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         }
     }
 
+    // 读取先逐项验真事件链，再提供审批结果，不能跳过损坏记录拼出部分可用历史。
     private List<StoredApprovalEvent> ReadVerifiedApprovalEvents(SqliteTransaction? transaction = null)
     {
         var rows = new List<StoredApprovalEvent>();
@@ -355,6 +357,7 @@ public sealed partial class MarketRepository : IMarketCycleSourceApprovalRegistr
         return rows;
     }
 
+    // 审计锚须与事件链末端一致；删尾、摘要变化或跨库替换都不能继承旧授权。
     private void VerifyApprovalAnchor(IReadOnlyList<StoredApprovalEvent> events, SqliteTransaction? transaction)
     {
         try

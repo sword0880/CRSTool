@@ -35,6 +35,7 @@ internal sealed partial class EquityStore
     }
     private string DirectionDocumentHash(string disclosureId)=>Scalar("SELECT f.sha256 FROM equity_disclosure d JOIN source_fetch f ON f.fetch_id=d.document_fetch_id WHERE d.id=$id",("$id",disclosureId)) as string
         ??throw new InvalidDataException("披露尚未登记核验原件。");
+    // 方向审核绑定原请求指纹与披露原件，分类和价格条件全部满足后才记录，重放不能换参数。
     public void ReviewEquityDirection(EquityDirectionReview review,Guid commandId)
     {
         if(commandId==Guid.Empty)throw new InvalidDataException("方向核验须有稳定请求身份。");

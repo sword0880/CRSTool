@@ -256,6 +256,16 @@ if ($etfViewModelSource -notmatch 'IMarketCycleWorkspace marketCycleWorkspace' -
     $proofViewModelSource -notmatch 'etfWorkspace\.ConfigurationAsync') {
     throw 'ETF, market-cycle and exit-alert UI dependencies must use explicit feature ports.'
 }
+# ETF证据的应用和页面依赖必须继续保持归层，不能只移动文件而仍借用预警接口。
+foreach($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Application/EtfHoldings") -File -Filter '*.cs'){
+    if((Get-Content -LiteralPath $file.FullName -Raw) -match 'IExitAlert(Read|Write)Repository|partial class ExitAlertUseCases'){
+        throw "ETF evidence application leaked back into alerts: $($file.Name)"
+    }
+}
+$holdingsViewModel=Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/EtfHoldings/EtfHoldingsViewModel.cs") -Raw
+if($holdingsViewModel -match 'IExitAlertWorkspace' -or $proofViewModelSource -notmatch 'etfEvidence\.AlertDocumentsAsync'){
+    throw 'ETF evidence UI must receive the ETF holdings port explicitly.'
+}
 $backgroundEntry=Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Background/NationalTeamBackgroundEntry.cs") -Raw
 $registryPath=Join-Path $repoRoot "$jobs/Background/Shared/NationalTeamOperationRegistry.cs"
 if ($backgroundEntry -match 'switch\s*\(\s*(request\.Operation|jobId)\s*\)' -or

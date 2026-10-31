@@ -7,7 +7,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
 
-internal static class EtfHolderCandidateChecks
+internal static partial class EtfHolderCandidateChecks
 {
     private static readonly EtfKey Key=new("SSE","510300");
     private static int passed;
@@ -35,12 +35,15 @@ internal static class EtfHolderCandidateChecks
         var efundUnknown=document with{Market="SZSE",Ticker="159915"};
         Check(EfundChiNextHolderPdf.Parse(new(efundUnknown,unknown)).State=="UnsupportedTemplate","159915未知原件保持未支持，不当作未披露或零持仓");
         Check(HarvestCsi300HolderPdf.Parse(new(document with{Market="SZSE",Ticker="159919"},unknown)).State=="UnsupportedTemplate","159919未知原件保持未支持，不截取半张表或补零");
+        Check(China50HolderPdf.Parse(new(document with{Ticker="510050"},unknown)).State=="UnsupportedTemplate","510050未知原件保持未支持，不冒充已知中报未披露");
         await EtfHolderCandidateUiChecks.RunAsync();
         RepositoryBoundary(Path.Combine(root,"boundary"),unknown);
         await ClientContracts();
+        await China50ClientContracts();
         if(sourceDirectory is not null)
         {
-            if(File.Exists(Path.Combine(sourceDirectory,"159919-2024.pdf")))await HarvestGolden(root,sourceDirectory);
+            if(File.Exists(Path.Combine(sourceDirectory,"510050-2024.pdf")))await China50Golden(root,sourceDirectory);
+            else if(File.Exists(Path.Combine(sourceDirectory,"159919-2024.pdf")))await HarvestGolden(root,sourceDirectory);
             else if(File.Exists(Path.Combine(sourceDirectory,"159915-2024.pdf")))await EfundGolden(root,sourceDirectory);
             else await Golden(root,sourceDirectory);
         }

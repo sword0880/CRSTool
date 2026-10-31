@@ -11,6 +11,7 @@ public partial class BackgroundServiceViewModel
     public ObservableCollection<TaskActivityItem> PendingTasks {get;}=[];
     [ObservableProperty] private string activityStatus="尚未查询当前任务。";
     private bool activityRefreshing;
+    // 先校验整份分页的观察时点与状态数量，再替换列表；读取失败保留并标明旧快照。
     public async Task RefreshTaskActivityAsync()
     {
         if(activityRefreshing||lifetime.IsCancellationRequested)return;

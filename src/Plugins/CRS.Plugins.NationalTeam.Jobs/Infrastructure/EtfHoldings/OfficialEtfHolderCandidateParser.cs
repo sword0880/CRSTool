@@ -9,6 +9,7 @@ internal sealed class OfficialEtfHolderCandidateParser : IEtfHolderCandidatePars
     {
         {Market:"SZSE",Ticker:"159915"}=>EfundChiNextHolderPdf.Parse(captured,token),
         {Market:"SZSE",Ticker:"159919"}=>HarvestCsi300HolderPdf.Parse(captured,token),
+        {Market:"SSE",Ticker:"510050"}=>China50HolderPdf.Parse(captured,token),
         _=>Huatai300HolderPdf.Parse(captured,token)
     };
 }
