@@ -26,7 +26,7 @@ public partial class EquityViewModel(IDirectEquityWorkspace workspace,Cancellati
     [ObservableProperty] private string nature="全部性质";
     [ObservableProperty] private bool favorites;
     [ObservableProperty] private string status="等待后台披露数据。";
-    [ObservableProperty] private string detailStatus="选择持仓查看披露时间线。";
+    [ObservableProperty] private string detailStatus="选择股票查看持有人，再选择账户查看披露时间线。";
     [ObservableProperty] private bool busy;
     [ObservableProperty] private EquityHoldingRow? selected;
     [ObservableProperty] private EquityWatch? selectedWatch;
@@ -63,12 +63,14 @@ public partial class EquityViewModel(IDirectEquityWorkspace workspace,Cancellati
     partial void OnFavoritesChanged(bool value)=>LoadTask=LoadRowsAsync();
     partial void OnSelectedChanged(EquityHoldingRow? value)
     {
+        if(rebuildingStocks)return;
+        if(value is not null)SyncStockSelection(value);
         ReportAsOf=null;Published=null;DocumentUrl="";Page="";OriginalConfirmed=false;Comparable=false;
         Strategic=value?.Nature=="Strategic";
         NatureConfirmed=false;
         ReviewInstitution=value is not null&&ReviewInstitutions.Contains(value.Institution)?value.Institution:null;
         SetStockAccounts(value);
-        DetailTask=LoadDetailAsync(value);
+        DetailTask=LoadDetailAsync(ShowEquityDetails?value:null);
     }
     partial void OnSelectedWatchChanged(EquityWatch? value)
     {if(value is not null){WatchMarket=value.Market;WatchTicker=value.Ticker;WatchName=value.Name;WatchActive=value.Active;WatchFavorite=value.Favorite;}}
@@ -85,22 +87,22 @@ public partial class EquityViewModel(IDirectEquityWorkspace workspace,Cancellati
         {
             var rows=await workspace.EquityHoldingsAsync(Search,Institution=="全部机构"?null:Institution,Nature switch{"证券投资持仓"=>"Portfolio","战略控股/参股"=>"Strategic","性质待核验"=>"Unknown",_=>null},Favorites,lifetime);
             if(version!=queryVersion||lifetime.IsCancellationRequested)return;
+            stockQueryFailed=false;
             Rows.Clear();foreach(var row in rows)Rows.Add(row);
             RebuildEquityOverview();
-            Selected=rows.FirstOrDefault(x=>x.Market==old?.Market&&x.Ticker==old.Ticker&&x.Account==old.Account&&x.State==old.State)
-                ??rows.FirstOrDefault(x=>x.Market==old?.Market&&x.Ticker==old.Ticker&&x.Account==old.Account);
-            if(Selected is null){Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);DetailStatus="选择持仓查看披露时间线。";}
-            Status=$"当前筛选 {rows.Count} 条 · 已核验 {rows.Count(x=>x.ReportAsOf.HasValue&&x.State is not ("Critical" or "NeedsReview" or "Conflict"))} 条 · 待核验 {rows.Count(x=>x.State is "NeedsReview" or "Conflict")} 条。观察列表仅代表采集范围，不代表机构已确认持有。";
+            RebuildStockList(old);
+            if(Selected is null){Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);DetailStatus="选择股票查看持有人，再选择账户查看披露时间线。";}
+            Status=$"已核验 {EquityStockList.Build(rows,true).Count} 只股票 · 待核验 {EquityStockList.Build(rows,false).Count} 只（含其他披露，在高级工具查看）。";
         }
         catch(OperationCanceledException) when(lifetime.IsCancellationRequested){}
-        catch(Exception error){if(version==queryVersion){Rows.Clear();RebuildEquityOverview();Selected=null;Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);Status="直接持股查询失败："+(error is System.IO.InvalidDataException?error.Message:error.GetType().Name);}}
+        catch(Exception error){if(version==queryVersion){stockQueryFailed=true;Rows.Clear();RebuildEquityOverview();RebuildStockList();Selected=null;Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);Status="直接持股查询失败："+(error is System.IO.InvalidDataException?error.Message:error.GetType().Name);}}
     }
     private async Task LoadDetailAsync(EquityHoldingRow? row)
     {
         var version=++detailVersion;Disclosures.Clear();Events.Clear();SelectedDisclosure=null;ClearEquityCharts();
         Reports.Clear();SelectedReport=null;
         ReportStatus=row is null?"选择股票后查找官方报告。":"正在读取已缓存的官方报告目录…";
-        if(row is null){DetailStatus="选择持仓查看披露时间线。";return;}
+        if(row is null){DetailStatus="选择股票查看持有人，再选择账户查看披露时间线。";return;}
         DetailStatus=$"{row.Ticker} {row.Name} · {row.Account} · 正在加载披露证据…";
         try
         {

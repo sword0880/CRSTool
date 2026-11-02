@@ -28,8 +28,8 @@ internal static class NamedEtfHoldingHistoryVisualPreview
                 try
                 {
                     window.Show();var frame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>frame.Continue=false));Dispatcher.PushFrame(frame);window.UpdateLayout();
-                    if(state=="empty")Find<TabControl>(Find<EtfHoldingHistoryView>(page)).SelectedIndex=1;window.UpdateLayout();var grid=Find<DataGrid>(page);var top=grid.TranslatePoint(new Point(),page).Y;
-                    if(grid.ActualHeight<420||top>270)throw new InvalidDataException("持仓页顶部挤占正文。");
+                    window.UpdateLayout();var grid=Find<DataGrid>(page);var top=grid.TranslatePoint(new Point(),page).Y;
+                    if(grid.ActualHeight<300||top>350||grid.Columns.Count!=5||model.AdvancedTools)throw new InvalidDataException("持仓简明页顶部挤占正文，或高级字段进入默认清单。");
                     var bitmap=new RenderTargetBitmap((int)(width*density),(int)(700*density),96*density,96*density,PixelFormats.Pbgra32);bitmap.Render(page);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var file=File.Create(Path.Combine(output,$"named-{state}-{width}-{(int)(density*100)}.png")))encoder.Save(file);
                     layouts.Add(new{State=state,Width=width,Density=density,TableHeight=grid.ActualHeight,TableTop=top,Rows=model.History.Rows.Count,Installed=false,Source="SyntheticNamedEtfHoldingHistory"});
                 }
@@ -45,5 +45,5 @@ public class NamedEtfHistoryPreviewProxy:DispatchProxy
 {
     public NamedEtfHoldingHistoryReport Snapshot{get;set;}=null!;
     protected override object? Invoke(MethodInfo? method,object?[]? args)=>method?.Name switch
-    {"get_CanManage"=>false,"EtfHoldingHistoryAsync"=>Task.FromResult(Snapshot),"EtfReportIndexAsync"=>Task.FromResult(new EtfReportIndexSnapshot(Snapshot.Input.Key,"NotSearched",null,null,null,null,null,[],EtfReportIndexSnapshot.Version)),_=>throw new InvalidOperationException("只读渲染禁止采集或批准："+method?.Name)};
+    {"get_CanManage"=>false,"EtfHoldingHistoryAsync"=>Task.FromResult(Snapshot),"OverviewAsync"=>Task.FromResult(new List<EtfSummary>{new(Snapshot.Input.Key.Market,Snapshot.Input.Key.Ticker,"合成ETF","fixture","市场观察",Snapshot.Input.AsOf,10000000,100000,-500000,0,"synthetic",20)}),"EtfReportIndexAsync"=>Task.FromResult(new EtfReportIndexSnapshot(Snapshot.Input.Key,"NotSearched",null,null,null,null,null,[],EtfReportIndexSnapshot.Version)),_=>throw new InvalidOperationException("只读渲染禁止采集或批准："+method?.Name)};
 }

@@ -15,6 +15,7 @@ internal static class HistoricalEquityUiChecks
         {
             var app=new Application();app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
             using var stop=new CancellationTokenSource(TimeSpan.FromSeconds(readOnly?90:45));var model=new EquityViewModel(readOnly?new WorkerEtfWorkspace():new WorkerEtfWorkspace(new BackgroundPipeClient(pipe)),stop.Token);var page=new EquityPage(model,false);
+            model.AdvancedTools=true;model.ShowEquityDetails=true;
             var window=new Window{Content=page,Width=1180,Height=850,ShowInTaskbar=false,ShowActivated=false,Title=readOnly?"历史披露正式只读核验":"历史原文登记隔离验证"};
             window.Loaded+=async(_,_)=>
             {

@@ -73,7 +73,7 @@ internal static class NamedEtfHoldingHistoryChecks
         await Model(report);Storage(Path.Combine(root,"storage"));Equity(Path.Combine(root,"equity"));await Background(Path.Combine(root,"background"));
         File.WriteAllText(Path.Combine(root,"acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,Source="SyntheticNamedHoldingHistory",WholePortfolioProven=false},new JsonSerializerOptions{WriteIndented=true}));
     }
-    private static NamedEtfHistoryInput Fixture()=>new(Key,Day,Cutoff,new(Key.Market,Key.Ticker,"synthetic-fund","synthetic-manager","synthetic-index",new(2026,1,1),Day,Url,Hash,"synthetic-reviewer",true),[
+    internal static NamedEtfHistoryInput Fixture()=>new(Key,Day,Cutoff,new(Key.Market,Key.Ticker,"synthetic-fund","synthetic-manager","synthetic-index",new(2026,1,1),Day,Url,Hash,"synthetic-reviewer",true),[
         Holding("first-a","legal-huijin",Huijin,"account-huijin",First,100),Holding("first-b","legal-safe",Safe,"account-safe",First,200),
         Holding("second-a","legal-huijin",Huijin,"account-huijin",Second,50),Holding("third-a","legal-huijin",Huijin,"account-huijin",Third,40),Holding("third-b","legal-safe",Safe,"account-safe",Third,150)]);
     private static NamedEtfHolding Holding(string id,string legal,string name,string account,DateOnly day,decimal shares)=>new(id,Key.Market,Key.Ticker,legal,name,account,day,Cutoff.AddDays(-2),Cutoff.AddDays(-1),shares,Url,Hash,"合成P10","synthetic-reviewer",true,true);

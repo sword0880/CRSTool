@@ -23,7 +23,19 @@ internal static class EquityUiChecks
                 try
                 {
                     await model.RefreshCommand.ExecuteAsync(null);if(model.Rows.Count!=3)throw new Exception("合成持股查询不完整。");
-                    model.Selected=model.Rows.First(x=>x.Institution=="汇金资管");await model.DetailTask;await Task.Delay(600);window.UpdateLayout();
+                    if(model.Stocks.Count!=1||model.Stocks[0].AccountCount!=2||model.StockHolders.Count!=0)throw new Exception("正式股票清单重复股票或把未列示算成持有人。");
+                    var stockGrid=Descendants(page).OfType<System.Windows.Controls.DataGrid>().Single(x=>ReferenceEquals(x.ItemsSource,model.Stocks));
+                    window.UpdateLayout();
+                    if(Descendants(page).OfType<System.Windows.Controls.TabControl>().Single(x=>x.Items.OfType<System.Windows.Controls.TabItem>().Any(t=>Equals(t.Header,"持有人"))).IsVisible)throw new Exception("未选择股票时空详情占用清单空间。");
+                    stockGrid.SelectedItem=model.Stocks.Single();await model.DetailTask;await Task.Delay(600);window.UpdateLayout();
+                    if(model.StockHolders.Count!=2||model.SelectedStock?.Ticker!="600036"||model.DetailTabIndex!=0)throw new Exception("点击股票没有先展开持有人。");
+                    var holderGrid=Descendants(page).OfType<System.Windows.Controls.DataGrid>().Single(x=>ReferenceEquals(x.ItemsSource,model.StockHolders));
+                    if(stockGrid.Columns.Count!=5||holderGrid.Columns.Count!=5||model.AdvancedTools||model.ShowEquityDetails||model.Events.Count!=0)throw new Exception("默认清单或持有人页面没有保持简洁，或提前加载了高级详情。");
+                    var mainTabs=Descendants(page).OfType<System.Windows.Controls.TabControl>().Single(x=>x.Items.OfType<System.Windows.Controls.TabItem>().Any(t=>Equals(t.Header,"股票清单")));
+                    if(mainTabs.Items.OfType<System.Windows.Controls.TabItem>().Count(x=>x.Visibility==System.Windows.Visibility.Visible)!=1)throw new Exception("高级功能挤入默认页签。");
+                    Capture(page,Path.Combine(root,"equity-simple-synthetic.png"));
+                    model.AdvancedTools=true;model.ShowEquityDetails=true;await model.DetailTask;
+                    model.Selected=model.StockHolders.First(x=>x.Institution=="汇金资管");await model.DetailTask;
                     if(!model.ComparisonStatus.Contains("2026-03-31"))throw new Exception("审核界面未显示实际比较前期。");
                     model.Comparable=true;model.ReportAsOf=new DateTime(2026,3,31);
                     if(model.Comparable||!model.ComparisonStatus.Contains("尚无已核验前期"))throw new Exception("修改报告时点沿用了旧可比确认。");
@@ -37,6 +49,10 @@ internal static class EquityUiChecks
                     var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(page);
                     var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
                     var output=Path.Combine(root,"equity-page-synthetic.png");using(var file=File.Create(output))encoder.Save(file);
+                    model.DetailTabIndex=1;await Task.Delay(200);window.UpdateLayout();
+                    var chartBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);chartBitmap.Render(page);
+                    var chartEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();chartEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(chartBitmap));
+                    using(var file=File.Create(Path.Combine(root,"equity-charts-synthetic.png")))chartEncoder.Save(file);
                     model.MainTabIndex=1;await Task.Delay(200);window.UpdateLayout();
                     var matrixBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);matrixBitmap.Render(page);
                     var matrixEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();matrixEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(matrixBitmap));
@@ -66,7 +82,7 @@ internal static class EquityUiChecks
                     if(candidate?.Id!=model.Selected.DisclosureId||model.SelectedDisclosure!=candidate||model.SelectedEvent is not null)throw new Exception("图表默认选择或单位切换覆盖了待审候选。");
                     var detachedAxis=model.HoldingAxes.First();
                     model.Institution="养老保险基金";await model.LoadTask;if(model.Rows.Count!=1||model.Rows[0].State!="NotListed")throw new Exception("机构筛选未保持未知持仓。");
-                    model.Search="无此组合";await model.LoadTask;if(model.Rows.Count!=0||model.HoldingSeries.Length!=0||model.DeltaSeries.Length!=0||model.Disclosures.Count!=0||model.Events.Count!=0||model.Matrix.Count!=0||model.StockAccounts.Count!=0||model.Reports.Count!=0)throw new Exception("空结果残留旧详情。");
+                    model.Search="无此组合";await model.LoadTask;if(model.Rows.Count!=0||model.Stocks.Count!=0||model.StockHolders.Count!=0||model.SelectedStock is not null||model.HoldingSeries.Length!=0||model.DeltaSeries.Length!=0||model.Disclosures.Count!=0||model.Events.Count!=0||model.Matrix.Count!=0||model.StockAccounts.Count!=0||model.Reports.Count!=0)throw new Exception("空结果残留旧详情。");
                     if(detachedAxis is not null)detachedAxis.MinLimit=.25;
                     CheckUnsafeChartInputs(new LocalResearchWorkspace(workspace));
                     Console.WriteLine("PASS 真实WPF直接持股：上下图、比例、联动缩放、组合切换、矩阵、空结果及不安全输入隔离；截图为合成数据。");
@@ -94,5 +110,10 @@ internal static class EquityUiChecks
             var child=System.Windows.Media.VisualTreeHelper.GetChild(parent,i);yield return child;
             foreach(var nested in Descendants(child))yield return nested;
         }
+    }
+    private static void Capture(System.Windows.FrameworkElement page,string path)
+    {
+        page.UpdateLayout();var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)page.ActualWidth,(int)page.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(page);
+        var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));using var file=File.Create(path);encoder.Save(file);
     }
 }

@@ -21,7 +21,7 @@ public static class NationalTeamWorkspaceCatalog
     {
         var result=new NationalTeamWorkspaceItem[]{
             new("etf-monitor","holdings","ETF份额与市场成交","ETF全市场份额不是中央汇金独立持仓。",()=>new EtfPage(etfs)),
-            new("etf-institution-holdings","holdings","机构ETF持仓","按配置池查找官方报告；报告目录、原件候选和人工批准分开。",()=>new EtfHoldingsPage(holdings)),
+            new("etf-institution-holdings","holdings","机构ETF持仓","ETF整体份额与机构报告期持仓并排对照，份额变化不归因机构交易。",()=>{holdings.PreferFund(etfs.Selected is {} selected?new(selected.Market,selected.Ticker):null);return new EtfHoldingsPage(holdings);}),
             new("direct-equity","holdings","机构直接持股","公告报告期快照不等于逐日真实成交。",()=>new EquityPage(equity)),
             new("nav-study","holdings","NAV与份额金额","同日净值估算为基金整体观察，不能归因国家队成交。",()=>new NavStudyPage(nav)),
             new("industry-pe","industry","全行业公布PE","国证一级行业剔亏PE的短区间历史位置不等于低估。",()=>new IndustryResearchPage(industry)),

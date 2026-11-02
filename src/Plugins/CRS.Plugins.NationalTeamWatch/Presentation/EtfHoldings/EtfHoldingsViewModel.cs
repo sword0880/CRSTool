@@ -6,7 +6,7 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
-/// <summary>展示配置ETF的目录及后台请求状态，不下载、解析或计算持仓。</summary>
+/// <summary>选择ETF后协调份额与已核披露读取，目录按需展开；不下载原文或计算持仓。</summary>
 public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfResearchWorkspace etfs,CancellationToken lifetime):ObservableObject
 {
     public EtfHoldingHistoryViewModel History {get;}=new(workspace,lifetime);
@@ -29,21 +29,23 @@ public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfRe
     partial void OnSelectedFundChanged(EtfConfiguration? value)
     {
         History.Fund=value;
+        ShareSummary=null;ShareStatus=value is null?"请选择ETF。":"正在读取ETF整体份额…";
+        Reports.Clear();SelectedReport=null;indexHealthy=false;
         if(settingFunds)return;
         SearchReportsCommand.NotifyCanExecuteChanged();
         if(value is null){Cancel();Reports.Clear();SelectedReport=null;indexHealthy=false;Status="请选择ETF。";return;}
-        LoadTask=RunAsync(token=>ReadIndexAsync(value,token));
+        LoadTask=RunAsync(token=>ReadFundAsync(value,token));
     }
     [RelayCommand]
     private Task Refresh()=>RunAsync(async token=>
     {
-        var selected=SelectedFund;var rows=await etfs.ConfigurationAsync(token);token.ThrowIfCancellationRequested();
+        var selected=preferredFund??(SelectedFund is {} current?new EtfKey(current.Market,current.Ticker):null);var rows=await etfs.ConfigurationAsync(token);token.ThrowIfCancellationRequested();preferredFund=null;
         settingFunds=true;
         try{Funds.Clear();foreach(var row in rows.Where(x=>x.Active))Funds.Add(row);SelectedFund=Funds.FirstOrDefault(x=>x.Market==selected?.Market&&x.Ticker==selected.Ticker)??Funds.FirstOrDefault();}
         finally{settingFunds=false;}
         SearchReportsCommand.NotifyCanExecuteChanged();
-        if(SelectedFund is {} fund)await ReadIndexAsync(fund,token);
-        else{Reports.Clear();SelectedReport=null;indexHealthy=false;Status="当前没有启用的监控ETF，请先调整ETF配置。";}
+        if(SelectedFund is {} fund)await ReadFundAsync(fund,token);
+        else{ShareSummary=null;ShareStatus="当前没有启用的监控ETF。";Reports.Clear();SelectedReport=null;indexHealthy=false;Status="当前没有启用的监控ETF，请先调整ETF配置。";}
     });
     private async Task ReadIndexAsync(EtfConfiguration fund,CancellationToken token)
     {
@@ -81,5 +83,5 @@ public partial class EtfHoldingsViewModel(IEtfHoldingsWorkspace workspace,IEtfRe
         finally{if(version==generation)Busy=false;}
     }
     [RelayCommand]
-    public void Cancel(){generation++;operation?.Cancel();operation?.Dispose();operation=null;Busy=false;History.Cancel();Status="已取消页面等待；已受理后台任务须在任务中心核对。";}
+    public void Cancel(){generation++;operation?.Cancel();operation?.Dispose();operation=null;Busy=false;History.Cancel();ShareSummary=null;ShareStatus="已取消本次读取；后台采集继续运行。";Status="已取消页面等待；已受理后台任务须在任务中心核对。";}
 }

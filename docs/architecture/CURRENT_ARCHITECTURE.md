@@ -6,6 +6,8 @@
 
 2026-10-28 具名ETF多期持仓加入EtfHoldings功能：逐期变化、未列示未知、最新披露子集和排除原因分别展示；最新期冲突或原件异常不回退。Core统一ETF/股票主体目录，增加梧桐树具名平台及大基金三期法人，人工核验与完整组合门槛保留。联合规则升为v1.1、报告v2；见[具名披露历史与限制](../implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
 
+2026-11-01 机构持仓日常入口简化：股票清单点击查看持有人；机构ETF自动并排读取整体1/5/20日份额及最新已核机构披露，报告目录和核验资料按需展开。Core控制最新有效披露子集，Watch只读协调与联动，复用既有Worker合同。正式持股与其他披露/待核验分开，不合计跨账户股数、不把未列示解释为清仓，也不把整体份额归因机构交易。见[持仓易用性](../implementation/NATIONAL_TEAM_HOLDINGS_USABILITY_20261101.md)与[股票清单整改](../implementation/NATIONAL_TEAM_EQUITY_STOCK_LIST_20261101.md)。
+
 2026-10-28 “周期与风险”增加联合退出观察：按当前配置池单只ETF，在同一读快照串接份额/NAV、具名下界、周期成交、直接持股样本及行业PE。Core拥有归一共现规则，Jobs拥有协调读，Watch展示及重算；缺失关闭判断，不发退出通知。历史时点、模型及真实全池覆盖仍未验证，见[联合观察](../implementation/NATIONAL_TEAM_JOINT_EXIT_STUDY_20261028.md)。
 
 2026-10-28 广度档案补齐页面登记、独立人工核验、冲突选定与原件导出。共用文件暂存/严格JSON进入Common，客户端传输进入Worker.Ipc，授权和私有目录装配进入Worker.Service；插件仅定义用途、金融档案及审核事件。登记不自动批准，规则仅读取所需六日广度窗口；正式数据与模型门槛仍开放，见[广度工作流](../implementation/NATIONAL_TEAM_BREADTH_WORKFLOW_20261028.md)。

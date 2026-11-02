@@ -88,6 +88,8 @@ if(args is ["--market-live"]){await MarketActivityChecks.RunLive(Path.Combine(En
 if(args is ["--market-sync-diagnostics"]){await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(Path.GetTempPath(),"CRS.MarketSyncDiagnostics",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--scoped-evidence"]){ScopedEvidenceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ScopedEvidence",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--chart-gap-ui"]){EtfChartChecks.RunGapUi();return;}
+if(args is ["--equity-stock-list"]){await EquityStockListChecks.RunAsync();return;}
+if(args is ["--holdings-usability"]){await EtfHoldingsUsabilityChecks.RunAsync();return;}
 if(args is ["--equity-ui"]){EquityUiChecks.Run();return;}
 if(args is ["--p0-live-audit"]){await P0LiveAcceptanceChecks.Run();return;}
 if(args is ["--p0-equity-case"]){await P0LiveAcceptanceChecks.EquityCase();return;}
@@ -158,6 +160,8 @@ await NamedEtfHoldingHistoryChecks.RunAsync(Path.Combine(root,"named-etf-history
 await MarketBreadthWorkflowChecks.RunAsync(Path.Combine(root,"breadth-workflow"));
 await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
+await EquityStockListChecks.RunAsync();
+await EtfHoldingsUsabilityChecks.RunAsync();
 await EquityDirectionChecks.RunAsync(Path.Combine(root,"equity-direction"));
 HistoricalEquityChecks.CatalogContracts(Path.Combine(root,"historical-catalog"));
 EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(root,"evidence-adversarial"));

@@ -10,18 +10,29 @@ namespace CRS.Plugins.NationalTeamWatch.Presentation;
 public partial class EtfHoldingHistoryViewModel(IEtfHoldingsWorkspace workspace,CancellationToken lifetime):ObservableObject
 {
     public ObservableCollection<NamedEtfHoldingHistoryDisplayRow> Rows {get;}=[];
+    public ObservableCollection<NamedEtfHoldingHistoryDisplayRow> CurrentRows {get;}=[];
     public ObservableCollection<NamedEtfFamilyDisplayRow> Families {get;}=[];
     public ObservableCollection<string> SelectionDetails {get;}=[];
     [ObservableProperty]private EtfConfiguration? fund;
     [ObservableProperty]private DateTime? asOf=CRS.Timing.BeijingClock.Today.AddDays(-1);
-    [ObservableProperty]private NamedEtfHoldingHistoryReport? report;
-    [ObservableProperty]private string status="选择ETF及已结束统计日，手动读取已核披露。";
-    [ObservableProperty,NotifyCanExecuteChangedFor(nameof(QueryCommand)),NotifyCanExecuteChangedFor(nameof(CancelCommand))]private bool busy;
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(CurrentStatus))]private NamedEtfHoldingHistoryReport? report;
+    [ObservableProperty]private bool showDetails;
+    [ObservableProperty]private int detailTabIndex;
+    partial void OnShowDetailsChanged(bool value){if(!value)DetailTabIndex=0;}
+    [ObservableProperty]private string status="选择ETF后自动读取机构披露。";
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(CurrentStatus)),NotifyCanExecuteChangedFor(nameof(QueryCommand)),NotifyCanExecuteChangedFor(nameof(CancelCommand))]private bool busy;
+    public string CurrentStatus=>Report is not {} value?(Busy?"正在读取机构披露…":Status.Contains("不可用")?"机构披露暂不可用，请稍后刷新。":Status):value.Baseline.State switch
+    {
+        "LatestReviewedDisclosedSubset"=>$"机构披露 · 报告期 {value.Baseline.ReportAsOf:yyyy-MM-dd} · {CurrentRows.Count} 个已核账户（仅披露样本）",
+        "LatestBaselineUnavailable"=>"最新报告期证据异常或待核验，暂不能判断机构持仓方向。",
+        _=>"暂无可用的已核机构披露，机构持仓方向未知。"
+    };
+    partial void OnStatusChanged(string value)=>OnPropertyChanged(nameof(CurrentStatus));
     public bool CanQuery=>!Busy&&Fund is {Active:true};public bool CanCancel=>Busy;
     private int version;private CancellationTokenSource? operation;
     partial void OnFundChanged(EtfConfiguration? value){Invalidate();QueryCommand.NotifyCanExecuteChanged();}
     partial void OnAsOfChanged(DateTime? value)=>Invalidate();
-    private void Clear(){Report=null;Rows.Clear();Families.Clear();SelectionDetails.Clear();}
+    private void Clear(){Report=null;Rows.Clear();CurrentRows.Clear();Families.Clear();SelectionDetails.Clear();}
     private void Invalidate(){version++;operation?.Cancel();Clear();Status="条件已改变，请重新读取。";}
     [RelayCommand(CanExecute=nameof(CanCancel))]public void Cancel(){version++;operation?.Cancel();Clear();Status="已取消本次读取；后台采集继续运行。";}
     [RelayCommand(CanExecute=nameof(CanQuery))]private Task Query()=>ReadAsync();
@@ -36,6 +47,7 @@ public partial class EtfHoldingHistoryViewModel(IEtfHoldingsWorkspace workspace,
             if(stamp!=version||lifetime.IsCancellationRequested)return;current.Token.ThrowIfCancellationRequested();
             if(next.Input.Key!=key||next.Input.AsOf!=through)throw new InvalidDataException("后台持仓历史与当前ETF或统计日不符。");
             Report=next;foreach(var row in next.Rows)Rows.Add(new(row));foreach(var family in next.Families)Families.Add(new(family));
+            foreach(var row in NamedEtfHoldingOverview.Latest(next))CurrentRows.Add(new(row));
             foreach(var item in next.Baseline.Issues)SelectionDetails.Add(item);
             foreach(var item in next.Baseline.Exclusions)SelectionDetails.Add(item.HoldingId+" · "+Reason(item.Reason));
             Status=$"{Rows.Count}条披露/缺口记录 · 基准{(next.Baseline.ReportAsOf is {} day?day.ToString("yyyy-MM-dd"):"未知")} · 仅{next.Baseline.Holdings.Count}个已核披露账户，完整持仓未证明 · 北京快照{CRS.Timing.BeijingTime.Format(next.Input.SnapshotCutoff)}";
@@ -49,6 +61,7 @@ public partial class EtfHoldingHistoryViewModel(IEtfHoldingsWorkspace workspace,
 }
 public sealed record NamedEtfHoldingHistoryDisplayRow(NamedEtfHistoryRow Value)
 {
+    public string Direction=>Value.State switch{"Increased"=>"增加","Decreased"=>"减少","Unchanged"=>"持平","FirstDisclosedPreviousUnknown"=>"首次披露",_=>"无法比较"};
     public string Status=>Value.State switch{"Increased"=>"报告期间增加","Decreased"=>"报告期间减少","Unchanged"=>"两期持平","NotDisclosed"=>"本期未列示，持仓未知","NotComparable"=>"可比性未核验","ConflictingDisclosures"=>"同一期披露冲突","AmbiguousLegalIdentity"=>"法人身份存在冲突","EvidenceUnavailable"=>"原件或独立持有待核验","PreviousEvidenceUnavailable"=>"前期证据不可用","IdentityChanged"=>"法人名称变更待核验",_=>"首次列示，前值未知"};
     public string References=>string.Join("\n",Value.EvidenceIds);
 }
