@@ -32,6 +32,13 @@ internal static class SourceBudgetChecks
         {
             var a=new WorkerPluginContext("plugin-a",root,key,sources:registry);
             var b=new WorkerPluginContext("plugin-b",root,key,sources:registry);
+            // 南向第三方来源共用宿主持久预算，其拒绝不得影响任何交易所来源。
+            var southbound=await a.AcquireSourceAsync("datacenter-web.eastmoney.com",Empty,default);
+            var southboundQueued=b.AcquireSourceAsync("datacenter-web.eastmoney.com",Empty,default);
+            Check(!southboundQueued.IsCompleted,"南向来源跨插件串行，不创建独立旁路");
+            southbound.Complete(403);southbound.Dispose();await Denied(southboundQueued,"SourceCooldown");
+            Check(registry.Snapshot().Single(x=>x.Source=="EASTMONEY-SOUTHBOUND").State=="Cooldown"
+                &&registry.Snapshot().Single(x=>x.Source=="SSE").State!="Cooldown","南向来源冷却不污染交易所预算");
             // 行业来源独立串行且冷却持久，不能借基金或交易所预算绕过拒绝。
             var industry=await a.AcquireSourceAsync("www.cnindex.com.cn",Empty,default);
             var industryQueued=b.AcquireSourceAsync("hq.cnindex.com.cn",Empty,default);

@@ -18,6 +18,7 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
     private EtfHoldingsViewModel? holdings;
     private MarketCycleStudyViewModel? cycle;
     private JointExitStudyViewModel? joint;
+    private SouthboundViewModel? southbound;
     public ValueTask StartAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
@@ -26,6 +27,7 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
         equity=new(new WorkerEtfWorkspace(),lifetime.Token);
         industry=new(new WorkerEtfWorkspace(),lifetime.Token);
         indices=new(new WorkerEtfWorkspace(),lifetime.Token);
+        southbound=new(new WorkerEtfWorkspace(),lifetime.Token);
         cycle=new(new WorkerEtfWorkspace(),lifetime.Token);
         var jointWorkspace=new WorkerEtfWorkspace();joint=new(jointWorkspace,jointWorkspace,lifetime.Token);
         var navWorkspace=new WorkerEtfWorkspace();nav=new(navWorkspace,navWorkspace,lifetime.Token);
@@ -36,8 +38,8 @@ internal sealed class NationalTeamUiSession:IPluginSession,IPluginWpfSession
     public IReadOnlyList<PluginPageContribution> GetPages()=>[
         // 唯一主菜单入口；模块在工作台内按证据链分类，页面仅在选中时创建。
         new("national-team-workspace","国家队研究工作台",()=>new NationalTeamWorkspacePage(
-            NationalTeamWorkspaceCatalog.Create(model!,equity!,industry!,indices!,nav!,holdings!,cycle!,joint!)))
+            NationalTeamWorkspaceCatalog.Create(model!,equity!,industry!,indices!,nav!,holdings!,cycle!,joint!,southbound!)))
     ];
     public ValueTask StopAsync(CancellationToken token){lifetime.Cancel();return ValueTask.CompletedTask;}
-    public ValueTask DisposeAsync(){lifetime.Cancel();holdings?.Cancel();lifetime.Dispose();model=null;equity=null;industry=null;indices=null;nav=null;holdings=null;cycle=null;joint=null;return ValueTask.CompletedTask;}
+    public ValueTask DisposeAsync(){lifetime.Cancel();holdings?.Cancel();southbound?.Cancel();lifetime.Dispose();model=null;equity=null;industry=null;indices=null;nav=null;holdings=null;cycle=null;joint=null;southbound=null;return ValueTask.CompletedTask;}
 }

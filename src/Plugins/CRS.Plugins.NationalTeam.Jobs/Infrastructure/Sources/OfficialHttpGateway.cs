@@ -16,7 +16,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly object policyGate=new();
     private readonly Dictionary<string,SemaphoreSlim> sourceGates=new(StringComparer.Ordinal)
-        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)},{"ISSUER-601398",new(1)},{"ISSUER-601288",new(1)},{"ISSUER-603195",new(1)},{"EFUNDS",new(1)},{"CNINDEX",new(1)}};
+        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)},{"ISSUER-601398",new(1)},{"ISSUER-601288",new(1)},{"ISSUER-603195",new(1)},{"EFUNDS",new(1)},{"CNINDEX",new(1)},{"EASTMONEY-SOUTHBOUND",new(1)}};
     // 基金官网与其CDN共用一个预算；不能把未知域名默认归入已授权发行人。
     private static string Source(string host)=>host switch
     {
@@ -30,6 +30,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
         "www.gongniu.cn" or "gnstaticcdn.gongniukaiguan.net"=>"ISSUER-603195",
         "www.efunds.com.cn" or "cdn.efunds.com.cn"=>"EFUNDS",
         "www.cnindex.com.cn" or "hq.cnindex.com.cn"=>"CNINDEX",
+        "datacenter-web.eastmoney.com"=>"EASTMONEY-SOUTHBOUND",
         _=>throw new InvalidOperationException("来源域名未登记。")
     };
     private (DateTimeOffset Next,DateTimeOffset Blocked,int Failures) ReadPolicy(string host){lock(policyGate)return policy.Read(host);}
@@ -59,7 +60,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
     }
     public Func<EtfProgress,Task>? Progress {get;set;}
     // 基金NAV及行业统计不属于两市份额；来源组由共享预算记录，不能借Market字段误标为深市。
-    private Task ReportAsync(string stage,Uri uri,int? status=null,DateTimeOffset? until=null)=>Progress?.Invoke(new(stage,Market:EfundsNavResearch.IsSource(uri)||OfficialIndustryPeSource.IsSource(uri)||OfficialIndexSeriesSource.IsSource(uri)?null:uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)||OfficialEquityDocuments.IsReviewedIssuer(uri)?"SSE":"SZSE",HttpStatus:status,Until:until))??Task.CompletedTask;
+    private Task ReportAsync(string stage,Uri uri,int? status=null,DateTimeOffset? until=null)=>Progress?.Invoke(new(stage,Market:EfundsNavResearch.IsSource(uri)||OfficialIndustryPeSource.IsSource(uri)||OfficialIndexSeriesSource.IsSource(uri)||SouthboundHistorySource.IsSource(uri)?null:uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)||OfficialEquityDocuments.IsReviewedIssuer(uri)?"SSE":"SZSE",HttpStatus:status,Until:until))??Task.CompletedTask;
     /// <summary>测试可注入固定响应；正式入口只使用禁重定向的默认传输。</summary>
     public OfficialHttpGateway(ISourceRequestPolicy policy, HttpMessageHandler? transport = null,IBackgroundSourceContext? sources=null)
     {
@@ -93,7 +94,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
     private async Task<PublicHttpResponse> RequestAsync(Uri uri,byte[]? jsonBody,CancellationToken cancellationToken)
     {
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0
-            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)&&!EfundsNavResearch.IsSource(uri)&&!OfficialIndustryPeSource.IsSource(uri)&&!OfficialIndexSeriesSource.IsSource(uri)) throw new InvalidOperationException("Public source not allowed.");
+            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)&&!EfundsNavResearch.IsSource(uri)&&!OfficialIndustryPeSource.IsSource(uri)&&!OfficialIndexSeriesSource.IsSource(uri)&&!SouthboundHistorySource.IsSource(uri)) throw new InvalidOperationException("Public source not allowed.");
         var gate=sourceGates[Source(uri.Host)];
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -181,6 +182,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
             if(OfficialEquityDocuments.IsReviewedIssuer(uri))request.Headers.Referrer=OfficialEquityDocuments.IssuerReferrer(uri);
             if(EfundsNavResearch.IsSource(uri))request.Headers.Referrer=new(EfundsNavResearch.ProductUrl);
             if(OfficialIndexSeriesSource.IsSource(uri))request.Headers.Referrer=OfficialIndexSeriesSource.UnitsSource;
+            if(SouthboundHistorySource.IsSource(uri))request.Headers.Referrer=new(SouthboundHistorySource.ProviderPage);
             return await transport.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token).ConfigureAwait(false);
         }
         if(directHosts.ContainsKey(uri.Host))return await Send(directClient).ConfigureAwait(false);

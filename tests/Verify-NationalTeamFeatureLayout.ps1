@@ -43,12 +43,12 @@ Assert-OnlyExpectedRootCode "$jobs/Background" @('NationalTeamBackgroundEntry.cs
 # IPC客户端按功能归档，后台用例不实现这些客户端合同。
 $workerRoot = Join-Path $repoRoot "$ui/Application/Worker"
 $workerFiles = @(Get-ChildItem -LiteralPath $workerRoot -Recurse -File -Filter 'WorkerEtfWorkspace*.cs')
-foreach ($feature in @('Etf','EtfHoldings','Equity','ExitAlerts','IndustryValuation','MarketCycle','Nav')) {
+foreach ($feature in @('Etf','EtfHoldings','Equity','ExitAlerts','IndustryValuation','MarketCycle','Nav','Southbound')) {
     if (-not @($workerFiles | Where-Object { $_.Directory.Name -eq $feature }).Count) { throw "Worker workspace feature is missing: $feature" }
 }
 foreach ($file in $workerFiles) {
     $relative = $file.FullName.Substring($repoRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
-    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|EtfHoldings|Equity|ExitAlerts|IndustryValuation|MarketCycle|Nav)/WorkerEtfWorkspace[^/]*\.cs$') {
+    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|EtfHoldings|Equity|ExitAlerts|IndustryValuation|MarketCycle|Nav|Southbound)/WorkerEtfWorkspace[^/]*\.cs$') {
         throw ("Worker workspace partial is not grouped by feature: " + $relative)
     }
 }
@@ -81,7 +81,8 @@ $portFiles = @(
     "$core/Application/IndustryValuation/IIndustryValuationWorkspace.cs",
     "$core/Application/MarketCycle/IMarketCycleWorkspace.cs",
     "$core/Application/Nav/INavWorkspace.cs",
-    "$core/Application/ExitAlerts/IExitAlertWorkspace.cs"
+    "$core/Application/ExitAlerts/IExitAlertWorkspace.cs",
+    "$core/Application/Southbound/ISouthboundWorkspace.cs"
 )
 foreach ($port in $portFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $port) -PathType Leaf)) {
@@ -275,7 +276,7 @@ if ($backgroundEntry -match 'switch\s*\(\s*(request\.Operation|jobId)\s*\)' -or
 }
 $moduleHandlers=@(Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Background") -Recurse -File -Filter '*.Handlers.cs')
 foreach ($handlerFile in $moduleHandlers) {
-    if ($handlerFile.Directory.Name -notin @('Etf','EtfHoldings','Equity','ExitAlerts','IndustryValuation','MarketCycle','Nav','Evidence')) {
+    if ($handlerFile.Directory.Name -notin @('Etf','EtfHoldings','Equity','ExitAlerts','IndustryValuation','MarketCycle','Nav','Evidence','Southbound')) {
         throw "Business handler is outside its feature module: $($handlerFile.FullName)"
     }
 }

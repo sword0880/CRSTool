@@ -1,5 +1,7 @@
 # 当前架构状态
 
+2026-11-03源码增量：[南向买入年度折线](../implementation/SOUTHBOUND_ANNUAL_COMPARISON_20261103.md)新增独立Southbound模块及固定第三方来源预算；默认最近五年、相同月日对比每日买入金额。正式服务未部署，以下既有发行及开放风险不因此改变。
+
 更新：2026-10-31。本文件是模块边界、未关闭高风险、正式部署及证据的唯一当前索引；实施文档保留历史。时刻均为北京时间，源码、隔离回放、正式后台和金融审核分别验收。
 
 当前正式发行：代次`c84d1bf74522495fa91a4cf4ce3a272b`于2026-10-31 19:58:15 Committed，PID42984 / Running / Auto / LocalService。新旧程序各182项、6051份快照及原密钥摘要逐项通过；7项计划、24只ETF配置、29条股票投影、10条旧执行和原11份登记原件逐项保留。索引SHA256：`C681100F7D077FDAB52F85277CE82BCD6E6299D35D61DF8E3C0B716DA5302800`。见[正式汇总](../../artifacts/china50-holders-20261031/acceptance.json)、[保全回执](../../artifacts/china50-holders-installed-20261031/preservation-acceptance.json)及[最终健康](../../artifacts/china50-holders-installed-20261031/final-health.json)。未恢复旧库或删除归档。

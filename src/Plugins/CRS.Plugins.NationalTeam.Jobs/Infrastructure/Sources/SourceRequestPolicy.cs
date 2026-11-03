@@ -35,7 +35,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
                 PRAGMA user_version=1;
                 """;
             command.ExecuteNonQuery();
-            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","gnstaticcdn.gongniukaiguan.net","www.efunds.com.cn","www.cnindex.com.cn"})_=Read(host);
+            foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","gnstaticcdn.gongniukaiguan.net","www.efunds.com.cn","www.cnindex.com.cn","datacenter-web.eastmoney.com"})_=Read(host);
         }
         catch { db.Dispose(); throw; }
     }
@@ -56,6 +56,8 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
         // 国证独立持久预算，不借用深交所额度；限定请求路径仍由网关负责。
         // 官网与其行情域名共用CNINDEX预算和冷却，不能借行情子域名绕过网站拒绝。
         "www.cnindex.com.cn" or "hq.cnindex.com.cn" => "CNINDEX",
+        // 第三方南向历史成交使用独立预算；路径和字段仍由固定数据合同限制。
+        "datacenter-web.eastmoney.com" => "EASTMONEY-SOUTHBOUND",
         _ => throw new ArgumentException("不支持的来源。")
     };
 

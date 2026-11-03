@@ -15,12 +15,14 @@ public sealed class NationalTeamApplication : IAsyncDisposable
     public NavUseCases Nav {get;}
     public EvidenceUseCases Evidence {get;}
     public MarketCycleStudyUseCases Cycle {get;}
+    public SouthboundUseCases Southbound {get;}
     public NationalTeamApplication(IPluginHostContext context,Func<IMarketRepository> factory,IRawEvidenceStore raw,IEtfHolderCandidateParser holderParser)
     {
         if(raw is not IRawEvidenceVerifier||raw is not IRawEvidenceStability)throw new NotSupportedException("后台原件存储缺少必需的完整核验或稳定租约能力。");
         session=new(factory);Etf=new(session,context,raw);Equity=new(session);Alerts=new(session,raw);
         Industry=new(session);Index=new(session);Activity=new(session);Nav=new(session);Evidence=new(session,raw);Holdings=new(session,holderParser);
         Cycle=new(session);
+        Southbound=new(session);
     }
     public void SetProgressSink(Func<EtfProgress,Task>? sink)=>session.Progress=sink;
     public Task InitializeAsync(CancellationToken token)=>session.InitializeAsync(token);

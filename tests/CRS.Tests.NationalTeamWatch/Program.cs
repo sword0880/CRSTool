@@ -2,6 +2,9 @@ using System.Text;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
+if(args is ["--southbound",var southboundRoot]){await SouthboundChecks.RunAsync(southboundRoot);return;}
+if(args is ["--southbound-live",var southboundLiveRoot]){await SouthboundChecks.CaptureLiveAsync(southboundLiveRoot);return;}
+if(args is ["--southbound-read",var southboundReadRoot]){SouthboundChecks.ReadCaptured(southboundReadRoot);return;}
 static void Check(bool condition,string name) {if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 static void Reject(Action action,string name) {try{action();}catch(Exception){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
 if(args is ["--common-time"]){CommonTimeChecks.Run();return;}
