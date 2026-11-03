@@ -8,6 +8,7 @@ using CRS.Worker.Service;
 using CRS.Plugins.NationalTeamWatch;
 using CRS.Plugins.NationalTeamWatch.Application;
 using Microsoft.Data.Sqlite;
+if(args is ["--southbound-installed",var southboundAction,var southboundOutput]){await SouthboundInstalledTool.RunAsync(southboundAction,southboundOutput);return;}
 
 if(args is ["--fixture-execution-history",var fixtureData,var fixtureOutput])
 {

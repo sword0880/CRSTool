@@ -9,8 +9,12 @@ using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Presentation;
+using LiveChartsCore;
 using LiveChartsCore.Defaults;
+using LiveChartsCore.Drawing;
+using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.WPF;
 
 internal static class SouthboundUiChecks
 {
@@ -35,19 +39,25 @@ internal static class SouthboundUiChecks
                 }
                 finally{plugin.StopAsync(default).GetAwaiter().GetResult();plugin.DisposeAsync().AsTask().GetAwaiter().GetResult();}
                 var proxy=new Workspace(report);using var life=new CancellationTokenSource();var model=new SouthboundViewModel(proxy,life.Token);
-                window=new(){Title="南向年内累计净买入 · 真实公开数据隔离验证",Content=new SouthboundPage(model,false),Width=1100,Height=790,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};
+                window=new(){Title="南向年内累计净买入 · 真实公开数据隔离验证",Content=new SouthboundPage(model,false){Background=SystemColors.WindowBrush},Width=1100,Height=790,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};
                 window.Show();Pump(model.QueryCommand.ExecuteAsync(null));
                 Check(model.Report?.Metric==SouthboundAnnualComparison.Metric&&model.YAxes[0].Name?.Contains("累计净买入",StringComparison.Ordinal)==true,"图表明确显示年内累计净买入口径");
                 var visible=report.Years.Where(y=>model.Years.Any(x=>x.Year==y.Year&&x.IsSelected)&&y.Points.Any(p=>p.CumulativeNetBuyYiHkd.HasValue)).ToArray();
                 Check(model.HasValues&&model.Series.Length==visible.Length&&visible.Length>=2,"不同年度在同一图中各显示一条折线");
                 Check(model.Series.All(x=>x is LineSeries<ObservablePoint> {Fill:null,LineSmoothness:0}),"仅折线，不增加柱图、面积或平滑后的虚构波动");
+                var page=(SouthboundPage)window.Content;var chart=(CartesianChart)page.FindName("AnnualChart");
+                Check(CountCharts(page)==1&&page.FindName("DailyChart") is null,"页面仅保留一张年度累计图，移除下方单日图");
+                Check(chart.ZoomMode==ZoomAndPanMode.Both,"真实年度图启用横纵轴缩放与拖动");
                 foreach(var curve in visible)
                 {
                     var series=(LineSeries<ObservablePoint>)model.Series.Single(x=>x.Name==curve.Year+"年");
                     var points=series.Values!.ToArray();
                     Check(points.Length==curve.Points.Count(p=>p.CumulativeNetBuyYiHkd.HasValue)&&points.All(p=>p.X is >=0 and <=365&&p.Y.HasValue),curve.Year+"年坐标保留月日位置，无补零或未来延长");
                     Check(points.Last().Y==(double)curve.Points.Last(p=>p.CumulativeNetBuyYiHkd.HasValue).CumulativeNetBuyYiHkd!.Value,curve.Year+"年曲线末值使用累计结果而非当日金额");
+                    Check(points.OfType<SouthboundChartPoint>().Select(x=>x.Observation).SequenceEqual(curve.Points.Where(p=>p.CumulativeNetBuyYiHkd.HasValue)),curve.Year+"年悬停保留同一天的后台净额和累计原值");
                 }
+                var actualSell=model.Series.OfType<LineSeries<ObservablePoint>>().SelectMany(x=>x.Values!).OfType<SouthboundChartPoint>().First(x=>x.Observation.NetBuyYiHkd<0&&x.Observation.CumulativeNetBuyYiHkd>0);
+                Check(actualSell.Y>0&&actualSell.Tooltip.Contains("当日净卖出",StringComparison.Ordinal)&&actualSell.Tooltip.Contains("年内累计净买入",StringComparison.Ordinal)&&actualSell.Tooltip.Contains(actualSell.Observation.Date.ToString("yyyy-MM-dd"),StringComparison.Ordinal),"真实报告累计仍为正的日期，悬停也明确显示当日净卖出");
                 var currentYear=CRS.Timing.BeijingClock.Now.Year;var negative=new SouthboundAnnualPoint(new(currentYear,1,5),4,-2m,-2m,"Available");
                 proxy.Report=report with{Years=report.Years.Select(y=>y.Year==currentYear?y with{Points=[negative]}:y).ToArray()};
                 Pump(model.QueryCommand.ExecuteAsync(null));
@@ -55,25 +65,88 @@ internal static class SouthboundUiChecks
                 proxy.Report=report with{Years=[new(currentYear,new DateOnly(currentYear-1,12,31),[negative with{NetBuyYiHkd=0,CumulativeNetBuyYiHkd=0}])]};
                 Pump(model.QueryCommand.ExecuteAsync(null));
                 Check(model.HasValues&&model.YAxes[0].MinLimit<model.YAxes[0].MaxLimit&&model.Series.OfType<LineSeries<ObservablePoint>>().Single().Values!.Single().Y==0,"来源真实零累计可显示，坐标范围不会退化");
+                proxy.Report=report with{Years=[new(currentYear,null,[negative with{Date=new(currentYear,1,5),CalendarDay=4,NetBuyYiHkd=10,CumulativeNetBuyYiHkd=null,State="MissingYearBaseline"},
+                    negative with{Date=new(currentYear,1,6),CalendarDay=5,NetBuyYiHkd=null,CumulativeNetBuyYiHkd=null,State="IncompleteNetBuy"},
+                    negative with{Date=new(currentYear,1,7),CalendarDay=6,CumulativeNetBuyYiHkd=null,State="MissingYearBaseline"}])]};
+                Pump(model.QueryCommand.ExecuteAsync(null));
+                Check(!model.HasValues&&model.Series.Length==0&&model.Status.Contains("基准不足",StringComparison.Ordinal),"累计无基准时明确不可用，不用当日金额冒充累计或补零");
                 proxy.Report=report;Pump(model.QueryCommand.ExecuteAsync(null));
-                var first=model.Years.First(x=>visible.Any(y=>y.Year==x.Year));first.IsSelected=false;Check(model.Series.Length==visible.Length-1,"勾选年份即时改变可见曲线");first.IsSelected=true;
+                var first=model.Years.First(x=>visible.Any(y=>y.Year==x.Year));first.IsSelected=false;Check(model.Series.Length==visible.Length-1,"勾选年份即时改变年度曲线");first.IsSelected=true;
                 foreach(var year in model.Years)year.IsSelected=false;Check(!model.HasValues&&model.Series.Length==0&&model.Status.Contains("勾选",StringComparison.Ordinal),"未选择年份时不显示零金额坐标");
                 foreach(var year in model.Years)year.IsSelected=year.Year>=CRS.Timing.BeijingClock.Now.Year-4;
                 Pump();Pump();
-                var image=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(window);
-                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);using(var output=File.Create(screenshot)){var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(output);}
-                window.Width=700;Pump();Check(window.Content is FrameworkElement {ActualWidth:>600},"较窄窗口保持图表区域可见");
-                proxy.Mode="Failure";Pump(model.QueryCommand.ExecuteAsync(null));Check(model.Report is null&&model.Series.Length==0,"读取失败清除旧曲线");
+                SaveView(page,screenshot);
+                foreach(var year in model.Years)year.IsSelected=year.Year==currentYear;Pump();Pump();
+                CheckZoom(chart,model,report,page,screenshot,Check);
+                window.Width=700;window.Height=700;Pump();Check(window.Content is FrameworkElement {ActualWidth:>600}&&chart.ActualHeight>220&&chart.TranslatePoint(new Point(0,chart.ActualHeight),window).Y<window.ActualHeight,"较窄较矮窗口保持唯一年度图完整可见");
+                proxy.Mode="Failure";Pump(model.QueryCommand.ExecuteAsync(null));Check(model.Report is null&&model.Series.Length==0,"读取失败清除旧年度曲线");
+                proxy.Mode="InvalidData";Pump(model.QueryCommand.ExecuteAsync(null));Check(!model.Busy&&model.Report is null&&model.Series.Length==0&&model.Status.Contains("契约无效",StringComparison.Ordinal),"InvalidDataException转为页面错误提示，不越过异步命令边界");
+                proxy.Mode="Unsupported";Pump(model.QueryCommand.ExecuteAsync(null));Check(!model.HasValues&&model.Status.Contains("后台版本",StringComparison.Ordinal),"旧后台不支持新查询时显示版本提示，不伪造空数据");
+                proxy.Mode="InvalidManagement";Pump(model.UpdateCommand.ExecuteAsync(null));Check(!model.Busy&&model.TaskStatus.Contains("回执未确认",StringComparison.Ordinal),"更新回执异常不逃出页面或误报已受理");
                 proxy.Mode="Wait";var old=model.QueryCommand.ExecuteAsync(null);Pump();model.Cancel();proxy.Pending.SetResult(report);Pump(old);
-                Check(model.Report is null&&model.Series.Length==0,"取消后晚到报告不能重新显示旧数据");
+                Check(model.Report is null&&model.Series.Length==0,"取消后晚到报告不能重新显示旧年度图");
                 proxy.Mode="Normal";proxy.Manage=false;Check(!model.UpdateCommand.CanExecute(null),"只读用户不能提交后台采集");
+                var startup=new SouthboundViewModel(new Workspace(report){Mode="InvalidData"},life.Token);window.Content=new SouthboundPage(startup);Pump();
+                Check(!startup.Busy&&startup.Status.Contains("契约无效",StringComparison.Ordinal)&&!startup.HasValues,"实际Loaded首次查询也接住无效数据异常");
                 File.WriteAllText(Path.ChangeExtension(screenshot,".validation.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,report.CaptureId,Years=visible.Select(y=>y.Year)},new JsonSerializerOptions{WriteIndented=true}));
             }
             catch(Exception error){failure=error;}
             finally{window?.Close();}
         });
         thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
-        Console.WriteLine($"PASS 南向折线界面 {passed} 项；正式服务尚未部署。");
+        Console.WriteLine($"PASS 南向折线界面 {passed} 项；界面检查不代替正式服务验收。");
+    }
+    private static void CheckZoom(CartesianChart chart,SouthboundViewModel model,SouthboundAnnualReport report,FrameworkElement page,string screenshot,Action<bool,string> check)
+    {
+        var engine=ReadyChart(chart);var x=model.XAxes[0];var y=model.YAxes[0];
+        var series=model.Series.Single();var values=((LineSeries<ObservablePoint>)series).Values!.ToArray();
+        var xSpan=x.MaxLimit-x.MinLimit;var ySpan=y.MaxLimit-y.MinLimit;
+        var origin=engine.DrawMarginLocation;var size=engine.DrawMarginSize;var center=new LvcPoint(origin.X+size.Width/2,origin.Y+size.Height/2);
+        engine.Zoom(chart.ZoomMode,center,ZoomDirection.ZoomIn);Pump();
+        Console.WriteLine($"缩放取证：mode={chart.ZoomMode};speed={chart.ZoomingSpeed};margin={origin}/{size};before={xSpan}/{ySpan};after={x.MinLimit}..{x.MaxLimit}/{y.MinLimit}..{y.MaxLimit}");
+        check(x.MaxLimit-x.MinLimit<xSpan&&y.MaxLimit-y.MinLimit<ySpan,"真实图表引擎缩放同时放大日期和金额，下降段可离开零基准放大");
+        var previous=x.MinLimit;engine.Pan(chart.ZoomMode,new(20,0));Pump();check(x.MinLimit!=previous,"放大后可拖动日期范围查看相邻观测");
+        model.ResetZoomCommand.Execute(null);Pump();
+        check(x.MinLimit==0&&x.MaxLimit==365&&x.CustomSeparators?.Count()==12&&y.MinLimit<=0,"重置缩放恢复全年月刻度及包含零的年度金额范围");
+        engine=ReadyChart(chart);
+        origin=engine.DrawMarginLocation;size=engine.DrawMarginSize;
+        var start=new LvcPoint(origin.X+size.Width*280/365,origin.Y+1);var end=new LvcPoint(origin.X+size.Width*310/365,origin.Y+size.Height*0.15f);
+        engine.StartZoomingSection(chart.ZoomMode,start);engine.GrowZoomingSection(chart.ZoomMode,end);engine.EndZoomingSection(chart.ZoomMode,end);Pump();
+        for(var wait=0;wait<4&&(x.MaxLimit-x.MinLimit>=62||x.CustomSeparators is not null||y.MinLimit<=0);wait++)Pump();
+        Console.WriteLine($"框选取证：x={x.MinLimit}..{x.MaxLimit};y={y.MinLimit}..{y.MaxLimit};separators={x.CustomSeparators?.Count().ToString()??"auto"};size={size.Width}x{size.Height};start={start.X},{start.Y};end={end.X},{end.Y}");
+        check(x.MaxLimit-x.MinLimit<62&&x.CustomSeparators is null&&y.MinLimit>0,"框选真实净卖出区间后金额轴不强制归零，日期自动改为日刻度");
+        SaveView(page,Path.ChangeExtension(screenshot,".zoomed.png"));
+        var target=values.OfType<SouthboundChartPoint>().Last();var attempts=0;
+        while(x.MaxLimit-x.MinLimit>3&&attempts++<15)
+        {
+            origin=engine.DrawMarginLocation;size=engine.DrawMarginSize;
+            var pivot=new LvcPoint(origin.X+(float)((target.X!.Value-x.MinLimit!.Value)/(x.MaxLimit!.Value-x.MinLimit.Value))*size.Width,
+                origin.Y+(float)(1-(target.Y!.Value-y.MinLimit!.Value)/(y.MaxLimit!.Value-y.MinLimit.Value))*size.Height);
+            engine.Zoom(chart.ZoomMode,pivot,ZoomDirection.ZoomIn);Pump();
+        }
+        check(x.MaxLimit-x.MinLimit<=5&&x.CustomSeparators is null&&x.MinStep==1&&target.X>=x.MinLimit&&target.X<=x.MaxLimit,"可继续缩放到数日范围并保留目标观测，日刻度不会回退为月初标记");
+        Console.WriteLine($"单日取证：x={x.MinLimit}..{x.MaxLimit};date={target.Observation.Date:yyyy-MM-dd};daily={target.Observation.NetBuyYiHkd};cumulative={target.Observation.CumulativeNetBuyYiHkd}");
+        check(ReferenceEquals(model.Report,report)&&ReferenceEquals(model.Series.Single(),series)&&((LineSeries<ObservablePoint>)series).Values!.SequenceEqual(values),"缩放和拖动只改视口，后台报告、日期、净买卖与累计金额均不变");
+        SaveView(page,Path.ChangeExtension(screenshot,".single-day.png"));
+        model.ResetZoomCommand.Execute(null);Pump();check(x.MinLimit==0&&x.MaxLimit==365&&x.CustomSeparators?.Count()==12,"单日放大后仍可一键回到全年对比");
+    }
+    private static CartesianChartEngine ReadyChart(CartesianChart chart)
+    {
+        // 空数据反例会卸载图表，手工触发引擎前须等待真实布局恢复，不能向零尺寸画布发送手势。
+        var watch=Stopwatch.StartNew();
+        while(true)
+        {
+            chart.UpdateLayout();chart.CoreChart.Update();Pump();var engine=(CartesianChartEngine)chart.CoreChart;
+            if(chart.IsLoaded&&chart.IsVisible&&engine.DrawMarginSize.Width>200&&engine.DrawMarginSize.Height>100)return engine;
+            if(watch.Elapsed>TimeSpan.FromSeconds(10))throw new InvalidDataException($"年度图布局未就绪：control={chart.ActualWidth}x{chart.ActualHeight};margin={engine.DrawMarginSize.Width}x{engine.DrawMarginSize.Height}");
+        }
+    }
+    private static int CountCharts(DependencyObject root)=> (root is CartesianChart?1:0)+Enumerable.Range(0,VisualTreeHelper.GetChildrenCount(root)).Sum(i=>CountCharts(VisualTreeHelper.GetChild(root,i)));
+    private static void SaveView(FrameworkElement view,string path)
+    {
+        var image=new RenderTargetBitmap((int)view.ActualWidth,(int)view.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(view);
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);using var output=File.Create(path);
+        var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(output);
     }
     private static void Pump(Task? task=null)
     {
@@ -84,8 +157,14 @@ internal static class SouthboundUiChecks
         public SouthboundAnnualReport Report=report;
         public bool Manage=true;public bool CanManage=>Manage;public string Mode="Normal";
         public TaskCompletionSource<SouthboundAnnualReport> Pending=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<SouthboundAnnualReport> SouthboundAnnualAsync(int firstYear,int lastYear,CancellationToken token)=>Mode=="Failure"?Task.FromException<SouthboundAnnualReport>(new IOException("合成读取失败")):Mode=="Wait"?Pending.Task:Task.FromResult(Report);
-        public Task<SouthboundCommandReceipt> QueueSouthboundAsync(CancellationToken token)=>Task.FromResult(new SouthboundCommandReceipt(Guid.NewGuid(),"Pending","Accepted"));
+        public Task<SouthboundAnnualReport> SouthboundAnnualAsync(int firstYear,int lastYear,CancellationToken token)=>Mode switch
+        {
+            "Failure"=>Task.FromException<SouthboundAnnualReport>(new IOException("合成读取失败")),
+            "InvalidData"=>Task.FromException<SouthboundAnnualReport>(new InvalidDataException("合成契约无效")),
+            "Unsupported"=>Task.FromException<SouthboundAnnualReport>(new NotSupportedException("当前后台版本尚不支持南向累计净买入")),
+            "Wait"=>Pending.Task,_=>Task.FromResult(Report)
+        };
+        public Task<SouthboundCommandReceipt> QueueSouthboundAsync(CancellationToken token)=>Mode=="InvalidManagement"?Task.FromException<SouthboundCommandReceipt>(new InvalidDataException("合成回执未确认")):Task.FromResult(new SouthboundCommandReceipt(Guid.NewGuid(),"Pending","Accepted"));
         public Task<SouthboundCommandReceipt> SouthboundStatusAsync(Guid requestId,CancellationToken token)=>Task.FromResult(new SouthboundCommandReceipt(requestId,"Completed","Succeeded"));
     }
 }

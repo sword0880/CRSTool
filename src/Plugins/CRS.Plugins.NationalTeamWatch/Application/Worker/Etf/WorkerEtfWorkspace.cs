@@ -54,6 +54,8 @@ public sealed partial class WorkerEtfWorkspace(BackgroundPipeClient? connection=
             var reply=await SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin",Plugin,Payload:EtfBusinessProtocol.WriteRequest(query)),token);
             if(query.Operation=="dashboard"&&reply.Code=="UnknownQuery")throw new UnsupportedDashboardException();
             if(query.Operation=="query-capabilities"&&reply.Code=="UnknownQuery")throw new UnsupportedQueryCapabilitiesException();
+            // 旧后台存在且可通信，只是缺少新指标；不能误报未安装，也不能回退到旧买入曲线。
+            if(query.Operation=="southbound-net-annual"&&reply.Code=="UnknownQuery")throw new NotSupportedException("当前后台版本尚不支持南向累计净买入，请更新后台服务后刷新曲线。");
             if(reply.Code!="Ok" || reply.Payload is null)throw new InvalidDataException("后台查询失败："+reply.Code+"；请确认服务和ETF后台插件已安装。");
             try{return EtfBusinessProtocol.ReadResponse<T>(reply.Payload);}
             catch(EtfContractException error){throw new InvalidDataException("ETF业务契约校验失败："+error.Code+"；请核对桌面与后台插件版本。",error);}

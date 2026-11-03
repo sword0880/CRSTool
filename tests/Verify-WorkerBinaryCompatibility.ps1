@@ -6,6 +6,9 @@ try{
     foreach($root in @($PreviousDirectory,$CandidateDirectory)){
         $context=[Runtime.Loader.AssemblyLoadContext]::new(('CRS.ApiAudit.'+[Guid]::NewGuid().ToString('N')),$true)
         $contexts+=,$context;$types=@{}
+        # 公开接口引用Common的共享并发类型；在各自隔离上下文加载同代依赖，不能混用候选与旧发行。
+        $common=Join-Path $root 'CRS.Common.dll'
+        if(Test-Path -LiteralPath $common){$null=$context.LoadFromAssemblyPath([IO.Path]::GetFullPath($common))}
         foreach($name in @('CRS.Worker.Abstractions.dll','CRS.Worker.Ipc.dll')){
             $assembly=$context.LoadFromAssemblyPath([IO.Path]::GetFullPath((Join-Path $root $name)))
             foreach($type in $assembly.GetExportedTypes()){

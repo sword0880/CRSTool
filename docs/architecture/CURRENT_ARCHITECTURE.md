@@ -1,6 +1,6 @@
 # 当前架构入口
 
-2026-11-03新增[南向年内累计净买入折线](../implementation/SOUTHBOUND_ANNUAL_COMPARISON_20261103.md)：独立Southbound领域/应用/存储/后台和WPF模块；沪深港股通买入减卖出逐年重置累计，按相同月日比较。使用上一年末原始累计额核对连续性，缺口后停止该年累计；新协议/快照与原每日买入资料分开。正式服务尚未部署。
+2026-11-03新增[南向年内累计净买入折线](../implementation/SOUTHBOUND_ANNUAL_COMPARISON_20261103.md)：独立Southbound领域/应用/存储/后台和WPF模块；沪深港股通买入减卖出逐年重置累计，按相同月日比较。使用上一年末原始累计额核对连续性，缺口后停止该年累计；新协议/快照与原每日买入资料分开。本机后台已保全更新至Committed，真实采集及五年曲线回读通过，见[部署与UnknownQuery修复](../implementation/SOUTHBOUND_UNKNOWN_QUERY_FIX_20261103.md)。
 
 本文保留架构演进及历史时点，当前模块边界、开放风险、部署与证据统一见[当前架构状态](ARCHITECTURE_STATUS.md)。
 
