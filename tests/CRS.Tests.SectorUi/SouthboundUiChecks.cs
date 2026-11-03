@@ -35,17 +35,27 @@ internal static class SouthboundUiChecks
                 }
                 finally{plugin.StopAsync(default).GetAwaiter().GetResult();plugin.DisposeAsync().AsTask().GetAwaiter().GetResult();}
                 var proxy=new Workspace(report);using var life=new CancellationTokenSource();var model=new SouthboundViewModel(proxy,life.Token);
-                window=new(){Title="南向年度折线 · 真实公开数据隔离验证",Content=new SouthboundPage(model,false),Width=1100,Height=790,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};
+                window=new(){Title="南向年内累计净买入 · 真实公开数据隔离验证",Content=new SouthboundPage(model,false),Width=1100,Height=790,MaxHeight=SystemParameters.WorkArea.Height,Background=SystemColors.WindowBrush};
                 window.Show();Pump(model.QueryCommand.ExecuteAsync(null));
-                var visible=report.Years.Where(y=>model.Years.Any(x=>x.Year==y.Year&&x.IsSelected)&&y.Points.Any(p=>p.BuyYiHkd.HasValue)).ToArray();
+                Check(model.Report?.Metric==SouthboundAnnualComparison.Metric&&model.YAxes[0].Name?.Contains("累计净买入",StringComparison.Ordinal)==true,"图表明确显示年内累计净买入口径");
+                var visible=report.Years.Where(y=>model.Years.Any(x=>x.Year==y.Year&&x.IsSelected)&&y.Points.Any(p=>p.CumulativeNetBuyYiHkd.HasValue)).ToArray();
                 Check(model.HasValues&&model.Series.Length==visible.Length&&visible.Length>=2,"不同年度在同一图中各显示一条折线");
                 Check(model.Series.All(x=>x is LineSeries<ObservablePoint> {Fill:null,LineSmoothness:0}),"仅折线，不增加柱图、面积或平滑后的虚构波动");
                 foreach(var curve in visible)
                 {
                     var series=(LineSeries<ObservablePoint>)model.Series.Single(x=>x.Name==curve.Year+"年");
                     var points=series.Values!.ToArray();
-                    Check(points.Length==curve.Points.Count(p=>p.BuyYiHkd.HasValue)&&points.All(p=>p.X is >=0 and <=365&&p.Y.HasValue),curve.Year+"年坐标保留月日位置，无补零或未来延长");
+                    Check(points.Length==curve.Points.Count(p=>p.CumulativeNetBuyYiHkd.HasValue)&&points.All(p=>p.X is >=0 and <=365&&p.Y.HasValue),curve.Year+"年坐标保留月日位置，无补零或未来延长");
+                    Check(points.Last().Y==(double)curve.Points.Last(p=>p.CumulativeNetBuyYiHkd.HasValue).CumulativeNetBuyYiHkd!.Value,curve.Year+"年曲线末值使用累计结果而非当日金额");
                 }
+                var currentYear=CRS.Timing.BeijingClock.Now.Year;var negative=new SouthboundAnnualPoint(new(currentYear,1,5),4,-2m,-2m,"Available");
+                proxy.Report=report with{Years=report.Years.Select(y=>y.Year==currentYear?y with{Points=[negative]}:y).ToArray()};
+                Pump(model.QueryCommand.ExecuteAsync(null));
+                Check(model.YAxes[0].MinLimit<=-2&&model.Series.OfType<LineSeries<ObservablePoint>>().SelectMany(s=>s.Values!).Any(p=>p.Y<0),"负累计净买入不会被零下界裁掉");
+                proxy.Report=report with{Years=[new(currentYear,new DateOnly(currentYear-1,12,31),[negative with{NetBuyYiHkd=0,CumulativeNetBuyYiHkd=0}])]};
+                Pump(model.QueryCommand.ExecuteAsync(null));
+                Check(model.HasValues&&model.YAxes[0].MinLimit<model.YAxes[0].MaxLimit&&model.Series.OfType<LineSeries<ObservablePoint>>().Single().Values!.Single().Y==0,"来源真实零累计可显示，坐标范围不会退化");
+                proxy.Report=report;Pump(model.QueryCommand.ExecuteAsync(null));
                 var first=model.Years.First(x=>visible.Any(y=>y.Year==x.Year));first.IsSelected=false;Check(model.Series.Length==visible.Length-1,"勾选年份即时改变可见曲线");first.IsSelected=true;
                 foreach(var year in model.Years)year.IsSelected=false;Check(!model.HasValues&&model.Series.Length==0&&model.Status.Contains("勾选",StringComparison.Ordinal),"未选择年份时不显示零金额坐标");
                 foreach(var year in model.Years)year.IsSelected=year.Year>=CRS.Timing.BeijingClock.Now.Year-4;
@@ -71,9 +81,10 @@ internal static class SouthboundUiChecks
     }
     private sealed class Workspace(SouthboundAnnualReport report):ISouthboundWorkspace
     {
+        public SouthboundAnnualReport Report=report;
         public bool Manage=true;public bool CanManage=>Manage;public string Mode="Normal";
         public TaskCompletionSource<SouthboundAnnualReport> Pending=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<SouthboundAnnualReport> SouthboundAnnualAsync(int firstYear,int lastYear,CancellationToken token)=>Mode=="Failure"?Task.FromException<SouthboundAnnualReport>(new IOException("合成读取失败")):Mode=="Wait"?Pending.Task:Task.FromResult(report);
+        public Task<SouthboundAnnualReport> SouthboundAnnualAsync(int firstYear,int lastYear,CancellationToken token)=>Mode=="Failure"?Task.FromException<SouthboundAnnualReport>(new IOException("合成读取失败")):Mode=="Wait"?Pending.Task:Task.FromResult(Report);
         public Task<SouthboundCommandReceipt> QueueSouthboundAsync(CancellationToken token)=>Task.FromResult(new SouthboundCommandReceipt(Guid.NewGuid(),"Pending","Accepted"));
         public Task<SouthboundCommandReceipt> SouthboundStatusAsync(Guid requestId,CancellationToken token)=>Task.FromResult(new SouthboundCommandReceipt(requestId,"Completed","Succeeded"));
     }

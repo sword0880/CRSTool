@@ -24,7 +24,7 @@ public static class NationalTeamWorkspaceCatalog
             new("etf-institution-holdings","holdings","机构ETF持仓","ETF整体份额与机构报告期持仓并排对照，份额变化不归因机构交易。",()=>{holdings.PreferFund(etfs.Selected is {} selected?new(selected.Market,selected.Ticker):null);return new EtfHoldingsPage(holdings);}),
             new("direct-equity","holdings","机构直接持股","公告报告期快照不等于逐日真实成交。",()=>new EquityPage(equity)),
             new("nav-study","holdings","NAV与份额金额","同日净值估算为基金整体观察，不能归因国家队成交。",()=>new NavStudyPage(nav)),
-            new("southbound-annual","holdings","南向买入年度对比","港股通南向买入金额年度折线，不代表净买入或机构独立交易。",()=>new SouthboundPage(southbound)),
+            new("southbound-annual","holdings","南向累计净买入","港股通沪深成交净买额按年累计比较，不代表全港股资金流或机构独立交易。",()=>new SouthboundPage(southbound)),
             new("industry-pe","industry","全行业公布PE","国证一级行业剔亏PE的短区间历史位置不等于低估。",()=>new IndustryResearchPage(industry)),
             new("sector-index","industry","行业样本指数与PB","国证1000行业样本不能冒充全部上市公司估值。",()=>new IndexResearchPage(indices)),
             new("market-cycle","cycle","市场周期观察","候选研究；输入不足不判断顶部或底部，择时能力未验证。",()=>new MarketCycleStudyPage(cycle)),

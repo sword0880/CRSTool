@@ -6,7 +6,7 @@ namespace CRS.Plugins.NationalTeam.Jobs;
 
 public sealed partial class NationalTeamBackgroundSession
 {
-    [NationalTeamQuery("southbound-annual")]
+    [NationalTeamQuery("southbound-net-annual")]
     private async Task<NationalTeamQueryResult> QuerySouthboundAnnual(EtfRequest request,CancellationToken token)
     {
         if(request.From is not {} from||request.To is not {} through||from!=new DateOnly(from.Year,1,1)||through!=new DateOnly(through.Year,12,31))throw new InvalidDataException("南向年度查询参数无效。");
@@ -14,12 +14,12 @@ public sealed partial class NationalTeamBackgroundSession
         var serialization=new NationalTeamQuerySerialization(token);
         return new(CRS.Serialization.JsonDocumentBlocks.Encode(report,token).Select(x=>serialization.Row(x)).ToArray());
     }
-    [NationalTeamJob("southbound-sync","南向买入历史更新","0 40 23 * * ?","China Standard Time",true,false,Group="collection",MaximumConcurrency=2,Order=29)]
+    [NationalTeamJob("southbound-sync","南向净买入历史更新","0 40 23 * * ?","China Standard Time",true,false,Group="collection",MaximumConcurrency=2,Order=29)]
     private async Task<BackgroundJobResult> ExecuteSouthboundSync(EtfRequest request,CancellationToken token,Guid? commandId)
     {
-        if(request.Operation is not ("sync" or "southbound-sync"))throw new InvalidDataException("南向更新任务参数无效。");
+        if(request.Operation is not ("sync" or "southbound-net-sync"))throw new InvalidDataException("南向净买入更新任务参数无效。");
         if(commandId is {} id&&await workspace!.Southbound.ReceiptAsync(id,token) is {} prior)return BackgroundJobResult.Success("southbound="+prior);
-        var through=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);var from=new DateOnly(SouthboundAnnualComparison.EarliestYear,1,1);
+        var through=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);var from=SouthboundAnnualComparison.SourceFrom;
         var pages=new List<SouthboundCapturedPage>();
         for(var page=1;page<=5;page++)
         {

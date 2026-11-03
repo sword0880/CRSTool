@@ -9,7 +9,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 namespace CRS.Plugins.NationalTeamWatch.Presentation;
 
-/// <summary>只展示后台年度曲线；年份勾选不联网，不计算买入金额或填补缺日。</summary>
+/// <summary>只展示后台累计净买入曲线；年份勾选不联网，不计算金融金额或填补缺日。</summary>
 public partial class SouthboundViewModel:ObservableObject
 {
     private readonly ISouthboundWorkspace workspace;
@@ -23,14 +23,14 @@ public partial class SouthboundViewModel:ObservableObject
     public bool CanManage=>workspace.CanManage;
     [ObservableProperty]private bool busy;
     [ObservableProperty]private bool hasValues;
-    [ObservableProperty]private string status="等待查询南向买入历史。";
+    [ObservableProperty]private string status="等待查询南向净买入历史。";
     [ObservableProperty]private string caption="每年一条折线，按相同月日对齐；单位：亿港元。";
     [ObservableProperty]private string taskStatus="";
     [ObservableProperty]private ISeries[] series=[];
     public Axis[] XAxes {get;}=[new(){Name="月日",MinLimit=0,MaxLimit=365,MinStep=1,
         CustomSeparators=Enumerable.Range(1,12).Select(m=>(double)new DateOnly(2000,m,1).DayOfYear-1).ToArray(),
         Labeler=x=>x is >=0 and <=365?new DateOnly(2000,1,1).AddDays((int)Math.Round(x)).ToString("MM-dd"):"",TextSize=12}];
-    public Axis[] YAxes {get;}=[new(){Name="买入金额（亿港元）",MinLimit=0,Labeler=y=>y.ToString("N0"),TextSize=12}];
+    public Axis[] YAxes {get;}=[new(){Name="年内累计净买入（亿港元）",Labeler=y=>y.ToString("N0"),TextSize=12}];
     private static readonly SKColor[] Colors=[SKColor.Parse("#2563EB"),SKColor.Parse("#D97706"),SKColor.Parse("#059669"),SKColor.Parse("#9333EA"),SKColor.Parse("#DC2626"),SKColor.Parse("#0891B2"),SKColor.Parse("#BE185D"),SKColor.Parse("#4F46E5"),SKColor.Parse("#64748B"),SKColor.Parse("#65A30D")];
     public SouthboundViewModel(ISouthboundWorkspace workspace,CancellationToken lifetime)
     {
@@ -46,13 +46,13 @@ public partial class SouthboundViewModel:ObservableObject
     [RelayCommand(CanExecute=nameof(CanQuery))]
     private async Task QueryAsync()
     {
-        Busy=true;var current=++version;Clear();Status="正在读取年度买入曲线…";
+        Busy=true;var current=++version;Clear();Status="正在读取年内累计净买入曲线…";
         using var pending=CancellationTokenSource.CreateLinkedTokenSource(lifetime);operation=pending;pending.CancelAfter(TimeSpan.FromSeconds(30));
         try
         {
             var report=await workspace.SouthboundAnnualAsync(Years.Min(x=>x.Year),Years.Max(x=>x.Year),pending.Token);
             pending.Token.ThrowIfCancellationRequested();if(current!=version)return;
-            Report=report;Caption=report.RetrievedAt is {} at?$"数据截至 {report.Through:yyyy-MM-dd} · 更新于 {at.ToOffset(TimeSpan.FromHours(8)):yyyy-MM-dd HH:mm} · 亿港元":"尚无已登记的南向买入历史，可点击更新数据。";Rebuild();
+            Report=report;Caption=report.RetrievedAt is {} at?$"数据截至 {report.Through:yyyy-MM-dd} · 更新于 {at.ToOffset(TimeSpan.FromHours(8)):yyyy-MM-dd HH:mm} · 亿港元":"尚无累计净买入所需的已登记历史，可点击更新数据。";Rebuild();
         }
         catch(OperationCanceledException){if(current==version){Clear();Status="查询已取消或超时；后台采集继续运行。";}}
         catch(Exception error) when(error is IOException or InvalidOperationException or UnauthorizedAccessException or TimeoutException or NotSupportedException)
@@ -84,20 +84,23 @@ public partial class SouthboundViewModel:ObservableObject
     {
         if(Report is null)return;
         var selected=Years.Where(x=>x.IsSelected).Select(x=>x.Year).ToHashSet();
-        Series=Report.Years.Where(x=>selected.Contains(x.Year)&&x.Points.Any(p=>p.BuyYiHkd.HasValue)).Select(curve=>
+        Series=Report.Years.Where(x=>selected.Contains(x.Year)&&x.Points.Any(p=>p.CumulativeNetBuyYiHkd.HasValue)).Select(curve=>
         {
-            var values=curve.Points.Where(p=>p.BuyYiHkd.HasValue).Select(p=>new ObservablePoint(p.CalendarDay,(double)p.BuyYiHkd!.Value)).ToArray();
+            var values=curve.Points.Where(p=>p.CumulativeNetBuyYiHkd.HasValue).Select(p=>new ObservablePoint(p.CalendarDay,(double)p.CumulativeNetBuyYiHkd!.Value)).ToArray();
             return (ISeries)new LineSeries<ObservablePoint>{Name=curve.Year+"年",Values=values,Fill=null,LineSmoothness=0,
                 GeometrySize=values.Length==1?5:0,Stroke=new SolidColorPaint(Colors[(curve.Year-SouthboundAnnualComparison.EarliestYear)%Colors.Length],2),
                 YToolTipLabelFormatter=p=>p.Context.DataSource is ObservablePoint point&&point.X is {} day&&point.Y is {} value
                     ?$"{curve.Year}-{new DateOnly(2000,1,1).AddDays((int)day):MM-dd}  {value:N2} 亿港元":"无有效数据"};
         }).ToArray();
         HasValues=Series.Length>0;
-        var noData=Report.Years.Where(x=>selected.Contains(x.Year)&&!x.Points.Any(p=>p.BuyYiHkd.HasValue)).Select(x=>x.Year).ToArray();
+        var noData=Report.Years.Where(x=>selected.Contains(x.Year)&&!x.Points.Any(p=>p.CumulativeNetBuyYiHkd.HasValue)).Select(x=>x.Year).ToArray();
         Status=selected.Count==0?"请勾选要比较的年份。":!HasValues?"所选年度暂无可用数据，请更新数据或选择其他年份。"
-            :noData.Length>0?$"{string.Join("、",noData)}年暂无可用数据；其余年度已显示。":"悬停查看实际日期与金额；休市和缺日不补值，连线连接已取得的观测点。";
-        var missing=Report.Years.Where(x=>selected.Contains(x.Year)).Sum(x=>x.Points.Count(p=>!p.BuyYiHkd.HasValue));
-        if(missing>0)Status+=$" {missing}个已登记日期缺少完整沪深金额，未绘制对应点。";
+            :noData.Length>0?$"{string.Join("、",noData)}年暂无可用数据；其余年度已显示。":"每年从零累计；负值表示年内累计净卖出。悬停查看实际日期与金额。";
+        if(Report.Years.Any(x=>selected.Contains(x.Year)&&x.Points.Any(p=>!p.CumulativeNetBuyYiHkd.HasValue)))Status+=" 部分年度存在基准不足、缺失或累计断点，已停止绘制受影响区间。";
+        // 坐标范围属于展示：纳入零及实际负值，不能把净卖出裁成零或隐藏。
+        var displayed=Report.Years.Where(x=>selected.Contains(x.Year)).SelectMany(x=>x.Points).Where(x=>x.CumulativeNetBuyYiHkd.HasValue).Select(x=>(double)x.CumulativeNetBuyYiHkd!.Value).ToArray();
+        YAxes[0].MinLimit=displayed.Length==0?null:Math.Min(0,displayed.Min());YAxes[0].MaxLimit=displayed.Length==0?null:Math.Max(0,displayed.Max());
+        if(displayed.Length>0&&YAxes[0].MinLimit==YAxes[0].MaxLimit){YAxes[0].MinLimit=-1;YAxes[0].MaxLimit=1;}
     }
 }
 
