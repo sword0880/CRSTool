@@ -20,9 +20,10 @@ internal static class HistoricalEquityChecks
     public static void CatalogContracts(string root)
     {
         var data=Path.Combine(root,"data");using var repo=TestMarketData.Open(data,new RawEvidenceStore(Path.Combine(root,"raw")));
-        var definition=repo.HistoricalEquityDocuments().Single();
+        var definition=repo.HistoricalEquityDocuments().Single(x=>x.Id=="cnd-600153-20251231-pdf-v1");
         Check(definition.Ticker=="600153"&&definition.ReportAsOf==new DateOnly(2025,12,31)&&definition.HolderCount==10&&definition.ReviewedAccounts==4,"完整前十表和四个具名账户分开，目录不是已登记持仓");
         Check(definition.Published==new DateOnly(2026,4,29)&&definition.PublicationBasis.Contains("不代表最早")&&definition.OriginalHash=="470448A5B8073540B0A6A722E1DDED1558AB9DC06FB44347D0E91D2948B72DF2","原文摘要、官网列示日及非最早时刻边界明确");
+        Check(definition.ExtractHash=="CEC80E4242A19C1614D5FBE0CD6BE95C27C52C2094FC259B322B97BB972CBCB7","扩展子集目录后既有建发年报规范化哈希不变，与升级前正式库一致");
         Reject(()=>repo.ImportHistoricalEquityPdf("unregistered",new byte[5],"test","test",Guid.NewGuid()),"未知目录不能导入任意PDF");
         Reject(()=>repo.ImportHistoricalEquityPdf(definition.Id,"%PDF-synthetic"u8.ToArray(),"test","test",Guid.NewGuid()),"默认正式入口拒绝伪PDF及未匹配固定字节的摘录");
         Check(repo.HistoricalEquityReceipt(Guid.NewGuid()) is null&&!repo.HistoricalEquityRequestMatches(Guid.NewGuid(),definition.Id,"test","test"),"缺失业务回执保持未知，不伪造成功");
@@ -34,7 +35,7 @@ internal static class HistoricalEquityChecks
         CatalogContracts(Path.Combine(root,"contracts"));var data=Path.Combine(root,"positive/data");var rawPath=Path.Combine(root,"positive/raw");
         using(var repo=TestMarketData.Open(data,new RawEvidenceStore(rawPath)))
         {
-            var definition=repo.HistoricalEquityDocuments().Single();var id=Guid.NewGuid();
+            var definition=repo.HistoricalEquityDocuments().Single(x=>x.Id=="cnd-600153-20251231-pdf-v1");var id=Guid.NewGuid();
             Check(Convert.ToHexString(SHA256.HashData(bytes))==definition.OriginalHash,"真实518页年报字节匹配固定来源，不模拟SSE历史响应");
             Reject(()=>repo.ImportHistoricalEquityPdf(definition.Id,bytes,"","test",id),"审核人缺失拒绝");
             Reject(()=>repo.ImportHistoricalEquityPdf(definition.Id,bytes,"test","",id),"理由缺失拒绝");
@@ -66,7 +67,7 @@ internal static class HistoricalEquityChecks
     }
     private static void Rollback(string root,byte[] bytes)
     {
-        var data=Path.Combine(root,"data");using var repo=TestMarketData.Open(data,new RawEvidenceStore(Path.Combine(root,"raw")));var definition=repo.HistoricalEquityDocuments().Single();var id=Guid.NewGuid();
+        var data=Path.Combine(root,"data");using var repo=TestMarketData.Open(data,new RawEvidenceStore(Path.Combine(root,"raw")));var definition=repo.HistoricalEquityDocuments().Single(x=>x.Id=="cnd-600153-20251231-pdf-v1");var id=Guid.NewGuid();
         using(var db=Sql(data)){using var q=db.CreateCommand();q.CommandText="CREATE TRIGGER fail_history_receipt BEFORE INSERT ON equity_historical_receipt BEGIN SELECT RAISE(ABORT,'synthetic receipt failure');END";q.ExecuteNonQuery();}
         try{repo.ImportHistoricalEquityPdf(definition.Id,bytes,"test","test",id);throw new Exception("预期故障未发生。");}catch(SqliteException){}
         Check(Count(data,"equity_disclosure")==0&&Count(data,"source_fetch")==0&&Count(data,"equity_account_review_audit")==0&&Count(data,"worker_business_command")==0&&repo.HistoricalEquityReceipt(id) is null,"业务回执落库失败回滚所有金融、来源、审核和命令记录");
@@ -76,7 +77,7 @@ internal static class HistoricalEquityChecks
     private static void FileFailure(string root,byte[] bytes)
     {
         var writes=0;var data=Path.Combine(root,"data");var raw=new RawEvidenceStore(Path.Combine(root,"raw"),()=>{if(++writes==2)throw new IOException("synthetic disk failure");});
-        using var repo=TestMarketData.Open(data,raw);var definition=repo.HistoricalEquityDocuments().Single();var id=Guid.NewGuid();
+        using var repo=TestMarketData.Open(data,raw);var definition=repo.HistoricalEquityDocuments().Single(x=>x.Id=="cnd-600153-20251231-pdf-v1");var id=Guid.NewGuid();
         try{repo.ImportHistoricalEquityPdf(definition.Id,bytes,"test","test",id);throw new Exception("预期磁盘故障未发生。");}catch(IOException){}
         Check(Count(data,"equity_disclosure")==0&&Count(data,"source_fetch")==0&&repo.HistoricalEquityReceipt(id) is null,"存原件后摘录失败只可留未引用文件，不能留部分持仓或成功回执");
         using var stop=new CancellationTokenSource();stop.Cancel();try{repo.ExecuteOperation(()=>repo.ImportHistoricalEquityPdf(definition.Id,bytes,"test","test",id),stop.Token);throw new Exception("取消未生效。");}catch(OperationCanceledException){}
@@ -84,7 +85,7 @@ internal static class HistoricalEquityChecks
     }
     private static void Baseline(string root,byte[] bytes)
     {
-        using var repo=TestMarketData.Open(Path.Combine(root,"data"),new RawEvidenceStore(Path.Combine(root,"raw")));var definition=repo.HistoricalEquityDocuments().Single();
+        using var repo=TestMarketData.Open(Path.Combine(root,"data"),new RawEvidenceStore(Path.Combine(root,"raw")));var definition=repo.HistoricalEquityDocuments().Single(x=>x.Id=="cnd-600153-20251231-pdf-v1");
         string Add(DateOnly report,DateOnly published,decimal shares,string tag,string? baseline)
         {
             // 两份合成SSE当前响应只作独立旧基线夹具；历史年报仍走真实固定PDF入口。
@@ -102,7 +103,7 @@ internal static class HistoricalEquityChecks
     }
     private static void ExistingPeriod(string root,byte[] bytes)
     {
-        var data=Path.Combine(root,"data");using var repo=TestMarketData.Open(data,new RawEvidenceStore(Path.Combine(root,"raw")));var definition=repo.HistoricalEquityDocuments().Single();
+        var data=Path.Combine(root,"data");using var repo=TestMarketData.Open(data,new RawEvidenceStore(Path.Combine(root,"raw")));var definition=repo.HistoricalEquityDocuments().Single(x=>x.Id=="cnd-600153-20251231-pdf-v1");
         var source=JsonSerializer.SerializeToUtf8Bytes(new{sqlId="COMMON_SSE_PL_XBRL_TOP10SHAREHOLDERS",actionErrors=Array.Empty<string>(),pageHelp=new{total=1},result=new[]{new{REPORT_DATE="2026-04-29",STOCK_ID="600153",NAME=Account,NUMBER_END=67250642m,RATIO=2.32m}}});
         repo.SaveEquityDisclosure(Key.Market,Key.Ticker,OfficialEquitySource.Request(Key.Market,Key.Ticker),source);var existing=repo.EquityDisclosures(Key).Single();
         repo.ReviewEquity(new(existing.Id,definition.ReportAsOf,definition.Published,definition.DocumentUrl,"P158","fixture",false,"Unknown",Account:Account,OriginalConfirmed:true),bytes);

@@ -20,7 +20,6 @@ internal static class ApplicationBoundaryChecks
         Check(remote.All(name=>typeof(ExitAlertUseCases).GetMethod(name) is null)
             &&typeof(ExitAlertUseCases).GetFields(BindingFlags.NonPublic|BindingFlags.Instance).All(field=>field.FieldType!=typeof(IEtfHolderCandidateParser)),"预警用例不再持有ETF候选解析器或持仓读写方法");
         Check(remote.All(name=>typeof(EtfHoldingsUseCases).GetMethods().Any(method=>method.Name==name)),"候选解析、口径审核和具名持仓全部进入ETF持仓用例");
-        Check(typeof(CRS.Plugins.NationalTeamWatch.Presentation.EtfHoldingsViewModel).GetConstructors().SelectMany(ctor=>ctor.GetParameters()).All(parameter=>parameter.ParameterType!=typeof(IExitAlertWorkspace)),"ETF持仓页面不再借用预警界面端口");
         var ports=typeof(INationalTeamWorkspace).GetInterfaces();
         Check(ports.SelectMany(x=>x.GetMethods()).All(x=>x.IsAbstract),"界面端口全部要求显式实现，不含默认抛错或忽略筛选的回退");
         var types=new[]{typeof(NationalTeamApplication),typeof(EtfUseCases),typeof(EquityUseCases),typeof(ExitAlertUseCases),

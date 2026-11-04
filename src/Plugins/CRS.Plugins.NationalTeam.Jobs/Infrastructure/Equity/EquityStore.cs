@@ -23,11 +23,12 @@ internal sealed partial class EquityStore
         if(version is not null && Convert.ToInt32(version)!=1)throw new InvalidDataException("直接持股库版本不兼容。");
         Execute("INSERT OR IGNORE INTO feature_schema_migration VALUES('direct-equity',1,$now)",("$now",Now));
         // 这些是采集观察对象，不预置机构持有结论；停用与关注设置重启后保留。
-        foreach(var (ticker,name) in new[]{("601398","工商银行"),("601288","农业银行"),("601988","中国银行"),("601939","建设银行"),("600036","招商银行"),("601318","中国平安"),("600519","贵州茅台"),("600887","伊利股份"),("600900","长江电力"),("600153","建发股份"),("603195","公牛集团"),("600426","华鲁恒升"),("600429","三元股份")})
+        foreach(var (ticker,name) in new[]{("601398","工商银行"),("601288","农业银行"),("601988","中国银行"),("601939","建设银行"),("600036","招商银行"),("601318","中国平安"),("600519","贵州茅台"),("600887","伊利股份"),("600900","长江电力"),("600153","建发股份"),("603195","公牛集团"),("600426","华鲁恒升"),("600429","三元股份"),("688012","中微公司")})
             Execute("INSERT OR IGNORE INTO equity_watch VALUES('SSE',$t,$n,1,0)",("$t",ticker),("$n",name));
         transaction.Commit();
         InitializeEquityReportSchema();
         InitializeHistoricalEquitySchema();
+        InitializeAutomaticEquitySchema();
         InitializeDirectionSchema();
     }
     public List<EquityWatch> EquityWatchlist()
@@ -95,6 +96,7 @@ internal sealed partial class EquityStore
         var acceptedHash=Scalar("SELECT f.sha256 FROM equity_disclosure d JOIN source_fetch f ON f.fetch_id=d.document_fetch_id WHERE d.id=$id",("$id",review.Id)) as string;
         if(acceptedHash is not null&&!acceptedHash.Equals(documentHash,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("同一披露的核验原文不能替换；更正报告须登记新候选并重新逐账户核验。");
         if(!row.Holders.Any(x=>x.Account==review.Account) || row.ReportAsOf is {} known && known!=review.ReportAsOf || row.Published is {} publication && publication!=review.Published)throw new InvalidDataException("审核账户或已确认报告时点不匹配。");
+        HistoricalEquityCatalog.ValidateSubsetReview(review,row.Holders.Single(x=>x.Account==review.Account));
         beforeWrite?.Invoke();using var transaction=db.BeginTransaction();
         // 在同一写事务中核对用户实际看到的基线，界面加载之后的历史补入不能被静默批准。
         var baseline=Scalar("SELECT id FROM equity_disclosure WHERE market=$m AND ticker=$t AND report_date<$d AND state='Accepted' ORDER BY report_date DESC LIMIT 1",("$m",market),("$t",ticker),("$d",review.ReportAsOf.ToString("yyyy-MM-dd"))) as string;
@@ -145,6 +147,7 @@ internal sealed partial class EquityStore
     }
     private IEnumerable<EquityHoldingRow> EquityPeriodRows(EquityWatch watch,EquityDisclosure current,EquityDisclosure? prior)
     {
+        var originalConflict=Convert.ToInt32(Scalar("SELECT count(*) FROM equity_auto_document WHERE disclosure_id=$id AND state='NeedsReview'",("$id",current.Id)))>0;
         foreach(var account in current.Holders.Concat(prior?.Holders??[]).Select(x=>x.Account).Where(x=>InstitutionAccounts.CandidateGroup(x) is not null).Distinct())
         {
             var value=current.Holders.SingleOrDefault(x=>x.Account==account);var before=prior?.Holders.SingleOrDefault(x=>x.Account==account);
@@ -160,11 +163,11 @@ internal sealed partial class EquityStore
             var comparison=prior?.State=="Critical" || before is not null&&(!previousReviewed||previousIdentity!=identity)
                 ?(State:"NotComparable",Delta:(decimal?)null)
                 :DirectEquityComparison.Compare(before?.Shares,value?.Shares,Comparable(current)&&prior is not null&&Comparable(prior)&&reviewedBaseline==prior.Id,prior?.State=="Accepted");
-            var state=current.State=="Critical"?"Critical":accountNature is null||identity=="主体待核验"?"NeedsReview":comparison.State;
+            var state=current.State=="Critical"?"Critical":originalConflict?"Conflict":accountNature is null||identity=="主体待核验"?"NeedsReview":comparison.State;
             // 页码属于逐账户核验；不能继承该披露最后一个审核账户的证据位置。
             var evidencePage=Scalar("SELECT page FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY julianday(reviewed_at) DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
             var evidenceHash=Scalar("SELECT document_hash FROM equity_account_review_audit WHERE disclosure_id=$id AND account=$a ORDER BY julianday(reviewed_at) DESC,rowid DESC LIMIT 1",("$id",current.Id),("$a",account)) as string;
-            yield return new(current.Id,watch.Market,watch.Ticker,watch.Name,identity,account,state=="Critical"?null:value?.Shares,state=="Critical"?null:value?.Percent,current.ReportAsOf,current.Published,current.SourceDate,state,state is "Critical" or "NeedsReview"?null:comparison.Delta,accountNature??"Unknown",watch.Favorite,current.DocumentUrl??current.SourceUrl,prior?.ReportAsOf,evidencePage,evidenceHash);
+            yield return new(current.Id,watch.Market,watch.Ticker,watch.Name,identity,account,state is "Critical" or "Conflict"?null:value?.Shares,state is "Critical" or "Conflict"?null:value?.Percent,current.ReportAsOf,current.Published,current.SourceDate,state,state is "Critical" or "Conflict" or "NeedsReview"?null:comparison.Delta,accountNature??"Unknown",watch.Favorite,current.DocumentUrl??current.SourceUrl,prior?.ReportAsOf,evidencePage,evidenceHash);
         }
     }
 }

@@ -4,12 +4,12 @@ using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Infrastructure;
 
 /// <summary>固定原件的人工核对摘录适配器，不宣称通用PDF解析；金融值、范围和原文身份一起版本化。</summary>
-internal static class HistoricalEquityCatalog
+internal static partial class HistoricalEquityCatalog
 {
     internal sealed record ReviewedAccount(string Account,string Institution,string Page);
     internal sealed record Definition(string Id,string Market,string Ticker,string Name,DateOnly ReportAsOf,DateOnly Published,string PublicationBasis,
         string PublicationUrl,string DocumentUrl,string OriginalHash,string Pages,string ShareClass,string PercentBasis,string Unit,
-        string Scope,decimal TotalShares,EquityHolder[] Holders,ReviewedAccount[] ReviewedAccounts);
+        string Scope,decimal? TotalShares,EquityHolder[] Holders,ReviewedAccount[] ReviewedAccounts);
     private static readonly Lazy<(Definition Value,byte[] Bytes,string Hash)> Loaded=new(()=>
     {
         using var stream=typeof(HistoricalEquityCatalog).Assembly.GetManifestResourceStream("CRS.Plugins.NationalTeam.Jobs.Resources.cnd-2025-annual.json")
@@ -18,13 +18,14 @@ internal static class HistoricalEquityCatalog
         var value=JsonSerializer.Deserialize<Definition>(bytes,new JsonSerializerOptions{RespectRequiredConstructorParameters=true,RespectNullableAnnotations=true})
             ??throw new InvalidDataException("历史原文摘录无效。");
         var uri=new Uri(value.DocumentUrl);
+        var total=value.TotalShares??0;
         if(value.Market!="SSE"||value.Ticker!="600153"||value.ShareClass!="A"||value.PercentBasis!="TotalShares"||value.Unit!="股"
-            ||value.Scope!="Top10ShareholdersExcludingSecuritiesLending"||value.ReportAsOf>value.Published||value.TotalShares<=0
+            ||value.Scope!="Top10ShareholdersExcludingSecuritiesLending"||value.ReportAsOf>value.Published||total<=0
             ||!OfficialEquityDocuments.IsReviewedIssuer(uri)||!OfficialEquityDocuments.Matches(uri,value.Market,value.Ticker,value.ReportAsOf)
             ||!string.Equals(OfficialEquityDocuments.ReviewedIssuerHash(uri),value.OriginalHash,StringComparison.OrdinalIgnoreCase)
-            ||value.Holders.Length!=10||value.Holders.Select(x=>x.Account).Distinct().Count()!=10||value.Holders.Sum(x=>x.Shares)>value.TotalShares
+            ||value.Holders.Length!=10||value.Holders.Select(x=>x.Account).Distinct().Count()!=10||value.Holders.Sum(x=>x.Shares)>total
             ||value.Holders.Any(x=>string.IsNullOrWhiteSpace(x.Account)||x.Shares<0||x.Shares!=decimal.Truncate(x.Shares)||x.Percent is not {} percent
-                ||decimal.Round(x.Shares/value.TotalShares*100,2,MidpointRounding.AwayFromZero)!=percent)
+                ||decimal.Round(x.Shares/total*100,2,MidpointRounding.AwayFromZero)!=percent)
             ||value.ReviewedAccounts.Length!=4||value.ReviewedAccounts.Select(x=>x.Account).Distinct().Count()!=4
             ||value.ReviewedAccounts.Any(x=>!value.Holders.Any(h=>h.Account==x.Account)||InstitutionAccounts.CandidateGroup(x.Account) is null
                 ||x.Institution is not ("社保基金" or "养老保险基金")||InstitutionAccounts.Group(x.Account) is {} group&&group!=x.Institution
@@ -34,8 +35,9 @@ internal static class HistoricalEquityCatalog
         var normalized=JsonSerializer.SerializeToUtf8Bytes(value);
         return(value,normalized,Convert.ToHexString(SHA256.HashData(normalized)));
     });
-    public static IReadOnlyList<HistoricalEquityPdf> Documents()=>[Summary(Loaded.Value)];
+    public static IReadOnlyList<HistoricalEquityPdf> Documents()=>[Summary(Loaded.Value),..ReviewedSubsets.Value.Values.Select(x=>Summary(x.Prepared)).OrderBy(x=>x.Ticker).ThenBy(x=>x.ReportAsOf)];
     private static HistoricalEquityPdf Summary((Definition Value,byte[] Bytes,string Hash) item)
     {var v=item.Value;return new(v.Id,v.Market,v.Ticker,v.Name,v.ReportAsOf,v.Published,v.PublicationBasis,v.DocumentUrl,v.OriginalHash,item.Hash,v.Pages,v.Holders.Length,v.ReviewedAccounts.Length,v.Scope);}
-    public static (Definition Value,byte[] Bytes,string Hash) Get(string id)=>id==Loaded.Value.Value.Id?Loaded.Value:throw new InvalidDataException("历史原文定义未登记，不能导入任意PDF。");
+    public static (Definition Value,byte[] Bytes,string Hash) Get(string id)=>id==Loaded.Value.Value.Id?Loaded.Value
+        :ReviewedSubsets.Value.TryGetValue(id,out var entry)?entry.Prepared:throw new InvalidDataException("历史原文定义未登记，不能导入任意PDF。");
 }

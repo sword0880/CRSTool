@@ -19,6 +19,14 @@ internal static class SourcePolicyChecks
         int passed = 0;
         void Check(bool condition, string name)
         { if (!condition) throw new InvalidOperationException(name); passed++; Console.WriteLine("PASS 来源策略：" + name); }
+        var cninfoRoot=Path.Combine(root,"cninfo");var cninfoNow=DateTimeOffset.UtcNow;
+        using(var policy=new SourceRequestPolicy(cninfoRoot))
+        {
+            policy.Failure("www.cninfo.com.cn",cninfoNow,403);
+            Check(policy.Read("static.cninfo.com.cn").Blocked>cninfoNow&&policy.Read("www.sse.com.cn").Failures==0,"巨潮官网/CDN共用插件冷却，交易所独立");
+        }
+        using(var reopened=new SourceRequestPolicy(cninfoRoot))
+            Check(reopened.Read("static.cninfo.com.cn").Failures==1&&reopened.Read("www.cninfo.com.cn").Blocked>cninfoNow,"巨潮冷却重启后保留");
         // 插件持久策略与宿主使用相同出版者身份；重开数据库后也不能借CDN清除官网失败。
         var gongniuRoot=Path.Combine(root,"gongniu");var policyNow=DateTimeOffset.UtcNow;
         using(var policy=new SourceRequestPolicy(gongniuRoot))

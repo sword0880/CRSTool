@@ -26,6 +26,7 @@ public partial class EquityViewModel(IDirectEquityWorkspace workspace,Cancellati
     [ObservableProperty] private string nature="全部性质";
     [ObservableProperty] private bool favorites;
     [ObservableProperty] private string status="等待后台披露数据。";
+    [ObservableProperty] private string automaticStatus="自动发现及已核验结果由后台持续更新。";
     [ObservableProperty] private string detailStatus="选择股票查看持有人，再选择账户查看披露时间线。";
     [ObservableProperty] private bool busy;
     [ObservableProperty] private EquityHoldingRow? selected;
@@ -92,7 +93,7 @@ public partial class EquityViewModel(IDirectEquityWorkspace workspace,Cancellati
             RebuildEquityOverview();
             RebuildStockList(old);
             if(Selected is null){Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);DetailStatus="选择股票查看持有人，再选择账户查看披露时间线。";}
-            Status=$"已核验 {EquityStockList.Build(rows,true).Count} 只股票 · 待核验 {EquityStockList.Build(rows,false).Count} 只（含其他披露，在高级工具查看）。";
+            Status=$"当前筛选：已核验 {EquityStockList.Build(rows,true).Count} 只股票 · 其他披露 / 待核验 {EquityStockList.Build(rows,false).Count} 只（在高级工具查看）。已启用观察 {Watches.Count(x=>x.Active)} 只，非全市场覆盖；最新未列示不代表清仓。";
         }
         catch(OperationCanceledException) when(lifetime.IsCancellationRequested){}
         catch(Exception error){if(version==queryVersion){stockQueryFailed=true;Rows.Clear();RebuildEquityOverview();RebuildStockList();Selected=null;Disclosures.Clear();Events.Clear();ClearEquityCharts();SetStockAccounts(null);Status="直接持股查询失败："+(error is System.IO.InvalidDataException?error.Message:error.GetType().Name);}}
@@ -120,6 +121,11 @@ public partial class EquityViewModel(IDirectEquityWorkspace workspace,Cancellati
     }
     public async Task RefreshAsync()
     {
+        if(workspace is IAutomaticEquityWorkspace automatic)
+        {
+            try{AutomaticStatus=(await automatic.AutomaticEquityStatusAsync(lifetime)).DisplayText;}
+            catch(Exception error) when(error is not OperationCanceledException){AutomaticStatus="自动持股状态暂不可用，请确认后台版本及运行状态。";}
+        }
         var watches=await workspace.EquityWatchlistAsync(lifetime);var old=SelectedWatch;
         Watches.Clear();foreach(var watch in watches)Watches.Add(watch);SelectedWatch=watches.FirstOrDefault(x=>x.Market==old?.Market&&x.Ticker==old.Ticker);
         LoadTask=LoadRowsAsync();await LoadTask;

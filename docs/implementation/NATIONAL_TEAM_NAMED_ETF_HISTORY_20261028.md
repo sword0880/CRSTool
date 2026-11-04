@@ -1,5 +1,7 @@
 # 具名ETF多期披露与主体目录
 
+2026-11-04变更：独立机构ETF持仓页面及历史表视图已按用户要求[移除](NATIONAL_TEAM_ETF_HOLDINGS_REMOVAL_20261104.md)。后台多期披露规则、查询、存储与隔离验证保留；本文页面截图及交互描述为历史记录，相关专用预览命令已删除。
+
 2026-10-28正式状态：本轮后端随[双库保全维护](NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)已安装并Committed。已结束统计日的具名ETF历史查询及客户端指纹复算通过，但当前24只ETF未回读到已核验具名持仓行；这是证据覆盖缺口，不是实际持仓为零，也不能据此判断退出。桌面实用验收及真实主体披露门槛仍开放。
 
 ## 发现及处理
@@ -50,7 +52,7 @@ Core拥有具名披露历史及名称目录；Jobs的`EtfHoldings/EtfHoldingHist
 
 本轮隔离证据为`artifacts/holding-time-wire-checks-20261028/acceptance.json`（84项）、`artifacts/holding-time-pipe-verified-20261028/acceptance.json`（10项）及完整国家队、回放和联合观察回归日志。实际管道只写隔离合成原件和合成账户；沿用原有资料质量事件，核对没有新增金融事件、重复排队或实际投递。9张最终控件截图位于`artifacts/holding-time-visual-verified-20261028/`。这不等于正式机构审核或真实桌面交互验收。正式安装状态以[当前架构状态](../architecture/ARCHITECTURE_STATUS.md)及其维护回执为准。
 
-`CRS.Tests.NationalTeamWatch --named-etf-history <隔离目录>`；`CRS.Tests.WorkerEtf --named-etf-history-pipe <完整候选> <不存在目录>`；`CRS.Tests.PluginRecovery --named-etf-history-visual-preview <专项输出> <截图目录>`。
+`CRS.Tests.NationalTeamWatch --named-etf-history <隔离目录>`；`CRS.Tests.WorkerEtf --named-etf-history-pipe <完整候选> <不存在目录>`。独立页面移除后不再提供该页面预览命令。
 
 所有合成原件、人工确认、实际Service/Runner管道和控件渲染只验证实现，不构成真实机构持仓或预测模型验收。
 

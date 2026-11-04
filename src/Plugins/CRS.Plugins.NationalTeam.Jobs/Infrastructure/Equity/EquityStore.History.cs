@@ -77,6 +77,7 @@ internal sealed partial class EquityStore
             Execute("INSERT INTO equity_review_audit VALUES($audit,$id,$who,$now,$f,$d,$p,$page)",("$audit",Guid.NewGuid().ToString("N")),("$id",disclosure),("$who",reviewer),("$now",now),("$f",originalFetch),("$d",definition.ReportAsOf.ToString("yyyy-MM-dd")),("$p",definition.Published.ToString("yyyy-MM-dd")),("$page",definition.Pages));
             Execute("INSERT INTO equity_historical_document VALUES($id,$dh,$d,$oh,$eh,$now,$basis,$scope,$count)",("$id",definitionId),("$dh",extractHash),("$d",disclosure),("$oh",original),("$eh",normalized),("$now",now),("$basis",definition.PublicationBasis),("$scope",definition.Scope),("$count",definition.Holders.Length));
             Execute("UPDATE source_fetch SET status='Accepted' WHERE fetch_id IN ($one,$two)",("$one",originalFetch),("$two",extractFetch));outcome="Imported";
+            ResolveReviewedCandidates(definition,disclosure,originalFetch,reviewer,now);
         }
         else
         {
@@ -90,5 +91,22 @@ internal sealed partial class EquityStore
         Execute("INSERT INTO equity_historical_receipt VALUES($r,$rh,$def,$d,$o,$count,$now,$oh,$eh,$who,$reason)",("$r",requestId.ToString("N")),("$rh",requestHash),("$def",definitionId),("$d",disclosure),("$o",outcome),("$count",definition.ReviewedAccounts.Length),("$now",recorded),("$oh",documentHash),("$eh",extractHash),("$who",reviewer),("$reason",reason));
         RecordCommand(requestId,"equity-history-import");operationCancellation.ThrowIfCancellationRequested();transaction.Commit();
         return new(requestId,definitionId,disclosure,outcome,definition.ReviewedAccounts.Length,CRS.Timing.BeijingClock.Parse(recorded),documentHash,extractHash);
+    }
+
+    /// <summary>只有逐页核对时固定的原候选完整匹配才归档；原始数量及A/H拆分理由保存在规范化摘录中。</summary>
+    private void ResolveReviewedCandidates(HistoricalEquityCatalog.Definition definition,string disclosure,string originalFetch,string reviewer,string now)
+    {
+        if(HistoricalEquityCatalog.CandidateResolution(definition.Id) is not {} resolution)return;
+        var expected=resolution.CandidateHolders.OrderBy(x=>x.Account,StringComparer.Ordinal).ToArray();
+        foreach(var candidate in ReadEquityDisclosures(new(definition.Market,definition.Ticker))
+            .Where(x=>x.State=="NeedsReview"&&x.SourceDate==resolution.CandidateSourceDate&&x.Hash==resolution.CandidateSourceHash))
+        {
+            var holders=candidate.Holders.Where(x=>InstitutionAccounts.CandidateGroup(x.Account) is not null).OrderBy(x=>x.Account,StringComparer.Ordinal).ToArray();
+            if(!holders.SequenceEqual(expected))continue;
+            Execute("UPDATE equity_disclosure SET state='Superseded' WHERE id=$id AND state='NeedsReview'",("$id",candidate.Id));
+            Execute("INSERT INTO equity_review_audit VALUES($audit,$id,$who,$now,$f,$d,$p,$page)",
+                ("$audit",Guid.NewGuid().ToString("N")),("$id",candidate.Id),("$who",reviewer),("$now",now),("$f",originalFetch),
+                ("$d",definition.ReportAsOf.ToString("yyyy-MM-dd")),("$p",definition.Published.ToString("yyyy-MM-dd")),("$page","由已核A股子集披露 "+disclosure+" 替代；原始线索保留"));
+        }
     }
 }

@@ -20,7 +20,7 @@ internal static class EquityDirectionChecks
             DirectEquityChecks.Seed(repo);SeedSecond(repo);
             var report=repo.Read(r=>r.EquityDirection(Period),default);
             Check(report.DisclosedSecurities==2&&report.ReviewedAccounts==3&&report.Groups.All(x=>x.MarketValueCny is null&&x.SampleWeightPercent is null),"同报告期已核样本可读，没有行业和价格时不按股数计算权重");
-            Check(report.ActiveSecurities==13&&report.Gaps.Count(x=>x.Code=="NoReviewedHoldingInPeriod")==11&&!report.WholePortfolioProven,"13只当前启用范围仅2只已核，缺失不是零持有或完整组合");
+            Check(report.ActiveSecurities==14&&report.Gaps.Count(x=>x.Code=="NoReviewedHoldingInPeriod")==12&&!report.WholePortfolioProven,"14只当前启用范围仅2只已核，缺失不是零持有或完整组合");
             Check(repo.EquityDirection(new(2026,3,31)) is{DisclosedSecurities:1,ReviewedAccounts:3},"历史报告期不混入另一股票的最新持仓");
             Reject(()=>repo.EquityDirection(new(2099,1,1)),"未来报告期拒绝");
             var bank=report.Positions.First(x=>x.Holding.Ticker=="600036");var other=report.Positions.Single(x=>x.Holding.Ticker=="600153");

@@ -37,6 +37,10 @@ internal static class HistoricalEquityCommandChecks
             control.Business=true;var done=await reader.HistoricalEquityStatusAsync(original,stop.Token);
             Check(done is{State:"Completed",Code:"Succeeded"}&&(await reader.HistoricalEquityReceiptAsync(original,stop.Token))?.ReviewedAccounts==4,"宿主与业务回执同ID后才确认完成");
             control.BadReceipt=true;await Invalid(()=>reader.HistoricalEquityReceiptAsync(original,stop.Token));Check(true,"异请求业务回执拒绝");control.BadReceipt=false;
+            control.EmptySubset=true;
+            Check((await reader.HistoricalEquityReceiptAsync(original,stop.Token))?.ReviewedAccounts==0,"已核空A股子集原文回执可读，不生成零持仓");
+            control.BadEmptyBinding=true;await Invalid(()=>reader.HistoricalEquityReceiptAsync(original,stop.Token));
+            Check(true,"空子集哈希不匹配不能放宽零账户回执");control.BadEmptyBinding=false;control.EmptySubset=false;
             control.Reset();control.UnknownFirst=true;control.Drop=true;var absentReader=new WorkerEtfWorkspace(new(pipe));
             try{await absentReader.ImportHistoricalEquityPdfAsync(Definition,"reviewer","reason",true,stop.Token);throw new Exception("未知受理未报告。");}catch(BackgroundServiceException){}
             var firstId=control.Submitted[0];var accepted=await absentReader.ImportHistoricalEquityPdfAsync(Definition,"reviewer","reason",true,stop.Token);
@@ -49,7 +53,7 @@ internal static class HistoricalEquityCommandChecks
     }
     private sealed class Control:IBackgroundControl
     {
-        public Guid Known;public bool Drop,Completed,Business,BadReceipt,UnknownFirst,NoPendingCapability,FilteredByJob;public int Runs,Reads;public List<Guid> Submitted=[];
+        public Guid Known;public bool Drop,Completed,Business,BadReceipt,UnknownFirst,NoPendingCapability,FilteredByJob,EmptySubset,BadEmptyBinding;public int Runs,Reads;public List<Guid> Submitted=[];
         public void Reset(){Known=Guid.Empty;Drop=Completed=Business=BadReceipt=UnknownFirst=NoPendingCapability=FilteredByJob=false;Runs=Reads=0;Submitted.Clear();}
         public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
@@ -71,9 +75,15 @@ internal static class HistoricalEquityCommandChecks
             else
             {
                 var query=EtfBusinessProtocol.ParseRequest(request.Payload!);
-                var rows=Business?[new HistoricalEquityReceipt(BadReceipt?Guid.NewGuid():Known,Definition,"synthetic-disclosure","Imported",4,CRS.Timing.BeijingClock.Now,new string('A',64),new string('B',64))]:Array.Empty<HistoricalEquityReceipt>();
+                if(query.Operation=="query-capabilities")return Task.FromResult(Reply("UnknownQuery"));
+                object rows;int count;
+                if(query.Operation=="equity-history-documents")
+                {
+                    var catalog=new[]{new HistoricalEquityPdf(Definition,"SSE","600153","合成已核空子集",new(2026,9,30),new(2026,10,31),"合成列示日","https://www.sse.com.cn/fixture.pdf",new string('A',64),new string(BadEmptyBinding?'C':'B',64),"P3",0,0,"ReviewedAShareDisclosedSubset")};rows=catalog;count=1;
+                }
+                else{var receipts=Business?[new HistoricalEquityReceipt(BadReceipt?Guid.NewGuid():Known,Definition,"synthetic-disclosure","Imported",EmptySubset?0:4,CRS.Timing.BeijingClock.Now,new string('A',64),new string('B',64))]:Array.Empty<HistoricalEquityReceipt>();rows=receipts;count=receipts.Length;}
                 response=query.Operation=="release-query"?Reply("Ok",payload:JsonSerializer.Serialize("Released"))
-                    :Reply("Ok",payload:JsonSerializer.Serialize(new EtfQueryPage(JsonSerializer.Serialize(rows),"synthetic",null){MaximumPageCount=256,TotalRows=rows.Length}));
+                    :Reply("Ok",payload:JsonSerializer.Serialize(new EtfQueryPage(JsonSerializer.Serialize(rows),"synthetic",null){MaximumPageCount=256,TotalRows=count}));
             }
             return Task.FromResult(response);
         }

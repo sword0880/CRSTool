@@ -96,7 +96,6 @@ internal static class EtfReportIndexChecks
         await Jobs(Path.Combine(root,"jobs"));
         EtfReportStorageChecks.Run(Path.Combine(root,"storage-boundaries"));
         await EtfReportGatewayChecks.RunAsync();
-        await EtfReportIndexUiChecks.RunAsync();
         Console.WriteLine($"ETF目录验证通过：{passed}项；合成库/保存响应，不代表正式Worker或机构持仓验收。");
     }
     private static async Task Jobs(string root)

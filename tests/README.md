@@ -1,12 +1,14 @@
 ## UI-ARCH 统一视觉回归（Windows）
 
+直接持股固定原文补齐：`CRS.Tests.NationalTeamWatch --equity-reviewed-checks <18份研究原文根目录>`在独立测试库验证A/H股隔离、未知比例、转增、未列示、事务回滚、幂等和重启回读；`--equity-reviewed-import-live <固定工作区目录>`是明确写入已安装Worker的审核登记工具，必须先完成原文逐页核对及保全维护，逐份保存稳定ID、宿主回执及业务回执，延期不算成功。同目录重试保留原ID。来源精确清单、范围与证据见[直接持股补齐](../docs/implementation/NATIONAL_TEAM_EQUITY_REVIEWED_SUBSETS_20261104.md)。
+
 国家队双库迁移：`CRS.Tests.NationalTeamWatch --national-team-migration <新隔离目录>`验证双库保全、认证日志、八处中断恢复、WAL强杀和自增高水位；默认国家队回归及CI也包含此检查。`Prepare-WorkerUpgradeFixture.ps1 -Destination <新目录>`创建不可发行的合成Worker夹具，`CRS.Tests.Background --upgrade-only <夹具目录>`验证升级启动；`--storage-migration-host <夹具目录> <新目录>`验证独立维护Runner、密钥绑定、超时回收及同代次恢复。
 
 维护事务：`tests/Test-WorkerUpgradeTransactions.ps1`仅使用唯一临时目录和合成包，不创建或控制Windows服务。149项覆盖中断、快照损坏、禁止有新事实后回退，以及升级/恢复启动等待参数越界时无停机副作用。正式`Upgrade-Service.ps1`及`Recover-Service.ps1`的`StartupTimeoutSeconds`默认300秒，管理员可显式设300至1800秒以容纳归档权限及快照核验，所有核验和失败停机规则仍保留；不改变业务查询或后台任务期限。
 
 完整迁移发行须显式使用`Publish-BackgroundService.ps1 -OutputDirectory <新目录> -MigrateNationalTeamStorage`。`CRS.Tests.WorkerEtf --storage-migration-pipe <完整迁移候选> <新目录>`使用未经修改的候选、生产国家队入口及真实客户端回读合成资料。管理员运行`Test-NationalTeamScmStorageMigration.ps1 -PackageDirectory <完整迁移候选>`仅创建并最终移除唯一命名的LocalService测试服务，验证真实身份、迁移后中断与禁止旧库覆盖；工作区隔离现场保留，不操作正式服务。新CI工作流登记了这些入口，远端执行不能凭配置修改宣称通过。源码、隔离LocalService与正式数据证据分别见[迁移边界](../docs/implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)。
 
-具名ETF历史：`CRS.Tests.NationalTeamWatch --named-etf-history <隔离目录>`；`CRS.Tests.WorkerEtf --named-etf-history-pipe <完整候选> <不存在目录>`；`CRS.Tests.PluginRecovery --named-etf-history-visual-preview <专项输出> <截图目录>`。同账户报告期差额、最新期冲突/原件损坏、主体分类及未知缺口见[实现与限制](../docs/implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
+具名ETF历史：`CRS.Tests.NationalTeamWatch --named-etf-history <隔离目录>`；`CRS.Tests.WorkerEtf --named-etf-history-pipe <完整候选> <不存在目录>`。2026-11-04独立机构ETF持仓页面及其专用预览/界面专项已[移除](../docs/implementation/NATIONAL_TEAM_ETF_HOLDINGS_REMOVAL_20261104.md)，后台规则与管道验证保留。同账户报告期差额、最新期冲突/原件损坏、主体分类及未知缺口见[实现与限制](../docs/implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
 
 具名持仓公布日期：上述历史专项同时检查日期/准确时刻精度、真实首见、坏字段关闭最新基准、旧载荷字节及指纹不变。`CRS.Tests.WorkerEtf --etf-holding-publication-pipe <完整候选> <不存在目录>`验证实际客户端、管理员管道、监督Runner和普通SQLite：日期记录显式传输`PublishedAt:null`，版本协商后使用新审核操作，旧操作拒绝日期载荷。全部金融事实为隔离合成；既有资料质量事件保留，不新增金融事件、重复排队或实际投递。最终日期编辑器/候选/持仓表共9张截图覆盖640/1040/1280 DIP，控件渲染不能替代真实桌面点击验收。
 
@@ -22,7 +24,7 @@
 
 直接持股方向：`CRS.Tests.NationalTeamWatch --equity-direction <新目录>`验证同报告期、市值权重分母、分类核验、原件损坏和界面竞态；纳入默认回归。`CRS.Tests.WorkerEtf --equity-direction-pipe <新候选Worker包> <不存在目录>`验证实际客户端/Runner/持久回执，全部金融事实为合成夹具。`CRS.Tests.PluginRecovery --equity-direction-visual-preview <专项snapshot.json> <截图目录>`仅回放真实只读控件。边界及剩余门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)。
 
-ETF官方报告目录：`CRS.Tests.NationalTeamWatch --etf-report-index`默认回放仓库内两所响应及收据，校验完整分页、来源、事务、原件即时损坏和界面边界。`CRS.Tests.WorkerEtf --etf-report-pipe <候选Worker包> <目录响应夹具> <已保存PDF目录> <不存在的隔离目录>`验证实际桌面排队、Runner、持久回执、明确原件登记和待审候选；不会联网或安装服务。`CRS.Tests.PluginRecovery --etf-report-visual-preview <管道acceptance.json> <截图目录>`只读回放目录渲染真实页面。范围见[实现说明](../docs/implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。
+ETF官方报告目录：`CRS.Tests.NationalTeamWatch --etf-report-index`默认回放仓库内两所响应及收据，校验完整分页、来源、事务和原件即时损坏。`CRS.Tests.WorkerEtf --etf-report-pipe <候选Worker包> <目录响应夹具> <已保存PDF目录> <不存在的隔离目录>`验证客户端排队、Runner、持久回执、明确原件登记和待审候选；不会联网或安装服务。独立机构ETF持仓页面及报告目录专用预览已移除。范围见[实现说明](../docs/implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。
 
 标题栏原生命中：`CRS.Tests.Wpf --plugin-header-native <截图目录>` 保留真实FluentWindow与TitleBar钩子，直接核对菜单中心`WM_NCHITTEST=HTCLIENT`、剩余区域`HTCAPTION`，再检查菜单展开选择、宽度和离开插件的清理；仅有按钮Invoke或普通Window截图不能替代这个检查。修复记录见[紧凑顶栏](../docs/implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。
 
@@ -51,6 +53,8 @@ NAV存储新增：`CRS.Tests.NationalTeamWatch --nav-storage-checks`检查独立
 本机配套安装留证：`CRS.Tests.NationalTeamWatch --deployment-state-live <目录>`只读保存健康、计划、ETF配置和股票记录，并要求读取前后同一Running进程。`--deployment-compare-live <升级前目录> <升级后目录>`逐项核对计划身份、Cron、时区、启用及修订，ETF配置和原执行记录；股票投影单独报告，运行中的退避/失败计数允许合法变化。`--research-feature-audit-live <目录>`保留每项耗时及失败分类，普通查询20秒，预警总览、批量验收、联合观察及周期四个异步研究客户端110秒，总观察上限6分钟；记录全池批量验收和已完成的具名持仓查询范围，拒绝覆盖原报告。`--acceptance-batch-live <已结束统计日> <新目录>`仅回查该日全池验收，记录真实协商、提交/状态/冻结分页/释放路径和前后健康；失败与空集合不代表金融验收通过。它们均不提交采集或审核，不证明模型有效。`--equity-report-sync-live <目录>`仅为600153创建一个稳定报告请求ID，文件存在时沿用；`--equity-report-status-live <目录>`只查询该ID。目录读取失败前先保存独立命令终态，超时不冒充空目录。`--p0-review-live --human-confirmed`仅用于已确认固定原件的五账户，先跑真实黄金样本；已成功账户跳过，仅正式执行证明正文前超时/冷却的终态失败才另记尝试，未知结果和业务拒绝不换ID。见[正式回执与边界](../docs/implementation/ETF_EQUITY_DEPLOYMENT_20261024.md)。
 
 ETF/股票2026-10-24续验：`CRS.Tests.NationalTeamWatch --evidence-adversarial`为16项隔离反例，验证股票历史插入/更正不继承旧比较基线、旧页面确认拒绝、旧库缺基线保留A类快照但无差额，以及ETF原件接收/接受阶段的北京时间窗口；已加入默认回归和Windows CI。`--business-contracts`覆盖基线序列化、新绑定操作及旧服务拒绝后不降级。`--equity-ui`检查实际比较前期展示及修改报告期清除可比勾选。新增`--equity-status-live`只读正式持仓/观察池/样本目录/计划和持久历史，失败不保存完整结果；不采集、不审核、不发消息。真实数据与未关闭门槛见[续项记录](../docs/implementation/ETF_EQUITY_FOLLOWUP_20261024.md)。
+
+直接持股逐只覆盖核查：`CRS.Tests.NationalTeamWatch --equity-coverage-live <输出目录>`只读实际Worker的全部观察股票、持仓投影、逐只已存披露和报告目录、健康及近期采集历史。每只保存`progress.json`，完整读取后保存`coverage.json`；明确分证券顺序读取的范围，并比对首尾持仓。空投影须结合已存股东表解释，不能写成实际零持仓或漏采。本命令不下载、不排队、不审核，见[2026-11-04核查](../docs/implementation/NATIONAL_TEAM_EQUITY_COVERAGE_AUDIT_20261104.md)。
 
 ```powershell
 ./tests/Verify-WpfDesignSystem.ps1

@@ -98,7 +98,7 @@ internal static class NationalTeamNavigationChecks
                     Check(!registered.Any(x=>x.RouteKey is "etf-monitor" or "direct-equity" or "industry-research"),
                         "删除三个历史宿主路由，业务只在工作台内部导航");
                     var root=registered.Single(x=>x.ShowInNavigation).CreateView();
-                    Check(root is NationalTeamWorkspacePage {CategoryCount:2,SelectedRouteKey:null},
+                    Check(root is NationalTeamWorkspacePage {CategoryCount:3,SelectedRouteKey:null},
                         "真正插件入口仅构造分类工作台，后台操作未在Startup触发");
                 }
                 finally {session.StopAsync(default).GetAwaiter().GetResult();session.DisposeAsync().AsTask().GetAwaiter().GetResult();}

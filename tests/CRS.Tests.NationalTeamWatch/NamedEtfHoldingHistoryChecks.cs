@@ -3,7 +3,6 @@ using CRS.Plugins.NationalTeam.Jobs;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
-using CRS.Plugins.NationalTeamWatch.Presentation;
 using CRS.Plugin.Abstractions;
 using CRS.Serialization;
 using CRS.Worker.Ipc;
@@ -70,7 +69,7 @@ internal static class NamedEtfHoldingHistoryChecks
         Reject(()=>NamedEtfHoldingHistory.Evaluate(input with{Holdings=[input.Holdings[0] with{Ticker="510500"}]}),"其他ETF记录不能混入");
         Reject(()=>NamedEtfHoldingHistory.Evaluate(input with{AsOf=DateOnly.FromDateTime(Cutoff.DateTime)}),"未结束统计日拒绝");
         File.WriteAllText(Path.Combine(root,"history.json"),JsonSerializer.Serialize(report));File.WriteAllText(Path.Combine(root,"conflict.json"),JsonSerializer.Serialize(conflict));File.WriteAllText(Path.Combine(root,"empty.json"),JsonSerializer.Serialize(empty));
-        await Model(report);Storage(Path.Combine(root,"storage"));Equity(Path.Combine(root,"equity"));await Background(Path.Combine(root,"background"));
+        Storage(Path.Combine(root,"storage"));Equity(Path.Combine(root,"equity"));await Background(Path.Combine(root,"background"));
         File.WriteAllText(Path.Combine(root,"acceptance.json"),JsonSerializer.Serialize(new{Passed=passed,Installed=false,Source="SyntheticNamedHoldingHistory",WholePortfolioProven=false},new JsonSerializerOptions{WriteIndented=true}));
     }
     internal static NamedEtfHistoryInput Fixture()=>new(Key,Day,Cutoff,new(Key.Market,Key.Ticker,"synthetic-fund","synthetic-manager","synthetic-index",new(2026,1,1),Day,Url,Hash,"synthetic-reviewer",true),[
@@ -182,15 +181,6 @@ internal static class NamedEtfHoldingHistoryChecks
         var value=JsonSerializer.Deserialize<NamedEtfHolding[]>(page.Items)!.Single();
         Check(value.PublishedAt is null&&value.FirstSeenAt==Cutoff&&value.PublicationDate==review.PublicationDate,"后台回读保留空时刻及固定首见，不采信客户端猜测的时点");
     }
-    private static async Task Model(NamedEtfHoldingHistoryReport report)
-    {
-        var workspace=new Workspace(report);var model=new EtfHoldingHistoryViewModel(workspace,default){Fund=new("SSE","510300","合成ETF","fixture",true,"fixture","fixture",1),AsOf=Day.ToDateTime(TimeOnly.MinValue)};
-        await model.ReadAsync();Check(model.Rows.Count==report.Rows.Count&&model.Families.Count==5&&model.SelectionDetails.Count==3,"页面仅映射后台变化、五类覆盖及排除原因");
-        model.AsOf=model.AsOf.Value.AddDays(-1);Check(model.Report is null&&model.Rows.Count==0,"条件改变立即移除旧结果");model.AsOf=Day.ToDateTime(TimeOnly.MinValue);
-        workspace.Delayed=true;var first=model.ReadAsync();var second=model.ReadAsync();workspace.Replies[1].SetResult(report);await second;workspace.Replies[0].SetResult(report with{Rows=[]});await first;Check(model.Rows.Count==report.Rows.Count&&!model.Busy,"旧请求不能覆盖新结果");
-        var cancel=model.ReadAsync();model.Cancel();workspace.Replies[^1].SetResult(report);await cancel;Check(model.Report is null&&!model.Busy,"主动取消后迟到结果不展示");
-        workspace.Delayed=false;workspace.Fail=true;await model.ReadAsync();Check(model.Report is null&&model.Status.Contains("不可用"),"查询失败不保留旧持仓");
-    }
     private static void Storage(string root)
     {
         var rawPath=Path.Combine(root,"raw");var raw=new RawEvidenceStore(rawPath);var data=Path.Combine(root,"data");using var repo=TestMarketData.Open(data,raw,timeProvider:new Clock());
@@ -224,11 +214,6 @@ internal static class NamedEtfHoldingHistoryChecks
         var request=new EtfRequest("etf-holding-history",Key.Market,Key.Ticker,To:Day,Count:1);var blocks=new List<JsonDocumentBlock>();
         while(true){var page=EtfBusinessProtocol.ReadResponse<EtfQueryPage>(await session.QueryAsync(JsonSerializer.Serialize(request),default));blocks.AddRange(JsonSerializer.Deserialize<List<JsonDocumentBlock>>(page.Items)!);if(page.NextOffset is not {} next)break;request=request with{Offset=next,Snapshot=page.Snapshot};}
         var report=JsonDocumentBlocks.Decode<NamedEtfHoldingHistoryReport>(blocks,default);Check(report.Families.Count==5&&report.Rows.Count==0&&session.QueryOperation(JsonSerializer.Serialize(request))=="etf-holding-history","正式后台分块查询保留空库缺口，不联网或批准事实");
-    }
-    private sealed class Workspace(NamedEtfHoldingHistoryReport report):ResearchWorkspaceStub
-    {
-        public bool Delayed,Fail;public List<TaskCompletionSource<NamedEtfHoldingHistoryReport>> Replies=[];
-        public override Task<NamedEtfHoldingHistoryReport> EtfHoldingHistoryAsync(EtfKey key,DateOnly asOf,CancellationToken token){if(Fail)throw new IOException("synthetic unavailable");if(!Delayed)return Task.FromResult(report);var value=new TaskCompletionSource<NamedEtfHoldingHistoryReport>(TaskCreationOptions.RunContinuationsAsynchronously);Replies.Add(value);return value.Task;}
     }
     private sealed class Clock:TimeProvider{public override DateTimeOffset GetUtcNow()=>Cutoff;}
     private sealed class Context(string root):CRS.Worker.Abstractions.IBackgroundHostContext{public string PluginId=>"crs.national-team";public string DataDirectory=>root;public byte[] OpenDataKey()=>TestMarketData.Key.ToArray();}

@@ -1,5 +1,9 @@
 # 当前架构入口
 
+2026-11-04直接持股完成[固定原文补齐与本机保全验收](../implementation/NATIONAL_TEAM_EQUITY_REVIEWED_SUBSETS_20261104.md)：18份原文、10只股票26个当前已核账户；自动发现/自动核验是用户随后新增的功能，不能混同于本次固定数据补齐。
+
+2026-11-04按用户要求移除“机构ETF持仓”独立页面、工作台路由、专用视图模型及页面预览。ETF份额、直接持股、NAV及其他研究入口保留；具名披露的后台合同、存储和既有资料继续供NAV与预警消费。此次仅更新桌面源码及开发包，不执行后台维护或数据删除，见[页面移除记录](../implementation/NATIONAL_TEAM_ETF_HOLDINGS_REMOVAL_20261104.md)。
+
 2026-11-03新增[南向年内累计净买入折线](../implementation/SOUTHBOUND_ANNUAL_COMPARISON_20261103.md)：独立Southbound领域/应用/存储/后台和WPF模块；沪深港股通买入减卖出逐年重置累计，按相同月日比较。使用上一年末原始累计额核对连续性，缺口后停止该年累计；新协议/快照与原每日买入资料分开。本机后台已保全更新至Committed，真实采集及五年曲线回读通过，见[部署与UnknownQuery修复](../implementation/SOUTHBOUND_UNKNOWN_QUERY_FIX_20261103.md)。
 
 本文保留架构演进及历史时点，当前模块边界、开放风险、部署与证据统一见[当前架构状态](ARCHITECTURE_STATUS.md)。

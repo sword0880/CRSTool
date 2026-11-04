@@ -1,0 +1,963 @@
+[
+  {
+    "Definition": {
+      "Id": "equity-601988-20260630-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601988",
+      "Name": "中国银行2026年半年度报告",
+      "ReportAsOf": "2026-06-30",
+      "Published": "2026-08-29",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225526341.PDF",
+      "OriginalHash": "B798A5056ED8ED888E6D8C89E061AB379C872095DD090B4B14B50E4C42F6186D",
+      "Pages": "PDF P58-59；原文P57-58",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": 322212411814,
+      "Holders": [
+        {
+          "Account": "汇金公司",
+          "Shares": 188791906533,
+          "Percent": 58.59
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Shares": 7941164885,
+          "Percent": 2.46
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 1810024500,
+          "Percent": 0.56
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "汇金公司",
+          "Institution": "汇金投资",
+          "Page": "PDF P58-59；原文P57-58；普通股A股账户行"
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Institution": "证金公司",
+          "Page": "PDF P58-59；原文P57-58；普通股A股账户行"
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P58-59；原文P57-58；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": "2026-08-29",
+    "CandidateSourceHash": "221027D1786BA7826C15787D90CBBA84367110A6D8870ABB247AC786B58610AF",
+    "CandidateHolders": [
+      {
+        "Account": "中国证券金融股份有限公司",
+        "Shares": 7941164885,
+        "Percent": 2.46
+      },
+      {
+        "Account": "中央汇金资产管理有限责任公司",
+        "Shares": 1810024500,
+        "Percent": 0.56
+      },
+      {
+        "Account": "汇金公司",
+        "Shares": 188791906533,
+        "Percent": 58.59
+      }
+    ],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。旧结构化候选仅在原始哈希、源日期及具名候选完全一致时归档，原记录和数量保留。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600426-20260630-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600426",
+      "Name": "华鲁恒升2026年半年度报告",
+      "ReportAsOf": "2026-06-30",
+      "Published": "2026-08-20",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225481561.PDF",
+      "OriginalHash": "A9FA4B948525F0C9D9CEA1CB381AE85C8C3C60C234179F3B0C635C811D431CE3",
+      "Pages": "PDF P22-23",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "全国社保基金一零六组合",
+          "Shares": 53193958,
+          "Percent": 2.51
+        },
+        {
+          "Account": "全国社保基金一零三组合",
+          "Shares": 13000000,
+          "Percent": 0.61
+        },
+        {
+          "Account": "基本养老保险基金八零七组合",
+          "Shares": 12771972,
+          "Percent": 0.6
+        },
+        {
+          "Account": "基本养老保险基金一五零二二组合",
+          "Shares": 12590238,
+          "Percent": 0.6
+        },
+        {
+          "Account": "嘉实基金管理有限公司－社保基金16042组合",
+          "Shares": 11785739,
+          "Percent": 0.56
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "全国社保基金一零六组合",
+          "Institution": "社保基金",
+          "Page": "PDF P22-23；普通股A股账户行"
+        },
+        {
+          "Account": "全国社保基金一零三组合",
+          "Institution": "社保基金",
+          "Page": "PDF P22-23；普通股A股账户行"
+        },
+        {
+          "Account": "基本养老保险基金八零七组合",
+          "Institution": "养老保险基金",
+          "Page": "PDF P22-23；普通股A股账户行"
+        },
+        {
+          "Account": "基本养老保险基金一五零二二组合",
+          "Institution": "养老保险基金",
+          "Page": "PDF P22-23；普通股A股账户行"
+        },
+        {
+          "Account": "嘉实基金管理有限公司－社保基金16042组合",
+          "Institution": "社保基金",
+          "Page": "PDF P22-23；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": "2026-08-20",
+    "CandidateSourceHash": "BE0780898A1061A46000C6ADE9EEE4EF198C51252C38F53E17D1324F4CF262C4",
+    "CandidateHolders": [
+      {
+        "Account": "全国社保基金一零三组合",
+        "Shares": 13000000,
+        "Percent": 0.61
+      },
+      {
+        "Account": "全国社保基金一零六组合",
+        "Shares": 53193958,
+        "Percent": 2.51
+      },
+      {
+        "Account": "嘉实基金管理有限公司－社保基金16042组合",
+        "Shares": 11785739,
+        "Percent": 0.56
+      },
+      {
+        "Account": "基本养老保险基金一五零二二组合",
+        "Shares": 12590238,
+        "Percent": 0.6
+      },
+      {
+        "Account": "基本养老保险基金八零七组合",
+        "Shares": 12771972,
+        "Percent": 0.6
+      }
+    ],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。旧结构化候选仅在原始哈希、源日期及具名候选完全一致时归档，原记录和数量保留。2026年7月每10股转增3股，名义股数变化不得解释为买入；未批准跨期可比性。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600429-20260630-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600429",
+      "Name": "三元股份2026年半年度报告",
+      "ReportAsOf": "2026-06-30",
+      "Published": "2026-08-25",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225500100.PDF",
+      "OriginalHash": "3287469126A3818EAB894891C6DA6227DB6C7F99EFBEF5C4A9BD09B259A1189A",
+      "Pages": "PDF P35-37",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": 1502089065,
+      "Holders": [
+        {
+          "Account": "全国社保基金一零七组合",
+          "Shares": 12212920,
+          "Percent": 0.81
+        },
+        {
+          "Account": "全国社保基金五零二组合",
+          "Shares": 7591000,
+          "Percent": 0.51
+        },
+        {
+          "Account": "基本养老保险基金九零二组合",
+          "Shares": 6183800,
+          "Percent": 0.41
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "全国社保基金一零七组合",
+          "Institution": "社保基金",
+          "Page": "PDF P35-37；普通股A股账户行"
+        },
+        {
+          "Account": "全国社保基金五零二组合",
+          "Institution": "社保基金",
+          "Page": "PDF P35-37；普通股A股账户行"
+        },
+        {
+          "Account": "基本养老保险基金九零二组合",
+          "Institution": "养老保险基金",
+          "Page": "PDF P35-37；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": "2026-08-25",
+    "CandidateSourceHash": "6E8E485338053B220895F2059B5D79526F4C6312EB614EA72108BE855B548235",
+    "CandidateHolders": [
+      {
+        "Account": "全国社保基金一零七组合",
+        "Shares": 12212920,
+        "Percent": 0.81
+      },
+      {
+        "Account": "全国社保基金五零二组合",
+        "Shares": 7591000,
+        "Percent": 0.51
+      },
+      {
+        "Account": "基本养老保险基金九零二组合",
+        "Shares": 6183800,
+        "Percent": 0.41
+      }
+    ],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。旧结构化候选仅在原始哈希、源日期及具名候选完全一致时归档，原记录和数量保留。8月注销4531639股，半年末总股本1502089065，三季度口径变化不得解释为交易。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-601939-20260630-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601939",
+      "Name": "建设银行2026年半年度报告",
+      "ReportAsOf": "2026-06-30",
+      "Published": "2026-08-29",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225531678.PDF",
+      "OriginalHash": "44DF14EC06AA5C44EB6584F8746A12A35A542207CC9B05F4559C0A1AB05C0735",
+      "Pages": "PDF P72-74",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": 261600381459,
+      "Holders": [
+        {
+          "Account": "汇金公司",
+          "Shares": 267392944,
+          "Percent": 0.1
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Shares": 2189259672,
+          "Percent": 0.84
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 496639800,
+          "Percent": null
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "汇金公司",
+          "Institution": "汇金投资",
+          "Page": "PDF P72-74；普通股A股账户行"
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Institution": "证金公司",
+          "Page": "PDF P72-74；普通股A股账户行"
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P72-74；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": "2026-08-29",
+    "CandidateSourceHash": "5C312420E276BBD78DED2CCF33666CC444041BF2A65CA58EBAAB859DEB290517",
+    "CandidateHolders": [
+      {
+        "Account": "中国证券金融股份有限公司",
+        "Shares": 2189259672,
+        "Percent": 0.84
+      },
+      {
+        "Account": "汇金公司",
+        "Shares": 142590494651,
+        "Percent": 54.51
+      }
+    ],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。旧结构化候选仅在原始哈希、源日期及具名候选完全一致时归档，原记录和数量保留。汇金142590494651股、54.51%为H股，不进入A股子集；A股仅267392944股、0.10%。资管496639800股在无限售表列示，比例未披露。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-601318-20260630-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601318",
+      "Name": "中国平安2026年半年度报告",
+      "ReportAsOf": "2026-06-30",
+      "Published": "2026-08-21",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225487480.PDF",
+      "OriginalHash": "F42140B5AD6CA7577D746DAD57FD43A7BBC11EE0E360F61C2ED52BD7A4F4A54B",
+      "Pages": "PDF P94-95；原文P92-93",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 470302252,
+          "Percent": 2.6
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P94-95；原文P92-93；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": "2026-08-21",
+    "CandidateSourceHash": "25ABDE9E245837AD4C5B8C5F94E0ACEC3584AD1407160B0C9F9279EABB4043C7",
+    "CandidateHolders": [
+      {
+        "Account": "中央汇金资产管理有限责任公司",
+        "Shares": 470302252,
+        "Percent": 2.6
+      }
+    ],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。旧结构化候选仅在原始哈希、源日期及具名候选完全一致时归档，原记录和数量保留。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-601939-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601939",
+      "Name": "建设银行2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225650076.PDF",
+      "OriginalHash": "437C1A4DDE76BA561EF45F69A3F43B320F5C05E652AB78CDAD898ACE2707F4D7",
+      "Pages": "PDF P3-4",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Shares": 267392944,
+          "Percent": 0.1
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Shares": 2189259672,
+          "Percent": 0.84
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 496639800,
+          "Percent": null
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Institution": "汇金投资",
+          "Page": "PDF P3-4；普通股A股账户行"
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Institution": "证金公司",
+          "Page": "PDF P3-4；普通股A股账户行"
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P3-4；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。汇金142590494651股、54.51%为H股，不进入A股子集；A股仅267392944股、0.10%。资管496639800股在无限售表列示，比例未披露。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-601988-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601988",
+      "Name": "中国银行2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648756.PDF",
+      "OriginalHash": "EE429C806DB2E4223941871523FC3413F1DE75148DA173937197B1581A5CEED5",
+      "Pages": "PDF P4-5",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Shares": 188791906533,
+          "Percent": 58.59
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Shares": 7941164885,
+          "Percent": 2.46
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 1810024500,
+          "Percent": 0.56
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Institution": "汇金投资",
+          "Page": "PDF P4-5；普通股A股账户行"
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Institution": "证金公司",
+          "Page": "PDF P4-5；普通股A股账户行"
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P4-5；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600426-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600426",
+      "Name": "华鲁恒升2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-30",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-30/1225640286.PDF",
+      "OriginalHash": "C6948F53C760A89AE0398ECAFC716526FFF2F847A107E145ED4914FC3C0885C1",
+      "Pages": "PDF P3-4",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "全国社保基金一零六组合",
+          "Shares": 69152145,
+          "Percent": 2.51
+        },
+        {
+          "Account": "基本养老保险基金八零七组合",
+          "Shares": 16603564,
+          "Percent": 0.6
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "全国社保基金一零六组合",
+          "Institution": "社保基金",
+          "Page": "PDF P3-4；普通股A股账户行"
+        },
+        {
+          "Account": "基本养老保险基金八零七组合",
+          "Institution": "养老保险基金",
+          "Page": "PDF P3-4；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。2026年7月每10股转增3股，名义股数变化不得解释为买入；未批准跨期可比性。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600429-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600429",
+      "Name": "三元股份2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-29",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-29/1225636058.PDF",
+      "OriginalHash": "574E5862D469D4CBABD3E2972943AC4C1EF061D48969CED0A586AFBF557A9170",
+      "Pages": "PDF P3-5",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "全国社保基金一零七组合",
+          "Shares": 13767420,
+          "Percent": 0.92
+        },
+        {
+          "Account": "全国社保基金五零二组合",
+          "Shares": 7591000,
+          "Percent": 0.51
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "全国社保基金一零七组合",
+          "Institution": "社保基金",
+          "Page": "PDF P3-5；普通股A股账户行"
+        },
+        {
+          "Account": "全国社保基金五零二组合",
+          "Institution": "社保基金",
+          "Page": "PDF P3-5；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。8月注销4531639股，半年末总股本1502089065，三季度口径变化不得解释为交易。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-601318-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601318",
+      "Name": "中国平安2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-29",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-29/1225637017.PDF",
+      "OriginalHash": "3646E5491B1A80F513AD4A19C91F5BD12F0EC811C776DA53F6BD678424C5C18C",
+      "Pages": "PDF P5；原文P3",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": 18107641995,
+      "Holders": [
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 470302252,
+          "Percent": 2.6
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P5；原文P3；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-601398-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601398",
+      "Name": "工商银行2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648464.PDF",
+      "OriginalHash": "28D66DD87CFC1E9B0258080CA85C5F65B877A3EA1947FE341B7E80E10F87454A",
+      "Pages": "PDF P3",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Shares": 124004660940,
+          "Percent": 34.79
+        },
+        {
+          "Account": "全国社会保障基金理事会",
+          "Shares": 12331645186,
+          "Percent": 3.46
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Shares": 2416131540,
+          "Percent": 0.68
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 1013921700,
+          "Percent": 0.28
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Institution": "汇金投资",
+          "Page": "PDF P3；普通股A股账户行"
+        },
+        {
+          "Account": "全国社会保障基金理事会",
+          "Institution": "社保基金",
+          "Page": "PDF P3；普通股A股账户行"
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Institution": "证金公司",
+          "Page": "PDF P3；普通股A股账户行"
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P3；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-601288-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "601288",
+      "Name": "农业银行2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225649460.PDF",
+      "OriginalHash": "C390D2878728119CDC75CC39784404E740B843534F72C6AAFB22184F79C4E2C9",
+      "Pages": "PDF P4",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Shares": 140488809651,
+          "Percent": 40.14
+        },
+        {
+          "Account": "全国社会保障基金理事会",
+          "Shares": 23520968297,
+          "Percent": 6.72
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Shares": 1842751177,
+          "Percent": 0.53
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Shares": 1255434700,
+          "Percent": 0.36
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "中央汇金投资有限责任公司",
+          "Institution": "汇金投资",
+          "Page": "PDF P4；普通股A股账户行"
+        },
+        {
+          "Account": "全国社会保障基金理事会",
+          "Institution": "社保基金",
+          "Page": "PDF P4；普通股A股账户行"
+        },
+        {
+          "Account": "中国证券金融股份有限公司",
+          "Institution": "证金公司",
+          "Page": "PDF P4；普通股A股账户行"
+        },
+        {
+          "Account": "中央汇金资产管理有限责任公司",
+          "Institution": "汇金资管",
+          "Page": "PDF P4；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600153-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600153",
+      "Name": "建发股份2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648247.PDF",
+      "OriginalHash": "01C070EE149F4054F273C77B435B04345512795EB4A830614E40E9618C9B352B",
+      "Pages": "PDF P8-9",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "基本养老保险基金一零零三组合",
+          "Shares": 57522042,
+          "Percent": 1.98
+        },
+        {
+          "Account": "全国社保基金六零四组合",
+          "Shares": 55789413,
+          "Percent": 1.92
+        },
+        {
+          "Account": "全国社保基金一零七组合",
+          "Shares": 39744620,
+          "Percent": 1.37
+        },
+        {
+          "Account": "中信证券股份有限公司－社保基金1106组合",
+          "Shares": 24603700,
+          "Percent": 0.85
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "基本养老保险基金一零零三组合",
+          "Institution": "养老保险基金",
+          "Page": "PDF P8-9；普通股A股账户行"
+        },
+        {
+          "Account": "全国社保基金六零四组合",
+          "Institution": "社保基金",
+          "Page": "PDF P8-9；普通股A股账户行"
+        },
+        {
+          "Account": "全国社保基金一零七组合",
+          "Institution": "社保基金",
+          "Page": "PDF P8-9；普通股A股账户行"
+        },
+        {
+          "Account": "中信证券股份有限公司－社保基金1106组合",
+          "Institution": "社保基金",
+          "Page": "PDF P8-9；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600887-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600887",
+      "Name": "伊利股份2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-30",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-30/1225644500.PDF",
+      "OriginalHash": "E165E6EE19441A1C0A59199991016BBF78098073981C469F3432E533CB3CE7A0",
+      "Pages": "PDF P3-4",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [],
+      "ReviewedAccounts": []
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。核对完整表后未见本系统机构目录的具名账户；这是检索范围内未匹配，并非零持仓或全市场结论。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600036-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600036",
+      "Name": "招商银行2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225649239.PDF",
+      "OriginalHash": "41330517043BDFF6350195AEC6EFAD906555F3268AAA8DD386CF7257B0531D7C",
+      "Pages": "PDF P3",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [],
+      "ReviewedAccounts": []
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。核对完整表后未见本系统机构目录的具名账户；这是检索范围内未匹配，并非零持仓或全市场结论。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600519-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600519",
+      "Name": "贵州茅台2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225649896.PDF",
+      "OriginalHash": "96BA51EBF414F841BCE79B3BA019927DF2F795142392E12E96A9D559E96EBB9B",
+      "Pages": "PDF P3-5",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [],
+      "ReviewedAccounts": []
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。核对完整表后未见本系统机构目录的具名账户；这是检索范围内未匹配，并非零持仓或全市场结论。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-600900-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "600900",
+      "Name": "长江电力2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648852.PDF",
+      "OriginalHash": "BA9CAD3B152085BEB53F5753982E76002C607291738839C42D5DAE150A9E179E",
+      "Pages": "PDF P3-4",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [],
+      "ReviewedAccounts": []
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。核对完整表后未见本系统机构目录的具名账户；这是检索范围内未匹配，并非零持仓或全市场结论。"
+  },
+  {
+    "Definition": {
+      "Id": "equity-688012-20260930-a-subset-v1",
+      "Market": "SSE",
+      "Ticker": "688012",
+      "Name": "中微公司2026年第三季度报告",
+      "ReportAsOf": "2026-09-30",
+      "Published": "2026-10-31",
+      "PublicationBasis": "巨潮正式披露目录列示日，不代表最早公开时刻；取得及核验时间另存",
+      "PublicationUrl": "https://www.cninfo.com.cn/new/disclosure",
+      "DocumentUrl": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225646685.PDF",
+      "OriginalHash": "D40513C66998F2CCB3FAADB8B99818AAF1F8BFEEDC2B7E7A961E111541379D1E",
+      "Pages": "PDF P5-7",
+      "ShareClass": "A",
+      "PercentBasis": "TotalShares",
+      "Unit": "股",
+      "Scope": "ReviewedAShareDisclosedSubset",
+      "TotalShares": null,
+      "Holders": [
+        {
+          "Account": "华芯投资管理有限责任公司－国家集成电路产业投资基金二期股份有限公司",
+          "Shares": 28314016,
+          "Percent": 2.96
+        }
+      ],
+      "ReviewedAccounts": [
+        {
+          "Account": "华芯投资管理有限责任公司－国家集成电路产业投资基金二期股份有限公司",
+          "Institution": "国家大基金",
+          "Page": "PDF P5-7；普通股A股账户行"
+        }
+      ]
+    },
+    "CandidateSourceDate": null,
+    "CandidateSourceHash": null,
+    "CandidateHolders": [],
+    "Resolution": "逐页核对前十普通股及无限售普通股表，仅登记已核A股账户；未列示不代表未持有，未披露比例保持未知。复合账户按原文保留，管理人不另计账户，巽鑫不推定为大基金。"
+  }
+]

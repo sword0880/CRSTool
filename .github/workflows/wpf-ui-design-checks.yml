@@ -67,9 +67,6 @@ jobs:
       - name: Verify named ETF multi-period history (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --named-etf-history "$env:GITHUB_WORKSPACE/artifacts/named-etf-history"
-      - name: Render named ETF history and gaps (synthetic)
-        shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --named-etf-history-visual-preview "$env:GITHUB_WORKSPACE/artifacts/named-etf-history" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/named-etf-history"
       - name: Render joint exit snapshot (synthetic)
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --joint-exit-visual-preview "$env:GITHUB_WORKSPACE/artifacts/joint-exit-study" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/joint-exit-study"

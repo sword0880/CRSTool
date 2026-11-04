@@ -5,7 +5,12 @@ public sealed record HistoricalEquityPdf(string Id,string Market,string Ticker,s
     string PublicationBasis,string DocumentUrl,string OriginalHash,string ExtractHash,string Pages,int HolderCount,int ReviewedAccounts,string Scope)
 {
     public string DisplayName=>$"{Ticker} {Name} · {ReportAsOf:yyyy-MM-dd} · {ReviewedAccounts}个具名账户";
-    public string ScopeText=>Scope=="Top10ShareholdersExcludingSecuritiesLending"?"前十名股东持股表，不含通过转融通出借股份；A股，总股本比例口径":"口径待核验";
+    public string ScopeText=>Scope switch
+    {
+        "Top10ShareholdersExcludingSecuritiesLending"=>"前十名股东持股表，不含通过转融通出借股份；A股，总股本比例口径",
+        "ReviewedAShareDisclosedSubset"=>"原文中已核A股账户子集；其他股类不计入，未列示不代表未持有，缺失比例保持未知",
+        _=>"口径待核验"
+    };
 }
 
 /// <summary>与宿主持久命令分别回读的业务回执；Imported只证明事务提交，不代表机构交易或可比性批准。</summary>

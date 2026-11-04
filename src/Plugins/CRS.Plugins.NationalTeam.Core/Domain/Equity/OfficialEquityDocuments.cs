@@ -16,17 +16,18 @@ public static class OfficialEquityDocuments
     public static bool IsReviewedIssuer(Uri uri)=>uri.Scheme=="https"&&uri.IsDefaultPort&&uri.UserInfo.Length==0
         &&uri.Query.Length==0&&uri.Fragment.Length==0&&(uri.Host=="www.chinacnd.com"&&uri.AbsolutePath is "/report-227.html" or "/report-226.html"
             ||uri.Host=="v.icbc.com.cn"&&uri.AbsolutePath==IcbcHalfPath||uri.Host=="www.abchina.com"&&uri.AbsolutePath==AbcHalfPath
-            ||uri.Host=="gnstaticcdn.gongniukaiguan.net"&&uri.AbsolutePath==GongniuHalfPath);
+            ||uri.Host=="gnstaticcdn.gongniukaiguan.net"&&uri.AbsolutePath==GongniuHalfPath||ReviewedEquitySources.Find(uri) is not null);
     public static bool IsAllowed(Uri uri)=>uri.Scheme=="https"&&uri.IsDefaultPort&&uri.UserInfo.Length==0
         &&(IsReviewedIssuer(uri)||uri.AbsolutePath.EndsWith(".pdf",StringComparison.OrdinalIgnoreCase)
             &&(uri.Host=="sse.com.cn"||uri.Host.EndsWith(".sse.com.cn",StringComparison.Ordinal)||uri.Host=="szse.cn"||uri.Host.EndsWith(".szse.cn",StringComparison.Ordinal)));
-    public static bool Matches(Uri uri,string market,string ticker,DateOnly reportAsOf)=>!IsReviewedIssuer(uri)
+    public static bool Matches(Uri uri,string market,string ticker,DateOnly reportAsOf)=>ReviewedEquitySources.Find(uri) is {} fixedSource
+        ?fixedSource.Market==market&&fixedSource.Ticker==ticker&&fixedSource.ReportAsOf==reportAsOf:!IsReviewedIssuer(uri)
         ||market=="SSE"&&(uri.Host=="gnstaticcdn.gongniukaiguan.net"?ticker=="603195"&&reportAsOf==new DateOnly(2026,6,30):uri.Host=="www.abchina.com"?ticker=="601288"&&reportAsOf==new DateOnly(2026,6,30):uri.Host=="v.icbc.com.cn"?ticker=="601398"&&reportAsOf==new DateOnly(2026,6,30)
             :ticker=="600153"&&reportAsOf==(uri.AbsolutePath=="/report-227.html"?new DateOnly(2026,6,30):new DateOnly(2025,12,31)));
     public static Uri IssuerReferrer(Uri uri)=>!IsReviewedIssuer(uri)?throw new InvalidDataException("发行人原文未核对。")
-        :new(uri.Host=="gnstaticcdn.gongniukaiguan.net"?"https://www.gongniu.cn/investor/index.html":uri.Host=="www.abchina.com"?"https://www.abchina.com/cn/aboutabc/investor_relations/report/mm/202608/t20260828_2658912.htm":uri.Host=="v.icbc.com.cn"?"https://www.icbc-ltd.com/page/1266821007844429824.html":"https://www.chinacnd.com/report.html");
+        :new(ReviewedEquitySources.Find(uri) is not null?"https://www.cninfo.com.cn/":uri.Host=="gnstaticcdn.gongniukaiguan.net"?"https://www.gongniu.cn/investor/index.html":uri.Host=="www.abchina.com"?"https://www.abchina.com/cn/aboutabc/investor_relations/report/mm/202608/t20260828_2658912.htm":uri.Host=="v.icbc.com.cn"?"https://www.icbc-ltd.com/page/1266821007844429824.html":"https://www.chinacnd.com/report.html");
     // 原地址可能替换内容；仅接受本次逐页核对的工行/农行固定报告，不继承同目录其他文件。
-    public static string? ReviewedIssuerHash(Uri uri)=>!IsReviewedIssuer(uri)?null:uri.Host=="gnstaticcdn.gongniukaiguan.net"?GongniuHalfHash:uri.Host=="www.abchina.com"?AbcHalfHash:uri.Host=="v.icbc.com.cn"
+    public static string? ReviewedIssuerHash(Uri uri)=>ReviewedEquitySources.Find(uri) is {} fixedSource?fixedSource.Sha256.ToLowerInvariant():!IsReviewedIssuer(uri)?null:uri.Host=="gnstaticcdn.gongniukaiguan.net"?GongniuHalfHash:uri.Host=="www.abchina.com"?AbcHalfHash:uri.Host=="v.icbc.com.cn"
         ?IcbcHalfHash:uri.AbsolutePath=="/report-227.html"
         ?"6d10ee92feb04a3eb7b066b89552dd5c3f84d57c016e0f43738ab270a8a166f9"
         :"470448a5b8073540b0a6a722e1dded1558ab9dc06fb44347d0e91d2948b72df2";

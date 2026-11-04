@@ -16,7 +16,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> directHosts=new(StringComparer.OrdinalIgnoreCase);
     private readonly object policyGate=new();
     private readonly Dictionary<string,SemaphoreSlim> sourceGates=new(StringComparer.Ordinal)
-        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)},{"ISSUER-601398",new(1)},{"ISSUER-601288",new(1)},{"ISSUER-603195",new(1)},{"EFUNDS",new(1)},{"CNINDEX",new(1)},{"EASTMONEY-SOUTHBOUND",new(1)}};
+        {{"SSE",new(1)},{"SZSE",new(1)},{"ISSUER-600153",new(1)},{"ISSUER-601398",new(1)},{"ISSUER-601288",new(1)},{"ISSUER-603195",new(1)},{"EFUNDS",new(1)},{"CNINDEX",new(1)},{"EASTMONEY-SOUTHBOUND",new(1)},{"CNINFO",new(1)}};
     // 基金官网与其CDN共用一个预算；不能把未知域名默认归入已授权发行人。
     private static string Source(string host)=>host switch
     {
@@ -31,6 +31,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
         "www.efunds.com.cn" or "cdn.efunds.com.cn"=>"EFUNDS",
         "www.cnindex.com.cn" or "hq.cnindex.com.cn"=>"CNINDEX",
         "datacenter-web.eastmoney.com"=>"EASTMONEY-SOUTHBOUND",
+        "www.cninfo.com.cn" or "static.cninfo.com.cn"=>"CNINFO",
         _=>throw new InvalidOperationException("来源域名未登记。")
     };
     private (DateTimeOffset Next,DateTimeOffset Blocked,int Failures) ReadPolicy(string host){lock(policyGate)return policy.Read(host);}
@@ -71,7 +72,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
         {
             try
             {
-                foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","gnstaticcdn.gongniukaiguan.net","www.efunds.com.cn","www.cnindex.com.cn"})
+                foreach(var host in new[]{"www.sse.com.cn","www.szse.cn","www.chinacnd.com","v.icbc.com.cn","www.abchina.com","gnstaticcdn.gongniukaiguan.net","www.efunds.com.cn","www.cnindex.com.cn","static.cninfo.com.cn"})
                 {
                     var legacy=policy.Read(host);
                     sources.ImportSourceState(host,new(legacy.Next,legacy.Blocked,legacy.Failures));
@@ -88,13 +89,14 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
     {
         cancellationToken.ThrowIfCancellationRequested();
         if(json.Length is 0 or >4096)throw new InvalidDataException("公开JSON查询请求超过限额。");
-        var frozen=json.ToArray();OfficialEtfReportIndex.ValidatePost(uri,frozen);
+        var frozen=json.ToArray();
+        if(uri==AutomaticEquitySource.ReportsUri)_=AutomaticEquitySource.ValidatePost(uri,frozen);else OfficialEtfReportIndex.ValidatePost(uri,frozen);
         return await RequestAsync(uri,frozen,cancellationToken).ConfigureAwait(false);
     }
     private async Task<PublicHttpResponse> RequestAsync(Uri uri,byte[]? jsonBody,CancellationToken cancellationToken)
     {
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0
-            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)&&!EfundsNavResearch.IsSource(uri)&&!OfficialIndustryPeSource.IsSource(uri)&&!OfficialIndexSeriesSource.IsSource(uri)&&!SouthboundHistorySource.IsSource(uri)) throw new InvalidOperationException("Public source not allowed.");
+            || uri.Host is not ("www.sse.com.cn" or "query.sse.com.cn" or "etf.sse.com.cn" or "static.sse.com.cn" or "www.szse.cn" or "disc.static.szse.cn")&&!OfficialEquityDocuments.IsReviewedIssuer(uri)&&!AutomaticEquitySource.IsSource(uri)&&!EfundsNavResearch.IsSource(uri)&&!OfficialIndustryPeSource.IsSource(uri)&&!OfficialIndexSeriesSource.IsSource(uri)&&!SouthboundHistorySource.IsSource(uri)) throw new InvalidOperationException("Public source not allowed.");
         var gate=sourceGates[Source(uri.Host)];
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -171,7 +173,11 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
         async Task<HttpResponseMessage> Send(HttpClient transport)
         {
             using var request=new HttpRequestMessage(jsonBody is null?HttpMethod.Get:HttpMethod.Post,uri);
-            if(jsonBody is not null){request.Content=new ByteArrayContent(jsonBody);request.Content.Headers.ContentType=new("application/json");}
+            if(jsonBody is not null)
+            {
+                if(uri==AutomaticEquitySource.ReportsUri)request.Content=new FormUrlEncodedContent(AutomaticEquitySource.ValidatePost(uri,jsonBody));
+                else{request.Content=new ByteArrayContent(jsonBody);request.Content.Headers.ContentType=new("application/json");}
+            }
             // 官方公开页面对应的Referer，不携带Cookie、账号或验证码。
             var activity=uri.Query.Contains("COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C",StringComparison.Ordinal) || uri.Query.Contains("scsj_gprdgk_after",StringComparison.Ordinal);
             request.Headers.Referrer=new Uri(uri.Host.EndsWith("sse.com.cn",StringComparison.Ordinal)?activity?"https://www.sse.com.cn/market/stockdata/overview/day/":"https://www.sse.com.cn/market/funddata/volumn/etfvolumn/":activity?"https://www.szse.cn/market/stock/situation/daily/index.html":"https://fund.szse.cn/marketdata/etf/");
@@ -180,6 +186,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
             if(OfficialEtfReportIndex.IsSseRequest(uri))request.Headers.Referrer=new("https://www.sse.com.cn/disclosure/fund/announcement/");
             if(uri==OfficialEtfReportIndex.SzseEndpoint)request.Headers.Referrer=new("https://www.szse.cn/disclosure/fund/notice/index.html");
             if(OfficialEquityDocuments.IsReviewedIssuer(uri))request.Headers.Referrer=OfficialEquityDocuments.IssuerReferrer(uri);
+            if(AutomaticEquitySource.IsSource(uri))request.Headers.Referrer=new("https://www.cninfo.com.cn/new/commonUrl/pageOfSearch?url=disclosure/list/search");
             if(EfundsNavResearch.IsSource(uri))request.Headers.Referrer=new(EfundsNavResearch.ProductUrl);
             if(OfficialIndexSeriesSource.IsSource(uri))request.Headers.Referrer=OfficialIndexSeriesSource.UnitsSource;
             if(SouthboundHistorySource.IsSource(uri))request.Headers.Referrer=new(SouthboundHistorySource.ProviderPage);

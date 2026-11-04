@@ -1,0 +1,164 @@
+[
+  {
+    "Id": "equity-601988-20260630-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601988",
+    "ReportAsOf": "2026-06-30",
+    "Published": "2026-08-29",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225526341.PDF",
+    "Sha256": "B798A5056ED8ED888E6D8C89E061AB379C872095DD090B4B14B50E4C42F6186D"
+  },
+  {
+    "Id": "equity-600426-20260630-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600426",
+    "ReportAsOf": "2026-06-30",
+    "Published": "2026-08-20",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225481561.PDF",
+    "Sha256": "A9FA4B948525F0C9D9CEA1CB381AE85C8C3C60C234179F3B0C635C811D431CE3"
+  },
+  {
+    "Id": "equity-600429-20260630-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600429",
+    "ReportAsOf": "2026-06-30",
+    "Published": "2026-08-25",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225500100.PDF",
+    "Sha256": "3287469126A3818EAB894891C6DA6227DB6C7F99EFBEF5C4A9BD09B259A1189A"
+  },
+  {
+    "Id": "equity-601939-20260630-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601939",
+    "ReportAsOf": "2026-06-30",
+    "Published": "2026-08-29",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225531678.PDF",
+    "Sha256": "44DF14EC06AA5C44EB6584F8746A12A35A542207CC9B05F4559C0A1AB05C0735"
+  },
+  {
+    "Id": "equity-601318-20260630-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601318",
+    "ReportAsOf": "2026-06-30",
+    "Published": "2026-08-21",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225487480.PDF",
+    "Sha256": "F42140B5AD6CA7577D746DAD57FD43A7BBC11EE0E360F61C2ED52BD7A4F4A54B"
+  },
+  {
+    "Id": "equity-601939-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601939",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225650076.PDF",
+    "Sha256": "437C1A4DDE76BA561EF45F69A3F43B320F5C05E652AB78CDAD898ACE2707F4D7"
+  },
+  {
+    "Id": "equity-601988-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601988",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648756.PDF",
+    "Sha256": "EE429C806DB2E4223941871523FC3413F1DE75148DA173937197B1581A5CEED5"
+  },
+  {
+    "Id": "equity-600426-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600426",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-30",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-30/1225640286.PDF",
+    "Sha256": "C6948F53C760A89AE0398ECAFC716526FFF2F847A107E145ED4914FC3C0885C1"
+  },
+  {
+    "Id": "equity-600429-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600429",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-29",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-29/1225636058.PDF",
+    "Sha256": "574E5862D469D4CBABD3E2972943AC4C1EF061D48969CED0A586AFBF557A9170"
+  },
+  {
+    "Id": "equity-601318-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601318",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-29",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-29/1225637017.PDF",
+    "Sha256": "3646E5491B1A80F513AD4A19C91F5BD12F0EC811C776DA53F6BD678424C5C18C"
+  },
+  {
+    "Id": "equity-601398-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601398",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648464.PDF",
+    "Sha256": "28D66DD87CFC1E9B0258080CA85C5F65B877A3EA1947FE341B7E80E10F87454A"
+  },
+  {
+    "Id": "equity-601288-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "601288",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225649460.PDF",
+    "Sha256": "C390D2878728119CDC75CC39784404E740B843534F72C6AAFB22184F79C4E2C9"
+  },
+  {
+    "Id": "equity-600153-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600153",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648247.PDF",
+    "Sha256": "01C070EE149F4054F273C77B435B04345512795EB4A830614E40E9618C9B352B"
+  },
+  {
+    "Id": "equity-600887-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600887",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-30",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-30/1225644500.PDF",
+    "Sha256": "E165E6EE19441A1C0A59199991016BBF78098073981C469F3432E533CB3CE7A0"
+  },
+  {
+    "Id": "equity-600036-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600036",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225649239.PDF",
+    "Sha256": "41330517043BDFF6350195AEC6EFAD906555F3268AAA8DD386CF7257B0531D7C"
+  },
+  {
+    "Id": "equity-600519-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600519",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225649896.PDF",
+    "Sha256": "96BA51EBF414F841BCE79B3BA019927DF2F795142392E12E96A9D559E96EBB9B"
+  },
+  {
+    "Id": "equity-600900-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "600900",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225648852.PDF",
+    "Sha256": "BA9CAD3B152085BEB53F5753982E76002C607291738839C42D5DAE150A9E179E"
+  },
+  {
+    "Id": "equity-688012-20260930-a-subset-v1",
+    "Market": "SSE",
+    "Ticker": "688012",
+    "ReportAsOf": "2026-09-30",
+    "Published": "2026-10-31",
+    "Url": "https://static.cninfo.com.cn/finalpage/2026-10-31/1225646685.PDF",
+    "Sha256": "D40513C66998F2CCB3FAADB8B99818AAF1F8BFEEDC2B7E7A961E111541379D1E"
+  }
+]

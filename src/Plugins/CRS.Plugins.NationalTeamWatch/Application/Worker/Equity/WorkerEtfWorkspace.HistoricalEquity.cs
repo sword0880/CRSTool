@@ -15,9 +15,16 @@ public sealed partial class WorkerEtfWorkspace
     {
         var rows=(await ReadPagesAsync<HistoricalEquityReceipt>(new("equity-history-receipt",Revision:requestId.ToString("N")),token)).Rows;
         if(rows.Count>1||rows.Any(x=>x.RequestId!=requestId||string.IsNullOrWhiteSpace(x.DefinitionId)||string.IsNullOrWhiteSpace(x.DisclosureId)
-            ||x.Outcome is not ("Imported" or "AlreadyRegistered")||x.ReviewedAccounts is <1 or >10
+            ||x.Outcome is not ("Imported" or "AlreadyRegistered")||x.ReviewedAccounts is <0 or >10
             ||x.OriginalHash.Length!=64||!x.OriginalHash.All(Uri.IsHexDigit)||x.ExtractHash.Length!=64||!x.ExtractHash.All(Uri.IsHexDigit)))
             throw new InvalidDataException("历史业务回执身份、口径或数量不符。");
+        if(rows.SingleOrDefault() is {ReviewedAccounts:0} empty)
+        {
+            var catalog=await HistoricalEquityDocumentsAsync(token);
+            if(!catalog.Any(x=>x.Id==empty.DefinitionId&&x.Scope=="ReviewedAShareDisclosedSubset"&&x.HolderCount==0&&x.ReviewedAccounts==0
+                &&x.OriginalHash==empty.OriginalHash&&x.ExtractHash==empty.ExtractHash))
+                throw new InvalidDataException("零匹配账户回执须绑定已核空子集原文；不能代表零持仓。");
+        }
         return rows.SingleOrDefault();
     }
     public async Task<HistoricalEquityCommand> ImportHistoricalEquityPdfAsync(string id,string reviewer,string reason,bool originalConfirmed,CancellationToken token)

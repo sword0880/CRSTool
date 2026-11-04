@@ -36,7 +36,7 @@ internal static class HistoricalEquityPipeChecks
         {
             BackgroundResponse before;
             while(true){token.ThrowIfCancellationRequested();try{before=await Send(new(WorkerProtocol.Version,Guid.NewGuid(),"GetHealth"));if(before.Health?.State=="Running")break;}catch(IOException){}await Task.Delay(200,token);}
-            var documents=await reader.HistoricalEquityDocumentsAsync(token);var definition=documents.Single();
+            var documents=await reader.HistoricalEquityDocumentsAsync(token);var definition=documents.Single(x=>x.Id=="cnd-600153-20251231-pdf-v1");
             Check(definition.OriginalHash==Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(originalPdf)))&&definition.ReviewedAccounts==4,"完整宿主读取固定原文目录，目录不生成持仓");
             Check(await reader.HistoricalEquityReceiptAsync(Guid.NewGuid(),token) is null,"尚未登记的业务回执为空而非成功");
             var denied=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.national-team","equity-history-import",Payload:JsonSerializer.Serialize(new EtfRequest("equity-history-import",Revision:definition.Id,Reviewer:"fixture",Reason:"fixture",Accept:true)));

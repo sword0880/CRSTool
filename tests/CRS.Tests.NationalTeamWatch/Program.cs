@@ -42,6 +42,10 @@ if(args is ["--prepared-alert-evaluation",var preparedEvaluationRoot]){await Exi
 if(args is ["--repository-contracts"]){RepositoryContractChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.RepositoryContracts",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--evidence-adversarial"]){EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.EvidenceAdversarial",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--equity-status-live"]){await EquityStatusAuditTool.Run();return;}
+if(args is ["--equity-coverage-live",var equityCoverageDirectory]){await EquityStatusAuditTool.Coverage(equityCoverageDirectory);return;}
+if(args is ["--equity-reviewed-import-live",var reviewedEquityDirectory]){await ReviewedEquityImportTool.Run(reviewedEquityDirectory);return;}
+if(args is ["--equity-reviewed-checks",var reviewedOriginalsDirectory]){ReviewedEquityChecks.Run(reviewedOriginalsDirectory);return;}
+if(args is ["--equity-automatic-probe",var automaticOriginalsDirectory]){AutomaticEquityChecks.Probe(automaticOriginalsDirectory);return;}
 if(args is ["--icbc-read-live",var icbcReadDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReadDirectory,false);return;}
 if(args is ["--icbc-review-live",var icbcReviewDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReviewDirectory,true);return;}
 if(args is ["--icbc-golden",var icbcGoldenDirectory]){IcbcGoldenChecks.Run(icbcGoldenDirectory);return;}
@@ -92,7 +96,6 @@ if(args is ["--market-sync-diagnostics"]){await MarketActivityChecks.RunSyncDiag
 if(args is ["--scoped-evidence"]){ScopedEvidenceChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ScopedEvidence",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--chart-gap-ui"]){EtfChartChecks.RunGapUi();return;}
 if(args is ["--equity-stock-list"]){await EquityStockListChecks.RunAsync();return;}
-if(args is ["--holdings-usability"]){await EtfHoldingsUsabilityChecks.RunAsync();return;}
 if(args is ["--equity-ui"]){EquityUiChecks.Run();return;}
 if(args is ["--p0-live-audit"]){await P0LiveAcceptanceChecks.Run();return;}
 if(args is ["--p0-equity-case"]){await P0LiveAcceptanceChecks.EquityCase();return;}
@@ -164,7 +167,6 @@ await MarketBreadthWorkflowChecks.RunAsync(Path.Combine(root,"breadth-workflow")
 await MarketActivityChecks.RunSyncDiagnosticsAsync(Path.Combine(root,"market-sync-diagnostics"));
 DirectEquityChecks.Run(root);
 await EquityStockListChecks.RunAsync();
-await EtfHoldingsUsabilityChecks.RunAsync();
 await EquityDirectionChecks.RunAsync(Path.Combine(root,"equity-direction"));
 HistoricalEquityChecks.CatalogContracts(Path.Combine(root,"historical-catalog"));
 EvidenceAcceptanceAdversarialChecks.Run(Path.Combine(root,"evidence-adversarial"));

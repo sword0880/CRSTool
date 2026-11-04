@@ -9,6 +9,8 @@ public static class InstitutionAccounts
     public const string Version="institution-names-20261028-v1";
     public const string SafeReference="https://english.eximbank.gov.cn/News/AnnualR/2024eng/202504/P020250429570886425523.pdf";
     public const string ChipFundReference="https://static.cninfo.com.cn/finalpage/2025-12-30/1224907005.PDF";
+    // 中微三季报P5-P7的原文组合账户；只形成候选，管理人不另计持有人，仍须逐原文核验。
+    public const string ChipFund2ManagedAccount="华芯投资管理有限责任公司－国家集成电路产业投资基金二期股份有限公司";
     public static IReadOnlyList<string> Groups {get;}=Array.AsReadOnly(new[]{"汇金投资","汇金资管","证金公司","社保基金","养老保险基金","外汇局投资平台","国家大基金"});
     public static IReadOnlyList<string> RequiredFamilies {get;}=Array.AsReadOnly(new[]{"中央汇金","证金公司","外汇局投资平台","社保基金","国家大基金"});
     public static IReadOnlyList<InstitutionNameReference> Names {get;}=Array.AsReadOnly(new InstitutionNameReference[]{
@@ -21,7 +23,10 @@ public static class InstitutionAccounts
     private static readonly IReadOnlyDictionary<string,string> NamedGroups=new ReadOnlyDictionary<string,string>(Names.ToDictionary(x=>x.LegalName,x=>x.Group,StringComparer.Ordinal));
     public static bool IsSupportedGroup(string? group)=>group is not null&&Groups.Contains(group,StringComparer.Ordinal);
     public static string Family(string group)=>group is "汇金投资" or "汇金资管"?"中央汇金":group;
-    public static string? CandidateGroup(string account)=>Group(account)??(account.Trim() is "汇金公司" or "社保基金会"||account.Contains("社保基金",StringComparison.Ordinal)||account.Contains("基本养老保险基金",StringComparison.Ordinal)?"主体待核验":null);
+    public static string? CandidateGroup(string account)=>Group(account)??(AnnotatedGroup(account) is not null||account.Trim() is "汇金公司" or "社保基金会"||account.Trim()==ChipFund2ManagedAccount||account.Contains("社保基金",StringComparison.Ordinal)||account.Contains("基本养老保险基金",StringComparison.Ordinal)?"主体待核验":null);
+    // 只接受完整法律名称后紧接原文简称标注；不以简称、名称片段或管理人推定经济所有权。
+    public static string? AnnotatedGroup(string account)=>Names.FirstOrDefault(x=>Regex.IsMatch(account,
+        "^"+Regex.Escape(x.LegalName)+@"（简称[“""][^（）“”""]{1,20}[”""]）$",RegexOptions.CultureInvariant,TimeSpan.FromMilliseconds(100)))?.Group;
     public static string? Group(string account)
     {
         var name=account.Trim();if(NamedGroups.TryGetValue(name,out var group))return group;

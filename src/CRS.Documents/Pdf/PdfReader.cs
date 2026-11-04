@@ -7,9 +7,14 @@ namespace CRS.Documents.Pdf;
 public sealed record PdfLetter(string Value, double X, double BaselineY, double Right);
 /// <summary>独立于 PdfPig 对象生命周期的单词和边界信息。</summary>
 public sealed record PdfWord(string Text, double Left, double Bottom, double Right, double Top);
+/// <summary>原文绘制的直线，供表格版式核对使用；不推断缺失的表格边界。</summary>
+public sealed record PdfRule(double X1,double Y1,double X2,double Y2);
 /// <summary>供各业务解析器复用的页面文字与坐标，底层文档关闭后仍可使用。</summary>
 public sealed record PdfPageContent(int Number, double Width, double Height,
-    IReadOnlyList<PdfLetter> Letters, IReadOnlyList<PdfWord> Words);
+    IReadOnlyList<PdfLetter> Letters, IReadOnlyList<PdfWord> Words)
+{
+    public IReadOnlyList<PdfRule> Rules {get;init;}=[];
+}
 
 /// <summary>公共 PdfPig 读取入口；统一文件限额、资源释放、取消和中文异常。</summary>
 public static class PdfReader
@@ -39,6 +44,13 @@ public static class PdfReader
     public static IReadOnlyList<PdfPageContent> Read(byte[] content, CancellationToken cancellation = default)
         => ReadCore(content, null, cancellation);
 
+    /// <summary>读取不超过指定页数的开头部分；不放宽原文件、总页数、字符和取消限制。</summary>
+    public static IReadOnlyList<PdfPageContent> ReadFirst(byte[] content,int count,CancellationToken cancellation=default)
+    {
+        if(count is <1 or >32)throw new InvalidDataException("PDF开头选页不能超过32页。");
+        return ReadCore(content,null,cancellation,count);
+    }
+
     /// <summary>只解析指定物理页，页码保持原件位置；不放宽全文件及页数限额。</summary>
     public static IReadOnlyList<PdfPageContent> ReadSelected(byte[] content, IReadOnlyList<int> pages, CancellationToken cancellation = default)
     {
@@ -46,7 +58,7 @@ public static class PdfReader
             throw new InvalidDataException("PDF 选择页必须为不重复的正整数，且不超过32页。");
         return ReadCore(content, pages.Order().ToArray(), cancellation);
     }
-    private static IReadOnlyList<PdfPageContent> ReadCore(byte[] content, int[]? selected, CancellationToken cancellation)
+    private static IReadOnlyList<PdfPageContent> ReadCore(byte[] content, int[]? selected, CancellationToken cancellation,int? firstPages=null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (content.Length is <= 0 or > MaxFileBytes) throw new InvalidDataException("PDF 内容必须非空且不能超过 25 MB。");
@@ -56,7 +68,7 @@ public static class PdfReader
             if (document.NumberOfPages > MaxPages) throw new InvalidDataException("PDF 不能超过 200 页。");
             if (selected?.Any(x => x > document.NumberOfPages) == true) throw new InvalidDataException("PDF 选择页超出原件范围。");
             var result = new List<PdfPageContent>(); var total = 0;
-            var numbers = selected ?? Enumerable.Range(1, document.NumberOfPages).ToArray();
+            var numbers = selected ?? Enumerable.Range(1,Math.Min(firstPages??document.NumberOfPages,document.NumberOfPages)).ToArray();
             foreach (var number in numbers)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -66,11 +78,36 @@ public static class PdfReader
                 var letters = page.Letters.Select(l => new PdfLetter(l.Value, l.StartBaseLine.X, l.StartBaseLine.Y, l.BoundingBox.Right)).ToArray();
                 var words = page.GetWords(NearestNeighbourWordExtractor.Instance).Select(w => new PdfWord(w.Text,
                     w.BoundingBox.Left, w.BoundingBox.Bottom, w.BoundingBox.Right, w.BoundingBox.Top)).ToArray();
-                result.Add(new(page.Number, page.Width, page.Height, letters, words));
+                result.Add(new(page.Number, page.Width, page.Height, letters, words){Rules=ReadRules(page,cancellation)});
             }
             return result;
         }
         catch (Exception error) when (error is not (InvalidDataException or OperationCanceledException))
         { throw new InvalidDataException("PDF 读取失败，请检查文件是否损坏、加密或使用了无法识别的格式。", error); }
+    }
+    private static IReadOnlyList<PdfRule> ReadRules(UglyToad.PdfPig.Content.Page page,CancellationToken token)
+    {
+        var rules=new List<PdfRule>();
+        foreach(var path in page.Paths)
+        foreach(var subpath in path)
+        {
+            UglyToad.PdfPig.Core.PdfPoint? start=null,last=null;
+            foreach(var command in subpath.Commands)
+            {
+                token.ThrowIfCancellationRequested();
+                if(command is UglyToad.PdfPig.Core.PdfSubpath.Move move){start=last=move.Location;continue;}
+                if(command is UglyToad.PdfPig.Core.PdfSubpath.Line line){Add(line.From,line.To);last=line.To;}
+                else if(command is UglyToad.PdfPig.Core.PdfSubpath.Close&&last is {} from&&start is {} to)Add(from,to);
+            }
+        }
+        return rules;
+        void Add(UglyToad.PdfPig.Core.PdfPoint from,UglyToad.PdfPig.Core.PdfPoint to)
+        {
+            if(Math.Abs(from.X-to.X)<.5&&Math.Abs(from.Y-to.Y)>5||Math.Abs(from.Y-to.Y)<.5&&Math.Abs(from.X-to.X)>5)
+            {
+                if(rules.Count>=30000)throw new InvalidDataException("PDF表格线数量超过限额。");
+                rules.Add(new(from.X,from.Y,to.X,to.Y));
+            }
+        }
     }
 }

@@ -32,6 +32,11 @@ internal static class SourceBudgetChecks
         {
             var a=new WorkerPluginContext("plugin-a",root,key,sources:registry);
             var b=new WorkerPluginContext("plugin-b",root,key,sources:registry);
+            var cninfo=await a.AcquireSourceAsync("www.cninfo.com.cn",Empty,default);
+            var cninfoCdn=b.AcquireSourceAsync("static.cninfo.com.cn",Empty,default);
+            Check(!cninfoCdn.IsCompleted,"巨潮官网/CDN跨插件共享一个并发额度");
+            cninfo.Complete(403);cninfo.Dispose();await Denied(cninfoCdn,"SourceCooldown");
+            Check(registry.Snapshot().Single(x=>x.Source=="CNINFO").State=="Cooldown","巨潮拒绝在宿主可观测");
             // 南向第三方来源共用宿主持久预算，其拒绝不得影响任何交易所来源。
             var southbound=await a.AcquireSourceAsync("datacenter-web.eastmoney.com",Empty,default);
             var southboundQueued=b.AcquireSourceAsync("datacenter-web.eastmoney.com",Empty,default);
@@ -95,6 +100,7 @@ internal static class SourceBudgetChecks
         }
         using(var registry=new SourceBudgetRegistry(new SqliteSourceBudgetStore(root,key),clock))
         {
+            await Denied(registry.AcquireAsync("new-plugin","static.cninfo.com.cn",Empty,default),"SourceCooldown");
             await Denied(registry.AcquireAsync("new-plugin","hq.cnindex.com.cn",Empty,default),"SourceCooldown");
             await Denied(registry.AcquireAsync("new-plugin","www.sse.com.cn",Empty,default),"SourceCooldown");
             clock.Advance(TimeSpan.FromDays(3));

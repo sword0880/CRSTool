@@ -126,7 +126,6 @@ $viewModelPortChecks = @(
     @{ Path = "$ui/Presentation/IndustryValuation/IndustryResearchViewModel.cs"; Pattern = 'IndustryResearchViewModel\(IIndustryValuationWorkspace' },
     @{ Path = "$ui/Presentation/MarketCycle/IndexResearchViewModel.cs"; Pattern = 'IndexResearchViewModel\(IMarketCycleWorkspace' },
     @{ Path = "$ui/Presentation/ExitAlerts/ExitAlertViewModel.cs"; Pattern = 'ExitAlertViewModel\(IExitAlertWorkspace' },
-    @{ Path = "$ui/Presentation/EtfHoldings/EtfHoldingHistoryViewModel.cs"; Pattern = 'EtfHoldingHistoryViewModel\(IEtfHoldingsWorkspace' },
     @{ Path = "$ui/Presentation/Etf/EtfViewModel.cs"; Pattern = 'IEtfResearchWorkspace workspace' }
 )
 foreach ($check in $viewModelPortChecks) {
@@ -263,8 +262,7 @@ foreach($file in Get-ChildItem -LiteralPath (Join-Path $repoRoot "$jobs/Applicat
         throw "ETF evidence application leaked back into alerts: $($file.Name)"
     }
 }
-$holdingsViewModel=Get-Content -LiteralPath (Join-Path $repoRoot "$ui/Presentation/EtfHoldings/EtfHoldingsViewModel.cs") -Raw
-if($holdingsViewModel -match 'IExitAlertWorkspace' -or $proofViewModelSource -notmatch 'etfEvidence\.AlertDocumentsAsync'){
+if($proofViewModelSource -notmatch 'etfEvidence\.AlertDocumentsAsync'){
     throw 'ETF evidence UI must receive the ETF holdings port explicitly.'
 }
 $backgroundEntry=Get-Content -LiteralPath (Join-Path $repoRoot "$jobs/Background/NationalTeamBackgroundEntry.cs") -Raw
