@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CRS.Application.Abstractions;
 
 namespace CRS.DesktopClient.ViewModels;
 
@@ -12,12 +13,33 @@ public partial class ReportsViewModel : ObservableObject
         State = state; state.ResultChanged += Refresh;
         state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) Refresh(); };
     }
-    private void Refresh() { ExportCommand.NotifyCanExecuteChanged(); ExportCarryCommand.NotifyCanExecuteChanged(); ExportEncryptedCommand.NotifyCanExecuteChanged(); RestoreEncryptedCommand.NotifyCanExecuteChanged(); }
+    private void Refresh() { ExportCommand.NotifyCanExecuteChanged(); ExportCarryCommand.NotifyCanExecuteChanged(); ExportEncryptedCommand.NotifyCanExecuteChanged(); RestoreEncryptedCommand.NotifyCanExecuteChanged(); ExportProtectedExcelCommand.NotifyCanExecuteChanged(); ExportProtectedPdfCommand.NotifyCanExecuteChanged(); }
     private bool CanExport() => State.IsIdle && State.HasResult;
     private bool CanCarry() => CanExport() && State.Result!.CarryEligible;
     private bool CanRestore()=>State.IsIdle;
     public event Action? SensitiveCleared;
     public void ClearSensitiveInputs()=>SensitiveCleared?.Invoke();
+    [RelayCommand(CanExecute=nameof(CanExport),IncludeCancelCommand=true)]
+    private Task ExportProtectedExcelAsync(CancellationToken cancellation)=>ExportDocumentAsync(TaxDocumentFormat.Excel,cancellation);
+    [RelayCommand(CanExecute=nameof(CanExport),IncludeCancelCommand=true)]
+    private Task ExportProtectedPdfAsync(CancellationToken cancellation)=>ExportDocumentAsync(TaxDocumentFormat.Pdf,cancellation);
+    private async Task ExportDocumentAsync(TaxDocumentFormat format,CancellationToken cancellation)
+    {
+        try
+        {
+            var password=State.DocumentEncryptionPassword;
+            if(password.Length is <12 or >1024) {State.Status="请先在设置 → 文档加密中配置打开密码。";return;}
+            var excel=format==TaxDocumentFormat.Excel; var result=State.Result!;
+            var path=State.Interaction.SaveFile(excel?"加密 Excel 底稿|*.xlsx":"加密 PDF 税务摘要|*.pdf",excel?"Protected_Tax_Report.xlsx":"Protected_Tax_Summary.pdf");
+            if(path is null) return;
+            await State.RunAsync(async()=>
+            {
+                await State.UseCases.ExportPasswordProtectedAsync(path,result,State.Fingerprint,format,password,cancellation);
+                State.Status=excel?"加密 Excel 已保存，打开时请输入设置中的文档加密密码。":"加密 PDF 税务摘要已保存，打开时请输入设置中的文档加密密码。";
+            });
+        }
+        finally {ClearSensitiveInputs();}
+    }
     [RelayCommand(CanExecute=nameof(CanExport),IncludeCancelCommand=true)]
     private async Task ExportEncryptedAsync(CancellationToken cancellation)
     {

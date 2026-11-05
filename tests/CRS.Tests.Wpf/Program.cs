@@ -3,6 +3,8 @@ using CRS.Application.Abstractions;
 using CRS.Domain;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
+if(args is ["--document-trust-probe",var trustedDocumentPath,var trustedDocumentMode]){Environment.ExitCode=DocumentAssemblyTrustChecks.Probe(trustedDocumentPath,trustedDocumentMode=="preload");return;}
+if(args is ["--document-trust-checks"]){await DocumentAssemblyTrustChecks.RunAsync();return;}
 // 独立窗口验收只查询公开后台任务，不创建或解锁个人保险库。
 // 专用副本由交互桌面启动，仅展示合成菜单；普通测试入口仍运行原有默认回归。
 if(args.Length==0&&System.IO.Path.GetFileNameWithoutExtension(Environment.ProcessPath)=="CRS.MenuFocusProbe")
@@ -59,6 +61,8 @@ await VaultInteractionChecks.RunAsync();
 AutomaticLockChecks.Run();
 await ReportsInteractionChecks.RunAsync();
 await EncryptedReportsInteractionChecks.RunAsync();
+await PasswordReportsInteractionChecks.RunAsync();
+await DocumentAssemblyTrustChecks.RunAsync();
 await CanonicalViewChecks.RunAsync();
 await TaxAmountViewChecks.RunAsync();
 await PerformanceInteractionChecks.RunAsync();
@@ -91,6 +95,7 @@ class FakeUseCases : IDesktopUseCases
     public virtual Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.CompletedTask;
     // 加密交互测试可覆盖独立用例，不在替身中执行密码学或文件操作。
     public virtual Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)=>Task.CompletedTask;
+    public virtual Task ExportPasswordProtectedAsync(string path,CalculationResult result,string fingerprint,CRS.Application.Abstractions.TaxDocumentFormat format,string password,CancellationToken cancellation=default)=>Task.CompletedTask;
     public virtual Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.FromResult("synthetic-restored");
     public Task DownloadAsync(string queryId,string token,DateOnly from,DateOnly to,string path,CancellationToken cancellation)=>Task.CompletedTask;
     public Task<List<AppliedRate>> RatesAsync(int year)=>Task.FromResult(new List<AppliedRate>());

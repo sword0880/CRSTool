@@ -399,6 +399,7 @@
         "type": "Project",
         "dependencies": {
           "NPOI": "[2.8.1, )",
+          "PDFsharp": "[6.2.4, )",
           "PdfPig": "[0.1.16, )",
           "SkiaSharp": "[3.119.4, )"
         }
@@ -510,6 +511,15 @@
         "requested": "[0.1.16, )",
         "resolved": "0.1.16",
         "contentHash": "qQcbsNMYVY+K5ELptax2S8thNMk0+rSQq3H/KdYj3LLcko8yTCz8y5KIvsKxIyAuTN0ZYNnfsZkM+0EvxTwHVA=="
+      },
+      "PDFsharp": {
+        "type": "CentralTransitive",
+        "requested": "[6.2.4, )",
+        "resolved": "6.2.4",
+        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
+        }
       },
       "QRCoder": {
         "type": "CentralTransitive",

@@ -24,6 +24,7 @@ if(args is ["--hello-only"]) {await WindowsHelloChecks.RunAsync(root); return;}
 if(args is ["--phone-settings-only"]) {await PhoneSettingsChecks.RunAsync(root); return;}
 // 目录清理等局部修正可单独复验加密容器，不重复运行无关的认证与数据库场景。
 if(args is ["--encrypted-export-only"]) {await EncryptedExportChecks.RunAsync(root); return;}
+if(args is ["--password-documents-only"]) {await PasswordProtectedReportChecks.RunAsync(root); return;}
 // 局部结构升级与归档故障演练可独立运行，仍只使用隔离的加密库。
 if(args is ["--schema-upgrade-only"]) {await SchemaUpgradeChecks.RunAsync(root); return;}
 // 大库和恶意容器边界可独立验证，避免反复执行全部认证用例。
@@ -68,6 +69,7 @@ await CalculationCommitChecks.RunAsync(Path.Combine(root,"calculation-commit"));
 await ExportChecks.RunAsync(root);
 await SensitiveExportChecks.RunAsync(root);
 await EncryptedExportChecks.RunAsync(root);
+await PasswordProtectedReportChecks.RunAsync(root);
 await SchemaUpgradeChecks.RunAsync(root);
 await ResourceProtectionChecks.RunAsync(root);
 await LockInterruptionChecks.RunAsync(root);

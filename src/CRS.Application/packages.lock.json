@@ -7,12 +7,6 @@
       },
       "crs.domain": {
         "type": "Project"
-      },
-      "crs.time": {
-        "type": "Project",
-        "dependencies": {
-          "CRS.Common": "[1.0.0, )"
-        }
       }
     }
   }

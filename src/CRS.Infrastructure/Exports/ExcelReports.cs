@@ -16,7 +16,10 @@ public static class ExcelReports
     /// <summary>加密导出直接写入内存，不先创建明文工作簿文件。</summary>
     internal static void Write(Stream destination,CalculationResult r,IEnumerable<ReviewNote>? reviews,CancellationToken cancellation)
         =>WriteWorkbook(r,reviews,cancellation,write=>write(destination));
-    private static void WriteWorkbook(CalculationResult r,IEnumerable<ReviewNote>? reviews,CancellationToken cancellation,Action<Action<Stream>> save)
+    /// <summary>文档格式加密交给公共文档层，基础设施只协调税务内容和原子提交。</summary>
+    internal static void ExportPasswordProtected(string path,CalculationResult r,string password,IEnumerable<ReviewNote>? reviews,CancellationToken cancellation,Action<Action>? guard)
+        =>WriteWorkbook(r,reviews,cancellation,write=>AtomicExport.Write(path,write,cancellation,guard),password);
+    private static void WriteWorkbook(CalculationResult r,IEnumerable<ReviewNote>? reviews,CancellationToken cancellation,Action<Action<Stream>> save,string? password=null)
     {
         cancellation.ThrowIfCancellationRequested();
         // 直接调用导出适配器也需校验，不能依赖界面先加载过历史记录。
@@ -98,6 +101,6 @@ public static class ExcelReports
         Sheet("提示", ["说明"], r.Warnings.Select(w => new object?[] { w }));
         // Excel 单元格限制为 32767 字符；长快照分段存放，禁止静默截断。
         Sheet("计算快照", ["段号", "JSON文本"], Enumerable.Range(0, (r.SnapshotJson.Length + 29999) / 30000).Select(i => new object?[] { i + 1, r.SnapshotJson.Substring(i * 30000, Math.Min(30000, r.SnapshotJson.Length - i * 30000)) }));
-        save(output=>workbook.Write(output,cancellation));
+        save(output=> {if(password is null)workbook.Write(output,cancellation);else workbook.WritePasswordProtected(output,password,cancellation);});
     }
 }

@@ -1,9 +1,18 @@
 <Page x:Class="CRS.DesktopClient.Views.Pages.ReportsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="24,26,32,24">
   <TextBlock Text="报表导出" Style="{StaticResource PageTitle}"/><TextBlock Text="输出当前计算或历史任务的冻结底稿，保存到你选择的位置。" Style="{StaticResource Subtitle}"/>
+  <Border Style="{StaticResource Card}" Margin="0,0,0,16"><StackPanel>
+   <TextBlock Text="Excel 和 PDF 打开密码（推荐）" FontSize="20" FontWeight="SemiBold"/>
+   <TextBlock Text="Excel 导出完整报税底稿，PDF 导出税务摘要和复核说明。文件本身已加密，在 Excel 或 PDF 阅读器中打开时需要输入密码。" TextWrapping="Wrap" Margin="0,12,0,12"/>
+   <TextBlock Text="请先在设置 → 文档加密中设置密码。更改设置不会修改已导出文件的密码；PDF 密码最多支持 127 个 UTF-8 字节（中文通常每字 3 字节）。" TextWrapping="Wrap" Margin="0,0,0,16"/>
+   <WrapPanel><ui:Button Content="导出加密 Excel" Command="{Binding ExportProtectedExcelCommand}" Appearance="Primary" Margin="0,0,12,8"/>
+    <ui:Button Content="导出加密 PDF 摘要" Command="{Binding ExportProtectedPdfCommand}" Margin="0,0,12,8"/>
+    <ui:Button Content="取消 Excel 导出" Command="{Binding ExportProtectedExcelCancelCommand}" Margin="0,0,12,8"/>
+    <ui:Button Content="取消 PDF 导出" Command="{Binding ExportProtectedPdfCancelCommand}" Margin="0,0,0,8"/></WrapPanel>
+  </StackPanel></Border>
   <!-- 独立导出密码不与数据库主密码绑定，解密恢复会明确提示产生明文。 -->
   <Border Style="{StaticResource Card}" Margin="0,0,0,16"><StackPanel>
-   <TextBlock Text="加密底稿与恢复（推荐）" FontSize="20" FontWeight="SemiBold"/>
+   <TextBlock Text="加密归档与恢复" FontSize="20" FontWeight="SemiBold"/>
    <TextBlock Text="用独立密码保护 Excel 底稿及可用的年末结转。密码遗失后无法恢复，请妥善保管。解密时会新建文件夹。" TextWrapping="Wrap" Margin="0,12,0,16"/>
    <TextBlock Text="加密和解密统一使用设置中的文档加密密码；打开旧文件时，可在设置中切换为其原密码。" TextWrapping="Wrap" Margin="0,0,0,16"/>
    <WrapPanel><ui:Button Content="保存加密底稿" Command="{Binding ExportEncryptedCommand}" Appearance="Primary" Margin="0,0,12,8"/>

@@ -4,12 +4,16 @@ namespace CRS.Application;
 
 /// <summary>单次明文授权声明；它不替代保险库会话认证，也不保存到配置。</summary>
 public sealed record SensitiveExportConsent(bool PlaintextConfirmed,bool TemporaryLocationConfirmed=false);
-public enum SensitiveExportOperation {Excel,Carry,EncryptedArchive,RestoreArchive,PerformanceReport}
+public enum SensitiveExportOperation {Excel,Carry,EncryptedArchive,RestoreArchive,PerformanceReport,EncryptedExcel,EncryptedPdf}
 public enum SensitiveExportOutcome {Started,Completed,Cancelled,Failed}
 
 /// <summary>统一导出门槛、目标验证、会话取消和无敏感字段审计，不实现文件或密码学操作。</summary>
 public sealed class SensitiveDataExportService(IDesktopOperations operations,CancellationToken session)
 {
+    public Task ExportPasswordProtectedAsync(string path,CalculationResult result,string fingerprint,TaxDocumentFormat format,string password,CancellationToken cancellation)
+        =>Run(format switch {TaxDocumentFormat.Excel=>SensitiveExportOperation.EncryptedExcel,TaxDocumentFormat.Pdf=>SensitiveExportOperation.EncryptedPdf,
+            _=>throw new CrsException("不支持此报税文档格式。")},path,null,cancellation,token=>
+        {CheckRates(fingerprint); operations.Reports.ExportPasswordProtected(path,result,format,password,operations.Repository.Reviews(result.SnapshotId),token); return true;});
     // 绩效与税务输出共用一次明文确认、临时路径拒绝、会话取消及固定类别审计。
     public Task ExportPerformanceAsync(string path,bool encrypted,CancellationToken cancellation,SensitiveExportConsent? consent,Action<CancellationToken> write)
         =>Run(encrypted?SensitiveExportOperation.EncryptedArchive:SensitiveExportOperation.PerformanceReport,path,consent,cancellation,token=>{write(token);return true;});
@@ -34,7 +38,7 @@ public sealed class SensitiveDataExportService(IDesktopOperations operations,Can
             {
                 linked.Token.ThrowIfCancellationRequested();
                 // 所有后台明文入口都要求本次确认，不能只依靠界面弹窗。
-                var plaintext=operation!=SensitiveExportOperation.EncryptedArchive;
+                var plaintext=operation is not (SensitiveExportOperation.EncryptedArchive or SensitiveExportOperation.EncryptedExcel or SensitiveExportOperation.EncryptedPdf);
                 if(plaintext && consent?.PlaintextConfirmed!=true) throw new CrsException("请明确确认明文文件不受数据库加密保护，或选择加密归档导出。");
                 operations.ValidateExportDestination(destination,plaintext,consent?.TemporaryLocationConfirmed==true);
                 linked.Token.ThrowIfCancellationRequested();

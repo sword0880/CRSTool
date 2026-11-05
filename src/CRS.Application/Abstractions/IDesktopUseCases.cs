@@ -34,6 +34,9 @@ public interface IDesktopUseCases
     Task SaveReviewAsync(string id, string category, string evidence);
     // 导出取消同时关联工作区会话；锁定后旧导出不得提交目标文件。
     Task ExportAsync(string path, CalculationResult result, string fingerprint, CancellationToken cancellation = default,SensitiveExportConsent? consent=null);
+    /// <summary>报税 Excel／PDF 文件本身设置打开密码，沿用冻结结果及会话门槛。</summary>
+    Task ExportPasswordProtectedAsync(string path, CalculationResult result, string fingerprint, TaxDocumentFormat format, string password,
+        CancellationToken cancellation = default) => throw new NotSupportedException();
     Task ExportCarryAsync(string path, CalculationResult result, CancellationToken cancellation = default,SensitiveExportConsent? consent=null);
     /// <summary>独立密码保护底稿与可用结转。</summary>
     Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation=default)=>throw new NotSupportedException();

@@ -193,6 +193,8 @@ public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotif
     public Task SaveReviewAsync(string id, string category, string evidence) => reviews.SaveAsync(id, category, evidence);
     /// <summary>导出统一经过后台授权与路径策略；用户确认不替代会话有效性。</summary>
     private SensitiveDataExportService Exports=>new(operations,lifetime.Token);
+    public Task ExportPasswordProtectedAsync(string path,CalculationResult result,string fingerprint,TaxDocumentFormat format,string password,CancellationToken cancellation=default)
+        =>Exports.ExportPasswordProtectedAsync(path,result,fingerprint,format,password,cancellation);
     public Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)
         =>Exports.ExportAsync(path,result,fingerprint,cancellation,consent);
     public Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)

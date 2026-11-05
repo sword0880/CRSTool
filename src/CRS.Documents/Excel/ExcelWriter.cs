@@ -1,12 +1,14 @@
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
+using NPOI.POIFS.Crypt;
+using NPOI.POIFS.FileSystem;
 namespace CRS.Documents.Excel;
 
 /// <summary>工作表显示选项；业务表名、列定义和金额格式由调用方决定。</summary>
 public sealed record ExcelSheetOptions(bool BoldHeader=false,string? DecimalFormat=null,IReadOnlyList<int>? ColumnWidths=null,
     bool IntegersAsNumbers=true,bool FreezeHeader=true);
 
-/// <summary>共用工作簿生成器，只处理单元格和样式；不保存路径、认证状态、密码或业务结果。</summary>
+/// <summary>共用工作簿生成器，处理单元格、样式及文件打开密码；不保存路径、认证状态、密码或业务结果。</summary>
 public sealed class ExcelWriter : IDisposable
 {
     private readonly XSSFWorkbook workbook=new();
@@ -43,12 +45,32 @@ public sealed class ExcelWriter : IDisposable
         }
         if(options.FreezeHeader)sheet.CreateFreezePane(0,1);
     }
-    /// <summary>写入调用方流并保持其打开；原子文件提交、敏感导出和加密由调用方协调。</summary>
+    /// <summary>写入普通工作簿并保持目标流打开；授权和文件提交由调用方协调。</summary>
     public void Write(Stream destination,CancellationToken cancellation=default)
     {
         ObjectDisposedException.ThrowIf(disposed,this);cancellation.ThrowIfCancellationRequested();
         using var guarded=new CancelableOutput(destination,cancellation);workbook.Write(guarded,true);cancellation.ThrowIfCancellationRequested();
     }
+    /// <summary>生成带打开密码的 XLSX，使用 OOXML Agile AES-256；密码仅用于本次写入，保持目标流打开。</summary>
+    public void WritePasswordProtected(Stream destination,string password,CancellationToken cancellation=default)
+    {
+        ObjectDisposedException.ThrowIf(disposed,this);cancellation.ThrowIfCancellationRequested();
+        // Office 打开密码最长 255 个字符；明确拒绝超限而非截断输入。
+        ValidatePassword(password);
+        // 此内存版 POIFS 不实现 IDisposable；未持有源文件句柄。
+        var filesystem=new POIFSFileSystem();
+        var info=new EncryptionInfo(EncryptionMode.Agile,CipherAlgorithm.aes256,HashAlgorithm.sha512,256,16,ChainingMode.cbc);
+        var encryptor=info.Encryptor;encryptor.ConfirmPassword(password);
+        using(var encrypted=encryptor.GetDataStream(filesystem)) Write(encrypted,cancellation);
+        cancellation.ThrowIfCancellationRequested();
+        using var ciphertext=new MemoryStream();
+        using(var guarded=new CancelableOutput(ciphertext,cancellation))filesystem.WriteFileSystem(guarded);
+        PasswordDocumentVerification.Excel(ciphertext,password,cancellation);ciphertext.Position=0;
+        using var output=new CancelableOutput(destination,cancellation);ciphertext.CopyTo(output);
+        cancellation.ThrowIfCancellationRequested();
+    }
+    public static void ValidatePassword(string password)
+    {if(string.IsNullOrEmpty(password) || password.Length>255) throw new ArgumentException("Excel 打开密码需为 1—255 个字符。",nameof(password));}
     public void Dispose(){if(disposed)return;disposed=true;workbook.Dispose();}
     private sealed class CancelableOutput(Stream inner,CancellationToken token):Stream
     {

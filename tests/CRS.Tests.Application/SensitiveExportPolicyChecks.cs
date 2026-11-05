@@ -1,4 +1,5 @@
 using CRS.Application;
+using CRS.Application.Abstractions;
 using CRS.Domain;
 
 internal static class SensitiveExportPolicyChecks
@@ -19,11 +20,25 @@ internal static class SensitiveExportPolicyChecks
         await workflow.ExportAsync("unused",result,"",consent:new(true));
         if(operations.Export.Count!=1 || !operations.ExportEvents.Contains((SensitiveExportOperation.Excel,SensitiveExportOutcome.Completed)))
             throw new Exception("确认后正常导出或固定事件丢失。");
+        operations.ValidateDestination=(_,plaintext,temporary)=>
+        {if(plaintext || temporary) throw new Exception("带打开密码的文档被错误归为明文。");};
+        foreach(var format in new[]{TaxDocumentFormat.Excel,TaxDocumentFormat.Pdf})
+        {
+            await Reject(workflow.ExportPasswordProtectedAsync("unused",result,"old",format,"Synthetic-Password"));
+            await workflow.ExportPasswordProtectedAsync("unused",result,"",format,"Synthetic-Password");
+            if(operations.Export.ProtectedFormat!=format) throw new Exception("原生文档格式传递错误。");
+        }
+        if(operations.Export.ProtectedCount!=2
+            || !operations.ExportEvents.Contains((SensitiveExportOperation.EncryptedExcel,SensitiveExportOutcome.Completed))
+            || !operations.ExportEvents.Contains((SensitiveExportOperation.EncryptedPdf,SensitiveExportOutcome.Completed)))
+            throw new Exception("原生加密文档未校验汇率或未记录固定审计类别。");
         operations.ValidateDestination=(_,_,_)=>throw new CrsException("合成目的地拒绝");
         await Reject(workflow.ExportCarryAsync("unused",result,consent:new(true)));
         if(operations.CarryCount!=0) throw new Exception("目录策略失败后仍写入结转。");
         workflow.EndSession();
         try {await workflow.ExportAsync("unused",result,"",consent:new(true)); throw new Exception("明文确认绕过会话锁定。");}
+        catch(OperationCanceledException) { }
+        try {await workflow.ExportPasswordProtectedAsync("unused",result,"",TaxDocumentFormat.Pdf,"Synthetic-Password"); throw new Exception("原生加密绕过会话锁定。");}
         catch(OperationCanceledException) { }
         var diagnostic=SensitiveDiagnostics.FormatError(new InvalidOperationException("PRIVATE-ACCOUNT PRIVATE-KEY",new Exception("PRIVATE-PASSWORD")));
         if(diagnostic.Contains("PRIVATE-") || !diagnostic.Contains("InvalidOperationException")) throw new Exception("诊断输出泄露异常正文。");

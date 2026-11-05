@@ -64,6 +64,10 @@ sealed class Rates : IExchangeRateProvider
 sealed class CounterExporter : IReportExporter
 {
     public int Count { get; private set; }
+    public int ProtectedCount {get;private set;}
+    public TaxDocumentFormat ProtectedFormat {get;private set;}
+    public void ExportPasswordProtected(string path,CalculationResult result,TaxDocumentFormat format,string password,IEnumerable<ReviewNote>? reviews=null,CancellationToken cancellation=default)
+    {BeforeWrite?.Invoke(cancellation);cancellation.ThrowIfCancellationRequested();ProtectedCount++;ProtectedFormat=format;}
     public Action<CancellationToken>? BeforeWrite {get;set;}
     public void Export(string path,CalculationResult result,IEnumerable<ReviewNote>? reviews=null,CancellationToken cancellation=default)
     {BeforeWrite?.Invoke(cancellation); cancellation.ThrowIfCancellationRequested(); Count++;}

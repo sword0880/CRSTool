@@ -19,6 +19,18 @@ public partial class App : System.Windows.Application
     /// <summary>组合根连接后台和前台，界面不直接构造解析器或数据库。</summary>
     protected override void OnStartup(StartupEventArgs e)
     {
+        try {TrustedDocumentAssembly.Load();}
+        catch(Exception)
+        {
+            MessageBox.Show("文档组件缺失、被替换或未经验证。为保护报税资料，程序已停止启动，请重新安装完整程序包。",ProductIdentity.Name);
+            Shutdown(1);return;
+        }
+        StartVerified(e);
+    }
+    // 与校验入口隔离 JIT，组件通过验证前不进入业务组合和文档调用。
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void StartVerified(StartupEventArgs e)
+    {
         base.OnStartup(e);
         // WPF-UI 的主按钮、导航选中与焦点色均从品牌调色板取得，禁止跟随操作系统蓝色。
         if (Resources["BrandAccentBrush"] is System.Windows.Media.SolidColorBrush brandAccent)

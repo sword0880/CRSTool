@@ -4,12 +4,6 @@
     "net10.0": {
       "crs.common": {
         "type": "Project"
-      },
-      "crs.time": {
-        "type": "Project",
-        "dependencies": {
-          "CRS.Common": "[1.0.0, )"
-        }
       }
     }
   }

@@ -3,6 +3,7 @@
   <PropertyGroup><AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="PdfPig" />
+    <PackageReference Include="PDFsharp" />
     <PackageReference Include="NPOI" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="System.Security.Cryptography.Xml" />
