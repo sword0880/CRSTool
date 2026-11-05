@@ -117,7 +117,7 @@ public sealed class OfficialHttpGateway : IPluginHttpGateway, IPluginJsonHttpGat
                 using var response = await SendAsync(uri,deadline.Token,jsonBody).ConfigureAwait(false);
                 var status = (int)response.StatusCode;
                 await ReportAsync("ResponseReceived",uri,status);
-                if (status is 403 or 429 or >= 500)
+                if (status is 403 or 429 or 446 or >= 500)
                 {
                     var retry = response.Headers.RetryAfter;
                     var until = retry?.Date;

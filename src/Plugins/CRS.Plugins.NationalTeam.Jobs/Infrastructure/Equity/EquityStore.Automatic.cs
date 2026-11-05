@@ -41,7 +41,7 @@ internal sealed partial class EquityStore
         var counts=new Dictionary<string,int>(StringComparer.Ordinal);using(var command=Command("SELECT state,count(*) FROM equity_auto_document GROUP BY state"))
         using(var reader=command.ExecuteReader())while(reader.Read())counts.Add(reader.GetString(0),reader.GetInt32(1));
         return new(AutomaticCursor(),Convert.ToInt32(Scalar("SELECT count(*) FROM equity_auto_security")),counts.Values.Sum(),
-            counts.GetValueOrDefault("Queued"),counts.GetValueOrDefault("Verified"),counts.GetValueOrDefault("NoMatch"),counts.GetValueOrDefault("NeedsReview"),
+            counts.GetValueOrDefault("Queued"),counts.GetValueOrDefault("Verified")+counts.GetValueOrDefault("VerifiedWithExceptions"),counts.GetValueOrDefault("NoMatch"),counts.GetValueOrDefault("NeedsReview")+counts.GetValueOrDefault("VerifiedWithExceptions"),
             CRS.Timing.BeijingClock.Parse((string)Scalar("SELECT updated FROM equity_auto_state WHERE id=1")!),
             Scalar("SELECT last_issue FROM equity_auto_state WHERE id=1") as string,
             Scalar("SELECT max(f.retrieved_utc) FROM equity_auto_security s JOIN source_fetch f ON f.fetch_id=s.fetch_id") is string fetched?CRS.Timing.BeijingClock.Parse(fetched):null);

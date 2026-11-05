@@ -14,6 +14,7 @@ public sealed partial class NationalTeamBackgroundSession
     [NationalTeamJob("equity-auto-sync","机构直接持股自动发现与更新","0 15 0 * * ?","China Standard Time",true,true,Group="collection",MaximumConcurrency=2,Order=11)]
     private async Task<BackgroundJobResult> ExecuteAutomaticEquity(EtfRequest request,CancellationToken token,Guid? commandId)
     {
+        if(request.Operation is not ("sync" or "equity-auto-sync"))return new("Rejected","automaticEquity=OperationMismatch");
         var current=AutomaticEquitySource.SecuritiesUri;
         try
         {
@@ -21,7 +22,7 @@ public sealed partial class NationalTeamBackgroundSession
             var status=await workspace!.Equity.AutomaticEquityStatusAsync(token);var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
             if(status.SecuritiesCheckedAt is not {} checkedAt||DateOnly.FromDateTime(checkedAt.DateTime)<today)
             {
-                var securities=await http.GetAsync(current,token);if(securities.StatusCode!=200)return AutomaticSourceWait(current,"SecurityDirectoryUnavailable");
+                var securities=await http.GetAsync(current,token);if(securities.StatusCode!=200)return await AutomaticHttpUnavailable(current,securities.StatusCode,token);
                 try{await workspace.Equity.SaveAutomaticEquitySecuritiesAsync(securities.Content,token);}
                 catch(Exception error) when(AutomaticContractError(error)){return await AutomaticContractFailure(current,securities.Content,token);}
             }
@@ -41,7 +42,7 @@ public sealed partial class NationalTeamBackgroundSession
                     try{original=await http.GetAsync(current,token);}
                     catch(InvalidDataException)
                     {await workspace.Equity.RecordAutomaticEquityIssueAsync(document.Id,document.Ticker+" 原件未通过有界读取，保留目录转异常",null,token);handled++;continue;}
-                    if(original.StatusCode!=200)return AutomaticSourceWait(current,"OriginalUnavailable");
+                    if(original.StatusCode!=200)return await AutomaticHttpUnavailable(current,original.StatusCode,token);
                     if(original.Content.Length<5||!original.Content.AsSpan(0,5).SequenceEqual("%PDF-"u8))
                         return await AutomaticContractFailure(current,original.Content,token);
                     var result=await workspace.Equity.ImportAutomaticEquityDocumentAsync(document.Id,original.Content,token);
@@ -53,7 +54,7 @@ public sealed partial class NationalTeamBackgroundSession
                 if(status.Cursor is not {Complete:false,Date:{} day} cursor)break;
                 current=AutomaticEquitySource.ReportsUri;
                 var page=await jsonHttp.PostJsonAsync(current,AutomaticEquitySource.Request(day,cursor.Page),token);
-                if(page.StatusCode!=200)return AutomaticSourceWait(current,"ReportDirectoryUnavailable");
+                if(page.StatusCode!=200)return await AutomaticHttpUnavailable(current,page.StatusCode,token);
                 try{await workspace.Equity.SaveAutomaticEquityPageAsync(page.Content,token);}
                 catch(Exception error) when(AutomaticContractError(error)){return await AutomaticContractFailure(current,page.Content,token);}
                 indexed++;
@@ -68,6 +69,11 @@ public sealed partial class NationalTeamBackgroundSession
     }
     private static bool AutomaticContractError(Exception error)=>error is InvalidDataException or System.Text.Json.JsonException or KeyNotFoundException or FormatException or OverflowException;
     private BackgroundJobResult AutomaticSourceWait(Uri source,string reason)=>new("RetryDeferred","automaticEquity="+reason,AutomaticDelay(source,null));
+    private async Task<BackgroundJobResult> AutomaticHttpUnavailable(Uri source,int status,CancellationToken token)
+    {
+        await workspace!.Equity.RecordAutomaticEquityIssueAsync(null,$"官方来源返回HTTP{status}，尚未完成本次取数；保留队列等待",null,token);
+        return AutomaticSourceWait(source,"Http"+status);
+    }
     private TimeSpan AutomaticDelay(Uri source,DateTimeOffset? until)
     {
         var next=(http as OfficialHttpGateway)?.RetryAt(source);

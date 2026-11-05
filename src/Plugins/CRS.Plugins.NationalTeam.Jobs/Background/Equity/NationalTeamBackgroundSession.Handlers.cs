@@ -157,7 +157,8 @@ public sealed partial class NationalTeamBackgroundSession
     {
         if(!(request.Operation is "sync" or "equity-sync"))throw new InvalidDataException("任务与业务参数不匹配。");
         var equityIssues=0;var equityRows=0;
-        foreach(var security in (await workspace!.Equity.EquityWatchlistAsync(token)).Where(x=>x.Active))
+        // 原结构化候选适配器只支持沪市；新自动原文流程独立覆盖沪深，不把深市登记误报来源故障。
+        foreach(var security in (await workspace!.Equity.EquityWatchlistAsync(token)).Where(x=>x.Active&&x.Market=="SSE"))
         {
             try
             {

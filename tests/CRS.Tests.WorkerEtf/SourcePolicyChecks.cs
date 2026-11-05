@@ -27,6 +27,11 @@ internal static class SourcePolicyChecks
         }
         using(var reopened=new SourceRequestPolicy(cninfoRoot))
             Check(reopened.Read("static.cninfo.com.cn").Failures==1&&reopened.Read("www.cninfo.com.cn").Blocked>cninfoNow,"巨潮冷却重启后保留");
+        using(var rejection=new SourceRequestPolicy(Path.Combine(root,"cninfo-446")))
+        {
+            rejection.Failure("www.cninfo.com.cn",cninfoNow,446);
+            Check(rejection.Read("static.cninfo.com.cn").Blocked>=cninfoNow.AddHours(6),"HTTP446按来源拒绝保留六小时共享冷却");
+        }
         // 插件持久策略与宿主使用相同出版者身份；重开数据库后也不能借CDN清除官网失败。
         var gongniuRoot=Path.Combine(root,"gongniu");var policyNow=DateTimeOffset.UtcNow;
         using(var policy=new SourceRequestPolicy(gongniuRoot))

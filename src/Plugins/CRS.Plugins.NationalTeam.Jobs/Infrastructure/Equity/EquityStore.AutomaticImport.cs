@@ -85,10 +85,12 @@ internal sealed partial class EquityStore
             }
             Execute("INSERT INTO equity_review_audit VALUES($a,$id,$who,$now,$f,$d,$p,$page)",("$a",Guid.NewGuid().ToString("N")),("$id",disclosure),("$who",actor),("$now",now),("$f",originalFetch),("$d",document.ReportAsOf.ToString("yyyy-MM-dd")),("$p",document.Published.ToString("yyyy-MM-dd")),("$page",proof.Pages));
         }
-        var outcome=proof.Accounts.Count>0?"Verified":"NoMatch";
+        var issue=proof.Issues is {Count:>0}?document.Ticker+" "+string.Join("；",proof.Issues):null;
+        if(issue?.Length>500)issue=issue[..500];
+        var outcome=proof.Accounts.Count>0?issue is null?"Verified":"VerifiedWithExceptions":"NoMatch";
         Execute("UPDATE source_fetch SET status='Accepted' WHERE fetch_id IN ($a,$b)",("$a",originalFetch),("$b",extractFetch));
-        Execute("UPDATE equity_auto_document SET state=$s,original_hash=$h,extract_hash=$e,disclosure_id=$d,issue=NULL,updated=$n WHERE id=$id AND state='Queued'",
-            ("$id",document.Id),("$s",outcome),("$h",original),("$e",normalized),("$d",disclosure),("$n",Now));
-        Execute("UPDATE equity_auto_state SET updated=$n,last_issue=NULL WHERE id=1",("$n",Now));operationCancellation.ThrowIfCancellationRequested();transaction.Commit();return outcome;
+        Execute("UPDATE equity_auto_document SET state=$s,original_hash=$h,extract_hash=$e,disclosure_id=$d,issue=$i,updated=$n WHERE id=$id AND state='Queued'",
+            ("$id",document.Id),("$s",outcome),("$h",original),("$e",normalized),("$d",disclosure),("$i",issue),("$n",Now));
+        Execute("UPDATE equity_auto_state SET updated=$n,last_issue=$i WHERE id=1",("$n",Now),("$i",issue));operationCancellation.ThrowIfCancellationRequested();transaction.Commit();return outcome;
     }
 }

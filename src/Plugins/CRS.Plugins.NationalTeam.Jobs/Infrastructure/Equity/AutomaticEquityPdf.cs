@@ -19,11 +19,14 @@ public static class AutomaticEquityPdf
     {
         if(document.Ticker=="603195"||document.ReportAsOf>document.Published||!AutomaticEquitySource.IsPdf(new(document.Url)))
             throw new InvalidDataException("证券受固定来源限制或原文身份无效。");
-        var pages=PdfReader.ReadFirst(bytes,32,token);
+        // 年报/中报的股东章节可能在后半部；使用既有200页与字符总量限制，不只看开头。
+        var pages=document.ReportAsOf.Month is 6 or 12?PdfReader.Read(bytes,token):PdfReader.ReadFirst(bytes,32,token);
         var text=Compact(string.Join("\n",pages.Select(x=>PdfTextLayout.Lines(x.Letters,token))));
         var cover=Compact(string.Join("\n",pages.Take(2).Select(x=>PdfTextLayout.Lines(x.Letters,token))));
         var kind=document.ReportAsOf.Month switch{3=>"第一季度",6=>"半年度",9=>"第三季度",12=>"年度",_=>throw new InvalidDataException("报告截止月无效。")};
-        if(!cover.Contains($"{document.ReportAsOf.Year}年{kind}报告",StringComparison.Ordinal))
+        var day=document.ReportAsOf.Month is 3 or 12?31:30;
+        if(document.ReportAsOf.Day!=day||!cover.Contains($"{document.ReportAsOf.Year}年{kind}报告",StringComparison.Ordinal)
+            &&!cover.Contains($"{document.ReportAsOf.Year}{kind}报告",StringComparison.Ordinal))
             throw new InvalidDataException("原文报告类型不能独立核对。");
         var date=$@"{document.ReportAsOf.Year}年0?{document.ReportAsOf.Month}月0?{document.ReportAsOf.Day}日";
         if(!text.Contains(document.Ticker,StringComparison.Ordinal)||!text.Contains(Compact(document.Name.TrimStart('*')),StringComparison.Ordinal)
@@ -40,8 +43,8 @@ public static class AutomaticEquityPdf
                 continue;
             }
             if(row.ShareClass=="H股")continue;
-            var confirmed=row.ShareClass is "A股" or "人民币普通股";
-            if(!confirmed)confirmed=unlimited.Any(x=>x.Account==row.Account&&(x.ShareClass is "A股" or "人民币普通股")&&x.Shares==row.Shares);
+            var matching=unlimited.Where(x=>x.Account==row.Account&&(x.ShareClass is "A股" or "人民币普通股")).ToArray();
+            var confirmed=AutomaticEquityBasis.ConfirmedA(row.ShareClass,row.Shares,matching.Length==1?matching[0].Shares:null);
             if(!confirmed){issues.Add(row.Account+"：总股数与A股口径无法对应");continue;}
             if(holders.Any(x=>x.Account==row.Account))throw new InvalidDataException("同一A股账户有重复数量。");
             holders.Add(new(row.Account,row.Shares,null));accounts.Add(new(row.Account,group,$"PDF P{row.Page}普通股表；期末总股数及A股股类交叉核对，股"));

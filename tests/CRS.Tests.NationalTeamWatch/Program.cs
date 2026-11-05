@@ -46,6 +46,9 @@ if(args is ["--equity-coverage-live",var equityCoverageDirectory]){await EquityS
 if(args is ["--equity-reviewed-import-live",var reviewedEquityDirectory]){await ReviewedEquityImportTool.Run(reviewedEquityDirectory);return;}
 if(args is ["--equity-reviewed-checks",var reviewedOriginalsDirectory]){ReviewedEquityChecks.Run(reviewedOriginalsDirectory);return;}
 if(args is ["--equity-automatic-probe",var automaticOriginalsDirectory]){AutomaticEquityChecks.Probe(automaticOriginalsDirectory);return;}
+if(args is ["--equity-automatic-checks",var automaticChecksDirectory]){AutomaticEquityAcceptanceChecks.Run(automaticChecksDirectory);return;}
+if(args is ["--equity-auto-source-live",var autoSourceDirectory]){await AutomaticEquityLiveTool.Sources(autoSourceDirectory);return;}
+if(args is ["--equity-auto-status-live",var autoStatusDirectory]){await AutomaticEquityLiveTool.Status(autoStatusDirectory);return;}
 if(args is ["--icbc-read-live",var icbcReadDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReadDirectory,false);return;}
 if(args is ["--icbc-review-live",var icbcReviewDirectory]){await IcbcEquityAcceptanceTool.Run(icbcReviewDirectory,true);return;}
 if(args is ["--icbc-golden",var icbcGoldenDirectory]){IcbcGoldenChecks.Run(icbcGoldenDirectory);return;}

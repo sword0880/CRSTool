@@ -99,7 +99,7 @@ public sealed class SourceRequestPolicy : ISourceRequestPolicy
     {
         var state = Read(host);
         var failures = Math.Min(state.Failures + 1, 16);
-        var seconds = status is 403 or 429 ? 21600 : Math.Min(21600, 300 * Math.Pow(2, Math.Min(failures - 1, 7)));
+        var seconds = status is 403 or 429 or 446 ? 21600 : Math.Min(21600, 300 * Math.Pow(2, Math.Min(failures - 1, 7)));
         var until = now.AddSeconds(seconds * (1 + Random.Shared.NextDouble() * .2));
         if (retryAfter > until) until = retryAfter.Value;
         if (state.Blocked > until) until = state.Blocked;

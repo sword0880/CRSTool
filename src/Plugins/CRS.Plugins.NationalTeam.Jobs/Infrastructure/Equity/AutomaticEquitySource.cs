@@ -66,7 +66,7 @@ public static class AutomaticEquitySource
             if(!securities.TryGetValue(code,out var security)||code=="603195")continue;
             if(row.GetProperty("orgId").GetString()!=security.OrgId)throw new InvalidDataException("公告披露主体与官方证券目录不符。");
             var title=Regex.Replace(row.GetProperty("announcementTitle").GetString()!,@"\s+","");
-            var period=Regex.Match(title,@"(?<year>20\d{2})年(?<type>年度|半年度|第一季度|第三季度)报告(?:全文|（(?:修订|更新|更正)[^（）]{0,20}）)?$",RegexOptions.CultureInvariant,TimeSpan.FromMilliseconds(100));
+            var period=Regex.Match(title,@"(?<year>20\d{2})年?(?<type>年度|半年度|第一季度|第三季度)报告(?:全文|（(?:修订|更新|更正)[^（）]{0,20}）)?$",RegexOptions.CultureInvariant,TimeSpan.FromMilliseconds(100));
             if(!period.Success)continue;
             var year=int.Parse(period.Groups["year"].Value,CultureInfo.InvariantCulture);
             var asOf=period.Groups["type"].Value switch{"年度"=>new DateOnly(year,12,31),"半年度"=>new DateOnly(year,6,30),"第一季度"=>new DateOnly(year,3,31),_=>new DateOnly(year,9,30)};
