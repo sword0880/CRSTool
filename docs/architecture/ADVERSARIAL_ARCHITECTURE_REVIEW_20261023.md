@@ -1,6 +1,6 @@
 # 项目架构反方评审（2026-10-23）
 
-后续：R01～R04已实施候选整改并通过专项与隔离联动验证，见[四项整改记录](../implementation/ARCH_OPTIMIZATION_20261023.md)。下文保留评审时事实和证据，不据此推定正式服务已更新。
+后续：R01～R04已实施候选整改并通过专项与隔离联动验证，见[四项整改记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)。下文保留评审时事实和证据，不据此推定正式服务已更新。
 
 评审基线：`b4a4b63ad86bf0d0bc3336c19011d5c48e2fdff4` 工作区。评审时已有两份国家队分组并发相关文档变更，未覆盖或修改。本文仅评审，不实施业务整改，不操作已安装 Worker、密钥或真实数据库。
 
@@ -93,7 +93,7 @@
 ## R06：接口形式解耦了类型，但能力语义仍然过宽
 
 续项：市场仓储默认实现已移除，按用例拆分端口并在正式启动核验必需能力；R07 年度边界已修正。
-R08 仅推进内部持久授权，发布门槛仍 Open。当前状态及验收见[续项记录](../implementation/ARCH_FOLLOWUP_20261023.md)，下文保留评审时证据。
+R08 仅推进内部持久授权，发布门槛仍 Open。当前状态及验收见[续项记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-followup)，下文保留评审时证据。
 
 证据：`src/Plugins/CRS.Plugins.NationalTeam.Core/Application/Ports.cs:11` 的 `IMarketRepository` 同时包含采集、日历、股票报告、预警、通知 Outbox 和配置；大量方法默认抛 `NotSupportedException`，部分方法默认返回空集合或 null。`src/CRS.Infrastructure/Storage/IVaultStorageBackend.cs` 同时提供仓储、绩效用例工厂、会话保护委托和跨模块导入。
 

@@ -1,10 +1,10 @@
 # CRS「国家队持仓与ETF观察」插件——历史第一期设计
 
-> 本文仅保留最初设计与证据约束用于追溯，不作为当前组件、接口或可用功能清单。当前结构见[功能分层](architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)，当前实施与开放门槛见[重构续项](implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+> 本文仅保留最初设计与证据约束用于追溯，不作为当前组件、接口或可用功能清单。当前结构见[功能分层](architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)，当前实施与开放门槛见[重构续项](implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。
 
 > 2026-10-24原始目标复核：见[市场高低位与持仓方向需求对照](architecture/NATIONAL_TEAM_MARKET_REGIME_REQUIREMENTS_20261024.md)。本期份额观察、股票快照及服务安装不等于已实现顶部/底部判断或国家队真实成交识别；行情/NAV、样本市值与行业方向、时间样本外验证另按该文M1—M4验收。以下保留分期设计和历史状态，不能以第一期交付代替整体目标。
 
-> 2026-10-15实施更新：[ETF公开任务已迁入Worker](implementation/ETF_WORKER_MIGRATION.md)，桌面关闭后继续采集。测试阶段采用全新Schema 2加密市场库，不迁移旧桌面研究数据；交易日历与长期覆盖目标仍按本文门槛独立验收。
+> 2026-10-15实施更新：[ETF公开任务已迁入Worker](implementation/WORKER_RUNTIME.md#etf-worker-migration)，桌面关闭后继续采集。测试阶段采用全新Schema 2加密市场库，不迁移旧桌面研究数据；交易日历与长期覆盖目标仍按本文门槛独立验收。
 
 > 文件：`NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md`  
 > **更新日期：2026-10-15；版本：v2.2（Windows Service后台运行专项同步）**  

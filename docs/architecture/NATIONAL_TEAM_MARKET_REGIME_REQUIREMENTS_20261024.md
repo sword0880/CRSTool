@@ -8,7 +8,7 @@
 
 工程部署、数据质量门槛与投资研究有效性是独立的验收。本文新增目标验收要求，不把下文拟建能力写成现有实现。
 
-开发按[逐项修正清单](../implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)执行，包含5小时窗口、反方检查与逐项证据状态。
+开发按[逐项修正清单](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-research-development)执行，包含5小时窗口、反方检查与逐项证据状态。
 
 ## 1. 现有数据实际能回答什么
 
@@ -135,7 +135,7 @@
 | M3 高低位研究 | 固定目标标签、基线及初始可解释规则，独立输出顶风险/底形成状态及反证 | 可重放输入、成熟标签、无前视边界测试；不足时不出结论 | 未实现 |
 | M4 历史及影子验证 | 多周期时间样本外、参数试验审计、实际可用时点影子观察 | 独立事件与相对基线证据、分阶段稳定性、完整失败记录 | 未完成，不得宣传预测有效 |
 
-这些阶段可以并行准备资料，但不能在M1/M3/M4缺失时，通过继续增加份额收缩规则宣称高低位模型已完成。现有部署验收见[配套安装记录](../implementation/ETF_EQUITY_DEPLOYMENT_20261024.md)，不能替代上述目标验收。
+这些阶段可以并行准备资料，但不能在M1/M3/M4缺失时，通过继续增加份额收缩规则宣称高低位模型已完成。现有部署验收见[配套安装记录](../implementation/NATIONAL_TEAM_EQUITY.md#etf-equity-deployment)，不能替代上述目标验收。
 
 ## 8. 按原始目标的完成审计
 
@@ -149,17 +149,17 @@
 
 本轮完成的是目标与现状的证据对照、改进设计及阶段验收定义；**整体产品目标仍未实现**。后续先做M1来源验证和M2样本覆盖，再开展M3/M4，保持目标开放。
 
-M1续项已取得并实现单只159915官方NAV历史的隔离研究解析，合并3635条及最近10条页面核对。10月25日01:13本机NAV维护达到Committed，01:16正式Worker手动导入3635条并独立回读近365日241条；正式首见保留10月25日，不能倒填为历史已知。自动周期、金额可比性和模型时效仍未通过，见[NAV部署及证据分层](../implementation/NATIONAL_TEAM_NAV_DEPLOYMENT_20261025.md)。行业比较新增[独立领域与WPF原型](../implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)，合成检查不能代替真实行业资料及机会验证。
+M1续项已取得并实现单只159915官方NAV历史的隔离研究解析，合并3635条及最近10条页面核对。10月25日01:13本机NAV维护达到Committed，01:16正式Worker手动导入3635条并独立回读近365日241条；正式首见保留10月25日，不能倒填为历史已知。自动周期、金额可比性和模型时效仍未通过，见[NAV部署及证据分层](../implementation/NATIONAL_TEAM_NAV.md#national-team-nav-deployment)。行业比较新增[独立领域与WPF原型](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-sector-research)，合成检查不能代替真实行业资料及机会验证。
 
 ## 本轮核验记录
 
-10月25日第二窗口：国证公布PE独立链已正式维护Committed，真实回读2025-09-19至2026-10-23共261个核验交易日/2871修订/11行业/待审0，见[公布PE证据](../implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)。它只补行业公布PE输入，不关闭价格/PB/覆盖/基本面或高低位有效性；全历史页面查询出现超时仍开放。周期原型v2补时间顺序、日历身份、定义版本和结构化指纹，44项边界通过，仍NotProven。股票新增[工行原文扩展与性质修正](../implementation/NATIONAL_TEAM_EQUITY_EXPANSION_20261025.md)正在验证，正式审核尚未完成，不提前提高已审持仓数。
+10月25日第二窗口：国证公布PE独立链已正式维护Committed，真实回读2025-09-19至2026-10-23共261个核验交易日/2871修订/11行业/待审0，见[公布PE证据](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-industry-pe)。它只补行业公布PE输入，不关闭价格/PB/覆盖/基本面或高低位有效性；全历史页面查询出现超时仍开放。周期原型v2补时间顺序、日历身份、定义版本和结构化指纹，44项边界通过，仍NotProven。股票新增[工行原文扩展与性质修正](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-expansion)正在验证，正式审核尚未完成，不提前提高已审持仓数。
 
 源码基准为`7b325fb70f6e16d99c4e0c4de29d2b588d4c193d`。正式只读状态在读取前后均为同一Running进程。现有回放专项14条边界检查通过，包含未来公告/首见信息不能穿越、缺日/缺日历阻断和匿名机构不能升级为具名证明；输出仍为`TimingProof=NotProven`。这些检查证明已有研究边界，不证明高低位预测有效。
 
 新增文档及其入口的53个相对链接校验通过，差异格式检查通过。证据分别为本轮`live/state.json`、`replay-boundary-checks.log`、`document-links.json`及`requirements-audit.json`，根目录为`artifacts/national-team-goal-review-20261024`。未更改业务模型、阈值、采集计划或发出通知。
 
-第二轮最终范围：公布PE已真实回读261交易日/2871修订，完整区间页面成功；工行新增4个已核股数但性质未知的快照，合计9账户/2股票。只关闭上述局部事实链，不关闭主要方向、行业完整估值或周期有效性。见[股票扩展](../implementation/NATIONAL_TEAM_EQUITY_EXPANSION_20261025.md)及[公布PE](../implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)最终记录。
+第二轮最终范围：公布PE已真实回读261交易日/2871修订，完整区间页面成功；工行新增4个已核股数但性质未知的快照，合计9账户/2股票。只关闭上述局部事实链，不关闭主要方向、行业完整估值或周期有效性。见[股票扩展](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-expansion)及[公布PE](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-industry-pe)最终记录。
 
 
-第四轮时点补充：2026-10-25 22:30正式只读回读仍为29条股票记录，其中13条FirstListed且EvidenceLevel=2、另16条NeedsReview；它们是3只股票的已核原文报告期快照，不是13笔交易。历史PDF独立登记、匹配市值/行业分母与模型样本外门槛继续开放。ETF查询真实超时作为R12优先修正，正式失败、分页加速、读取写门槛反例及维护分层见[查询性能记录](../implementation/ETF_QUERY_TIMEOUT_PERFORMANCE_20261025.md)。这些性能修正不提升持仓证明等级，也不关闭原始产品目标。
+第四轮时点补充：2026-10-25 22:30正式只读回读仍为29条股票记录，其中13条FirstListed且EvidenceLevel=2、另16条NeedsReview；它们是3只股票的已核原文报告期快照，不是13笔交易。历史PDF独立登记、匹配市值/行业分母与模型样本外门槛继续开放。ETF查询真实超时作为R12优先修正，正式失败、分页加速、读取写门槛反例及维护分层见[查询性能记录](../implementation/QUERY_PERFORMANCE.md#etf-query-timeout-performance)。这些性能修正不提升持仓证明等级，也不关闭原始产品目标。

@@ -51,4 +51,4 @@
 
 本报告记录诊断证据，不代表上述缺陷已经修复，也不代表这段历史范围已通过正式覆盖验收。
 
-后续已获授权实施修复；代码、回归与安装结果独立记录在[成交日志与查询取消修复](../implementation/MARKET_LOG_QUERY_CANCELLATION_FIX_20261022.md)，不改变本报告的原始诊断时点。
+后续已获授权实施修复；代码、回归与安装结果独立记录在[成交日志与查询取消修复](../implementation/TASK_CENTER.md#market-log-query-cancellation-fix)，不改变本报告的原始诊断时点。

@@ -37,4 +37,4 @@
 
 专项入口：`CRS.Tests.NationalTeamWatch --business-contracts`；覆盖V1显式/缺省、可选新字段、未知版本、null/缺操作、重复属性、UTF-8上限、旧响应、缺必填响应、真实后台会话拒绝、拒绝后继续查询、不兼容存储Schema，以及真实Named Pipes桌面拒绝不兼容响应。
 
-本轮候选开发包与结果见[架构整改续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。不替代旧发行二进制完整升级矩阵、生产签名、SCM/跨机灾备或业务黄金样本验收。未部署候选到已安装服务，不据本契约记录批准金融预警。
+本轮候选开发包与结果见[架构整改续记](../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。不替代旧发行二进制完整升级矩阵、生产签名、SCM/跨机灾备或业务黄金样本验收。未部署候选到已安装服务，不据本契约记录批准金融预警。

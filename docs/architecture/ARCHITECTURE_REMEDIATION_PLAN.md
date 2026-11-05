@@ -10,7 +10,7 @@
 
 新增实施约束：[数据库抽象与替换边界](DATABASE_PORTABILITY.md)。数据库连接、方言、事务与迁移限定在存储适配器，业务依赖仓储端口；共享来源预算、任务仓储故障边界、保险库存储族及插件仓储工厂已实施；保险库与插件支持通过配置选择已注册提供方，当前仅内置SQLCipher，第二数据库及迁移按文档单独验收。
 
-已合并ARCH-201～204的候选实现；Windows复核发现旧桌面调度页面残留导致构建失败，本轮已清理。ARCH-205已迁移手工录入至Application并补应用层/界面测试。对应第二份计划P1-01～05。详见[续记与验证证据](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。当前为工作区实施/验证阶段，真实服务部署和各任务未覆盖验收仍开放，不以此将P0发布门槛或整个专项标为Closed。
+已合并ARCH-201～204的候选实现；Windows复核发现旧桌面调度页面残留导致构建失败，本轮已清理。ARCH-205已迁移手工录入至Application并补应用层/界面测试。对应第二份计划P1-01～05。详见[续记与验证证据](../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。当前为工作区实施/验证阶段，真实服务部署和各任务未覆盖验收仍开放，不以此将P0发布门槛或整个专项标为Closed。
 
 ARCH-206（P1-06）已新增插件独立V1契约、未知版本拒绝和旧请求/响应兼容检查；版本矩阵见[业务契约规范](NATIONALTEAM_BUSINESS_CONTRACT.md)。代码及隔离测试已实施，完整历史发行/实际升级兼容仍保留为未关闭项，详见续记。
 
@@ -27,11 +27,11 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 本计划与既有整改记录并行使用时，优先遵循以下文档的最新状态，不重复建立另一套“完成状态”：
 - [当前架构入口](CURRENT_ARCHITECTURE.md)
 - [当前问题与验收缺口](../KNOWN_ISSUES.md)
-- [架构整改实施记录](../implementation/ARCH_REMEDIATION_20261016.md)
-- [Worker v2 整改记录](../implementation/WORKER_REMEDIATION.md)
+- [架构整改实施记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)
+- [Worker v2 整改记录](../implementation/WORKER_RUNTIME.md#worker-remediation)
 - [Worker 升级与恢复边界](../deployment/WORKER_UPGRADE_AND_RECOVERY.md)
 - [Worker 反方架构审查](../validation/WORKER_ARCHITECTURE_REVIEW.md)
-- [ETF 监控发布就绪核验](../implementation/MONITOR_READINESS_20261020.md)
+- [ETF 监控发布就绪核验](../implementation/WORKER_RUNTIME.md#monitor-readiness)
 
 若本计划与源码、最新实施记录或正式验收结果冲突，以最新源码和可复核验收证据为准，并在本文件中更新状态与证据链接。
 
@@ -65,7 +65,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 | --- | --- | --- | --- |
 | ARCH-101 | **D** 候选版本、正式数据目录和 Schema 迁移之间仍有需要验证的隔离边界；见 [升级与恢复文档](../deployment/WORKER_UPGRADE_AND_RECOVERY.md) 与 [当前问题清单](../KNOWN_ISSUES.md)。 | 设计并验证候选程序代次与数据代次的关联；升级前快照、迁移日志、健康探测、切换提交点和恢复决策必须明确。不得让未提交候选版本静默打开或回退正式数据。 | 覆盖真实 Windows SCM 的安装/升级/卸载/重装、各插件 Schema 迁移、迁移中止、进程强杀、断电模拟、磁盘满、失败后恢复；证明新事实不会被旧版本静默覆盖。 |
 | ARCH-102 | **D** ServiceKey 依赖机器/服务身份相关 DPAPI；跨机器或跨服务身份恢复仍未闭环。见 [升级与恢复文档](../deployment/WORKER_UPGRADE_AND_RECOVERY.md)。 | 定义密钥封装、授权恢复、备份一致性、凭据托管和审计流程。禁止通过放宽 SID/身份校验或硬编码明文密钥解决恢复问题。 | 在干净 Windows 环境、原服务身份与灾备身份场景中完成可重复恢复演练；无明文密钥泄漏；失败时安全拒绝并给出可操作诊断。 |
-| ARCH-103 | **D** 国家队 ETF 监控数据尚有历史覆盖、连续采集与官方来源验收缺口；见 [监控就绪核验](../implementation/MONITOR_READINESS_20261020.md)。 | 将“服务启动成功”“接口可调用”与“金融预警可发布”分开。建立具名 ETF 黄金样本、官方交易日历、数据新鲜度、缺口、修订、来源质量和告警误报/漏报验收门槛。 | 通过真实历史样本、随机缺口与修订、连续交易日采集、源站异常和恢复测试；未达门槛时明确显示未就绪，禁止将不完整数据包装成完整预警。 |
+| ARCH-103 | **D** 国家队 ETF 监控数据尚有历史覆盖、连续采集与官方来源验收缺口；见 [监控就绪核验](../implementation/WORKER_RUNTIME.md#monitor-readiness)。 | 将“服务启动成功”“接口可调用”与“金融预警可发布”分开。建立具名 ETF 黄金样本、官方交易日历、数据新鲜度、缺口、修订、来源质量和告警误报/漏报验收门槛。 | 通过真实历史样本、随机缺口与修订、连续交易日采集、源站异常和恢复测试；未达门槛时明确显示未就绪，禁止将不完整数据包装成完整预警。 |
 | ARCH-104 | **D** 税务正确性和独立金额基准仍是独立发布门槛；既有记录要求保留独立签认的 Golden Dataset。 | 不以当前程序输出反向生成预期答案。固定真实样本、手工/独立计算预期值、币种与精度规则、FIFO 与公司行动场景。 | 至少 3–5 组经独立复核的真实年度/账户样本，覆盖边界案例；回归结果、差异解释和审批证据归档。 |
 
 ### P1 — 领域所有权、插件契约与运行可靠性
@@ -79,7 +79,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 | ARCH-205 | **S** `PerformanceViewModel` 直接构造绩效领域对象，并执行金额/时间等校验与 JSON 输入处理。证据：[PerformanceViewModel.cs](../../src/CRS.Desktop.Wpf/ViewModels/PerformanceViewModel.cs#L254-L281)。 | 将手工估值、投资事件、覆盖确认等流程迁入 Application 用例；ViewModel 负责收集输入、展示状态和呈现错误。避免借此进行无关的全量 ViewModel 重写。 | 业务规则在无 WPF 依赖的应用层测试；UI 测试验证输入映射、加载/保存/错误呈现；不存在重复的 UI 业务校验权威。 |
 | ARCH-206 | **S** IPC 查询使用通用 JSON payload/operation 分发，Host IPC 版本与插件业务 DTO/Schema 版本职责需要进一步明确。证据：[Worker Contracts](../../src/CRS.Worker.Abstractions/Contracts.cs)、[IPC Protocol](../../src/CRS.Worker.Ipc/Protocol.cs)、[NationalTeamBackgroundEntry](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Background/NationalTeamBackgroundEntry.cs)。 | 分离 Host IPC 协议版本、插件业务契约版本和持久化 Schema 版本。公共宿主契约保持小而稳定；各插件维护有版本的请求/响应 DTO、兼容规则和拒绝策略。 | 对缺字段、新字段、未知 operation、旧/新版本客户端、超限 payload 和不兼容 Schema 增加契约测试；不支持版本明确拒绝，不静默降级。 |
 | ARCH-207 | **S/V** 当前插件生命周期故障策略包含宿主退出保护；同进程插件不能被当作 OS 安全沙箱，单个不合作插件可能影响 Worker 可用性。证据：[Worker Service Program.cs](../../src/CRS.Worker.Service/Program.cs#L75-L82)、插件宿主生命周期实现。实际影响需以故障注入验证。 | 先对第一方可信插件实施超时、取消、限流、健康状态与可诊断的故障分级；只有存在明确隔离收益时，才把高风险/高资源插件迁入独立低权限 PluginRunner 进程。暂不开放任意第三方插件。 | 对初始化、查询、执行、取消、Dispose 失控和崩溃进行故障注入；证明故障范围符合设计、宿主能恢复、数据事务不损坏、健康状态不误报。记录哪些情况仍必须重启 Worker。 |
-| ARCH-208 | **D/V** 税务与绩效对券商交易事实的共享程度不一致；现有文档指出富途已有共享事实路径，而 IBKR 绩效仍有独立适配器。证据：[绩效 P0 记录](../implementation/PERFORMANCE_P0.md)。 | 定义不可变 Broker Facts：成交、股息、费用、转仓、持仓/现金事件、账户/证券身份、来源原件与导入版本。税务与绩效分别投影/计算，不强行统一两者算法或数据库安全域。 | Futu/IBKR 同一组导入输入生成可追溯且稳定的事实记录；Tax Projection 与 Performance Projection 有独立黄金样本；重导入幂等、原件可追踪、差异可解释。 |
+| ARCH-208 | **D/V** 税务与绩效对券商交易事实的共享程度不一致；现有文档指出富途已有共享事实路径，而 IBKR 绩效仍有独立适配器。证据：[绩效 P0 记录](../implementation/PERFORMANCE_ANALYTICS.md)。 | 定义不可变 Broker Facts：成交、股息、费用、转仓、持仓/现金事件、账户/证券身份、来源原件与导入版本。税务与绩效分别投影/计算，不强行统一两者算法或数据库安全域。 | Futu/IBKR 同一组导入输入生成可追溯且稳定的事实记录；Tax Projection 与 Performance Projection 有独立黄金样本；重导入幂等、原件可追踪、差异可解释。 |
 | ARCH-209 | **D** Worker 已有并发额度、插件级有界队列和触发合并，但跨插件来源级预算、长期超载与重试风暴仍未全部验收。证据：[当前架构](CURRENT_ARCHITECTURE.md)、[当前问题清单](../KNOWN_ISSUES.md)。 | 在宿主层提供来源级共享预算/健康注册表，统一并发、频率、Retry-After、退避、冷却与公平策略。先采用本地实现，不因抽象需要引入外部消息中间件。 | 同一来源被多个插件调用时预算真正共享；429/403、超时、源站恢复、长期过载和重试风暴测试通过；队列长度、拒绝/延迟原因与来源健康状态可观测。 |
 
 ### P2 — 工程治理与持续验证

@@ -1,3 +1,4 @@
+using System.IO;
 using CRS.Application.Abstractions;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
@@ -106,6 +107,10 @@ internal static class VaultInteractionChecks
         public async Task EnrollWindowsHelloAsync(bool saved) {if(!saved) throw new CRS.Domain.CrsException("请保存恢复密钥。"); UsesWindowsHello=true; await CompleteEnrollmentAsync(true);}
         public Task VerifyWindowsHelloAsync()=>CompleteEnrollmentAsync(true);
         public bool IsUnlocked {get;private set;}
+        public List<string> BackupRequests{get;}=[];
+        public List<(string Source,string Target,string Secret,bool Recovery,string Password)> RestoreRequests{get;}=[];
+        public Func<CancellationToken,Task>? BeforeBackup{get;set;}
+        public bool FailRestore{get;set;}
         // 假服务只提供容量元数据，不接触真实文件或密钥。
         public VaultBackupCapacity? BackupCapacity {get;set;}
         public bool PhoneVerificationEnabled {get;private set;}=true;
@@ -135,8 +140,18 @@ internal static class VaultInteractionChecks
         public Task BeginPhoneReplacementAsync(string password,string code)=>Task.CompletedTask;
         public Task ResetPasswordAsync(string directory,string secret,string password)=>Task.CompletedTask;
         public Task ChangePasswordAsync(string oldPassword,string newPassword,string code)=>Task.CompletedTask;
-        public Task BackupAsync(string path,CancellationToken cancellation=default)=>Task.CompletedTask;
-        public Task RestoreAsync(string path,string target,string secret,bool recovery,string password,CancellationToken cancellation=default)=>Task.CompletedTask;
+        public async Task BackupAsync(string path,CancellationToken cancellation=default)
+        {
+            if(!IsUnlocked)throw new CRS.Domain.CrsException("保险库未解锁。");
+            BackupRequests.Add(path);if(BeforeBackup is not null)await BeforeBackup(cancellation);
+        }
+        public Task RestoreAsync(string path,string target,string secret,bool recovery,string password,CancellationToken cancellation=default)
+        {
+            if(IsUnlocked)throw new CRS.Domain.CrsException("恢复前必须锁定原数据库。");
+            cancellation.ThrowIfCancellationRequested();
+            if(FailRestore)throw new IOException("synthetic restore failure");
+            RestoreRequests.Add((path,target,secret,recovery,password));return Task.CompletedTask;
+        }
         public void Lock() {IsUnlocked=false; Authentication=AuthenticationState.Locked;}
         public void Dispose()=>Lock();
     }

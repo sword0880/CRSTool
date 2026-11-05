@@ -1,6 +1,6 @@
 # Worker 升级与恢复约束
 
-状态：部分实现（2026-10-16）。ARCH-002已接入离线升级/恢复脚本及Worker启动保护，完整SCM/生产签名/断电矩阵仍未关闭；ARCH-005跨机恢复部分仍为Proposed。代码与证据见[当前架构](../architecture/CURRENT_ARCHITECTURE.md)及[整改记录](../implementation/ARCH_REMEDIATION_20261016.md)。
+状态：部分实现（2026-10-16）。ARCH-002已接入离线升级/恢复脚本及Worker启动保护，完整SCM/生产签名/断电矩阵仍未关闭；ARCH-005跨机恢复部分仍为Proposed。代码与证据见[当前架构](../architecture/CURRENT_ARCHITECTURE.md)及[整改记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)。
 
 ## 当前可执行边界
 

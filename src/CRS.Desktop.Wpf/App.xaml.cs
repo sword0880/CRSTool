@@ -16,6 +16,7 @@ public partial class App : System.Windows.Application
     private readonly AutomaticLockPolicy automaticLock=new();
     private bool awaitingUnlock;
     private VaultWindow? securityDialog;
+    private DatabaseBackupWindow? databaseDialog;
     /// <summary>组合根连接后台和前台，界面不直接构造解析器或数据库。</summary>
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -92,33 +93,36 @@ public partial class App : System.Windows.Application
         if(accepted!=true || !vault!.IsUnlocked) {vault!.Lock(); Shutdown(); return;}
         OpenAuthenticatedWorkspace();
     }
-    /// <summary>手机旋转会销毁原业务会话，重新认证后必须重建整个工作区。</summary>
+    /// <summary>完整身份验证后建立工作区；数据库管理使用独立窗口。</summary>
     private void OpenAuthenticatedWorkspace()
     {
         var runtime=DesktopComposition.Create(false,vault,vaultSettings);
         var shell=new ShellViewModel(runtime.UseCases,new UserInteraction(),runtime.Settings,runtime.Vault,runtime.Performance,cleanup:new WorkerDataCleanupGateway());
         workspace=new MainWindow(shell); MainWindow=workspace;
-        workspace.SecurityRequested+=()=>
-        {
-            var model=new VaultViewModel(vault!,vaultSettings!,new UserInteraction());
-            var dialog=new VaultWindow(model) {Owner=workspace,Title="数据库与备份管理"}; securityDialog=dialog;
-            var restricted=false;
-            model.SessionRestricted+=()=> {restricted=true; workspace.PrepareLock();};
-            model.LockRequested+=()=> {dialog.Close(); Dispatcher.BeginInvoke(LockWorkspace);};
-            var accepted=dialog.ShowDialog(); securityDialog=null;
-            if(restricted && workspace is not null)
-            {
-                locking=true; idle?.Stop(); System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity;
-                workspace.Close(); workspace=null; locking=false;
-                if(accepted==true && vault!.IsUnlocked) OpenAuthenticatedWorkspace();
-                else {vault!.Lock(); OpenWorkspace();}
-            }
-        };
+        workspace.DatabaseManagementRequested+=()=>OpenDatabaseManagement(runtime.DirectoryPath);
         workspace.LockRequested+=LockWorkspace;
         workspace.Closed+=(_,_)=> {if(!locking) Shutdown();};
         System.Windows.Input.InputManager.Current.PreProcessInput+=InputActivity;
         automaticLock.RecordActivity(); workspace.Show(); _=shell.History.RefreshCommand.ExecuteAsync(null);
         idle=new(TimeSpan.FromSeconds(1),System.Windows.Threading.DispatcherPriority.Input,(_,_)=> {if(automaticLock.IsExpired) LockWorkspace();},Dispatcher);
+    }
+    private void OpenDatabaseManagement(string currentDirectory)
+    {
+        if(workspace is null||vault is not{IsUnlocked:true}||vaultSettings is null)return;
+        var currentWorkspace=workspace;
+        var model=new DatabaseBackupViewModel(vault,vaultSettings,currentDirectory);
+        var dialog=new DatabaseBackupWindow(model){Owner=currentWorkspace};databaseDialog=dialog;
+        model.RestoreStarting+=()=>
+        {
+            idle?.Stop();System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity;
+            currentWorkspace.PrepareLock();vault.Lock();
+        };
+        try{dialog.ShowDialog();}finally{databaseDialog=null;}
+        if(model.RestoreStarted&&ReferenceEquals(workspace,currentWorkspace))
+        {
+            locking=true;currentWorkspace.Close();workspace=null;locking=false;
+            OpenWorkspace();
+        }
     }
     private void InputActivity(object sender,System.Windows.Input.PreProcessInputEventArgs e)
     {
@@ -136,12 +140,13 @@ public partial class App : System.Windows.Application
     {
         if(locking) return;
         // 休眠与恢复等事件可连续到达，已经锁定时保持遮挡，不重复退出或自动进入。
-        if(awaitingUnlock) {vault?.Lock();securityDialog?.AbortForLock();return;}
+        if(awaitingUnlock) {vault?.Lock();securityDialog?.AbortForLock();databaseDialog?.AbortForLock();return;}
         // 创建／恢复向导也可能显示恢复秘密；系统锁屏时关闭启动层，重开应用后必须重新验证。
-        if(workspace is null) {foreach(Window window in Windows) window.Hide(); securityDialog?.AbortForLock(); vault?.Lock(); Shutdown(); return;}
+        if(workspace is null) {foreach(Window window in Windows) window.Hide(); securityDialog?.AbortForLock();databaseDialog?.AbortForLock(); vault?.Lock(); Shutdown(); return;}
         locking=true; idle?.Stop();
         System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity;
         workspace.Hide(); securityDialog?.AbortForLock(); securityDialog=null;
+        databaseDialog?.AbortForLock();databaseDialog=null;
         workspace.PrepareLock(); vault?.Lock(); workspace.Close(); workspace=null;
         locking=false; awaitingUnlock=true; try {OpenWorkspace();} finally {awaitingUnlock=false;}
     }

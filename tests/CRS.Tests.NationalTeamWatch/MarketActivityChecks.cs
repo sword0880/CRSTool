@@ -1,4 +1,5 @@
 using System.Text;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
@@ -59,7 +60,7 @@ internal static class MarketActivityChecks
             var raw=new RawEvidenceStore(Path.Combine(directory,"raw"));
             await using var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(directory,"data"),raw),raw);
             await workspace.InitializeAsync(CancellationToken.None);
-            var progress=new List<EtfProgress>();workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});
+            var progress=new ConcurrentQueue<EtfProgress>();workspace.SetProgressSink(p=>{progress.Enqueue(p);return Task.CompletedTask;});
             workspace.Activity.SetMarketActivitySource(source);
             var result=await workspace.Activity.SyncMarketActivityReportAsync(from,to,CancellationToken.None);
             var rows=await workspace.Activity.MarketActivityAsync(CancellationToken.None);
@@ -93,12 +94,13 @@ internal static class MarketActivityChecks
         Check(unavailable is {QueriedDays:1,RequestedSources:2,ReceivedRows:0,SourceIssues:2,FirstFailureCode:"InvalidOfficialResponse"},
             "官方返回异常不冒充已成功下载成交额");
         await RunResumeChecks(root);
+        await MarketActivityParallelChecks.RunAsync(Path.Combine(root,"parallel-dates"));
     }
 
     private static async Task RunResumeChecks(string root)
     {
         var directory=Path.Combine(root,"durable-resume");var raw=new RawEvidenceStore(Path.Combine(directory,"raw"));
-        var calls=new List<(string Market,DateOnly Date)>();var missing=(Market:"SSE",Date:Day.AddDays(1));
+        var calls=new ConcurrentQueue<(string Market,DateOnly Date)>();var missing=(Market:"SSE",Date:Day.AddDays(1));
         MarketActivitySource Value(string market,DateOnly day)=>new(OfficialMarketActivitySource.Request(market,day),
             Encoding.UTF8.GetBytes($"fixture-{market}-{day}"),market,day,new(market,day,100,200));
         async Task<MarketActivitySyncReport> Run(IMarketActivitySource source)
@@ -109,22 +111,22 @@ internal static class MarketActivityChecks
             return await workspace.Activity.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
         }
         var first=await Run(new FixtureActivitySource((market,day)=>
-        {calls.Add((market,day));if((market,day)==missing)throw new System.Text.Json.JsonException("synthetic malformed response");return Value(market,day);}));
+        {calls.Enqueue((market,day));if((market,day)==missing)throw new System.Text.Json.JsonException("synthetic malformed response");return Value(market,day);}));
         Check(first is {ReceivedRows:5,SourceIssues:1}&&first.FirstFailureDate==missing.Date&&first.FirstFailureMarket==missing.Market,
             "局部解析失败仍保存其余5条，检查点保留失败市场日期");
-        calls.Clear();var second=await Run(new FixtureActivitySource((market,day)=>{calls.Add((market,day));return Value(market,day);}));
+        calls.Clear();var second=await Run(new FixtureActivitySource((market,day)=>{calls.Enqueue((market,day));return Value(market,day);}));
         Check(calls.SequenceEqual([missing])&&second is{ReceivedRows:1,ExistingSources:5,SourceIssues:0,HasMore:false},
             "会话重建后只请求唯一缺口，不重采已提交的5个市场日期");
-        calls.Clear();var third=await Run(new FixtureActivitySource((market,day)=>{calls.Add((market,day));throw new Exception("不应再次请求");}));
+        calls.Clear();var third=await Run(new FixtureActivitySource((market,day)=>{calls.Enqueue((market,day));throw new Exception("不应再次请求");}));
         Check(calls.Count==0&&third is{ReceivedRows:0,ExistingSources:6,SourceIssues:0},"重复历史请求全部复用已核验事实");
 
-        var until=DateTimeOffset.UtcNow.AddHours(2);var progress=new List<EtfProgress>();
+        var until=DateTimeOffset.UtcNow.AddHours(2);var progress=new ConcurrentQueue<EtfProgress>();
         var coldRoot=Path.Combine(root,"independent-markets");var coldRaw=new RawEvidenceStore(Path.Combine(coldRoot,"raw"));
         await using(var workspace=CRS.Plugins.NationalTeamWatch.Infrastructure.NationalTeamApplicationComposition.Create(new QueryOnlyContext(),()=>TestMarketData.Open(Path.Combine(coldRoot,"data"),coldRaw),coldRaw))
         {
-            await workspace.InitializeAsync(default);workspace.SetProgressSink(p=>{progress.Add(p);return Task.CompletedTask;});calls.Clear();
+            await workspace.InitializeAsync(default);workspace.SetProgressSink(p=>{progress.Enqueue(p);return Task.CompletedTask;});calls.Clear();
             workspace.Activity.SetMarketActivitySource(new FixtureActivitySource((market,day)=>
-            {calls.Add((market,day));if(market=="SSE")throw new CRS.Worker.Abstractions.SourceBudgetUnavailableException("SourceCooldown",until);return Value(market,day);}));
+            {calls.Enqueue((market,day));if(market=="SSE")throw new CRS.Worker.Abstractions.SourceBudgetUnavailableException("SourceCooldown",until);return Value(market,day);}));
             var cold=await workspace.Activity.SyncMarketActivityReportAsync(Day,Day.AddDays(2),default);
             Check(calls.Count(x=>x.Market=="SSE")==1&&calls.Count(x=>x.Market=="SZSE")==3&&cold is{ReceivedRows:3,HasMore:true},
                 "沪市冷却只请求一次，深市全部日期继续采集");

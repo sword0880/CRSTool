@@ -1,6 +1,6 @@
 # CRS 海外投资收益率统计需求规范（PERFORMANCE_ANALYTICS_SPEC）
 
-> 2026-10-16 范围调整：绩效统一为联网操作，取消离线入口及离线失败回退。每次更新均获取 SSE 上证指数 / SPX 标普500 / HSI 恒生 / IXIC 纳斯达克综合及对比用汇率；默认 SSE。网络失败不发布旧行情重算结果。证券流水共用导入、完整性门槛、冻结历史及加密证据保留。下文早期离线 P0 记录为历史验收背景，当前行为以此调整及 [实现说明](../implementation/PERFORMANCE_P0.md) 为准。
+> 2026-10-16 范围调整：绩效统一为联网操作，取消离线入口及离线失败回退。每次更新均获取 SSE 上证指数 / SPX 标普500 / HSI 恒生 / IXIC 纳斯达克综合及对比用汇率；默认 SSE。网络失败不发布旧行情重算结果。证券流水共用导入、完整性门槛、冻结历史及加密证据保留。下文早期离线 P0 记录为历史验收背景，当前行为以此调整及 [实现说明](../implementation/PERFORMANCE_ANALYTICS.md) 为准。
 
 
 > 文档状态：需求基线；P0 已接入，真实独立金额验收未通过（2026-10-14）  
@@ -367,4 +367,4 @@ Crs.Wpf
 
 ## 当前实现与验收
 
-P0 行为、输入格式与保护限制见[当前实现](../implementation/PERFORMANCE_P0.md)，PA-01—PA-20 场景追踪与真实资料缺口见[验收记录](../validation/PERFORMANCE_ACCEPTANCE.md)。P1/P2 目标不因 P0 接入自动标记完成。
+P0 行为、输入格式与保护限制见[当前实现](../implementation/PERFORMANCE_ANALYTICS.md)，PA-01—PA-20 场景追踪与真实资料缺口见[验收记录](../validation/PERFORMANCE_ACCEPTANCE.md)。P1/P2 目标不因 P0 接入自动标记完成。

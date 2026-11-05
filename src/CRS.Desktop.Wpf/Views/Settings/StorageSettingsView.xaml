@@ -4,7 +4,7 @@
  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
  <StackPanel>
 <ui:Button x:Name="DatabaseManagementButton" Content="数据库与备份管理" Click="OnDatabaseManagement" HorizontalAlignment="Left" Margin="0,10,0,6" Visibility="{Binding SecuritySettingsAvailable,Converter={StaticResource BooleanVisibility}}"/>
-   <TextBlock Text="统一管理数据库加密备份、恢复、主密码与手机绑定。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,8"/>
+   <TextBlock Text="管理当前数据库位置、创建加密备份与恢复已有备份。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,8"/>
    <TextBlock Text="数据库目录（目录中的 crs.db）" Style="{StaticResource InputLabel}"/>
    <DockPanel><ui:Button DockPanel.Dock="Right" Content="浏览" Command="{Binding BrowseDatabaseCommand}" Margin="8,0,0,0"/><TextBox Text="{Binding DatabaseDirectory, UpdateSourceTrigger=PropertyChanged}"/></DockPanel>
    <TextBlock Text="已有加密库需验证后访问；新目录进入首次创建或恢复向导，不会自动建库。原数据库不会自动迁移或删除。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8,0,16"/>

@@ -11,6 +11,6 @@
 
 收据是采集工具的单独记录，并非交易所签名或第三方持仓证明。
 
-来源页面：[上交所基金公告](https://www.sse.com.cn/disclosure/fund/announcement/)、[深交所基金公告](https://www.szse.cn/disclosure/fund/notice/index.html)。字段、来源限制和运行证据边界见[实现说明](../../../../docs/implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。
+来源页面：[上交所基金公告](https://www.sse.com.cn/disclosure/fund/announcement/)、[深交所基金公告](https://www.szse.cn/disclosure/fund/notice/index.html)。字段、来源限制和运行证据边界见[实现说明](../../../../docs/implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-report-index)。
 
 这里只证明保存响应的结构和解析可复现；没有冻结的官方历史目录快照，不证明全部披露完整，更不证明机构持仓、交易、公布准确时点或正式Worker已运行该检索。

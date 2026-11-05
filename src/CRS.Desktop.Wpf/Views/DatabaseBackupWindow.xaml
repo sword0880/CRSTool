@@ -1,0 +1,42 @@
+<Window x:Class="CRS.DesktopClient.Views.DatabaseBackupWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="数据库与备份管理" Icon="pack://application:,,,/CRS.Desktop.Wpf;component/Assets/Brand/XiaoCaiNiu.ico"
+ Width="760" Height="820" MinWidth="560" MinHeight="600" WindowStartupLocation="CenterOwner"
+ Background="{DynamicResource BrandCanvasBrush}" Foreground="{DynamicResource BrandTextPrimaryBrush}">
+ <Window.Resources><BooleanToVisibilityConverter x:Key="ShowWhenTrue"/></Window.Resources>
+ <Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <StackPanel Margin="0,0,0,18"><TextBlock Text="数据库与备份管理" Style="{StaticResource UiPageTitle}"/>
+   <TextBlock Text="查看当前数据库位置，创建加密备份，或恢复已有备份。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8,0,0"/>
+  </StackPanel>
+  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel>
+   <StackPanel IsEnabled="{Binding IsIdle}">
+    <Border Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,16"><StackPanel>
+     <TextBlock Text="当前数据库" FontSize="16" FontWeight="SemiBold"/>
+     <TextBox Text="{Binding CurrentDirectory,Mode=OneWay}" IsReadOnly="True" Margin="0,10,0,0" AutomationProperties.Name="当前数据库目录"/>
+    </StackPanel></Border>
+    <Border Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,16"><StackPanel>
+     <TextBlock Text="创建加密备份" FontSize="16" FontWeight="SemiBold"/>
+     <TextBlock Text="{Binding CapacityHint}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8,0,12"/>
+     <TextBlock Text="备份保存位置（.crsbak）" Style="{StaticResource InputLabel}"/>
+     <DockPanel><Button DockPanel.Dock="Right" Content="选择位置" Click="OnSelectBackup" Margin="8,0,0,0"/><TextBox Text="{Binding BackupDestination,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="备份保存位置"/></DockPanel>
+     <Button Content="创建加密备份" Command="{Binding BackupCommand}" Style="{StaticResource PrimaryAction}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+    </StackPanel></Border>
+    <Border Background="{DynamicResource BrandSurfaceBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18"><StackPanel>
+     <TextBlock Text="恢复加密备份" FontSize="16" FontWeight="SemiBold"/>
+     <TextBlock Text="恢复前会关闭当前数据库。备份只恢复到新的空目录，原数据库保留。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,8,0,12"/>
+     <TextBlock Text="已有备份文件（.crsbak）" Style="{StaticResource InputLabel}"/>
+     <DockPanel><Button DockPanel.Dock="Right" Content="选择文件" Click="OnSelectRestore" Margin="8,0,0,0"/><TextBox Text="{Binding RestoreSource,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="恢复备份文件"/></DockPanel>
+     <TextBlock Text="恢复目标（新的空目录）" Style="{StaticResource InputLabel}"/>
+     <DockPanel><Button DockPanel.Dock="Right" Content="选择目录" Click="OnSelectTarget" Margin="8,0,0,0"/><TextBox Text="{Binding RestoreTarget,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="备份恢复目录"/></DockPanel>
+     <CheckBox Content="使用恢复密钥；未勾选时使用备份时的主密码" IsChecked="{Binding UseRecoveryKey}" Margin="0,12,0,8"/>
+     <TextBlock Text="备份恢复凭证" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="RestoreSecretInput" PasswordChanged="OnSecret" AutomationProperties.Name="备份恢复凭证"/>
+     <TextBlock Text="恢复后使用的新主密码（至少12个字符）" Style="{StaticResource InputLabel}"/><PasswordBox x:Name="RestorePasswordInput" PasswordChanged="OnPassword" AutomationProperties.Name="恢复后的新主密码"/>
+     <Button Content="关闭当前数据库并恢复" Command="{Binding RestoreCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+    </StackPanel></Border>
+   </StackPanel>
+   <ProgressBar Height="6" IsIndeterminate="True" Visibility="{Binding IsBusy,Converter={StaticResource ShowWhenTrue}}" Margin="0,16,0,0" AutomationProperties.Name="数据库操作进度"/>
+   <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,14,0,0"/>
+  </StackPanel></ScrollViewer>
+  <Button Grid.Row="2" Content="关闭" Click="OnClose" IsEnabled="{Binding IsIdle}" HorizontalAlignment="Right" MinWidth="90" Margin="0,16,0,0"/>
+ </Grid>
+</Window>

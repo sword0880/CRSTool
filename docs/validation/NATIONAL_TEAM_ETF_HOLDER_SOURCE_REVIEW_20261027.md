@@ -26,7 +26,7 @@
 
 已查看完整[2025持有人页](../../artifacts/national-team-etf-holder-source-review-20261027/2025-report-75.png)和[2024持有人页](../../artifacts/national-team-etf-holder-source-review-20261027/2024-report-72.png)。两表实际各有11条，联接基金另列且脚注明确“前十”排除联接基金；不能写死只有10行或把第11条误判为重复。原文名称跨行，PDF表格还含合并单元格导致的空列；首次按固定4列抽取失败，改为核对表头及非空合并列后取得两期各11行。
 
-待审结果保存在[候选表格JSON](../../artifacts/national-team-etf-holder-source-review-20261027/510300-holder-table-candidates.json)，保留原始换行姓名、规范化名称、单位、页码、哈希及空的公告时刻。状态为`UnreviewedSourceCandidate`，`OriginalConfirmed=false`、`InstalledDatabaseChanged=false`。Python仅用于研究对照；后续C#后台解析与隔离验证单独记于[候选接线](../implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)，不能将解析接线当作人工审核或正式安装验收。
+待审结果保存在[候选表格JSON](../../artifacts/national-team-etf-holder-source-review-20261027/510300-holder-table-candidates.json)，保留原始换行姓名、规范化名称、单位、页码、哈希及空的公告时刻。状态为`UnreviewedSourceCandidate`，`OriginalConfirmed=false`、`InstalledDatabaseChanged=false`。Python仅用于研究对照；后续C#后台解析与隔离验证单独记于[候选接线](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holder-candidates)，不能将解析接线当作人工审核或正式安装验收。
 
 ## 后续接线要求
 

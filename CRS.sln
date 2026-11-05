@@ -51,9 +51,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "guides", "guides", "{01180C
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "implementation", "implementation", "{EA2851F9-C9D6-4587-A32F-D4B84E3C18F3}"
 	ProjectSection(SolutionItems) = preProject
+		docs\implementation\README.md = docs\implementation\README.md
 		docs\implementation\BRAND_VISUAL_SYSTEM.md = docs\implementation\BRAND_VISUAL_SYSTEM.md
-		docs\implementation\ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md = docs\implementation\ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md
-		docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md = docs\implementation\NATIONAL_TEAM_PLUGIN_PROGRESS.md
+		docs\implementation\ARCHITECTURE_IMPLEMENTATION.md = docs\implementation\ARCHITECTURE_IMPLEMENTATION.md
+		docs\implementation\NATIONAL_TEAM_ARCHITECTURE.md = docs\implementation\NATIONAL_TEAM_ARCHITECTURE.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "validation", "validation", "{7BFA079A-6147-4A4E-9DA8-82AAF92AF9F4}"

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
 using CRS.Plugin.Abstractions;
@@ -40,18 +41,18 @@ internal static class CoolingProgressChecks
             await using(var first=new NationalTeamBackgroundSession(successContext,counter))
             {
                 await first.StartAsync(default);
-                var measured=new List<BackgroundProgress>();
+                var measured=new ConcurrentQueue<BackgroundProgress>();
                 if((await first.ExecuteWithProgressAsync("market-activity-sync",completedPayload,p=>
-                    {repository.AppendProgress(execution,p);measured.Add(p);return Task.CompletedTask;},default)).Status!="Succeeded"||counter.Calls!=2)
+                    {repository.AppendProgress(execution,p);measured.Enqueue(p);return Task.CompletedTask;},default)).Status!="Succeeded"||counter.Calls!=2)
                     throw new Exception("初次双市场成交采集未成功。");
                 if(measured.Single(x=>x.Stage=="MarketDayCompleted") is not{Received:2,Reused:0,Closed:0,Empty:0,Deferred:0,Issues:0}
                     ||measured.Last() is not{Stage:"MarketRangeCompleted",Received:2})throw new Exception("实际成交日计数或持久化错误。");
             }
             await using(var restored=new NationalTeamBackgroundSession(successContext,counter))
             {
-                await restored.StartAsync(default);var measured=new List<BackgroundProgress>();
+                await restored.StartAsync(default);var measured=new ConcurrentQueue<BackgroundProgress>();
                 var reused=await restored.ExecuteWithProgressAsync("market-activity-sync",completedPayload,p=>
-                    {repository.AppendProgress(execution,p);measured.Add(p);return Task.CompletedTask;},default);
+                    {repository.AppendProgress(execution,p);measured.Enqueue(p);return Task.CompletedTask;},default);
                 if(reused.Status!="Succeeded"||counter.Calls!=2||reused.Checkpoint?.Contains("existingSources=2")!=true)
                     throw new Exception("全区间已核验后仍请求官网或错误返回NotPublished。");
                 if(measured.Single(x=>x.Stage=="MarketDayCompleted") is not{Received:0,Reused:2,Closed:0,Empty:0,Deferred:0,Issues:0}
@@ -78,7 +79,7 @@ internal static class CoolingProgressChecks
         public int Calls;
         public Task<PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)
         {
-            Calls++;var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
+            Interlocked.Increment(ref Calls);var query=uri.Query.TrimStart('?').Split('&').Select(x=>x.Split('=',2)).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
             var day=query.GetValueOrDefault("SEARCH_DATE")??query["txtQueryDate"];
             object content=uri.Host=="query.sse.com.cn"
                 ?new{sqlId="COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C",actionErrors=Array.Empty<string>(),result=new[]{new{PRODUCT_CODE="17",TRADE_DATE=day.Replace("-",""),TRADE_AMT="100",TRADE_VOL="200"}}}

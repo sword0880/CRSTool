@@ -36,7 +36,9 @@ internal static class BusinessContractChecks
         await using(var session=new NationalTeamBackgroundSession(new Context(root),new NoHttp()))
         {
             var jobs=session.DescribeJobs();
-            Check(jobs.Count==28&&jobs.Select(x=>x.JobId).Distinct().Count()==28&&jobs.Any(x=>x.JobId=="southbound-sync"),"模块注册保留原任务并新增独立南向历史更新");
+            // 自动直接持股采集已独立登记；保留唯一任务身份及既有南向任务，不沿用旧的28项计数。
+            Check(jobs.Count==29&&jobs.Select(x=>x.JobId).Distinct().Count()==29&&jobs.Any(x=>x.JobId=="southbound-sync")
+                &&jobs.Any(x=>x.JobId=="equity-auto-sync"),"模块注册保留原任务、独立南向更新及自动直接持股采集");
             Check(jobs.All(x=>session.ExecutionGroup(x.JobId).MaximumConcurrency is >=1 and <=2),"每项任务从所属模块声明取得受限执行组");
             Check(session.QueryOperation(JsonSerializer.Serialize(new EtfRequest("acceptance-batch")))=="acceptance-batch"
                 &&session.QueryOperation(JsonSerializer.Serialize(new EtfRequest("query-capabilities")))=="query-capabilities"

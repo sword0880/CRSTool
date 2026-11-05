@@ -11,7 +11,7 @@
 
 新增实施约束：[数据库抽象与替换边界](DATABASE_PORTABILITY.md)。数据库连接、方言、事务与迁移限定在存储适配器，业务依赖仓储端口；共享来源预算、任务仓储故障边界、保险库存储族及插件仓储工厂已实施；保险库与插件支持通过配置选择已注册提供方，当前仅内置SQLCipher，第二数据库及迁移按文档单独验收。
 
-已合并ARCH-201～204的候选实现；Windows复核发现旧桌面调度页面残留导致构建失败，本轮已清理。ARCH-205已迁移手工录入至Application并补应用层/界面测试。对应第二份计划P1-01～05。详见[续记与验证证据](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。当前为工作区实施/验证阶段，真实服务部署和各任务未覆盖验收仍开放，不以此将P0发布门槛或整个专项标为Closed。
+已合并ARCH-201～204的候选实现；Windows复核发现旧桌面调度页面残留导致构建失败，本轮已清理。ARCH-205已迁移手工录入至Application并补应用层/界面测试。对应第二份计划P1-01～05。详见[续记与验证证据](../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。当前为工作区实施/验证阶段，真实服务部署和各任务未覆盖验收仍开放，不以此将P0发布门槛或整个专项标为Closed。
 
 ARCH-206（P1-06）已新增插件独立V1契约、未知版本拒绝和旧请求/响应兼容检查；版本矩阵见[业务契约规范](NATIONALTEAM_BUSINESS_CONTRACT.md)。代码及隔离测试已实施，完整历史发行/实际升级兼容仍保留为未关闭项，详见续记。
 
@@ -61,7 +61,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P0-01：Worker 候选版本与正式数据代次未完全隔离
 
-- 证据：D。参见 `docs/deployment/WORKER_UPGRADE_AND_RECOVERY.md`、`docs/implementation/ARCH_REMEDIATION_20261016.md` 和 `docs/KNOWN_ISSUES.md`。
+- 证据：D。参见 `docs/deployment/WORKER_UPGRADE_AND_RECOVERY.md`、`docs/implementation/ARCHITECTURE_IMPLEMENTATION.md` 和 `docs/KNOWN_ISSUES.md`。
 - 风险：候选版本在正式数据目录上执行 Schema/数据迁移时，如果升级中断，旧程序可能无法安全回退；禁止危险回退是正确的，但仍需更明确的候选验证和恢复路径。
 - 整改：在提交正式代次前，验证候选程序、候选数据/迁移及健康状态；确保迁移失败不污染已确认的正式代次。继续保留升级 Journal、禁止回退新事实和显式恢复策略。
 - 验收：覆盖 Schema 迁移失败、进程被杀、系统重启、磁盘满、损坏/缺失快照和候选健康检查超时；恢复后确认已提交事实、原件、审计记录和密钥可用。真实 Windows SCM 安装/升级/卸载/重装需独立实机验收。
@@ -79,7 +79,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P0-03：市场监控与税务计算仍有发布门槛未通过
 
-- 证据：D。参见 `docs/implementation/MONITOR_READINESS_20261020.md`、`docs/implementation/PERFORMANCE_P0.md`、`docs/validation/RELEASE_ACCEPTANCE.md` 和 `docs/KNOWN_ISSUES.md`。
+- 证据：D。参见 `docs/implementation/WORKER_RUNTIME.md`、`docs/implementation/PERFORMANCE_ANALYTICS.md`、`docs/validation/RELEASE_ACCEPTANCE.md` 和 `docs/KNOWN_ISSUES.md`。
 - 当前基线记录：24 只 ETF 中 11 只达到 250 个有效交易日覆盖；连续采集验收记录为沪市 1/20、深市 0/20。税务独立金额 Golden Dataset 与真实账户独立签认亦未关闭。以上均为该基线记录，不应被当作永久当前状态。
 - 整改：每次实施前重新读取最新验收记录。监控发布必须按具名标的、权威日历、来源原件、缺口/修订、连续采集及预警输入完整性验收；税务发布必须有独立预期值，不能由当前程序输出反向生成黄金答案。
 - 验收：达到各专项文档规定的真实数据和独立签认门槛；不能用“服务启动成功”“合成测试通过”或“架构整改完成”替代业务验收。
@@ -144,7 +144,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P1-08：投资绩效与税务共享券商事实尚未完全统一
 
-- 证据：S/D。文件：`src/CRS.Application/Imports/BrokerActivityFacts.cs`、`src/CRS.Infrastructure/Performance/IbkrPerformanceAdapter.cs`、`docs/implementation/PERFORMANCE_P0.md`。
+- 证据：S/D。文件：`src/CRS.Application/Imports/BrokerActivityFacts.cs`、`src/CRS.Infrastructure/Performance/IbkrPerformanceAdapter.cs`、`docs/implementation/PERFORMANCE_ANALYTICS.md`。
 - 观察：富途路径已使用共享券商事实模型；IBKR 绩效仍有独立适配路径，相关文档将统一工作列为未完成。
 - 风险：同一原始券商活动在税务与绩效模块被不同解析器解释，产生事件分类或来源证据不一致。
 - 整改：建立小而稳定的不可变 Broker/Investment Facts；税务与绩效消费同一原始事实，但保留各自投影、成本算法和业务规则。逐步迁移 IBKR，不得一次性重写税务算法。
@@ -152,7 +152,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P1-09：跨插件来源预算和过载治理未形成完整公共能力
 
-- 证据：D。参见 `docs/architecture/CURRENT_ARCHITECTURE.md`、`docs/implementation/ARCH_REMEDIATION_20261016.md` 与 `docs/KNOWN_ISSUES.md`。
+- 证据：D。参见 `docs/architecture/CURRENT_ARCHITECTURE.md`、`docs/implementation/ARCHITECTURE_IMPLEMENTATION.md` 与 `docs/KNOWN_ISSUES.md`。
 - 现状：已有插件级有界 FIFO、触发合并、可配置全局并发及部分来源策略；跨插件共享来源预算、长期超载和重试风暴验收仍开放。
 - 整改：在 Worker/公共基础设施层提供来源级并发预算、冷却/Retry-After、超时、重试预算和来源健康状态。插件声明来源/资源需求，由宿主实施策略；避免各插件各自限流。
 - 验收：两个插件访问同一来源时共享预算；403/429、超时和来源恢复按策略工作；慢插件不长期占用全部 Quartz 名额；长期压力测试不产生无限重试/无界队列。不得承诺任意负载下永不积压。
@@ -275,11 +275,11 @@ P0 发布门槛应并行推进，不因架构清理而延后。以下阶段描�
 - [当前架构入口](CURRENT_ARCHITECTURE.md)
 - [项目结构与依赖](PROJECT_STRUCTURE.md)
 - [当前问题与验收缺口](../KNOWN_ISSUES.md)
-- [架构整改实施记录](../implementation/ARCH_REMEDIATION_20261016.md)
+- [架构整改实施记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)
 - [Worker 升级与恢复](../deployment/WORKER_UPGRADE_AND_RECOVERY.md)
 - [Worker 插件与后台任务反方审查](../validation/WORKER_ARCHITECTURE_REVIEW.md)
-- [ETF 监控数据验收](../implementation/MONITOR_READINESS_20261020.md)
-- [绩效 P0 与共享券商事实](../implementation/PERFORMANCE_P0.md)
+- [ETF 监控数据验收](../implementation/WORKER_RUNTIME.md#monitor-readiness)
+- [绩效 P0 与共享券商事实](../implementation/PERFORMANCE_ANALYTICS.md)
 - [发布验收](../validation/RELEASE_ACCEPTANCE.md)
 
 ---

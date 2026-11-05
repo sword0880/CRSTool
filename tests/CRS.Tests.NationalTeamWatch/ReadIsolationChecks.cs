@@ -86,7 +86,8 @@ internal static class ReadIsolationChecks
         {
             if(!afterDownload)foreach(var market in new[]{"SSE","SZSE"})repository.SaveMarketActivity(market,day,new(new Uri("https://www.sse.com.cn/synthetic-activity-read"),Encoding.UTF8.GetBytes("synthetic activity "+market),market,day,new(market,day,100,100)));
             workspace.Activity.SetMarketActivitySource(source);
-            if(afterDownload)workspace.SetProgressSink(p=>{if(p.Stage=="SourceParsed"&&p.Market=="SZSE")Volatile.Write(ref block,true);return Task.CompletedTask;});
+            // 两市可乱序返回；当日都提交后才暂停最终只读复核，不能在另一市场写事务前暂停。
+            if(afterDownload)workspace.SetProgressSink(p=>{if(p.Stage=="MarketDayCompleted")Volatile.Write(ref block,true);return Task.CompletedTask;});
         }
         using var stopping=new CancellationTokenSource();using var writingStop=new CancellationTokenSource();
         Volatile.Write(ref block,!afterDownload);

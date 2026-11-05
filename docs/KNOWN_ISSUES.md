@@ -2,23 +2,23 @@
 
 本文保留历史问题和各时点记录，当前高风险及正式部署状态统一见[当前架构状态](architecture/ARCHITECTURE_STATUS.md)。
 
-2026-10-28：[国家队双库保全迁移](implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)已在正式LocalService完成并Committed，5959份快照、原库归档、服务密钥、24只ETF配置、29条股票投影及10条执行记录回读通过。国家队双库为普通SQLite，收入/报税未改。最终闭日抽检仍有预警总览和联合退出研究两项RequestTimedOut；具名ETF历史、周期及广度查询可用不代表真实披露覆盖或模型通过，完整目标继续开放。
+2026-10-28：[国家队双库保全迁移](implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-storage-migration)已在正式LocalService完成并Committed，5959份快照、原库归档、服务密钥、24只ETF配置、29条股票投影及10条执行记录回读通过。国家队双库为普通SQLite，收入/报税未改。最终闭日抽检仍有预警总览和联合退出研究两项RequestTimedOut；具名ETF历史、周期及广度查询可用不代表真实披露覆盖或模型通过，完整目标继续开放。
 
-2026-10-25 08:13：[公布行业PE事实链](implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)正式维护已Committed，4日44条真实记录及11行业通过实际Worker和独立WPF页面回读；历史回补正在执行。仅此公布PE页面接通，完整行业价格/PB/市值覆盖/基本面及低估机会仍开放；区域模型与主要持仓方向没有因此验收。以下早期“行业未接通”描述保留其当时时点，当前状态以此项为准。
+2026-10-25 08:13：[公布行业PE事实链](implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-industry-pe)正式维护已Committed，4日44条真实记录及11行业通过实际Worker和独立WPF页面回读；历史回补正在执行。仅此公布PE页面接通，完整行业价格/PB/市值覆盖/基本面及低估机会仍开放；区域模型与主要持仓方向没有因此验收。以下早期“行业未接通”描述保留其当时时点，当前状态以此项为准。
 
-2026-10-25 01:51：原建发报告目录请求已Completed/Succeeded并Indexed（pages=1），报告期仍需审核；原份额补查仍Pending/RetryDeferred。没有重复排队，索引不升级为已审持仓。最新回执与剩余工作见[开发清单](implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)。
+2026-10-25 01:51：原建发报告目录请求已Completed/Succeeded并Indexed（pages=1），报告期仍需审核；原份额补查仍Pending/RetryDeferred。没有重复排队，索引不升级为已审持仓。最新回执与剩余工作见[开发清单](implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-research-development)。
 
-2026-10-25：[NAV本机部署](implementation/NATIONAL_TEAM_NAV_DEPLOYMENT_20261025.md)已Committed，5620快照文件与原密钥摘要核对，原7项计划/24只ETF/29条股票记录保留。固定159915源站本次四请求200、正式新增3635条/待审0，近年IPC回读241条。自动周期/跨基金、份额可比性、区域有效性和完整持仓方向仍未关闭。[行业曲线原型](implementation/NATIONAL_TEAM_SECTOR_RESEARCH_20261025.md)已开发独立领域及WPF显示，真实行业数据/服务/主导航未接通；不重复远端MarketCycle原型分支。
+2026-10-25：[NAV本机部署](implementation/NATIONAL_TEAM_NAV.md#national-team-nav-deployment)已Committed，5620快照文件与原密钥摘要核对，原7项计划/24只ETF/29条股票记录保留。固定159915源站本次四请求200、正式新增3635条/待审0，近年IPC回读241条。自动周期/跨基金、份额可比性、区域有效性和完整持仓方向仍未关闭。[行业曲线原型](implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-sector-research)已开发独立领域及WPF显示，真实行业数据/服务/主导航未接通；不重复远端MarketCycle原型分支。
 
-2026-10-24 R05A：[独立NAV修订及知识时间存储](implementation/NATIONAL_TEAM_NAV_STORAGE_20261024.md)已加入候选代码，35项存储反例和443项完整回归通过；真实公开3635条在隔离SQLCipher库入库/重启回读完成，登记前时点仍为0条。Installed=false，正式采集入口、来源预算和保留数据的安装回读仍开放，不能以隔离入库替代正式NAV运行或资金流验收。
+2026-10-24 R05A：[独立NAV修订及知识时间存储](implementation/NATIONAL_TEAM_NAV.md#national-team-nav-storage)已加入候选代码，35项存储反例和443项完整回归通过；真实公开3635条在隔离SQLCipher库入库/重启回读完成，登记前时点仍为0条。Installed=false，正式采集入口、来源预算和保留数据的安装回读仍开放，不能以隔离入库替代正式NAV运行或资金流验收。
 
-2026-10-24研究开发按[项目修正清单](implementation/NATIONAL_TEAM_RESEARCH_DEVELOPMENT_20261024.md)推进。单只159915已核对官方单位NAV历史3635条，隔离研究解析及同日份额/NAV对齐、冻结复算已实现，408项回归通过。21:06真实99个窗口因可比性缺失/份额缺日均无金额结果；这不是正式自动NAV或资金流上线。价格/广度/估值、广泛真实持仓及方向分母、区域模型与时间样本外有效性均仍开放。
+2026-10-24研究开发按[项目修正清单](implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-research-development)推进。单只159915已核对官方单位NAV历史3635条，隔离研究解析及同日份额/NAV对齐、冻结复算已实现，408项回归通过。21:06真实99个窗口因可比性缺失/份额缺日均无金额结果；这不是正式自动NAV或资金流上线。价格/广度/估值、广泛真实持仓及方向分母、区域模型与时间样本外有效性均仍开放。
 
 2026-10-24原始需求复核：[市场高低位与持仓方向差距](architecture/NATIONAL_TEAM_MARKET_REGIME_REQUIREMENTS_20261024.md)。当前收缩预警只有ETF份额输入，未接价格/估值/宽度，回放仍NotProven；真实5个已审账户仅覆盖600153，缺行业/样本市值及组合分母，不能判断整体主要方向。服务Committed和250/20日采集门槛不能替代这些研究能力。先推进行情/NAV来源验证、披露覆盖及时间样本外验证，整体目标仍开放。
 
-2026-10-24晚间：[ETF/国家队配套安装与真实审核](implementation/ETF_EQUITY_DEPLOYMENT_20261024.md)已完成本机Committed升级、160发行文件/5614快照校验及密钥/计划保留。重新核对原件后5账户Completed/Succeeded、A类首次披露快照已回读，早期“尚未安装/A类0条”不再代表当前状态。ETF仍11/24只通过250日、连续20日0只通过；份额补查与报告目录仍Pending/RetryDeferred，P0-2及其余股票/发布门槛继续开放。
+2026-10-24晚间：[ETF/国家队配套安装与真实审核](implementation/NATIONAL_TEAM_EQUITY.md#etf-equity-deployment)已完成本机Committed升级、160发行文件/5614快照校验及密钥/计划保留。重新核对原件后5账户Completed/Succeeded、A类首次披露快照已回读，早期“尚未安装/A类0条”不再代表当前状态。ETF仍11/24只通过250日、连续20日0只通过；份额补查与报告目录仍Pending/RetryDeferred，P0-2及其余股票/发布门槛继续开放。
 
-2026-10-24 ETF/国家队股票续项：修复股票可比审核未绑定具体前期、ETF连续采集只看接受阶段时间两处证据风险，并补独立绑定操作防旧Worker忽略新字段。正式只读摘要截至10月23日：24只中11只满足250日、连续20日通过0只；股票13只观察、29条待审核、A类快照0条，早期5账户审核不代表当前库已验收。P0-2及当前股票真实数据验收仍开放，候选修复尚未安装。详见[续项与反方复核](implementation/ETF_EQUITY_FOLLOWUP_20261024.md)，以其完整实机记录及明确时点为准。
+2026-10-24 ETF/国家队股票续项：修复股票可比审核未绑定具体前期、ETF连续采集只看接受阶段时间两处证据风险，并补独立绑定操作防旧Worker忽略新字段。正式只读摘要截至10月23日：24只中11只满足250日、连续20日通过0只；股票13只观察、29条待审核、A类快照0条，早期5账户审核不代表当前库已验收。P0-2及当前股票真实数据验收仍开放，候选修复尚未安装。详见[续项与反方复核](implementation/NATIONAL_TEAM_EQUITY.md#etf-equity-followup)，以其完整实机记录及明确时点为准。
 
 2026-10-23 P0-02 / ARCH-005 阶段 2a：新增[一次性导出授权与审计边界](validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)内部组件及只读既有密钥入口。生产授权管道、持久重放保护、停机租约/快照交接、完整加密备份与目标恢复未实现；保持 Open，未开放实际导出。
 
@@ -28,20 +28,20 @@
 2026-10-23 P1-07：新增[Worker 后台插件进程隔离设计](architecture/WORKER_PLUGIN_PROCESS_ISOLATION.md)及仅供测试的 stdio PluginRunner 原型。原型未接入生产 Worker；生产插件仍在同一进程/令牌中运行，Windows 身份、ACL、Job Object、能力 Broker 和网络隔离未实现。P1-07仍未关闭。
 2026-10-23 新增[Worker 升级与恢复自动验收补强](validation/WORKER_UPGRADE_RECOVERY_CI_20261023.md)：新建独立 Windows CI 和隔离事务故障矩阵，**等待首次 CI 结果**。它不关闭真实 SCM 生命周期、生产签名、断电/磁盘满、全部插件 Schema 或跨机器 ServiceKey 恢复等 P0 门槛。
 
-监控08:27已完成24只实机缺口清单：11只满足250个有效交易日，其余236～249日，历史待审修订40条；08:40后续只读快照为17只满足250日，连续20日仍无标的通过。两份报告保留各自时点。官方口径仅按已核验区间逐项登记，不能替代最新区间或具名ETF黄金样本。完整结果、原件下载阻断和维护恢复限制见[最新核验记录](implementation/MONITOR_READINESS_20261020.md)；下文25条早期份额事实不是当前覆盖数。
+监控08:27已完成24只实机缺口清单：11只满足250个有效交易日，其余236～249日，历史待审修订40条；08:40后续只读快照为17只满足250日，连续20日仍无标的通过。两份报告保留各自时点。官方口径仅按已核验区间逐项登记，不能替代最新区间或具名ETF黄金样本。完整结果、原件下载阻断和维护恢复限制见[最新核验记录](implementation/WORKER_RUNTIME.md#monitor-readiness)；下文25条早期份额事实不是当前覆盖数。
 
 
-2026-10-20继续按架构计划核验ARCH-201～204，补清理导致编译失败的旧调度页面；ARCH-205手工绩效构造与校验已迁移Application，应用/界面/冻结结果回归通过。见[整改续记](implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)；尚未更新已安装服务，P0及后续协议/资源治理门槛继续保留。
+2026-10-20继续按架构计划核验ARCH-201～204，补清理导致编译失败的旧调度页面；ARCH-205手工绩效构造与校验已迁移Application，应用/界面/冻结结果回归通过。见[整改续记](implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)；尚未更新已安装服务，P0及后续协议/资源治理门槛继续保留。
 
 本文件集中保留仍有代码依据的问题，取代过时的分散评审记录。界面完善不等于税额、来源和历史复算已完成业务验收。
 
-2026-10-16按[架构整改计划](architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md)开始逐项处理，顺序与证据见[实施记录](implementation/ARCH_REMEDIATION_20261016.md)：先处理Worker查询锁和当前架构漂移，再推进升级、灾备、信任、ETF、历史复算及公平调度；ARCH-001 P0税务正确性按用户要求最后处理。未完成项及发布阻断仍保留，查询并发整改不能代替升级/恢复闭环。
+2026-10-16按[架构整改计划](architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md)开始逐项处理，顺序与证据见[实施记录](implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)：先处理Worker查询锁和当前架构漂移，再推进升级、灾备、信任、ETF、历史复算及公平调度；ARCH-001 P0税务正确性按用户要求最后处理。未完成项及发布阻断仍保留，查询并发整改不能代替升级/恢复闭环。
 
-ETF新增[可编辑目录](implementation/ETF_CONFIGURATION.md)：参考目录与原池合并24个候选，可搜索、新增、修改及停用，新增候选默认停用。用户澄清20仅是界面可见容量，监控数量不受20只限制；旧容量触发器自动解除。参考名称/指数待官方核验，不作为机构持有依据。表格约18行，更多记录在表格内滚动，页面也可整体向下滚动。
+ETF新增[可编辑目录](implementation/NATIONAL_TEAM_ETF.md#etf-configuration)：参考目录与原池合并24个候选，可搜索、新增、修改及停用，新增候选默认停用。用户澄清20仅是界面可见容量，监控数量不受20只限制；旧容量触发器自动解除。参考名称/指数待官方核验，不作为机构持有依据。表格约18行，更多记录在表格内滚动，页面也可整体向下滚动。
 
-国家队ETF插件已完成[Worker执行归属迁移](implementation/ETF_WORKER_MIGRATION.md)：Core/Jobs/UI分离，服务独占加密市场库，桌面通过IPC查询及提交命令；关闭或锁定桌面后继续运行。真实LocalService已自动取得两市五只ETF的25条公开份额事实，来源错误0。完整官方交易日历、任意历史缺口、250交易日历史、连续20日及许可/生产发行门槛仍开放；不提供NAV金额归集或二期股票持仓。新测试环境不迁移旧桌面研究库。
+国家队ETF插件已完成[Worker执行归属迁移](implementation/WORKER_RUNTIME.md#etf-worker-migration)：Core/Jobs/UI分离，服务独占加密市场库，桌面通过IPC查询及提交命令；关闭或锁定桌面后继续运行。真实LocalService已自动取得两市五只ETF的25条公开份额事实，来源错误0。完整官方交易日历、任意历史缺口、250交易日历史、连续20日及许可/生产发行门槛仍开放；不提供NAV金额归集或二期股票持仓。新测试环境不迁移旧桌面研究库。
 
-2026-10-22晚间已安装[成交日志与查询取消修复](implementation/MARKET_LOG_QUERY_CANCELLATION_FIX_20261022.md)：缺失计数不再冒充0，正式复用验收记录6条复用/4个休市市场日/零HTTP；查询超时能正常取消，同一服务进程继续采集。仍有性能限制：繁忙时独立概览和整页查询可能超过15秒；空闲整页回读成功，但5573份原件重新核验仍约11秒，未宣称所有查询延迟已解决，也未取消原件核验或延长生命周期。
+2026-10-22晚间已安装[成交日志与查询取消修复](implementation/TASK_CENTER.md#market-log-query-cancellation-fix)：缺失计数不再冒充0，正式复用验收记录6条复用/4个休市市场日/零HTTP；查询超时能正常取消，同一服务进程继续采集。仍有性能限制：繁忙时独立概览和整页查询可能超过15秒；空闲整页回读成功，但5573份原件重新核验仍约11秒，未宣称所有查询延迟已解决，也未取消原件核验或延长生命周期。
 
 主程序入口已统一为“任务中心”与只读“后台服务状态”；桌面插件宿主不再创建调度器，并拒绝旧的桌面采集/调度/私有存储能力。持久计划、命令和执行历史由Worker拥有；审核及池变更在市场库内按稳定命令ID事务去重。桌面CSV导入已移除，公开采集不需要用户下载文件。
 
@@ -53,7 +53,7 @@ ETF新增[可编辑目录](implementation/ETF_CONFIGURATION.md)：参考目录�
 
 第三批补充：隔离LocalService真实SCM升级/恢复10项已通过，修复回退两次改名间中断恢复及已确认代次启动重试；仍不替代真实版本Schema、安装重装、生产签名及断电验收。按用户优先要求处理ARCH-008：等待插件额度不再占Quartz名额，使用插件内有界FIFO和同Job触发合并；全局并发可配置，线程安全会话可声明并行，旧会话默认串行。22项调度检查覆盖慢插件隔离、超额繁忙、取消、幂等、顺序和真实并行。跨插件共享来源预算、长期过载/重试风暴及真实容量验收仍开放；不能承诺任意负载无积压。配置及健康指标见[当前架构](architecture/CURRENT_ARCHITECTURE.md)。
 
-[Worker v2整改](implementation/WORKER_REMEDIATION.md)已处理执行持久化故障关闭、手动命令恢复、生命周期、管道容量和分页；四个项目与管道已改名。第二批已加入数据树ACL/所有者/链接巡检及故障停止，Release后台65项检查通过；F09独立恢复封装仍开放。F01及F07—F11的剩余业务/运维缺口继续保留，不将局部整改视为全部审查项关闭。
+[Worker v2整改](implementation/WORKER_RUNTIME.md#worker-remediation)已处理执行持久化故障关闭、手动命令恢复、生命周期、管道容量和分页；四个项目与管道已改名。第二批已加入数据树ACL/所有者/链接巡检及故障停止，Release后台65项检查通过；F09独立恢复封装仍开放。F01及F07—F11的剩余业务/运维缺口继续保留，不将局部整改视为全部审查项关闭。
 
 2026-10-13 的[反方审查](archive/ADVERSARIAL_REVIEW.md)保留审查时的问题依据。后续已接入[分块备份、容量预警和外层读取保护](implementation/BACKUP_CAPACITY.md)，新备份不再受旧 128 MiB 上限约束；[有凭证的账户期间](guides/ACCOUNT_PERIODS.md)和[长任务锁定中断](implementation/LOCK_INTERRUPTION.md)已接入。真实开户凭证核对、独立税额基准、全部持久化表配额和实际硬件锁屏／恢复等仍开放，不代表获得发布批准。用户确认暂时没有独立计算记录，独立金额验收保留未通过。
 
@@ -114,19 +114,19 @@ ETF新增[可编辑目录](implementation/ETF_CONFIGURATION.md)：参考目录�
 
 ## 投资绩效
 
-P0 工作台、独立 NAV/TWR/XIRR、现金与证券转仓边界、离线估值、SQLCipher 证据与安全导出已接入，见[当前实现](implementation/PERFORMANCE_P0.md)。3 份 IBKR XML 与 5 份富途年度交易 XLSX 解析通过；真实期初净值、证券价格、完整流量/转仓及独立金额对账仍未通过。原币逐项容差、完整历史运行环境归档、真实跨机恢复也仍开放，见[绩效验收](validation/PERFORMANCE_ACCEPTANCE.md)。四指数基准比较列入 P1：标普500、纳斯达克综合指数、上证综指、中证500。
+P0 工作台、独立 NAV/TWR/XIRR、现金与证券转仓边界、离线估值、SQLCipher 证据与安全导出已接入，见[当前实现](implementation/PERFORMANCE_ANALYTICS.md)。3 份 IBKR XML 与 5 份富途年度交易 XLSX 解析通过；真实期初净值、证券价格、完整流量/转仓及独立金额对账仍未通过。原币逐项容差、完整历史运行环境归档、真实跨机恢复也仍开放，见[绩效验收](validation/PERFORMANCE_ACCEPTANCE.md)。四指数基准比较列入 P1：标普500、纳斯达克综合指数、上证综指、中证500。
 
 
-ARCH-206已实现NationalTeam业务契约V1与版本/字段/负载检查，旧V1形状及未知版本拒绝经真实管道专项验证；尚未部署，历史发行二进制/实际升级兼容仍待验收。详见[版本矩阵](architecture/NATIONALTEAM_BUSINESS_CONTRACT.md)及[续记](implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。
+ARCH-206已实现NationalTeam业务契约V1与版本/字段/负载检查，旧V1形状及未知版本拒绝经真实管道专项验证；尚未部署，历史发行二进制/实际升级兼容仍待验收。详见[版本矩阵](architecture/NATIONALTEAM_BUSINESS_CONTRACT.md)及[续记](implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。
 
 
-ARCH-207已新增阶段分类诊断、失控后终止状态、健康/分派拒绝和29条生命周期隔离检查，四阶段测试进程真实以2退出；真实SCM恢复及生产故障域验收仍开放。图标已按交付说明接入ICO和高清PNG并完成实际EXE/窗口预览，见[品牌记录](implementation/PRODUCT_BRAND_20261020.md)。均未替换已安装程序。
+ARCH-207已新增阶段分类诊断、失控后终止状态、健康/分派拒绝和29条生命周期隔离检查，四阶段测试进程真实以2退出；真实SCM恢复及生产故障域验收仍开放。图标已按交付说明接入ICO和高清PNG并完成实际EXE/窗口预览，见[品牌记录](implementation/DESKTOP_UI.md#product-brand)。均未替换已安装程序。
 
 
 ARCH-208来源层已迁移：IBKR税务/绩效/账号读取共用不可变来源事实，同步绩效不重新解析XML，固定输出与68项既有验证通过。当前只关闭重复结构读取路径，完整类型化事实、历史解析版本持久化和独立真实黄金样本仍开放，见[来源事实边界](architecture/BROKER_SOURCE_FACTS.md)。
 
 
-2026-10-20 ARCH-209续项：已实现宿主跨插件来源预算、FIFO有界队列、持久冷却/Retry-After、旧策略启动合并及来源健康字段。以上替代本文件早期“跨插件预算尚未实现”的源码状态，实际安装仍为旧版本；长时间持续负载、真实源站恢复、升级/断电验收仍开放。见[共享来源预算](architecture/SHARED_SOURCE_BUDGETS.md)及[整改续记](implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。
+2026-10-20 ARCH-209续项：已实现宿主跨插件来源预算、FIFO有界队列、持久冷却/Retry-After、旧策略启动合并及来源健康字段。以上替代本文件早期“跨插件预算尚未实现”的源码状态，实际安装仍为旧版本；长时间持续负载、真实源站恢复、升级/断电验收仍开放。见[共享来源预算](architecture/SHARED_SOURCE_BUDGETS.md)及[整改续记](implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。
 
 
 ARCH-209故障诊断续项：已修复来源预算失效时健康查询一同抛错的问题；来源状态不可读会将Worker标为StorageFault并省略来源快照，保持拒绝新执行/查询。已补启动状态校验及有限持续负载，详见整改续记。有限隔离测试不替代跨日负载、真实部署、源站恢复或物理断电/磁盘满验收。
@@ -140,15 +140,15 @@ ARCH-209进程恢复续项：新增真实Worker、两个插件、持久命令和
 
 ARCH-208更新：IBKR税务新历史已归档实际读取/税务投影版本，受运行封存保护，重放/年度汇总和备份恢复沿用已有依据；旧记录未知不回填。Futu年度交易/收入Excel/收入PDF版本也已接入；完整类型化事实、跨版本投影差异及独立真实Golden仍开放。
 2026-10-20：冻结投影只读差异审计已实现并验证，不等同于真实旧/新版本解析器验收；插件旧策略缺表与读写故障恢复已补强。ARCH-208完整类型化账本/真实跨版本Golden、ARCH-209跨日/真实部署/源站恢复/物理断电仍开放。通知新增钉钉与个人微信PushPlus配置/适配器，隔离验证通过，真实送达未验收。
-管道EOF与概览续项：已修复共用8秒期限导致的无响应关闭，完成实际服务更新；补质量状态覆盖索引后概览24只ETF及完整刷新链路通过。整页刷新实测约41秒，仍非即时刷新；详见[修复与验收](implementation/IPC_EOF_BRAND_HEADER_20261020.md)。
+管道EOF与概览续项：已修复共用8秒期限导致的无响应关闭，完成实际服务更新；补质量状态覆盖索引后概览24只ETF及完整刷新链路通过。整页刷新实测约41秒，仍非即时刷新；详见[修复与验收](implementation/QUERY_PERFORMANCE.md#ipc-eof-brand-header)。
 2026-10-21：桌面首次刷新占用插件15秒启动期限的问题已调整为页面加载后读取；此前workspace只读探针不覆盖该启动链路。查询慢与用户取消仍分别保留原有语义；详见同一修复记录的启动取消续项。
-ETF清单续项：后台实际24项配置仍在；页面已改为先读取清单，避免概览失败导致清单空白。24只默认项目已统一为新库初始化目录；原件校验改为最多四路并行、每次查询重新读取，实际整链路验收见[目录与份额加载](implementation/ETF_DIRECTORY_AND_SHARE_LOADING_20261021.md)。
+ETF清单续项：后台实际24项配置仍在；页面已改为先读取清单，避免概览失败导致清单空白。24只默认项目已统一为新库初始化目录；原件校验改为最多四路并行、每次查询重新读取，实际整链路验收见[目录与份额加载](implementation/NATIONAL_TEAM_ETF.md#etf-directory-and-share-loading)。
 实际后台维护代次022ff85b817b4d399be5a39cabdf746e已提交；新版本完整刷新只读验收24187ms，概览/历史/成交统计本轮均未超时。相较此前约41秒已改善，仍非即时加载，不据单次测量关闭长期负载与源站验收门槛。
 
-2026-10-21减持预警M0新增：只读验收缺口报告与机构最低净减持纯规则核验已提交待编译回归，见[预警实施记录](implementation/NATIONAL_TEAM_EXIT_ALERT_IMPLEMENTATION_20261019.md)。缺口报告不等于缺口已补齐，不改变真实250日/连续20日、机构公告原件、来源许可、通知真实送达、生产部署/恢复等发布阻断状态。
+2026-10-21减持预警M0新增：只读验收缺口报告与机构最低净减持纯规则核验已提交待编译回归，见[预警实施记录](implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。缺口报告不等于缺口已补齐，不改变真实250日/连续20日、机构公告原件、来源许可、通知真实送达、生产部署/恢复等发布阻断状态。
 
-2026-10-23 R01～R04：联合导入原子提交、市场只读快照/有界证据查询、每插件Runner监督与容量预警已接入候选源码。未替换已安装Worker，OS权限隔离、长期容量与正式生命周期仍需验收，见[四项整改](implementation/ARCH_OPTIMIZATION_20261023.md)。
+2026-10-23 R01～R04：联合导入原子提交、市场只读快照/有界证据查询、每插件Runner监督与容量预警已接入候选源码。未替换已安装Worker，OS权限隔离、长期容量与正式生命周期仍需验收，见[四项整改](implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)。
 
-2026-10-23 R06/R07 续项：市场仓储默认空实现已移除并按用例拆分，正式启动缺能力即拒绝；临时年度使用北京时间并保持冻结重放。R08 只推进内部持久授权、审计与强杀重放验证，生产跨机恢复闭环仍未完成，发布阻断继续保留，见[实施记录](implementation/ARCH_FOLLOWUP_20261023.md)。
+2026-10-23 R06/R07 续项：市场仓储默认空实现已移除并按用例拆分，正式启动缺能力即拒绝；临时年度使用北京时间并保持冻结重放。R08 只推进内部持久授权、审计与强杀重放验证，生产跨机恢复闭环仍未完成，发布阻断继续保留，见[实施记录](implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-followup)。
 
-2026-10-25第二轮最终：[工行扩展](implementation/NATIONAL_TEAM_EQUITY_EXPANSION_20261025.md)正式Committed并核对5885份快照，工行4个未知性质快照审核成功，已核合计9账户/2股票，其他20条未核。[公布行业PE](implementation/NATIONAL_TEAM_INDUSTRY_PE_20261025.md)261交易日/2871修订及全历史实际页面回读通过。此前超时记录保留，不能宣称所有负载性能通过。ETF250日11/24、连续20日0/24，原补查仍RetryDeferred；行业完整低估机会、主要持仓方向及高低位模型仍未验收。
+2026-10-25第二轮最终：[工行扩展](implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-expansion)正式Committed并核对5885份快照，工行4个未知性质快照审核成功，已核合计9账户/2股票，其他20条未核。[公布行业PE](implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-industry-pe)261交易日/2871修订及全历史实际页面回读通过。此前超时记录保留，不能宣称所有负载性能通过。ETF250日11/24、连续20日0/24，原补查仍RetryDeferred；行业完整低估机会、主要持仓方向及高低位模型仍未验收。

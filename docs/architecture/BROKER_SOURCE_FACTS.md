@@ -37,7 +37,7 @@ Infrastructure的`IbkrSourceReader`是Activity Flex正文唯一结构读取入�
 - 既有Verification合成验证68项、绩效SQLCipher/原件去重/冻结与备份回归、WPF交互通过。
 - 架构门禁禁止IBKR税务、现金对账、绩效和账号投影直接使用ReadXml/XElement/XDocument。复杂度基线仅将原XElement[]签名键改为BrokerSourceRecord[]，仍为68分支/55行，没有放宽预算或重写预期结果。
 
-详见[实施续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。
+详见[实施续记](../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。
 
 
 ## 后续：绩效解析版本持久化与旧记录兼容
@@ -75,4 +75,4 @@ TaxImportProvenance V1保存券商、原件SHA256、批次ID、实际来源读�
 验证入口 `--futu-tax-provenance`（16项）；附加 `--compare-futu-tax-before <旧Infrastructure.dll>` 时另核对Excel收入、PDF收入、交易+收入三种组合的全部原解析字段（合计19项）。三个旧构建对照只排除新增审计字段，该字段单独验证；不是独立真实金额签认。没有重写金融期望文件。完整类型化账本、跨版本投影差异及独立真实Golden仍开放，ARCH-208整体保持In Progress。
 2026-10-20：新增只读冻结投影比对端口，验证封存和相同非空原件摘要集合后报告类别/身份/字段与前后摘要，版本信息单独保留，旧版本仍未知；12项审计和原21项持久化检查通过。它比较已有冻结输入（也含配置与人工修订），不自动归因升级、不执行归档解析器；真实跨版本投影验证及完整类型化账本仍开放，详见整改续记。
 
-2026-10-23：税务与绩效同源投影改为Application显式准备/提交；解析阶段只准备内存投影，税务结果、绩效原件与版本依据在同一SQLCipher业务事务保存。任一失败或取消不留下半份业务数据，见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
+2026-10-23：税务与绩效同源投影改为Application显式准备/提交；解析阶段只准备内存投影，税务结果、绩效原件与版本依据在同一SQLCipher业务事务保存。任一失败或取消不留下半份业务数据，见[四项整改](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)。

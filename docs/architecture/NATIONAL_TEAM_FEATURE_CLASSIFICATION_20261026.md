@@ -1,6 +1,6 @@
 # NationalTeamWatch 功能分层与扩展边界
 
-更新日期：2026-10-27。项目尚未正式上线，按用户要求直接调整接口，不保留旧接口、旧适配器或旧程序集兼容壳。本文描述当前结构；实施验证和剩余门槛见[分层重构续项](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+更新日期：2026-10-27。项目尚未正式上线，按用户要求直接调整接口，不保留旧接口、旧适配器或旧程序集兼容壳。本文描述当前结构；实施验证和剩余门槛见[分层重构续项](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。
 
 ## 项目与依赖方向
 
@@ -21,7 +21,7 @@
 | IndustryValuation | 国证行业公布PE、样本估值、基本面质量门槛 | 公布PE及行业样本指数/PB页；不同统计宇宙分开，低PE不等于低估 |
 | MarketCycle | 市场成交活动、指数序列、周期研究、来源审批 | 指数研究及ETF页的市场活动；顶部/底部仍缺完整真实输入及样本外验证 |
 | Nav | 单位净值、修订、知识时点及同日研究 | 2026-11-05移除独立桌面入口；后台同日NAV与份额研究保留，供联合退出研究及离线复算使用 |
-| Southbound | 沪深港股通年内累计净买入、跨年基准及连续性、来源快照 | [年度折线对比](../implementation/SOUTHBOUND_ANNUAL_COMPARISON_20261103.md)；第三方整理数据，非额度净流入或全港股资金流；[本机保全部署及真实回读通过](../implementation/SOUTHBOUND_UNKNOWN_QUERY_FIX_20261103.md) |
+| Southbound | 沪深港股通年内累计净买入、跨年基准及连续性、来源快照 | [年度折线对比](../implementation/SOUTHBOUND.md#southbound-annual-comparison)；第三方整理数据，非额度净流入或全港股资金流；[本机保全部署及真实回读通过](../implementation/SOUTHBOUND.md#southbound-unknown-query-fix) |
 | ExitAlerts | 规则、证据、事件、历史回算、Outbox和投递 | ETF页内预警中心；独立退出导航/完整金融模型尚未交付 |
 | Evidence / Sources | 原件、批次核验、来源许可和HTTP策略 | 插件内跨功能基础设施，不承载新业务 |
 | Shared / Storage | 装配契约、连接生命周期、初始化顺序和普通SQLite存储组合 | 明确例外目录，禁止继续堆放领域特有实现 |
@@ -32,11 +32,11 @@ Core 的 `Domain`、`Application`，Jobs 的 `Background`、`Application`、`Inf
 
 `INationalTeamWorkspace` 仅继承六个功能端口，不重复声明成员；`NationalTeamProtocol.cs` 单独存放当前请求和分页DTO。旧 `IEtfWorkspace` 及三套Legacy UI适配器已删除。当前接口可直接重构，不承担旧二进制兼容承诺。
 
-六个界面合同全部要求显式实现，不含默认抛错、空集合或忽略筛选的回退。后台不再实现界面合同；`NationalTeamApplication`装配八组功能用例，`MarketApplicationSession`拥有应用读写门槛与生命周期，各模块仅访问类型化仓储端口。旧后台`EtfWorkspace`删除，细节见[应用边界记录](../implementation/NATIONAL_TEAM_APPLICATION_BOUNDARY_20261026.md)。
+六个界面合同全部要求显式实现，不含默认抛错、空集合或忽略筛选的回退。后台不再实现界面合同；`NationalTeamApplication`装配八组功能用例，`MarketApplicationSession`拥有应用读写门槛与生命周期，各模块仅访问类型化仓储端口。旧后台`EtfWorkspace`删除，细节见[应用边界记录](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-application-boundary)。
 
 桌面宿主只注册一个可见“国家队研究工作台”。内部目录由 `NationalTeamWorkspaceCatalog` 管理分类、路由、证据限制和视图工厂；按需创建当前页，切换释放旧视图引用。三个旧平铺宿主路由已移除；ETF、持股、公布PE与样本指数由工作台内部目录导航。独立NAV研究页及其内部导航已于2026-11-05移除。无调用方的 `IndustryResearchHostPage` 同步删除。
 
-NAV份额研究使用独立跨模块只读投影，冻结输入按通用有界JSON块传输；公共机制进入`CRS.Common`，金融计算仍在插件应用/领域层。范围和数据缺口见[NAV工作区记录](../implementation/NATIONAL_TEAM_NAV_WORKSPACE_20261026.md)。
+NAV份额研究使用独立跨模块只读投影，冻结输入按通用有界JSON块传输；公共机制进入`CRS.Common`，金融计算仍在插件应用/领域层。范围和数据缺口见[NAV工作区记录](../implementation/NATIONAL_TEAM_NAV.md#national-team-nav-workspace)。
 
 工作台采用顶部“资金与持仓 / 行业与估值”分类下拉菜单，不再保留占用正文宽度的第二层侧栏。当前研究说明按需展开，正文独占整行。通用菜单控件及样式归属外层 `CRS.Plugin.Wpf/PluginSectionNavigation`，插件仅提供分类与目的地；菜单不创建业务页、不查询数据，选中态在页面构造成功后提交。
 
@@ -58,7 +58,7 @@ NAV份额研究使用独立跨模块只读投影，冻结输入按通用有界JS
 
 `EvidenceIntegrityStore`独立负责原件扫描、只读失败关闭、后台Q15损坏/恢复审计及批次应用，继续使用同一会话与事务；总仓储仅保留转发。验收按128证券分组读取份额和最近20个交易日的采集收据，复用本次哈希结果并按需补验阶段原件；不能跨请求复用核验结论。
 
-ETF核心已移入`EtfStore`；连接、独立读取与释放由`MarketDatabaseSession`拥有，初始化由`NationalTeamSchemaInitializer`和各功能Store拥有。国家队两库和快照按用户要求改为普通SQLite，收入/报税加密保留，旧国家队加密资料只能显式离线保留式导出。见[存储边界记录](../implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。
+ETF核心已移入`EtfStore`；连接、独立读取与释放由`MarketDatabaseSession`拥有，初始化由`NationalTeamSchemaInitializer`和各功能Store拥有。国家队两库和快照按用户要求改为普通SQLite，收入/报税加密保留，旧国家队加密资料只能显式离线保留式导出。见[存储边界记录](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-etf-storage-boundary)。
 
 `AlertStore`仍收拢部分用例协调，来源审批注册表仍有聚合partial实现。全池验收的完整性依赖范围仍较宽，后续需将ETF数据门槛与通知冻结输入核验明确分离，再缩小查询依赖；不能只为提速删除原件核验。以上属于下一步解耦工作，不能称整个插件层重构已经结束。
 

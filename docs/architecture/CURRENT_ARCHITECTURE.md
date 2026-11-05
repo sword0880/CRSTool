@@ -1,42 +1,42 @@
 # 当前架构入口
 
-2026-11-04直接持股完成[固定原文补齐与本机保全验收](../implementation/NATIONAL_TEAM_EQUITY_REVIEWED_SUBSETS_20261104.md)：18份原文、10只股票26个当前已核账户；自动发现/自动核验是用户随后新增的功能，不能混同于本次固定数据补齐。
+2026-11-04直接持股完成[固定原文补齐与本机保全验收](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-reviewed-subsets)：18份原文、10只股票26个当前已核账户；自动发现/自动核验是用户随后新增的功能，不能混同于本次固定数据补齐。
 
-2026-11-04按用户要求移除“机构ETF持仓”独立页面、工作台路由、专用视图模型及页面预览。ETF份额、直接持股、NAV及其他研究入口保留；具名披露的后台合同、存储和既有资料继续供NAV与预警消费。此次仅更新桌面源码及开发包，不执行后台维护或数据删除，见[页面移除记录](../implementation/NATIONAL_TEAM_ETF_HOLDINGS_REMOVAL_20261104.md)。
+2026-11-04按用户要求移除“机构ETF持仓”独立页面、工作台路由、专用视图模型及页面预览。ETF份额、直接持股、NAV及其他研究入口保留；具名披露的后台合同、存储和既有资料继续供NAV与预警消费。此次仅更新桌面源码及开发包，不执行后台维护或数据删除，见[页面移除记录](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holdings-removal)。
 
-2026-11-03新增[南向年内累计净买入折线](../implementation/SOUTHBOUND_ANNUAL_COMPARISON_20261103.md)：独立Southbound领域/应用/存储/后台和WPF模块；沪深港股通买入减卖出逐年重置累计，按相同月日比较。使用上一年末原始累计额核对连续性，缺口后停止该年累计；新协议/快照与原每日买入资料分开。本机后台已保全更新至Committed，真实采集及五年曲线回读通过，见[部署与UnknownQuery修复](../implementation/SOUTHBOUND_UNKNOWN_QUERY_FIX_20261103.md)。
+2026-11-03新增[南向年内累计净买入折线](../implementation/SOUTHBOUND.md#southbound-annual-comparison)：独立Southbound领域/应用/存储/后台和WPF模块；沪深港股通买入减卖出逐年重置累计，按相同月日比较。使用上一年末原始累计额核对连续性，缺口后停止该年累计；新协议/快照与原每日买入资料分开。本机后台已保全更新至Committed，真实采集及五年曲线回读通过，见[部署与UnknownQuery修复](../implementation/SOUTHBOUND.md#southbound-unknown-query-fix)。
 
 本文保留架构演进及历史时点，当前模块边界、开放风险、部署与证据统一见[当前架构状态](ARCHITECTURE_STATUS.md)。
 
-2026-10-28 存储维护续项：逐级物理路径防护及认证JSON进入Common，独立可信维护入口/Runner与服务组合根接通国家队双库保全迁移；发行计划、服务身份、派生密钥、快照、时限和认证回执独立于普通会话。正式LocalService维护已Committed，两份国家队库转换为普通SQLite，5959份快照、密钥、原程序和资料回读通过；预警总览及联合退出研究查询仍超时，完整金融验收未完成。详见[迁移协议与剩余门槛](../implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)。
+2026-10-28 存储维护续项：逐级物理路径防护及认证JSON进入Common，独立可信维护入口/Runner与服务组合根接通国家队双库保全迁移；发行计划、服务身份、派生密钥、快照、时限和认证回执独立于普通会话。正式LocalService维护已Committed，两份国家队库转换为普通SQLite，5959份快照、密钥、原程序和资料回读通过；预警总览及联合退出研究查询仍超时，完整金融验收未完成。详见[迁移协议与剩余门槛](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-storage-migration)。
 
-2026-10-28 具名ETF多期持仓加入EtfHoldings功能：逐期变化、未列示未知、最新披露子集和排除原因分别展示；最新期冲突或原件异常不回退。Core统一ETF/股票主体目录，增加梧桐树具名平台及大基金三期法人，人工核验与完整组合门槛保留。联合规则升为v1.1、报告v2；见[具名披露历史与限制](../implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
+2026-10-28 具名ETF多期持仓加入EtfHoldings功能：逐期变化、未列示未知、最新披露子集和排除原因分别展示；最新期冲突或原件异常不回退。Core统一ETF/股票主体目录，增加梧桐树具名平台及大基金三期法人，人工核验与完整组合门槛保留。联合规则升为v1.1、报告v2；见[具名披露历史与限制](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-named-etf-history)。
 
-2026-11-01 机构持仓日常入口简化：股票清单点击查看持有人；机构ETF自动并排读取整体1/5/20日份额及最新已核机构披露，报告目录和核验资料按需展开。Core控制最新有效披露子集，Watch只读协调与联动，复用既有Worker合同。正式持股与其他披露/待核验分开，不合计跨账户股数、不把未列示解释为清仓，也不把整体份额归因机构交易。见[持仓易用性](../implementation/NATIONAL_TEAM_HOLDINGS_USABILITY_20261101.md)与[股票清单整改](../implementation/NATIONAL_TEAM_EQUITY_STOCK_LIST_20261101.md)。
+2026-11-01 机构持仓日常入口简化：股票清单点击查看持有人；机构ETF自动并排读取整体1/5/20日份额及最新已核机构披露，报告目录和核验资料按需展开。Core控制最新有效披露子集，Watch只读协调与联动，复用既有Worker合同。正式持股与其他披露/待核验分开，不合计跨账户股数、不把未列示解释为清仓，也不把整体份额归因机构交易。见[持仓易用性](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-holdings-usability)与[股票清单整改](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-stock-list)。
 
-2026-10-28 “周期与风险”增加联合退出观察：按当前配置池单只ETF，在同一读快照串接份额/NAV、具名下界、周期成交、直接持股样本及行业PE。Core拥有归一共现规则，Jobs拥有协调读，Watch展示及重算；缺失关闭判断，不发退出通知。历史时点、模型及真实全池覆盖仍未验证，见[联合观察](../implementation/NATIONAL_TEAM_JOINT_EXIT_STUDY_20261028.md)。
+2026-10-28 “周期与风险”增加联合退出观察：按当前配置池单只ETF，在同一读快照串接份额/NAV、具名下界、周期成交、直接持股样本及行业PE。Core拥有归一共现规则，Jobs拥有协调读，Watch展示及重算；缺失关闭判断，不发退出通知。历史时点、模型及真实全池覆盖仍未验证，见[联合观察](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-joint-exit-study)。
 
-2026-10-28 广度档案补齐页面登记、独立人工核验、冲突选定与原件导出。共用文件暂存/严格JSON进入Common，客户端传输进入Worker.Ipc，授权和私有目录装配进入Worker.Service；插件仅定义用途、金融档案及审核事件。登记不自动批准，规则仅读取所需六日广度窗口；正式数据与模型门槛仍开放，见[广度工作流](../implementation/NATIONAL_TEAM_BREADTH_WORKFLOW_20261028.md)。
+2026-10-28 广度档案补齐页面登记、独立人工核验、冲突选定与原件导出。共用文件暂存/严格JSON进入Common，客户端传输进入Worker.Ipc，授权和私有目录装配进入Worker.Service；插件仅定义用途、金融档案及审核事件。登记不自动批准，规则仅读取所需六日广度窗口；正式数据与模型门槛仍开放，见[广度工作流](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-breadth-workflow)。
 
-2026-10-27 周期评估接入第十组类型化后台用例及顶部“周期与风险”页面：同一独立只读事务组装价格、两市成交、核验日历及广度档案，调用领域评估器；客户端重算冻结输入及结果。原件、派生摘要及各自口径分开，资料不足关闭信号，择时能力未证明。正式广度采集及核验操作、真实完整行情链仍未验收，见[周期查询与剩余门槛](../implementation/NATIONAL_TEAM_MARKET_CYCLE_STUDY_20261027.md)。
+2026-10-27 周期评估接入第十组类型化后台用例及顶部“周期与风险”页面：同一独立只读事务组装价格、两市成交、核验日历及广度档案，调用领域评估器；客户端重算冻结输入及结果。原件、派生摘要及各自口径分开，资料不足关闭信号，择时能力未证明。正式广度采集及核验操作、真实完整行情链仍未验收，见[周期查询与剩余门槛](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-market-cycle-study)。
 
-2026-10-27 市场周期输入前提补齐成交知识时间链：MarketCycle目录拥有逐原件登记、追加审核和截止时点查询，Common提供指纹/时间/完整JSON分块机制；旧资料只从实际迁移时刻起可知。桌面在成交修订内按需读取，不写库、不轮询。见[成交知识时间链](../implementation/NATIONAL_TEAM_MARKET_ACTIVITY_KNOWLEDGE_20261027.md)。
+2026-10-27 市场周期输入前提补齐成交知识时间链：MarketCycle目录拥有逐原件登记、追加审核和截止时点查询，Common提供指纹/时间/完整JSON分块机制；旧资料只从实际迁移时刻起可知。桌面在成交修订内按需读取，不写库、不轮询。见[成交知识时间链](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-market-activity-knowledge)。
 
-2026-10-27 直接持股方向加入Equity功能：Core同报告期投影、普通SQLite原文核验历史、类型化用例、独立Worker客户端和WPF页签接通；复用公共JSON完整分块及原有事务/命令机制。行业及同报告期价格不足不计算权重，战略/组合/未知性质独立分母，不代表完整机构组合；实现、验证与真实数据门槛见[持仓方向](../implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)。
+2026-10-27 直接持股方向加入Equity功能：Core同报告期投影、普通SQLite原文核验历史、类型化用例、独立Worker客户端和WPF页签接通；复用公共JSON完整分块及原有事务/命令机制。行业及同报告期价格不足不计算权重，战略/组合/未知性质独立分母，不代表完整机构组合；实现、验证与真实数据门槛见[持仓方向](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-direction)。
 
-2026-10-27 配置ETF的官方报告目录独立为`EtfHoldings`功能：Core合同、Jobs类型化用例/协议/存储/任务、Watch客户端与展示分别归档；后台九组用例、七个客户端合同。可选公共JSON查询合同与原来源预算配合，目录不批准具名持仓或历史完整性。候选包20项真实监督进程/管道检查通过，未替换已安装Worker，见[目录链路与剩余门槛](../implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)。顶栏点击随后改用TitleBar原生Header区域，研究说明声明按钮移除，见[顶栏修复](../implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。
+2026-10-27 配置ETF的官方报告目录独立为`EtfHoldings`功能：Core合同、Jobs类型化用例/协议/存储/任务、Watch客户端与展示分别归档；后台九组用例、七个客户端合同。可选公共JSON查询合同与原来源预算配合，目录不批准具名持仓或历史完整性。候选包20项真实监督进程/管道检查通过，未替换已安装Worker，见[目录链路与剩余门槛](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-report-index)。顶栏点击随后改用TitleBar原生Header区域，研究说明声明按钮移除，见[顶栏修复](../implementation/DESKTOP_UI.md#national-team-compact-header)。
 
-2026-10-27 设置新增运行资料清理：固定合同归Common、设置端口归Application、WPF展示后台预览；Worker核验旧日志与历史升级副本，保留当前快照、至少两份完整历史副本、活动数据库/密钥/原件和维护记录。异步扫描/清理经认证IPC执行，维护锁与摘要核验控制实际删除；未替换已安装服务，见[实现与现场只读盘点](../implementation/CRS_RUNTIME_DATA_CLEANUP_20261027.md)。
+2026-10-27 设置新增运行资料清理：固定合同归Common、设置端口归Application、WPF展示后台预览；Worker核验旧日志与历史升级副本，保留当前快照、至少两份完整历史副本、活动数据库/密钥/原件和维护记录。异步扫描/清理经认证IPC执行，维护锁与摘要核验控制实际删除；未替换已安装服务，见[实现与现场只读盘点](../implementation/RUNTIME_DATA_CLEANUP.md)。
 
-2026-10-27 公共Excel读写进入`CRS.Documents/Excel`，Infrastructure保留券商/税务/绩效投影及敏感导出协调，见[文档层收拢](../implementation/CRS_DOCUMENTS_EXCEL_20261027.md)。插件菜单通过通用WPF契约移交窗口顶栏；`BeijingTime`归入Common，WPF转换器只适配绑定，见[紧凑顶栏](../implementation/NATIONAL_TEAM_COMPACT_HEADER_20261027.md)。
+2026-10-27 公共Excel读写进入`CRS.Documents/Excel`，Infrastructure保留券商/税务/绩效投影及敏感导出协调，见[文档层收拢](../implementation/DOCUMENTS.md)。插件菜单通过通用WPF契约移交窗口顶栏；`BeijingTime`归入Common，WPF转换器只适配绑定，见[紧凑顶栏](../implementation/DESKTOP_UI.md#national-team-compact-header)。
 
-2026-10-27 ETF披露原件统一门槛：可比性、具名持仓、候选、NAV、历史回算及金融通知领取共用来源/Q15/首见/哈希核验。通知另冻结解除或撤销时的本次输入，沿原普通SQLite事务；正式数据迁移未执行。实现与验收边界见[原件一致性记录](../implementation/NATIONAL_TEAM_ETF_DOCUMENT_INTEGRITY_20261027.md)。
+2026-10-27 ETF披露原件统一门槛：可比性、具名持仓、候选、NAV、历史回算及金融通知领取共用来源/Q15/首见/哈希核验。通知另冻结解除或撤销时的本次输入，沿原普通SQLite事务；正式数据迁移未执行。实现与验收边界见[原件一致性记录](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-document-integrity)。
 
-2026-10-27 具名ETF持有人候选接线：通用PDF读取迁入无业务依赖的`CRS.Documents`，富途与国家队共用；持有人模板、候选合同和用例分别归`EtfHoldings`功能目录。已登记原件经只读核验后解析，不自动升级人工确认。范围及剩余门槛见[候选接线](../implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)。
+2026-10-27 具名ETF持有人候选接线：通用PDF读取迁入无业务依赖的`CRS.Documents`，富途与国家队共用；持有人模板、候选合同和用例分别归`EtfHoldings`功能目录。已登记原件经只读核验后解析，不自动升级人工确认。范围及剩余门槛见[候选接线](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holder-candidates)。
 
-2026-10-26 国家队模块续项：直接持股、预警及原件完整性实现独立，工作区端口按功能归档，旧聚合接口及时间兼容壳退役，公共正文读取进入 `CRS.Common`、顶部分类菜单进入`CRS.Plugin.Wpf`。验收查询有界批量读取并附只读阶段诊断。ETF核心、连接和初始化所有权已独立，国家队两库改为普通SQLite；后台另分八组类型化用例和统一执行会话，不再实现界面合同，六个客户端合同均要求显式实现。当前验证与剩余边界见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。
+2026-10-26 国家队模块续项：直接持股、预警及原件完整性实现独立，工作区端口按功能归档，旧聚合接口及时间兼容壳退役，公共正文读取进入 `CRS.Common`、顶部分类菜单进入`CRS.Plugin.Wpf`。验收查询有界批量读取并附只读阶段诊断。ETF核心、连接和初始化所有权已独立，国家队两库改为普通SQLite；后台另分八组类型化用例和统一执行会话，不再实现界面合同，六个客户端合同均要求显式实现。当前验证与剩余边界见[分层重构记录](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。
 
-2026-10-23反方评审R01～R04候选整改：Application显式联合导入提交、国家队独立只读快照与有界证据查询、正式源码组合根默认每插件Runner监督、ACL巡检与容量预警分离。工作区源码已接线，未替换已安装服务，验证与剩余边界见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
+2026-10-23反方评审R01～R04候选整改：Application显式联合导入提交、国家队独立只读快照与有界证据查询、正式源码组合根默认每插件Runner监督、ACL巡检与容量预警分离。工作区源码已接线，未替换已安装服务，验证与剩余边界见[四项整改](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)。
 
 2026-10-23 阶段 2a 新增 RecoveryExportSession 内部确认/审计状态机及 ServiceKey.OpenExisting 只读入口；尚未接到 Worker 运行时/管道，未改变生产导出权限或调度流程。[验证与剩余接线门槛](../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)。
 
@@ -115,7 +115,7 @@ flowchart LR
 
 WPF 负责展示与交互；Views/ViewModels/Controls 通过应用入口调用，不能解析文件、计算金额或直接连接数据库。后台没有 WPF、私人税务或保险库依赖。国家队领域模型与公共查询 DTO 实体位于 Core；采集、应用写用例、市场仓储及证据完整性作业位于 Jobs；UI 目录仅保留页面、ViewModel 与 IPC 客户端。桌面旧 Quartz 实现与桌面计划契约已从本整改分支移除，Quartz Cron 表达式编辑器仅负责解析和预览。WPF 退出不停止已安装服务。主程序没有静态引用业务插件；UI/Core/Jobs 的运行会话与容器不跨进程共享。
 
-通知经独立公共组件CRS.Notifications的渠道契约与注册表发送；Worker组合根注册邮件适配器，插件只得到IBackgroundNotificationContext，不取得提供商凭据或收件目标。系统邮件设置经DesktopWorkflow和管理IPC配置。预警事件、输入快照、业务Outbox及提交历史留在国家队插件的同一普通SQLite市场库，事件与Outbox同事务；既有Quartz每5分钟驱动恢复评价和有界投递；独立 evidence-integrity 后台任务协调原件损坏/恢复状态（只读查询核验发现损坏立即拒绝返回，不持久化变更），采集/审核成功也触发评价，不另建调度器、数据库或服务。金融预警仍受真实数据门槛阻断，数据核查独立展示。详情见[通知边界](NOTIFICATION_CHANNELS.md)及[实施验收](../implementation/NATIONAL_TEAM_EXIT_ALERT_IMPLEMENTATION_20261019.md)。
+通知经独立公共组件CRS.Notifications的渠道契约与注册表发送；Worker组合根注册邮件适配器，插件只得到IBackgroundNotificationContext，不取得提供商凭据或收件目标。系统邮件设置经DesktopWorkflow和管理IPC配置。预警事件、输入快照、业务Outbox及提交历史留在国家队插件的同一普通SQLite市场库，事件与Outbox同事务；既有Quartz每5分钟驱动恢复评价和有界投递；独立 evidence-integrity 后台任务协调原件损坏/恢复状态（只读查询核验发现损坏立即拒绝返回，不持久化变更），采集/审核成功也触发评价，不另建调度器、数据库或服务。金融预警仍受真实数据门槛阻断，数据核查独立展示。详情见[通知边界](NOTIFICATION_CHANNELS.md)及[实施验收](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。
 
 正式 Worker 由 `src/CRS.Worker.Service/Program.cs` 固定组合，数据位于 `%ProgramData%/CRS/Background`，独占 `owner.lock`；服务 SID 和管理员 ACL 限制访问。调度库使用机器 DPAPI 主密钥，插件使用 HKDF 按插件 ID 派生的独立密钥与私有目录。个人税务库采用独立用户密钥域，默认 CRS/data。DPAPI 文件与数据库拷贝尚不构成跨机恢复方案。
 
@@ -127,11 +127,11 @@ Worker维护由`tools/background/Upgrade-Service.ps1`、`Recover-Service.ps1`及
 
 后台加载顺序：管理员控制的信任索引 → 完整包文件哈希/契约/依赖核验 → 启动受监督Runner并复核加载入口 → Start → 独立注册查询会话 → DescribeJobs → 注册持久计划 → Quartz。纯查询插件允许 DescribeJobs 为空。单包初始化失败隔离；不响应取消的插件由正式宿主终止对应Runner并确认退出以保护存储。停止先撤销请求、进入维护，取消并排空查询和任务，再释放会话、连接和密钥。插件查询不持 Worker 全局锁，同插件仅允许一个在途查询，超额返回 PluginBusy；普通查询异常不冒充任务仓储全局故障。
 
-正式源码组合根现将**可信第一方插件放入独立Runner进程，仍不是权限沙箱**。私有继承stdio、包摘要/挑战/PID绑定与Job Object提供故障范围和资源约束；通知、来源预算和进度仍由Worker代理。相同服务身份不限制插件的OS文件/网络权限。安装器继续要求CMS发行签名，开发包需显式豁免，第三方权限隔离仍须评审。详见[隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)及[已接线范围](../implementation/ARCH_OPTIMIZATION_20261023.md)。旧V1原型入口仍仅供既有测试，正式监督入口使用独立V2协议。
+正式源码组合根现将**可信第一方插件放入独立Runner进程，仍不是权限沙箱**。私有继承stdio、包摘要/挑战/PID绑定与Job Object提供故障范围和资源约束；通知、来源预算和进度仍由Worker代理。相同服务身份不限制插件的OS文件/网络权限。安装器继续要求CMS发行签名，开发包需显式豁免，第三方权限隔离仍须评审。详见[隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)及[已接线范围](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)。旧V1原型入口仍仅供既有测试，正式监督入口使用独立V2协议。
 
 ## 后台并发与等待预算
 
-2026-10-23 新增可选 `IGroupedBackgroundSession`。加载时校验分组声明，调度时同时约束插件与执行组，组内 FIFO；某组无额度的等待项不阻挡其他组。NationalTeam 默认采用采集/巡检 2、预警 1、管理 1，总并发 4，保留全局 8 与单插件上限。详见 [分组并发整改与验收边界](../implementation/NATIONAL_TEAM_CONCURRENCY_20261023.md)。
+2026-10-23 新增可选 `IGroupedBackgroundSession`。加载时校验分组声明，调度时同时约束插件与执行组，组内 FIFO；某组无额度的等待项不阻挡其他组。NationalTeam 默认采用采集/巡检 2、预警 1、管理 1，总并发 4，保留全局 8 与单插件上限。详见 [分组并发整改与验收边界](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-concurrency)。
 
 Quartz仍是唯一执行生命周期所有者。`BackgroundRuntime.Scheduling.cs`在短管理门槛内用`Wait(0)`尝试插件额度，不能执行的作业立即释放Quartz名额，进入每插件有界FIFO；额度释放后唤醒队首，不启动脱离Quartz管理的工作。相同任务只留一个等待项，自动重复触发合并；自动任务超额暂不执行，手动请求在持久化前超额返回PluginBusy。已接收手动命令保持持久幂等和重启恢复，暂停/取消清除对应等待项。
 
@@ -141,23 +141,23 @@ Quartz仍是唯一执行生命周期所有者。`BackgroundRuntime.Scheduling.cs
 
 ## 系统设置展示边界
 
-系统设置采用分组树目录、分类关键词搜索、当前位置及独立滚动页，分类集中登记在 `SettingsViewModel.Navigation.cs`。页面切换保留草稿，锁定/关闭清空临时凭证。分类导航不承接持久化、认证或通知发送；数据库、日志、保险库与公共通知仍沿既有应用端口处理。扩展约定及真实窗口验证见[设置分类导航](../implementation/SETTINGS_NAVIGATION_20261019.md)。
+系统设置采用分组树目录、分类关键词搜索、当前位置及独立滚动页，分类集中登记在 `SettingsViewModel.Navigation.cs`。页面切换保留草稿，锁定/关闭清空临时凭证。分类导航不承接持久化、认证或通知发送；数据库、日志、保险库与公共通知仍沿既有应用端口处理。扩展约定及真实窗口验证见[设置分类导航](../implementation/DESKTOP_UI.md#settings-navigation)。
 
 ## 自动检查和仍未关闭项
 
 `tests/Verify-Architecture.ps1` 核验项目存在性、循环依赖、项目清单一致性、领域及前台边界、后台无私人税务/WPF依赖、宿主无业务插件静态引用。完整构建后执行门禁，参见 `tests/README.md`。
 
-升级事务、跨机灾备、历史完整执行环境、官方交易日历及长期来源验收、多插件公平资源预算尚待闭环，详见 [本轮整改记录](../implementation/ARCH_REMEDIATION_20261016.md)。独立税务金额验收 ARCH-001 按本轮要求最后处理；现有回归测试不能替代真实账户独立签认。
+升级事务、跨机灾备、历史完整执行环境、官方交易日历及长期来源验收、多插件公平资源预算尚待闭环，详见 [本轮整改记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)。独立税务金额验收 ARCH-001 按本轮要求最后处理；现有回归测试不能替代真实账户独立签认。
 
 ## 2026-10-20手工绩效输入边界
 
-账户、投资事件、净值和完整性确认通过 `IPerformanceUseCases` 的类型化用例提交；Application构造业务对象、校验来源/完整性/金额并复用归档路径，WPF只映射表单。删除已无生产调用的旧桌面任务页面，正式计划继续只由Worker拥有。验证范围和部署状态见[架构整改续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)。
+账户、投资事件、净值和完整性确认通过 `IPerformanceUseCases` 的类型化用例提交；Application构造业务对象、校验来源/完整性/金额并复用归档路径，WPF只映射表单。删除已无生产调用的旧桌面任务页面，正式计划继续只由Worker拥有。验证范围和部署状态见[架构整改续记](../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。
 
 
 NationalTeam插件业务DTO现由Core的`EtfBusinessProtocol`独立管理V1版本；未知版本明确拒绝。Host IPC 2、加载契约2.0及市场持久Schema2仍独立，兼容范围见[业务契约](NATIONALTEAM_BUSINESS_CONTRACT.md)。
 
 
-旧进程内Catalog在超出协作取消收尾期后仍进入需要进程重启的终止状态，保留退出码2的存储保护策略。正式源码组合根使用Runner代理，失控时只终止对应进程树并确认退出，记录结果未知，按冷却和启动预算恢复；Worker及其余插件继续响应。生命周期日志仅含插件ID、阶段和分类，见[四项整改](../implementation/ARCH_OPTIMIZATION_20261023.md)。
+旧进程内Catalog在超出协作取消收尾期后仍进入需要进程重启的终止状态，保留退出码2的存储保护策略。正式源码组合根使用Runner代理，失控时只终止对应进程树并确认退出，记录结果未知，按冷却和启动预算恢复；Worker及其余插件继续响应。生命周期日志仅含插件ID、阶段和分类，见[四项整改](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)。
 
 
 IBKR税务/绩效/现金对账/账号展示通过统一`IbkrSourceReader`消费Application不可变`BrokerSourceDocument`；证券流水同步绩效传递实际来源快照，不重复解析。投影与算法仍独立；绩效导入及新历史已保存读取/投影版本，设置JSON写2、读1，税务独立历史版本和完整类型化投资事实尚未关闭，见[共享来源事实](BROKER_SOURCE_FACTS.md)。
@@ -168,7 +168,7 @@ IBKR税务/绩效/现金对账/账号展示通过统一`IbkrSourceReader`消费A
 Worker组合根唯一创建来源注册表，通过可选BCL端口绑定插件身份。正式网关已接入，SSE/SZSE/已审核发行人分别共享并发、频率、FIFO和持久退避；会话启动预合并旧策略，新增SQLCipher库与只读健康字段。详见[共享预算边界](SHARED_SOURCE_BUDGETS.md)。本次未更新已安装服务；长期负载和正式恢复验收继续开放。
 
 
-ARCH-209后续：新增来源状态启动前校验；已初始化库缺表、损坏日期、失败计数越界及未知版本拒绝启动。来源存储异常后，Worker健康仍返回可读StorageFault，来源快照为null，不返回空来源或Ready；新增执行与插件查询继续失败关闭。库版本仍为1，本次不更改金融Schema、密钥域或服务运行标识。有限持续负载入口与最终证据见[共享来源预算](SHARED_SOURCE_BUDGETS.md)及[续记](../implementation/ARCHITECTURE_REMEDIATION_20261020_CONTINUED.md)，跨日与实际部署门槛仍开放。
+ARCH-209后续：新增来源状态启动前校验；已初始化库缺表、损坏日期、失败计数越界及未知版本拒绝启动。来源存储异常后，Worker健康仍返回可读StorageFault，来源快照为null，不返回空来源或Ready；新增执行与插件查询继续失败关闭。库版本仍为1，本次不更改金融Schema、密钥域或服务运行标识。有限持续负载入口与最终证据见[共享来源预算](SHARED_SOURCE_BUDGETS.md)及[续记](../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)，跨日与实际部署门槛仍开放。
 
 ## 数据库替换约束
 
@@ -185,8 +185,8 @@ ARCH-208税务审计补强：IBKR新年度/期初报告的TaxImportProvenance随
 
 Worker源码目录按职责收拢：运行规则在Runtime，来源预算在Sources，仓储接口在Persistence、SQLCipher实现位于Persistence/SqlCipher；宿主上下文、安全、通知、日志及升级分别归Hosting/Security/Notifications/Diagnostics/Deployment。目录调整不改变命名空间或运行标识，详见[目录说明](../../src/CRS.Worker.Service/README.md)。
 2026-10-20：公共通知新增钉钉加签机器人及个人微信PushPlus适配器，经管理员IPC配置，WPF仅保留表单；见 [通知渠道边界](NOTIFICATION_CHANNELS.md)。配置默认关闭，尚无真实通道送达验收。
-IPC分段超时、旧构造器兼容及市场质量状态索引已落地验收；相关服务维护代次与品牌区布局见[修复记录](../implementation/IPC_EOF_BRAND_HEADER_20261020.md)。该实际部署保留原宿主实现，共享来源预算部署状态不能由此推定完成。
+IPC分段超时、旧构造器兼容及市场质量状态索引已落地验收；相关服务维护代次与品牌区布局见[修复记录](../implementation/QUERY_PERFORMANCE.md#ipc-eof-brand-header)。该实际部署保留原宿主实现，共享来源预算部署状态不能由此推定完成。
 桌面国家队插件StartAsync只建立展示模型；首次ETF数据查询由页面Loaded触发并在会话内共享初始任务，不占用宿主15秒启动期限。数据读取失败不撤销已注册页面，页面仍允许手动重试；后台查询期限和金融证据校验不变。
-ETF默认目录由纯领域InitialEtfDirectory统一维护，数据库适配器幂等落库，不覆盖用户配置；页面先读配置再读份额。原件批校验在释放读取器后最多四路访问只读文件句柄，数据库连接始终留在应用串行门槛内，不跨查询缓存完整性结论。详见[目录与份额加载](../implementation/ETF_DIRECTORY_AND_SHARE_LOADING_20261021.md)。
+ETF默认目录由纯领域InitialEtfDirectory统一维护，数据库适配器幂等落库，不覆盖用户配置；页面先读配置再读份额。原件批校验在释放读取器后最多四路访问只读文件句柄，数据库连接始终留在应用串行门槛内，不跨查询缓存完整性结论。详见[目录与份额加载](../implementation/NATIONAL_TEAM_ETF.md#etf-directory-and-share-loading)。
 
-2026-10-23 续项：市场仓储分为必需业务端口，正式会话启动核验独立读取等能力；计算年度统一北京时间。灾备仅新增内部加密授权索引、重放保护及审计故障边界，生产恢复入口/目标激活和跨机演练仍未完成，见[实施记录](../implementation/ARCH_FOLLOWUP_20261023.md)。
+2026-10-23 续项：市场仓储分为必需业务端口，正式会话启动核验独立读取等能力；计算年度统一北京时间。灾备仅新增内部加密授权索引、重放保护及审计故障边界，生产恢复入口/目标激活和跨机演练仍未完成，见[实施记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-followup)。

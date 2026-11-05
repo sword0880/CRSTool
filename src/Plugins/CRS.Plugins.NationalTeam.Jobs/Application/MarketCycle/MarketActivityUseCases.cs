@@ -2,7 +2,7 @@ using CRS.Worker.Abstractions;
 using CRS.Plugins.NationalTeamWatch.Domain;
 namespace CRS.Plugins.NationalTeamWatch.Application;
 
-public sealed class MarketActivityUseCases : MarketUseCaseScope
+public sealed partial class MarketActivityUseCases : MarketUseCaseScope
 {
     internal MarketActivityUseCases(MarketApplicationSession session):base(session){}
 
@@ -39,68 +39,42 @@ public sealed class MarketActivityUseCases : MarketUseCaseScope
         int issues=0,received=0,days=0,sourceCalls=0,closed=0,empty=0,skipped=0,deferred=0;
         string? firstFailure=null,firstMarket=null;DateOnly? firstDate=null;
         var contiguous=true;var blocked=new Dictionary<string,(DateTimeOffset? Until,DateOnly Date)>();
+        var daily=new Dictionary<DateOnly,CollectionDay>();var nextCursor=from;
         var retryByMarket=new Dictionary<string,DateTimeOffset>();
         DateTimeOffset? retryAt=null;
         MarketActivitySyncReport Result(bool more)=>new(days,issues,received,sourceCalls,closed,empty,firstFailure,more,skipped,retryAt,firstDate,firstMarket);
         void Failure(string code,DateOnly day,string market,DateTimeOffset? until=null)
         {
-            issues++;contiguous=false;
-            if(firstFailure is null){firstFailure=code;firstDate=day;firstMarket=market;}
+            issues++;
+            // 并行完成顺序不能改变“首个失败”的日期及同日沪深排序。
+            if(firstDate is null||day<firstDate||day==firstDate&&market=="SSE"&&firstMarket=="SZSE")
+            {firstFailure=code;firstDate=day;firstMarket=market;}
             var next=until??CRS.Timing.BeijingClock.Now.AddMinutes(5);
             if(!retryByMarket.TryGetValue(market,out var prior)||next>prior)retryByMarket[market]=next;
             retryAt=retryByMarket.Values.Min();
         }
-        for(var day=from;day<=to;day=day.AddDays(1))
+        await foreach(var fetched in DownloadActivityDaysAsync(from,to,existing,token))
         {
+            var day=fetched.Day;var market=fetched.Market;var trading=fetched.Trading;
             var beforeReceived=received;var beforeIssues=issues;var beforeClosed=closed;
             var beforeEmpty=empty;var beforeSkipped=skipped;var beforeDeferred=deferred;
-            token.ThrowIfCancellationRequested();await ReportAsync(new("DayStarted",day));
-            // 每日先固定日历快照，独立来源并行下载；汇总与事实提交仍逐项串行。
-            var tradingDays=await ReadPortAsync((IShareCollectionRepository repository)=>new[]{"SSE","SZSE"}.ToDictionary(m=>m,m=>repository.IsReviewedTradingDay(m,day)),token);
-            async Task<(MarketActivitySource? Source,Exception? Error)> Fetch(string market)
+            token.ThrowIfCancellationRequested();
+            if(fetched.State=="Closed")
             {
-                await ReportAsync(new("SourceStarted",day,market));
-                try{return(await activitySource.FetchAsync(market,day,token),null);}
-                catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-                catch(Exception error){return(null,error);}
+                closed++;await RunAsync((IMarketActivityWriteRepository repository)=>{repository.SaveMarketActivity(market,day,null);return true;},token);
+                await ReportAsync(new("MarketClosed",day,market));
             }
-            var requests=new[]{"SSE","SZSE"}.Where(m=>tradingDays[m]!=false&&!existing.Contains((m,day))&&!blocked.ContainsKey(m))
-                .ToDictionary(m=>m,Fetch);
-            sourceCalls+=requests.Count;
-            await Task.WhenAll(requests.Values);
-            foreach(var market in new[]{"SSE","SZSE"})
+            else if(fetched.State=="Reused")
+            {skipped++;await ReportAsync(new("MarketReused",day,market));}
+            else if(fetched.State=="Deferred")deferred++;
+            else
             {
-                var trading=tradingDays[market];
-                if(trading==false)
-                {closed++;await RunAsync((IMarketActivityWriteRepository repository)=>{repository.SaveMarketActivity(market,day,null);return true;},token);await ReportAsync(new("MarketClosed",day,market));continue;}
-                if(existing.Contains((market,day))){skipped++;await ReportAsync(new("MarketReused",day,market));continue;}
-                // 冷却只阻止同一来源；不把尚未请求的其他日期写成失败，也不阻塞另一市场。
-                if(blocked.ContainsKey(market)){contiguous=false;deferred++;continue;}
-                MarketActivitySource? source=null;
-                try
+                sourceCalls++;var source=fetched.Source;
+                if(fetched.Error is {} error)
                 {
-                    var fetched=await requests[market];
-                    if(fetched.Error is {} error)throw error;
-                    source=fetched.Source;
-                }
-                catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-                catch(Exception error)
-                {
-                    // 错误只输出有限分类，不将任意官网正文、请求地址或隐私数据写入执行检查点。
-                    var failureCode=error switch
-                    {
-                        SourceBudgetUnavailableException cooling when cooling.Code=="SourceCooldown" => "SourceCooldown",
-                        TimeoutException => "Timeout",
-                        HttpRequestException => "HttpRequest",
-                        InvalidDataException => "InvalidOfficialResponse",
-                        InvalidOperationException when error.Message.StartsWith("来源冷却中",StringComparison.Ordinal) => "SourceCooldown",
-                        _ when error.GetType().Name=="SourceBudgetUnavailableException" => "SourceBudgetUnavailable",
-                        _ => error.GetType().Name
-                    };
-                    DateTimeOffset? until=error is SourceBudgetUnavailableException budget?budget.Until:
-                        error.Data["SourceRetryAt"] is DateTimeOffset deadline?deadline:null;
+                    var (failureCode,until)=ActivityFailure(error);
                     Failure(failureCode,day,market,until);
-                    if(until is not null||failureCode is "SourceCooldown" or "SourceBudgetUnavailable")blocked[market]=(until,day);
+                    if(BlocksActivitySource(failureCode,until))blocked[market]=(until,day);
                     await ReportAsync(new("SourceFailed",day,market));
                     if(blocked.ContainsKey(market))await ReportAsync(new("SourceCoolingDown",day,market,Until:until));
                 }
@@ -117,10 +91,20 @@ public sealed class MarketActivityUseCases : MarketUseCaseScope
                     await ReportAsync(new("SourceParsed",day,market,Received:source.Observation is null?0:1));
                 }
             }
-            if(track && contiguous)await RunAsync((IMarketActivityWriteRepository repository)=>{repository.RecordMarketActivityCursor(day);return true;},token);
-            days++;await ReportAsync(new("MarketDayCompleted",day,Received:received-beforeReceived)
-                {Reused=skipped-beforeSkipped,Closed=closed-beforeClosed,Empty=empty-beforeEmpty,
-                Deferred=deferred-beforeDeferred,Issues=issues-beforeIssues});
+            if(!daily.TryGetValue(day,out var summary))daily[day]=summary=new();
+            summary.Add(received-beforeReceived,skipped-beforeSkipped,closed-beforeClosed,empty-beforeEmpty,deferred-beforeDeferred,issues-beforeIssues);
+            if(summary.Completed==2)
+            {
+                days++;await ReportAsync(summary.Progress(day));
+                // 日期可乱序下载和提交，但游标只能越过两市都结束且没有缺口的连续前缀。
+                while(nextCursor<=to&&daily.TryGetValue(nextCursor,out var ready)&&ready.Completed==2)
+                {
+                    if(ready.Issues>0||ready.Deferred>0)contiguous=false;
+                    var committedDay=nextCursor;
+                    if(track&&contiguous)await RunAsync((IMarketActivityWriteRepository repository)=>{repository.RecordMarketActivityCursor(committedDay);return true;},token);
+                    nextCursor=nextCursor.AddDays(1);
+                }
+            }
         }
         // 冲突/损坏事实即使重新下载了同值也不能冒充已核验完成。
         var verified=await ReadPortAsync((IMarketActivityReadRepository repository)=>repository.VerifiedMarketActivityDates(from,to),token);

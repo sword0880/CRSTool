@@ -1,12 +1,12 @@
 # 当前架构状态
 
-2026-11-04直接持股补齐已正式回读：观察14只、已核10只/26账户，9只更新三季报、公牛保持原固定中报；18份固定原文登记完成，14份既有披露及5份旧候选原始资料保留。保全维护`4b079c0aefc84fd4bb3fc43193205fa6`于14:18:30 Committed，原密钥、6143份快照及各182项新旧程序文件、8项计划、24只ETF配置通过核验。详见[原文补齐与本机验收](../implementation/NATIONAL_TEAM_EQUITY_REVIEWED_SUBSETS_20261104.md)。此后用户追加自动发现/自动核验功能，尚不能以固定原文登记证明其完成。
+2026-11-04直接持股补齐已正式回读：观察14只、已核10只/26账户，9只更新三季报、公牛保持原固定中报；18份固定原文登记完成，14份既有披露及5份旧候选原始资料保留。保全维护`4b079c0aefc84fd4bb3fc43193205fa6`于14:18:30 Committed，原密钥、6143份快照及各182项新旧程序文件、8项计划、24只ETF配置通过核验。详见[原文补齐与本机验收](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-reviewed-subsets)。此后用户追加自动发现/自动核验功能，尚不能以固定原文登记证明其完成。
 
-2026-11-04直接持股只读核查：实际观察13只沪市股票，已核15个账户合并为4只股票，5只股票另有14条待核验线索；4只已存股东表没有当前机构目录匹配账户。默认清单当前快照均为2026中报，期间差额全部为空。任务成功不等于持股核验或全市场覆盖完成；本轮未补采、审核或部署，见[逐只覆盖核查](../implementation/NATIONAL_TEAM_EQUITY_COVERAGE_AUDIT_20261104.md)。
+2026-11-04直接持股只读核查：实际观察13只沪市股票，已核15个账户合并为4只股票，5只股票另有14条待核验线索；4只已存股东表没有当前机构目录匹配账户。默认清单当前快照均为2026中报，期间差额全部为空。任务成功不等于持股核验或全市场覆盖完成；本轮未补采、审核或部署，见[逐只覆盖核查](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-coverage-audit)。
 
-2026-11-04桌面调整：[移除机构ETF持仓独立页面](../implementation/NATIONAL_TEAM_ETF_HOLDINGS_REMOVAL_20261104.md)，一并删除专用页面代码、路由和预览入口。ETF份额与直接持股等入口保留，后台披露合同、原件、审核资料及NAV/预警依赖不变。本次没有更新已安装Worker，以下正式部署记录不作为本次桌面改动的验收。
+2026-11-04桌面调整：[移除机构ETF持仓独立页面](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holdings-removal)，一并删除专用页面代码、路由和预览入口。ETF份额与直接持股等入口保留，后台披露合同、原件、审核资料及NAV/预警依赖不变。本次没有更新已安装Worker，以下正式部署记录不作为本次桌面改动的验收。
 
-2026-11-03增量：[南向累计净买入年度折线](../implementation/SOUTHBOUND_ANNUAL_COMPARISON_20261103.md)采用用户明确选择的年内累计净买入：最近五年、相同月日比较，年度归零并核对前一年末基准及每日连续性；新查询/快照版本与原每日买入分开。本机后台已保全更新至Committed，真实采集及五年曲线回读通过，原计划、配置、股票投影和密钥保留；见[部署与UnknownQuery修复](../implementation/SOUTHBOUND_UNKNOWN_QUERY_FIX_20261103.md)。前台仅保留[年度主图缩放及当日净卖出悬停提示](../implementation/SOUTHBOUND_NET_SELL_VISIBILITY_20261103.md)，金融金额计算仍由后台负责。以下既有金融审核、性能及正式发布风险不因此关闭。
+2026-11-03增量：[南向累计净买入年度折线](../implementation/SOUTHBOUND.md#southbound-annual-comparison)采用用户明确选择的年内累计净买入：最近五年、相同月日比较，年度归零并核对前一年末基准及每日连续性；新查询/快照版本与原每日买入分开。本机后台已保全更新至Committed，真实采集及五年曲线回读通过，原计划、配置、股票投影和密钥保留；见[部署与UnknownQuery修复](../implementation/SOUTHBOUND.md#southbound-unknown-query-fix)。前台仅保留[年度主图缩放及当日净卖出悬停提示](../implementation/SOUTHBOUND.md#southbound-net-sell-visibility)，金融金额计算仍由后台负责。以下既有金融审核、性能及正式发布风险不因此关闭。
 
 更新：2026-10-31。本文件是模块边界、未关闭高风险、正式部署及证据的唯一当前索引；实施文档保留历史。时刻均为北京时间，源码、隔离回放、正式后台和金融审核分别验收。
 
@@ -35,7 +35,7 @@ ETF原件、口径、具名持仓和候选解析已从预警仓储/应用/界面
 
 国家队业务库及来源策略库使用普通SQLite；Worker控制库保留SQLCipher，认证仍用派生密钥。`MarketDatabaseSession`拥有连接/只读事务及评价副本结构校验，各Store拥有初始化与持久化，Repository组合窄端口。后台8个模块声明54个业务查询、27项任务，另4个框架查询；扩展从注册取得，不修改中央业务switch。EtfHoldings的`EtfEvidenceStore`已拥有原件、可比口径、审核日志及具名持仓四张表；对应仓储、用例、客户端和界面均归ETF持仓端口。预警通过同一会话的窄证据读取及来源ID冻结历史，NAV与具名历史直接消费ETF证据。原通信操作名、兼容方法名和旧持久命令仍沿用Alert名称，所有权不再由兼容命名决定。
 
-评价准备和原件SHA核验在写名额外完成，最终短事务核对资料版本并提交事件、冻结输入、Outbox和待评价标记；持续变更最多重试三次再明确延期。份额批次和八处采集读取使用独立快照/稳定租约，保持证据和待审边界。Common须与宿主字节一致。具名公布日期与准确时刻分开，日期不补零点；旧Worker不支持新契约时明确拒绝。详细边界及历史证据见[分层实施](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)、[存储迁移](../implementation/NATIONAL_TEAM_STORAGE_MIGRATION_20261028.md)和[具名历史](../implementation/NATIONAL_TEAM_NAMED_ETF_HISTORY_20261028.md)。
+评价准备和原件SHA核验在写名额外完成，最终短事务核对资料版本并提交事件、冻结输入、Outbox和待评价标记；持续变更最多重试三次再明确延期。份额批次和八处采集读取使用独立快照/稳定租约，保持证据和待审边界。Common须与宿主字节一致。具名公布日期与准确时刻分开，日期不补零点；旧Worker不支持新契约时明确拒绝。详细边界及历史证据见[分层实施](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)、[存储迁移](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-storage-migration)和[具名历史](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-named-etf-history)。
 
 ### 工作区并发与等待预算
 
@@ -67,7 +67,7 @@ ETF原件、口径、具名持仓和候选解析已从预警仓储/应用/界面
 | --- | --- |
 | 510050版式及正式回读 | 三份原件106项、完整默认回归、分层检查及26项实际进程检查通过，完整构建0警告/0错误；正式中报明确NotDisclosed，原年报请求身份及等待截止保留。见[源码/候选](../../artifacts/china50-holders-20261031/source-acceptance.json)及[正式验收](../../artifacts/china50-holders-20261031/acceptance.json) |
 | ETF证据全链路归属 | 当前发行保留前轮EtfEvidenceStore及ETF应用、客户端、界面端口归层，四表结构不变，登记/来源/待评价/命令同事务，来源与Q15失效不能继承旧审核。前轮20项边界、22项新旧对照及旧库重开等范围见[归层源码/候选](../../artifacts/etf-evidence-ports-20261030/source-acceptance.json)及[前轮正式汇总](../../artifacts/etf-evidence-ports-20261030/acceptance.json)。金融及真人界面验收仍开放 |
-| 分市场原件与请求隔离 | 当前发行保留27任务的新协议、公共跟踪及两个实际重启窗口的恢复机制。历史沪深取证成功不替代本轮510050年报请求结果。见[机制与恢复范围](../../artifacts/document-collection-20261030/source-acceptance.json)和[历史报告取证记录](../implementation/NATIONAL_TEAM_ETF_REPORT_INDEX_20261027.md)；真人界面和金融审核继续开放 |
+| 分市场原件与请求隔离 | 当前发行保留27任务的新协议、公共跟踪及两个实际重启窗口的恢复机制。历史沪深取证成功不替代本轮510050年报请求结果。见[机制与恢复范围](../../artifacts/document-collection-20261030/source-acceptance.json)和[历史报告取证记录](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-report-index)；真人界面和金融审核继续开放 |
 | 预算及批量客户端续项 | 已安装明确来源预算及批量异步路径，保留冻结分母、元数据校验和旧服务兼容，普通5/15秒期限不变。见[源码/候选](../../artifacts/document-source-budget-20261030/source-acceptance.json)、[旧批量超时](../../artifacts/harvest-holders-installed-20261029/after/feature-audit-20261030/feature-audit.json)、[新正式批量](../../artifacts/document-source-budget-installed-20261030/after/acceptance-batch/acceptance-batch.json)及[旧事实对照](../../artifacts/document-source-budget-installed-20261030/after/baseline-comparison.json)；真人桌面交互未验收 |
 
 整个NationalTeam目标仍未完成。源码、候选包、正式安装、金融资料和模型有效性分别闭合；Pending、NeedsReview、NotDisclosed和不可计算状态均不能写成全部成功。

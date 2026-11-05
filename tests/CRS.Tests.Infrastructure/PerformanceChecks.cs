@@ -112,6 +112,7 @@ internal static class PerformanceChecks
     }
     private static async Task CheckMarketAsync()
     {
+        await PerformanceMarketConcurrencyChecks.RunAsync();
         using var http=new HttpClient(new MarketHandler());var provider=new YahooPerformanceMarketData(http);
         var document=await provider.FetchAsync("SPX",new(2025,1,2),new(2025,1,3),"CNY",default);
         if(document.Data.Prices.Count(p=>p.Market=="INDEX")!=2 || document.Data.Prices.Count(p=>p.Market=="INDEX_FX")!=2 || document.Data.Fx.Length!=0 || document.Hash!=PerformanceCodec.Hash(document.Raw))throw new Exception("联网指数和汇率未冻结来源，或混入组合汇率。");

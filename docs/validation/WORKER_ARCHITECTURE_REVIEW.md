@@ -15,11 +15,11 @@
 
 ### 整改进度更新（2026-10-15）
 
-上述结论及以下 F01—F11 保留为 `844aca0` 的审查基线。现已开始整改，当前结果见 [Worker v2 整改实施](../implementation/WORKER_REMEDIATION.md)：四个项目已重命名；用户进一步确认将管道一并改为 `CRS.Worker.Service.v2`。密钥保护常量、SCM 服务名/服务 SID 和既有数据目录保留。F02—F06 的首批代码已整改；F07/F08 仅完成基础重试与插件写入门槛，其余缺口继续保留。
+上述结论及以下 F01—F11 保留为 `844aca0` 的审查基线。现已开始整改，当前结果见 [Worker v2 整改实施](../implementation/WORKER_RUNTIME.md#worker-remediation)：四个项目已重命名；用户进一步确认将管道一并改为 `CRS.Worker.Service.v2`。密钥保护常量、SCM 服务名/服务 SID 和既有数据目录保留。F02—F06 的首批代码已整改；F07/F08 仅完成基础重试与插件写入门槛，其余缺口继续保留。
 
 第二批已补充F09的数据树权限、所有者与重解析点检查，包含启动验证、运行中巡检及故障退出；Release后台65项检查与当前安装目录只读策略检查通过。独立密钥恢复、跨账户迁移和ETF执行所有权迁移仍未完成。
 
-第三批[ETF任务迁移](../implementation/ETF_WORKER_MIGRATION.md)已完成F01基础执行归属：单一Worker调度、双入口完整包、Core/Jobs/UI边界及独占加密市场库，桌面只读查询/持久命令。真实LocalService官网采集通过，关闭独立桌面客户端后继续执行及重启去重由19项服务化检查验证。第二批段落中的ETF待迁移已由此替代；完整数据覆盖与F07—F11剩余业务/运维门槛继续保留。
+第三批[ETF任务迁移](../implementation/WORKER_RUNTIME.md#etf-worker-migration)已完成F01基础执行归属：单一Worker调度、双入口完整包、Core/Jobs/UI边界及独占加密市场库，桌面只读查询/持久命令。真实LocalService官网采集通过，关闭独立桌面客户端后继续执行及重启去重由19项服务化检查验证。第二批段落中的ETF待迁移已由此替代；完整数据覆盖与F07—F11剩余业务/运维门槛继续保留。
 
 ## 已确认问题与整改建议
 

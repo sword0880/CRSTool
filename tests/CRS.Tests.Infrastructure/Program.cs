@@ -2,6 +2,7 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--performance-market-concurrency"]){await PerformanceMarketConcurrencyChecks.RunAsync();return;}
 if(args is ["--excel-documents"]){ExcelDocumentChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ExcelDocuments",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--compare-excel-before",var excelBaseline]){ExcelDocumentChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ExcelBefore",Guid.NewGuid().ToString("N")),excelBaseline);return;}
 if(args is ["--calculation-commit"]){await CalculationCommitChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.CalculationCommit",Guid.NewGuid().ToString("N")));return;}

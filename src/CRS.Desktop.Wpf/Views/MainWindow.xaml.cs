@@ -16,7 +16,7 @@ public partial class MainWindow : FluentWindow
     private System.Windows.UIElement? builtInContent;
     private readonly List<NavigationViewItem> pluginItems = [];
     private static readonly Dictionary<string,IReadOnlySet<string>> startupEnablement=[];
-    public event Action? SecurityRequested;
+    public event Action? DatabaseManagementRequested;
     public event Action? LockRequested;
     private void OnLock(object sender,System.Windows.RoutedEventArgs e){CloseCompactNavigation();LockRequested?.Invoke();}
     /// <summary>安全锁定独立于普通关闭，取消请求、清空令牌并解除敏感页面引用。</summary>
@@ -230,7 +230,7 @@ public partial class MainWindow : FluentWindow
         CloseCompactNavigation();
         var shell = (ShellViewModel)DataContext;
         if (!shell.State.IsIdle || shell.Settings is null) return;
-        try { shell.Settings.Reload(); var dialog=new SettingsWindow(shell.Settings) { Owner = this };dialog.ShowDialog();if(dialog.RequiresPhoneEnrollment) LockRequested?.Invoke();else if(dialog.OpenDatabaseManagement) SecurityRequested?.Invoke(); }
+        try { shell.Settings.Reload(); var dialog=new SettingsWindow(shell.Settings) { Owner = this };dialog.ShowDialog();if(dialog.RequiresPhoneEnrollment) LockRequested?.Invoke();else if(dialog.OpenDatabaseManagement) DatabaseManagementRequested?.Invoke(); }
         catch (Exception error) { shell.State.UseCases.LogFailure(error.GetType().Name); shell.State.Interaction.ShowError("无法读取设置，请检查本机设置文件和目录权限。"); }
     }
     private void OnClosing(object? sender, CancelEventArgs e)

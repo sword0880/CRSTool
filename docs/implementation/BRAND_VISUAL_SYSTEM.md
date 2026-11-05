@@ -1,4 +1,4 @@
-# 小财牛全局视觉规范（2026-10-20）
+# 小财牛全局视觉规范
 
 ## 单一来源
 - 认证窗口现有暖白底与橘红色是品牌基线，强调色 #C13D24；其他功能页和插件不自行定义蓝色主色。
@@ -26,12 +26,12 @@
 3. 禁止在业务页面重新创建整套 Style/ControlTemplate 用于主按钮；确需特殊控件请抽出 SharedStyles 中的语义样式。
 4. 如修改品牌颜色，仅更新 BrandPalette.xaml。WPF-UI 全局主色从 BrandAccentBrush 动态读取，不重复定义十六进制色值。
 
-## 主窗口左上角品牌栏（方案 A · 2026-10-21）
+## 主窗口品牌栏
 
-- `MainWindow.xaml` 使用 52px 标题栏，左上角单行排列：36px 可点击侧栏切换按钮、30px 现有透明牛头 Logo、16px「小财牛」。主界面不再重复显示口号；认证页口号与交付素材保持不变。
+- `MainWindow.xaml` 使用40px标题栏，左上角单行排列：36px 可点击侧栏切换按钮、30px 现有透明牛头 Logo、16px「小财牛」。主界面不再重复显示口号；认证页口号与交付素材保持不变。
 - 品牌区通过 `Navigation.IsPaneOpen` 统一切换宽度：展开 206px、收起 56px。收起只保留切换按钮，不强行压缩图文；侧栏主体继续交给 WPF-UI `NavigationView`。
 - 隐藏 NavigationView 自带折叠按钮，避免出现两个入口；标题栏按钮只反转同一个 `IsPaneOpen`，已有 `PluginSurface` 偏移、内置页面及插件互斥规则沿用该状态。不要为某插件复制侧栏布局。
-- 点击区域只覆盖真实按钮，`WindowChrome.IsHitTestVisibleInChrome` 确保标题栏按钮能接收点击；Logo 与品牌文字不拦截系统标题栏拖拽。保留系统最小化/最大化/关闭按钮。
+- 插件页眉的交互内容放在`TitleBar.Header`，不覆盖原生标题栏拖动区域；点击区域只覆盖真实按钮，`WindowChrome.IsHitTestVisibleInChrome` 确保标题栏按钮能接收点击；Logo 与品牌文字不拦截系统标题栏拖拽。保留系统最小化/最大化/关闭按钮。
 - 切换按钮样式唯一来源为 `SharedStyles.xaml` 的 `BrandNavigationToggle`，含鼠标悬停、按下、键盘焦点与禁用态。折叠/展开的动态提示和箭头在 `MainWindow.xaml` 根据 `Navigation.IsPaneOpen` 切换，不引入额外主题色。
 - WPF 脱离窗口生命周期的视觉回归：`dotnet run --project tests/CRS.Tests.Wpf -c Release -- --shell-brand-preview artifacts/brand-header-preview`。分别输出 1280/1040 宽度、展开/收起截图，并检查按钮点击、品牌图文、插件偏移及拖拽命中。**该预览不能替代 Windows 实际显示/窗口拖拽、DPI、最大化及插件会话实测。**
 

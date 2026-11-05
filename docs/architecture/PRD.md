@@ -2,7 +2,7 @@
 
 品牌口号：**财富有数，投资有度**。
 
-名称在界面、认证标签和文档中的使用范围见[品牌同步记录](../implementation/PRODUCT_BRAND_20261020.md)。
+名称在界面、认证标签和文档中的使用范围见[品牌同步记录](../implementation/DESKTOP_UI.md#product-brand)。
 
 产品正式名称为“小财牛”，项目标识为 CRS。WPF 是唯一前台，面向个人提供本地投资数据管理、绩效分析、公开市场研究预览，以及所得辅助计算、来源核对和 Excel 底稿，不自动申报。当前支持 IBKR Activity Flex XML 与已支持布局的富途 XLSX／文本 PDF。
 

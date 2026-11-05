@@ -68,8 +68,8 @@ BackgroundRuntime不再识别具体SQLite类型；已适配任务/来源存储�
 - `NationalTeamStorageProviders`按类型选择`INationalTeamStorageProvider`，同族提供市场仓储与持久来源策略。会话先解析提供方，再创建目录、取密钥、构建网关与工作区。
 - `OfficialHttpGateway`仅依赖`ISourceRequestPolicy`。普通SQLite来源策略在真实SQL入口转换故障；MarketDatabaseSession在ExecuteOperation边界转换故障并中断取消的SQL，总仓储仅转发。
 - 新市场适配器继续实现既有`IMarketRepository`，来源策略必须满足持久冷却、不以未知为零及网络前预留的约束；原件存证仍通过独立证据存储能力处理。
-- 注册工厂只接受随可信发行构建的代码，不从配置加载任意程序集或类型名。保险库自定义注册测试转发现有SQLCipher，国家队注册测试转发现有普通SQLite，均只证明选择/接线。国家队公开文件、离线旧库导出和连接所有权另见[专项记录](../implementation/NATIONAL_TEAM_ETF_STORAGE_BOUNDARY_20261026.md)。
+- 注册工厂只接受随可信发行构建的代码，不从配置加载任意程序集或类型名。保险库自定义注册测试转发现有SQLCipher，国家队注册测试转发现有普通SQLite，均只证明选择/接线。国家队公开文件、离线旧库导出和连接所有权另见[专项记录](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-etf-storage-boundary)。
 
 验证入口：`CRS.Tests.Infrastructure --vault-providers`（10项）、`CRS.Tests.WorkerEtf --storage-providers`（11项）；完整回归与证据见实施续记。架构门禁禁止保险库入口暴露SQL、插件入口直接创建具体仓储，以及网关引用具体数据库策略。
 
-2026-10-23：市场仓储必需方法不再提供默认空/抛错实现，完整存储族由 11 个业务端口组合；正式启动核验独立读取、有界证据、总览和完整性巡检并打开真实只读事务。接口编译和启动核验不能代替新数据库提供方的加密、备份、迁移和原子性验收，见[架构续项](../implementation/ARCH_FOLLOWUP_20261023.md)。
+2026-10-23：市场仓储必需方法不再提供默认空/抛错实现，完整存储族由 11 个业务端口组合；正式启动核验独立读取、有界证据、总览和完整性巡检并打开真实只读事务。接口编译和启动核验不能代替新数据库提供方的加密、备份、迁移和原子性验收，见[架构续项](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-followup)。

@@ -44,7 +44,7 @@
 
 ### P1：股票持仓展示已经实现，主要行业/风格方向仍缺独立投影
 
-2026-10-27续项已增加[同报告期方向后台投影及核验链](../implementation/NATIONAL_TEAM_EQUITY_DIRECTION_20261027.md)，以下为原复核时的证据。源码运行链缺口已推进，真实行业/价格输入和完整组合仍未验收；不改变2026-10-26的现场快照。
+2026-10-27续项已增加[同报告期方向后台投影及核验链](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-direction)，以下为原复核时的证据。源码运行链缺口已推进，真实行业/价格输入和完整组合仍未验收；不改变2026-10-26的现场快照。
 
 [EquityCharts.RebuildEquityOverview](../../src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Equity/EquityCharts.cs) 当前按市场/证券/名称生成机构矩阵；[EquityStore](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Equity/EquityStore.cs) 返回逐账户快照和可比数量变化。未见将持股映射为同报告期行业/风格、市值权重、覆盖分母及战略/组合性质的独立后台报告。
 
@@ -65,12 +65,12 @@
 | 四个行业/指数测试工程不在主解决方案，既有全量构建漏检 | 纳入解决方案及当前架构清单，门禁覆盖生产与测试项目；37项目Release零警告/零错误，修正目录移动后的CI触发路径 |
 | 旧工作区/时间兼容层与隐藏路由造成重复责任 | 按用户未正式上线的约束移除重复接口、三套适配器、Time兼容壳及三个旧宿主入口；随后改为顶部菜单，工作台内部导航24项通过 |
 
-直接持股、预警及原件完整性模块提取、公共正文读取等结构调整见[分层重构记录](../implementation/NATIONAL_TEAM_MODULAR_REFACTOR_20261026.md)。ETF核心和连接/初始化所有权已独立，国家队公开资料按用户要求改用普通SQLite；后台与客户端工作区进一步分离，八组用例共享执行会话，界面合同移除默认实现。来源审批注册表与预警存储内部协调仍需收拢，不能称整个插件架构已经彻底解耦。
+直接持股、预警及原件完整性模块提取、公共正文读取等结构调整见[分层重构记录](../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。ETF核心和连接/初始化所有权已独立，国家队公开资料按用户要求改用普通SQLite；后台与客户端工作区进一步分离，八组用例共享执行会话，界面合同移除默认实现。来源审批注册表与预警存储内部协调仍需收拢，不能称整个插件架构已经彻底解耦。
 
-后续源码将已有NAV金额研究接到同一只读快照和桌面入口，见[NAV工作区](../implementation/NATIONAL_TEAM_NAV_WORKSPACE_20261026.md)；它不关闭上文市场周期或联合退出缺口。2026-10-27另取得510300两期具名持有人年报原件并形成待审对照，见[原件核对](NATIONAL_TEAM_ETF_HOLDER_SOURCE_REVIEW_20261027.md)，未登记正式持仓，不改变15:14现场快照。
+后续源码将已有NAV金额研究接到同一只读快照和桌面入口，见[NAV工作区](../implementation/NATIONAL_TEAM_NAV.md#national-team-nav-workspace)；它不关闭上文市场周期或联合退出缺口。2026-10-27另取得510300两期具名持有人年报原件并形成待审对照，见[原件核对](NATIONAL_TEAM_ETF_HOLDER_SOURCE_REVIEW_20261027.md)，未登记正式持仓，不改变15:14现场快照。
 
 ## 本轮判断
 
-2026-10-27后续加入[ETF持有人候选接线](../implementation/NATIONAL_TEAM_ETF_HOLDER_CANDIDATES_20261027.md)：固定两份公开年报可解析到待审表和人工核验草稿，公共PDF机制已外移；没有自动批准机构持仓。实际ETF池的官方报告发现、模板扩展、日精度披露事实审核及联合退出仍开放。
+2026-10-27后续加入[ETF持有人候选接线](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holder-candidates)：固定两份公开年报可解析到待审表和人工核验草稿，公共PDF机制已外移；没有自动批准机构持仓。实际ETF池的官方报告发现、模板扩展、日精度披露事实审核及联合退出仍开放。
 
 现有基础能力较多，已经具备真实份额、市场成交、具名股票披露、行业PE、单基金NAV与预警事件链。本轮应继续围绕上面的实际缺口整改，不重复建设已存在的功能。当前尚不能把这些独立能力宣传成完整的国家队资金流向、行业主要配置与顶部/底部联合退出系统。
