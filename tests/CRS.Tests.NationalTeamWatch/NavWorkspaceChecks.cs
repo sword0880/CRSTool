@@ -4,9 +4,8 @@ using CRS.Serialization;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
-using CRS.Plugins.NationalTeamWatch.Presentation;
 
-/// <summary>真实仓储跨模块快照、完整文档传输及界面迟到结果隔离；不访问官网或真实服务。</summary>
+/// <summary>真实仓储跨模块快照及完整文档传输；不访问官网或真实服务。</summary>
 internal static class NavWorkspaceChecks
 {
     private static readonly EtfKey Key=new("SZSE","159915");
@@ -16,9 +15,9 @@ internal static class NavWorkspaceChecks
     {public DateTimeOffset At=new(2026,10,26,12,0,0,TimeSpan.Zero);public override DateTimeOffset GetUtcNow()=>At;}
     internal static async Task RunAsync(string root)
     {
-        passed=0;Blocks();var report=Store(Path.Combine(root,"store"));await Endpoint(Path.Combine(root,"store"));await Presentation(report);
+        passed=0;Blocks();var report=Store(Path.Combine(root,"store"));await Endpoint(Path.Combine(root,"store"));
         File.WriteAllText(Path.Combine(root,"frozen-nav-study.json"),JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
-        Console.WriteLine($"PASS NAV工作区合计{passed}；真实隔离仓储/DTO/界面状态，不代表官网长期覆盖或市场择时有效。");
+        Console.WriteLine($"PASS NAV研究后台合计{passed}；真实隔离仓储/DTO，不代表官网长期覆盖或市场择时有效。");
     }
     private static void Blocks()
     {
@@ -79,19 +78,6 @@ internal static class NavWorkspaceChecks
         Reject(()=>((IMarketReadSessions)repository).Read(r=>r.FreezeEtfNavStudy(Key,From,Through.AddYears(3)),default),"未来或过长研究日期拒绝");
         return report;
     }
-    private static async Task Presentation(EtfNavStudyReport report)
-    {
-        var fixture=new Workspace();var model=new NavStudyViewModel(fixture,fixture,default);await model.EnsureInitializedAsync();
-        model.From=From.ToDateTime(TimeOnly.MinValue);model.Through=Through.ToDateTime(TimeOnly.MinValue);
-        var request=model.QueryCommand.ExecuteAsync(null);fixture.Replies[^1].SetResult(report);await request;
-        Check(model.Rows.Count==report.Windows.Count&&model.Sources.Count==4&&model.CanCopy,"界面呈现完整后台窗口与原件身份");
-        request=model.QueryCommand.ExecuteAsync(null);model.Selected=fixture.Funds[1];fixture.Replies[^1].SetResult(report);await request;
-        Check(model.Rows.Count==0&&model.Revisions.Count==0&&!model.CanCopy,"切换ETF后迟到响应不能重新写入旧结果");
-        model.Selected=fixture.Funds[0];request=model.QueryCommand.ExecuteAsync(null);model.From=model.From!.Value.AddDays(1);fixture.Replies[^1].SetResult(report);await request;
-        Check(model.Rows.Count==0&&model.Sources.Count==0,"切换日期后迟到响应不能覆盖当前条件");
-        model.From=From.ToDateTime(TimeOnly.MinValue);request=model.QueryCommand.ExecuteAsync(null);fixture.Replies[^1].SetException(new IOException("synthetic unavailable"));await request;
-        Check(model.Rows.Count==0&&model.Status.Contains("不可用")&&!model.Busy,"读取失败明确不可用，清理旧结果及忙状态");
-    }
     private static async Task Endpoint(string root)
     {
         var gateway=new NoHttp();await using var session=new CRS.Plugins.NationalTeam.Jobs.NationalTeamBackgroundSession(new Context(root),gateway);
@@ -122,14 +108,6 @@ internal static class NavWorkspaceChecks
         internal int Calls;
         public Task<CRS.Plugin.Abstractions.PublicHttpResponse> GetAsync(Uri uri,CancellationToken token)
         {Calls++;throw new InvalidOperationException("研究查询不允许联网。");}
-    }
-    private sealed class Workspace:ResearchWorkspaceStub
-    {
-        internal EtfConfiguration[] Funds=[new("SZSE","159915","合成创业板ETF","fixture",true,"fixture","fixture",0),new("SSE","510300","合成沪深300ETF","fixture",true,"fixture","fixture",0)];
-        internal List<TaskCompletionSource<EtfNavStudyReport>> Replies=[];
-        public override Task<List<EtfConfiguration>> ConfigurationAsync(CancellationToken token)=>Task.FromResult(Funds.ToList());
-        public override Task<EtfNavStudyReport> NavStudyAsync(EtfKey key,DateOnly from,DateOnly through,CancellationToken token)
-        {var next=new TaskCompletionSource<EtfNavStudyReport>(TaskCreationOptions.RunContinuationsAsynchronously);Replies.Add(next);return next.Task;}
     }
     private static void Reject(Action action,string message)
     {try{action();throw new Exception("应当拒绝："+message);}catch(InvalidDataException){Check(true,message);}}

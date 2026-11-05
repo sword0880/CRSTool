@@ -36,14 +36,28 @@
     <ProjectReference Include="../Plugins/CRS.Plugins.Demo/CRS.Plugins.Demo.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
   </ItemGroup>
   <!-- 指纹编译进主程序，不信任可与 DLL 一起替换的旁置清单；必须来自可信构建。 -->
-  <Target Name="GenerateTrustedDocumentFingerprint" BeforeTargets="CoreCompile" DependsOnTargets="ResolveReferences">
+  <Target Name="GenerateTrustedDocumentFingerprint" Condition="'$(DesignTimeBuild)' != 'true'" DependsOnTargets="ResolveReferences">
     <ItemGroup><_TrustedDocumentInput Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)' == 'CRS.Documents.dll'" /></ItemGroup>
     <Error Condition="'@(_TrustedDocumentInput->Count())' != '1'" Text="无法确定唯一的 CRS.Documents 实现程序集，拒绝生成主程序。" />
+    <Error Condition="!Exists('@(_TrustedDocumentInput)')" Text="CRS.Documents 实现程序集尚未生成，拒绝生成主程序。请先还原依赖并构建项目引用。" />
     <GetFileHash Files="@(_TrustedDocumentInput)" Algorithm="SHA256"><Output TaskParameter="Items" ItemName="_TrustedDocumentHash" /></GetFileHash>
     <PropertyGroup><_TrustedDocumentSha256>@(_TrustedDocumentHash->'%(FileHash)')</_TrustedDocumentSha256></PropertyGroup>
-    <WriteLinesToFile File="$(IntermediateOutputPath)TrustedDocuments.g.cs" Encoding="UTF-8" Overwrite="true" WriteOnlyWhenDifferent="true"
+    <PropertyGroup><_TrustedDocumentGeneratedFile>$(IntermediateOutputPath)TrustedDocuments.g.cs</_TrustedDocumentGeneratedFile></PropertyGroup>
+    <WriteLinesToFile File="$(_TrustedDocumentGeneratedFile)" Encoding="UTF-8" Overwrite="true" WriteOnlyWhenDifferent="true"
       Lines="namespace CRS.DesktopClient.Services%3B public static partial class TrustedDocumentAssembly { private const string ExpectedSha256 = &quot;$(_TrustedDocumentSha256)&quot;%3B }" />
-    <ItemGroup><Compile Remove="$(IntermediateOutputPath)TrustedDocuments.g.cs" /><Compile Include="$(IntermediateOutputPath)TrustedDocuments.g.cs" /><FileWrites Include="$(IntermediateOutputPath)TrustedDocuments.g.cs" /></ItemGroup>
+  </Target>
+  <!-- 编辑器不会先构建引用项目；只提供独立的类型检查桩，不读取 DLL、不改写真实指纹。空指纹无法通过运行时校验。 -->
+  <Target Name="GenerateDesignTimeDocumentFingerprint" Condition="'$(DesignTimeBuild)' == 'true'">
+    <PropertyGroup><_TrustedDocumentGeneratedFile>$(IntermediateOutputPath)TrustedDocuments.DesignTime.g.cs</_TrustedDocumentGeneratedFile></PropertyGroup>
+    <WriteLinesToFile File="$(_TrustedDocumentGeneratedFile)" Encoding="UTF-8" Overwrite="true" WriteOnlyWhenDifferent="true"
+      Lines="namespace CRS.DesktopClient.Services%3B public static partial class TrustedDocumentAssembly { private const string ExpectedSha256 = &quot;&quot;%3B }" />
+  </Target>
+  <Target Name="PrepareTrustedDocumentFingerprint" BeforeTargets="CoreCompile" DependsOnTargets="GenerateTrustedDocumentFingerprint;GenerateDesignTimeDocumentFingerprint">
+    <ItemGroup>
+      <Compile Remove="$(IntermediateOutputPath)TrustedDocuments.g.cs;$(IntermediateOutputPath)TrustedDocuments.DesignTime.g.cs" />
+      <Compile Include="$(_TrustedDocumentGeneratedFile)" />
+      <FileWrites Include="$(_TrustedDocumentGeneratedFile)" />
+    </ItemGroup>
   </Target>
   <Target Name="SyncDesktopDevelopmentPlugins" AfterTargets="Build"
           Condition="'SyncDevelopmentPlugins' != 'false' And 'DesignTimeBuild' != 'true'">

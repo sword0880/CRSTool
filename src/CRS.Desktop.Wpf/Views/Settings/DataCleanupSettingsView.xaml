@@ -9,7 +9,22 @@
   <CheckBox Content="同时清理更早的已完成升级副本" IsChecked="{Binding IncludeBackups}" IsEnabled="{Binding CanEdit}" Margin="0,16,0,4"/>
   <TextBlock Text="当前快照始终保留；旧副本清理后，无法再依靠它回退到对应版本。当前数据库、密钥和国家队原始证据保留。" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource BrandTextHintBrush}"/>
   <WrapPanel Margin="0,16,0,12"><ui:Button Content="扫描可清理资料" Command="{Binding ScanCommand}" Margin="0,0,8,8"/><ui:Button Content="按预览清理" Appearance="Primary" Command="{Binding ExecuteCommand}" Margin="0,0,8,8"/><ui:Button Content="查询清理结果" Command="{Binding CheckResultCommand}" Margin="0,0,0,8"/></WrapPanel>
-  <Border Background="{DynamicResource BrandSurfaceAltBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="0,6,0,0"/></StackPanel></Border>
+  <Border Background="{DynamicResource BrandSurfaceAltBrush}" CornerRadius="6" Padding="12"><StackPanel>
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+    <TextBlock Grid.Column="1" Text="{Binding ElapsedText}" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="16,0,0,0" VerticalAlignment="Center"/>
+   </Grid>
+   <ProgressBar x:Name="CleanupProgress" Height="6" Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" IsIndeterminate="{Binding ProgressIndeterminate}" Margin="0,10,0,2" AutomationProperties.Name="扫描与清理进度">
+    <ProgressBar.Style><Style TargetType="ProgressBar"><Style.Triggers><DataTrigger Binding="{Binding Busy}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></ProgressBar.Style>
+   </ProgressBar>
+   <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="0,6,0,0"/>
+   <TextBlock Text="{Binding VerificationText}" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="0,6,0,0">
+    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding VerificationText}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+   </TextBlock>
+   <TextBlock Text="{Binding CurrentItem}" ToolTip="{Binding CurrentItem}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource BrandTextHintBrush}" FontSize="12" Margin="0,6,0,0">
+    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding CurrentItem}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+   </TextBlock>
+  </StackPanel></Border>
   <ItemsControl ItemsSource="{Binding Entries}" Margin="0,12,0,0"><ItemsControl.ItemTemplate><DataTemplate>
    <Expander Margin="0,0,0,8" HorizontalContentAlignment="Stretch"><Expander.Header><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="85"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/><TextBlock Text="{Binding Size}" Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,12,0"/><TextBlock Text="{Binding Disposition}" Grid.Column="2" FontWeight="SemiBold"/></Grid></Expander.Header><TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="12" Margin="8,6,8,12" Foreground="{DynamicResource BrandTextHintBrush}"/></Expander>
   </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>

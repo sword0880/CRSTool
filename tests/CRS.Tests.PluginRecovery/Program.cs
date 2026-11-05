@@ -69,7 +69,7 @@ internal static class Program
             }
             catch(Exception error){Console.Error.WriteLine(error);Environment.ExitCode=1;}return;
         }
-        if(args is ["--ui-visual-preview" or "--workspace-visual-preview" or "--nav-visual-preview" or "--holder-visual-preview",var previewDirectory])
+        if(args is ["--ui-visual-preview" or "--workspace-visual-preview" or "--holder-visual-preview",var previewDirectory])
         {
             try
             {
@@ -78,7 +78,6 @@ internal static class Program
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                     {Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
                 if(args[0]=="--holder-visual-preview") UiVisualPreview.RenderHolders(previewDirectory);
-                else if(args[0]=="--nav-visual-preview") UiVisualPreview.RenderNav(previewDirectory);
                 else if(args[0]=="--workspace-visual-preview") UiVisualPreview.RenderWorkspace(previewDirectory);
                 else UiVisualPreview.Render(previewDirectory);
             }
@@ -130,7 +129,7 @@ internal static class Program
             try
             {
                 window.Show();
-                foreach(var route in new[]{"etf-monitor","direct-equity","nav-study","industry-pe","sector-index"})
+                foreach(var route in new[]{"etf-monitor","direct-equity","industry-pe","sector-index"})
                 {
                     page.OpenRoute(route);
                     await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);

@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- 漏洞数据源暂时不可达只保留警告；仍启用漏洞检查，实际漏洞 NU1901—NU1904 继续按错误处理。 -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- 对传递引用也固定集中声明版本，避免重新拉入旧 SkiaSharp 和易混淆的原生 SQLite。 -->

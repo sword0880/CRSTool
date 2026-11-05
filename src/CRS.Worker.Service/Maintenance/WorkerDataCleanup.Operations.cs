@@ -48,7 +48,7 @@ public sealed partial class WorkerDataCleanup
             if(!operations.TryGetValue(previewId,out var preview)||preview.Sid!=sid)throw new UnauthorizedAccessException();
             if(preview.Status.State!="Ready"||preview.Status.ExpiresAt<Now||preview.Status.UpdatedAt>Now||preview.Targets.Count==0)throw new InvalidDataException("清理预览已失效或没有选中项，请重新扫描。");
             var operation=new Operation(id,sid,preview.Options){Targets=preview.Targets.ToList(),Retained=preview.Retained.ToList(),CurrentJournalHash=preview.CurrentJournalHash,
-                Status=preview.Status with{OperationId=id,State="Running",CanExecute=false,UpdatedAt=Now,ExpiresAt=null,Message="清理已受理，正在重新核对文件。"}};
+                Status=preview.Status with{OperationId=id,State="Running",CanExecute=false,UpdatedAt=Now,ExpiresAt=null,Message="清理已受理，正在重新核对文件。",Progress=new("VerifyingCleanup",null)}};
             WriteAudit(operation,previewId);preview.Status=preview.Status with{State="Expired",CanExecute=false};preview.Targets.Clear();preview.Retained.Clear();
             operations.Add(id,operation);active=operation;
             operation.Task=Task.Run(()=>Execute(operation,previewId,stopping.Token));return operation.Status;

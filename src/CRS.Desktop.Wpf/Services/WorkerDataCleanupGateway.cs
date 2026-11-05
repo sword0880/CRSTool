@@ -27,7 +27,9 @@ public sealed class WorkerDataCleanupGateway:IDataCleanupGateway
         var reply=await client.SendAsync(request,token);
         if(reply.Code!="Ok"||reply.Payload is null)throw new InvalidOperationException(reply.Code switch{"UnknownCommand" or "UnsupportedCommand"=>"当前后台版本不支持资料清理，需要更新配套后台。","Forbidden"=>"资料清理需要以管理员身份运行 CRS。","Busy"=>"后台已有扫描或清理正在执行，请稍后查询。","NotFound"=>"操作记录不存在；请重新扫描。",_=>"后台未确认清理状态（"+reply.Code+"），请查询结果。"});
         var status=JsonSerializer.Deserialize<DataCleanupStatus>(reply.Payload)??throw new InvalidOperationException("后台返回了无效的清理状态。");
-        if(status.FormatVersion!=1||status.OperationId!=expected||status.Entries.Count>128||status.DeletedBytes<0||status.DeletedFiles<0)throw new InvalidOperationException("清理状态版本或操作编号不匹配。");return status;
+        if(status.FormatVersion!=1||status.OperationId!=expected||status.Entries.Count>128||status.DeletedBytes<0||status.DeletedFiles<0
+            ||status.Progress is {} progress&&(progress.ScannedFiles<0||progress.ScannedBytes<0||progress.VerifiedFiles<0||progress.VerifiedBytes<0))
+            throw new InvalidOperationException("清理状态版本、操作编号或进度不匹配。");return status;
     }
     private async Task<DataCleanupStatus> WaitAsync(DataCleanupStatus status,IProgress<DataCleanupStatus>? progress,CancellationToken token)
     {
@@ -35,7 +37,7 @@ public sealed class WorkerDataCleanupGateway:IDataCleanupGateway
         while(status.State is "Scanning" or "Running")
         {
             progress?.Report(status);if(DateTimeOffset.UtcNow>=until)return status with{Message="后台仍在处理；可稍后点击“查询清理结果”。当前不能视为完成。"};
-            await Task.Delay(TimeSpan.FromSeconds(2),token);status=await ReadAsync(status.OperationId,token);
+            await Task.Delay(TimeSpan.FromSeconds(1),token);status=await ReadAsync(status.OperationId,token);
         }
         progress?.Report(status);return status;
     }

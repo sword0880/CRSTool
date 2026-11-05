@@ -45,6 +45,7 @@ internal static class DataCleanupPipeChecks
                 do
                 {reply=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetDataCleanupStatus",RelatedRequestId:request.RequestId));status=JsonSerializer.Deserialize<DataCleanupStatus>(reply.Payload!)!;if(status.State!="Scanning")break;await Task.Delay(20);}while(DateTimeOffset.UtcNow<until);
                 Check(status.CanExecute,"实际管道扫描可识别合成过期日志");
+                Check(status.Progress is{ScannedFiles:1,ScannedBytes:>0},"真实管道保留扫描文件数与已扫描数据量");
                 var execution=Guid.NewGuid();var timer=System.Diagnostics.Stopwatch.StartNew();reply=await client.SendAsync(new(WorkerProtocol.Version,execution,"ExecuteDataCleanup",RelatedRequestId:request.RequestId));
                 Check(reply.Code=="Ok"&&timer.Elapsed<TimeSpan.FromSeconds(5),"删除命令经管理员控制通道快速受理");
                 do

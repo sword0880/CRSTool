@@ -47,13 +47,18 @@ internal static class DataCleanupChecks
             var before=Fingerprints(f.Root);var directories=Directory.GetDirectories(f.Root,"*",SearchOption.AllDirectories).Length;
             var audit=service.Audit(new());var after=Fingerprints(f.Root);
             Check(before.Count==after.Count&&before.All(x=>after[x.Key]==x.Value)&&directories==Directory.GetDirectories(f.Root,"*",SearchOption.AllDirectories).Length,"扫描完全只读，不写目录或记录");
+            Check(audit.Progress is{ScannedFiles:19,VerifiedFiles:>0,VerifiedBytes:>0}
+                &&audit.Progress.ScannedBytes==audit.Entries.Sum(x=>x.Bytes??0),"扫描如实累计文件数、大小与校验读取量，统计不依赖删除数量");
             Check(audit.Entries.Count(x=>x.Selected)==1&&audit.Entries.Single(x=>x.Selected).Category=="Logs","默认仅选择超过保留期的已关闭日志");
             Check(!audit.Entries.Single(x=>x.Id==f.Current).Eligible,"当前维护引用的快照始终保护");
             Check(audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Eligible)==2,"保留当前快照和最近两份完整历史快照");
             await Denied(()=>service.Audit(new(0,2,true)),"拒绝非法日志保留期");await Denied(()=>service.Audit(new(14,1,true)),"拒绝少于两份历史回退副本");
-            var preview=await Preview(service);await Denied(()=>service.Status(preview.OperationId,"another-sid"),"预览按实际调用者身份隔离");
+            var scanning=service.BeginPreview(Guid.NewGuid(),"admin",new(14,2,true));
+            Check(scanning is{State:"Scanning",Progress:not null}&&scanning.DeletedFiles==0,"异步扫描受理时立即提供独立扫描进度");
+            var preview=await Wait(service,scanning);await Denied(()=>service.Status(preview.OperationId,"another-sid"),"预览按实际调用者身份隔离");
             var executeId=Guid.NewGuid();var running=service.BeginExecute(executeId,preview.OperationId,"admin");var complete=await Wait(service,running);
             Check(complete.State=="Completed"&&complete.DeletedFiles==9,"只清理一个过期日志和两份各四文件的旧快照");
+            Check(complete.Progress is{ScannedFiles:0,VerifiedBytes:>0},"清理阶段重新计量校验读取，保留实际删除进度");
             Check(!Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[2]))&&!Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[3])),"旧快照已从回退位置弃用并完成清理");
             Check(Directory.Exists(Path.Combine(f.Root,"maintenance",f.Current))&&f.Old.Take(2).All(x=>Directory.Exists(Path.Combine(f.Root,"maintenance",x))),"保留当前和最近两份回退快照");
             Check(before.Where(x=>!x.Key.StartsWith("maintenance",StringComparison.OrdinalIgnoreCase)&&!x.Key.EndsWith("20260901.jsonl")).All(x=>File.Exists(Path.Combine(f.Root,x.Key))&&Hash(Path.Combine(f.Root,x.Key))==x.Value),"活动数据库、WAL/SHM、密钥、原件和未知资料字节未改变");

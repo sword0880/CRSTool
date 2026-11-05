@@ -5,19 +5,20 @@ namespace CRS.Worker.Service;
 public sealed partial class WorkerDataCleanup
 {
     private sealed record Retirement(int Format,Guid OperationId,string SnapshotId,string ArchiveHash,string ManifestHash);
-    private void VerifySnapshot(Target target,bool allowMissing,CancellationToken token)
+    private void VerifySnapshot(Target target,bool allowMissing,CancellationToken token,Operation? operation=null)
     {
         StorageSecurity.RejectLinks(target.FullPath);
-        var expected=target.ExpectedHashes??throw new InvalidDataException("缺少备份文件证明。");var files=Files(target.FullPath,token);
+        var expected=target.ExpectedHashes??throw new InvalidDataException("缺少备份文件证明。");var files=Files(target.FullPath,token,operation,countFiles:false);
         if(!allowMissing&&files.Count!=expected.Count)throw new InvalidDataException("备份文件集合已改变。");
         foreach(var file in files)
         {
             var relative=Path.GetRelativePath(target.FullPath,file.FullName).Replace('\\','/');
-            if(!expected.TryGetValue(relative,out var hash)||!Hash(file.FullName,token).Equals(hash,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("备份文件已改变或出现未登记文件。");
+            if(!expected.TryGetValue(relative,out var hash)||!Hash(file.FullName,token,operation).Equals(hash,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("备份文件已改变或出现未登记文件。");
         }
     }
-    private void AddRemainders(List<DataCleanupEntry> entries,List<Target> targets,WorkerUpgradeRecord? current,CancellationToken token)
+    private void AddRemainders(List<DataCleanupEntry> entries,List<Target> targets,WorkerUpgradeRecord? current,CancellationToken token,Operation operation)
     {
+        Phase(operation,"ScanningRemainders","正在核对上次清理留下的副本与文件。");
         var trash=Child("maintenance/cleanup-trash");if(!Directory.Exists(trash))return;
         foreach(var directory in new DirectoryInfo(trash).EnumerateDirectories())
         {
@@ -28,13 +29,13 @@ public sealed partial class WorkerDataCleanup
                 var receipt=ReadRetirement(directory.FullName);
                 if(current?.Stage is not ("Committed" or "RolledBack")||receipt.SnapshotId==current.Id)throw new InvalidDataException("当前维护状态不允许继续清理。");
                 var archive=Child("maintenance/"+receipt.SnapshotId+".json");
-                if(!Hash(archive,token).Equals(receipt.ArchiveHash,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("历史维护记录已改变。");
+                if(!Hash(archive,token,operation).Equals(receipt.ArchiveHash,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("历史维护记录已改变。");
                 var record=ReadRecord(archive);if(record.BackupManifestHash!=receipt.ManifestHash||record.Stage is not ("Committed" or "RolledBack"))throw new InvalidDataException("弃用副本身份异常。");
                 var backup=Path.Combine(directory.FullName,"backup");Target target;
-                if(File.Exists(Path.Combine(backup,"snapshot.json")))target=InspectSnapshot(entry,backup,record,receipt.ArchiveHash,token,true);
+                if(File.Exists(Path.Combine(backup,"snapshot.json")))target=InspectSnapshot(entry,backup,record,receipt.ArchiveHash,token,true,operation);
                 else
                 {if(Directory.Exists(backup)&&Files(backup,token).Count!=0)throw new InvalidDataException("残留副本缺少清单。");target=new(entry,backup,receipt.ArchiveHash,receipt.ManifestHash,new(StringComparer.OrdinalIgnoreCase));}
-                VerifySnapshot(target,true,token);
+                VerifySnapshot(target,true,token,operation);
                 entry=target.Entry with{Eligible=true,Selected=true,Bytes=target.Entry.Bytes??0,Files=target.Entry.Files??0,Reason="上次已确认弃用且移出回退位置的副本；可继续清理剩余文件。"};
                 entries.Add(entry);targets.Add(target with{Entry=entry});
             }
@@ -59,34 +60,37 @@ public sealed partial class WorkerDataCleanup
     {
         try
         {
+            Phase(operation,"VerifyingCleanup","正在重新核对清理范围与需要保留的副本。");
             StorageSecurity.RejectLinks(root);
             using var maintenanceLock=new FileStream(Child("maintenance.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
-            var journal=Child("maintenance/upgrade.json");var currentHash=File.Exists(journal)?Hash(journal,token):null;
+            var journal=Child("maintenance/upgrade.json");var currentHash=File.Exists(journal)?Hash(journal,token,operation):null;
             if(currentHash!=operation.CurrentJournalHash)throw new InvalidDataException("扫描后维护状态发生变化，请重新扫描。");
             var current=new WorkerUpgradeJournal(root).Read();
             if(operation.Targets.Any(x=>x.Entry.Category!="Logs"))
             {
                 if(current?.Stage is not ("Committed" or "RolledBack"))throw new InvalidDataException("当前升级尚未完成。");
                 foreach(var retained in operation.Retained)
-                {if(Hash(Child("maintenance/"+retained.Entry.Id+".json"),token)!=retained.ArchiveHash)throw new InvalidDataException("保留副本的维护记录已改变。");VerifySnapshot(retained,false,token);}
+                {if(Hash(Child("maintenance/"+retained.Entry.Id+".json"),token,operation)!=retained.ArchiveHash)throw new InvalidDataException("保留副本的维护记录已改变。");VerifySnapshot(retained,false,token,operation);}
             }
             foreach(var target in operation.Targets)
             {
                 token.ThrowIfCancellationRequested();StorageSecurity.RejectLinks(target.FullPath);
                 if(target.Entry.Category=="Logs")
                 {
+                    Phase(operation,"Deleting","正在清理已确认过期的后台日志。");CurrentItem(operation,target.FullPath);
                     // 仅删除预览中已关闭、长度和更新时间均未变化的日志；不触及当前日志。
                     using(var input=new FileStream(target.FullPath,FileMode.Open,FileAccess.Read,FileShare.Delete))
                     {if(input.Length!=target.Length||File.GetLastWriteTimeUtc(target.FullPath).Ticks!=target.ModifiedTicks)throw new InvalidDataException("日志在扫描后被更新。");File.Delete(target.FullPath);}
                     Deleted(operation,target.Length);WriteAudit(operation,previewId);continue;
                 }
+                Phase(operation,"VerifyingCleanup","正在核对即将清理的历史副本。");
                 Target retired=target;string container;
                 if(target.Entry.Category=="UpgradeBackup")
                 {
                     if(target.Entry.Id==current!.Id)throw new InvalidDataException("禁止清理当前快照。");
                     var archive=Child("maintenance/"+target.Entry.Id+".json");
-                    if(Hash(archive,token)!=target.ArchiveHash)throw new InvalidDataException("历史维护记录已改变。");
-                    VerifySnapshot(target,false,token);
+                    if(Hash(archive,token,operation)!=target.ArchiveHash)throw new InvalidDataException("历史维护记录已改变。");
+                    VerifySnapshot(target,false,token,operation);
                     container=Child("maintenance/cleanup-trash/"+operation.Id.ToString("N")+"-"+target.Entry.Id);
                     Directory.CreateDirectory(container);StorageSecurity.RejectLinks(container);
                     AtomicJson(Path.Combine(container,"retired.json"),new Retirement(1,operation.Id,target.Entry.Id,target.ArchiveHash!,target.ManifestHash!));
@@ -94,17 +98,20 @@ public sealed partial class WorkerDataCleanup
                     Directory.Move(target.FullPath,destination);retired=target with{FullPath=destination};
                 }
                 else{container=Directory.GetParent(target.FullPath)!.FullName;var receipt=ReadRetirement(container);if(receipt.SnapshotId==current!.Id)throw new InvalidDataException("禁止清理当前快照。");}
-                VerifySnapshot(retired,true,token);
-                foreach(var file in Files(retired.FullPath,token).OrderBy(x=>x.Name=="snapshot.json"?1:0))
+                VerifySnapshot(retired,true,token,operation);
+                Phase(operation,"Deleting","正在逐文件清理已确认弃用的副本。");
+                foreach(var file in Files(retired.FullPath,token,operation,countFiles:false).OrderBy(x=>x.Name=="snapshot.json"?1:0))
                 {
                     token.ThrowIfCancellationRequested();StorageSecurity.RejectLinks(file.FullName);
                     var relative=Path.GetRelativePath(retired.FullPath,file.FullName).Replace('\\','/');
-                    if(!retired.ExpectedHashes!.TryGetValue(relative,out var expected)||Hash(file.FullName,token)!=expected.ToUpperInvariant())throw new InvalidDataException("弃用副本文件发生变化。");
+                    if(!retired.ExpectedHashes!.TryGetValue(relative,out var expected)||Hash(file.FullName,token,operation)!=expected.ToUpperInvariant())throw new InvalidDataException("弃用副本文件发生变化。");
                     var bytes=file.Length;File.Delete(file.FullName);Deleted(operation,bytes);
                 }
-                RemoveEmptyDirectories(retired.FullPath,token);StorageSecurity.RejectLinks(container);
+                Phase(operation,"RemovingDirectories","正在整理已清空的副本目录。");
+                RemoveEmptyDirectories(retired.FullPath,token,operation);StorageSecurity.RejectLinks(container);
                 File.Delete(Path.Combine(container,"retired.json"));Directory.Delete(container,false);WriteAudit(operation,previewId);
             }
+            Phase(operation,"SavingResults","正在保存清理结果。");
             Update(operation,"Completed","清理完成。已保留使用中的资料、维护记录和指定数量的历史回退副本。");
         }
         catch(OperationCanceledException){Update(operation,"Interrupted","清理中断；已清理的字节无法恢复，残留副本将在下次扫描中显示。");}
@@ -115,12 +122,12 @@ public sealed partial class WorkerDataCleanup
     }
     private void Deleted(Operation operation,long bytes)
     {lock(stateGate)operation.Status=operation.Status with{DeletedBytes=checked(operation.Status.DeletedBytes+bytes),DeletedFiles=operation.Status.DeletedFiles+1,UpdatedAt=Now};}
-    private void RemoveEmptyDirectories(string directory,CancellationToken token)
+    private void RemoveEmptyDirectories(string directory,CancellationToken token,Operation operation)
     {
         if(!Directory.Exists(directory))return;
         var pending=new Stack<string>();var visited=new List<string>();pending.Push(directory);
         while(pending.TryPop(out var parent))
-        {token.ThrowIfCancellationRequested();StorageSecurity.RejectLinks(parent);visited.Add(parent);foreach(var child in Directory.EnumerateDirectories(parent))pending.Push(child);if(visited.Count>MaximumFiles)throw new InvalidDataException("目录数量超限。");}
-        foreach(var parent in visited.AsEnumerable().Reverse()){token.ThrowIfCancellationRequested();StorageSecurity.RejectLinks(parent);Directory.Delete(parent,false);}
+        {token.ThrowIfCancellationRequested();StorageSecurity.RejectLinks(parent);CurrentItem(operation,parent);visited.Add(parent);foreach(var child in Directory.EnumerateDirectories(parent))pending.Push(child);if(visited.Count>MaximumFiles)throw new InvalidDataException("目录数量超限。");}
+        foreach(var parent in visited.AsEnumerable().Reverse()){token.ThrowIfCancellationRequested();StorageSecurity.RejectLinks(parent);CurrentItem(operation,parent);Directory.Delete(parent,false);}
     }
 }

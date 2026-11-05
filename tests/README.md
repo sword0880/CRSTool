@@ -30,7 +30,7 @@ ETF官方报告目录：`CRS.Tests.NationalTeamWatch --etf-report-index`默认�
 
 原生菜单焦点：`CRS.Tests.Wpf --plugin-menu-focus <截图目录>`要求窗口确实取得系统前台焦点，验证首次展开、分类往返、向下键、Esc和快速切换；前台不可用返回2并标记`Unavailable`。常规`--plugin-header-native`在没有前台时仍可检查命中与展开，但不会将未验证的键盘焦点算作通过。`--plugin-header-focus-preview <目录>`提供五分钟合成窗口供现场观察，不执行断言；这些入口均不启动正式服务或个人库，程序化调用不能代替真实鼠标输入回放。
 
-运行资料清理：`CRS.Tests.Background --data-cleanup` 在合成临时目录验证旧日志、至少两份历史副本保留、维护冲突、链接、文件变化、重启未知计数、残留继续清理，并经真实Windows管道确认管理员控制和后台健康。`CRS.Tests.Wpf --data-cleanup-model` 验证预览、范围失效和未知结果查询；`--settings-cleanup-ui <截图目录> <只读预览JSON>` 渲染禁止删除的真实设置窗口。`CRS.Tests.Background --data-cleanup-audit <后台目录>` 是只读审计，不创建目录、不写预览或删除文件。范围和发布边界见[实现记录](../docs/implementation/CRS_RUNTIME_DATA_CLEANUP_20261027.md)。
+运行资料清理：`CRS.Tests.Background --data-cleanup` 在合成临时目录验证旧日志、至少两份历史副本保留、维护冲突、链接、文件变化、扫描及校验进度、重启未知计数、残留继续清理，并经真实Windows管道确认管理员控制、进度字段和后台健康。`CRS.Tests.Wpf --data-cleanup-model` 验证预览、范围失效、实时进度、扫描续查和未知结果查询；`--data-cleanup-progress-ui <截图目录>` 渲染仅使用合成资料的扫描、校验和确定清理进度，检查每秒用时及完成后收起；`--settings-cleanup-ui <截图目录> <只读预览JSON>` 渲染禁止删除的真实设置窗口。`CRS.Tests.Background --data-cleanup-audit <后台目录>` 是只读审计，不创建目录、不写预览或删除文件。范围和发布边界见[实现记录](../docs/implementation/CRS_RUNTIME_DATA_CLEANUP_20261027.md)。
 
 ETF披露统一核验：`CRS.Tests.NationalTeamWatch --etf-document-boundaries`检查原件来源/Q15/首见、既有确认失效、历史回算和领取闸门、普通SQLite只读/迁移缺损及跨128引用去重；`--exit-alerts`另含解除通知的当前冻结窗口和通知原子回滚；`--etf-holder-candidates`含同值刷新状态反例，`--exit-alert-ui`核对真实核验列。范围见[原件一致性记录](../docs/implementation/NATIONAL_TEAM_ETF_DOCUMENT_INTEGRITY_20261027.md)。
 
@@ -344,4 +344,4 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 
 `CRS.Tests.NationalTeamWatch --application-boundaries`检查客户端合同全部要求显式实现、八组后台用例不实现界面合同、初始化前/关闭后拒绝读写、重复初始化与取消、必需能力缺失时释放连接。默认回归及CI包含专项；旧`EtfWorkspace`已删除，WPF合成夹具通过测试专用端口转发实际用例，未配置能力明确拒绝。并发读取、完整性核验和47项独立后台检查继续验证真实执行行为，见[应用边界](../docs/implementation/NATIONAL_TEAM_APPLICATION_BOUNDARY_20261026.md)。
 
-`CRS.Tests.NationalTeamWatch --nav-workspace`验证NAV与份额研究的同一只读快照、1/5/20窗口、缺失/损坏/待审更正、完整JSON块、真实后台分页、证券与日期身份以及界面迟到响应隔离。`CRS.Tests.WorkerEtf <完整后台包>`增加真实Runner的NAV研究读取；完整冻结输入可做数学复算，仍不是原件现场验收、具名机构成交或模型有效性证明。见[NAV工作区](../docs/implementation/NATIONAL_TEAM_NAV_WORKSPACE_20261026.md)。
+`CRS.Tests.NationalTeamWatch --nav-workspace`验证NAV与份额研究的同一只读快照、1/5/20窗口、缺失/损坏/待审更正、完整JSON块、真实后台分页及证券与日期身份。独立NAV桌面页面已于2026-11-05移除，后台研究能力保留。`CRS.Tests.WorkerEtf <完整后台包>`增加真实Runner的NAV研究读取；完整冻结输入可做数学复算，仍不是原件现场验收、具名机构成交或模型有效性证明。见[NAV工作区](../docs/implementation/NATIONAL_TEAM_NAV_WORKSPACE_20261026.md)。
