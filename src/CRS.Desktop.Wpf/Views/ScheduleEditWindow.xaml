@@ -7,9 +7,17 @@
  </ui:FluentWindow.Resources>
  <Grid><Grid.RowDefinitions><RowDefinition Height="46"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <ui:TitleBar Title="修改任务计划" ShowClose="True" ShowMaximize="False" ShowMinimize="False" ForceShutdown="False"/>
-  <StackPanel Grid.Row="1" Margin="24,10,24,14"><TextBlock Text="{Binding TaskLabel}" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="{Binding Identity}" Foreground="#64748B" Margin="0,5,0,0"/></StackPanel>
+  <StackPanel Grid.Row="1" Margin="24,10,24,14">
+   <TextBlock Text="{Binding TaskLabel}" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="{Binding Identity}" Foreground="#64748B" Margin="0,5,0,0"/>
+   <WrapPanel Margin="0,12,0,0">
+    <TextBlock x:Name="TaskEnabledStatus" Text="{Binding EnabledText}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,16,0"/>
+    <Button x:Name="EnableTaskButton" Content="启用任务" Command="{Binding EnableTaskCommand}" Margin="0,0,8,0" Padding="14,6"/>
+    <Button x:Name="DisableTaskButton" Content="禁用任务" Command="{Binding DisableTaskCommand}" Padding="14,6" ToolTip="停止自动调度，并取消本任务正在执行和排队的工作。"/>
+   </WrapPanel>
+   <TextBlock Text="启用或禁用立即保存；执行频率的修改需点击“保存计划”。" Foreground="#64748B" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
+  </StackPanel>
   <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="24,0,18,0" Padding="0,0,6,0">
-   <StackPanel>
+   <StackPanel IsEnabled="{Binding CanEdit}">
     <Border Background="White" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16">
      <StackPanel>
       <TextBlock Text="执行频率" Style="{StaticResource Caption}"/>
@@ -31,7 +39,7 @@
     <TextBlock Text="时区" Style="{StaticResource Caption}"/>
     <TextBlock Text="北京时间（UTC+08:00）" AutomationProperties.Name="任务计划时区" Margin="0,6"/>
     <Border Background="{DynamicResource BrandAccentPaleBrush}" CornerRadius="10" Padding="14,10" Margin="0,14,0,4"><StackPanel>
-     <TextBlock Text="未来 5 次计划触发时间" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextSecondaryBrush}"/>
+     <TextBlock Text="{Binding NextTimesCaption}" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextSecondaryBrush}"/>
      <TextBlock Text="{Binding Validation}" TextWrapping="Wrap" FontSize="12" Margin="0,6,0,8"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="#64748B"/><Style.Triggers><DataTrigger Binding="{Binding Valid}" Value="False"><Setter Property="Foreground" Value="#B45309"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
      <ItemsControl ItemsSource="{Binding NextTimes}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" FontFamily="Consolas, Microsoft YaHei" Foreground="#334155" Margin="0,2"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
     </StackPanel></Border>

@@ -132,7 +132,7 @@ public partial class MainWindow : FluentWindow
         if(forceClose)return;
         try
         {
-            backgroundServiceModel??=new(taskPageLifetime.Token);
+            backgroundServiceModel??=new(taskPageLifetime.Token,cleanup:(DataContext as ShellViewModel)?.Settings?.Cleanup);
             var page=new BackgroundServicePage(backgroundServiceModel);
             page.ShowRecentExecutions();
             ShowHostedPage(page);
@@ -149,7 +149,7 @@ public partial class MainWindow : FluentWindow
         if(forceClose)return;
         try
         {
-            backgroundServiceModel??=new(taskPageLifetime.Token);
+            backgroundServiceModel??=new(taskPageLifetime.Token,cleanup:(DataContext as ShellViewModel)?.Settings?.Cleanup);
             ShowHostedPage(new WorkerStatusPage(backgroundServiceModel));
             SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"后台服务状态")));
             await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
@@ -164,7 +164,7 @@ public partial class MainWindow : FluentWindow
         if(forceClose)return;
         try
         {
-            backgroundServiceModel??=new(taskPageLifetime.Token);
+            backgroundServiceModel??=new(taskPageLifetime.Token,cleanup:(DataContext as ShellViewModel)?.Settings?.Cleanup);
             var page=new BackgroundServicePage(backgroundServiceModel);page.ShowCurrentTasks();ShowHostedPage(page);
             SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"任务中心")));
             await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);

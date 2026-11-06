@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CRS.Worker.Ipc;
+using CRS.DesktopClient.Services;
 namespace CRS.DesktopClient.ViewModels;
 
 public partial class BackgroundServiceViewModel
@@ -18,26 +19,19 @@ public partial class BackgroundServiceViewModel
         activityRefreshing=true;
         try
         {
-            var rows=new List<BackgroundTaskActivityRow>();var cursors=new HashSet<string>();
-            string? cursor=null;BackgroundTaskActivity? snapshot=null;
-            do
-            {
-                var reply=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetTaskActivity",Cursor:cursor),lifetime);
-                if(reply.Code=="UnknownCommand"||reply.Code=="Ok"&&reply.TaskActivity is null)
-                {RunningTasks.Clear();WaitingTasks.Clear();PendingTasks.Clear();ActivityStatus="后台尚不支持当前任务明细，请更新配套 Worker；不能根据数量推断具体任务。";return;}
-                if(reply.Code!="Ok"||reply.TaskActivity is not {} page)throw new InvalidOperationException("当前任务读取失败。");
-                snapshot??=page;
-                if(page.ObservedAt!=snapshot.ObservedAt||page.Running!=snapshot.Running||page.Waiting!=snapshot.Waiting||page.Pending!=snapshot.Pending)
-                    throw new System.IO.InvalidDataException("任务快照不一致。");
-                rows.AddRange(page.Rows);cursor=reply.NextCursor;
-                if(rows.Count>4096||cursor is not null&&!cursors.Add(cursor))throw new System.IO.InvalidDataException("任务分页无效。");
-            }while(cursor is not null);
-            lifetime.ThrowIfCancellationRequested();
-            if(rows.Count(x=>x.State=="Running")!=snapshot!.Running||rows.Count(x=>x.State=="Waiting")!=snapshot.Waiting||
-                rows.Count(x=>x.State=="Pending")!=snapshot.Pending||rows.Any(x=>x.State is not ("Running" or "Waiting" or "Pending")))
-                throw new System.IO.InvalidDataException("任务状态数量不匹配。");
+            if(cleanup?.TasksAvailable==true)await cleanup.RefreshTasksAsync(lifetime);
+            var snapshot=await WorkerTaskActivityReader.ReadAsync(client,lifetime);
+            if(snapshot is null)
+            {RunningTasks.Clear();WaitingTasks.Clear();PendingTasks.Clear();ActivityStatus="后台尚不支持当前任务明细，请更新配套 Worker；不能根据数量推断具体任务。";return;}
+            var rows=snapshot.Rows;
             Replace(RunningTasks,"Running");Replace(WaitingTasks,"Waiting");Replace(PendingTasks,"Pending");
-            ActivityStatus=$"执行中 {snapshot.Running} · 排队中 {snapshot.Waiting} · 待执行请求 {snapshot.Pending} · {snapshot.ObservedAt:yyyy-MM-dd HH:mm:ss}（北京时间）";
+            if(CleanupTaskPresentation.Active(cleanup?.CurrentTask))
+            {
+                var item=CleanupTaskPresentation.Activity(cleanup!.CurrentTask!,cleanup.TaskStatusKnown);
+                (item.Row.State=="Waiting"?WaitingTasks:RunningTasks).Add(item);
+            }
+            ActivityStatus=$"执行中 {RunningTasks.Count} · 排队中 {WaitingTasks.Count} · 待执行请求 {PendingTasks.Count} · {snapshot.ObservedAt:yyyy-MM-dd HH:mm:ss}（北京时间）";
+            if(cleanup?.TasksAvailable==true&&!cleanup.TaskStatusKnown)ActivityStatus+=" · 清理状态未确认，清理任务如有显示则为上次快照。";
             void Replace(ObservableCollection<TaskActivityItem> target,string state)
             {target.Clear();foreach(var row in rows.Where(x=>x.State==state))target.Add(new(row));}
         }
@@ -46,9 +40,10 @@ public partial class BackgroundServiceViewModel
         finally{activityRefreshing=false;}
     }
 }
-public sealed record TaskActivityItem(BackgroundTaskActivityRow Row)
+public sealed record TaskActivityItem(BackgroundTaskActivityRow Row,string? ProgressText=null,DateTimeOffset? SubmittedAt=null)
 {
-    public string ReasonText=>Row.Reason switch
+    public DateTimeOffset? ActivityTime=>SubmittedAt??Row.StartedAt;
+    public string ReasonText=>ProgressText??Row.Reason switch
     {
         "Executing"=>"正在执行", "Cooldown"=>"执行中，等待来源冷却", "RateWait"=>"执行中，等待来源访问额度",
         "PluginBusy"=>"等待同插件前序任务结束", "AwaitingCapacity"=>"等待可用执行名额", "RetryDeferred"=>"已尝试执行，等待重试时间",

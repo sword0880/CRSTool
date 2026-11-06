@@ -9,7 +9,7 @@ namespace CRS.DesktopClient.ViewModels;
 public partial class ScheduleEditViewModel : ObservableObject
 {
     private readonly BackgroundServiceViewModel parent;
-    private readonly TaskDefinition plan;
+    private TaskDefinition plan;
     public string TaskLabel=>plan.Name;
     public string Identity=>plan.PluginId+" / "+plan.JobId;
     public CancellationToken Lifetime=>parent.Lifetime;
@@ -24,6 +24,15 @@ public partial class ScheduleEditViewModel : ObservableObject
     [ObservableProperty] private string description="";
     [ObservableProperty] private string validation="";
     [ObservableProperty] private bool valid;
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(EnabledText)),NotifyPropertyChangedFor(nameof(NextTimesCaption)),NotifyCanExecuteChangedFor(nameof(EnableTaskCommand)),NotifyCanExecuteChangedFor(nameof(DisableTaskCommand))]
+    private bool enabled;
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(EnabledText)),NotifyPropertyChangedFor(nameof(NextTimesCaption)),NotifyPropertyChangedFor(nameof(CanEdit)),NotifyCanExecuteChangedFor(nameof(SaveCommand)),NotifyCanExecuteChangedFor(nameof(EnableTaskCommand)),NotifyCanExecuteChangedFor(nameof(DisableTaskCommand))]
+    private bool enabledStatusKnown=true;
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(CanEdit)),NotifyCanExecuteChangedFor(nameof(SaveCommand)),NotifyCanExecuteChangedFor(nameof(EnableTaskCommand)),NotifyCanExecuteChangedFor(nameof(DisableTaskCommand))]
+    private bool busy;
+    public bool CanEdit=>!Busy&&EnabledStatusKnown&&!Lifetime.IsCancellationRequested;
+    public string EnabledText=>!EnabledStatusKnown?"启用状态未确认":Enabled?"已启用":"已禁用";
+    public string NextTimesCaption=>!EnabledStatusKnown?"计划触发时间（启用状态未确认）":Enabled?"未来 5 次计划触发时间":"启用后的 5 次计划触发时间";
     public record FrequencyChoice(CronFrequency Value,string Label);
     public IReadOnlyList<FrequencyChoice> Frequencies {get;}=[new(CronFrequency.Seconds,"每隔若干秒"),new(CronFrequency.Minutes,"每隔若干分钟"),new(CronFrequency.Hourly,"每小时"),new(CronFrequency.Daily,"每天"),new(CronFrequency.Weekly,"每周"),new(CronFrequency.Monthly,"每月"),new(CronFrequency.Manual,"手动表达式")];
     public int[] Hours {get;}=Enumerable.Range(0,24).ToArray();
@@ -45,7 +54,7 @@ public partial class ScheduleEditViewModel : ObservableObject
     public event Action? Saved;
     public ScheduleEditViewModel(BackgroundServiceViewModel parent,TaskDefinition plan)
     {
-        this.parent=parent;this.plan=plan;cron=plan.Cron;timeZoneId=CRS.Timing.BeijingClock.ZoneId;
+        this.parent=parent;this.plan=plan;enabled=plan.Enabled;cron=plan.Cron;timeZoneId=CRS.Timing.BeijingClock.ZoneId;
         if(plan.TimeZoneId is not ("China Standard Time" or "Asia/Shanghai"))status="保存后本计划按北京时间执行；保存前保留已有调度规则。";
         var options=CronEditor.Read(cron);frequency=options.Frequency;interval=options.Interval;hour=options.Hour;minute=options.Minute;second=options.Second;day=options.Day;
         var labels=new[]{"周一","周二","周三","周四","周五","周六","周日"};
@@ -89,15 +98,48 @@ public partial class ScheduleEditViewModel : ObservableObject
         foreach(var instant in preview.Next)NextTimes.Add(instant.ToString("yyyy-MM-dd ddd HH:mm:ss zzz",System.Globalization.CultureInfo.GetCultureInfo("zh-CN")));
         SaveCommand.NotifyCanExecuteChanged();
     }
-    private bool CanSave()=>Valid && !Lifetime.IsCancellationRequested;
+    private bool CanEnable()=>CanEdit&&!Enabled;
+    private bool CanDisable()=>CanEdit&&Enabled;
+    [RelayCommand(CanExecute=nameof(CanEnable))]
+    private Task EnableTaskAsync()=>SetEnabledAsync(true);
+    [RelayCommand(CanExecute=nameof(CanDisable))]
+    private Task DisableTaskAsync()=>SetEnabledAsync(false);
+    private async Task SetEnabledAsync(bool value)
+    {
+        if(!CanEdit||Enabled==value)return;
+        Busy=true;
+        try
+        {
+            var result=await parent.SetScheduleEnabledAsync(plan,value);
+            Status=result.Message;
+            if(result.Saved)
+            {
+                // 成功回执确认本修订已提交；优先采用刷新后的服务计划，后续保存仍受修订号保护。
+                plan=parent.Jobs.FirstOrDefault(x=>x.PluginId==plan.PluginId&&x.JobId==plan.JobId&&x.Revision>plan.Revision)
+                    ??plan with{Enabled=value,Revision=plan.Revision+1};
+                Enabled=plan.Enabled;
+                Status=(Enabled?"任务已启用。":"任务已禁用。")+" 执行频率的编辑内容仍需点击“保存计划”。 "+result.Message;
+            }
+            else if(parent.UncertainRequest is {} request&&request.PluginId==plan.PluginId&&request.JobId==plan.JobId)
+            {EnabledStatusKnown=false;Status="启用状态未确认，请关闭详情，在任务中心点击“重新确认请求”后重新打开。";}
+        }
+        finally{Busy=false;}
+    }
+    private bool CanSave()=>Valid&&CanEdit;
     [RelayCommand(CanExecute=nameof(CanSave))]
     private async Task SaveAsync()
     {
+        if(!CanSave())return;
         UpdatePreview();
         if(!Valid){Status=Validation;return;}
-        var result=await parent.SaveScheduleAsync(plan,Cron.Trim(),TimeZoneId.Trim());
-        Status=result.Message;
-        if(result.Saved)Saved?.Invoke();
+        Busy=true;
+        try
+        {
+            var result=await parent.SaveScheduleAsync(plan,Cron.Trim(),TimeZoneId.Trim());
+            Status=result.Message;
+            if(result.Saved)Saved?.Invoke();
+        }
+        finally{Busy=false;}
     }
 }
 

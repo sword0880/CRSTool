@@ -352,3 +352,7 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 
 `CRS.Tests.NationalTeamWatch --nav-workspace`验证NAV与份额研究的同一只读快照、1/5/20窗口、缺失/损坏/待审更正、完整JSON块、真实后台分页及证券与日期身份。独立NAV桌面页面已于2026-11-05移除，后台研究能力保留。`CRS.Tests.WorkerEtf <完整后台包>`增加真实Runner的NAV研究读取；完整冻结输入可做数学复算，仍不是原件现场验收、具名机构成交或模型有效性证明。见[NAV工作区](../docs/implementation/NATIONAL_TEAM_NAV.md#national-team-nav-workspace)。
 后台完整清理任务：`CRS.Tests.Background --cleanup-tasks` 验证快速受理、重复提交、任务/通知持久化、服务重启中断识别、Queued继续执行、落盘中途退出后的原编号重试，以及只读审计不修改任务。`CRS.Tests.Wpf --cleanup-task-model` 验证提交即返回、前台重建读取通知、已读确认、未知数量与响应丢失重试；`--cleanup-task-ui <目录>` 渲染设置仅提交入口及主窗口提醒。原 `--data-cleanup-progress-ui` 是此新界面专项的兼容别名，不再渲染旧进度页面。此前手动预览/等待专项仅验证兼容API，当前设置不再暴露该流程。见[后台任务交付](../docs/validation/DATA_CLEANUP_BACKGROUND_TASKS_20261106.md)。
+
+清理任务可见性：`--task-activity-checks` 验证清理排队、扫描/核验、删除、完成和失联状态与插件任务的合并；`--shell-status-checks` 验证底栏仅显示运行/等待、同一快照去重及未知数量；`--task-center-refresh-checks` 验证慢历史不阻挡采样、去重反例与失败后撤回旧等待数。`--cleanup-task-ui <目录>` 另覆盖实际主窗体底栏、任务中心清理行及完成撤回，输出6张合成截图。`--cleanup-task-status-probe` 仅通过现有管理员IPC读取已安装后台的摘要、健康及当前任务，输出桌面合并后的状态；不会提交任务、确认通知或操作正式文件。见[清理任务显示验收](../docs/validation/CLEANUP_TASK_CENTER_20261106.md)。
+
+任务详情启停：`--schedule-editor-checks` 使用隔离管道验证禁用状态、固定任务/修订、启停后保存频率、草稿保留、权限及冲突、响应丢失确认和会话关闭；`--schedule-editor-ui <目录>` 在620/720 DIP渲染已启用/已禁用及操作按钮，共4张合成截图，不更改正式任务。

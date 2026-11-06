@@ -17,6 +17,8 @@ public sealed partial class DataCleanupViewModel
     [ObservableProperty,NotifyCanExecuteChangedFor(nameof(DismissTaskNotificationCommand))]private bool hasTaskNotification;
     [ObservableProperty]private string taskNotificationTitle="";
     [ObservableProperty]private string taskNotificationMessage="";
+    [ObservableProperty]private DataCleanupTask? currentTask;
+    [ObservableProperty]private bool taskStatusKnown;
     public bool TasksAvailable=>Tasks?.CanExecute==true;
     public string TaskAccessMessage=>TasksAvailable?"后台固定保留当前快照和最近一份有效历史副本，日志至少保留14天；当前数据库、密钥和插件原件保留。":"需要管理员权限及支持后台清理任务的配套服务。";
     private bool CanSubmitTask()=>TasksAvailable&&!TaskRequestBusy;
@@ -35,7 +37,7 @@ public sealed partial class DataCleanupViewModel
     }
     [RelayCommand(CanExecute=nameof(CanSubmitTask))]
     private Task RefreshTaskAsync()=>RefreshTasksAsync(CancellationToken.None);
-    private Task RefreshTasksAsync(CancellationToken token)=>TaskRequestAsync(cancellation=>Tasks!.LatestAsync(cancellation),token,TimeSpan.FromSeconds(6));
+    internal Task RefreshTasksAsync(CancellationToken token)=>TaskRequestAsync(cancellation=>Tasks!.LatestAsync(cancellation),token,TimeSpan.FromSeconds(6));
     [RelayCommand(CanExecute=nameof(CanDismissTaskNotification))]
     private async Task DismissTaskNotificationAsync()
     {
@@ -47,13 +49,14 @@ public sealed partial class DataCleanupViewModel
         if(!CanSubmitTask())return;
         TaskRequestBusy=true;
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(timeout);
-        try{ApplyTaskOverview(await request(deadline.Token));}
+        try{var overview=await request(deadline.Token);deadline.Token.ThrowIfCancellationRequested();ApplyTaskOverview(overview);}
         catch(OperationCanceledException) when(token.IsCancellationRequested){}
-        catch(Exception error){TaskMessage="暂未确认后台任务状态；重试会核对现有任务，不会重复创建。 "+error.Message;}
+        catch(Exception error){TaskStatusKnown=false;TaskMessage="暂未确认后台任务状态；重试会核对现有任务，不会重复创建。 "+error.Message;}
         finally{TaskRequestBusy=false;}
     }
     internal void ApplyTaskOverview(DataCleanupTaskOverview overview)
     {
+        CurrentTask=overview.Current;TaskStatusKnown=true;
         notification=overview.Notification;HasTaskNotification=notification is not null;
         if(notification is null){TaskNotificationTitle="";TaskNotificationMessage="";return;}
         TaskNotificationTitle=notification.State=="Completed"&&notification.CountsComplete?"后台资料清理完成":"后台资料清理未全部完成";
@@ -74,7 +77,7 @@ public sealed partial class DataCleanupViewModel
             while(true)
             {
                 await RefreshTasksAsync(stopping.Token);
-                await Task.Delay(TimeSpan.FromSeconds(10),stopping.Token);
+                await Task.Delay(TimeSpan.FromSeconds(3),stopping.Token);
             }
         }
         catch(OperationCanceledException) when(stopping.IsCancellationRequested){}

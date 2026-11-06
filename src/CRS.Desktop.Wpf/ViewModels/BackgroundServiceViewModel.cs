@@ -6,8 +6,8 @@ using CRS.Worker.Ipc;
 
 namespace CRS.DesktopClient.ViewModels;
 
-/// <summary>仅通过本机 IPC 请求公开任务状态；服务停止后保留带采样时间的内存快照。</summary>
-public partial class BackgroundServiceViewModel(CancellationToken lifetime, BackgroundPipeClient? serviceClient = null) : ObservableObject
+/// <summary>通过本机 IPC 请求公开任务与当前管理员可见的清理摘要；服务停止后保留并标明旧快照。</summary>
+public partial class BackgroundServiceViewModel(CancellationToken lifetime, BackgroundPipeClient? serviceClient = null,DataCleanupViewModel? cleanup = null) : ObservableObject
 {
     private readonly BackgroundPipeClient client = serviceClient ?? new();
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUnconfirmedRequest))] private BackgroundRequest? uncertainRequest;
@@ -29,6 +29,14 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         if(Busy)return (false,"正在处理其它请求，请稍后保存。");
         await MutateAsync("ChangeSchedule",new(WorkerProtocol.Version,Guid.NewGuid(),"ChangeSchedule",plan.PluginId,plan.JobId,expression,zone,plan.Revision));
         return (scheduleSaved,Status);
+    }
+    public async Task<(bool Saved,string Message)> SetScheduleEnabledAsync(TaskDefinition plan,bool enabled)
+    {
+        if(Busy||lifetime.IsCancellationRequested)return (false,"正在处理其它请求或会话已关闭，请稍后重试。");
+        BackgroundResponse? result=null;
+        var command=enabled?"Resume":"Pause";
+        await MutateAsync(command,new(WorkerProtocol.Version,Guid.NewGuid(),command,plan.PluginId,plan.JobId,ExpectedRevision:plan.Revision),response=>result=response);
+        return (result?.Code is "Ok" or "AcceptedNeedsReconcile",Status);
     }
     [ObservableProperty] private string status = "正在查询独立后台服务。";
     [ObservableProperty] private string snapshotTime = "尚未取得状态快照";
@@ -161,7 +169,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     private Task SaveAsync() => MutateAsync("ChangeSchedule");
     [RelayCommand]
     private Task CancelRunAsync() => MutateAsync("CancelRun");
-    private Task MutateAsync(string command,BackgroundRequest? explicitRequest=null) => WithStatusAsync(async () =>
+    private Task MutateAsync(string command,BackgroundRequest? explicitRequest=null,Action<BackgroundResponse>? onResponse=null) => WithStatusAsync(async () =>
     {
         if (Selected is null && explicitRequest is null) return;
         if (UncertainRequest is not null) { Status = "上次请求尚未确认，请先使用“重新确认请求”核对，避免误执行其它操作。"; return; }
@@ -169,6 +177,7 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         UncertainRequest = explicitRequest ?? new(WorkerProtocol.Version, Guid.NewGuid(), command, Selected!.PluginId, Selected.JobId, Cron, TimeZoneId, Selected.Revision);
         var response = await client.SendAsync(UncertainRequest, lifetime);
         UncertainRequest = null;
+        onResponse?.Invoke(response);
         scheduleSaved=command=="ChangeSchedule" && response.Code is "Ok" or "AcceptedNeedsReconcile";
         await LoadAsync();
         Status = response.Code switch

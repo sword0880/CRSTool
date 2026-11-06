@@ -1,5 +1,6 @@
 using CRS.DesktopClient.ViewModels;
 using CRS.Worker.Ipc;
+using CRS.Maintenance;
 internal static class TaskActivityChecks
 {
     public static async Task RunAsync()
@@ -9,7 +10,8 @@ internal static class TaskActivityChecks
         var server=new BackgroundPipeServer(control,pipe).RunAsync(stop.Token);
         try
         {
-            var model=new BackgroundServiceViewModel(stop.Token,new(pipe));
+            var gateway=new CleanupTaskModelChecks.Gateway();var cleanup=new DataCleanupViewModel(gateway);
+            var model=new BackgroundServiceViewModel(stop.Token,new(pipe),cleanup);
             await model.RefreshTaskActivityAsync();
             Check(model.RunningTasks.Count==1&&model.WaitingTasks.Count==1&&model.PendingTasks.Count==1,"完整收齐三个状态的多页结果");
             Check(model.PendingTasks[0].ReasonText.Contains("重试")&&model.PendingTasks[0].EarliestText.Contains("2026-10-21"),"等待原因和北京时间可读");
@@ -19,6 +21,26 @@ internal static class TaskActivityChecks
             Check(model.RunningTasks.Count==0&&model.WaitingTasks.Count==0&&model.PendingTasks.Count==0,"空结果清除所有旧任务");
             control.Unsupported=true;await model.RefreshTaskActivityAsync();
             Check(model.ActivityStatus.Contains("尚不支持"),"旧后台不被当作全部空闲");
+            control.Unsupported=false;control.Empty=false;
+            await cleanup.SubmitTaskCommand.ExecuteAsync(null);await model.RefreshTaskActivityAsync();
+            Check(model.WaitingTasks.Count==2&&model.WaitingTasks.Single(x=>x.Row.JobId=="data-cleanup").Row.RequestId==cleanup.CurrentTask?.Id,
+                "后台清理Queued出现在排队列表，与插件任务合并且保留原任务编号");
+            var queued=gateway.Overview.Current!;
+            gateway.Overview=gateway.Overview with{Current=queued with{State="Scanning",Progress=new("VerifyingBackups","private/path",859,119382731,VerifiedBytes:4096)}};
+            await model.RefreshTaskActivityAsync();
+            var cleaning=model.RunningTasks.Single(x=>x.Row.JobId=="data-cleanup");
+            Check(model.RunningTasks.Count==2&&model.WaitingTasks.Count==1&&model.ActivityStatus.Contains("执行中 2"),"扫描清理计入执行中，插件分页的数量校验仍然通过");
+            Check(cleaning.ReasonText.Contains("核验")&&cleaning.ReasonText.Contains("859")&&!cleaning.ReasonText.Contains("private/path")&&cleaning.ActivityTime==queued.SubmittedAt,
+                "显示实际扫描和校验量及提交时间，不把扫描量当成删除量或展示后台路径");
+            gateway.FailRead=true;await model.RefreshTaskActivityAsync();
+            Check(model.ActivityStatus.Contains("清理状态未确认")&&model.RunningTasks.Single(x=>x.Row.JobId=="data-cleanup").ReasonText.StartsWith("上次状态"),
+                "清理查询失败标记旧快照，不因插件查询成功冒充最新清理状态");
+            gateway.FailRead=false;gateway.Overview=gateway.Overview with{Current=queued with{State="Running",Progress=new("Deleting",null),DeletedFiles=5,DeletedBytes=1024}};
+            await model.RefreshTaskActivityAsync();
+            Check(model.RunningTasks.Single(x=>x.Row.JobId=="data-cleanup").ReasonText.Contains("已清理 5"),"执行阶段展示真实已删除数量");
+            await model.RefreshTaskActivityAsync();Check(model.RunningTasks.Count(x=>x.Row.JobId=="data-cleanup")==1,"连续刷新不重复累加清理任务");
+            gateway.Complete();await model.RefreshTaskActivityAsync();
+            Check(model.RunningTasks.Count==1&&model.WaitingTasks.Count==1&&cleanup.HasTaskNotification,"清理结束后退出当前任务列表，完成通知保留且插件任务不受影响");
         }
         finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
     }

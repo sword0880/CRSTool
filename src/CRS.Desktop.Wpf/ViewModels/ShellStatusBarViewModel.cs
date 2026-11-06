@@ -3,6 +3,8 @@ using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 using System.Windows.Threading;
 using System.IO;
+using CRS.Maintenance;
+using CRS.DesktopClient.Services;
 
 namespace CRS.DesktopClient.ViewModels;
 
@@ -13,21 +15,35 @@ namespace CRS.DesktopClient.ViewModels;
 public partial class ShellStatusBarViewModel : ObservableObject
 {
     private readonly BackgroundPipeClient client;
+    private readonly DataCleanupViewModel? cleanup;
     private DispatcherTimer? timer;
     private CancellationTokenSource? polling;
     private bool refreshing;
     private List<ExecutionRecord>? verifiedHistory;
     private long historySampleAt;
     private bool historyRefreshing;
+    private BackgroundTaskActivity? verifiedActivity;
+    private bool activityRefreshing;
     private BackgroundResponse? latestHealth;
     private long connectionRevision;
 
-    public ShellStatusBarViewModel(BackgroundPipeClient? client = null) => this.client = client ?? new();
+    public ShellStatusBarViewModel(BackgroundPipeClient? client = null,DataCleanupViewModel? cleanup = null)
+    {
+        this.client=client??new();this.cleanup=cleanup;
+        if(cleanup is not null)cleanup.PropertyChanged+=(_,e)=>
+        {
+            if(e.PropertyName is nameof(DataCleanupViewModel.CurrentTask) or nameof(DataCleanupViewModel.TaskStatusKnown)
+                &&latestHealth is {} health)
+                Update(DescribeCurrent(health));
+        };
+    }
+    private ShellStatusSnapshot DescribeCurrent(BackgroundResponse health)=>Describe(health,verifiedHistory,verifiedHistory?.Count??0,
+        verifiedHistory is not null,cleanup?.CurrentTask,cleanup?.TasksAvailable!=true||cleanup.TaskStatusKnown,verifiedActivity);
 
     [ObservableProperty] private string healthLabel = "后台状态待确认";
     [ObservableProperty] private string healthTone = "Warning";
     [ObservableProperty] private string healthDetail = "尚未取得独立 Windows Service 的健康采样。";
-    [ObservableProperty] private string taskLabel = "运行 -- · 排队 --";
+    [ObservableProperty] private string taskLabel = "运行 -- · 等待 --";
     [ObservableProperty] private string taskDetail = "尚未取得真实调度状态。";
     [ObservableProperty] private string lastSyncLabel = "最近同步：未确认";
     [ObservableProperty] private string lastSyncDetail = "仅统计国家队后台插件的成功同步，不推断数据最新交易日期。";
@@ -49,7 +65,7 @@ public partial class ShellStatusBarViewModel : ObservableObject
     {
         if(timer is not null){timer.Stop();timer.Tick-=OnTick;timer=null;}
         polling?.Cancel();polling?.Dispose();polling=null;
-        verifiedHistory=null;
+        verifiedHistory=null;verifiedActivity=null;latestHealth=null;
     }
 
     private async void OnTick(object? sender,EventArgs e)=>await RefreshAsync();
@@ -63,18 +79,38 @@ public partial class ShellStatusBarViewModel : ObservableObject
         {
             var health=await client.QueryAsync("GetHealth",token);
             token.ThrowIfCancellationRequested();
-            Update(Describe(health,verifiedHistory,verifiedHistory?.Count??0,verifiedHistory is not null));
             latestHealth=health;
-            if(health.Code!="Ok" || health.Health?.State is not ("Running" or "Degraded" or "Maintenance")){verifiedHistory=null;connectionRevision++;return;}
+            if(health.Code!="Ok" || health.Health?.State is not ("Running" or "Degraded" or "Maintenance"))
+            {verifiedHistory=null;verifiedActivity=null;connectionRevision++;Update(DescribeCurrent(health));return;}
+            Update(DescribeCurrent(health));
+            if(!activityRefreshing)_=RefreshActivityAsync(token,connectionRevision);
             if(verifiedHistory is not null && Environment.TickCount64-historySampleAt<45000)return;
             if(!historyRefreshing)_=RefreshHistoryAsync(token,connectionRevision);
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested){ }
         catch(Exception)
         {
-            if(!token.IsCancellationRequested){verifiedHistory=null;latestHealth=null;connectionRevision++;Update(Unavailable());}
+            if(!token.IsCancellationRequested){verifiedHistory=null;verifiedActivity=null;latestHealth=null;connectionRevision++;Update(Unavailable());}
         }
         finally{refreshing=false;}
+    }
+    private async Task RefreshActivityAsync(CancellationToken token,long revision)
+    {
+        activityRefreshing=true;
+        try
+        {
+            var snapshot=await WorkerTaskActivityReader.ReadAsync(client,token);
+            token.ThrowIfCancellationRequested();
+            if(revision!=connectionRevision||latestHealth is null)return;
+            verifiedActivity=snapshot;Update(DescribeCurrent(latestHealth));
+        }
+        catch(OperationCanceledException) when(token.IsCancellationRequested){}
+        catch(Exception)
+        {
+            if(revision==connectionRevision&&latestHealth is {} health)
+            {verifiedActivity=null;Update(DescribeCurrent(health));}
+        }
+        finally{activityRefreshing=false;}
     }
     private async Task RefreshHistoryAsync(CancellationToken token,long revision)
     {
@@ -98,7 +134,7 @@ public partial class ShellStatusBarViewModel : ObservableObject
             }
             if(revision!=connectionRevision || latestHealth is null)return;
             verifiedHistory=rows;historySampleAt=Environment.TickCount64;
-            Update(Describe(latestHealth,rows,rows.Count,true));
+            Update(DescribeCurrent(latestHealth));
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested){ }
         catch(Exception)
@@ -106,7 +142,7 @@ public partial class ShellStatusBarViewModel : ObservableObject
             if(!token.IsCancellationRequested && revision==connectionRevision)
             {
                 verifiedHistory=null;
-                if(latestHealth is {} health)Update(Describe(health,null,0,false));
+                if(latestHealth is {} health)Update(DescribeCurrent(health));
             }
         }
         finally{historyRefreshing=false;}
@@ -126,12 +162,13 @@ public partial class ShellStatusBarViewModel : ObservableObject
 
     public static ShellStatusSnapshot Unavailable() => new(
         "服务不可用","Error","无法确认 Windows Service 实时状态；可能是未启动、权限或管道连接问题。",
-        "运行 -- · 排队 --","无实时 Worker 调度快照。",
+        "运行 -- · 等待 --","无实时 Worker 调度快照。",
         "最近同步：未确认","连接中断，不能继续沿用上次同步快照。",
         "运行异常：未确认","未读取到新健康采样；旧正常状态已撤回。");
 
     /// <summary>纯快照映射便于不启动服务的 WPF/状态回归；失败时不能把缺字段默认为0。</summary>
-    public static ShellStatusSnapshot Describe(BackgroundResponse response,IReadOnlyList<ExecutionRecord>? history,int inspected,bool historyVerified)
+    public static ShellStatusSnapshot Describe(BackgroundResponse response,IReadOnlyList<ExecutionRecord>? history,int inspected,bool historyVerified,
+        DataCleanupTask? cleanupTask=null,bool cleanupKnown=true,BackgroundTaskActivity? activity=null)
     {
         if(response.Code!="Ok" || response.Health is not { } health)return Unavailable();
         var state=health.State;
@@ -146,9 +183,23 @@ public partial class ShellStatusBarViewModel : ObservableObject
         };
         var sample=health.ObservedUtc.ToString("MM-dd HH:mm:ss");
         var scheduling=health.Scheduling;
-        var tasks=scheduling is null?"运行 -- · 排队 --":$"运行 {scheduling.Running} · 排队 {scheduling.Waiting} · 待执行请求 {scheduling.PendingManualCommands}";
-        var taskDetail=scheduling is null?"后台未提供调度快照。":
-            $"后台调度：运行 {scheduling.Running}，排队 {scheduling.Waiting}，待执行请求 {scheduling.PendingManualCommands}。部分请求可能已在排队中，以上数量不能直接相加。";
+        int? running=activity?.Running??scheduling?.Running;
+        int? waiting=activity is null?null:activity.Waiting+activity.Pending;
+        var taskDetail=activity is null?"尚未取得可去重的当前任务快照，等待数量未确认；不能将健康采样中的排队和手动请求数量直接相加。":
+            $"当前任务：运行 {activity.Running}，等待 {waiting}（排队 {activity.Waiting}、尚未入队请求 {activity.Pending}，同一快照已去重）。采样 {activity.ObservedAt:MM-dd HH:mm:ss}（北京时间）。";
+        if(!cleanupKnown)
+        {
+            running=null;waiting=null;
+            taskDetail+=" 清理任务未取得最新状态，以上数量仅含插件任务。";
+        }
+        else if(CleanupTaskPresentation.Active(cleanupTask))
+        {
+            var queued=cleanupTask!.State=="Queued";
+            if(queued)waiting+=1;else running+=1;
+            taskDetail+=" 数量已另计1项后台资料清理（独立于插件执行名额）："+CleanupTaskPresentation.Detail(cleanupTask)+
+                $"；清理采样 {cleanupTask.UpdatedAt:MM-dd HH:mm:ss}（北京时间）。";
+        }
+        var tasks=$"运行 {running?.ToString()??"--"} · 等待 {waiting?.ToString()??"--"}";
         var hasSources=health.Sources is not null;
         var cooling=health.Sources?.Count(x=>x.State=="Cooldown")??0;
         var hasPlugins=response.Plugins is not null;

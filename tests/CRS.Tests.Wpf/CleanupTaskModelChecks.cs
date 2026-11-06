@@ -2,14 +2,37 @@ using System.IO;
 using CRS.Application.Abstractions;
 using CRS.DesktopClient.ViewModels;
 using CRS.Maintenance;
+using CRS.DesktopClient.Services;
+using CRS.Worker.Ipc;
+using System.Text.Json;
 
 internal static class CleanupTaskModelChecks
 {
+    // 显式只读诊断：通过现有管理员协议验证已安装后台的清理摘要与桌面合并展示，不提交或确认任务。
+    internal static async Task ProbeAsync()
+    {
+        var gateway=new WorkerDataCleanupGateway();
+        if(!gateway.CanExecute)throw new InvalidOperationException("读取后台私有清理摘要需要管理员权限。");
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var cleanup=new DataCleanupViewModel(gateway);await cleanup.RefreshTaskCommand.ExecuteAsync(null);
+        if(!cleanup.TaskStatusKnown)throw new InvalidOperationException(cleanup.TaskMessage);
+        var client=new BackgroundPipeClient();var health=await client.QueryAsync("GetHealth",deadline.Token);
+        var activity=await WorkerTaskActivityReader.ReadAsync(client,deadline.Token);
+        var status=ShellStatusBarViewModel.Describe(health,null,0,false,cleanup.CurrentTask,activity:activity);
+        var center=new BackgroundServiceViewModel(deadline.Token,client,cleanup);await center.RefreshTaskActivityAsync();
+        if(!center.ActivityStatus.Contains("北京时间"))throw new InvalidOperationException(center.ActivityStatus);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            ObservedAt=CRS.Timing.BeijingClock.Now,CurrentId=cleanup.CurrentTask?.Id,CurrentState=cleanup.CurrentTask?.State,
+            status.TaskLabel,status.TaskDetail,center.ActivityStatus,
+            CleanupRows=center.RunningTasks.Concat(center.WaitingTasks).Where(x=>x.Row.JobId=="data-cleanup").Select(x=>new{x.Row.State,x.ReasonText,x.Row.RequestId})
+        }));
+    }
     internal sealed class Gateway:IDataCleanupGateway,IDataCleanupTaskGateway
     {
         public bool CanExecute=>true;
         public DataCleanupTaskOverview Overview=new(null,null,null,true);
-        public List<Guid> Requests=[];public int Created,Acknowledged;public bool DropNextReply;
+        public List<Guid> Requests=[];public int Created,Acknowledged;public bool DropNextReply,FailRead;
         public Task<DataCleanupTaskOverview> SubmitAsync(Guid id,CancellationToken token)
         {
             Requests.Add(id);
@@ -17,7 +40,7 @@ internal static class CleanupTaskModelChecks
             if(DropNextReply){DropNextReply=false;throw new IOException("合成响应中断");}
             return Task.FromResult(Overview);
         }
-        public Task<DataCleanupTaskOverview> LatestAsync(CancellationToken token)=>Task.FromResult(Overview);
+        public Task<DataCleanupTaskOverview> LatestAsync(CancellationToken token)=>FailRead?throw new IOException("合成查询中断"):Task.FromResult(Overview);
         public Task<DataCleanupTaskOverview> AcknowledgeAsync(Guid id,CancellationToken token)
         {if(Overview.Notification?.Id!=id)throw new Exception("确认了其他通知。");Acknowledged++;Overview=Overview with{Notification=null};return Task.FromResult(Overview);}
         public void Complete(bool known=true,string state="Completed")
@@ -36,12 +59,14 @@ internal static class CleanupTaskModelChecks
         var gateway=new Gateway();var model=new DataCleanupViewModel(gateway);
         await model.SubmitTaskCommand.ExecuteAsync(null);
         Check(!model.TaskRequestBusy&&!model.Busy&&gateway.Created==1&&model.TaskMessage.Contains("关闭设置"),"提交后立即返回，前台不等待完整清理");
+        Check(model.TaskStatusKnown&&model.CurrentTask?.State=="Queued","受理响应立即保留当前排队任务供任务中心和底栏显示");
         model.StopWaiting();Check(gateway.Overview.Current is not null,"关闭设置的等待清理不取消后台任务");
         await model.SubmitTaskCommand.ExecuteAsync(null);Check(gateway.Created==1,"重复点击由后台复用已存在任务");
         gateway.Complete();var restarted=new DataCleanupViewModel(gateway);await restarted.RefreshTaskCommand.ExecuteAsync(null);
         Check(restarted.HasTaskNotification&&restarted.TaskNotificationMessage.Contains("17"),"新建前台会话无需原任务编号即可取得完成提醒");
         await restarted.DismissTaskNotificationCommand.ExecuteAsync(null);
         Check(!restarted.HasTaskNotification&&gateway.Acknowledged==1,"确认完成提醒后持久标记已读");
+        Check(restarted.TaskStatusKnown&&restarted.CurrentTask is null,"完成摘要撤回当前任务，同时保留完成提醒的既有流程");
         var again=new DataCleanupViewModel(gateway);await again.RefreshTaskCommand.ExecuteAsync(null);Check(!again.HasTaskNotification,"再次打开前台不重复提醒已读结果");
         gateway.Complete(false,"Interrupted");await again.RefreshTaskCommand.ExecuteAsync(null);
         Check(again.TaskNotificationTitle.Contains("未全部完成")&&again.TaskNotificationMessage.Contains("未完整记录"),"中断与未知数量不误报清理成功或零删除");
@@ -49,6 +74,10 @@ internal static class CleanupTaskModelChecks
         await retry.SubmitTaskCommand.ExecuteAsync(null);await retry.SubmitTaskCommand.ExecuteAsync(null);
         Check(uncertain.Created==1&&uncertain.Requests.Count==2&&uncertain.Requests.Distinct().Count()==1,"响应丢失后保留原提交编号，重试不创建第二轮任务");
         Check(!new DataCleanupViewModel(null).SubmitTaskCommand.CanExecute(null),"没有任务入口时不提供提交能力");
+        uncertain.FailRead=true;await retry.RefreshTaskCommand.ExecuteAsync(null);
+        Check(!retry.TaskStatusKnown&&retry.CurrentTask is not null,"摘要查询失败保留旧任务并标记未确认，不误报清理结束");
+        uncertain.FailRead=false;await retry.RefreshTaskCommand.ExecuteAsync(null);
+        Check(retry.TaskStatusKnown&&retry.CurrentTask?.State=="Queued","查询恢复后重新确认现有任务，不发起清理");
         Console.WriteLine($"前台后台清理任务模型验证通过：{passed}项。");
     }
 }

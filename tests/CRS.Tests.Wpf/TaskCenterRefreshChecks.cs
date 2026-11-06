@@ -62,7 +62,11 @@ internal static class TaskCenterRefreshChecks
             while(control.Calls.Count(x=>x=="GetHealth")<baseline+2 && Environment.TickCount64<deadline)await Task.Delay(100,token);
             if(control.Calls.Count(x=>x=="GetHealth")<baseline+2 || control.ReleaseHistory.Task.IsCompleted)
                 throw new Exception("慢同步历史查询仍阻挡底栏3秒健康采样。");
-            Console.WriteLine("PASS 底栏：同步历史挂起期间仍持续查询运行/排队状态。");
+            if(footer!.TaskLabel!="运行 2 · 等待 3")throw new Exception("底栏没有使用同一快照去重后的等待数，或慢历史阻塞了任务采样。");
+            control.ActivityUnavailable=true;deadline=Environment.TickCount64+7000;
+            while(footer.TaskLabel!="运行 2 · 等待 --"&&Environment.TickCount64<deadline)await Task.Delay(100,token);
+            if(footer.TaskLabel!="运行 2 · 等待 --")throw new Exception("任务采样失败后仍保留旧等待总数。");
+            Console.WriteLine("PASS 底栏：慢同步历史不阻挡运行/等待采样，等待按同一快照去重，采样失败后撤回旧等待数。");
         }
         finally
         {
@@ -79,6 +83,7 @@ internal static class TaskCenterRefreshChecks
         internal readonly TaskCompletionSource ReleaseHistory=new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal bool BlockHistory;
         internal bool ProvidePending=true;
+        internal bool ActivityUnavailable;
         internal ExecutionRecord Record=new(Guid.NewGuid().ToString("N"),"crs.national-team","market-activity-sync",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,null,"Running",null,1);
         public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
@@ -86,9 +91,16 @@ internal static class TaskCenterRefreshChecks
             if(request.Command=="GetHealth")
             {
                 HealthRequested.TrySetResult();await ReleaseHealth.Task.WaitAsync(token);
-                return new(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,1));
+                return new(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,1,new(4,2,1,12,0,0,3)));
             }
             if(request.Command=="GetJobs")return new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[]);
+            if(request.Command=="GetTaskActivity")
+            {
+                if(ActivityUnavailable)return new(WorkerProtocol.Version,request.RequestId,"Unavailable");
+                BackgroundTaskActivityRow Row(string job,string state)=>new("plugin",job,job,state,"Executing");
+                return new(WorkerProtocol.Version,request.RequestId,"Ok",TaskActivity:new(CRS.Timing.BeijingClock.Now,
+                    [Row("run1","Running"),Row("run2","Running"),Row("wait","Waiting"),Row("pending1","Pending"),Row("pending2","Pending")],2,1,2));
+            }
             if(BlockHistory)await ReleaseHistory.Task.WaitAsync(token);
             var match=request.JobId is null || request.JobId==Record.JobId;
             return new(WorkerProtocol.Version,request.RequestId,"Ok",History:match?[Record]:[],AppliedResultFilter:request.ResultFilter,
