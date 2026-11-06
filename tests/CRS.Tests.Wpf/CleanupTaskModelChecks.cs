@@ -18,7 +18,7 @@ internal static class CleanupTaskModelChecks
         if(!cleanup.TaskStatusKnown)throw new InvalidOperationException(cleanup.TaskMessage);
         var client=new BackgroundPipeClient();var health=await client.QueryAsync("GetHealth",deadline.Token);
         var activity=await WorkerTaskActivityReader.ReadAsync(client,deadline.Token);
-        var status=ShellStatusBarViewModel.Describe(health,null,0,false,cleanup.CurrentTask,activity:activity);
+        var status=ShellStatusBarViewModel.Describe(health,cleanup.CurrentTask,activity:activity);
         var center=new BackgroundServiceViewModel(deadline.Token,client,cleanup);await center.RefreshTaskActivityAsync();
         if(!center.ActivityStatus.Contains("北京时间"))throw new InvalidOperationException(center.ActivityStatus);
         Console.WriteLine(JsonSerializer.Serialize(new
@@ -60,6 +60,10 @@ internal static class CleanupTaskModelChecks
         await model.SubmitTaskCommand.ExecuteAsync(null);
         Check(!model.TaskRequestBusy&&!model.Busy&&gateway.Created==1&&model.TaskMessage.Contains("关闭设置"),"提交后立即返回，前台不等待完整清理");
         Check(model.TaskStatusKnown&&model.CurrentTask?.State=="Queued","受理响应立即保留当前排队任务供任务中心和底栏显示");
+        Check(model.AutomaticPlanStatus.Contains("未提供"),"旧后台缺少维护计划时明确未确认，不编造下次时间");
+        gateway.Overview=gateway.Overview with{AutomaticPlan=new("Waiting",CRS.Timing.BeijingClock.Now.AddDays(1),300,30,86400,3600,14,1)};
+        await model.RefreshTaskCommand.ExecuteAsync(null);
+        Check(model.AutomaticPlanPolicy.Contains("24")&&model.AutomaticPlanStatus.Contains("已启用")&&model.AutomaticPlanNext.Contains("下次到期"),"从服务摘要展示真实保留规则及到期时间");
         model.StopWaiting();Check(gateway.Overview.Current is not null,"关闭设置的等待清理不取消后台任务");
         await model.SubmitTaskCommand.ExecuteAsync(null);Check(gateway.Created==1,"重复点击由后台复用已存在任务");
         gateway.Complete();var restarted=new DataCleanupViewModel(gateway);await restarted.RefreshTaskCommand.ExecuteAsync(null);

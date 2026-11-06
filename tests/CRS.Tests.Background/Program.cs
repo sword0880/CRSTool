@@ -7,6 +7,7 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+if(args is ["--diagnostic-jobs"]){await DiagnosticJobChecks.RunAsync();return;}
 if(args is ["--command-tracker"]){BackgroundCommandTrackerChecks.Run();return;}
 if(args is ["--staged-documents",var stagedRoot]){StagedDocumentChecks.Run(stagedRoot);return;}
 if(args is ["--document-ingress-boundaries",var ingressRoot]){await DocumentIngressBoundaryChecks.RunAsync(ingressRoot);return;}
@@ -158,7 +159,7 @@ if (args.Contains("--readonly-check"))
     var client = new BackgroundPipeClient();
     var health = await client.QueryAsync("GetHealth");
     var jobs = await client.QueryAsync("GetJobs");
-    var plan = jobs.Jobs!.First();
+    var plan = (jobs.Jobs?.FirstOrDefault()??(await client.QueryAsync("GetDiagnosticJobs")).Jobs!.First());
     var denied = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "Pause", plan.PluginId, plan.JobId, ExpectedRevision: plan.Revision));
     Environment.ExitCode = health.Code == "Ok" && denied.Code == "Forbidden" ? 0 : 11;
     return;
@@ -242,7 +243,8 @@ await using (var catalog = new BackgroundPluginCatalog())
     var until = DateTimeOffset.UtcNow.AddSeconds(8);
     while (!repository.History().Any(x => x.Result == "Succeeded") && DateTimeOffset.UtcNow < until) await Task.Delay(50);
     Check(repository.History().Any(x => x.Result == "Succeeded"), "真实 Quartz 分发执行并持久历史");
-    Check((await Command("ChangeSchedule", repository.Plans().Single().Revision, "bad-cron")).Code == "InvalidOrStaleRequest", "非法 Cron 在提交前拒绝");
+    Check((await Command("ChangeSchedule", repository.Plans().Single().Revision, "bad-cron")).Code == "DiagnosticOnly", "诊断任务不能变成周期计划");
+    Check((await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetJobs"),caller,default)).Jobs!.Count==0,"业务计划不混入诊断项");
     var pipeName = "CRS.Background.Tests." + Guid.NewGuid().ToString("N");
     using var stopPipe = new CancellationTokenSource(); var listening = new BackgroundPipeServer(runtime, pipeName).RunAsync(stopPipe.Token);
     var client = new BackgroundPipeClient(pipeName);
@@ -274,7 +276,7 @@ using (var child = Launch())
         Check(true, "独立无桌面服务进程启动并提供管理管道");
         using var duplicate = Launch(); await duplicate.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
         Check(duplicate.ExitCode != 0 && !child.HasExited, "同目录第二服务进程拒绝且首实例继续运行");
-        var plan = (await client.QueryAsync("GetJobs")).Jobs!.First();
+        var plan = (await client.QueryAsync("GetDiagnosticJobs")).Jobs!.First();
         var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "Pause", plan.PluginId, plan.JobId, ExpectedRevision: plan.Revision));
         Check(response.Code == "Ok", "真实管道管理员授权修改计划");
     }
@@ -285,7 +287,7 @@ using (var restored = Launch())
     try
     {
         var client = new BackgroundPipeClient(processPipe); await WaitPipe(client, restored);
-        Check((await client.QueryAsync("GetJobs")).Jobs!.Single() is { Enabled: false, Revision: 2 }, "真实强杀重启保留暂停计划且只重建一个任务");
+        Check((await client.QueryAsync("GetDiagnosticJobs")).Jobs!.Single() is { Enabled: false, Revision: 2 }, "真实强杀重启保留暂停计划且只重建一个任务");
     }
     finally { if (!restored.HasExited) restored.Kill(); await restored.WaitForExitAsync(); }
 }

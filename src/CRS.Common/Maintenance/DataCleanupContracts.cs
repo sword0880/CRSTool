@@ -14,4 +14,9 @@ public sealed record DataCleanupStatus(Guid OperationId,string State,DateTimeOff
 /// <summary>后台持久任务摘要；不向前台传递清理目标路径或文件清单。</summary>
 public sealed record DataCleanupTask(Guid Id,string Origin,string State,DateTimeOffset SubmittedAt,DateTimeOffset UpdatedAt,
     DateTimeOffset? FinishedAt,long DeletedBytes,int DeletedFiles,bool CountsComplete,string Message,DataCleanupProgress? Progress=null);
-public sealed record DataCleanupTaskOverview(DataCleanupTask? Current,DataCleanupTask? LatestResult,DataCleanupTask? Notification,bool CanSubmit);
+public sealed record DataCleanupAutomaticPlan(string State,DateTimeOffset? NextDueAt,int StartupDelaySeconds,int CheckIntervalSeconds,
+    int SuccessIntervalSeconds,int RetryIntervalSeconds,int LogRetentionDays,int HistoricalBackupsToKeep);
+public sealed record DataCleanupTaskOverview(DataCleanupTask? Current,DataCleanupTask? LatestResult,DataCleanupTask? Notification,bool CanSubmit)
+{
+    public DataCleanupAutomaticPlan? AutomaticPlan{get;init;}
+}

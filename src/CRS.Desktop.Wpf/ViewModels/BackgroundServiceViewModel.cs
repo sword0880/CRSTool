@@ -7,9 +7,19 @@ using CRS.Worker.Ipc;
 namespace CRS.DesktopClient.ViewModels;
 
 /// <summary>通过本机 IPC 请求公开任务与当前管理员可见的清理摘要；服务停止后保留并标明旧快照。</summary>
-public partial class BackgroundServiceViewModel(CancellationToken lifetime, BackgroundPipeClient? serviceClient = null,DataCleanupViewModel? cleanup = null) : ObservableObject
+public partial class BackgroundServiceViewModel : ObservableObject
 {
-    private readonly BackgroundPipeClient client = serviceClient ?? new();
+    private readonly CancellationToken lifetime;
+    private readonly BackgroundPipeClient client;
+    private readonly DataCleanupViewModel? cleanup;
+    public BackgroundServiceViewModel(CancellationToken lifetime,BackgroundPipeClient? serviceClient=null,DataCleanupViewModel? cleanup=null)
+    {
+        this.lifetime=lifetime;client=serviceClient??new();this.cleanup=cleanup;
+        maintenancePlan=new(cleanup);PlanRows.Add(maintenancePlan);
+        Jobs.CollectionChanged+=OnJobsChanged;
+        maintenancePlan.PropertyChanged+=(_,_)=>NotifyPlanCommands();
+    }
+    public DataCleanupViewModel? Cleanup=>cleanup;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUnconfirmedRequest))] private BackgroundRequest? uncertainRequest;
     private string healthState = "Unknown";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasMoreJobs))] private string? jobsCursor;
@@ -98,10 +108,12 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
 
     public bool CanChangeHistory=>!Busy;
     partial void OnBusyChanged(bool value)
-    {OnPropertyChanged(nameof(CanChangeHistory));OnPropertyChanged(nameof(HasUnconfirmedRequest));}
+    {OnPropertyChanged(nameof(CanChangeHistory));OnPropertyChanged(nameof(HasUnconfirmedRequest));NotifyPlanCommands();}
     partial void OnSelectedChanged(TaskDefinition? value)
     {
-        if (value is not null) { Cron = value.Cron; TimeZoneId = value.TimeZoneId; }
+        if (value is not null) { Cron = value.Cron; TimeZoneId = value.TimeZoneId;SelectedPlan=PlanRows.FirstOrDefault(x=>x.Job==value); }
+        else if(SelectedPlan?.IsMaintenance!=true)SelectedPlan=null;
+        NotifyPlanCommands();
     }
     [RelayCommand]
     private Task RefreshAsync() => WithStatusAsync(async () => { await LoadAsync(); Status = healthState switch
@@ -134,9 +146,10 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
         lifetime.ThrowIfCancellationRequested();
         if (health.Code != "Ok" || plans.Code != "Ok") throw new InvalidOperationException("服务协议不兼容。");
         JobsCursor = plans.NextCursor;
-        var key = Selected; Jobs.Clear(); foreach (var row in plans.Jobs ?? []) Jobs.Add(row);
+        var key = Selected;var keepMaintenance=SelectedPlan?.IsMaintenance==true; Jobs.Clear(); foreach (var row in plans.Jobs ?? []) Jobs.Add(row);
         UpdateHistorySuggestions();
-        Selected = Jobs.FirstOrDefault(x => x.PluginId == key?.PluginId && x.JobId == key.JobId) ?? Jobs.FirstOrDefault();
+        if(keepMaintenance)SelectedPlan=maintenancePlan;
+        else Selected = Jobs.FirstOrDefault(x => x.PluginId == key?.PluginId && x.JobId == key.JobId) ?? Jobs.FirstOrDefault();
     }
     private void UpdateHistorySuggestions()
     {
@@ -159,15 +172,24 @@ public partial class BackgroundServiceViewModel(CancellationToken lifetime, Back
     public static bool IsIssueResult(string result) =>
         result is not ("Succeeded" or "NotPublished" or "Running" or "Cancelled");
 
-    [RelayCommand]
-    private Task RunNowAsync() => MutateAsync("RunNow");
-    [RelayCommand]
+    [RelayCommand(CanExecute=nameof(CanRunSelectedPlan))]
+    private async Task RunNowAsync()
+    {
+        if(SelectedPlan?.IsMaintenance==true)
+        {
+            if(!CanRunSelectedPlan())return;
+            await cleanup!.SubmitTaskCommand.ExecuteAsync(null);
+            Status=cleanup.TaskStatusKnown?"清理任务已交给后台，可在“当前任务”查看。":"清理任务受理状态未确认，请刷新核对。";
+        }
+        else await MutateAsync("RunNow");
+    }
+    [RelayCommand(CanExecute=nameof(CanUseSelectedPlan))]
     private Task PauseAsync() => MutateAsync("Pause");
-    [RelayCommand]
+    [RelayCommand(CanExecute=nameof(CanUseSelectedPlan))]
     private Task ResumeAsync() => MutateAsync("Resume");
-    [RelayCommand]
+    [RelayCommand(CanExecute=nameof(CanUseSelectedPlan))]
     private Task SaveAsync() => MutateAsync("ChangeSchedule");
-    [RelayCommand]
+    [RelayCommand(CanExecute=nameof(CanUseSelectedPlan))]
     private Task CancelRunAsync() => MutateAsync("CancelRun");
     private Task MutateAsync(string command,BackgroundRequest? explicitRequest=null,Action<BackgroundResponse>? onResponse=null) => WithStatusAsync(async () =>
     {

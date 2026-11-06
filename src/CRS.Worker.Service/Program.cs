@@ -8,6 +8,12 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 // 安装器以应用健康确认启动完成；探测模式只读管道，不占用数据目录租约。
+if(args is ["--diagnostic-heartbeat"])
+{
+    using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    var response=await new BackgroundPipeClient().SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.heartbeat","heartbeat"),deadline.Token);
+    Console.WriteLine(JsonSerializer.Serialize(response));Environment.ExitCode=response.Code=="Accepted"?0:3;return;
+}
 if (args is ["--health-probe"] or ["--pause-auto-cleanup"])
 {
     try

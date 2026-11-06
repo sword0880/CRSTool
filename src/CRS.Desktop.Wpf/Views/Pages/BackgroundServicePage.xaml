@@ -4,6 +4,7 @@
  <UserControl.Resources>
   <time:BeijingTimestampConverter x:Key="BeijingTimestamp"/>
   <BooleanToVisibilityConverter x:Key="TaskButtonVisibility"/>
+  <Style x:Key="PlanCellText" TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Text,RelativeSource={RelativeSource Self}}"/></Style>
   <Style x:Key="PlanAction" TargetType="Button"><Setter Property="IsEnabled" Value="False"/><Setter Property="ToolTip" Value="请在服务计划中选择任务后操作"/><Style.Triggers><DataTrigger Binding="{Binding SelectedIndex,ElementName=TaskCenterTabs}" Value="0"><Setter Property="IsEnabled" Value="True"/></DataTrigger></Style.Triggers></Style>
  </UserControl.Resources>
  <Grid Margin="24">
@@ -25,14 +26,24 @@
    </StackPanel>
   </WrapPanel>
   <TabControl x:Name="TaskCenterTabs" Grid.Row="2" Grid.RowSpan="2">
-   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><TextBlock Text="双击计划行或按 Enter 修改 Cron（北京时间）。" Foreground="{DynamicResource BrandTextSecondaryBrush}" Margin="0,8,0,10"/><DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding Jobs}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
-    <DataGrid.Columns><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/><DataGridTextColumn Header="任务" Binding="{Binding Name}"/><DataGridTextColumn Header="任务编号（英文）" Binding="{Binding JobId}"/><DataGridTextColumn Header="Cron" Binding="{Binding Cron}"/><DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}"/><DataGridTextColumn Header="修订" Binding="{Binding Revision}"/>
-     <DataGridCheckBoxColumn Header="计划待生效" Binding="{Binding NeedsReconcile}">
-      <DataGridCheckBoxColumn.HeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="ToolTip" Value="勾选表示计划已保存，后台正在应用最新配置；成功后自动取消勾选。未勾选表示配置已应用。此状态不表示任务正在运行或排队。"/></Style></DataGridCheckBoxColumn.HeaderStyle>
-      <DataGridCheckBoxColumn.CellStyle><Style TargetType="DataGridCell"><Setter Property="ToolTip" Value="勾选：计划已保存，等待后台应用，成功后自动清除。未勾选：配置已应用。无需手动操作。"/></Style></DataGridCheckBoxColumn.CellStyle>
-     </DataGridCheckBoxColumn>
-    </DataGrid.Columns>
-   </DataGrid><Button x:Name="MorePlansButton" Grid.Row="2" Content="加载更多计划" Command="{Binding MoreJobsCommand}" Visibility="{Binding HasMoreJobs,Converter={StaticResource TaskButtonVisibility}}" HorizontalAlignment="Left" Margin="0,10,0,0"/></Grid></TabItem>
+   <TabItem Header="服务计划"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="双击任务或按 Enter 查看详情；可编辑的计划可在详情中修改执行周期。" Foreground="{DynamicResource BrandTextSecondaryBrush}" Margin="0,8,0,10"/>
+    <DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding PlanRows}" SelectedItem="{Binding SelectedPlan}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+     <DataGrid.Columns>
+      <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="220" ElementStyle="{StaticResource PlanCellText}"/>
+      <DataGridTextColumn Header="执行周期" Binding="{Binding Cron}" Width="140" ElementStyle="{StaticResource PlanCellText}"/>
+      <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled,Mode=OneWay}" IsThreeState="True"/>
+      <DataGridTextColumn Header="当前状态" Binding="{Binding StateText}" Width="140" ElementStyle="{StaticResource PlanCellText}"/>
+      <DataGridTextColumn Header="到期／重试时间（北京时间）" Binding="{Binding NextDueText}" Width="220" ElementStyle="{StaticResource PlanCellText}"/>
+      <DataGridTextColumn Header="任务编号（英文）" Binding="{Binding JobId}"/><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/>
+      <DataGridTextColumn Header="修订" Binding="{Binding Revision}"/>
+      <DataGridCheckBoxColumn Header="计划待生效" Binding="{Binding NeedsReconcile,Mode=OneWay}" IsThreeState="True">
+       <DataGridCheckBoxColumn.HeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="ToolTip" Value="勾选表示计划已保存，后台正在应用；该标记不表示任务运行或排队。"/></Style></DataGridCheckBoxColumn.HeaderStyle>
+      </DataGridCheckBoxColumn>
+     </DataGrid.Columns>
+    </DataGrid>
+    <Button x:Name="MorePlansButton" Grid.Row="2" Content="加载更多计划" Command="{Binding MoreJobsCommand}" Visibility="{Binding HasMoreJobs,Converter={StaticResource TaskButtonVisibility}}" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+   </Grid></TabItem>
    <TabItem Header="执行记录"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <!-- 筛选在服务端分页前执行，空白表示全部。 -->
     <StackPanel Margin="0,8,0,10">

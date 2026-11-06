@@ -18,7 +18,16 @@ public sealed partial class DataCleanupViewModel
     [ObservableProperty]private string taskNotificationTitle="";
     [ObservableProperty]private string taskNotificationMessage="";
     [ObservableProperty]private DataCleanupTask? currentTask;
-    [ObservableProperty]private bool taskStatusKnown;
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus)),NotifyPropertyChangedFor(nameof(AutomaticPlanNext))]private bool taskStatusKnown;
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus)),NotifyPropertyChangedFor(nameof(AutomaticPlanPolicy)),NotifyPropertyChangedFor(nameof(AutomaticPlanNext))]
+    private DataCleanupAutomaticPlan? automaticCleanupPlan;
+    public string AutomaticPlanPolicy=>AutomaticCleanupPlan is {} plan
+        ?$"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时再次到期；未完成时 {TimeSpan.FromSeconds(plan.RetryIntervalSeconds).TotalMinutes:N0} 分钟后重试。日志保留 {plan.LogRetentionDays} 天，保留当前快照及 {plan.HistoricalBackupsToKeep} 份有效历史副本。"
+        :"后台按保留规则执行；尚未取得计划详情。";
+    public string AutomaticPlanStatus=>!TaskStatusKnown?"状态未确认":AutomaticCleanupPlan?.State switch
+    {"Running"=>"清理执行中","Waiting"=>"已启用，等待到期","Due"=>"已到期，等待可用时机","Paused"=>"维护暂停中，到期后恢复","NotStarted"=>"自动清理循环尚未启动","Unavailable"=>"计划状态不可用，请检查后台",_=>"当前后台未提供维护计划摘要，请更新配套后台。"};
+    public string AutomaticPlanNext=>TaskStatusKnown&&AutomaticCleanupPlan?.NextDueAt is {} due
+        ?$"下次到期：{due:yyyy-MM-dd HH:mm:ss}（北京时间）；实际执行需等待当前清理或维护结束。":"下次到期时间未确认。";
     public bool TasksAvailable=>Tasks?.CanExecute==true;
     public string TaskAccessMessage=>TasksAvailable?"后台固定保留当前快照和最近一份有效历史副本，日志至少保留14天；当前数据库、密钥和插件原件保留。":"需要管理员权限及支持后台清理任务的配套服务。";
     private bool CanSubmitTask()=>TasksAvailable&&!TaskRequestBusy;
@@ -56,7 +65,7 @@ public sealed partial class DataCleanupViewModel
     }
     internal void ApplyTaskOverview(DataCleanupTaskOverview overview)
     {
-        CurrentTask=overview.Current;TaskStatusKnown=true;
+        CurrentTask=overview.Current;AutomaticCleanupPlan=overview.AutomaticPlan;TaskStatusKnown=true;
         notification=overview.Notification;HasTaskNotification=notification is not null;
         if(notification is null){TaskNotificationTitle="";TaskNotificationMessage="";return;}
         TaskNotificationTitle=notification.State=="Completed"&&notification.CountsComplete?"后台资料清理完成":"后台资料清理未全部完成";

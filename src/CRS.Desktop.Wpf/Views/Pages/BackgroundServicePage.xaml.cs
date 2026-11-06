@@ -28,15 +28,16 @@ public partial class BackgroundServicePage : UserControl
     public void ShowCurrentTasks()=>TaskCenterTabs.SelectedIndex=2;
     private void OnPlanDoubleClick(object sender,MouseButtonEventArgs e)
     {
-        if(e.OriginalSource is DependencyObject origin && ItemsControl.ContainerFromElement(PlansGrid,origin) is DataGridRow {Item:TaskDefinition plan})OpenPlan(plan);
+        if(e.OriginalSource is DependencyObject origin && ItemsControl.ContainerFromElement(PlansGrid,origin) is DataGridRow {Item:ServicePlanItem plan})OpenPlan(plan);
     }
     private void OnPlanKeyDown(object sender,KeyEventArgs e)
-    {if(e.Key==Key.Enter && PlansGrid.SelectedItem is TaskDefinition plan){e.Handled=true;OpenPlan(plan);}}
-    private void OpenPlan(TaskDefinition plan)
+    {if(e.Key==Key.Enter && PlansGrid.SelectedItem is ServicePlanItem plan){e.Handled=true;OpenPlan(plan);}}
+    private void OpenPlan(ServicePlanItem plan)
     {
         var parent=(BackgroundServiceViewModel)DataContext;
         if(parent.Lifetime.IsCancellationRequested || parent.Busy)return;
-        new ScheduleEditWindow(new(parent,plan)){Owner=Window.GetWindow(this)}.ShowDialog();
+        if(plan.IsMaintenance)new MaintenancePlanWindow(parent.Cleanup,parent.Lifetime){Owner=Window.GetWindow(this)}.ShowDialog();
+        else new ScheduleEditWindow(new(parent,plan.Job!)){Owner=Window.GetWindow(this)}.ShowDialog();
     }
     // 只响应实际数据行，双击表头、滚动条或空白处不能误开上次选择的日志。
     private void OnHistoryDoubleClick(object sender,MouseButtonEventArgs e)

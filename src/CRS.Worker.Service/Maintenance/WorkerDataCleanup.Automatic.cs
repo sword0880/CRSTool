@@ -7,6 +7,8 @@ public sealed partial class WorkerDataCleanup
     private const string AutomaticSid = "service:automatic-retention";
     private CancellationTokenSource? automaticCancellation;
     private DateTimeOffset automaticPausedUntil;
+    private AutomaticCleanupSchedule? automaticSchedule;
+    private DateTimeOffset automaticReadyAt;
     private sealed record AutomaticState(int Format,DateTimeOffset NextRunAt,Guid? LastOperationId,string LastState);
     private string AutomaticStatePath => Child("maintenance/automatic-cleanup.json");
     private bool HasManualPreview()=>operations.Values.Any(x=>!x.Automatic&&!x.BackgroundTask&&x.Status is{State:"Ready",CanExecute:true}&&x.Status.ExpiresAt>=Now);
@@ -31,6 +33,7 @@ public sealed partial class WorkerDataCleanup
     internal async Task RunAutomaticAsync(Action<string,string,string> diagnostic,CancellationToken token,AutomaticCleanupSchedule? schedule=null)
     {
         schedule??=AutomaticCleanupSchedule.Default;
+        lock(stateGate){automaticSchedule=schedule;automaticReadyAt=Now+schedule.StartupDelay;}
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,stopping.Token);
         await Task.Delay(schedule.StartupDelay,clock,linked.Token).ConfigureAwait(false);
         while(true)
@@ -53,6 +56,25 @@ public sealed partial class WorkerDataCleanup
             }
             await Task.Delay(schedule.CheckInterval,clock,linked.Token).ConfigureAwait(false);
         }
+    }
+
+    private DataCleanupAutomaticPlan AutomaticPlan()
+    {
+        var schedule=automaticSchedule??AutomaticCleanupSchedule.Default;
+        var state="NotStarted";DateTimeOffset? due=null;
+        try
+        {
+            var saved=ReadAutomaticState();
+            if(automaticSchedule is not null)
+            {
+                due=new[]{saved.NextRunAt,automaticReadyAt,automaticPausedUntil}.Max();
+                state=active is{BackgroundTask:true,Task.IsCompleted:false}?"Running":due>Now?"Waiting":"Due";
+                if(automaticPausedUntil>Now||saved.LastState=="Paused"&&saved.NextRunAt>Now)state="Paused";
+            }
+        }
+        catch(Exception error) when(AutomaticFailure(error)){state="Unavailable";due=null;}
+        return new(state,due,(int)schedule.StartupDelay.TotalSeconds,(int)schedule.CheckInterval.TotalSeconds,
+            (int)schedule.SuccessInterval.TotalSeconds,(int)schedule.RetryInterval.TotalSeconds,14,1);
     }
 
     private static bool AutomaticFailure(Exception error)=>error is IOException or InvalidDataException or UnauthorizedAccessException or

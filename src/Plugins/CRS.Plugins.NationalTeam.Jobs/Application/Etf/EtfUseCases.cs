@@ -25,7 +25,7 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
     /// <summary>串行下载官方份额；按日期提交，取消后保留已完成日，重试使用原件哈希与事实幂等。</summary>
     public async Task<SyncReport> SyncRecentAsync(CancellationToken token)
     {
-        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
+        var today=AutomaticCollectionWindow.EtfShares(CRS.Timing.BeijingClock.Now);
         // 最新数据先采；历史失败不能把所有后续日期挡在旧游标后面。
         var recent=await SyncAsync(today.AddDays(-7),today,token,true);
         var gaps=await ReadPortAsync((IShareCollectionRepository repository)=>repository.DueHistoricalShareGaps(today.AddDays(-8),CRS.Timing.BeijingClock.Now),token);

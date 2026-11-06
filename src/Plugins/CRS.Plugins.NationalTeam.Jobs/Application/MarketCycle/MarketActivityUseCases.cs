@@ -16,11 +16,13 @@ public sealed partial class MarketActivityUseCases : MarketUseCaseScope
     public Task ReviewMarketActivityAsync(string id,bool accept,string reviewer,CancellationToken token,Guid? commandId)=>RunAsync((IMarketActivityWriteRepository repository)=>{repository.ReviewMarketActivity(id,accept,reviewer,commandId);return true;},token);
     public async Task<MarketActivitySyncReport> SyncRecentMarketActivityAsync(CancellationToken token)
     {
-        var today=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Now.DateTime);
+        var now=CRS.Timing.BeijingClock.Now;
+        var today=DateOnly.FromDateTime(now.DateTime);
+        var eligible=AutomaticCollectionWindow.MarketActivity(now);
         var cursor=await ReadPortAsync((IMarketActivityReadRepository repository)=>repository.ReadMarketActivityCursor(),token);
-        var from=cursor?.AddDays(-7)??today.AddDays(-35);var to=from.AddDays(29)<today?from.AddDays(29):today;
+        var from=cursor?.AddDays(-7)??today.AddDays(-35);var to=from.AddDays(29)<eligible?from.AddDays(29):eligible;
         var result=await SyncMarketActivityRangeAsync(from,to,token,true);
-        return result with{HasMore=result.HasMore || to<today};
+        return result with{HasMore=result.HasMore || to<eligible};
     }
     public async Task SyncMarketActivityAsync(DateOnly from,DateOnly to,CancellationToken token)
     {
@@ -85,7 +87,11 @@ public sealed partial class MarketActivityUseCases : MarketUseCaseScope
                     else
                     {
                         empty++;
-                        if(trading==true)Failure("OpenDayNoOfficialData",day,market);
+                        if(trading==true)
+                        {
+                            var now=CRS.Timing.BeijingClock.Now;
+                            Failure("OpenDayNoOfficialData",day,market,day==DateOnly.FromDateTime(now.DateTime)?now.AddMinutes(30):null);
+                        }
                         await ReportAsync(new("MarketNoData",day,market));
                     }
                     await ReportAsync(new("SourceParsed",day,market,Received:source.Observation is null?0:1));

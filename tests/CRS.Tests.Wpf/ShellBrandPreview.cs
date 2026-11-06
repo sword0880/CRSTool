@@ -41,9 +41,10 @@ internal static class ShellBrandPreview
                     ??throw new InvalidOperationException("主窗口缺少全局 Worker 状态栏。");
                 var footerButtons=new[]
                 {
-                    "FooterHealthButton","FooterTasksButton","FooterLastSyncButton","FooterIssuesButton"
+                    "FooterHealthButton","FooterTasksButton","FooterIssuesButton"
                 }.Select(name=>window.FindName(name) as System.Windows.Controls.Button
                     ??throw new InvalidOperationException("全局状态栏缺少可用入口："+name)).ToArray();
+                if(window.FindName("FooterLastSyncButton") is not null)throw new InvalidOperationException("底栏仍显示最近同步入口。");
                 var layout=(FrameworkElement)window.Content;window.Content=null;layout.DataContext=window.DataContext;
                 var surface=new System.Windows.Controls.Border{Background=(Brush)app.FindResource("BrandCanvasBrush"),Child=layout};
                 Directory.CreateDirectory(directory);

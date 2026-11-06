@@ -11,12 +11,20 @@ internal static class TaskCenterButtonChecks
         var server=new BackgroundPipeServer(control,pipe).RunAsync(stop.Token);
         try
         {
-            var model=new BackgroundServiceViewModel(stop.Token,new(pipe));
+            var cleanupGateway=new CleanupTaskModelChecks.Gateway();var cleanup=new DataCleanupViewModel(cleanupGateway);
+            var model=new BackgroundServiceViewModel(stop.Token,new(pipe),cleanup);
             await model.RefreshCommand.ExecuteAsync(null);
             await model.FilterHistoryCommand.ExecuteAsync(null);
             Check(model.History.Count==2&&model.HasMoreJobs&&!model.HasUnconfirmedRequest,"分页有下一页才提供入口，正常连接无确认提示");
             await model.MoreJobsCommand.ExecuteAsync(null);
             Check(model.History.Count==2&&model.Jobs.Count==2&&!model.HasMoreJobs,"读完下一页后隐藏入口且不漏数据");
+            Check(model.PlanRows.Count==3&&model.PlanRows.Count(x=>x.IsMaintenance)==1,"加载更多计划时维护任务作为同表一行且不重复");
+            model.SelectedPlan=model.PlanRows.Single(x=>x.IsMaintenance);
+            Check(model.Selected is null&&!model.PauseCommand.CanExecute(null)&&!model.ResumeCommand.CanExecute(null),"选择维护行不误操作原先选中的插件任务");
+            await model.RunNowCommand.ExecuteAsync(null);
+            Check(cleanupGateway.Created==1&&control.Mutations.Count==0,"维护行立即执行走同一清理入口，不向插件发送错误命令");
+            model.Selected=model.Jobs[0];
+            Check(model.SelectedPlan?.Job==model.Jobs[0],"重新选择插件计划时行与编辑对象一致");
             await model.RunNowCommand.ExecuteAsync(null);
             Check(model.HasUnconfirmedRequest,"后台已受理但连接断开时显示重新确认入口");
             await model.PauseCommand.ExecuteAsync(null);

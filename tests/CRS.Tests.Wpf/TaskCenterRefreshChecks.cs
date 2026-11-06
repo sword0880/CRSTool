@@ -44,6 +44,7 @@ internal static class TaskCenterRefreshChecks
     {
         control.BlockHistory=true;
         var baseline=control.Calls.Count(x=>x=="GetHealth");
+        var historyBaseline=control.Calls.Count(x=>x is "GetHistoryByDate" or "GetFilteredHistory");
         var ready=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         System.Windows.Threading.Dispatcher? dispatcher=null;
         ShellStatusBarViewModel? footer=null;
@@ -66,7 +67,8 @@ internal static class TaskCenterRefreshChecks
             control.ActivityUnavailable=true;deadline=Environment.TickCount64+7000;
             while(footer.TaskLabel!="运行 2 · 等待 --"&&Environment.TickCount64<deadline)await Task.Delay(100,token);
             if(footer.TaskLabel!="运行 2 · 等待 --")throw new Exception("任务采样失败后仍保留旧等待总数。");
-            Console.WriteLine("PASS 底栏：慢同步历史不阻挡运行/等待采样，等待按同一快照去重，采样失败后撤回旧等待数。");
+            if(control.Calls.Count(x=>x is "GetHistoryByDate" or "GetFilteredHistory")!=historyBaseline)throw new Exception("底栏仍在自动读取同步历史。");
+            Console.WriteLine("PASS 底栏：仅采样健康和当前任务，不读取同步历史；等待去重及失败撤回正常。");
         }
         finally
         {

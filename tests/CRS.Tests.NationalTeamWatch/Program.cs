@@ -2,6 +2,7 @@ using System.Text;
 using CRS.Plugins.NationalTeamWatch.Domain;
 using CRS.Plugins.NationalTeamWatch.Application;
 using CRS.Plugins.NationalTeamWatch.Infrastructure;
+if(args is ["--automatic-collection-window"]){AutomaticCollectionWindowChecks.Run();return;}
 if(args is ["--southbound",var southboundRoot]){await SouthboundChecks.RunAsync(southboundRoot);return;}
 if(args is ["--southbound-live",var southboundLiveRoot]){await SouthboundChecks.CaptureLiveAsync(southboundLiveRoot);return;}
 if(args is ["--southbound-read",var southboundReadRoot]){SouthboundChecks.ReadCaptured(southboundReadRoot);return;}

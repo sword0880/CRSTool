@@ -37,3 +37,9 @@
 静态门禁`tests/Verify-WpfDesignSystem.ps1`检查XAML、资源键、颜色基线和日期格式。实际窗口入口包括WPF的`--settings-ui`、`--database-backup-ui`、`--data-cleanup-progress-ui`、`--compact-navigation`、`--plugin-header-native`及`--plugin-management-preview`，以及SectorUi的`--navigation`。
 
 标题栏命中、鼠标/键盘焦点及辅助功能需要对应的原生窗口验证。普通Window中调用事件、合成截图或虚拟Invoke不能证明标题栏真实可点击；缺少交互前台时应保留未完成状态。桌面开发包同步不代表当前已运行窗口已经加载新代码，也不代表已安装Worker已更新。
+
+## 状态栏简化（2026-11-06）
+
+按用户确认移除右下角“最近同步”入口及专用历史轮询；状态栏保留服务健康、运行/等待数量和异常入口。同步执行的完成时间仍可在任务中心的执行记录中查看。相关验收记录位于 `artifacts/footer-without-recent-sync-20261106/`。
+
+历史与导入页面高度绑定修复（2026-11-06）：页面创建时不再通过FindAncestor立即查找NavigationView；共享NavigationPageLayout在Loaded后绑定导航滚动视口的实际高度，Unloaded时释放宿主引用。保留历史表格与导入表单的内部滚动约束，避免移除高度约束后长表单撑高整页。隔离真实WPF窗口在1040×700、1280×880下验证分页、滚动、页面切换和独立创建；绑定错误日志为空。验证记录位于artifacts/page-height-binding-20261106/layout-final.log，截图使用合成数据。

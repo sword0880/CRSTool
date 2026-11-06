@@ -1,5 +1,7 @@
 # 当前架构入口
 
+2026-11-06按用户要求移除“市场周期观察”“联合退出观察”的桌面菜单及“周期与风险”分类，桌面会话不再创建这两个研究模型。保留研究代码、后台查询及既有数据；桌面工作台仅保留“资金与持仓”“行业与估值”两类。见[保留研究能力及菜单状态](../implementation/NATIONAL_TEAM_MARKET_RESEARCH.md)。
+
 2026-11-04直接持股完成[固定原文补齐与本机保全验收](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-reviewed-subsets)：18份原文、10只股票26个当前已核账户；自动发现/自动核验是用户随后新增的功能，不能混同于本次固定数据补齐。
 
 2026-11-04按用户要求移除“机构ETF持仓”独立页面、工作台路由、专用视图模型及页面预览。ETF份额、直接持股、NAV及其他研究入口保留；具名披露的后台合同、存储和既有资料继续供NAV与预警消费。此次仅更新桌面源码及开发包，不执行后台维护或数据删除，见[页面移除记录](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holdings-removal)。

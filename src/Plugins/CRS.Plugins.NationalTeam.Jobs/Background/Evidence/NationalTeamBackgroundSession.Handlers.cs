@@ -10,7 +10,7 @@ namespace CRS.Plugins.NationalTeam.Jobs;
 /// <summary>本功能声明自己的公开查询、持久任务及执行组，入口仅负责授权协议和生命周期。</summary>
 public sealed partial class NationalTeamBackgroundSession
 {
-    [NationalTeamJob("evidence-integrity","证据完整性巡检","0 0/5 * * * ?","China Standard Time",true,true,Group="collection",MaximumConcurrency=2,Order=0)]
+    [NationalTeamJob("evidence-integrity","证据完整性巡检","0 30 2 * * ?","China Standard Time",true,true,Group="collection",MaximumConcurrency=2,Order=0)]
     private async Task<BackgroundJobResult> ExecuteEvidenceIntegrity(EtfRequest request,CancellationToken token,Guid? commandId)
     {
         if(!(request.Operation is "sync" or "integrity"))throw new InvalidDataException("任务与业务参数不匹配。");

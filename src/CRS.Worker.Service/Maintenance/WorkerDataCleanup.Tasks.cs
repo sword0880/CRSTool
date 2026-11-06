@@ -13,7 +13,7 @@ public sealed partial class WorkerDataCleanup
             var current=snapshots.FirstOrDefault(TaskActive);var result=snapshots.FirstOrDefault(Finished);
             var notification=result is not null&&!records.Single(x=>x.Task.Id==result.Id).AcknowledgedBy.Contains(sid)?result:null;
             var available=active?.Task is not{IsCompleted:false}&&!HasManualPreview()&&current is null;
-            return new(current,result,notification,available);
+            return new(current,result,notification,available){AutomaticPlan=AutomaticPlan()};
         }
     }
     public DataCleanupTaskOverview SubmitTask(Guid requestId,string sid)=>SubmitTask(requestId,sid,AutomaticCleanupSchedule.Default);

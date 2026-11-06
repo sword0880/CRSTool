@@ -17,7 +17,25 @@ internal static class AutomaticCleanupChecks
         await ManualAndMaintenanceAsync(root);
         await PauseAndCorruptionAsync(root);
         await SchedulerAsync(root);
+        await PlanOverviewAsync(root);
         Console.WriteLine($"自动清理隔离验证通过：{passed}项。隔离目录：{root}");
+    }
+    private static async Task PlanOverviewAsync(string root)
+    {
+        var f=DataCleanupChecks.Create(root);await using var cleanup=new WorkerDataCleanup(f.Root,f.Clock);
+        Check(cleanup.TaskOverview("admin").AutomaticPlan is{State:"NotStarted",NextDueAt:null},"尚未启动循环时不报告虚假的下一次执行");
+        using var stop=new CancellationTokenSource();
+        var schedule=AutomaticCleanupSchedule.Default with{StartupDelay=TimeSpan.FromHours(2)};
+        var loop=cleanup.RunAutomaticAsync((_,_,_)=>{},stop.Token,schedule);
+        try
+        {
+            var plan=cleanup.TaskOverview("admin").AutomaticPlan!;
+            Check(plan is{State:"Waiting",StartupDelaySeconds:7200,SuccessIntervalSeconds:86400,RetryIntervalSeconds:3600,LogRetentionDays:14,HistoricalBackupsToKeep:1}
+                &&plan.NextDueAt==CRS.Timing.BeijingClock.Read(f.Clock).AddHours(2),"计划摘要来自实际循环参数、启动等待和保留规则");
+            await cleanup.PauseAutomaticAsync(default);
+            Check(cleanup.TaskOverview("admin").AutomaticPlan?.State=="Paused","维护暂停准确反映到计划摘要");
+        }
+        finally{stop.Cancel();try{await loop;}catch(OperationCanceledException){}}
     }
     private static async Task RetentionAndRestartAsync(string root)
     {

@@ -16,6 +16,8 @@
 
 本文件说明研究输入、计算口径和证据门槛。已实现的查询与审核流程不等于研究模型有效；统一保持`TimingProof=NotProven`，不据此自动交易或发送金融预警。ETF份额、具名披露、股票方向分别见[ETF](NATIONAL_TEAM_ETF.md)、[披露证据](NATIONAL_TEAM_EVIDENCE.md)和[股票持仓](NATIONAL_TEAM_EQUITY.md)。
 
+2026-11-06起，桌面工作台移除“市场周期观察”“联合退出观察”入口及“周期与风险”分类，仅保留“资金与持仓”“行业与估值”两类。研究页面源码、后台查询、底层数据及专项验证仍保留；桌面会话不再构造这两个研究模型。以下周期、广度及联合研究说明记录保留能力，不表示当前有可见菜单入口。
+
 ## 行业公布PE与历史位置
 
 国证[行业市盈率页面](https://www.cnindex.com.cn/zh_analytics/sector_pe/index.html)的既有接入限定group 4、行业体系008200、C01—C11；保留原始`dwer/dmer/swer/smer`，分别为滚动加权、滚动中位、静态加权、静态中位PE。`NA`为未知；亏损样本的排除口径见[官方计算说明](https://www.cnindex.com.cn/files/syljssm.pdf)。公布PE不是全体公司实时TTM、PB或公允价值，样本公司数量也不是市值覆盖率。
@@ -72,7 +74,7 @@
 
 ## 广度档案与原件审核
 
-桌面入口为“市场周期 → 广度档案”，提交原件及标准化JSON后进入待审，管理员明确审核。Accepted、Superseded、Rejected追加记录，拒绝后不自动复活；审核绑定最新证明摘要，过期审核不能覆盖新状态。
+原桌面入口为“市场周期 → 广度档案”，随市场周期菜单于2026-11-06移除，底层提交与审核能力保留。提交原件及标准化JSON后进入待审，管理员明确审核。Accepted、Superseded、Rejected追加记录，拒绝后不自动复活；审核绑定最新证明摘要，过期审核不能覆盖新状态。
 
 `reviewed-breadth-v1`范围为`SSE-SZSE-Ashares-point-in-time-v1`。Members与Observations必须同日、一一完整对应，价格使用`BackAdjustedToObservationDate`；后台逐项计算`Close>MA20`、`Close>MA60`和`Close<=Prior250Low`，此前250日最低值不含当日。现有证券清单或ETF配置不能回填历史范围；上市、退市、停牌及新股都需要对应时点证据。
 

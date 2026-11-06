@@ -356,3 +356,5 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 清理任务可见性：`--task-activity-checks` 验证清理排队、扫描/核验、删除、完成和失联状态与插件任务的合并；`--shell-status-checks` 验证底栏仅显示运行/等待、同一快照去重及未知数量；`--task-center-refresh-checks` 验证慢历史不阻挡采样、去重反例与失败后撤回旧等待数。`--cleanup-task-ui <目录>` 另覆盖实际主窗体底栏、任务中心清理行及完成撤回，输出6张合成截图。`--cleanup-task-status-probe` 仅通过现有管理员IPC读取已安装后台的摘要、健康及当前任务，输出桌面合并后的状态；不会提交任务、确认通知或操作正式文件。见[清理任务显示验收](../docs/validation/CLEANUP_TASK_CENTER_20261106.md)。
 
 任务详情启停：`--schedule-editor-checks` 使用隔离管道验证禁用状态、固定任务/修订、启停后保存频率、草稿保留、权限及冲突、响应丢失确认和会话关闭；`--schedule-editor-ui <目录>` 在620/720 DIP渲染已启用/已禁用及操作按钮，共4张合成截图，不更改正式任务。
+
+后台任务整理（2026-11-06）：`CRS.Tests.Background --diagnostic-jobs` 验证旧心跳转诊断、隐藏周期计划及按需执行；`--automatic-cleanup` 另覆盖实际循环参数和暂停对应的计划摘要。`CRS.Tests.NationalTeamWatch --automatic-collection-window` 验证ETF 23:15、成交23:30的北京时间边界及跨年回退；`--market-sync-diagnostics` 保留历史续采与取消回归。`CRS.Tests.Wpf --cleanup-task-ui <目录>` 另生成自动清理与插件任务的统一计划列表及维护详情截图；`--task-button-checks` 覆盖维护行分页去重、选择同步和清理提交路由。已安装Worker的 `--diagnostic-heartbeat` 是管理员手动执行调度自检，会创建一条诊断执行记录；普通健康探测继续使用只读 `--health-probe`。

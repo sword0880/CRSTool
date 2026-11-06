@@ -121,11 +121,10 @@ public partial class MainWindow : FluentWindow
     }
     /// <summary>底部状态入口与左侧菜单共用同一任务中心及健康页，不在桌面执行后台管理命令。</summary>
     private async void OnFooterTaskCenterClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateScheduledTasksAsync();
-    private async void OnFooterRecentSyncClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateExecutionHistoryAsync(false);
     private async void OnFooterIssuesClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateExecutionHistoryAsync(true);
     private async void OnFooterServiceStatusClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateWorkerHealthAsync();
 
-    /// <summary>右下角两个入口直达执行记录；异常模式的服务端筛选与分页由页面模型负责。</summary>
+    /// <summary>右下角异常入口直达执行记录；异常模式的服务端筛选与分页由页面模型负责。</summary>
     public async Task NavigateExecutionHistoryAsync(bool issues)
     {
         OpenNavigationGroup(TasksGroup);

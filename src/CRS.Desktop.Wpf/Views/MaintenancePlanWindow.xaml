@@ -1,0 +1,12 @@
+<ui:FluentWindow x:Class="CRS.DesktopClient.Views.MaintenancePlanWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="后台资料自动清理" Width="620" Height="360" MinWidth="520" MinHeight="360" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource BrandCanvasBrush}">
+ <Grid><Grid.RowDefinitions><RowDefinition Height="46"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <ui:TitleBar Title="后台资料自动清理" ShowClose="True" ShowMaximize="False" ShowMinimize="False" ForceShutdown="False"/>
+  <StackPanel Grid.Row="1" Margin="24,16">
+   <TextBlock Text="{Binding AutomaticPlanStatus,FallbackValue=维护计划状态未确认}" FontSize="20" FontWeight="SemiBold"/>
+   <TextBlock Text="{Binding AutomaticPlanPolicy}" TextWrapping="Wrap" Margin="0,16,0,12"/>
+   <TextBlock Text="{Binding AutomaticPlanNext}" TextWrapping="Wrap"/>
+   <TextBlock Text="后台按固定保留规则执行。可在设置中提交一次清理任务。" TextWrapping="Wrap" Margin="0,16,0,0" Foreground="{DynamicResource BrandTextSecondaryBrush}"/>
+  </StackPanel>
+  <Button Grid.Row="2" Content="关闭" IsCancel="True" HorizontalAlignment="Right" Margin="24,0,24,20" Padding="20,8" Click="OnClose"/>
+ </Grid>
+</ui:FluentWindow>

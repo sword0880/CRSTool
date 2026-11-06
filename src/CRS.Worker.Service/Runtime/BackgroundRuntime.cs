@@ -56,6 +56,11 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             foreach (var job in group)
             {
             repository.RegisterDefault(job.PluginId, job.Descriptor);
+            if(job.Descriptor.Diagnostic)
+            {
+                var diagnosticPlan=repository.Plans().Single(x=>x.PluginId==job.PluginId&&x.JobId==job.Descriptor.JobId);
+                if(diagnosticPlan.Enabled)repository.Save(diagnosticPlan with{Enabled=false},diagnosticPlan.Revision);
+            }
             if (!pluginWriters.ContainsKey(job.PluginId))
             {
                 var limit = Math.Min(job.MaximumConcurrency, Math.Max(1, settings.EffectiveMaxConcurrency / 2));
@@ -150,7 +155,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try
         {
             var response = await HandleCoreAsync(request, caller, token);
-            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
+            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetDiagnosticJobs" or "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
                 repository.Audit(caller.Sid, request.RequestId, request.Command, response.Code);
             return response;
         }
@@ -248,9 +253,11 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         if (fault is not null) return Reply(fault);
         if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
         if (request.PageSize < 1 || request.PageSize > (request.Command=="GetHistoryByDate"?50:10)) return Reply("InvalidRequest");
-        if (request.Command == "GetJobs")
+        if (request.Command is "GetJobs" or "GetDiagnosticJobs")
         {
-            var plans = repository.Plans().Where(x=>!catalog.Jobs.Any(job=>job.PluginId==x.PluginId && job.Descriptor.JobId==x.JobId && job.Descriptor.ManualOnly))
+            var plans = repository.Plans().Where(x=>request.Command=="GetDiagnosticJobs"
+                ?catalog.Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&job.Descriptor.Diagnostic)
+                :!catalog.Jobs.Any(job=>job.PluginId==x.PluginId && job.Descriptor.JobId==x.JobId && (job.Descriptor.ManualOnly||job.Descriptor.Diagnostic)))
                 .Where(x => request.Cursor is null || string.CompareOrdinal(x.PluginId + ":" + x.JobId, request.Cursor) > 0).Take(request.PageSize + 1).ToArray();
             var page = plans.Take(request.PageSize).ToArray();
             return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: page, NextCursor: plans.Length > page.Length ? page[^1].PluginId + ":" + page[^1].JobId : null);
@@ -298,6 +305,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         if (request.Command is not ("RunNow" or "Pause" or "Resume" or "ChangeSchedule" or "CancelRun")) return Reply("UnknownCommand");
         var plan = repository.Plans().SingleOrDefault(x => x.PluginId == request.PluginId && x.JobId == request.JobId);
         if (plan is null || !HasHandler(plan)) return Reply("JobUnavailable");
+        if(request.Command is "Resume" or "ChangeSchedule" && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId&&x.Descriptor.JobId==plan.JobId).Descriptor.Diagnostic)
+            return Reply("DiagnosticOnly");
         if(request.Command is "Resume" or "ChangeSchedule" && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId && x.Descriptor.JobId==plan.JobId).Descriptor.ManualOnly)
             return Reply("ManualOnly");
         if(request.Command=="RunNow" && request.Payload is null && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId && x.Descriptor.JobId==plan.JobId).Descriptor.ManualOnly)

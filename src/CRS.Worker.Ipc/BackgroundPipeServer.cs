@@ -17,7 +17,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> uploads = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks"];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetDiagnosticJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks"];
     private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument","PauseAutoCleanup","SubmitDataCleanupTask","AcknowledgeDataCleanupTask"];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)

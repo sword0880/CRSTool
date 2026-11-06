@@ -30,7 +30,10 @@ public sealed record BackgroundExecutionGroup(string Id, int MaximumConcurrency)
 
 /// <summary>任务名称是稳定业务标识；禁止将实现类型或委托序列化到数据库。</summary>
 public sealed record BackgroundJobDescriptor(string JobId, string Name, string DefaultCron,
-    string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false,bool ManualOnly=false);
+    string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false,bool ManualOnly=false)
+{
+    public bool Diagnostic{get;init;}
+}
 
 /// <summary>可预期的数据源结果使用分类返回，服务据此执行退避。</summary>
 public sealed record BackgroundJobResult(string Status, string? Checkpoint = null, TimeSpan? RetryAfter = null)

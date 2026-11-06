@@ -8,7 +8,7 @@ public sealed class HeartbeatEntry : IBackgroundPluginEntry
     private sealed class Session : IBackgroundPluginSession
     {
         public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() =>
-            [new("heartbeat", "后台服务心跳", "0 * * * * ?", "China Standard Time", true, RunOnStartup: true)];
+            [new("heartbeat", "后台调度自检", "0 * * * * ?", "China Standard Time", false){Diagnostic=true}];
         public ValueTask StartAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public Task<BackgroundJobResult> ExecuteAsync(string jobId, CancellationToken cancellationToken)
         {

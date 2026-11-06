@@ -1,8 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 using System.Windows.Threading;
-using System.IO;
 using CRS.Maintenance;
 using CRS.DesktopClient.Services;
 
@@ -19,9 +17,6 @@ public partial class ShellStatusBarViewModel : ObservableObject
     private DispatcherTimer? timer;
     private CancellationTokenSource? polling;
     private bool refreshing;
-    private List<ExecutionRecord>? verifiedHistory;
-    private long historySampleAt;
-    private bool historyRefreshing;
     private BackgroundTaskActivity? verifiedActivity;
     private bool activityRefreshing;
     private BackgroundResponse? latestHealth;
@@ -37,20 +32,17 @@ public partial class ShellStatusBarViewModel : ObservableObject
                 Update(DescribeCurrent(health));
         };
     }
-    private ShellStatusSnapshot DescribeCurrent(BackgroundResponse health)=>Describe(health,verifiedHistory,verifiedHistory?.Count??0,
-        verifiedHistory is not null,cleanup?.CurrentTask,cleanup?.TasksAvailable!=true||cleanup.TaskStatusKnown,verifiedActivity);
+    private ShellStatusSnapshot DescribeCurrent(BackgroundResponse health)=>Describe(health,cleanup?.CurrentTask,cleanup?.TasksAvailable!=true||cleanup.TaskStatusKnown,verifiedActivity);
 
     [ObservableProperty] private string healthLabel = "后台状态待确认";
     [ObservableProperty] private string healthTone = "Warning";
     [ObservableProperty] private string healthDetail = "尚未取得独立 Windows Service 的健康采样。";
     [ObservableProperty] private string taskLabel = "运行 -- · 等待 --";
     [ObservableProperty] private string taskDetail = "尚未取得真实调度状态。";
-    [ObservableProperty] private string lastSyncLabel = "最近同步：未确认";
-    [ObservableProperty] private string lastSyncDetail = "仅统计国家队后台插件的成功同步，不推断数据最新交易日期。";
     [ObservableProperty] private string attentionLabel = "运行异常：未确认";
     [ObservableProperty] private string attentionDetail = "仅统计 Worker 的插件故障及官方来源冷却，不代表业务审核待办总数。";
 
-    /// <summary>每3秒更新运行/排队状态；成功同步历史仍最多每45秒读取。</summary>
+    /// <summary>每3秒更新服务健康及运行/等待数量。</summary>
     public void Start(CancellationToken lifetime)
     {
         if(timer is not null || lifetime.IsCancellationRequested)return;
@@ -65,7 +57,7 @@ public partial class ShellStatusBarViewModel : ObservableObject
     {
         if(timer is not null){timer.Stop();timer.Tick-=OnTick;timer=null;}
         polling?.Cancel();polling?.Dispose();polling=null;
-        verifiedHistory=null;verifiedActivity=null;latestHealth=null;
+        verifiedActivity=null;latestHealth=null;
     }
 
     private async void OnTick(object? sender,EventArgs e)=>await RefreshAsync();
@@ -81,16 +73,14 @@ public partial class ShellStatusBarViewModel : ObservableObject
             token.ThrowIfCancellationRequested();
             latestHealth=health;
             if(health.Code!="Ok" || health.Health?.State is not ("Running" or "Degraded" or "Maintenance"))
-            {verifiedHistory=null;verifiedActivity=null;connectionRevision++;Update(DescribeCurrent(health));return;}
+            {verifiedActivity=null;connectionRevision++;Update(DescribeCurrent(health));return;}
             Update(DescribeCurrent(health));
             if(!activityRefreshing)_=RefreshActivityAsync(token,connectionRevision);
-            if(verifiedHistory is not null && Environment.TickCount64-historySampleAt<45000)return;
-            if(!historyRefreshing)_=RefreshHistoryAsync(token,connectionRevision);
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested){ }
         catch(Exception)
         {
-            if(!token.IsCancellationRequested){verifiedHistory=null;verifiedActivity=null;latestHealth=null;connectionRevision++;Update(Unavailable());}
+            if(!token.IsCancellationRequested){verifiedActivity=null;latestHealth=null;connectionRevision++;Update(Unavailable());}
         }
         finally{refreshing=false;}
     }
@@ -112,62 +102,20 @@ public partial class ShellStatusBarViewModel : ObservableObject
         }
         finally{activityRefreshing=false;}
     }
-    private async Task RefreshHistoryAsync(CancellationToken token,long revision)
-    {
-        historyRefreshing=true;
-        try
-        {
-            // 一页最多10条；至多查询3页，避免频繁跨插件获取全部历史。
-            // 任务中心可查看完整分页历史，此处只给出已核实范围的最近成功时间。
-            var rows=new List<ExecutionRecord>();
-            string? cursor=null;
-            for(var page=0;page<3;page++)
-            {
-                var response=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetFilteredHistory",
-                    PluginId:"crs.national-team",Cursor:cursor,PageSize:10),token);
-                token.ThrowIfCancellationRequested();
-                if(response.Code!="Ok" || response.History is null)
-                    throw new InvalidDataException("同步历史读取失败。");
-                rows.AddRange(response.History);
-                cursor=response.NextCursor;
-                if(cursor is null || rows.Any(IsSuccessfulSync))break;
-            }
-            if(revision!=connectionRevision || latestHealth is null)return;
-            verifiedHistory=rows;historySampleAt=Environment.TickCount64;
-            Update(DescribeCurrent(latestHealth));
-        }
-        catch(OperationCanceledException) when(token.IsCancellationRequested){ }
-        catch(Exception)
-        {
-            if(!token.IsCancellationRequested && revision==connectionRevision)
-            {
-                verifiedHistory=null;
-                if(latestHealth is {} health)Update(DescribeCurrent(health));
-            }
-        }
-        finally{historyRefreshing=false;}
-    }
-
     private void Update(ShellStatusSnapshot value)
     {
         HealthLabel=value.HealthLabel;HealthTone=value.HealthTone;HealthDetail=value.HealthDetail;
         TaskLabel=value.TaskLabel;TaskDetail=value.TaskDetail;
-        LastSyncLabel=value.LastSyncLabel;LastSyncDetail=value.LastSyncDetail;
         AttentionLabel=value.AttentionLabel;AttentionDetail=value.AttentionDetail;
     }
-
-    private static bool IsSuccessfulSync(ExecutionRecord item) =>
-        item.Result=="Succeeded" && item.EndedUtc.HasValue &&
-        item.JobId is "official-share-sync" or "market-activity-sync" or "official-calendar-sync" or "equity-disclosure-sync";
 
     public static ShellStatusSnapshot Unavailable() => new(
         "服务不可用","Error","无法确认 Windows Service 实时状态；可能是未启动、权限或管道连接问题。",
         "运行 -- · 等待 --","无实时 Worker 调度快照。",
-        "最近同步：未确认","连接中断，不能继续沿用上次同步快照。",
         "运行异常：未确认","未读取到新健康采样；旧正常状态已撤回。");
 
     /// <summary>纯快照映射便于不启动服务的 WPF/状态回归；失败时不能把缺字段默认为0。</summary>
-    public static ShellStatusSnapshot Describe(BackgroundResponse response,IReadOnlyList<ExecutionRecord>? history,int inspected,bool historyVerified,
+    public static ShellStatusSnapshot Describe(BackgroundResponse response,
         DataCleanupTask? cleanupTask=null,bool cleanupKnown=true,BackgroundTaskActivity? activity=null)
     {
         if(response.Code!="Ok" || response.Health is not { } health)return Unavailable();
@@ -213,22 +161,12 @@ public partial class ShellStatusBarViewModel : ObservableObject
             state=="Degraded" ? "服务异常 · 查看" : "运行异常 0";
         var attentionDetail=$"来源冷却 {cooling} · 插件失败 {failedPlugins}。仅代表服务可观察的当前异常，不含税务/ETF数据缺口与审核待办。";
         if(!hasSources || !hasPlugins)attentionDetail="当前服务未返回完整来源/插件健康快照；运行异常数不能按零报告。";
-        var recent=historyVerified
-            ?history?.Where(IsSuccessfulSync).OrderByDescending(x=>x.EndedUtc).FirstOrDefault():null;
-        var sync=recent is null
-            ?historyVerified?(inspected==0?"最近同步：暂无记录":$"近{inspected}条未见成功同步"):"最近同步：未确认"
-            :$"最近同步 {recent.EndedUtc!.Value:MM-dd HH:mm}";
-        var syncDetail=recent is null
-            ?historyVerified?$"已核查国家队插件最近 {inspected} 条执行记录，尚未发现已成功结束的指定同步任务；不代表更早不存在成功记录。":
-                "国家队插件执行历史未核实，不能据服务健康状态推断采集成功。"
-            :$"国家队后台同步任务：{recent.JobId}，执行完成时间 {recent.EndedUtc!.Value:yyyy-MM-dd HH:mm:ss}（北京时间）；不代表已取得当天交易数据。";
         return new(label,tone,$"Worker 状态 {state} · 采样 {sample}（北京时间）",
-            tasks,taskDetail,sync,syncDetail,attention,attentionDetail);
+            tasks,taskDetail,attention,attentionDetail);
     }
 }
 
 public sealed record ShellStatusSnapshot(
     string HealthLabel,string HealthTone,string HealthDetail,
     string TaskLabel,string TaskDetail,
-    string LastSyncLabel,string LastSyncDetail,
     string AttentionLabel,string AttentionDetail);
