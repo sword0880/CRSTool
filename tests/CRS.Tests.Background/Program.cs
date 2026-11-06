@@ -11,12 +11,16 @@ if(args is ["--command-tracker"]){BackgroundCommandTrackerChecks.Run();return;}
 if(args is ["--staged-documents",var stagedRoot]){StagedDocumentChecks.Run(stagedRoot);return;}
 if(args is ["--document-ingress-boundaries",var ingressRoot]){await DocumentIngressBoundaryChecks.RunAsync(ingressRoot);return;}
 if(args is ["--data-cleanup"]){await DataCleanupChecks.RunAsync();await DataCleanupPipeChecks.RunAsync();return;}
-if(args is ["--data-cleanup-audit",var cleanupRoot]){await using var audit=new WorkerDataCleanup(cleanupRoot);Console.WriteLine(JsonSerializer.Serialize(audit.Audit(new(14,2,true))));return;}
+if(args is ["--automatic-cleanup"]){await AutomaticCleanupChecks.RunAsync();return;}
+if(args is ["--cleanup-tasks"]){await CleanupTaskChecks.RunAsync();return;}
+if(args is ["--data-cleanup-audit",var cleanupRoot]){await using var audit=new WorkerDataCleanup(cleanupRoot);Console.WriteLine(JsonSerializer.Serialize(audit.Audit(new())));return;}
 if(args is ["--supervised-plugins"]){await SupervisedPluginChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.SupervisedPlugins",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--query-workloads"]){await QueryWorkloadChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.QueryWorkloads",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--runner-failures",var failureRoot]){await RunnerFailureChecks.RunAsync(failureRoot);return;}
 if(args is ["--runner-diagnostic-cancel"]){await RunnerDiagnosticCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.RunnerDiagnostic",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--storage-growth"]){await StorageGrowthChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.StorageGrowth",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--storage-scan-budget"]){await StorageScanBudgetChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.StorageScanBudget",Guid.NewGuid().ToString("N")));return;}
+if(args is ["--storage-security",var securityPackage]){await StorageSecurityChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.StorageSecurity",Guid.NewGuid().ToString("N")),Path.GetFullPath(securityPackage));return;}
 if(args is ["--cancellation-boundaries"]){await WorkerCancellationChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.Cancellation",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--recovery-export-authorization"]){await RecoveryExportAuthorizationChecks.RunAsync();return;}
 if(args is ["--recovery-export-persistence"]){await RecoveryExportPersistenceChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.RecoveryPersistence",Guid.NewGuid().ToString("N")));return;}

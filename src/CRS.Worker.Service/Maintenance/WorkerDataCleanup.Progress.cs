@@ -10,15 +10,18 @@ public sealed partial class WorkerDataCleanup
             Message=message,UpdatedAt=Now,
             Progress=(operation.Status.Progress??new(phase,null)) with{Phase=phase,CurrentItem=null}
         };
+        CheckpointTask(operation);
     }
     private void CurrentItem(Operation operation,string path)
     {
+        operation.Pacer?.Checkpoint();
         var relative=Path.GetRelativePath(root,path);
         lock(stateGate)operation.Status=operation.Status with
         {UpdatedAt=Now,Progress=(operation.Status.Progress??new("Scanning",null)) with{CurrentItem=relative}};
     }
     private void ScannedFile(Operation operation,FileInfo file)
     {
+        operation.Pacer?.Checkpoint();
         var relative=Path.GetRelativePath(root,file.FullName);var length=file.Length;
         lock(stateGate)
         {
@@ -29,6 +32,7 @@ public sealed partial class WorkerDataCleanup
     }
     private void Verified(Operation operation,int bytes,bool completed=false)
     {
+        operation.Pacer?.Checkpoint();
         lock(stateGate)
         {
             var progress=operation.Status.Progress??new("Verifying",null);

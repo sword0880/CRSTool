@@ -17,24 +17,28 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string logLevel = "Info";
     [ObservableProperty] private int logRetentionFiles;
     [ObservableProperty] private int logFileSizeMb;
-    [ObservableProperty] private bool phoneVerificationEnabled=true;
-    [ObservableProperty] private bool windowsHelloEnabled;
-    [ObservableProperty] private bool windowsHelloAvailable;
+    // 登录方式只保留一个权威值；单选按钮的组内取消选中不能反向切换另一属性。
+    public bool PhoneVerificationEnabled {get=>!WindowsHelloEnabled;set=>WindowsHelloEnabled=!value;}
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(PhoneVerificationEnabled))] private bool windowsHelloEnabled;
+    [ObservableProperty,NotifyCanExecuteChangedFor(nameof(SelectWindowsHelloCommand))] private bool windowsHelloAvailable;
     [ObservableProperty] private string securityMessage="手机验证与 Windows Hello 只能选择一种；未配置 Windows Hello 时只能使用手机验证。";
     public bool SecuritySettingsAvailable=>vault is {IsUnlocked:true};
     public bool ShowPhoneCode=>vault is {IsUnlocked:true,UsesWindowsHello:false};
     public event Action? PhoneEnrollmentRequired;
     private bool savedWindowsHelloEnabled;
     public bool HasLoginMethodChanges=>SecuritySettingsAvailable && WindowsHelloEnabled!=savedWindowsHelloEnabled;
-    partial void OnPhoneVerificationEnabledChanged(bool value) => WindowsHelloEnabled=!value;
     partial void OnWindowsHelloEnabledChanged(bool value)
     {
-        PhoneVerificationEnabled=!value;
         OnPropertyChanged(nameof(HasLoginMethodChanges));
         SecurityMessage=HasLoginMethodChanges
             ? $"尚未保存：已选择{(value?" Windows Hello":"手机验证")}。请填写确认凭证并点击“保存设置”；当前仍使用{(savedWindowsHelloEnabled?" Windows Hello":"手机验证")}。"
             : value?"当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。":"当前使用手机验证，进入及解除锁定需要手机代码。";
     }
+    [RelayCommand(CanExecute=nameof(CanSavePhone))]
+    private void SelectPhoneVerification()=>WindowsHelloEnabled=false;
+    private bool CanSelectWindowsHello()=>CanSavePhone()&&WindowsHelloAvailable;
+    [RelayCommand(CanExecute=nameof(CanSelectWindowsHello))]
+    private void SelectWindowsHello()=>WindowsHelloEnabled=true;
     public async Task CheckHelloAvailabilityAsync()
     {
         WindowsHelloAvailable=vault is not null && await vault.IsWindowsHelloAvailableAsync();
@@ -62,7 +66,7 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null,IDataCleanupGateway? cleanup=null)
     {
         State = state; this.service = service; this.vault=vault;Cleanup=new(cleanup); InitializeWebhooks(); Reload(); InitializeNavigation();
-        state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
+        state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();SelectPhoneVerificationCommand.NotifyCanExecuteChanged();SelectWindowsHelloCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
     }
     public void Reload()
     {
@@ -74,6 +78,7 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(HasLoginMethodChanges));
         SecurityMessage=WindowsHelloEnabled?"当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。":"当前使用手机验证，进入及解除锁定需要手机代码。";
         OnPropertyChanged(nameof(SecuritySettingsAvailable)); ClearSecurityInputs();
+        SelectPhoneVerificationCommand.NotifyCanExecuteChanged();SelectWindowsHelloCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ShowPhoneCode));
         if(SecuritySettingsAvailable)DocumentPasswordMessage=vault!.DocumentEncryptionPassword.Length>0?"已配置统一文档加密密码。留空保持当前密码；旧文件仍使用其原密码。":"尚未配置文档加密密码，请在此统一设置。";
         Message = "桌面日志保存后立即生效；数据库目录下次启动生效，原数据库不会移动。";

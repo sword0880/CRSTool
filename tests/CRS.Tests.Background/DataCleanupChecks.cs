@@ -5,13 +5,13 @@ using CRS.Worker.Service;
 
 internal static class DataCleanupChecks
 {
-    private sealed class Clock:TimeProvider{public DateTimeOffset Value=new(2026,10,27,12,0,0,TimeSpan.FromHours(8));public override DateTimeOffset GetUtcNow()=>Value.ToUniversalTime();}
+    internal sealed class Clock:TimeProvider{public DateTimeOffset Value=new(2026,10,27,12,0,0,TimeSpan.FromHours(8));public override DateTimeOffset GetUtcNow()=>Value.ToUniversalTime();}
     private static int passed;
     private static void Check(bool condition,string text){if(!condition)throw new Exception("清理验收失败："+text);Console.WriteLine("PASS "+text);passed++;}
     private static string Hash(string path)=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
     private static void Put(string path,string value){Directory.CreateDirectory(Path.GetDirectoryName(path)!);File.WriteAllText(path,value);}
-    private sealed record Fixture(string Root,string Current,string[] Old,Clock Clock);
-    private static Fixture Create(string parent)
+    internal sealed record Fixture(string Root,string Current,string[] Old,Clock Clock);
+    internal static Fixture Create(string parent)
     {
         var root=Path.Combine(parent,Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);var clock=new Clock();
         Put(Path.Combine(root,"scheduler-config.db"),"live database");Put(Path.Combine(root,"scheduler-config.db-wal"),"uncheckpointed facts");Put(Path.Combine(root,"scheduler-config.db-shm"),"shared");Put(Path.Combine(root,"service-key.dpapi"),"synthetic key only");Put(Path.Combine(root,"plugins/crs.national-team/raw/evidence.pdf"),"original evidence");
@@ -49,10 +49,10 @@ internal static class DataCleanupChecks
             Check(before.Count==after.Count&&before.All(x=>after[x.Key]==x.Value)&&directories==Directory.GetDirectories(f.Root,"*",SearchOption.AllDirectories).Length,"扫描完全只读，不写目录或记录");
             Check(audit.Progress is{ScannedFiles:19,VerifiedFiles:>0,VerifiedBytes:>0}
                 &&audit.Progress.ScannedBytes==audit.Entries.Sum(x=>x.Bytes??0),"扫描如实累计文件数、大小与校验读取量，统计不依赖删除数量");
-            Check(audit.Entries.Count(x=>x.Selected)==1&&audit.Entries.Single(x=>x.Selected).Category=="Logs","默认仅选择超过保留期的已关闭日志");
+            Check(audit.Entries.Count(x=>x.Selected)==4&&audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Selected)==3,"默认清理过期日志和旧副本，保留当前与最近一份有效历史副本");
             Check(!audit.Entries.Single(x=>x.Id==f.Current).Eligible,"当前维护引用的快照始终保护");
-            Check(audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Eligible)==2,"保留当前快照和最近两份完整历史快照");
-            await Denied(()=>service.Audit(new(0,2,true)),"拒绝非法日志保留期");await Denied(()=>service.Audit(new(14,1,true)),"拒绝少于两份历史回退副本");
+            Check(audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Eligible)==3,"默认保留当前快照和最近一份完整历史快照");
+            await Denied(()=>service.Audit(new(0,2,true)),"拒绝非法日志保留期");await Denied(()=>service.Audit(new(14,0,true)),"拒绝不保留任何历史回退副本");
             var scanning=service.BeginPreview(Guid.NewGuid(),"admin",new(14,2,true));
             Check(scanning is{State:"Scanning",Progress:not null}&&scanning.DeletedFiles==0,"异步扫描受理时立即提供独立扫描进度");
             var preview=await Wait(service,scanning);await Denied(()=>service.Status(preview.OperationId,"another-sid"),"预览按实际调用者身份隔离");

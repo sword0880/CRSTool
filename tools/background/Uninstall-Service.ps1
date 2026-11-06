@@ -9,6 +9,9 @@ $target=[IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'CRS/Background'))
 $expected='"'+(Join-Path $target 'CRS.Worker.Service.exe')+'"'
 $data=Join-Path $env:ProgramData 'CRS/Background'
 Import-Module (Join-Path $PSScriptRoot 'WorkerMaintenance.psm1') -Force
+$registered=Get-CimInstance Win32_Service -Filter "Name='$name'"
+if($registered.PathName -ne $expected -or $registered.StartName -ne 'NT AUTHORITY\LocalService'){throw '服务路径或身份与本安装器不一致，拒绝删除。'}
+Suspend-WorkerAutomaticCleanup $target $name
 $operation=[IO.FileStream]::new((Get-WorkerChild $data 'maintenance.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
 try{
 $maintenance=Read-WorkerUpgrade $data

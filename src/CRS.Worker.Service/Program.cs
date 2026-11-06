@@ -8,13 +8,14 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 // 安装器以应用健康确认启动完成；探测模式只读管道，不占用数据目录租约。
-if (args is ["--health-probe"])
+if (args is ["--health-probe"] or ["--pause-auto-cleanup"])
 {
     try
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-        var response = await new BackgroundPipeClient().QueryAsync("GetHealth", deadline.Token);
-        Console.WriteLine(JsonSerializer.Serialize(response)); Environment.ExitCode = response.Code == "Ok" && response.Health?.State == "Running" ? 0 : 3;
+        var pause = args[0] == "--pause-auto-cleanup";
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(pause ? 15 : 4));
+        var response = await new BackgroundPipeClient().QueryAsync(pause ? "PauseAutoCleanup" : "GetHealth", deadline.Token);
+        Console.WriteLine(JsonSerializer.Serialize(response)); Environment.ExitCode = response.Code == "Ok" && (pause || response.Health?.State == "Running") ? 0 : 3;
     }
     catch (Exception error) { Console.Error.WriteLine("CRS_WORKER_PROBE_FAILED:" + error.GetType().Name); Environment.ExitCode = 3; }
     return;
@@ -93,12 +94,16 @@ namespace CRS.Worker.Service
                         (plugin,phase,code)=>diagnostics.Write("PluginLifecycle",plugin,phase+"."+code)));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 await using var cleanup=new WorkerDataCleanup(locations.Data);
+                cleanup.InitializeTasks(diagnostics.Write);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
                     executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup,documentInbox:new WorkerDocumentInbox(locations.Data));
-                Task? pipeTask = null;
+                Task? pipeTask = null;Task? automaticCleanupTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 var securityTask=StorageSecurity.MonitorAsync(locations.Data,locations.Console,
-                    count=>diagnostics.Write("StorageCapacityWarning","service","Entries="+count),listeners.Token);
+                    count=>diagnostics.Write("StorageCapacityWarning","service","Entries="+count),listeners.Token,
+                    frequency:null,budget:StorageScanBudget.Default,
+                    completed:scan=>diagnostics.Write("StorageSecurityScanCompleted","service",
+                        FormattableString.Invariant($"Entries={scan.Entries};ElapsedMs={scan.Elapsed.TotalMilliseconds:F0};ActiveMs={scan.Active.TotalMilliseconds:F0};PausedMs={scan.Paused.TotalMilliseconds:F0}")));
                 try
                 {
                     await runtime.StartAsync(stoppingToken);
@@ -106,12 +111,20 @@ namespace CRS.Worker.Service
                     diagnostics.Write("Started", "service", "Running");
                     pipeTask = new BackgroundPipeServer(runtime, locations.Pipe,
                         diagnostic:(command,code)=>diagnostics.Write("PipeRequestFailed",command,code)).RunAsync(listeners.Token);
+                    automaticCleanupTask=cleanup.RunAutomaticAsync(diagnostics.Write,listeners.Token);
                     logger.LogInformation("CRS 后台服务已启动，加载 {Count} 个后台任务。", catalog.Jobs.Count);
                     using var interval = new PeriodicTimer(TimeSpan.FromSeconds(30));
-                    while (await interval.WaitForNextTickAsync(stoppingToken))
+                    while (true)
                     {
-                        if (pipeTask.IsCompleted) await pipeTask; // 管道监听异常必须进入 SCM 失败恢复，不能假装健康。
-                        if(securityTask.IsCompleted)await securityTask;
+                        var tick = interval.WaitForNextTickAsync(stoppingToken).AsTask();
+                        var completed = await Task.WhenAny(tick, pipeTask, securityTask,automaticCleanupTask);
+                        // 巡检发现权限故障时立即进入停止路径，不再等待下一次30秒协调。
+                        if (completed != tick)
+                        {
+                            await completed;
+                            throw new IOException("后台监听或权限巡检意外结束。");
+                        }
+                        if (!await tick) break;
                         await runtime.ReconcileAsync(stoppingToken);
                     }
                 }
@@ -124,6 +137,7 @@ namespace CRS.Worker.Service
                     {
                         if (pipeTask is not null) try { await pipeTask; } catch (OperationCanceledException) { }
                         try{await securityTask;}catch(OperationCanceledException) when(listeners.IsCancellationRequested){}
+                        if(automaticCleanupTask is not null)try{await automaticCleanupTask;}catch(OperationCanceledException) when(listeners.IsCancellationRequested){}
                     }
                     finally
                     {

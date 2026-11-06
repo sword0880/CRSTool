@@ -20,13 +20,16 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
         public DataCleanupStatus Status=new(id,"Scanning",CRS.Timing.BeijingClock.Now,null,[],0,0,"正在识别资料用途。")
         {Progress=new("ScanningLogs",null)};
         public List<Target> Targets=[];public List<Target> Retained=[];public string? CurrentJournalHash;public Task? Task;
+        public bool Automatic,BackgroundTask;public DateTimeOffset SubmittedAt;public CleanupWorkPacer? Pacer;
     }
     private sealed record Target(DataCleanupEntry Entry,string FullPath,string? ArchiveHash,string? ManifestHash,
         Dictionary<string,string>? ExpectedHashes,long Length=0,long ModifiedTicks=0);
     private sealed record SnapshotManifest(int Format,string ReleaseHash,Dictionary<string,string> Files);
     private static readonly JsonSerializerOptions Json=new(){RespectRequiredConstructorParameters=true,RespectNullableAnnotations=true};
     public WorkerDataCleanup(string dataDirectory,TimeProvider? timeProvider=null)
-    {root=Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataDirectory));clock=timeProvider??TimeProvider.System;StorageSecurity.RejectLinks(root);}
+    {
+        root=Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataDirectory));clock=timeProvider??TimeProvider.System;StorageSecurity.RejectLinks(root);
+    }
     private DateTimeOffset Now=>CRS.Timing.BeijingClock.Read(clock);
     private string Child(string relative)
     {
@@ -36,7 +39,7 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
         StorageSecurity.RejectLinks(path);return path;
     }
     private static void Validate(DataCleanupOptions options)
-    {if(options.LogRetentionDays is <1 or >365||options.HistoricalBackupsToKeep is <2 or >20)throw new InvalidDataException("日志至少保留1天，历史升级备份至少保留2份。");}
+    {if(options.LogRetentionDays is <1 or >365||options.HistoricalBackupsToKeep is <1 or >20)throw new InvalidDataException("日志至少保留1天，历史升级备份至少保留1份。");}
     /// <summary>只读审计入口，用于隔离验证和现场盘点；不会写预览、创建目录或获取维护锁。</summary>
     public DataCleanupStatus Audit(DataCleanupOptions options,CancellationToken token=default)
     {
@@ -94,7 +97,7 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
         {
             var eligible=current is not null&&current.UpdatedUtc<=Now&&(current.Stage is "Committed" or "RolledBack")&&!retained.Contains(backup.Record.Id)&&!damaged.Contains(backup.Record.Id);
             var entry=backup.Target.Entry with{Eligible=eligible,Selected=eligible&&operation.Options.IncludeHistoricalBackups,
-                Reason=eligible?"已完成的旧升级副本；清理后不能依靠此副本回退到该历史版本。":retained.Contains(backup.Record.Id)?"保留最近两份或所选数量的已验证历史回退副本。":damaged.Contains(backup.Record.Id)?"备份字节与清单不符，保留现场供管理员处理。":"当前维护状态未确认完成，保留全部升级副本。"};
+                Reason=eligible?"已完成的旧升级副本；清理后不能依靠此副本回退到该历史版本。":retained.Contains(backup.Record.Id)?"保留指定数量的最近已验证历史回退副本。":damaged.Contains(backup.Record.Id)?"备份字节与清单不符，保留现场供管理员处理。":"当前维护状态未确认完成，保留全部升级副本。"};
             entries.Add(entry);if(entry.Selected)targets.Add(backup.Target with{Entry=entry});
         }
         AddRemainders(entries,targets,current,token,operation);

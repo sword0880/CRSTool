@@ -31,6 +31,7 @@ internal static class SettingsViewChecks
                 try
                 {
                     await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    await VerifyLoginSelectionAsync(window,model,vault);
                     Directory.CreateDirectory(directory);Capture(window,Path.Combine(directory,"settings.png"));
                     var tree=(TreeView)window.FindName("SectionNavigation");tree.UpdateLayout();
                     var group=(TreeViewItem)tree.ItemContainerGenerator.ContainerFromIndex(1);group.UpdateLayout();
@@ -110,6 +111,35 @@ internal static class SettingsViewChecks
     {
         window.UpdateLayout();var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
+    }
+    private static async Task VerifyLoginSelectionAsync(SettingsWindow window,SettingsViewModel model,VaultInteractionChecks.FakeVault vault)
+    {
+        var security=(SecuritySettingsView)window.FindName("SecuritySection");
+        var hello=(RadioButton)security.FindName("WindowsHelloOption");var phone=(RadioButton)security.FindName("PhoneVerificationOption");
+        if(!hello.Command.CanExecute(hello.CommandParameter)||!phone.Command.CanExecute(phone.CommandParameter))throw new Exception("合成授权会话没有开放登录方式选择。");
+        phone.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,false);
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if(model.WindowsHelloEnabled)throw new Exception("组内取消选中意外反向修改登录方式。");
+        for(var i=0;i<32;i++)
+        {
+            model.SelectedSection=model.Sections.Single(x=>x.Key=="security");
+            hello.Command.Execute(hello.CommandParameter);
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if(!model.WindowsHelloEnabled||model.PhoneVerificationEnabled||hello.IsChecked!=true||phone.IsChecked==true)throw new Exception("Hello选择没有稳定同步到真实单选控件。");
+            phone.Command.Execute(phone.CommandParameter);
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if(model.WindowsHelloEnabled||!model.PhoneVerificationEnabled||phone.IsChecked!=true||hello.IsChecked==true)throw new Exception("手机选择没有稳定同步到真实单选控件。");
+            model.SelectedSection=model.Sections.Single(x=>x.Key=="cleanup");
+            model.WindowsHelloEnabled=true;model.Reload();
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if(model.WindowsHelloEnabled||!model.PhoneVerificationEnabled||vault.UsesWindowsHello)throw new Exception("隐藏的验证设置在清理页面刷新时改变了已保存登录方式。");
+        }
+        await vault.SetLoginMethodAsync(true,"synthetic-master","123456");model.Reload();
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if(!model.WindowsHelloEnabled||model.PhoneVerificationEnabled||hello.IsChecked!=true)throw new Exception("已保存Hello的会话刷新时发生错误切换。");
+        await vault.SetLoginMethodAsync(false,"synthetic-master","123456");model.Reload();
+        model.SelectedSection=model.Sections[0];
+        Console.WriteLine("PASS 登录方式：真实单选控件32轮切换、清理页面中的刷新、组内取消选中均无递归；未保存时不修改验证方式。");
     }
     private sealed class Settings:IDesktopSettingsService
     {

@@ -31,7 +31,7 @@ if(-not $HeartbeatOnly){
 Copy-Item -LiteralPath (Join-Path $repository 'tools/background/Install-Service.ps1'),(Join-Path $repository 'tools/background/Uninstall-Service.ps1'),(Join-Path $repository 'tools/background/Upgrade-Service.ps1'),(Join-Path $repository 'tools/background/Recover-Service.ps1'),(Join-Path $repository 'tools/background/WorkerMaintenance.psm1'),(Join-Path $repository 'tools/background/WorkerUpgradeTransaction.psm1') -Destination $output
 $files=@{}
 foreach($file in Get-ChildItem -LiteralPath $output -Recurse -File){$relative=[IO.Path]::GetRelativePath($output,$file.FullName).Replace('\','/');$files[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
-$release=@{format=1;product='CRS.Worker.Service';version='2.0.0';development=$true;maintenanceFormat=1;upgradeFromVersions=@('2.0.0');files=$files}
+$release=@{format=1;product='CRS.Worker.Service';version='2.0.0';development=$true;maintenanceFormat=1;upgradeFromVersions=@('2.0.0');automaticCleanupProtocol=1;dataCleanupTaskProtocol=1;files=$files}
 # 迁移只属于显式维护发行；日常构建、首次安装及普通重启不自动改写旧资料格式。
 if($MigrateNationalTeamStorage){$release.storageMigrations=@(@{pluginId='crs.national-team';migrationId='national-team-plaintext-v1';timeoutSeconds=600})}
 $release | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $output 'release.json') -Encoding utf8

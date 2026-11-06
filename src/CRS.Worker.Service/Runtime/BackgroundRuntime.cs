@@ -144,7 +144,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     {
         if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, token);
         if(request.Command is "PutPluginDocument" or "GetPluginDocument" or "ListPluginDocuments")return await HandleDocumentsAsync(request,caller,token);
-        if(request.Command is "BeginDataCleanupPreview" or "GetDataCleanupStatus" or "ExecuteDataCleanup")return HandleCleanup(request,caller,token);
+        if(request.Command is "BeginDataCleanupPreview" or "GetDataCleanupStatus" or "ExecuteDataCleanup" or "PauseAutoCleanup" or "SubmitDataCleanupTask" or "GetDataCleanupTasks" or "AcknowledgeDataCleanupTask")return await HandleCleanupAsync(request,caller,token);
         if(request.Command is "GetEmailSettings" or "SaveEmailSettings" or "TestEmailSettings" or "GetWebhookSettings" or "SaveWebhookSettings" or "TestWebhookSettings")return await HandleEmailAsync(request,caller,token);
         await gate.WaitAsync(token);
         try

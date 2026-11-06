@@ -34,7 +34,7 @@ ETF官方报告目录：`CRS.Tests.NationalTeamWatch --etf-report-index`默认�
 
 独立数据库与备份管理：`CRS.Tests.Wpf --database-backup-model`验证独立备份/恢复路径、先关闭旧库再恢复、成功后切换位置、失败保留原位置、取消及凭证清理，并回归原有登录验证。`--database-backup-ui <截图目录>`以合成服务渲染560/760/1040 DIP真实窗口，检查不混入登录或手机验证码内容、固定关闭按钮及系统锁定清理。见[实现记录](../docs/implementation/DATABASE_BACKUP_MANAGEMENT.md)。
 
-运行资料清理：`CRS.Tests.Background --data-cleanup` 在合成临时目录验证旧日志、至少两份历史副本保留、维护冲突、链接、文件变化、扫描及校验进度、重启未知计数、残留继续清理，并经真实Windows管道确认管理员控制、进度字段和后台健康。`CRS.Tests.Wpf --data-cleanup-model` 验证预览、范围失效、实时进度、扫描续查和未知结果查询；`--data-cleanup-progress-ui <截图目录>` 渲染仅使用合成资料的扫描、校验和确定清理进度，检查每秒用时及完成后收起；`--settings-cleanup-ui <截图目录> <只读预览JSON>` 渲染禁止删除的真实设置窗口。`CRS.Tests.Background --data-cleanup-audit <后台目录>` 是只读审计，不创建目录、不写预览或删除文件。范围和发布边界见[实现记录](../docs/implementation/RUNTIME_DATA_CLEANUP.md)。
+运行资料清理：`CRS.Tests.Background --data-cleanup` 在合成临时目录验证旧日志、默认当前及一份历史副本保留和显式保留两份、维护冲突、链接、文件变化、扫描及校验进度、重启未知计数、残留继续清理，并经真实Windows管道确认管理员控制、进度字段和后台健康。`CRS.Tests.Background --automatic-cleanup` 验证每日自动调度、持久化计划、限速取消、手动优先、维护冲突及坏状态保护；只使用隔离合成资料。`CRS.Tests.Wpf --data-cleanup-model` 验证预览、范围失效、实时进度、扫描续查和未知结果查询；`--data-cleanup-gateway` 以合成通信和真实一秒轮询实际等待超过185秒，验证三分钟后继续跟踪、只提交一次扫描及取消跟踪不取消后台操作；`--data-cleanup-progress-ui <截图目录>` 渲染仅使用合成资料的扫描、校验和确定清理进度，检查每秒用时及完成后收起；`--settings-cleanup-ui <截图目录> <只读预览JSON>` 渲染禁止删除的真实设置窗口。`CRS.Tests.Background --data-cleanup-audit <后台目录>` 是只读审计，不创建目录、不写预览或删除文件。范围和发布边界见[实现记录](../docs/implementation/RUNTIME_DATA_CLEANUP.md)。
 
 ETF披露统一核验：`CRS.Tests.NationalTeamWatch --etf-document-boundaries`检查原件来源/Q15/首见、既有确认失效、历史回算和领取闸门、普通SQLite只读/迁移缺损及跨128引用去重；`--exit-alerts`另含解除通知的当前冻结窗口和通知原子回滚；`--etf-holder-candidates`含同值刷新状态反例，`--exit-alert-ui`核对真实核验列。范围见[原件一致性记录](../docs/implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-document-integrity)。
 
@@ -278,6 +278,8 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 
 当前Release构建后可分别运行Infrastructure的--calculation-commit、NationalTeamWatch的--read-isolation、Background的--supervised-plugins与--storage-growth。均使用合成资料和隔离目录；storage-growth会创建101000个空文件，需预留目录容量和测试时间。受限环境将TEMP/TMP指向工作区独立artifacts目录。监督专项使用真实子进程、Job Object和持久回执，不操作已安装服务。范围见[实施记录](../docs/implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)。
 
+2026-11-05巡检CPU预算：`CRS.Tests.Background --storage-scan-budget` 用1000个真实NTFS文件对比同步与默认分批巡检的CPU/工作/休息时间，验证相同覆盖、嵌套受保护文件越权拒绝、轮后休息、取消、完整扫描中与轮间休息时的关键权限复核。`--storage-security <HeartbeatOnly包>` 单独运行真实ACL、链接和宿主故障退出回归。`--storage-growth` 保留十万项完整覆盖与预警验证，显式使用无休息预算以免将容量回归变成长时间CPU预算测试；它不用于证明默认限速效果。生产数据和已安装服务不参与这些测试。
+
 架构续项验证：CRS.Tests.NationalTeamWatch --repository-contracts 检查必需方法无默认实现与启动能力门禁；CRS.Tests.WorkerEtf --storage-providers 包含正式会话拒绝残缺提供方。应用默认回归含北京时间年度跨年边界；CRS.Tests.Background --recovery-export-persistence 使用真实 SQLCipher 和自有子进程，检查持久重放索引、故障关闭及三个阶段强杀。它不是生产导出入口，也不代表跨机恢复验收。详见[实施记录](../docs/implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-followup)。
 行业公布PE独立检查：`dotnet run --project tests/CRS.Tests.IndustryPe -c Release -- --output artifacts/industry-pe-checks-20261025`，覆盖严格解析、加密修订/知识时点、双回执、取消、原件健康和来源持久冷却；使用合成及隔离资料，不代表正式数据或机会有效性验收。
 
@@ -349,3 +351,4 @@ ETF超时性能专项：`CRS.Tests.WorkerEtf --adaptive-query-pages`验证V1新�
 `CRS.Tests.NationalTeamWatch --application-boundaries`检查客户端合同全部要求显式实现、八组后台用例不实现界面合同、初始化前/关闭后拒绝读写、重复初始化与取消、必需能力缺失时释放连接。默认回归及CI包含专项；旧`EtfWorkspace`已删除，WPF合成夹具通过测试专用端口转发实际用例，未配置能力明确拒绝。并发读取、完整性核验和47项独立后台检查继续验证真实执行行为，见[应用边界](../docs/implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-application-boundary)。
 
 `CRS.Tests.NationalTeamWatch --nav-workspace`验证NAV与份额研究的同一只读快照、1/5/20窗口、缺失/损坏/待审更正、完整JSON块、真实后台分页及证券与日期身份。独立NAV桌面页面已于2026-11-05移除，后台研究能力保留。`CRS.Tests.WorkerEtf <完整后台包>`增加真实Runner的NAV研究读取；完整冻结输入可做数学复算，仍不是原件现场验收、具名机构成交或模型有效性证明。见[NAV工作区](../docs/implementation/NATIONAL_TEAM_NAV.md#national-team-nav-workspace)。
+后台完整清理任务：`CRS.Tests.Background --cleanup-tasks` 验证快速受理、重复提交、任务/通知持久化、服务重启中断识别、Queued继续执行、落盘中途退出后的原编号重试，以及只读审计不修改任务。`CRS.Tests.Wpf --cleanup-task-model` 验证提交即返回、前台重建读取通知、已读确认、未知数量与响应丢失重试；`--cleanup-task-ui <目录>` 渲染设置仅提交入口及主窗口提醒。原 `--data-cleanup-progress-ui` 是此新界面专项的兼容别名，不再渲染旧进度页面。此前手动预览/等待专项仅验证兼容API，当前设置不再暴露该流程。见[后台任务交付](../docs/validation/DATA_CLEANUP_BACKGROUND_TASKS_20261106.md)。

@@ -19,6 +19,15 @@ function Get-WorkerChild([string]$Root, [string]$Relative) {
     Assert-WorkerNoLinks $path
     return $path
 }
+function Suspend-WorkerAutomaticCleanup([string]$Program,[string]$Name='CRSBackgroundService') {
+    if((Get-Service -Name $Name).Status -ne 'Running'){return}
+    $release=Get-Content -LiteralPath (Get-WorkerChild $Program 'release.json') -Raw|ConvertFrom-Json -AsHashtable
+    # 旧版没有后台自动清理，无需调用新命令；新版先取消自动任务，再申请维护锁。
+    if(-not $release.ContainsKey('automaticCleanupProtocol')){return}
+    if($release.automaticCleanupProtocol -ne 1){throw '自动清理维护协议不受支持。'}
+    & (Get-WorkerChild $Program 'CRS.Worker.Service.exe') --pause-auto-cleanup | Out-Null
+    if($LASTEXITCODE -ne 0){throw '后台自动清理未能暂停，未开始升级维护。'}
+}
 function Get-WorkerFiles([string]$Root,[switch]$ExcludeMaintenance) {
     Assert-WorkerNoLinks $Root
     $base=[IO.Path]::GetFullPath($Root)

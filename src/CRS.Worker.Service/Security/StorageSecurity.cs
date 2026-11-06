@@ -3,7 +3,7 @@ using System.Security.Principal;
 namespace CRS.Worker.Service;
 
 /// <summary>机器 DPAPI 依赖文件 ACL；开发控制台也必须封闭密钥目录。</summary>
-public static class StorageSecurity
+public static partial class StorageSecurity
 {
     public const long CapacityWarningEntries = 80000;
     private static readonly SecurityIdentifier SystemSid = new(WellKnownSidType.LocalSystemSid, null);
@@ -29,62 +29,101 @@ public static class StorageSecurity
     public static void Validate(string directory, bool console,CancellationToken token=default)=>Scan(directory,console,token);
     public static long Scan(string directory,bool console,CancellationToken token=default)
     {
-        token.ThrowIfCancellationRequested();
-        RejectLinks(directory);
-        if (!Directory.Exists(directory)) throw new StorageSecurityException();
+        using var scan = new StorageScan(directory, console, token);
+        while (scan.MoveNext(token)) { }
+        return scan.Visited;
+    }
+
+    private sealed record AccessPolicy(SecurityIdentifier Identity, HashSet<string> Allowed, HashSet<string> Owners);
+
+    private static AccessPolicy Policy(bool console)
+    {
         var identity = console ? WindowsIdentity.GetCurrent().User! :
             (SecurityIdentifier)new NTAccount("NT SERVICE", "CRSBackgroundService").Translate(typeof(SecurityIdentifier));
         var allowed = new HashSet<string>(StringComparer.Ordinal) { SystemSid.Value, AdminSid.Value, identity.Value };
         var owners = new HashSet<string>(allowed, StringComparer.Ordinal);
         // Windows 会把 LocalService 创建的文件记为其所有；不能将共享账户加入可读 ACE 白名单。
         if (!console) owners.Add(new SecurityIdentifier(WellKnownSidType.LocalServiceSid, null).Value);
-        var root = new DirectoryInfo(directory);
+        return new(identity, allowed, owners);
+    }
+
+    private static void ValidateRoot(DirectoryInfo root, bool console, AccessPolicy policy)
+    {
+        RejectLinks(root.FullName);
+        if (!root.Exists) throw new StorageSecurityException();
         var rootSecurity = root.GetAccessControl();
         if (!rootSecurity.AreAccessRulesProtected) throw new StorageSecurityException();
         // 正式数据根的所有者必须保留为管理员或 SYSTEM，不能由共享服务账户接管根权限。
         if (!console && rootSecurity.GetOwner(typeof(SecurityIdentifier)) is SecurityIdentifier rootOwner &&
             !rootOwner.Equals(SystemSid) && !rootOwner.Equals(AdminSid)) throw new StorageSecurityException();
-        ValidateAcl(rootSecurity, allowed, owners);
+        ValidateAcl(rootSecurity, policy.Allowed, policy.Owners);
         RequireInheritedAccess(rootSecurity, SystemSid, FileSystemRights.FullControl);
         RequireInheritedAccess(rootSecurity, AdminSid, FileSystemRights.FullControl);
-        RequireInheritedAccess(rootSecurity, identity, console ? FileSystemRights.FullControl : FileSystemRights.Modify);
-        var pending = new Stack<DirectoryInfo>(); pending.Push(root);
-        long visited = 0;
-        while (pending.TryPop(out var parent))
-        {
-            try
-            {
-                foreach (var entry in parent.EnumerateFileSystemInfos())
-                {
-                    token.ThrowIfCancellationRequested();visited++;
-                    try
-                    {
-                        if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)throw new StorageSecurityException();
-                        if (entry is DirectoryInfo child)
-                        {ValidateAcl(child.GetAccessControl(), allowed, owners); pending.Push(child);}
-                        else ValidateAcl(((FileInfo)entry).GetAccessControl(), allowed, owners);
-                    }
-                    // 原件临时文件/WAL可在枚举后正常消失；只忽略已确认不存在的项，权限异常仍拒绝。
-                    catch(FileNotFoundException) when(!Path.Exists(entry.FullName)){}
-                    catch(DirectoryNotFoundException) when(!Path.Exists(entry.FullName)){}
-                }
-            }
-            catch(DirectoryNotFoundException) when(parent.FullName!=root.FullName&&!Directory.Exists(parent.FullName)){}
-        }
-        return visited;
+        RequireInheritedAccess(rootSecurity, policy.Identity, console ? FileSystemRights.FullControl : FileSystemRights.Modify);
     }
 
-    /// <summary>每次仅有一轮独立巡检，不占调度协调循环；合法文件增长只预警，权限漂移仍使宿主停止。</summary>
-    public static async Task MonitorAsync(string directory,bool console,Action<long> capacityWarning,CancellationToken token,TimeSpan? frequency=null)
+    private static void ValidateEntry(FileSystemInfo entry, AccessPolicy policy)
     {
-        var warned=false;
-        using var interval=new PeriodicTimer(frequency??TimeSpan.FromSeconds(30));
-        while(await interval.WaitForNextTickAsync(token))
+        try
         {
-            var count=await Task.Run(()=>Scan(directory,console,token),token).ConfigureAwait(false);
-            if(count>=CapacityWarningEntries&&!warned){capacityWarning(count);warned=true;}
-            if(count<CapacityWarningEntries)warned=false;
+            if ((entry.Attributes & FileAttributes.ReparsePoint) != 0) throw new StorageSecurityException();
+            var security = entry is DirectoryInfo child ? (FileSystemSecurity)child.GetAccessControl() : ((FileInfo)entry).GetAccessControl();
+            ValidateAcl(security, policy.Allowed, policy.Owners);
         }
+        // 原件临时文件/WAL可在枚举后正常消失；只忽略已确认不存在的项，权限异常仍拒绝。
+        catch (FileNotFoundException) when (!Path.Exists(entry.FullName)) { }
+        catch (DirectoryNotFoundException) when (!Path.Exists(entry.FullName)) { }
+    }
+
+    /// <summary>同一个游标供启动全量检查和运行中的分批巡检使用，覆盖范围及拒绝条件一致。</summary>
+    private sealed class StorageScan : IDisposable
+    {
+        private readonly DirectoryInfo root;
+        private readonly bool console;
+        private readonly AccessPolicy policy;
+        private readonly Stack<DirectoryInfo> pending = [];
+        private DirectoryInfo? parent;
+        private IEnumerator<FileSystemInfo>? entries;
+        public long Visited { get; private set; }
+
+        public StorageScan(string directory, bool console, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            root = new(directory); this.console = console; policy = Policy(console);
+            ValidateRoot(root, console, policy);
+            pending.Push(root);
+        }
+
+        public void ValidateTopLevel(CancellationToken token)
+        {
+            root.Refresh();
+            ValidateRoot(root, console, policy);
+            foreach (var entry in root.EnumerateFileSystemInfos())
+            { token.ThrowIfCancellationRequested(); ValidateEntry(entry, policy); }
+        }
+
+        public bool MoveNext(CancellationToken token)
+        {
+            while (true)
+            {
+                token.ThrowIfCancellationRequested();
+                if (entries is null && !pending.TryPop(out parent)) return false;
+                try
+                {
+                    entries ??= parent!.EnumerateFileSystemInfos().GetEnumerator();
+                    if (!entries.MoveNext()) { Dispose(); continue; }
+                    var entry = entries.Current;
+                    Visited++;
+                    ValidateEntry(entry, policy);
+                    if (entry is DirectoryInfo child) pending.Push(child);
+                    return true;
+                }
+                catch (DirectoryNotFoundException) when (parent!.FullName != root.FullName && !Directory.Exists(parent.FullName))
+                { Dispose(); }
+            }
+        }
+
+        public void Dispose() { entries?.Dispose(); entries = null; }
     }
 
     /// <summary>任何额外主体的允许 ACE 都可能泄露机器 DPAPI 密文；空 DACL 同样拒绝。</summary>

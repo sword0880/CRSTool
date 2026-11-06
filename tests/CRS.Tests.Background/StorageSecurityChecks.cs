@@ -22,6 +22,14 @@ internal static class StorageSecurityChecks
     /// <summary>输出范围明确的验证证据。</summary>
     private static void Pass(string name) { passed++; Console.WriteLine("PASS 权限：" + name); }
 
+    private static void RestoreAccess(FileSystemInfo entry, FileSystemSecurity original)
+    {
+        // 读取到的快照没有修改标记；重新导入DACL，防止先前的越权权限污染下一项验证。
+        original.SetSecurityDescriptorBinaryForm(original.GetSecurityDescriptorBinaryForm(), AccessControlSections.Access);
+        if (entry is DirectoryInfo directory) directory.SetAccessControl((DirectorySecurity)original);
+        else ((FileInfo)entry).SetAccessControl((FileSecurity)original);
+    }
+
     /// <summary>覆盖根权限、受保护子项和文件链接，然后验证真实宿主的定期停止行为。</summary>
     public static async Task RunAsync(string root, string package)
     {
@@ -34,13 +42,13 @@ internal static class StorageSecurityChecks
             widened.AddAccessRule(new(Users, FileSystemRights.Read, AccessControlType.Allow)); folder.SetAccessControl(widened);
             Reject(() => StorageSecurity.Validate(directory, true), "根目录多出普通用户读取权限时拒绝");
         }
-        finally { folder.SetAccessControl(original); }
+        finally { RestoreAccess(folder, original); }
         try
         {
             var inherited = folder.GetAccessControl(); inherited.SetAccessRuleProtection(false, true); folder.SetAccessControl(inherited);
             Reject(() => StorageSecurity.Validate(directory, true), "根目录重新开放父级继承时拒绝");
         }
-        finally { folder.SetAccessControl(original); }
+        finally { RestoreAccess(folder, original); }
         var file = new FileInfo(Path.Combine(directory, "service-key.dpapi")); File.WriteAllText(file.FullName, "仅测试权限");
         var fileOriginal = file.GetAccessControl();
         try
@@ -49,7 +57,7 @@ internal static class StorageSecurityChecks
             widened.AddAccessRule(new(Users, FileSystemRights.Read, AccessControlType.Allow)); file.SetAccessControl(widened);
             Reject(() => StorageSecurity.Validate(directory, true), "受保护密钥文件的额外读取权限也被检测");
         }
-        finally { file.SetAccessControl(fileOriginal); }
+        finally { RestoreAccess(file, fileOriginal); }
         var child = Directory.CreateDirectory(Path.Combine(directory, "backup")); var childOriginal = child.GetAccessControl();
         try
         {
@@ -57,7 +65,7 @@ internal static class StorageSecurityChecks
             widened.AddAccessRule(new(Users, FileSystemRights.Read, AccessControlType.Allow)); child.SetAccessControl(widened);
             Reject(() => StorageSecurity.Validate(directory, true), "备份子目录独立 ACL 漂移同样拒绝");
         }
-        finally { child.SetAccessControl(childOriginal); }
+        finally { RestoreAccess(child, childOriginal); }
         var link = Path.Combine(directory, "linked-backup"); Directory.CreateSymbolicLink(link, child.FullName);
         try { Reject(() => StorageSecurity.Validate(directory, true), "数据树目录链接不被递归遍历"); }
         finally { Directory.Delete(link); }
@@ -96,7 +104,7 @@ internal static class StorageSecurityChecks
                     throw new InvalidOperationException("权限故障不应改变原密钥。");
                 Pass("权限异常保留原密钥，不自动修复或重新生成");
             }
-            finally { file.SetAccessControl(original); }
+            finally { RestoreAccess(file, original); }
         }
         finally { if (!process.HasExited) process.Kill(); await process.WaitForExitAsync(); }
     }

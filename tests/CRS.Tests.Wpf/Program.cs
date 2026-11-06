@@ -16,9 +16,12 @@ if(args is ["--cron"]){CronEditorChecks.Run();return;}
 if(args is ["--settings-ui",var settingsDirectory]){SettingsViewChecks.Run(settingsDirectory);return;}
 if(args is ["--settings-cleanup-ui",var cleanupDirectory,var cleanupAudit]){SettingsViewChecks.Run(cleanupDirectory,cleanupAudit);return;}
 if(args is ["--data-cleanup-model"]){await DataCleanupViewChecks.RunAsync();return;}
+if(args is ["--data-cleanup-gateway"]){await DataCleanupGatewayChecks.RunAsync();return;}
 if(args is ["--database-backup-model"]){await DatabaseBackupChecks.RunAsync();await VaultInteractionChecks.RunAsync();return;}
 if(args is ["--database-backup-ui",var databaseBackupDirectory]){DatabaseBackupViewChecks.Run(databaseBackupDirectory);return;}
-if(args is ["--data-cleanup-progress-ui",var progressDirectory]){DataCleanupProgressViewChecks.Run(progressDirectory);return;}
+if(args is ["--data-cleanup-progress-ui",var progressDirectory]){CleanupTaskViewChecks.Run(progressDirectory);return;}
+if(args is ["--cleanup-task-model"]){await CleanupTaskModelChecks.RunAsync();return;}
+if(args is ["--cleanup-task-ui",var taskDirectory]){CleanupTaskViewChecks.Run(taskDirectory);return;}
 if(args is ["--shell-brand-preview",var brandDirectory]){ShellBrandPreview.Run(brandDirectory);return;}
 if(args is ["--compact-navigation",var navigationDirectory]){CompactNavigationChecks.Run(navigationDirectory);return;}
 if(args is ["--plugin-header-native",var headerDirectory]){PluginHeaderNativeChecks.Run(headerDirectory);return;}

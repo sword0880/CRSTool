@@ -143,5 +143,9 @@
     </ui:Button>
    </Grid>
   </Border>
+  <Border x:Name="CleanupTaskNotification" Grid.Row="1" Panel.ZIndex="30" HorizontalAlignment="Right" VerticalAlignment="Top" MaxWidth="480" Margin="20,16" Padding="16" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource BrandBorderBrush}" Background="{DynamicResource BrandSurfaceAltBrush}">
+   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Settings.Cleanup.HasTaskNotification}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+   <StackPanel><TextBlock Text="{Binding Settings.Cleanup.TaskNotificationTitle}" FontWeight="SemiBold" FontSize="15"/><TextBlock Text="{Binding Settings.Cleanup.TaskNotificationMessage}" TextWrapping="Wrap" Margin="0,8,0,12"/><ui:Button Content="知道了" Command="{Binding Settings.Cleanup.DismissTaskNotificationCommand}" HorizontalAlignment="Right"/></StackPanel>
+  </Border>
  </Grid>
 </ui:FluentWindow>

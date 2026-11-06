@@ -29,6 +29,7 @@ public partial class MainWindow : FluentWindow
         // 换手机限制会话与系统锁屏可能先后触发，已清理窗口应允许重复关闭。
         if(DataContext is not ShellViewModel shell) return;
         foreach(var settings in OwnedWindows.OfType<SettingsWindow>().ToArray()) settings.AbortForLock();
+        shell.Settings?.Cleanup.StopTaskMonitoring();
         shell.Settings?.ClearSecurityInputs();
         shell.Reports.ClearSensitiveInputs(); // 锁定也清空导出密码，不能随页面缓存继续保留。
         shell.Performance.ClearForLock(); // 绩效与税务同样属于敏感会话，锁定时取消并清理。
@@ -56,8 +57,8 @@ public partial class MainWindow : FluentWindow
         var taskCenter=CreateMenuItem("任务中心",SymbolRegular.CalendarClock24);
         taskCenter.Click+=async (_,_)=>await NavigateScheduledTasksAsync();TasksGroup.MenuItems.Insert(0,taskCenter);
         InitializeCompactNavigation();
-        if(startWorkspace)Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
-        Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();taskPageLifetime.Cancel();ClearPluginHeader();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
+        if(startWorkspace)Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);shell.Settings?.Cleanup.StartTaskMonitoring(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
+        Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();shell.Settings?.Cleanup.StopTaskMonitoring();taskPageLifetime.Cancel();ClearPluginHeader();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
     }
     /// <summary>扩展页与内置页互斥显示；隐藏原内容但保留布局，避免收窄侧栏露出旧页面。</summary>
     private void ShowHostedPage(System.Windows.UIElement page)

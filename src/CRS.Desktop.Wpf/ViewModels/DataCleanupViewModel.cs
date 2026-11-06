@@ -20,10 +20,10 @@ public sealed partial class DataCleanupViewModel(IDataCleanupGateway? gateway):O
     private DataCleanupStatus? preview;private DataCleanupStatus? lastStatus;private Guid? pendingOperationId;private CancellationTokenSource? waiting;
     private int waitingGeneration;
     public bool Available=>gateway?.CanExecute==true;
-    [ObservableProperty,NotifyCanExecuteChangedFor(nameof(ScanCommand)),NotifyCanExecuteChangedFor(nameof(ExecuteCommand)),NotifyCanExecuteChangedFor(nameof(CheckResultCommand)),NotifyPropertyChangedFor(nameof(CanEdit))]private bool busy;
+    [ObservableProperty,NotifyCanExecuteChangedFor(nameof(ScanCommand)),NotifyCanExecuteChangedFor(nameof(ExecuteCommand)),NotifyCanExecuteChangedFor(nameof(CheckResultCommand)),NotifyCanExecuteChangedFor(nameof(StopWaitingCommand)),NotifyPropertyChangedFor(nameof(CanEdit))]private bool busy;
     [ObservableProperty]private int logRetentionDays=14;
-    [ObservableProperty]private int backupsToKeep=2;
-    [ObservableProperty]private bool includeBackups;
+    [ObservableProperty]private int backupsToKeep=1;
+    [ObservableProperty]private bool includeBackups=true;
     [ObservableProperty]private string message="先扫描用途与大小，再按预览清理。扫描不会修改后台资料。";
     [ObservableProperty]private string summary="尚未扫描";
     [ObservableProperty]private string elapsedText="";
@@ -96,8 +96,9 @@ public sealed partial class DataCleanupViewModel(IDataCleanupGateway? gateway):O
         ProgressPercent=totalFiles>0?Math.Clamp(100d*status.DeletedFiles/totalFiles,0,100):0;
         if(status.State=="Running"&&totalFiles>0)Summary+=$" / 共 {totalFiles:N0} 个文件";
     }
-    private void NotifyCommands(){OnPropertyChanged(nameof(CanEdit));ScanCommand.NotifyCanExecuteChanged();ExecuteCommand.NotifyCanExecuteChanged();CheckResultCommand.NotifyCanExecuteChanged();}
-    public void StopWaiting()=>waiting?.Cancel();
+    private void NotifyCommands(){OnPropertyChanged(nameof(CanEdit));ScanCommand.NotifyCanExecuteChanged();ExecuteCommand.NotifyCanExecuteChanged();CheckResultCommand.NotifyCanExecuteChanged();StopWaitingCommand.NotifyCanExecuteChanged();}
+    private bool CanStopWaiting()=>Busy&&pendingOperationId is not null;
+    [RelayCommand(CanExecute=nameof(CanStopWaiting))]public void StopWaiting()=>waiting?.Cancel();
     private static string StateText(string state)=>state switch{"Scanning"=>"正在扫描","Running"=>"正在清理","Completed"=>"清理完成","Interrupted"=>"未全部完成","Unavailable"=>"扫描不可用","Expired"=>"预览已过期",_=>"结果未知"};
     internal static string FormatBytes(long bytes)=>bytes>=1024L*1024*1024?$"{bytes/(1024d*1024*1024):N2} GB":bytes>=1024*1024?$"{bytes/(1024d*1024):N1} MB":$"{bytes/1024d:N1} KB";
 }

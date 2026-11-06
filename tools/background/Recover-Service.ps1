@@ -15,6 +15,7 @@ if($Action -eq 'Status'){
     return
 }
 Assert-WorkerServiceRegistration $name $program
+Suspend-WorkerAutomaticCleanup $program $name
 $service=New-WorkerServiceOperations $name $program
 Invoke-WorkerRecoveryTransaction -Data $data -Program $program -Service $service -Action $Action -Publisher $TrustedPublisherThumbprint -Development:$AllowDevelopmentPackage -StartupTimeoutSeconds $StartupTimeoutSeconds
 Write-Output 'Worker恢复完成；现有数据、失败候选及原始升级备份保留。'

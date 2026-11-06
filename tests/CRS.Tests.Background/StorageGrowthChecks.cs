@@ -21,7 +21,9 @@ internal static class StorageGrowthChecks
         using(var cancel=new CancellationTokenSource())
         {
             var warning=new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var monitor=StorageSecurity.MonitorAsync(root,true,n=>warning.TrySetResult(n),cancel.Token,TimeSpan.FromMilliseconds(10));
+            // 本专项验证十万项覆盖与容量预警；实际默认限速由StorageScanBudgetChecks单独计时验证。
+            var monitor=StorageSecurity.MonitorAsync(root,true,n=>warning.TrySetResult(n),cancel.Token,TimeSpan.FromMilliseconds(10),
+                StorageScanBudget.Default with { DutyCycle = 1 });
             var observed=await warning.Task.WaitAsync(TimeSpan.FromMinutes(2));cancel.Cancel();
             try{await monitor;}catch(OperationCanceledException){}
             if(observed!=count)throw new Exception("容量预警计数不一致");
