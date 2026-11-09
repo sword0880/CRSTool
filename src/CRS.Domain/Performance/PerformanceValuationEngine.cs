@@ -1,9 +1,10 @@
 namespace CRS.Domain.Performance;
 
 /// <summary>估值、价格/汇率选择及净值核验；只消费当前计算上下文。</summary>
-internal sealed class PerformanceValuationEngine(PerformanceCalculationContext context,PerformanceDiagnostics diagnostics)
+internal sealed class PerformanceValuationEngine(PerformanceCalculationContext context,PerformanceDiagnostics diagnostics,string? currency=null)
 {
     private PerformanceRequest request=>context.Request;
+    private readonly string targetCurrency=currency??context.Request.Currency;
     private CancellationToken cancellation=>context.Cancellation;
     private IReadOnlyDictionary<string,InvestmentAccount> accounts=>context.Accounts;
     private readonly Dictionary<string,decimal?> navCache=[];
@@ -69,7 +70,7 @@ internal sealed class PerformanceValuationEngine(PerformanceCalculationContext c
     }
     internal decimal? Convert(decimal amount,string currency,DateOnly date)
     {
-        if(currency==request.Currency)return amount;
+        if(currency==targetCurrency)return amount;
         decimal? Rate(string from,string to)
         {
             var quotes=context.Fx[(from,to,date)].ToArray();
@@ -78,12 +79,12 @@ internal sealed class PerformanceValuationEngine(PerformanceCalculationContext c
             if(quotes.Any(f=>f.Rate!=quotes[0].Rate)) {diagnostics.Issue("FX_CONFLICT","","同日货币对汇率来源冲突。","核对汇率并修订来源版本。",quotes[0].Source);return null;}
             foreach(var f in quotes)diagnostics.Lower(f.Quality); return quotes[0].Rate;
         }
-        var rate=Rate(currency,request.Currency); if(rate is null) {var inverse=Rate(request.Currency,currency); if(inverse is not null)rate=1/inverse;}
-        if(rate is null && currency!="CNY" && request.Currency!="CNY")
+        var rate=Rate(currency,targetCurrency); if(rate is null) {var inverse=Rate(targetCurrency,currency); if(inverse is not null)rate=1/inverse;}
+        if(rate is null && currency!="CNY" && targetCurrency!="CNY")
         {
-            var a=Rate(currency,"CNY"); var b=Rate(request.Currency,"CNY"); if(a is not null && b is not null)rate=a/b;
+            var a=Rate(currency,"CNY"); var b=Rate(targetCurrency,"CNY"); if(a is not null && b is not null)rate=a/b;
         }
-        if(rate is null) {diagnostics.Issue("FX_MISSING","",$"{date:yyyy-MM-dd} 缺少 {currency}/{request.Currency} 同日历史汇率。","离线导入估值日汇率，不使用年度税务汇率或实时替代值。"); return null;}
+        if(rate is null) {diagnostics.Issue("FX_MISSING","",$"{date:yyyy-MM-dd} 缺少 {currency}/{targetCurrency} 同日历史汇率。","离线导入估值日汇率，不使用年度税务汇率或实时替代值。"); return null;}
         return amount*rate;
     }
     internal decimal? SumConverted(IEnumerable<(decimal Amount,string Currency,DateOnly Date)> rows)

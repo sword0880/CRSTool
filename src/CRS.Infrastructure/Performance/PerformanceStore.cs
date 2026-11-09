@@ -73,20 +73,36 @@ internal sealed class PerformanceStore : IPerformanceStore
         // 列表只读取有界索引，不能每次刷新解码一百份完整交易/估值快照。
         var history=c.Query<(string Id,byte[] Metadata)>("SELECT id,CASE WHEN length(metadata)<=65536 THEN metadata ELSE NULL END FROM performance_runs ORDER BY julianday(created_utc) DESC,id DESC LIMIT 100",transaction:tx).Select(row=>
         {if(row.Metadata is null)throw new CrsException("绩效历史索引超过限额。");var h=PerformanceCodec.Decode<PerformanceHistory>(row.Metadata);if(h.Id!=row.Id)throw new CrsException("绩效索引身份不一致。");return h;}).ToArray();
-        var identities=ReadAccountIdentities(c,tx);
-        tx.Commit();return new(PerformanceCodec.Ordered(data),settings.Portfolios,history){Sources=sourceRows.ToArray(),AccountIdentities=identities};
+        var (identities, overviewValuations)=ReadAccountEvidence(c,tx,data.Valuations);
+        tx.Commit();return new(PerformanceCodec.Ordered(data),settings.Portfolios,history)
+        {Sources=sourceRows.ToArray(),AccountIdentities=identities,AccountOverviewValuations=overviewValuations};
     }
-    private PerformanceAccountIdentity[] ReadAccountIdentities(Microsoft.Data.Sqlite.SqliteConnection c,Microsoft.Data.Sqlite.SqliteTransaction tx)
+    private (PerformanceAccountIdentity[] Identities, ValuationSnapshot[]? OverviewValuations) ReadAccountEvidence(
+        Microsoft.Data.Sqlite.SqliteConnection c, Microsoft.Data.Sqlite.SqliteTransaction tx, ValuationSnapshot[] valuations)
     {
         var identities=new List<PerformanceAccountIdentity>();
+        var snapshotsByDocument = valuations.Where(v => v.Moment == ValuationMoment.EndOfDay).ToLookup(v => v.Source.DocumentId);
+        var overview = new Dictionary<string, ValuationSnapshot>();
         foreach(var row in c.Query<(string Hash,string Name,string Format)>("SELECT hash,name,format FROM performance_documents WHERE format IN ('.xml','.xlsx') ORDER BY hash",transaction:tx))
         {
             session.Lifetime.ThrowIfCancellationRequested();
             var raw=c.ExecuteScalar<byte[]>("SELECT CASE WHEN length(raw)<=26214400 THEN raw ELSE NULL END FROM performance_documents WHERE hash=@Hash",new{row.Hash},tx)??throw new CrsException("账户原件超过读取限额。");
-            try{identities.AddRange(PerformanceAccountIdentityReader.Read(FrozenInput.FromBytes(row.Name,raw),row.Format));}
+            try
+            {
+                var input = FrozenInput.FromBytes(row.Name,raw);
+                if (row.Format == ".xlsx" && snapshotsByDocument.Contains(row.Hash))
+                {
+                    using var table = new FutuTable(input, session.Lifetime);
+                    identities.AddRange(PerformanceAccountIdentityReader.ReadFutu(table));
+                    foreach (var snapshot in FutuAccountOverviewValuations.ReadAvailable(table, snapshotsByDocument[row.Hash]))
+                        overview.Add(snapshot.Id, snapshot);
+                }
+                else identities.AddRange(PerformanceAccountIdentityReader.Read(input,row.Format));
+            }
             finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(raw);}
         }
-        return identities.GroupBy(i=>i.AccountId).Select(g=>g.First()).ToArray();
+        return (identities.GroupBy(i=>i.AccountId).Select(g=>g.First()).ToArray(),
+            overview.Count == 0 ? null : valuations.Select(v => overview.GetValueOrDefault(v.Id, v)).ToArray());
     }
     private static PerformanceData Merge(IEnumerable<PerformanceData> input)
     {

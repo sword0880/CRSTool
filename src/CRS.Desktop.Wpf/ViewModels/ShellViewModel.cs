@@ -10,6 +10,7 @@ public sealed class ShellViewModel : ObservableObject
     public WorkspaceState State { get; }
     /// <summary>独立 Worker 的只读全局状态，不覆盖业务页面操作提示。</summary>
     public ShellStatusBarViewModel StatusBar { get; }
+    internal CRS.Worker.Ipc.BackgroundPipeClient WorkerClient { get; }
     public ImportViewModel Import { get; }
     public ResultsViewModel Results { get; }
     public HistoryViewModel History { get; }
@@ -23,11 +24,12 @@ public sealed class ShellViewModel : ObservableObject
     public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null,IVaultService? vault=null,CRS.Application.Performance.IPerformanceUseCases? performance=null,Func<string>? documentPassword=null,IDataCleanupGateway? cleanup=null,CRS.Worker.Ipc.BackgroundPipeClient? workerClient=null)
     {
         State = new(useCases, interaction,documentPassword ?? (vault is null?null:()=>vault.DocumentEncryptionPassword)); Results = new(State); History = new(State, () => NavigateRequested?.Invoke("tax"));
-        Dashboard = new(State, History, page => NavigateRequested?.Invoke(page));
+        Performance=new(State,performance);
+        Dashboard = new(State, History, Performance, page => NavigateRequested?.Invoke(page));
         Review = new(State); Reports = new(State); ExchangeRates = new(State);
         Settings = settings is null ? null : new(State, settings,vault,cleanup);
-        StatusBar=new(workerClient,Settings?.Cleanup);
-        Performance=new(State,performance);
+        WorkerClient = workerClient ?? new();
+        StatusBar = new(WorkerClient, Settings?.Cleanup);
         Import = new(State, () => { NavigateRequested?.Invoke("tax"); _ = History.RefreshCommand.ExecuteAsync(null); });
     }
 }

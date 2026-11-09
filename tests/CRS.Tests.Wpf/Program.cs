@@ -37,6 +37,7 @@ if(args is ["--task-activity-checks"]){await TaskActivityChecks.RunAsync();retur
 if(args is ["--task-button-checks"]){await TaskCenterButtonChecks.RunAsync();return;}
 if(args is ["--worker-status-preview",var workerDirectory]){WorkerStatusPreview.Run(workerDirectory);return;}
 if(args is ["--performance-component-preview",var componentDirectory]){PerformanceComponentPreview.Run(componentDirectory);return;}
+if(args is ["--date-picker-style"]){DatePickerStyleChecks.Run();return;}
 if(args is ["--plugin-management-preview",var pluginManagementDirectory]){PluginManagementPreview.Run(pluginManagementDirectory);return;}
 if(args is ["--execution-log-ui",var logScreenshot]){ExecutionLogViewChecks.Run(logScreenshot);return;}
 if(args.Contains("--background-ui")){var index=Array.IndexOf(args,"--background-ui");BackgroundServiceViewChecks.Run(args[index+1],args.ElementAtOrDefault(index+2));return;}
@@ -75,6 +76,7 @@ await DocumentAssemblyTrustChecks.RunAsync();
 await CanonicalViewChecks.RunAsync();
 await TaxAmountViewChecks.RunAsync();
 await PerformanceInteractionChecks.RunAsync();
+DatePickerStyleChecks.Run();
 
 sealed class SilentInteraction : IUserInteraction
 {

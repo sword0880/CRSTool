@@ -40,22 +40,31 @@ internal static class CompactNavigationChecks
             {
                 try
                 {
-                    var investment=(NavigationViewItem)shell.FindName("InvestmentGroup");
+                    var records=(NavigationViewItem)shell.FindName("RecordsGroup");
                     var tax=(NavigationViewItem)shell.FindName("TaxGroup");
                     var extensions=(NavigationViewItem)shell.FindName("ExtensionsGroup");
+                    var tasks=(NavigationViewItem)shell.FindName("TasksGroup");
                     var toggle=(System.Windows.Controls.Button)shell.FindName("NavigationToggleButton");
                     var pluginSurface=(FrameworkElement)shell.FindName("PluginSurface");
                     var navigation=(NavigationView)shell.FindName("Navigation");
+                    Check(navigation.MenuItems.OfType<NavigationViewItem>().Where(x=>x.Visibility==Visibility.Visible)
+                        .Select(x=>x.Content).SequenceEqual(new[]{"概览","投资绩效","导入与记录","税务与报表","系统管理"}),"常用一级入口与分类顺序");
+                    Check(records.MenuItems.OfType<NavigationViewItem>().Select(x=>x.Content)
+                        .SequenceEqual(new[]{"数据导入","导入历史","交易记录"}),"导入历史与数据导入同组");
+                    Check(tasks.MenuItems.OfType<NavigationViewItem>().Select(x=>x.Content)
+                        .SequenceEqual(new[]{"任务中心"}),"后台任务和服务状态共用一个入口");
                     Check(shell.Navigate("trades"),"原有内置路由可打开");await Task.Delay(200);
-                    Check(!shell.IsNavigationExpanded&&investment.IsActive&&investment.ToolTip?.ToString()=="投资与数据","折叠分类高亮与悬停名称");
+                    Check(!shell.IsNavigationExpanded&&records.IsActive&&records.ToolTip?.ToString()=="导入与记录","折叠分类高亮与悬停名称");
                     var initialWidth=layout.ActualWidth;var initialOffset=pluginSurface.Margin.Left;
                     Invoke(tax);await Task.Delay(120);
                     var menu=Menu(shell);
                     Check(menu is {IsOpen:true}&&menu.Tag?.ToString()=="税务与报表"&&menu.Items.Count==5,"分类浮层显示标题和完整子菜单");
+                    Check(menu!.Items.OfType<MenuItem>().Select(x=>x.Header)
+                        .SequenceEqual(new[]{"税务核算","核对与复核","报表导出","FIFO 明细","汇率管理"}),"税务流程和辅助查询顺序");
                     Check(!shell.IsNavigationExpanded&&layout.ActualWidth==initialWidth&&pluginSurface.Margin.Left==initialOffset,"浮层不展开侧栏或挤动页面");
                     Capture(menu!,Path.Combine(directory,"tax-flyout.png"));
                     Invoke(menu!.Items.OfType<MenuItem>().Single(x=>Equals(x.Header,"汇率管理")));await Task.Delay(120);
-                    Check(Menu(shell) is null&&!shell.IsNavigationExpanded&&tax.IsActive&&!investment.IsActive,
+                    Check(Menu(shell) is null&&!shell.IsNavigationExpanded&&tax.IsActive&&!records.IsActive,
                         "选择子项后关闭浮层并只高亮当前分类");
                     Check(navigation.SelectedItem is NavigationViewItem {TargetPageType:var type}&&type==MainWindow.PageTypes["rates"],"浮层进入原有页面");
                     Invoke(tax);await Task.Delay(80);menu=Menu(shell)!;
@@ -64,24 +73,24 @@ internal static class CompactNavigationChecks
                         {RoutedEvent=Keyboard.PreviewKeyDownEvent});
                     Check(Menu(shell) is null&&tax.IsKeyboardFocused,"Esc关闭并恢复分类焦点");
                     Invoke(tax);await Task.Delay(80);var oldMenu=Menu(shell)!;
-                    Invoke(investment);await Task.Delay(80);
-                    Check(!oldMenu.IsOpen&&Menu(shell)?.Tag?.ToString()=="投资与数据"&&tax.IsActive,"切换分类只保留一个浮层且不改变当前页面");
+                    Invoke(records);await Task.Delay(80);
+                    Check(!oldMenu.IsOpen&&Menu(shell)?.Tag?.ToString()=="导入与记录"&&tax.IsActive,"切换分类只保留一个浮层且不改变当前页面");
                     Invoke(toggle);await Task.Delay(240);
                     Check(shell.IsNavigationExpanded&&Menu(shell) is null&&tax.IsExpanded,"手动展开关闭浮层并展开当前分类");
-                    Invoke(investment);await Task.Delay(100);
-                    Check(investment.IsExpanded&&!tax.IsExpanded&&Menu(shell) is null,"展开态继续使用互斥的内联菜单树");
+                    Invoke(records);await Task.Delay(100);
+                    Check(records.IsExpanded&&!tax.IsExpanded&&Menu(shell) is null,"展开态继续使用互斥的内联菜单树");
                     Invoke(toggle);await Task.Delay(240);
                     var down=new MouseButtonEventArgs(Mouse.PrimaryDevice,Environment.TickCount,MouseButton.Left)
                         {RoutedEvent=UIElement.PreviewMouseLeftButtonDownEvent};
-                    investment.RaiseEvent(down);
+                    records.RaiseEvent(down);
                     var up=new MouseButtonEventArgs(Mouse.PrimaryDevice,Environment.TickCount,MouseButton.Left)
                         {RoutedEvent=UIElement.PreviewMouseLeftButtonUpEvent};
-                    investment.RaiseEvent(up);await Task.Delay(80);
-                    Check(down.Handled&&up.Handled&&Menu(shell)?.Tag?.ToString()=="投资与数据","鼠标输入由分类浮层接管");
+                    records.RaiseEvent(up);await Task.Delay(80);
+                    Check(down.Handled&&up.Handled&&Menu(shell)?.Tag?.ToString()=="导入与记录","鼠标输入由分类浮层接管");
                     Invoke(toggle);await Task.Delay(220);Invoke(toggle);await Task.Delay(220);
-                    investment.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(host)!,Environment.TickCount,Key.Right)
+                    records.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(host)!,Environment.TickCount,Key.Right)
                         {RoutedEvent=Keyboard.PreviewKeyDownEvent});await Task.Delay(80);
-                    Check(Menu(shell)?.Tag?.ToString()=="投资与数据","右方向键可打开分类浮层");
+                    Check(Menu(shell)?.Tag?.ToString()=="导入与记录","右方向键可打开分类浮层");
                     // 模拟按插件契约动态添加的入口，原 Click 处理器仍接收同一菜单对象。
                     var dynamicItem=new NavigationViewItem{Content="合成插件页面",Icon=new SymbolIcon{Symbol=SymbolRegular.Apps24}};
                     var opened=0;
@@ -90,7 +99,7 @@ internal static class CompactNavigationChecks
                         opened++;
                         Method("ShowHostedPage").Invoke(shell,[new Border{Child=new TextBlock{Text="合成插件页面"}}]);
                     };
-                    Method("RegisterNavigationLeaf").Invoke(shell,[dynamicItem]);extensions.MenuItems.Add(dynamicItem);
+                    Method("RegisterNavigationLeaf").Invoke(shell,[dynamicItem]);extensions.MenuItems.Add(dynamicItem);extensions.Visibility=Visibility.Visible;
                     Invoke(extensions);await Task.Delay(80);
                     Check(Menu(shell)?.Items.Count==1,"动态扩展自动出现在分类浮层");
                     Invoke(Menu(shell)!.Items.OfType<MenuItem>().Single());await Task.Delay(80);
@@ -116,12 +125,12 @@ internal static class CompactNavigationChecks
                     Check(headerSlot.Content is null&&!fixture.Hosted,"切换不提供顶栏的插件清空旧菜单并恢复所有权");
                     Method("ShowHostedPage").Invoke(shell,[fixture]);shell.Navigate("history");
                     Check(headerSlot.Content is null&&!fixture.Hosted,"返回普通页面清理顶栏引用");
-                    Invoke(investment);await Task.Delay(80);menu=Menu(shell)!;
-                    var disabled=(NavigationViewItem)investment.MenuItems[0]!;disabled.IsEnabled=false;
+                    Invoke(records);await Task.Delay(80);menu=Menu(shell)!;
+                    var disabled=(NavigationViewItem)records.MenuItems[0]!;disabled.IsEnabled=false;
                     await Task.Delay(50);
                     Check(!menu.Items.OfType<MenuItem>().First().IsEnabled,"浮层保留原菜单的禁用状态");
                     disabled.IsEnabled=true;
-                    Capture(menu,Path.Combine(directory,"investment-flyout.png"));
+                    Capture(menu,Path.Combine(directory,"records-flyout.png"));
                     Capture(canvas,Path.Combine(directory,"collapsed-shell.png"));
                     shell.PrepareLock();
                     Check(Menu(shell) is null,"锁定时关闭浮层并清除菜单引用");
@@ -150,6 +159,12 @@ internal static class CompactNavigationChecks
         .GetField("compactNavigationMenu",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(shell);
     private static void Invoke(UIElement item)
     {
+        // 隔离窗口不接管前台，通过与鼠标和键盘共用的 Click 路由验证浮层子项。
+        if (item is MenuItem row)
+        {
+            row.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, row));
+            return;
+        }
         var peer=UIElementAutomationPeer.CreatePeerForElement(item)??throw new Exception("缺少控件自动化入口。");
         if(peer.GetPattern(PatternInterface.Invoke) is IInvokeProvider invoke){invoke.Invoke();return;}
         // WPF-UI 分类仅公开 ExpandCollapse 模式；执行其真实 OnClick 以覆盖展开态的内部切换及 Click 路由。

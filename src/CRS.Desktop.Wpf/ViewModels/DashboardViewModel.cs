@@ -9,6 +9,7 @@ public partial class DashboardViewModel : ObservableObject
 {
     public WorkspaceState State { get; }
     public HistoryViewModel History { get; }
+    public PerformanceViewModel Performance { get; }
     private readonly Action<string> navigate;
     public string TradeCount => State.Result is { } r ? r.ImportedTradeCount is int count ? count.ToString("N0") : "未登记" : "—";
     public string IssueCount => State.Result?.Issues.Count.ToString("N0") ?? "—";
@@ -16,9 +17,9 @@ public partial class DashboardViewModel : ObservableObject
     public string TaxStatus => State.Result is { } r ? ResultLabels.Calculation(r.CalculationStatus) : "尚未计算";
     public string TaxHint => State.Result is { } r ? ResultLabels.Usage(r.UsageLabel) : "等待导入年度资料";
     public ObservableCollection<HistoryItem> RecentTasks { get; } = [];
-    public DashboardViewModel(WorkspaceState state, HistoryViewModel history, Action<string> navigate)
+    public DashboardViewModel(WorkspaceState state, HistoryViewModel history, PerformanceViewModel performance, Action<string> navigate)
     {
-        State = state; History = history; this.navigate = navigate;
+        State = state; History = history; Performance = performance; this.navigate = navigate;
         state.ResultChanged += () => { OnPropertyChanged(nameof(TradeCount)); OnPropertyChanged(nameof(IssueCount)); OnPropertyChanged(nameof(MatchCount)); OnPropertyChanged(nameof(TaxStatus)); OnPropertyChanged(nameof(TaxHint)); };
         // 历史换页不应把旧任务误显示成“最新导入任务”。
         history.RecentRows.CollectionChanged += (_, _) => { RecentTasks.Clear(); foreach (var row in history.RecentRows) RecentTasks.Add(row); };
@@ -26,6 +27,11 @@ public partial class DashboardViewModel : ObservableObject
     }
     /// <summary>从概览卡片跳转至对应业务模块。</summary>
     [RelayCommand] private void Navigate(string page) => navigate(page);
+    [RelayCommand] private void OpenAccountOverview()
+    {
+        Performance.ShowAccountOverview = true;
+        navigate("performance");
+    }
     private bool CanOpenTask() => State.IsIdle;
     /// <summary>概览任务可直接恢复冻结结果并进入税务核算页。</summary>
     [RelayCommand(CanExecute = nameof(CanOpenTask))]

@@ -67,7 +67,7 @@ internal static class CleanupTaskViewChecks
                 var grid=(DataGrid)tasks.FindName("RunningTasksGrid");
                 if(grid.Items.Count!=1||activity.RunningTasks[0].ReasonText.Contains("859")!=true)throw new Exception("实际任务中心没有列出清理核验进展。");
                 Capture(taskWindow,Path.Combine(directory,"task-center-cleanup-verifying-1040.png"));
-                ((TabControl)tasks.FindName("TaskCenterTabs")).SelectedIndex=0;
+                tasks.ShowServicePlans();
                 activity.Jobs.Add(new("crs.national-team","official-share-sync","官方ETF份额同步（合成）","0 15 23 * * ?","China Standard Time",true,3,false));
                 activity.Jobs.Add(new("crs.national-team","evidence-integrity","证据完整性巡检（合成）","0 30 2 * * ?","China Standard Time",true,2,false));
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);

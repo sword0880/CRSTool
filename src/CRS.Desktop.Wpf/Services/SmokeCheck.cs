@@ -20,6 +20,22 @@ internal static class SmokeCheck
         try
         {
             Console.Error.WriteLine("smoke: page checks started");
+            if (args.Contains("--navigation-plugins-only"))
+            {
+                await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                await NavigationSurfaceSmokeChecks.RunAsync(window, _ => { });
+                return;
+            }
+            if (args.Contains("--rates-only"))
+            {
+                await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                shell.ExchangeRates.Year = 2025;
+                Console.Error.WriteLine("smoke: navigate rates");
+                if (!window.Navigate("rates")) throw new InvalidOperationException("汇率管理导航失败。");
+                await CheckRatesPageAsync(window, shell);
+                Console.Error.WriteLine("smoke: exchange rates page passed");
+                return;
+            }
             var futu = args.Contains("--futu"); shell.Import.Broker = futu ? "FUTU" : "IBKR";
             var trade = new Trade(new("SYNTHETIC", "DEMO", "USD", shell.Import.Broker), "DEMO", new DateTimeOffset(2025,1,2,10,0,0,TimeSpan.Zero),
                 true, "BUY", 10m, 100m, 1000m, 2m, -1002m, "DEMO-1", "synthetic.xml", 1, "STK", null);
@@ -90,6 +106,7 @@ internal static class SmokeCheck
             foreach (var key in MainWindow.PageTypes.Keys)
             {
                 Console.Error.WriteLine("smoke: navigate " + key);
+                if (key == "rates") shell.ExchangeRates.Year = 2025;
                 if (!window.Navigate(key)) throw new InvalidOperationException($"导航失败：{key}");
                 if(key=="performance")
                 {
@@ -134,32 +151,7 @@ internal static class SmokeCheck
                     if(imagePath is not null)Capture(window,VariantPath(imagePath,"performance-needs-calculation"));
                 }
                 if (key == "rates")
-                {
-                    // 等导航动画结束，再验证数值调整、手动输入和未配置年度三种读取路径。
-                    await Task.Delay(400);
-                    window.UpdateLayout();
-                    var yearInput = FindVisual<Wpf.Ui.Controls.NumberBox>(window)
-                        ?? throw new InvalidOperationException("汇率年度输入框未显示。");
-                    yearInput.Focus();
-                    yearInput.SetCurrentValue(Wpf.Ui.Controls.NumberBox.ValueProperty, 2024d);
-                    if (shell.ExchangeRates.Year != 2024)
-                        throw new InvalidOperationException("修改汇率年度后未立即提交，读取会沿用旧年度。");
-                    await shell.ExchangeRates.RefreshCommand.ExecuteAsync(null);
-                    if (shell.ExchangeRates.Rates.Count == 0 || shell.ExchangeRates.Rates.Any(rate => rate.Year != 2024))
-                        throw new InvalidOperationException("汇率读取未使用修改后的年度。");
-                    var ratesPage = FindVisual<Views.Pages.ExchangeRatesPage>(window)!;
-                    var readButton = (Wpf.Ui.Controls.Button)ratesPage.FindName("ReadRatesButton");
-                    yearInput.Focus(); yearInput.Text = "2023";
-                    readButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-                    await shell.ExchangeRates.RefreshCommand.ExecutionTask!;
-                    if (shell.ExchangeRates.Year != 2023 || shell.ExchangeRates.Rates.Count == 0
-                        || shell.ExchangeRates.Rates.Any(rate => rate.Year != 2023))
-                        throw new InvalidOperationException($"手动修改年度后点击读取未提交新年度：{shell.ExchangeRates.Year}，{yearInput.Text}，{shell.ExchangeRates.Rates.Count}，{shell.ExchangeRates.RateStatus}");
-                    yearInput.SetCurrentValue(Wpf.Ui.Controls.NumberBox.ValueProperty, 2020d);
-                    await shell.ExchangeRates.RefreshCommand.ExecuteAsync(null);
-                    if (shell.ExchangeRates.Rates.Count != 0 || !shell.ExchangeRates.RateStatus.Contains("2020 年尚未配置汇率"))
-                        throw new InvalidOperationException("未配置年度没有清空汇率或明确提示。");
-                }
+                    await CheckRatesPageAsync(window, shell);
                 window.UpdateLayout();
                 await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
                 if (key == "tax") await Task.Delay(800);
@@ -188,9 +180,9 @@ internal static class SmokeCheck
             // 实际打开任务管理并切换记录页，验证资源、模型绑定和最小窗口布局。
             await window.NavigateScheduledTasksAsync();await Task.Delay(200);window.UpdateLayout();
             var taskPage=FindVisual<Views.Pages.BackgroundServicePage>(window)??throw new InvalidOperationException("任务中心未加载。");
-            var taskTabs=FindVisual<System.Windows.Controls.TabControl>(taskPage)!;taskTabs.SelectedIndex=1;window.UpdateLayout();
+            taskPage.ShowRecentExecutions();window.UpdateLayout();
             if(taskPage.ActualHeight<=0 || FindVisual<System.Windows.Controls.DataGrid>(taskPage) is null)throw new InvalidOperationException("计划任务执行记录未布局。");
-            taskTabs.SelectedIndex=0;window.UpdateLayout();Console.Error.WriteLine("smoke: scheduled tasks and execution history rendered");
+            taskPage.ShowServicePlans();window.UpdateLayout();Console.Error.WriteLine("smoke: scheduled tasks and execution history rendered");
             if(imagePath is not null)Capture(window,VariantPath(imagePath,"scheduled-tasks"));
             // 专项按需加载两个已核验插件，不能只在空插件目录中验证侧栏。
             if(args.Contains("--navigation-plugins"))
@@ -284,6 +276,39 @@ internal static class SmokeCheck
             if (FindVisual<T>(VisualTreeHelper.GetChild(parent, i)) is { } child) return child;
         return null;
     }
+    private static async Task CheckRatesPageAsync(MainWindow window, ShellViewModel shell)
+    {
+        // 等导航动画结束，再验证首次加载、数值调整、输入和无数据年度。
+        for (var attempt = 0; attempt < 80 && (!shell.State.IsIdle || shell.ExchangeRates.Rates.Count == 0); attempt++)
+            await Task.Delay(100);
+        window.UpdateLayout();
+        Console.Error.WriteLine($"smoke: initial rates count={shell.ExchangeRates.Rates.Count}, idle={shell.State.IsIdle}, status={shell.ExchangeRates.RateStatus}");
+        if (shell.ExchangeRates.Rates.Count == 0 || shell.ExchangeRates.Rates.Any(rate => rate.Year != 2025))
+            throw new InvalidOperationException("汇率管理打开时未自动读取所选年度。");
+        var page = FindVisual<Views.Pages.ExchangeRatesPage>(window)!;
+        var yearInput = (Wpf.Ui.Controls.NumberBox)page.FindName("YearInput");
+        yearInput.Focus();
+        yearInput.SetCurrentValue(Wpf.Ui.Controls.NumberBox.ValueProperty, 2024d);
+        if (shell.ExchangeRates.Year != 2024)
+            throw new InvalidOperationException("修改汇率年度后未立即提交，读取会沿用旧年度。");
+        await shell.ExchangeRates.RefreshCommand.ExecuteAsync(null);
+        Console.Error.WriteLine($"smoke: selected rates count={shell.ExchangeRates.Rates.Count}");
+        if (shell.ExchangeRates.Rates.Count == 0 || shell.ExchangeRates.Rates.Any(rate => rate.Year != 2024))
+            throw new InvalidOperationException("汇率读取未使用修改后的年度。");
+        var readButton = (Wpf.Ui.Controls.Button)page.FindName("ReadRatesButton");
+        yearInput.Focus(); yearInput.Text = "2023";
+        readButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        await shell.ExchangeRates.RefreshCommand.ExecutionTask!;
+        Console.Error.WriteLine($"smoke: typed year={shell.ExchangeRates.Year}, rates count={shell.ExchangeRates.Rates.Count}");
+        if (shell.ExchangeRates.Year != 2023 || shell.ExchangeRates.Rates.Count == 0
+            || shell.ExchangeRates.Rates.Any(rate => rate.Year != 2023))
+            throw new InvalidOperationException("输入年度后点击更新未读取所选年度的汇率。");
+        yearInput.SetCurrentValue(Wpf.Ui.Controls.NumberBox.ValueProperty, 2020d);
+        await shell.ExchangeRates.RefreshCommand.ExecuteAsync(null);
+        if (shell.ExchangeRates.Rates.Count != 0 || !shell.ExchangeRates.RateStatus.Contains("2020 年暂无可用汇率"))
+            throw new InvalidOperationException("无数据年度没有清空汇率或明确提示。");
+    }
+
     private static void Capture(Window window, string path)
     {
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);

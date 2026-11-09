@@ -4,29 +4,30 @@
    <ui:NavigationView x:Name="Navigation" PaneDisplayMode="Left" OpenPaneLength="206" CompactPaneLength="56" IsPaneToggleVisible="False" IsBackButtonVisible="Collapsed" IsPaneOpen="False">
     <ui:NavigationView.MenuItems>
      <ui:NavigationViewItem Content="概览" TargetPageType="{x:Type pages:DashboardPage}" Icon="{ui:SymbolIcon Grid24}"/>
+     <ui:NavigationViewItem Content="投资绩效" TargetPageType="{x:Type pages:PerformancePage}" Icon="{ui:SymbolIcon Money24}"/>
      <!-- 分类只组织导航；折叠态使用分类浮层，展开态使用内联菜单树。 -->
-     <ui:NavigationViewItem x:Name="InvestmentGroup" Content="投资与数据" Icon="{ui:SymbolIcon Money24}" IsExpanded="False" Click="OnNavigationGroupClick" ToolTip="投资与数据">
+     <ui:NavigationViewItem x:Name="RecordsGroup" Content="导入与记录" Icon="{ui:SymbolIcon Folder24}" Click="OnNavigationGroupClick" ToolTip="导入与记录">
       <ui:NavigationViewItem.MenuItems>
-       <ui:NavigationViewItem Content="投资绩效" TargetPageType="{x:Type pages:PerformancePage}" Icon="{ui:SymbolIcon Money24}"/>
        <ui:NavigationViewItem Content="数据导入" TargetPageType="{x:Type pages:ImportPage}" Icon="{ui:SymbolIcon ArrowUpload24}"/>
+       <ui:NavigationViewItem Content="导入历史" TargetPageType="{x:Type pages:HistoryPage}" Icon="{ui:SymbolIcon History24}"/>
        <ui:NavigationViewItem Content="交易记录" TargetPageType="{x:Type pages:TradesPage}" Icon="{ui:SymbolIcon DocumentText24}"/>
       </ui:NavigationViewItem.MenuItems>
      </ui:NavigationViewItem>
      <ui:NavigationViewItem x:Name="TaxGroup" Content="税务与报表" Icon="{ui:SymbolIcon Calculator24}" Click="OnNavigationGroupClick" ToolTip="税务与报表">
       <ui:NavigationViewItem.MenuItems>
-       <ui:NavigationViewItem Content="FIFO 计算" TargetPageType="{x:Type pages:FifoPage}" Icon="{ui:SymbolIcon Calculator24}"/>
-       <ui:NavigationViewItem Content="汇率管理" TargetPageType="{x:Type pages:ExchangeRatesPage}" Icon="{ui:SymbolIcon Money24}"/>
        <ui:NavigationViewItem Content="税务核算" TargetPageType="{x:Type pages:TaxCalculationPage}" Icon="{ui:SymbolIcon Calculator24}"/>
        <ui:NavigationViewItem Content="核对与复核" TargetPageType="{x:Type pages:ReconciliationPage}" Icon="{ui:SymbolIcon ClipboardTask24}"/>
        <ui:NavigationViewItem Content="报表导出" TargetPageType="{x:Type pages:ReportsPage}" Icon="{ui:SymbolIcon DocumentTable24}"/>
+       <ui:NavigationViewItem Content="FIFO 明细" TargetPageType="{x:Type pages:FifoPage}" Icon="{ui:SymbolIcon DocumentText24}"/>
+       <ui:NavigationViewItem Content="汇率管理" TargetPageType="{x:Type pages:ExchangeRatesPage}" Icon="{ui:SymbolIcon Money24}"/>
       </ui:NavigationViewItem.MenuItems>
      </ui:NavigationViewItem>
-     <ui:NavigationViewItem x:Name="TasksGroup" Content="任务与服务" Icon="{ui:SymbolIcon CalendarClock24}" Click="OnNavigationGroupClick" ToolTip="任务与服务">
+     <ui:NavigationViewItem x:Name="ExtensionsGroup" Content="扩展工具" Icon="{ui:SymbolIcon Apps24}" Click="OnNavigationGroupClick" ToolTip="扩展工具" Visibility="Collapsed"/>
+     <ui:NavigationViewItem x:Name="TasksGroup" Content="系统管理" Icon="{ui:SymbolIcon Server24}" Click="OnNavigationGroupClick" ToolTip="系统管理">
       <ui:NavigationViewItem.MenuItems>
-       <ui:NavigationViewItem Content="导入历史" TargetPageType="{x:Type pages:HistoryPage}" Icon="{ui:SymbolIcon History24}"/>
+       <ui:NavigationViewItem x:Name="TaskCenterItem" Content="任务中心" Icon="{ui:SymbolIcon CalendarClock24}" Click="OnTaskCenterClick"/>
       </ui:NavigationViewItem.MenuItems>
      </ui:NavigationViewItem>
-     <ui:NavigationViewItem x:Name="ExtensionsGroup" Content="插件与扩展" Icon="{ui:SymbolIcon Apps24}" Click="OnNavigationGroupClick" ToolTip="插件与扩展"/>
     </ui:NavigationView.MenuItems>
     <ui:NavigationView.FooterMenuItems>
      <ui:NavigationViewItem Content="设置" Icon="{ui:SymbolIcon Settings24}" Click="OnSettings" IsEnabled="{Binding State.IsIdle}" ToolTip="设置" AutomationProperties.Name="打开统一设置"/>
@@ -125,7 +126,7 @@
      </StackPanel>
     </ui:Button>
     <Border Grid.Column="1" BorderThickness="1,0,0,0" BorderBrush="{DynamicResource BrandBorderSubtleBrush}" Margin="8,4,0,4">
-     <ui:Button x:Name="FooterTasksButton" Appearance="Transparent" Click="OnFooterTaskCenterClick"
+     <ui:Button x:Name="FooterTasksButton" Appearance="Transparent" Click="OnTaskCenterClick"
                 Content="{Binding StatusBar.TaskLabel}" ToolTip="{Binding StatusBar.TaskDetail}"
                 AutomationProperties.Name="查看后台运行与排队任务" Padding="10,3" FontSize="12"/>
     </Border>

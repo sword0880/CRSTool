@@ -28,6 +28,7 @@ internal static class PerformanceChecks
         const string password="Synthetic-Performance-Password-2026";
         await CheckMarketAsync();
         await CheckFutuLabelsAsync(root);
+        await CheckFutuOverviewAsync(root);
         var path=Path.Combine(root,"performance");using var vault=new VaultManager();var created=await vault.CreateAsync(path,password);await TestStores.Enroll(vault);
         var cases=vault.CreatePerformanceUseCases();
         if(realOnly){await RealSamples(cases);return;}
@@ -143,6 +144,52 @@ internal static class PerformanceChecks
         await cases.RenameAccountAsync(id,"我的港股账户");
         if((await cases.LoadAsync()).Data.Accounts.Single().Alias!="我的港股账户")throw new Exception("用户账户别名被自动修正覆盖。");
     }
+
+    private static async Task CheckFutuOverviewAsync(string root)
+    {
+        using var book = new XSSFWorkbook();
+        void Sheet(string name, params string[][] rows)
+        {
+            var sheet = book.CreateSheet(name);
+            for (var row = 0; row < rows.Length; row++)
+            {
+                var cells = sheet.CreateRow(row);
+                for (var column = 0; column < rows[row].Length; column++) cells.CreateCell(column).SetCellValue(rows[row][column]);
+            }
+        }
+        Sheet("账户信息", ["年份", "账户号码", "账户名称"], ["2025", "DEMO1", "多币种账户"], ["2025", "DEMO2", "空余额账户"]);
+        Sheet("交易流水", ["成交时间", "品类", "代码名称", "方向", "数量/面值", "价格", "币种", "账户号码", "交易所/市场"]);
+        Sheet("持仓总览", ["时期类型", "日期", "账户号码", "品类", "代码名称", "交易所/市场", "币种", "数量/面值", "市值"],
+            ["期末", "20251231", "DEMO1", "证券", "DEMO-HK", "HK", "HKD", "2", "80"],
+            ["期末", "20251231", "DEMO1", "证券", "DEMO-US", "US", "USD", "3", "150"],
+            ["期末", "20251231", "DEMO2", "证券", "DEMO-HK", "HK", "HKD", "1", "10"]);
+        Sheet("资金总览", ["时期类型", "日期", "账户号码", "币种", "金额"],
+            ["期末", "20251231", "DEMO1", "HKD", "20"], ["期末", "20251231", "DEMO1", "USD", "-5"],
+            ["期末", "20251231", "DEMO2", "HKD", "0"], ["期末", "20251231", "DEMO2", "USD", ""]);
+        var file = Path.Combine(root, "futu-overview.xlsx");
+        using (var stream = File.Create(file)) book.Write(stream, true);
+
+        using var vault = new VaultManager();
+        await vault.CreateAsync(Path.Combine(root, "futu-overview"), "Synthetic-Overview-Password");
+        await TestStores.Enroll(vault);
+        var cases = vault.CreatePerformanceUseCases(false);
+        await cases.ImportAsync(file, "FUTU");
+        var workspace = await cases.LoadAsync();
+        if (workspace.Data.Valuations.SelectMany(v => v.Components).Any(c => c.Kind == "Security" && c.Amount.HasValue)
+            || workspace.AccountOverviewValuations is not { } valuations)
+            throw new Exception("归档市值未进入账户汇总，或改变了原绩效事实。");
+        var rows = PerformanceAccountValuations.Latest(workspace.Data with { Valuations = valuations }, To);
+        var first = rows[workspace.AccountIdentities.Single(i => i.AccountNumber == "DEMO1").AccountId];
+        var second = rows[workspace.AccountIdentities.Single(i => i.AccountNumber == "DEMO2").AccountId];
+        if (!first.NetAssetsByCurrency.SequenceEqual([new("HKD", 100), new("USD", 145)])
+            || !first.CashByCurrency.SequenceEqual([new("HKD", 20), new("USD", -5)])
+            || second.Cash is not null || !second.CashByCurrency.SequenceEqual([new("HKD", 0), new("USD", null)])
+            || second.NetAssets is not null || second.NetAssetsByCurrency.Length != 0
+            || second.NetAssetsUnavailableReason != "缺现金余额")
+            throw new Exception("归档市值、负现金或空白余额未正确投影到账户汇总。");
+        Console.WriteLine("账户汇总归档验证通过：同日报表市值、原币净资产、负现金和缺余额边界。");
+    }
+
     private sealed class MarketHandler(bool summer=false):HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellation)

@@ -5,7 +5,8 @@ using NLog;
 namespace CRS.Infrastructure;
 
 /// <summary>适配现有基础设施行为；窗口只使用 Core 契约。</summary>
-public sealed class DesktopOperations(ICalculationRepository repository, string configPath,IVaultStorageBackend? vault=null) : IDesktopOperations
+public sealed class DesktopOperations(ICalculationRepository repository, string configPath,IVaultStorageBackend? vault=null,
+    OfficialAnnualExchangeRates? officialRates=null) : IDesktopOperations
 {
     private readonly Action<Action>? guard=vault?.CaptureGuard();
     /// <summary>取得本次运行配置位置。</summary>
@@ -16,6 +17,9 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public IReportExporter Reports { get; } = new ExcelReportExporter(vault?.CaptureGuard());
     /// <summary>加载并校验当前汇率配置。</summary>
     public IExchangeRateProvider LoadRates() => new ExchangeRates(ConfigPath);
+    public Task<IExchangeRateProvider> LoadRatesAsync(int year, CancellationToken cancellation, bool refresh = false)
+        => officialRates?.LoadAsync(year, cancellation, refresh) ?? Task.Run(LoadRates, cancellation);
+    public string RateFingerprint(int year) => officialRates?.CachedFingerprint(year) ?? LoadRates().Fingerprint;
     /// <summary>装配年度计算所需基础设施。</summary>
     public CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025)
         =>CalculationServices.Create(rates,broker,year);

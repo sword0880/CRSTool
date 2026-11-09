@@ -2,6 +2,8 @@ using System.Text.Json;
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
+if(args is ["--official-rates"]){await OfficialAnnualExchangeRatesChecks.RunAsync();return;}
+if(args is ["--official-rates-live"]){await OfficialAnnualExchangeRatesChecks.CheckPublicSourceAsync();return;}
 if(args is ["--performance-market-concurrency"]){await PerformanceMarketConcurrencyChecks.RunAsync();return;}
 if(args is ["--excel-documents"]){ExcelDocumentChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ExcelDocuments",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--compare-excel-before",var excelBaseline]){ExcelDocumentChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.ExcelBefore",Guid.NewGuid().ToString("N")),excelBaseline);return;}
@@ -37,6 +39,7 @@ if(args is ["--account-periods-only"]) {AccountPeriodFileChecks.Run(root); retur
 // 敏感导出策略可单独检查，不重复无关认证测试。
 if(args is ["--sensitive-exports-only"]) {await SensitiveExportChecks.RunAsync(root); return;}
 var store=TestStores.Create(root);
+await OfficialAnnualExchangeRatesChecks.RunAsync();
 var oldJson="""{"Year":2025,"Broker":"FUTU","Summary":{"DividendCny":100,"InterestCny":25,"GainCny":200,"DividendInterestTax":25,"GainTax":40,"ForeignCredit":5,"SupplementTax":60},"SnapshotId":"SYNTHETIC-OLD"}""";
 var old=JsonSerializer.Deserialize<CalculationResult>(oldJson)!; store.Save(old);
 if (store.Load(old.SnapshotId).Summary.SupplementTax!=60m || store.History().Single().Broker!="FUTU") throw new Exception("旧结果 JSON / 历史索引不兼容。");

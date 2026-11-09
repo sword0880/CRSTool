@@ -12,8 +12,7 @@ internal static class PerformanceAccountIdentityReader
         if(format==".xlsx")
         {
             using var table=new FutuTable(input);
-            return table.Read("账户信息",true,"年份","账户号码","账户名称")!
-                .Where(r=>r["账户号码"]!="").Select(r=>new PerformanceAccountIdentity(AccountId("FUTU","FUTU:"+r["账户号码"]),r["账户名称"],r["账户号码"])).ToArray();
+            return ReadFutu(table);
         }
         if(format!=".xml")return [];
         var facts=IbkrSourceReader.Read(input,default);
@@ -23,4 +22,8 @@ internal static class PerformanceAccountIdentityReader
             return new PerformanceAccountIdentity(AccountId("IBKR",number),info is null?"原件未提供":Optional(info,"name",Optional(info,"accountAlias","原件未提供")),number);
         }).ToArray();
     }
+
+    internal static PerformanceAccountIdentity[] ReadFutu(FutuTable table)
+        => table.Read("账户信息",true,"年份","账户号码","账户名称")!
+            .Where(r=>r["账户号码"]!="").Select(r=>new PerformanceAccountIdentity(AccountId("FUTU","FUTU:"+r["账户号码"]),r["账户名称"],r["账户号码"])).ToArray();
 }

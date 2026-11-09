@@ -18,6 +18,23 @@ public sealed partial class PerformanceAccountSelection(InvestmentAccount accoun
     partial void OnSelectedChanged(bool value)=>changed();
 }
 public sealed record PerformanceMetricDisplay(string Name,string Value,string Quality,string Explanation);
+public sealed record PerformanceAccountOverviewRow(string Broker, string Alias, DateOnly? Date, string? Currency, decimal? NetAssets, decimal? Cash)
+{
+    public PerformanceCurrencyAmount[] CashByCurrency { get; init; } = [];
+    public PerformanceCurrencyAmount[] NetAssetsByCurrency { get; init; } = [];
+    public string? NetAssetsUnavailableReason { get; init; }
+    public bool HasAmounts => Cash.HasValue || NetAssets.HasValue
+        || CashByCurrency.Any(a => a.Amount.HasValue) || NetAssetsByCurrency.Any(a => a.Amount.HasValue);
+    public string CashDisplay => Format(Cash, CashByCurrency, "暂无现金余额");
+    public string NetAssetsDisplay => Format(NetAssets, NetAssetsByCurrency, NetAssetsUnavailableReason ?? "暂无估值");
+
+    private static string Format(decimal? converted, PerformanceCurrencyAmount[] native, string unavailable)
+    {
+        if (converted is { } amount) return amount.ToString("N2");
+        if (native.All(a => a.Amount is null)) return unavailable;
+        return string.Join("\n", native.Select(a => $"{a.Currency} {(a.Amount is { } value ? value.ToString("N2") : "暂无数据")}"));
+    }
+}
 public sealed record PerformanceEventDisplay(string Id,string AccountAlias,string Date,string Type,decimal Amount,string Currency,string Source,string Row,string Security)
 {public string Label=>$"{AccountAlias} · {Date} · {Type} · {Amount:N2} {Currency}";}
 public sealed record PerformanceEventOption(InvestmentEventKind Kind,string Name);
@@ -62,23 +79,35 @@ public partial class PerformanceViewModel : ObservableObject
     [RelayCommand(CanExecute=nameof(CanRefreshCurve))]
     private async Task RefreshCurveAsync()
     {await CalculateAsync();}
-    private async Task UpdateCurve(CancellationToken token)
+    private async Task UpdateCurve(PerformanceRun expectedRun, string expectedBenchmark, long revision, CancellationToken token)
     {
-        var expectedRun=run;var expectedBenchmark=Benchmark;var revision=parameterRevision;
-        if(expectedRun is null)return;
         var curve=await useCases!.CurveAsync(expectedRun.Id,expectedBenchmark,token);
         token.ThrowIfCancellationRequested();
         if(closed || run!=expectedRun || parameterRevision!=revision || Benchmark!=expectedBenchmark)return;
-        NetAssetsChart=DesktopChartAdapter.NetAssets(curve,run.Result.Request.Currency);ComparisonChart=DesktopChartAdapter.Comparison(curve);
+        NetAssetsChart=DesktopChartAdapter.NetAssets(curve,expectedRun.Result.Request.Currency);ComparisonChart=DesktopChartAdapter.Comparison(curve);
         var navCount=curve.Points.Count(p=>p.NetAssets.HasValue);var unitCount=curve.Points.Count(p=>p.UnitValue.HasValue);var indexCount=curve.Points.Count(p=>p.BenchmarkValue.HasValue);
         HasNetAssetsPoints=navCount>0;HasComparisonPoints=unitCount>0 || indexCount>0;
-        var reasons=run.Result.Issues.Where(i=>i.Code is "FX_MISSING" or "INITIAL_NAV_MISSING" || i.Code.Contains("VALUATION",StringComparison.Ordinal)).Select(i=>i.Explanation).Distinct().Take(2);
+        var reasons=expectedRun.Result.Issues.Where(i=>i.Code is "FX_MISSING" or "INITIAL_NAV_MISSING" || i.Code.Contains("VALUATION",StringComparison.Ordinal)).Select(i=>i.Explanation).Distinct().Take(2);
         NetAssetsStatus=navCount==0?"没有可计算的净资产点。请检查“资金流与异常检查”中的净值及估值日汇率问题。 "+string.Join(" ",reasons)
             :navCount==1?"目前只有 1 个有效净值点，只能显示单点；至少 2 个不同日期的完整估值才能画折线。":$"已显示 {navCount} 个净资产点。";
         ComparisonStatus=$"组合净值 {unitCount} 个有效点，指数 {indexCount} 个有效点。"+(unitCount<2?" 组合 TWR 需要完整期初、期末净值及资金流证据。":"")+(indexCount<2?" 指数需要所选期间的报价和对比用汇率；请点击“更新曲线”重试。":"");
         CurveExplanation=curve.Explanation+(curve.Points.Any(p=>p.BenchmarkValue.HasValue)?"":" 当前缺少所选指数的同日起点报价或报告币种汇率。")+(curve.Points.Count(p=>p.NetAssets.HasValue)<2?" 当前不足两个完整净值点，无法连接净值曲线。":"");
     }
     public ObservableCollection<PerformanceAccountSelection> Accounts {get;}=[];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleAccountOverview), nameof(AccountOverviewTotals), nameof(AccountOverviewEmptyMessage))]
+    private PerformanceAccountOverviewRow[] accountOverview = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleAccountOverview))]
+    private bool showAccountsWithoutAmounts;
+    public PerformanceAccountOverviewRow[] VisibleAccountOverview => ShowAccountsWithoutAmounts
+        ? AccountOverview : AccountOverview.Where(a => a.HasAmounts).ToArray();
+    public PerformanceAccountOverviewTotal[] AccountOverviewTotals => PerformanceAccountOverviewTotal.FromAccounts(AccountOverview);
+    public string AccountOverviewEmptyMessage => AccountOverview.Length == 0
+        ? "暂无证券账户，请先导入券商资料或在「资料补录」登记账户。"
+        : "暂无有金额的账户，勾选「显示无金额账户」可查看全部。";
+    [ObservableProperty] private bool showAccountOverview;
+    [ObservableProperty] private string accountBrokerSummary = "正在读取账户资料…";
     public ObservableCollection<PerformanceMetricDisplay> Metrics {get;}=[];
     public ObservableCollection<PerformanceIssue> Issues {get;}=[];
     public ObservableCollection<PerformanceAccountResult> AccountResults {get;}=[];
@@ -191,9 +220,44 @@ public partial class PerformanceViewModel : ObservableObject
         finally {operation.Dispose();operation=null;RefreshCommands();}
     }
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task RefreshAsync()=>await Run(Reload);
+
+    private static string BrokerName(string broker) => broker switch
+    {
+        "FUTU" => "富途证券",
+        "IBKR" => "盈透证券（IBKR）",
+        null or "" => "未标注券商",
+        _ => broker
+    };
+
+    public async Task RefreshAccountBrokerSummaryAsync(CancellationToken cancellation)
+    {
+        if (closed || useCases is null) return;
+        try
+        {
+            var data = (await useCases.LoadAsync(cancellation)).Data;
+            if (closed || cancellation.IsCancellationRequested) return;
+            var brokers = data.Accounts.GroupBy(a => BrokerName(a.Broker))
+                .OrderBy(g => g.Key, StringComparer.CurrentCulture)
+                .Select(g => $"{g.Key} {g.Count()} 个");
+            AccountBrokerSummary = data.Accounts.Length == 0 ? "暂无证券账户，导入券商资料后会显示在这里。"
+                : $"共 {data.Accounts.Length} 个账户 · {string.Join(" · ", brokers)}";
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error)
+        {
+            if (closed || cancellation.IsCancellationRequested) return;
+            state.UseCases.LogFailure(error.GetType().Name);
+            AccountBrokerSummary = "账户资料暂不可用，可在投资绩效中刷新资料。";
+        }
+    }
+
     private async Task Reload(CancellationToken token)
     {
         var next=await useCases!.LoadAsync(token);token.ThrowIfCancellationRequested();if(closed)return;
+        var today = DateOnly.FromDateTime(CRS.Timing.BeijingClock.Today);
+        var overviewData = next.AccountOverviewValuations is { } valuations ? next.Data with { Valuations = valuations } : next.Data;
+        var latest = await Task.Run(() => PerformanceAccountValuations.Latest(overviewData, today, token), token);
+        token.ThrowIfCancellationRequested();if(closed)return;
         var firstLoad=Accounts.Count==0;var previous=Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToHashSet();
         var nextSnapshotId=next.InputSnapshotId;
         var unchanged=workspace is not null && inputSnapshotId==nextSnapshotId;
@@ -201,6 +265,16 @@ public partial class PerformanceViewModel : ObservableObject
         try
         {
         Accounts.Clear();foreach(var a in workspace.Data.Accounts)Accounts.Add(new(a,Invalidate,privacy.Account(a)){Selected=firstLoad?a.Included:previous.Contains(a.Id)});
+        AccountOverview = Accounts.Select(a =>
+        {
+            var value = latest[a.Account.Id];
+            return new PerformanceAccountOverviewRow(BrokerName(a.Broker), a.Alias, value.Date, value.Currency, value.NetAssets, value.Cash)
+            {
+                CashByCurrency = value.CashByCurrency,
+                NetAssetsByCurrency = value.NetAssetsByCurrency,
+                NetAssetsUnavailableReason = value.NetAssetsUnavailableReason
+            };
+        }).OrderBy(a => a.Broker, StringComparer.CurrentCulture).ThenBy(a => a.Alias, StringComparer.CurrentCulture).ToArray();
         Portfolios.Clear();foreach(var p in workspace.Portfolios)Portfolios.Add(p with{Name=privacy.Text(p.Name)});
         History.Clear();foreach(var h in workspace.History)History.Add(h with{Scope=privacy.Text(h.Scope)});
         Sources.Clear();foreach(var s in workspace.Sources)Sources.Add(s with{Name=privacy.Text(s.Name)});
@@ -219,9 +293,10 @@ public partial class PerformanceViewModel : ObservableObject
     {
         var request=new PerformanceRequest(Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToArray(),DateOnly.FromDateTime(From),DateOnly.FromDateTime(To),Currency,(ReturnMethod)MethodIndex,FallbackDays,SinceInception:Period=="成立以来");
         var revision=parameterRevision;
+        var benchmark=Benchmark;
         InvalidateResult(false);
         if(!OnlineUpdatesAllowed)throw new CrsException("在线行情服务不可用，无法更新绩效对比。");
-        try {await useCases!.FetchBenchmarkAsync(Benchmark,request,token,force:true);}
+        try {await useCases!.FetchBenchmarkAsync(benchmark,request,token,force:true);}
         catch(CrsException error)
         {
             if(!closed && parameterRevision==revision)NetAssetsStatus=ComparisonStatus=CurveExplanation="联网更新失败："+error.Message+" 请重试。";
@@ -231,7 +306,7 @@ public partial class PerformanceViewModel : ObservableObject
         var result=await useCases!.CalculateAsync(request,token);await Reload(token);
         token.ThrowIfCancellationRequested();
         if(closed || parameterRevision!=revision || result.InputHash!=inputSnapshotId)return;
-        Display(result);await UpdateCurve(token);
+        Display(result);await UpdateCurve(result,benchmark,revision,token);
     });
     private void Display(PerformanceRun value)
     {
@@ -245,8 +320,29 @@ public partial class PerformanceViewModel : ObservableObject
     private static string Quality(PerformanceQuality q)=>q switch {PerformanceQuality.Verified=>"已核对",PerformanceQuality.Reconstructed=>"可重建",PerformanceQuality.Estimated=>"估算",_=>"不可计算"};
     private static string EventName(InvestmentEventKind k)=>k switch {InvestmentEventKind.Deposit=>"外部入金",InvestmentEventKind.Withdrawal=>"外部出金",InvestmentEventKind.CashTransfer=>"账户现金转账",InvestmentEventKind.SecurityTransfer=>"证券实物转仓",InvestmentEventKind.Buy=>"买入",InvestmentEventKind.Sell=>"卖出",InvestmentEventKind.Dividend=>"股息",InvestmentEventKind.Interest=>"利息",InvestmentEventKind.WithholdingTax=>"预扣税",InvestmentEventKind.Fee=>"其他费用",InvestmentEventKind.FinancingInterest=>"融资利息",InvestmentEventKind.FxExchange=>"内部换汇",InvestmentEventKind.Borrowing=>"借款本金",InvestmentEventKind.Split=>"拆合股",InvestmentEventKind.Unsupported=>"暂不支持",_=>"未分类"};
     [RelayCommand(CanExecute=nameof(CanCalculate))] private async Task SavePortfolioAsync()=>await Run(async token=>{await useCases!.SavePortfolioAsync(new(SelectedPortfolio?.Id??Guid.NewGuid().ToString("N"),PortfolioName,Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToArray(),Currency),token);await Reload(token);});
-    [RelayCommand(CanExecute=nameof(CanOpen))] private async Task OpenHistoryAsync()=>await Run(async token=>{var revision=parameterRevision;var value=await useCases!.OpenRunAsync(SelectedHistory!.Id,token);token.ThrowIfCancellationRequested();if(closed || parameterRevision!=revision)return;Display(value);await UpdateCurve(token);});
-    [RelayCommand(CanExecute=nameof(CanOpen))] private async Task ReplayHistoryAsync()=>await Run(async token=>{var revision=parameterRevision;var result=await useCases!.ReplayAsync(SelectedHistory!.Id,token);await Reload(token);token.ThrowIfCancellationRequested();if(closed || parameterRevision!=revision)return;Display(result);await UpdateCurve(token);});
+    [RelayCommand(CanExecute=nameof(CanOpen))]
+    private async Task OpenHistoryAsync() => await Run(async token =>
+    {
+        var revision = parameterRevision;
+        var benchmark = Benchmark;
+        var value = await useCases!.OpenRunAsync(SelectedHistory!.Id, token);
+        token.ThrowIfCancellationRequested();
+        if (closed || parameterRevision != revision) return;
+        Display(value);
+        await UpdateCurve(value, benchmark, revision, token);
+    });
+    [RelayCommand(CanExecute=nameof(CanOpen))]
+    private async Task ReplayHistoryAsync() => await Run(async token =>
+    {
+        var revision = parameterRevision;
+        var benchmark = Benchmark;
+        var result = await useCases!.ReplayAsync(SelectedHistory!.Id, token);
+        await Reload(token);
+        token.ThrowIfCancellationRequested();
+        if (closed || parameterRevision != revision) return;
+        Display(result);
+        await UpdateCurve(result, benchmark, revision, token);
+    });
     [RelayCommand(CanExecute=nameof(CanRevise))] private async Task ReviseAsync()=>await Run(async token=>{await useCases!.ReviseClassificationAsync(SelectedEvent!.Id,Classification,ClassificationConfirmed,RevisionReason,token);await Reload(token);RevisionReason="";});
     [RelayCommand(CanExecute=nameof(CanTransfer))] private async Task MatchTransferAsync()=>await Run(async token=>{await useCases!.ConfirmTransferAsync(TransferOut!.Id,TransferIn!.Id,TransferTolerance,TransferReason,Currency,token);await Reload(token);TransferReason="";});
     // 确认缺失基础币种后才允许用基础币种输入整体净值，原币结单组成保持不变。
@@ -290,6 +386,7 @@ public partial class PerformanceViewModel : ObservableObject
         closed=true;useCases?.SetOnlineUpdatesAllowed(false);NotifyNetworkMode();privacy=new([],[]);AccountDetails="";parameterRevision++;inputSnapshotId="";operation?.Cancel();ManualJson="";ManualSource="";AccountAlias="";RevisionReason="";TransferReason="";SourceReason="";
         SelectedHistory=null;SelectedEvent=null;TransferOut=null;TransferIn=null;ManualAccount=null;SelectedPortfolio=null;SelectedSource=null;
         SecuritiesValue=CashValue=Receivable=Liability=Payable=EventAmount=EventQuantity=EventFee=EventWithholding=0;EventSecurity="";EventMarket="";
+        AccountOverview = []; ShowAccountsWithoutAmounts = false; AccountBrokerSummary = "";
         Accounts.Clear();Events.Clear();Metrics.Clear();Issues.Clear();History.Clear();Portfolios.Clear();Sources.Clear();AccountResults.Clear();Exposure.Clear();workspace=null;run=null;NetAssetsChart=ChartPresentation.Empty;ComparisonChart=ChartPresentation.Empty;HasNetAssetsPoints=false;HasComparisonPoints=false;NetAssetsStatus=ComparisonStatus=CurveExplanation="数据已锁定。";Summary="保险库已锁定，绩效资料已清理。";RefreshCommands();
     }
 }

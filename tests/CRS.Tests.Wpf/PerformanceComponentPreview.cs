@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CRS.DesktopClient.ViewModels;
+using CRS.DesktopClient.Views.Pages;
 using CRS.DesktopClient.Views.Pages.Performance;
 
 /// <summary>验证绩效只读子视图可独立排版，完全使用合成模型，不访问真实资料库。</summary>
@@ -22,9 +23,25 @@ internal static class PerformanceComponentPreview
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
                 var shell=new ShellViewModel(new FakeUseCases(),new SilentInteraction());
+                var performance=shell.Performance;
+                performance.AccountOverview = [new("富途证券", "港股账户 · 尾号 1234", new(2025, 12, 31), null, null, null)
+                    { NetAssetsByCurrency = [new("HKD", 20000), new("USD", 1200)], CashByCurrency = [new("HKD", 0), new("USD", -50)] },
+                    new("盈透证券（IBKR）", "美股账户 · 尾号 5678", new(2025, 11, 30), "USD", 34567, 1234),
+                    new("富途证券", "待补资料账户", null, null, null, null)];
+                string? route = null;
+                shell.NavigateRequested += page => route = page;
+                shell.Dashboard.OpenAccountOverviewCommand.Execute(null);
+                var performancePage = new PerformancePage(shell);
+                performancePage.Measure(new(1000, 600));
+                performancePage.Arrange(new Rect(0, 0, 1000, 600));
+                performancePage.UpdateLayout();
+                var tabs = Collect<TabControl>(performancePage).First();
+                if (route != "performance" || tabs.SelectedItem is not TabItem { Header: "账户汇总" })
+                    throw new InvalidOperationException("概览未直达绩效的账户汇总页签。");
                 Directory.CreateDirectory(directory);
                 foreach (var (name,view) in new (string, UserControl)[]
                 {
+                    ("accounts",new PerformanceAccountsView()),
                     ("exposure",new PerformanceExposureView()),
                     ("history",new PerformanceHistoryView()),
                     ("workbench",new PerformanceWorkbenchView()),
@@ -41,6 +58,20 @@ internal static class PerformanceComponentPreview
                         if(view.ActualWidth<width-2||view.ActualHeight<598)
                             throw new InvalidOperationException($"绩效 {name} 子视图没有填满视口：{view.ActualWidth}x{view.ActualHeight}");
                         var tables=Collect<DataGrid>(view).ToArray();
+                        if (name == "accounts")
+                        {
+                            var accountTable = (DataGrid)view.FindName("AccountTable");
+                            var totalsTable = (DataGrid)view.FindName("AccountTotalsTable");
+                            var showAll = (CheckBox)view.FindName("ShowAccountsWithoutAmounts");
+                            if (accountTable.Items.Count != 2 || accountTable.Items.Groups?.Count != 2 || totalsTable.Items.Count != 3)
+                                throw new InvalidOperationException("账户汇总未显示分组、合计或默认隐藏无金额账户。");
+                            showAll.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
+                            root.UpdateLayout();
+                            if (accountTable.Items.Count != 3 || totalsTable.Items.Count != 3)
+                                throw new InvalidOperationException("勾选后未恢复无金额账户，或合计发生变化。");
+                            showAll.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, false);
+                            root.UpdateLayout();
+                        }
                         if(name is "exposure" or "history")
                         {
                             var table=tables.FirstOrDefault()??throw new InvalidOperationException("绩效只读视图缺少表格："+name);
@@ -69,7 +100,7 @@ internal static class PerformanceComponentPreview
                         root.Child=null;
                     }
                 }
-                Console.WriteLine("PASS 绩效组件化：六类绩效子视图的绑定与 1040/1280/1440 三种宽度合成截图。");
+                Console.WriteLine("PASS 绩效组件化：账户汇总直达和分组，以及七类绩效子视图的合成截图。");
             }
             catch(Exception error){failure=error;}
         });

@@ -22,10 +22,14 @@ internal static class NavigationSurfaceSmokeChecks
         var builtIn = Find<NavigationViewContentPresenter>(navigation) ?? throw new InvalidOperationException("没有内置内容容器。");
         if (!builtIn.IsVisible || surface.IsVisible) throw new InvalidOperationException("内置页面未独占显示。");
         var extensions = (NavigationViewItem)window.FindName("ExtensionsGroup");
+        var system = (NavigationViewItem)window.FindName("TasksGroup");
         var until = CRS.Timing.BeijingClock.Now.AddSeconds(15);
-        while (!extensions.MenuItems.OfType<NavigationViewItem>().Any(item => Equals(item.Content, "插件管理")))
+        while (!system.MenuItems.OfType<NavigationViewItem>().Any(item => Equals(item.Content, "插件管理")))
         { if (CRS.Timing.BeijingClock.Now > until) throw new TimeoutException("插件导航尚未初始化。"); await Task.Delay(100); }
-        var pages = extensions.MenuItems.OfType<NavigationViewItem>().Where(item => item.Tag is string).ToArray();
+        var research = navigation.MenuItems.OfType<NavigationViewItem>().Single(item => Equals(item.Content, "市场研究"));
+        if (!Equals(research.Tag, "crs.national-team:national-team-workspace") || research.MenuItems.Count != 0)
+            throw new InvalidOperationException("市场研究没有直达研究工作台。");
+        var pages = extensions.MenuItems.OfType<NavigationViewItem>().Where(item => item.Tag is string).Prepend(research).ToArray();
         if (pages.Length < 2) throw new InvalidOperationException("导航回归需要发行包中的两个实际插件。");
         var index = 0;
         foreach (var item in pages)
@@ -48,7 +52,7 @@ internal static class NavigationSurfaceSmokeChecks
             if (!builtIn.IsVisible || surface.IsVisible || host.Content is not null || header.Content is not null) throw new InvalidOperationException("返回内置页面后仍有插件遮罩或顶栏。");
             index++;
         }
-        var management = extensions.MenuItems.OfType<NavigationViewItem>().Single(item => Equals(item.Content, "插件管理"));
+        var management = system.MenuItems.OfType<NavigationViewItem>().Single(item => Equals(item.Content, "插件管理"));
         Console.Error.WriteLine("smoke: 两个插件折叠/展开互斥通过，打开插件管理");
         management.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, management)); await Task.Delay(350); window.UpdateLayout();
         var page = host.Content as PluginManagementPage ?? throw new InvalidOperationException("插件表格未打开。");

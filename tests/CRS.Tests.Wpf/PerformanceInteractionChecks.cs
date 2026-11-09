@@ -10,6 +10,7 @@ internal static class PerformanceInteractionChecks
     /// <summary>检查真实页面模型的边界、历史参数、取消和锁后清理，不访问用户真实资料。</summary>
     internal static async Task RunAsync()
     {
+        await CheckAccountOverviewAsync();
         var cases=new Cases();var interaction=new Interaction();var shell=new ShellViewModel(new FakeUseCases(),interaction,performance:cases,documentPassword:()=>"Synthetic-Encrypted-Password");var vm=shell.Performance;
         await vm.RefreshCommand.ExecuteAsync(null);vm.Currency="USD";vm.From=new(2024,12,31);vm.To=new(2025,12,31);
         vm.ManualAccount=vm.Accounts.Single();vm.NavDate=new(2025,6,30);vm.SecuritiesValue=10;vm.CashValue=20;vm.Receivable=3;vm.Liability=4;vm.Payable=5;vm.ManualSource="合成来源";vm.NavComplete=true;
@@ -81,6 +82,73 @@ internal static class PerformanceInteractionChecks
         if(vm.Accounts.Count!=0 || vm.History.Count!=0 || vm.Metrics.Count!=0 || vm.Events.Count!=0 || vm.Exposure.Count!=0 || vm.ManualJson!="" || vm.RefreshCommand.CanExecute(null))throw new Exception("锁定未清理敏感状态或仍可刷新。");
         Console.WriteLine("绩效界面通过：账户选择、缺项展示、税务隔离、参数失效、历史冻结、跨页忙碌、导出确认/密码清理、取消与锁定清理。");
     }
+
+    private static async Task CheckAccountOverviewAsync()
+    {
+        var date = new DateOnly(2025, 1, 31);
+        var source = new PerformanceSource("SYNTHETIC", "summary");
+        ValuationSnapshot Snapshot(string id, string account, DateOnly day, params ValuationComponent[] components)
+            => new(id, account, new(day.ToDateTime(new(23, 59)), TimeSpan.Zero), day, ValuationMoment.EndOfDay, components, source);
+
+        var cases = new Cases
+        {
+            Data = new()
+            {
+                Accounts = [new("A", "IBKR", "合成账户 12345678", "USD", date),
+                    new("B", "FUTU", "富途现金", "USD", date, Included:false, BaseCurrencyConfirmed:false),
+                    new("C", "FUTU", "暂无资料", "HKD", date), new("D", "IBKR", "来源冲突", "USD", date),
+                    new("E", "FUTU", "多币种账户", "HKD", date, BaseCurrencyConfirmed:false)],
+                Valuations = [Snapshot("current", "A", date, new("Cash", "USD", 30), new("Cash", "HKD", 70), new("Security", "USD", 80), new("Liability", "USD", 10)),
+                    Snapshot("old", "A", date.AddDays(-1), new ValuationComponent("Cash", "USD", 5)),
+                    Snapshot("future", "A", DateOnly.MaxValue, new ValuationComponent("Cash", "USD", 999)),
+                    Snapshot("zero", "B", date, new("Cash", "HKD", 0), new("Security", "HKD", null)),
+                    Snapshot("conflict1", "D", date, new ValuationComponent("Cash", "USD", 1)),
+                    Snapshot("conflict2", "D", date, new ValuationComponent("Cash", "USD", 2)),
+                    Snapshot("mixed", "E", date, new("Cash", "HKD", 0), new("Cash", "USD", -10), new("Security", "USD", null))],
+                Fx = [new("fx", "HKD", "USD", date, 0.1m, source)]
+            }
+        };
+        cases.AccountOverviewValuations = cases.Data.Valuations.Select(v => v.Id == "mixed"
+            ? v with { Components = [new("Cash", "HKD", 0), new("Cash", "USD", -10), new("Security", "USD", 25)] } : v).ToArray();
+        var shell = new ShellViewModel(new FakeUseCases(), new Interaction(), performance:cases);
+        var vm = shell.Performance;
+        await vm.RefreshAccountBrokerSummaryAsync(CancellationToken.None);
+        if (!vm.AccountBrokerSummary.Contains("盈透证券（IBKR） 2 个") || !vm.AccountBrokerSummary.Contains("富途证券 3 个"))
+            throw new Exception("概览未按券商统计全部已导入账户。");
+        await vm.RefreshCommand.ExecuteAsync(null);
+        vm.Currency = "CNY";
+        var rows = vm.AccountOverview;
+        if (cases.MarketRequests != 0 || rows.Length != 5
+            || rows.Single(a => a.Alias.Contains("5678")) is not { Broker: "盈透证券（IBKR）", Currency: "USD", NetAssets: 107, Cash: 37 } latest
+            || latest.Date != date || latest.Alias.Contains("12345678")
+            || rows.Single(a => a.Alias == "富途现金") is not { Broker: "富途证券", Currency: "HKD", NetAssets: null, Cash: 0 }
+            || rows.Single(a => a.Alias == "暂无资料") is not { Date: null, Currency: null, NetAssets: null, Cash: null }
+            || rows.Single(a => a.Alias == "来源冲突") is not { NetAssets: null, Cash: null })
+            throw new Exception("账户汇总依赖了联网或当前选区，或未区分最新估值、真实零值、缺项与冲突。");
+        var mixed = rows.Single(a => a.Alias == "多币种账户");
+        if (!mixed.CashByCurrency.SequenceEqual([new("HKD", 0), new("USD", -10)])
+            || !mixed.NetAssetsByCurrency.SequenceEqual([new("HKD", 0), new("USD", 15)])
+            || !mixed.CashDisplay.Contains("USD") || !mixed.NetAssetsDisplay.Contains("HKD"))
+            throw new Exception("多币种账户没有显示汇总专用估值和原币现金。");
+        var totals = vm.AccountOverviewTotals;
+        if (vm.ShowAccountsWithoutAmounts || vm.VisibleAccountOverview.Length != 3
+            || !vm.VisibleAccountOverview.Any(a => a.Alias == "富途现金")
+            || totals.Length != 2
+            || totals.Single(t => t.Currency == "USD") is not { NetAssets: 122, NetAssetAccounts: 2, Cash: 27, CashAccounts: 2 }
+            || totals.Single(t => t.Currency == "HKD") is not { NetAssets: 0, NetAssetAccounts: 1, Cash: 0, CashAccounts: 2 })
+            throw new Exception("账户合计未按币种分别计算净资产和现金，或默认隐藏影响了真实零值。");
+        vm.ShowAccountsWithoutAmounts = true;
+        if (vm.VisibleAccountOverview.Length != rows.Length || !totals.SequenceEqual(vm.AccountOverviewTotals))
+            throw new Exception("显示无金额账户改变了合计或遗漏账户。");
+        vm.AccountOverview = [.. rows, new("盈透证券（IBKR）", "较早快照", date.AddDays(-1), "USD", null, 5)];
+        if (vm.AccountOverviewTotals.Length != 3
+            || vm.AccountOverviewTotals.Single(t => t.Date < date) is not { Currency: "USD", NetAssets: null, NetAssetAccounts: 0, Cash: 5 })
+            throw new Exception("账户合计混用了不同估值日或把缺少净资产当成零。");
+        vm.ClearForLock();
+        if (vm.AccountOverview.Length != 0 || vm.AccountOverviewTotals.Length != 0 || vm.AccountBrokerSummary.Length != 0 || vm.ShowAccountsWithoutAmounts)
+            throw new Exception("锁定未清理账户汇总和概览。");
+    }
+
     private sealed class Interaction:IUserInteraction
     {
         public bool Consent;
@@ -94,6 +162,7 @@ internal static class PerformanceInteractionChecks
     private sealed class Cases:IPerformanceUseCases
     {
         public PerformanceData Data=new(){Accounts=[new("A","IBKR","合成账户","USD",new(2024,12,31))]};
+        public ValuationSnapshot[]? AccountOverviewValuations;
         private readonly PerformanceRun run=new("0123456789abcdef",null,DateTimeOffset.UtcNow,"synthetic",new(),new("Performance.v1",new(["A"],new(2024,12,31),new(2025,12,31),"USD"),[new("Twr","TWR",null,"比例",PerformanceQuality.InsufficientData,"缺净值")],[],[],[new("合成账户","IBKR",null,null,null,null,null,null,"USD")],[],new(2024,12,31)));
         public PerformanceRequest? Request;public bool Wait;public int Exports;public SensitiveExportConsent? Consent;public string Password="";
         public bool OnlineUpdatesAllowed {get;private set;}
@@ -104,7 +173,7 @@ internal static class PerformanceInteractionChecks
         public async Task<PerformanceCurve> CurveAsync(string id,string benchmark,CancellationToken cancellation=default)
         {if(CurveGate is not null)await CurveGate.Task;return new PerformanceCurve([new(new(2024,12,31),100,null,100),new(new(2025,12,31),110,null,112)],benchmark,"合成曲线");}
         public async Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default)
-        {if(LoadGate is not null)await LoadGate.Task;return new PerformanceWorkspace(Data,[],[new(run.Id,run.CreatedAt,run.Result.Request.From,run.Result.Request.To,"USD","合成账户 12345678","synthetic")]){AccountIdentities=[new("A","合成开户姓名","12345678")]};}
+        {if(LoadGate is not null)await LoadGate.Task;return new PerformanceWorkspace(Data,[],[new(run.Id,run.CreatedAt,run.Result.Request.From,run.Result.Request.To,"USD","合成账户 12345678","synthetic")]){AccountIdentities=[new("A","合成开户姓名","12345678")],AccountOverviewValuations=AccountOverviewValuations};}
         public Task<bool> ImportAsync(string path,string broker,CancellationToken cancellation=default)=>Task.FromResult(true);
         public Task<bool> ImportManualAsync(string json,CancellationToken cancellation=default)=>Task.FromResult(true);
         public Task<bool> AddAccountAsync(ManualPerformanceAccount input,CancellationToken cancellation=default)=>Task.FromResult(true);

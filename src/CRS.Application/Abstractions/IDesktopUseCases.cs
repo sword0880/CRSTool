@@ -43,6 +43,7 @@ public interface IDesktopUseCases
     Task<string> RestoreEncryptedAsync(string path,string parentDirectory,string password,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>throw new NotSupportedException();
     Task DownloadAsync(string queryId, string token, DateOnly from, DateOnly to, string path, CancellationToken cancellation);
     Task<List<AppliedRate>> RatesAsync(int year);
+    Task<List<AppliedRate>> RatesAsync(int year, bool refresh) => RatesAsync(year);
     IReadOnlyList<Trade> Trades(CalculationResult result);
     IReadOnlyList<ReportSection> Sections(CalculationResult result, IReadOnlyList<ReviewNote> reviews);
 }

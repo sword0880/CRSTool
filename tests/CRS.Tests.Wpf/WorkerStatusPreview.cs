@@ -31,10 +31,11 @@ internal static class WorkerStatusPreview
                 {
                     var model=new BackgroundServiceViewModel(CancellationToken.None)
                     {
-                        HealthTone=sample.Tone, HealthLabel=sample.Label,Status=sample.Message,
+                        HealthTone=sample.Tone, HealthLabel=sample.Label,ServiceStatus=sample.Message,
                         SnapshotTime="状态采样：2026-10-21 11:00:00 · 合成数据"
                     };
-                    var page=new WorkerStatusPage(model);
+                    var page=new BackgroundServicePage(model);
+                    page.ShowServiceStatus();
                     foreach(var width in new[]{760d,960d,1180d})
                     {
                         page.Measure(new Size(width,780));

@@ -20,7 +20,9 @@ internal static class DesktopComposition
         var repository = manager.Repository;
         LocalStore.ConfigureLogging(settings.LogDirectory, settings.LoggingEnabled, settings.LogLevel,
             settings.LogRetentionFiles, settings.LogFileSizeMb, exactLogDirectory: true);
-        var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager);
+        var officialRates = smoke ? null : new OfficialAnnualExchangeRates(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS", "exchange-rates"));
+        var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager,officialRates);
         return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke));
     }
     public static void LogStartupFailure(Exception error) => LogManager.GetCurrentClassLogger().Error("程序启动失败；类别={0}",SensitiveDiagnostics.FailureCategory(error.GetType().Name));

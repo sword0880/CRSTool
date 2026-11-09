@@ -21,7 +21,6 @@ public partial class BackgroundServiceViewModel : ObservableObject
     }
     public DataCleanupViewModel? Cleanup=>cleanup;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUnconfirmedRequest))] private BackgroundRequest? uncertainRequest;
-    private string healthState = "Unknown";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasMoreJobs))] private string? jobsCursor;
     public bool HasMoreJobs=>JobsCursor is not null;
     public bool HasUnconfirmedRequest=>UncertainRequest is not null&&!Busy;
@@ -48,11 +47,7 @@ public partial class BackgroundServiceViewModel : ObservableObject
         await MutateAsync(command,new(WorkerProtocol.Version,Guid.NewGuid(),command,plan.PluginId,plan.JobId,ExpectedRevision:plan.Revision),response=>result=response);
         return (result?.Code is "Ok" or "AcceptedNeedsReconcile",Status);
     }
-    [ObservableProperty] private string status = "正在查询独立后台服务。";
-    [ObservableProperty] private string snapshotTime = "尚未取得状态快照";
-    // 状态页只消费可观察的语义状态，避免依据提示字符串或上次快照猜测服务是否在线。
-    [ObservableProperty] private string healthLabel = "等待连接";
-    [ObservableProperty] private string healthTone = "Warning";
+    [ObservableProperty] private string status = "等待查询。";
     [ObservableProperty] private TaskDefinition? selected;
     [ObservableProperty] private string cron = "0 * * * * ?";
     [ObservableProperty] private string timeZoneId = "China Standard Time";
@@ -85,10 +80,10 @@ public partial class BackgroundServiceViewModel : ObservableObject
         await LoadHistoryAsync();
         Status = OnlyIssues
             ? History.Count==0
-                ? "异常执行筛选已启用，但没有匹配记录。来源冷却或插件启动失败可能没有执行记录，请查看后台服务状态。"
+                ? "未找到匹配的异常记录。来源冷却或插件启动失败可能没有执行记录。可到「服务状态」页签查看服务健康情况。"
                 : "已按日期、插件和任务筛选异常记录。"
             : HistorySummary;
-    });
+    }, reportHistoryFailure: true);
     /// <summary>底栏直达执行记录；正在刷新时排队应用导航条件，避免忙碌状态吞掉用户点击。</summary>
     public async Task OpenExecutionHistoryAsync(bool issues)
     {
@@ -116,35 +111,18 @@ public partial class BackgroundServiceViewModel : ObservableObject
         NotifyPlanCommands();
     }
     [RelayCommand]
-    private Task RefreshAsync() => WithStatusAsync(async () => { await LoadAsync(); Status = healthState switch
-        { "Running" => "后台服务正常；公开任务独立于窗口与税务登录运行。", "StorageFault" => "后台存储故障，已停止新任务；请修复并重启服务核验。", "UnresponsivePlugin" => "插件未响应取消，服务正在安全停止。", _ => "后台服务状态异常：" + healthState }; });
+    private Task RefreshAsync() => WithStatusAsync(async () => { await LoadAsync(); Status = ServiceStatus; });
     private async Task LoadAsync()
     {
         // 状态刷新不查询执行记录；历史只由用户的“查询记录”命令读取。
-        var activity=RefreshTaskActivityAsync();
-        await activity;
-        var health = await client.QueryAsync("GetHealth", lifetime);
-        healthState = health.Health?.State ?? "Unknown";
-        HealthLabel = healthState switch
-        {
-            "Running" => "运行正常",
-            "StorageFault" => "后台存储故障",
-            "UnresponsivePlugin" => "插件未响应 · 正在停止",
-            _ => "状态未确认"
-        };
-        HealthTone = healthState switch
-        {
-            "Running" when health.Code == "Ok" => "Success",
-            "StorageFault" or "UnresponsivePlugin" => "Error",
-            _ => "Warning"
-        };
-        // 故障同样需要显示真实采样时刻；没有新健康采样时保留上次时间。
-        if (health.Health is { } sample)
-            SnapshotTime = "状态采样：" + sample.ObservedUtc.ToString("yyyy-MM-dd HH:mm:ss") + "（北京时间） · " + sample.State;
-        if (healthState is "StorageFault" or "UnresponsivePlugin") return;
+        await RefreshTaskActivityAsync();
+        var health = await ReadServiceHealthAsync();
+        lifetime.ThrowIfCancellationRequested();
+        if (health?.Code != "Ok") throw new InvalidOperationException("服务健康查询未完成。");
+        if (health.Health?.State is "StorageFault" or "UnresponsivePlugin" or "PluginUnresponsive") return;
         var plans = await client.QueryAsync("GetJobs", lifetime);
         lifetime.ThrowIfCancellationRequested();
-        if (health.Code != "Ok" || plans.Code != "Ok") throw new InvalidOperationException("服务协议不兼容。");
+        if (plans.Code != "Ok") throw new InvalidOperationException("服务协议不兼容。");
         JobsCursor = plans.NextCursor;
         var key = Selected;var keepMaintenance=SelectedPlan?.IsMaintenance==true; Jobs.Clear(); foreach (var row in plans.Jobs ?? []) Jobs.Add(row);
         UpdateHistorySuggestions();
@@ -218,19 +196,29 @@ public partial class BackgroundServiceViewModel : ObservableObject
         var response = await client.SendAsync(UncertainRequest, lifetime);
         UncertainRequest = null; await LoadAsync(); Status = "上次请求已确认：" + response.Code;
     });
-    private async Task WithStatusAsync(Func<Task> action)
+    private async Task WithStatusAsync(Func<Task> action, bool reportHistoryFailure = false)
     {
         if (Busy || lifetime.IsCancellationRequested) return;
         Busy = true;
         try { await action(); }
-        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested) { HealthLabel = "连接超时"; HealthTone = "Warning"; PendingStatus="待执行请求未确认；列表为上次快照。";Status = "后台服务不可用或响应超时；所列内容为上次状态快照。"; }
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
+        {
+            PendingStatus = "待执行请求未确认。列表保留上次快照。";
+            Status = "后台服务不可用或响应超时。列表保留上次快照。";
+            if (reportHistoryFailure) HistorySummary = Status;
+        }
         catch (OperationCanceledException) { }
         catch (System.IO.InvalidDataException error)
         {
-            Status=error.Message;HealthLabel="状态未确认";HealthTone="Warning";
+            Status=error.Message;
             History.Clear();PendingRequests.Clear();PendingStatus="待执行请求未确认。";HistorySummary="执行记录未确认，请重新查询。";
         }
-        catch (Exception) { HealthLabel = "无法确认服务状态"; HealthTone = "Warning";PendingStatus="待执行请求未确认；列表为上次快照。"; Status = "后台服务不可用或版本不兼容；请检查服务状态并更新到支持任务筛选的版本。所列内容为上次状态快照。"; }
+        catch (Exception)
+        {
+            PendingStatus = "待执行请求未确认。列表保留上次快照。";
+            Status = "后台服务不可用或版本不兼容。请在「服务状态」页签检查连接。列表保留上次快照。";
+            if (reportHistoryFailure) HistorySummary = Status;
+        }
         finally { Busy = false; }
     }
 }

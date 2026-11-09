@@ -11,6 +11,11 @@ public interface IDesktopOperations
     IReportExporter Reports { get; }
     /// <summary>读取年度汇率配置并返回经过校验的提供者。</summary>
     IExchangeRateProvider LoadRates();
+    /// <summary>为所选年度准备可追溯的汇率，联网适配器可读取同年度缓存。</summary>
+    Task<IExchangeRateProvider> LoadRatesAsync(int year, CancellationToken cancellation, bool refresh = false)
+        => Task.Run(LoadRates, cancellation);
+    /// <summary>读取已使用年度的汇率指纹，供导出时核对。</summary>
+    string RateFingerprint(int year) => LoadRates().Fingerprint;
     /// <summary>创建具有独立输入解析状态的计算用例。</summary>
     CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025);
     /// <summary>准备计算及可选的同源绩效资料，成功后通过同一提交入口持久化。</summary>

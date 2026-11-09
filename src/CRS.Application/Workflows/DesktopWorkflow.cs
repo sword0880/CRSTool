@@ -37,8 +37,13 @@ public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotif
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token);
         await operations.DownloadAsync(queryId,token,from,to,path,linked.Token);
     }
-    /// <summary>读取指定年度的全部已配置汇率，不猜测缺失的币种。</summary>
-    public Task<List<AppliedRate>> RatesAsync(int year) => Task.Run(() => operations.LoadRates().ForYear(year));
+    /// <summary>读取指定年度可用的汇率和来源。</summary>
+    public Task<List<AppliedRate>> RatesAsync(int year) => RatesAsync(year, false);
+    public async Task<List<AppliedRate>> RatesAsync(int year, bool refresh)
+    {
+        var rates = await operations.LoadRatesAsync(year, lifetime.Token, refresh);
+        return rates.ForYear(year);
+    }
     /// <summary>优先展示会话交易，完整快照可恢复历史交易；引用型历史不虚构明细。</summary>
     public IReadOnlyList<Trade> Trades(CalculationResult result)
     {
@@ -75,10 +80,10 @@ public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotif
         return sections;
     }
     /// <summary>在后台完成计算，取消检查通过后才事务保存结果。</summary>
-    public Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request, CancellationToken cancellation) => Task.Run(() =>
+    public Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request, CancellationToken cancellation) => Task.Run(async () =>
     {
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token); cancellation=linked.Token;
-        var rates = operations.LoadRates();
+        var rates = await operations.LoadRatesAsync(request.Year, cancellation);
         var carry = request.UseCarry && request.OpeningPath is not null ? operations.ReadCarry(request.OpeningPath) : null;
         var periods=request.AccountPeriodsPath is null?null:operations.ReadAccountPeriods(request.AccountPeriodsPath,cancellation);
         using var calculation = operations.BeginCalculation(rates,request.Broker,request.Year);

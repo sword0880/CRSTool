@@ -17,6 +17,8 @@ public sealed record PerformanceWorkspace(PerformanceData Data,InvestmentPortfol
 {
     public PerformanceInputInfo[] Sources {get;init;}=[];
     public PerformanceAccountIdentity[] AccountIdentities {get;init;}=[];
+    /// <summary>账户汇总专用的日末估值投影。</summary>
+    public ValuationSnapshot[]? AccountOverviewValuations { get; init; }
     public string InputSnapshotId=>PerformanceSnapshot.Identity(Data);
 }
 /// <summary>绩效端口只暴露用例，桌面不接触密钥、数据库或文件解析器。</summary>

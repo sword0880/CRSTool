@@ -13,23 +13,23 @@ public sealed class SensitiveDataExportService(IDesktopOperations operations,Can
     public Task ExportPasswordProtectedAsync(string path,CalculationResult result,string fingerprint,TaxDocumentFormat format,string password,CancellationToken cancellation)
         =>Run(format switch {TaxDocumentFormat.Excel=>SensitiveExportOperation.EncryptedExcel,TaxDocumentFormat.Pdf=>SensitiveExportOperation.EncryptedPdf,
             _=>throw new CrsException("不支持此报税文档格式。")},path,null,cancellation,token=>
-        {CheckRates(fingerprint); operations.Reports.ExportPasswordProtected(path,result,format,password,operations.Repository.Reviews(result.SnapshotId),token); return true;});
+        {CheckRates(result.Year, fingerprint); operations.Reports.ExportPasswordProtected(path,result,format,password,operations.Repository.Reviews(result.SnapshotId),token); return true;});
     // 绩效与税务输出共用一次明文确认、临时路径拒绝、会话取消及固定类别审计。
     public Task ExportPerformanceAsync(string path,bool encrypted,CancellationToken cancellation,SensitiveExportConsent? consent,Action<CancellationToken> write)
         =>Run(encrypted?SensitiveExportOperation.EncryptedArchive:SensitiveExportOperation.PerformanceReport,path,consent,cancellation,token=>{write(token);return true;});
     public Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation,SensitiveExportConsent? consent)
         =>Run(SensitiveExportOperation.Excel,path,consent,cancellation,token=>
-        {CheckRates(fingerprint); operations.Reports.Export(path,result,operations.Repository.Reviews(result.SnapshotId),token); return true;});
+        {CheckRates(result.Year, fingerprint); operations.Reports.Export(path,result,operations.Repository.Reviews(result.SnapshotId),token); return true;});
     public Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation,SensitiveExportConsent? consent)
         =>Run(SensitiveExportOperation.Carry,path,consent,cancellation,token=>
         {if(!result.CarryEligible) throw new CrsException("年末成本尚未核实，不能导出结转。"); operations.SaveCarry(path,result,token); return true;});
     public Task ExportEncryptedAsync(string path,CalculationResult result,string fingerprint,string password,CancellationToken cancellation)
         =>Run(SensitiveExportOperation.EncryptedArchive,path,null,cancellation,token=>
-        {CheckRates(fingerprint); operations.Reports.ExportEncrypted(path,result,password,operations.Repository.Reviews(result.SnapshotId),token); return true;});
+        {CheckRates(result.Year, fingerprint); operations.Reports.ExportEncrypted(path,result,password,operations.Repository.Reviews(result.SnapshotId),token); return true;});
     public Task<string> RestoreEncryptedAsync(string path,string parent,string password,CancellationToken cancellation,SensitiveExportConsent? consent)
         =>Run(SensitiveExportOperation.RestoreArchive,parent,consent,cancellation,token=>operations.Reports.RestoreEncrypted(path,parent,password,token));
-    private void CheckRates(string fingerprint)
-    {if(fingerprint.Length>0 && operations.LoadRates().Fingerprint!=fingerprint) throw new CrsException("汇率配置已更改，请重新计算后导出。");}
+    private void CheckRates(int year, string fingerprint)
+    {if(fingerprint.Length>0 && operations.RateFingerprint(year)!=fingerprint) throw new CrsException("本年度汇率已更新，请重新计算后导出。");}
     private Task<T> Run<T>(SensitiveExportOperation operation,string destination,SensitiveExportConsent? consent,CancellationToken cancellation,Func<CancellationToken,T> action)
         =>Task.Run(()=>
         {

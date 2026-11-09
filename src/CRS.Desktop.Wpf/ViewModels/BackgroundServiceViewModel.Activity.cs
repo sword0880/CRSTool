@@ -1,6 +1,7 @@
 // 后台当前任务的分页展示，完整核对同一快照和状态数量后更新列表，读取失败时明确保留上次快照。
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CRS.Worker.Ipc;
 using CRS.DesktopClient.Services;
 namespace CRS.DesktopClient.ViewModels;
@@ -13,6 +14,7 @@ public partial class BackgroundServiceViewModel
     [ObservableProperty] private string activityStatus="尚未查询当前任务。";
     private bool activityRefreshing;
     // 先校验整份分页的观察时点与状态数量，再替换列表；读取失败保留并标明旧快照。
+    [RelayCommand]
     public async Task RefreshTaskActivityAsync()
     {
         if(activityRefreshing||lifetime.IsCancellationRequested)return;

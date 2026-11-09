@@ -7,6 +7,9 @@
   </StackPanel>
   <!-- 核心操作固定在顶部，导入与计算无需滚到页面底部。 -->
   <WrapPanel Grid.Row="1" Margin="0,0,0,12" IsEnabled="{Binding State.IsIdle}">
+    <WrapPanel.Style><Style TargetType="WrapPanel"><Style.Triggers>
+     <DataTrigger Binding="{Binding ShowAccountOverview}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+    </Style.Triggers></Style></WrapPanel.Style>
    <TextBlock Text="共用证券流水导入的数据" VerticalAlignment="Center" Margin="0,0,12,0"/>
    <ComboBox Width="112" ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}" Margin="0,0,8,0"/>
    <DatePicker SelectedDateFormat="Short" Width="128" SelectedDate="{Binding From}" Margin="0,0,6,0"/><TextBlock Text="→" VerticalAlignment="Center" Margin="0,0,6,0"/><DatePicker SelectedDateFormat="Short" Width="128" SelectedDate="{Binding To}" Margin="0,0,8,0"/>
@@ -14,11 +17,17 @@
    <Button x:Name="CalculateButton" Content="联网更新 / 重算" Command="{Binding CalculateCommand}" Margin="0,0,8,0"/>
    <Button Content="刷新资料" Command="{Binding RefreshCommand}"/>
   </WrapPanel>
-  <Border Grid.Row="2" Style="{StaticResource Card}" Background="{DynamicResource BrandAccentPaleBrush}" Margin="0,0,0,12"><TextBlock Text="{Binding Summary}" TextWrapping="Wrap"/></Border>
+   <Border Grid.Row="2" Background="{DynamicResource BrandAccentPaleBrush}" Margin="0,0,0,12">
+    <Border.Style><Style TargetType="Border" BasedOn="{StaticResource Card}"><Style.Triggers>
+     <DataTrigger Binding="{Binding ShowAccountOverview}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+    </Style.Triggers></Style></Border.Style>
+    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap"/>
+   </Border>
   <TabControl Grid.Row="3" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
    <!-- 导航主题的默认选页容器会按内容扩高；用有限星号行承载页内容。 -->
    <TabControl.Template><ControlTemplate TargetType="TabControl"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TabPanel IsItemsHost="True" Panel.ZIndex="1"/><ContentPresenter Grid.Row="1" ContentSource="SelectedContent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/></Grid></ControlTemplate></TabControl.Template>
    <TabItem Header="绩效工作台"><parts:PerformanceWorkbenchView/></TabItem>
+    <TabItem Header="账户汇总" IsSelected="{Binding ShowAccountOverview, Mode=TwoWay}"><parts:PerformanceAccountsView/></TabItem>
    <!-- 原币组成与来源独立呈现，未知值不填零。 -->
    <TabItem Header="净值曲线与指数"><parts:PerformanceChartsView/></TabItem>
 <TabItem Header="原币资产组成"><parts:PerformanceExposureView/></TabItem>

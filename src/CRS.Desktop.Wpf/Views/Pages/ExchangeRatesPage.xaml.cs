@@ -4,7 +4,14 @@ namespace CRS.DesktopClient.Views.Pages;
 /// <summary>绑定ExchangeRatesPage页面模型，业务行为由应用用例负责。</summary>
 public partial class ExchangeRatesPage : Page
 {
-    public ExchangeRatesPage(ShellViewModel shell) { InitializeComponent(); DataContext = shell.ExchangeRates; }
+    public ExchangeRatesPage(ShellViewModel shell)
+    {
+        InitializeComponent(); DataContext = shell.ExchangeRates;
+        Loaded += async (_, _) =>
+        {
+            if (shell.State.IsIdle) await shell.ExchangeRates.LoadOnOpenAsync();
+        };
+    }
     private async void OnReadRates(object sender, System.Windows.RoutedEventArgs e)
     {
         var model = (ExchangeRatesViewModel)DataContext;

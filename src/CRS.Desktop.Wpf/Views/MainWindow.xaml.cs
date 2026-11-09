@@ -8,10 +8,12 @@ namespace CRS.DesktopClient.Views;
 /// <summary>导航壳只管理页面缓存和窗口生命周期。</summary>
 public partial class MainWindow : FluentWindow
 {
+    private const string MarketResearchRoute = "crs.national-team:national-team-workspace";
     private bool forceClose;
     private CRS.PluginHost.PluginRuntime? plugins;
     private readonly CancellationTokenSource taskPageLifetime=new();
     private BackgroundServiceViewModel? backgroundServiceModel;
+    private BackgroundServicePage? taskCenterPage;
     private Task? pluginStartup;
     private System.Windows.UIElement? builtInContent;
     private readonly List<NavigationViewItem> pluginItems = [];
@@ -50,15 +52,20 @@ public partial class MainWindow : FluentWindow
         // 子菜单也要接回普通页面，避免插件遮罩挡住切换后的业务内容。
         foreach(var item in NavigationEntries().Where(x=>x.TargetPageType is not null)) item.Click+=(_,_)=>HidePlugin();
         foreach(var item in Navigation.FooterMenuItems.OfType<NavigationViewItem>().Where(x=>x.TargetPageType is not null)) item.Click+=(_,_)=>HidePlugin();
-        // 独立服务入口不依赖桌面插件成功加载；服务缺失也不影响税务和绩效页面。
-        var backgroundServiceItem=CreateMenuItem("后台服务状态",SymbolRegular.Server24);
-        backgroundServiceItem.Click+=async (_,_)=>await NavigateWorkerHealthAsync();
-        TasksGroup.MenuItems.Add(backgroundServiceItem);
-        var taskCenter=CreateMenuItem("任务中心",SymbolRegular.CalendarClock24);
-        taskCenter.Click+=async (_,_)=>await NavigateScheduledTasksAsync();TasksGroup.MenuItems.Insert(0,taskCenter);
         InitializeCompactNavigation();
         if(startWorkspace)Loaded+=(_,_)=>{shell.StatusBar.Start(taskPageLifetime.Token);shell.Settings?.Cleanup.StartTaskMonitoring(taskPageLifetime.Token);pluginStartup=StartPluginsAsync();};
-        Closed+=async (_,_)=> {forceClose=true;shell.StatusBar.Stop();shell.Settings?.Cleanup.StopTaskMonitoring();taskPageLifetime.Cancel();ClearPluginHeader();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();if(plugins is not null)await plugins.DisposeAsync();};
+        Closed+=async (_,_)=>
+        {
+            forceClose=true;shell.StatusBar.Stop();shell.Settings?.Cleanup.StopTaskMonitoring();taskPageLifetime.Cancel();
+            ClearPluginHeader();PluginContent.Content=null;ExtensionsGroup.MenuItems.Clear();
+            foreach (var item in pluginItems)
+            {
+                Navigation.MenuItems.Remove(item);
+                TasksGroup.MenuItems.Remove(item);
+            }
+            pluginItems.Clear();
+            if(plugins is not null)await plugins.DisposeAsync();
+        };
     }
     /// <summary>扩展页与内置页互斥显示；隐藏原内容但保留布局，避免收窄侧栏露出旧页面。</summary>
     private void ShowHostedPage(System.Windows.UIElement page)
@@ -100,17 +107,27 @@ public partial class MainWindow : FluentWindow
             {
                 // 复合工作台内的兼容直达路由继续注册，但不在侧栏重复堆积入口。
                 if(!page.Contribution.ShowInNavigation)continue;
-                // 插件契约未声明图标时使用统一扩展图标，不按具体业务插件写分支。
-                var item=CreateMenuItem(page.Contribution.Title,SymbolRegular.Apps24);item.Tag=page.Route;
+                // 研究工作台是一级入口，其余可见插件页面保留在扩展工具中。
+                var research = page.Route == MarketResearchRoute;
+                var item = research ? CreateMenuItem("市场研究", SymbolRegular.Search24)
+                    : CreateMenuItem(page.Contribution.Title, SymbolRegular.Apps24);
+                item.Tag = page.Route;
+                item.ToolTip = page.Contribution.Title;
                 item.Click+=(_,_)=>
                 {
-                    try {Dispatcher.VerifyAccess();PluginUiResources.Validate(System.Windows.Application.Current.Resources);OpenNavigationGroup(ExtensionsGroup);ShowHostedPage(page.Contribution.CreateView());}
+                    try {Dispatcher.VerifyAccess();PluginUiResources.Validate(System.Windows.Application.Current.Resources);OpenNavigationGroup(research ? null : ExtensionsGroup);ShowHostedPage(page.Contribution.CreateView());}
                     catch(Exception error) {HidePlugin();System.Windows.MessageBox.Show(this,"插件页面无法打开；类别："+error.GetType().Name,"插件状态");}
                 };
-                RegisterNavigationLeaf(item);pluginItems.Add(item);ExtensionsGroup.MenuItems.Add(item);
+                RegisterNavigationLeaf(item);pluginItems.Add(item);
+                if (research) Navigation.MenuItems.Insert(Navigation.MenuItems.IndexOf(ExtensionsGroup), item);
+                else
+                {
+                    ExtensionsGroup.MenuItems.Add(item);
+                    ExtensionsGroup.Visibility = System.Windows.Visibility.Visible;
+                }
             }
-            var management=CreateMenuItem("插件管理",SymbolRegular.Settings24);management.ToolTip="插件管理：启停在重新启动后生效";
-            management.Click+=(_,_)=>{OpenNavigationGroup(ExtensionsGroup);ShowPluginManagement();};RegisterNavigationLeaf(management);pluginItems.Add(management);ExtensionsGroup.MenuItems.Add(management);
+            var management=CreateMenuItem("插件管理",SymbolRegular.Settings24);management.ToolTip="插件启停在下次启动时生效";
+            management.Click+=(_,_)=>{OpenNavigationGroup(TasksGroup);ShowPluginManagement();};RegisterNavigationLeaf(management);pluginItems.Add(management);TasksGroup.MenuItems.Add(management);
         }
         catch(Exception error) {System.Windows.MessageBox.Show(this,"插件宿主不可用，现有工作区可继续使用；类别："+error.GetType().Name,"插件状态");}
     }
@@ -119,57 +136,38 @@ public partial class MainWindow : FluentWindow
         // 展示与操作统一使用宿主状态，不按具体插件编写分支。
         ShowHostedPage(new PluginManagementPage(plugins!.Statuses,plugins.SetEnabledForNextStart,plugins.IsEnabledForNextStart));
     }
-    /// <summary>底部状态入口与左侧菜单共用同一任务中心及健康页，不在桌面执行后台管理命令。</summary>
-    private async void OnFooterTaskCenterClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateScheduledTasksAsync();
+    /// <summary>左侧菜单和底栏共用任务中心，各入口选择对应页签。</summary>
+    private async void OnTaskCenterClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateScheduledTasksAsync();
     private async void OnFooterIssuesClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateExecutionHistoryAsync(true);
     private async void OnFooterServiceStatusClick(object sender,System.Windows.RoutedEventArgs e)=>await NavigateWorkerHealthAsync();
 
     /// <summary>右下角异常入口直达执行记录；异常模式的服务端筛选与分页由页面模型负责。</summary>
-    public async Task NavigateExecutionHistoryAsync(bool issues)
+    public Task NavigateExecutionHistoryAsync(bool issues) =>
+        OpenTaskCenterAsync(page => page.ShowRecentExecutions(), model => model.OpenExecutionHistoryAsync(issues));
+
+    public Task NavigateWorkerHealthAsync() => OpenTaskCenterAsync(page => page.ShowServiceStatus());
+
+    public Task NavigateScheduledTasksAsync() => OpenTaskCenterAsync(page => page.ShowCurrentTasks());
+
+    private async Task OpenTaskCenterAsync(Action<BackgroundServicePage> selectTab, Func<BackgroundServiceViewModel, Task>? prepare = null)
     {
-        OpenNavigationGroup(TasksGroup);
-        if(forceClose)return;
+        if (forceClose) return;
         try
         {
-            backgroundServiceModel??=new(taskPageLifetime.Token,cleanup:(DataContext as ShellViewModel)?.Settings?.Cleanup);
-            var page=new BackgroundServicePage(backgroundServiceModel);
-            page.ShowRecentExecutions();
+            var shell = (ShellViewModel)DataContext;
+            var model = backgroundServiceModel ??= new(taskPageLifetime.Token, shell.WorkerClient, shell.Settings?.Cleanup);
+            var page = taskCenterPage ??= new BackgroundServicePage(model);
+            OpenNavigationGroup(TasksGroup);
+            selectTab(page);
             ShowHostedPage(page);
-            SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"任务中心")));
-            await backgroundServiceModel.OpenExecutionHistoryAsync(issues);
+            SetActiveNavigationItem(TaskCenterItem);
+            if (prepare is not null) await prepare(model);
         }
-        catch(OperationCanceledException) { /* 关闭或锁定时不继续查询。 */ }
-        catch(Exception error) {if(!forceClose)System.Windows.MessageBox.Show(this,"执行记录暂不可用；类别："+error.GetType().Name,"任务中心");}
-    }
-
-    public async Task NavigateWorkerHealthAsync()
-    {
-        OpenNavigationGroup(TasksGroup);
-        if(forceClose)return;
-        try
+        catch (OperationCanceledException) { /* 锁定或关闭后不回写页面。 */ }
+        catch (Exception error)
         {
-            backgroundServiceModel??=new(taskPageLifetime.Token,cleanup:(DataContext as ShellViewModel)?.Settings?.Cleanup);
-            ShowHostedPage(new WorkerStatusPage(backgroundServiceModel));
-            SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"后台服务状态")));
-            await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
+            if (!forceClose) System.Windows.MessageBox.Show(this, "任务中心暂不可用。错误类别为 " + error.GetType().Name, "任务中心");
         }
-        catch(OperationCanceledException) { /* 锁定/退出时不回写。 */ }
-        catch(Exception error) {if(!forceClose)System.Windows.MessageBox.Show(this,"服务状态暂不可用；类别："+error.GetType().Name,"后台服务");}
-    }
-
-    public async Task NavigateScheduledTasksAsync()
-    {
-        OpenNavigationGroup(TasksGroup);
-        if(forceClose)return;
-        try
-        {
-            backgroundServiceModel??=new(taskPageLifetime.Token,cleanup:(DataContext as ShellViewModel)?.Settings?.Cleanup);
-            var page=new BackgroundServicePage(backgroundServiceModel);page.ShowCurrentTasks();ShowHostedPage(page);
-            SetActiveNavigationItem(TasksGroup.MenuItems.OfType<NavigationViewItem>().Single(x=>Equals(x.Content,"任务中心")));
-            await backgroundServiceModel.RefreshCommand.ExecuteAsync(null);
-        }
-        catch(OperationCanceledException){ /* 锁定或关闭后不回写页面。 */ }
-        catch(Exception error){if(!forceClose)System.Windows.MessageBox.Show(this,"计划任务暂不可用；类别："+error.GetType().Name,"计划任务");}
     }
     /// <summary>候选升级实际载入页面和资源后才确认，不展示探测窗口或税务内容。</summary>
     private async Task ValidatePluginPageAsync(CRS.PluginHost.HostedPage page,CancellationToken token)
@@ -215,7 +213,7 @@ public partial class MainWindow : FluentWindow
         CloseCompactNavigation();if(group.IsExpanded)OpenNavigationGroup(group);
     }
     /// <summary>展开当前分类并收起其余分类，折叠态不改变内容区宽度。</summary>
-    private void OpenNavigationGroup(NavigationViewItem selected)
+    private void OpenNavigationGroup(NavigationViewItem? selected)
     {
         foreach(var group in Navigation.MenuItems.OfType<NavigationViewItem>().Where(x=>x.MenuItems.Count>0))
             group.IsExpanded=Navigation.IsPaneOpen && ReferenceEquals(group,selected);
