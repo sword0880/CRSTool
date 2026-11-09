@@ -133,8 +133,9 @@ public partial class ImportViewModel : ObservableObject
         {
             var success = await State.RunAsync(async () =>
             {
-                State.Status = "正在导入、匹配 FIFO 并核对年度资料……";
-                var outcome = await State.UseCases.CalculateAsync(request, cts.Token);
+                State.Status = "正在检查导入资料并核算……";
+                var outcome = await State.UseCases.ImportAsync(request, State.Interaction.ReviewImportAsync, cts.Token);
+                if (outcome is null) throw new OperationCanceledException();
                 await State.DisplayAsync(outcome.Result, outcome.RatesFingerprint);
             });
             if (success) calculated();

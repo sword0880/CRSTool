@@ -93,8 +93,14 @@ class FakeUseCases : IDesktopUseCases
     public string ConfigPath=>"unused";public string ReadQueryId()=>"";public void LogFailure(string exceptionType){}
     public Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request,CancellationToken cancellation)
     { LastRequest = request; return Task.FromResult(new DesktopCalculationOutcome(Result,"synthetic")); }
+    public virtual async Task<DesktopCalculationOutcome?> ImportAsync(DesktopCalculationRequest request,
+        Func<ImportReview,CancellationToken,Task<ImportDecision>> review,CancellationToken cancellation)
+        => await CalculateAsync(request,cancellation);
     public Task<List<HistoryItem>> HistoryAsync()=>Task.FromResult(new List<HistoryItem>{new("SYNTHETIC",2025,"synthetic",false,1,"IBKR")});
     public virtual async Task<HistoryPageResult> QueryHistoryAsync(int pageNumber,int pageSize) => new(await HistoryAsync(),1,1,pageSize);
+    public virtual Task<HistoryPageResult> QueryArchivedHistoryAsync(int pageNumber,int pageSize)
+        => Task.FromResult(new HistoryPageResult([],0,1,pageSize));
+    public virtual Task SetHistoryArchivedAsync(string id,bool archived) => throw new NotSupportedException();
     public Task<OriginalFileRequirements> OriginalFileRequirementsAsync(string id)=>Task.FromResult(new OriginalFileRequirements(["synthetic.xml"],null));
     public Task VerifyOriginalFilesAsync(string id,string[] files,string? opening,CancellationToken cancellation)=>Task.CompletedTask;
     public virtual Task<CalculationResult> ReplayAsync(string id,CancellationToken cancellation)=>Task.FromResult(Result);

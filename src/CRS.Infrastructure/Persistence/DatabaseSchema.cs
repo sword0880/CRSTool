@@ -7,7 +7,7 @@ namespace CRS.Infrastructure;
 /// <summary>只升级已验证的加密业务库；结构修改与版本提交同事务，旧结果不重算、不重封存。</summary>
 internal static class DatabaseSchema
 {
-    internal const int CurrentVersion=2;
+    internal const int CurrentVersion=3;
     private const string BaseTables="""
         CREATE TABLE calculations(id TEXT PRIMARY KEY, year INTEGER NOT NULL, created_utc TEXT NOT NULL,
           complete INTEGER NOT NULL, issues INTEGER NOT NULL, result_json TEXT NOT NULL, carry BLOB,
@@ -35,19 +35,25 @@ internal static class DatabaseSchema
         {
             if(version!=0 || c.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type='table'",transaction:tx)!=0)
                 throw new CrsException("新建目标已有数据库结构，不会重建或覆盖。");
-            c.Execute(BaseTables+ArchiveTables+"PRAGMA user_version=2;",transaction:tx);
+            c.Execute(BaseTables+ArchiveTables+ImportHistoryIndex.Schema+"PRAGMA user_version=3;",transaction:tx);
         }
         else
         {
-            if(version is not (1 or CurrentVersion)) throw new CrsException("保险库业务格式无效或版本不支持。");
+            if(version is not (1 or 2 or CurrentVersion)) throw new CrsException("保险库业务格式无效或版本不支持。");
             Validate(c,tx,version);
-            if(version==1)
+            if(version<CurrentVersion)
             {
                 // 先保留同格式可恢复备份；备份失败时还未执行任何业务结构修改。
-                var path=Path.Combine(session.DirectoryPath,"schema-v1-"+Guid.NewGuid().ToString("N")+".crsbak");
+                var path=Path.Combine(session.DirectoryPath,$"schema-v{version}-{Guid.NewGuid():N}.crsbak");
                 if(writeBackup is not null) writeBackup(session,VaultFiles.ReadEnvelope(session.DirectoryPath),path);
                 else VaultBackupFiles.Write(session,VaultFiles.ReadEnvelope(session.DirectoryPath),path);
-                c.Execute("ALTER TABLE calculations ADD COLUMN execution_archived INTEGER NOT NULL DEFAULT 0 CHECK(execution_archived IN (0,1));"+ArchiveTables+"PRAGMA user_version=2;",transaction:tx);
+                if(version==1)
+                    c.Execute("ALTER TABLE calculations ADD COLUMN execution_archived INTEGER NOT NULL DEFAULT 0 CHECK(execution_archived IN (0,1));"+ArchiveTables,transaction:tx);
+                c.Execute(ImportHistoryIndex.Schema+"PRAGMA user_version=3;",transaction:tx);
+                ImportHistoryIndex.Add(c,tx,null);
+                if(c.ExecuteScalar<long>("PRAGMA page_count",transaction:tx)*c.ExecuteScalar<long>("PRAGMA page_size",transaction:tx)
+                    >ChunkedVaultBackup.MaxDatabaseBytes)
+                    throw new CrsException("导入历史索引会使数据库超过 2 GiB 备份上限，升级已取消。");
             }
         }
         Validate(c,tx,CurrentVersion); afterChanges?.Invoke();
@@ -61,14 +67,20 @@ internal static class DatabaseSchema
         // 比较实际列而非仅信任 user_version；未知结构不能被当作旧版自动修补。
         Columns("calculations",new[]{("id","TEXT",0L,1L),("year","INTEGER",1L,0L),("created_utc","TEXT",1L,0L),
             ("complete","INTEGER",1L,0L),("issues","INTEGER",1L,0L),("result_json","TEXT",1L,0L),("carry","BLOB",0L,0L)}
-            .Concat(version==2?new[]{("execution_archived","INTEGER",1L,0L)}:[]).ToArray());
+            .Concat(version>=2?new[]{("execution_archived","INTEGER",1L,0L)}:[]).ToArray());
         Columns("reviews",[("id","INTEGER",0,1),("snapshot_id","TEXT",1,0),("category","TEXT",1,0),("evidence","TEXT",1,0),("created_utc","TEXT",1,0)]);
         References("reviews",[("snapshot_id","calculations","id")]);
-        if(version==2)
+        if(version>=2)
         {
             Columns("execution_artifacts",[("sha256","TEXT",0,1),("assembly_name","TEXT",1,0),("byte_length","INTEGER",1,0),("content","BLOB",1,0)]);
             Columns("run_execution_artifacts",[("snapshot_id","TEXT",1,1),("role","TEXT",1,2),("sha256","TEXT",1,0)]);
             References("run_execution_artifacts",[("snapshot_id","calculations","id"),("sha256","execution_artifacts","sha256")]);
+        }
+        if(version>=3)
+        {
+            Columns("calculation_import_history",[("snapshot_id","TEXT",1,1),("broker","TEXT",1,0),
+                ("identity","TEXT",0,0),("details","TEXT",1,0),("archived","INTEGER",1,0)]);
+            References("calculation_import_history",[("snapshot_id","calculations","id")]);
         }
         void Columns(string table,(string Name,string Type,long Required,long PrimaryKey)[] expected)
         {

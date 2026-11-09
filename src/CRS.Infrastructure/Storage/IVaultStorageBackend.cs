@@ -15,5 +15,5 @@ public interface IVaultStorageBackend : IVaultService
     PerformanceDocument PrepareSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,
         Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null);
     void CommitCalculation(CalculationResult result,IReadOnlyList<PerformanceDocument> documents,
-        Action<Action> originalSession,CancellationToken token);
+        Action<Action> originalSession,CancellationToken token,bool allowDuplicate);
 }

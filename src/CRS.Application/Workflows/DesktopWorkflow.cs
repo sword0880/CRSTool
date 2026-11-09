@@ -80,7 +80,15 @@ public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotif
         return sections;
     }
     /// <summary>在后台完成计算，取消检查通过后才事务保存结果。</summary>
-    public Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request, CancellationToken cancellation) => Task.Run(async () =>
+    public async Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request, CancellationToken cancellation)
+        => (await CalculateCoreAsync(request, null, cancellation))!;
+
+    public Task<DesktopCalculationOutcome?> ImportAsync(DesktopCalculationRequest request,
+        Func<ImportReview, CancellationToken, Task<ImportDecision>> review, CancellationToken cancellation)
+        => CalculateCoreAsync(request, review, cancellation);
+
+    private Task<DesktopCalculationOutcome?> CalculateCoreAsync(DesktopCalculationRequest request,
+        Func<ImportReview, CancellationToken, Task<ImportDecision>>? review, CancellationToken cancellation) => Task.Run<DesktopCalculationOutcome?>(async () =>
     {
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(cancellation,lifetime.Token); cancellation=linked.Token;
         var rates = await operations.LoadRatesAsync(request.Year, cancellation);
@@ -91,7 +99,17 @@ public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotif
             request.OpeningZero, request.ScopeConfirmed, request.UseCarry ? null : request.OpeningPath,
             carry, cancellation, request.SaveCanonicalSnapshot,periods);
         cancellation.ThrowIfCancellationRequested();
-        calculation.Commit(result,cancellation);
+        var allowDuplicate = review is null;
+        if (review is not null && operations.Repository.FindImportMatch(result, cancellation) is { } match)
+        {
+            var decision = await review(match, cancellation);
+            cancellation.ThrowIfCancellationRequested();
+            if (decision == ImportDecision.OpenExisting && match.Kind == ImportMatchKind.Identical)
+                return new DesktopCalculationOutcome(operations.Repository.Load(match.Existing.Id), "");
+            if (decision != ImportDecision.SaveNew) return null;
+            allowDuplicate = match.Kind == ImportMatchKind.Identical;
+        }
+        calculation.Commit(result,cancellation,allowDuplicate);
         return new DesktopCalculationOutcome(result, rates.Fingerprint);
     }, cancellation);
 
@@ -100,6 +118,12 @@ public sealed partial class DesktopWorkflow(IDesktopOperations operations,INotif
     /// <summary>分页查询在后台完成，不占用前台线程。</summary>
     public Task<HistoryPageResult> QueryHistoryAsync(int pageNumber, int pageSize)
         => Task.Run(() => operations.Repository.QueryHistory(pageNumber, pageSize));
+
+    public Task<HistoryPageResult> QueryArchivedHistoryAsync(int pageNumber, int pageSize)
+        => Task.Run(() => operations.Repository.QueryArchivedHistory(pageNumber, pageSize));
+
+    public Task SetHistoryArchivedAsync(string id, bool archived)
+        => Task.Run(() => operations.Repository.SetHistoryArchived(id, archived), lifetime.Token);
 
     /// <summary>由应用层解释输入摘要，前台只选择对应的报告和期初原件。</summary>
     public Task<OriginalFileRequirements> OriginalFileRequirementsAsync(string id) => Task.Run(() =>

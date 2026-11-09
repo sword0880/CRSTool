@@ -26,7 +26,7 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public IDesktopCalculationSession BeginCalculation(IExchangeRateProvider rates,string broker,int year)
     {
         if(vault is null)return new DesktopCalculationSession(CreateCalculator(rates,broker,year),
-            (result,token)=>{token.ThrowIfCancellationRequested();repository.Save(result);});
+            (result,token,allowDuplicate)=>{token.ThrowIfCancellationRequested();repository.SaveImport(result,allowDuplicate);});
         var prepared=new List<CRS.Application.Performance.PerformanceDocument>();
         long stagedBytes=0;
         var calculator=CalculationServices.Create(rates,broker,year,(input,token,_,facts)=>
@@ -38,7 +38,7 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
             if(stagedBytes>128L*1024*1024)throw new CrsException("本次税务与绩效联合导入超过128MiB准备限额，请缩小导入批次。");
             prepared.Add(document);
         });
-        return new DesktopCalculationSession(calculator,(result,token)=>vault.CommitCalculation(result,prepared,guard!,token),
+        return new DesktopCalculationSession(calculator,(result,token,allowDuplicate)=>vault.CommitCalculation(result,prepared,guard!,token,allowDuplicate),
             ()=>{foreach(var document in prepared)System.Security.Cryptography.CryptographicOperations.ZeroMemory(document.Raw);prepared.Clear();});
     }
     /// <summary>只读取本地查询 ID，不读取服务令牌。</summary>

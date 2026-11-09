@@ -20,8 +20,8 @@ public interface IDesktopOperations
     CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025);
     /// <summary>准备计算及可选的同源绩效资料，成功后通过同一提交入口持久化。</summary>
     IDesktopCalculationSession BeginCalculation(IExchangeRateProvider rates, string broker, int year)
-        => new DesktopCalculationSession(CreateCalculator(rates,broker,year),(result,token)=>
-        {token.ThrowIfCancellationRequested();Repository.Save(result);});
+        => new DesktopCalculationSession(CreateCalculator(rates,broker,year),(result,token,allowDuplicate)=>
+        {token.ThrowIfCancellationRequested();Repository.SaveImport(result,allowDuplicate);});
     /// <summary>读取不含服务令牌的 Flex 查询配置。</summary>
     string ReadQueryId();
     /// <summary>校验并读取 C# 年度结转文件。</summary>

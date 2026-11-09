@@ -37,12 +37,14 @@ public sealed class LocalStore : ICalculationRepository
     /// <summary>创建启用外键的数据库连接；每次操作自行释放连接。</summary>
     private SqliteConnection Open()=>session.Open();
     /// <summary>在事务中保存计算结果和可用结转，参数化写入避免说明文本改变 SQL。</summary>
-    public void Save(CalculationResult r)
+    public void Save(CalculationResult r) => SaveImport(r, true);
+
+    public void SaveImport(CalculationResult r, bool allowDuplicate)
     {
         using var lease=session.Enter();using var c=Open();using var tx=c.BeginTransaction();
-        Save(c,tx,r);tx.Commit();
+        Save(c,tx,r,allowDuplicate);tx.Commit();
     }
-    internal void Save(SqliteConnection c,SqliteTransaction tx,CalculationResult r)
+    internal void Save(SqliteConnection c,SqliteTransaction tx,CalculationResult r,bool allowDuplicate=true)
     {
         // 所有历史入口都冻结结果，人工复核通过独立表另存，不改写核算事实。
         r.Freeze();
@@ -63,6 +65,7 @@ public sealed class LocalStore : ICalculationRepository
         c.Execute("INSERT INTO calculations(id,year,created_utc,complete,issues,result_json,carry,execution_archived) VALUES(@Id,@Year,@Utc,@Complete,@Issues,@Json,@Carry,1)",
             new { Id = r.SnapshotId, r.Year, Utc = CRS.Timing.BeijingClock.Now.ToString("O"), Complete = r.Complete ? 1 : 0,
                 Issues = r.Issues.Count, Json = System.Text.Encoding.UTF8.GetString(payload), Carry = r.CarryEligible ? CarryFiles.Encode(CarryFiles.Create(r)) : null }, tx);
+        ImportHistoryIndex.Add(c,tx,r.SnapshotId,allowDuplicate);
         // 文件归档和计算事实同时提交，缺失或不匹配时不留下孤立任务。
         ExecutionArchive.Save(c,tx,r);
         // 归档也会增长数据库；提交前按实际逻辑页数检查，超出可备份范围就回滚本次任务。
@@ -74,34 +77,69 @@ public sealed class LocalStore : ICalculationRepository
     public List<HistoryItem> History() => QueryHistory(1, 100).Rows;
 
     /// <summary>计数和分页在同一读取事务中完成，同一时间以运行编号稳定排序。</summary>
-    public HistoryPageResult QueryHistory(int pageNumber, int pageSize)
+    public HistoryPageResult QueryHistory(int pageNumber, int pageSize) => QueryHistory(pageNumber,pageSize,false);
+
+    public HistoryPageResult QueryArchivedHistory(int pageNumber, int pageSize) => QueryHistory(pageNumber,pageSize,true);
+
+    private HistoryPageResult QueryHistory(int pageNumber, int pageSize, bool archived)
     {
         using var lease=session.Enter();
         if (pageNumber < 1 || pageSize is < 1 or > 100 || (long)(pageNumber - 1) * pageSize > int.MaxValue)
             throw new CrsException("历史页码或每页数量无效。");
         using var c = Open(); using var tx = c.BeginTransaction();
-        var total = c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations", transaction: tx);
+        var total = c.ExecuteScalar<int>("""
+            SELECT COUNT(*) FROM calculations AS c LEFT JOIN calculation_import_history AS h ON h.snapshot_id=c.id
+            WHERE COALESCE(h.archived,0)=@Archived
+            """, new { Archived = archived }, tx);
         // 总数减少时回到最后有效页，刷新后不显示空的越界页。
         var page = Math.Min(pageNumber, Math.Max(1, (int)Math.Ceiling(total / (double)pageSize)));
         // SQLite INTEGER 返回 Int64，先映射可写行模型再构造领域记录，避免 record 构造类型不匹配。
         // 先限制本页，再处理 JSON；超大或损坏单条记录仍占据原历史位置，但不拖垮整页。
         var rows = c.Query<HistoryRow>("""
-            WITH page AS MATERIALIZED (SELECT id FROM calculations ORDER BY julianday(created_utc) DESC,id DESC LIMIT @Limit OFFSET @Offset),
+            WITH page AS MATERIALIZED (
+              SELECT c.id,h.identity FROM calculations AS c LEFT JOIN calculation_import_history AS h ON h.snapshot_id=c.id
+              WHERE COALESCE(h.archived,0)=@Archived ORDER BY julianday(created_utc) DESC,c.id DESC LIMIT @Limit OFFSET @Offset
+            ),
             bounded AS (SELECT calculations.*,CASE WHEN length(CAST(result_json AS BLOB)) BETWEEN 1 AND @MaxBytes
-              THEN CASE WHEN json_valid(result_json) THEN result_json ELSE NULL END ELSE NULL END AS safe_json
+              THEN CASE WHEN json_valid(result_json) THEN result_json ELSE NULL END ELSE NULL END AS safe_json,page.identity
               FROM calculations INNER JOIN page ON calculations.id=page.id)
             SELECT id AS Id,year AS Year,created_utc AS CreatedUtc,complete AS Complete,issues AS Issues,
               COALESCE(substr(json_extract(safe_json,'$.Broker'),1,32),CASE WHEN safe_json IS NULL THEN '记录异常' ELSE '未登记' END) AS Broker,
               substr(json_extract(safe_json,'$.ParentSnapshotId'),1,128) AS ParentSnapshotId,
               COALESCE(json_array_length(json_extract(safe_json,'$.AggregationSources')),0) AS AggregationSourceCount,
               CASE WHEN length(CAST(json_extract(safe_json,'$.CoveredAccounts') AS BLOB))<=262144
-                THEN json_extract(safe_json,'$.CoveredAccounts') ELSE '[]' END AS AccountsJson
+                THEN json_extract(safe_json,'$.CoveredAccounts') ELSE '[]' END AS AccountsJson,
+              substr(identity,1,8) AS DuplicateGroup,
+              (SELECT COUNT(*) FROM calculation_import_history AS h WHERE h.identity=bounded.identity AND h.archived=0) AS ActiveCopies,
+              (SELECT COUNT(*) FROM calculation_import_history AS h WHERE h.identity=bounded.identity) AS TotalCopies
             FROM bounded ORDER BY julianday(created_utc) DESC,id DESC
             """,
-            new { Limit = pageSize, Offset = (page - 1) * pageSize, MaxBytes=PersistedResultLimits.MaxBytes }, tx)
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, MaxBytes=PersistedResultLimits.MaxBytes, Archived=archived }, tx)
             .Select(r => new HistoryItem(r.Id, r.Year, CRS.Timing.BeijingClock.NormalizeText(r.CreatedUtc), r.Complete == 1, r.Issues, r.Broker, r.ParentSnapshotId, r.AggregationSourceCount > 0 || r.Broker == "MULTI",
-                string.Join("、",ReadAccounts(r.AccountsJson)))).ToList();
+                string.Join("、",ReadAccounts(r.AccountsJson)))
+                { DuplicateGroup=r.TotalCopies>1?r.DuplicateGroup:"", ActiveCopies=r.ActiveCopies, IsArchived=archived }).ToList();
         return new(rows, total, page, pageSize);
+    }
+
+    public ImportReview? FindImportMatch(CalculationResult result, CancellationToken cancellation)
+    {
+        using var lease=session.Enter(); using var c=Open(); using var tx=c.BeginTransaction(deferred:true);
+        cancellation.ThrowIfCancellationRequested();
+        return ImportHistoryIndex.Find(c,tx,result,cancellation);
+    }
+
+    public void SetHistoryArchived(string id, bool archived)
+    {
+        using var lease=session.Enter(); using var c=Open(); using var tx=c.BeginTransaction();
+        var changed = c.Execute("""
+            UPDATE calculation_import_history AS current SET archived=@Archived WHERE snapshot_id=@Id
+              AND (@Archived=0 OR current.archived=1 OR EXISTS(
+                SELECT 1 FROM calculation_import_history AS other
+                WHERE other.identity=current.identity AND other.archived=0 AND other.snapshot_id<>current.snapshot_id))
+            """,new { Id=id, Archived=archived },tx);
+        if(changed!=1) throw new CrsException("只能归档有另一条在用副本的重复任务，每组须至少保留一条。");
+        session.Lifetime.ThrowIfCancellationRequested();
+        tx.Commit();
     }
     // 列表元数据不是业务正文；损坏的账户结构仅显示为空，完整读取仍必须拒绝坏记录。
     private static string[] ReadAccounts(string? json)
@@ -157,5 +195,8 @@ public sealed class LocalStore : ICalculationRepository
         public string CreatedUtc { get; set; } = "";
         public int Complete { get; set; }
         public int Issues { get; set; }
+        public string DuplicateGroup { get; set; } = "";
+        public int ActiveCopies { get; set; }
+        public int TotalCopies { get; set; }
     }
 }

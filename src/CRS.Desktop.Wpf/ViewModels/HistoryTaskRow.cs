@@ -6,7 +6,7 @@ namespace CRS.DesktopClient.ViewModels;
 public partial class HistoryTaskRow : ObservableObject
 {
     public HistoryItem Task { get; }
-    public bool CanInclude => !Task.IsAnnualAggregate;
+    public bool CanInclude => !Task.IsAnnualAggregate && !Task.IsArchived;
     public string TaskKind => Task.IsAnnualAggregate ? "年度汇总" : "账户任务";
     public string BrokerLabel => Task.Broker == "MULTI" ? "多券商" : Task.Broker;
     [ObservableProperty] private bool isIncluded;

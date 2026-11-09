@@ -1,0 +1,24 @@
+<Window x:Class="CRS.DesktopClient.Views.ImportReviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="检查导入资料" Width="600" MaxHeight="540" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource BrandCanvasBrush}" Foreground="{DynamicResource BrandTextPrimaryBrush}">
+    <DockPanel Margin="24">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <ui:Button Content="取消" IsCancel="True" Margin="0,0,8,0"/>
+            <ui:Button x:Name="SaveNewButton" Click="SaveNew" Margin="0,0,8,0"/>
+            <ui:Button x:Name="OpenExistingButton" Content="打开已有结果" Appearance="Primary"
+                       IsDefault="True" Click="OpenExisting"/>
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="390">
+            <StackPanel>
+                <TextBlock x:Name="Heading" Style="{StaticResource PageTitle}" TextWrapping="Wrap"/>
+                <TextBlock x:Name="Existing" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                <TextBlock x:Name="Files" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                <TextBlock x:Name="Detail" Margin="0,12,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

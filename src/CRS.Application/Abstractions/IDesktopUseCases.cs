@@ -16,9 +16,13 @@ public interface IDesktopUseCases
     /// <summary>锁定时取消会话下载及后台用例；旧仓储会话同时失效。</summary>
     void EndSession() { }
     Task<DesktopCalculationOutcome> CalculateAsync(DesktopCalculationRequest request, CancellationToken cancellation);
+    Task<DesktopCalculationOutcome?> ImportAsync(DesktopCalculationRequest request,
+        Func<ImportReview, CancellationToken, Task<ImportDecision>> review, CancellationToken cancellation);
     Task<List<HistoryItem>> HistoryAsync();
     /// <summary>读取历史分页及总数。</summary>
     Task<HistoryPageResult> QueryHistoryAsync(int pageNumber, int pageSize);
+    Task<HistoryPageResult> QueryArchivedHistoryAsync(int pageNumber, int pageSize);
+    Task SetHistoryArchivedAsync(string id, bool archived);
     /// <summary>查询历史报告及期初原件要求。</summary>
     Task<OriginalFileRequirements> OriginalFileRequirementsAsync(string id);
     /// <summary>验证用户重新选择的原件，不修改历史结果。</summary>

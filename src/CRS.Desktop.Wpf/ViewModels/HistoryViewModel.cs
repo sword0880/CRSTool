@@ -21,6 +21,9 @@ public partial class HistoryViewModel : ObservableObject
     [ObservableProperty] private HistoryItem? selected;
     [ObservableProperty] private int pageNumber = 1;
     [ObservableProperty] private int totalCount;
+    [ObservableProperty] private bool showingArchived;
+    public string Title => ShowingArchived ? "已归档的导入任务" : "导入历史";
+    public string ArchiveViewLabel => ShowingArchived ? "返回导入历史" : "查看已归档";
     private const int PageSize = 50;
     private CancellationTokenSource? cancellation;
     public int PageCount => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
@@ -40,9 +43,12 @@ public partial class HistoryViewModel : ObservableObject
     partial void OnOwnershipConfirmedChanged(bool value) => AggregateAnnualCommand.NotifyCanExecuteChanged();
     partial void OnPageNumberChanged(int value) { OnPropertyChanged(nameof(PageLabel)); RefreshCommands(); }
     partial void OnTotalCountChanged(int value) { OnPropertyChanged(nameof(PageCount)); OnPropertyChanged(nameof(PageLabel)); RefreshCommands(); }
+    partial void OnShowingArchivedChanged(bool value) { OnPropertyChanged(nameof(Title)); OnPropertyChanged(nameof(ArchiveViewLabel)); RefreshCommands(); }
     private bool CanOperate() => State.IsIdle;
     private bool CanOpen() => State.IsIdle && Selected is not null;
     private bool CanSourceOperation() => CanOpen() && !Selected!.IsAnnualAggregate;
+    private bool CanArchive() => CanOpen() && Selected is { IsArchived: false, ActiveCopies: > 1 };
+    private bool CanRestore() => CanOpen() && Selected is { IsArchived: true };
     private bool CanPrevious() => State.IsIdle && PageNumber > 1;
     private bool CanNext() => State.IsIdle && PageNumber < PageCount;
     private bool CanCancel() => State.IsBusy && cancellation is not null;
@@ -54,6 +60,7 @@ public partial class HistoryViewModel : ObservableObject
         PreviousPageCommand.NotifyCanExecuteChanged(); NextPageCommand.NotifyCanExecuteChanged();
         VerifyOriginalsCommand.NotifyCanExecuteChanged(); ReplayCommand.NotifyCanExecuteChanged();
         ReviewForeignCreditCommand.NotifyCanExecuteChanged();
+        ToggleArchiveViewCommand.NotifyCanExecuteChanged(); ArchiveCommand.NotifyCanExecuteChanged(); RestoreCommand.NotifyCanExecuteChanged();
         CancelOperationCommand.NotifyCanExecuteChanged();
         AggregateAnnualCommand.NotifyCanExecuteChanged(); ClearAggregationSelectionCommand.NotifyCanExecuteChanged(); RemoveAggregationTaskCommand.NotifyCanExecuteChanged();
     }
@@ -64,9 +71,12 @@ public partial class HistoryViewModel : ObservableObject
         await LoadPageAsync(1);
     });
     /// <summary>换页不改变概览的最近任务，选中项仅对当前页有效。</summary>
-    private async Task LoadPageAsync(int pageNumber)
+    private async Task LoadPageAsync(int pageNumber, bool? archived = null)
     {
-        var page = await State.UseCases.QueryHistoryAsync(pageNumber, PageSize);
+        var showArchive = archived ?? ShowingArchived;
+        var page = showArchive ? await State.UseCases.QueryArchivedHistoryAsync(pageNumber, PageSize)
+            : await State.UseCases.QueryHistoryAsync(pageNumber, PageSize);
+        ShowingArchived = showArchive;
         Selected = null; Rows.Clear(); foreach (var row in page.Rows) Rows.Add(row);
         SelectableRows.Clear();
         foreach (var task in page.Rows)
@@ -76,8 +86,36 @@ public partial class HistoryViewModel : ObservableObject
             SelectableRows.Add(row);
         }
         TotalCount = page.TotalCount; PageNumber = page.PageNumber;
-        if (PageNumber == 1) { RecentRows.Clear(); foreach (var row in page.Rows.Take(5)) RecentRows.Add(row); }
+        if (PageNumber == 1)
+            SetRecentRows(showArchive ? (await State.UseCases.QueryHistoryAsync(1, 5)).Rows : page.Rows);
     }
+
+    private void SetRecentRows(IEnumerable<HistoryItem> rows)
+    {
+        RecentRows.Clear();
+        foreach (var row in rows.Take(5)) RecentRows.Add(row);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOperate))]
+    private async Task ToggleArchiveViewAsync() => await State.RunAsync(() => LoadPageAsync(1, !ShowingArchived));
+
+    [RelayCommand(CanExecute = nameof(CanArchive))]
+    private async Task ArchiveAsync()
+    {
+        if (State.Interaction.ConfirmArchiveHistory()) await SetArchivedAsync(Selected!.Id, true);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRestore))]
+    private async Task RestoreAsync() => await SetArchivedAsync(Selected!.Id, false);
+
+    private async Task SetArchivedAsync(string id, bool archived) => await State.RunAsync(async () =>
+    {
+        await State.UseCases.SetHistoryArchivedAsync(id, archived);
+        var selectedSource = AggregationSelection.FirstOrDefault(task => task.Id == id);
+        if (archived && selectedSource is not null) AggregationSelection.Remove(selectedSource);
+        State.Status = archived ? "所选任务已归档，可在「已归档」中恢复。" : "所选任务已恢复到导入历史。";
+        await LoadPageAsync(1);
+    });
     [RelayCommand(CanExecute = nameof(CanPrevious))]
     private async Task PreviousPageAsync() => await State.RunAsync(() => LoadPageAsync(PageNumber - 1));
     [RelayCommand(CanExecute = nameof(CanNext))]

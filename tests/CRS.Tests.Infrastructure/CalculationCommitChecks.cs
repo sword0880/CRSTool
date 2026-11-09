@@ -55,7 +55,84 @@ internal static class CalculationCommitChecks
         }
         await vault.UnlockAsync(Path.Combine(root,"vault"),"Synthetic-Atomic-Import-2026");await TestStores.Authenticate(vault);
         Counts(2,1,"重新解锁后确认锁定期间没有部分写入");
+        await CheckImportHistory(root,vault,first,second,Check);
         Console.WriteLine($"联合导入事务验证通过：{passed}项。");
+    }
+
+    private static async Task CheckImportHistory(string root, VaultManager vault, string first, string second, Action<bool,string> check)
+    {
+        // 将已有导入留在 v2 结构，检验实际解锁时重建索引与升级前备份。
+        using (var c = vault.OpenForTest()) c.Execute("DROP TABLE calculation_import_history; PRAGMA user_version=2;");
+        vault.Lock();
+        var directory = Path.Combine(root, "vault");
+        await vault.UnlockAsync(directory, "Synthetic-Atomic-Import-2026");
+        await TestStores.Authenticate(vault);
+        check(Directory.GetFiles(directory,"schema-v2-*.crsbak").Length==1
+            && vault.Repository.QueryHistory(1,1).Rows.Single().ActiveCopies==2,"旧库升级保留备份并跨页识别已有重复组");
+
+        File.WriteAllText(Path.Combine(root,"exchange_rate.json"),"""{"2025":{"CNY":1},"2026":{"CNY":1}}""");
+        var workflow = new DesktopWorkflow(new DesktopOperations(vault.Repository, root, vault));
+        var request = new DesktopCalculationRequest([first],2025,"IBKR",true,true,false,null,true);
+        var initial = (await workflow.CalculateAsync(request,default)).Result;
+        var renamed = Path.Combine(root,"renamed.xml");
+        File.Copy(first,renamed);
+        var renamedRequest = request with { Files=[renamed] };
+        ImportReview? review = null;
+        Task<ImportDecision> Answer(ImportReview candidate, ImportDecision decision)
+        {
+            review=candidate;
+            return Task.FromResult(decision);
+        }
+        var count = vault.Repository.History().Count;
+        var opened = await workflow.ImportAsync(renamedRequest,(m,_)=>Answer(m,ImportDecision.OpenExisting),default);
+        check(review is { Kind: ImportMatchKind.Identical } && review.Files.SequenceEqual(["renamed.xml"])
+            && opened?.Result.SnapshotId==initial.SnapshotId && vault.Repository.History().Count==count,
+            "改名副本打开原结果且不新增任务");
+
+        review = null;
+        var changed = await workflow.ImportAsync(request with { Files=[first,second] },(m,_)=>Answer(m,ImportDecision.Cancel),default);
+        check(changed is null && review is { Kind: ImportMatchKind.SharedFiles }
+            && review.Differences.Contains("报表组合或用途") && vault.Repository.History().Count==count,
+            "部分重叠指出新增报表，取消无写入");
+        var multiYear = Path.Combine(root,"multi-year.xml");
+        File.WriteAllText(multiYear,File.ReadAllText(first).Replace("20251231","20261231"));
+        _ = await workflow.CalculateAsync(request with { Files=[multiYear] },default);
+        count++;
+        review = null;
+        _ = await workflow.ImportAsync(request with { Files=[multiYear], Year=2026 },(m,_)=>Answer(m,ImportDecision.Cancel),default);
+        check(review is { Kind: ImportMatchKind.SharedFiles } && review.Differences.Contains("核算年度"),"跨年复用提示年度变化");
+
+        var revised = Path.Combine(root,"quarter.xml");
+        File.WriteAllText(revised,File.ReadAllText(first).Replace("20251231","20250331"));
+        review = null;
+        _ = await workflow.ImportAsync(request with { Files=[revised] },(m,_)=>Answer(m,ImportDecision.Cancel),default);
+        check(review is { Kind: ImportMatchKind.OverlappingPeriod } && review.Files.SequenceEqual(["quarter.xml"]),
+            "不同文件的同账户同类报表按期间重叠提示");
+
+        var saved = (await workflow.ImportAsync(renamedRequest,(m,_)=>Answer(m,ImportDecision.SaveNew),default))!.Result;
+        check(saved.SnapshotId!=initial.SnapshotId && vault.Repository.History().Count==count+1,
+            "用户明确选择时允许相同资料另存");
+        using (var racing = new DesktopOperations(vault.Repository, root, vault).BeginCalculation(new ExchangeRates(root),"IBKR",2025))
+        {
+            var duplicate = racing.Calculator.Calculate([first],2025,true,true,saveCanonicalSnapshot:true);
+            try { racing.Commit(duplicate,default,false); throw new Exception("未阻止并发提交的重复结果"); }
+            catch (CrsException) { check(vault.Repository.History().Count==count+1,"提交时拦截新出现的同批次并发重复"); }
+        }
+
+        await workflow.SaveReviewAsync(initial.SnapshotId,"合成复核","保留归档任务复核依据");
+        await workflow.SetHistoryArchivedAsync(initial.SnapshotId,true);
+        var archived = await workflow.QueryArchivedHistoryAsync(1,50);
+        check(archived.Rows.Single().Id==initial.SnapshotId && archived.Rows[0].IsArchived
+            && vault.Repository.History().All(t=>t.Id!=initial.SnapshotId)
+            && vault.Repository.Load(initial.SnapshotId).EvidenceSeal==initial.EvidenceSeal
+            && vault.Repository.Reviews(initial.SnapshotId).Count==1,"归档保留冻结结果和复核记录，并从日常列表移出");
+        var replayed = await workflow.ReplayAsync(initial.SnapshotId,default);
+        check(replayed.ParentSnapshotId==initial.SnapshotId,"归档任务仍可用作复算父任务");
+        try { await workflow.SetHistoryArchivedAsync(saved.SnapshotId,true); throw new Exception("归档了最后一个在用副本"); }
+        catch (CrsException) { check(vault.Repository.History().Any(t=>t.Id==saved.SnapshotId),"归档事务保留最后一个在用副本"); }
+        await workflow.SetHistoryArchivedAsync(initial.SnapshotId,false);
+        check((await workflow.QueryArchivedHistoryAsync(1,50)).TotalCount==0
+            && vault.Repository.History().Any(t=>t.Id==initial.SnapshotId),"恢复后重新出现在日常列表");
     }
     private sealed class Rates:IExchangeRateProvider
     {public string Fingerprint=>"synthetic";public AppliedRate Get(int year,string currency)=>new(year,currency,1,"synthetic","","",null,null,false,true);}

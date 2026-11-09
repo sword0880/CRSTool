@@ -78,6 +78,9 @@ sealed class MemoryStore : ICalculationRepository
     public void Save(CalculationResult result)=>Saved++;
     public List<HistoryItem> History()=>[];
     public HistoryPageResult QueryHistory(int pageNumber,int pageSize)=>new([],0,1,pageSize);
+    public HistoryPageResult QueryArchivedHistory(int pageNumber,int pageSize)=>new([],0,1,pageSize);
+    public ImportReview? FindImportMatch(CalculationResult result,CancellationToken cancellation)=>null;
+    public void SetHistoryArchived(string id,bool archived)=>throw new NotSupportedException();
     public CalculationResult Load(string id)=>throw new NotSupportedException();
     public void AddReview(string id,string category,string evidence)=>notes.Add(new(id,category,evidence,"synthetic"));
     public List<ReviewNote> Reviews(string id)=>notes.Where(n=>n.SnapshotId==id).ToList();

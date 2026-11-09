@@ -109,6 +109,9 @@ internal static class CanonicalInputChecks
         public CalculationResult Load(string id)=>result; public List<ReviewNote> Reviews(string id)=>[];
         public void Save(CalculationResult value)=>throw new Exception("检查快照不应保存。");
         public List<HistoryItem> History()=>[]; public HistoryPageResult QueryHistory(int pageNumber,int pageSize)=>new([],0,1,pageSize);
+        public HistoryPageResult QueryArchivedHistory(int pageNumber,int pageSize)=>new([],0,1,pageSize);
+        public ImportReview? FindImportMatch(CalculationResult value,CancellationToken cancellation)=>null;
+        public void SetHistoryArchived(string id,bool archived)=>throw new NotSupportedException();
         public void AddReview(string id,string category,string evidence)=>throw new NotSupportedException();
     }
 }

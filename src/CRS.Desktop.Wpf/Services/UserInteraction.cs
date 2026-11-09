@@ -10,6 +10,9 @@ public interface IUserInteraction
     string? SaveFile(string filter, string fileName);
     void ShowError(string message);
     void OpenFolder(string path);
+    Task<ImportDecision> ReviewImportAsync(ImportReview review, CancellationToken cancellation)
+        => Task.FromResult(ImportDecision.Cancel);
+    bool ConfirmArchiveHistory() => false;
     string? PickFolder() => null;
     /// <summary>普通导出包含敏感明文，必须由用户明确确认；测试替身可自行控制确认结果。</summary>
     bool ConfirmPlaintextExport()=>false;
@@ -19,6 +22,23 @@ public interface IUserInteraction
 
 public sealed class UserInteraction : IUserInteraction
 {
+    public Task<ImportDecision> ReviewImportAsync(ImportReview review, CancellationToken cancellation)
+        => System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            var window = new Views.ImportReviewWindow(review) { Owner = System.Windows.Application.Current.MainWindow };
+            using var registration = cancellation.Register(() => window.Dispatcher.InvokeAsync(() =>
+            {
+                if (window.IsVisible) window.Close();
+            }));
+            cancellation.ThrowIfCancellationRequested();
+            window.ShowDialog();
+            return window.Decision;
+        }, System.Windows.Threading.DispatcherPriority.Normal, cancellation).Task;
+
+    public bool ConfirmArchiveHistory() => MessageBox.Show(System.Windows.Application.Current.MainWindow,
+        "将所选任务移到「已归档」。仍可打开、恢复，引用它的复算和年度汇总也可继续使用。确定归档？",
+        "归档重复任务", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+
     public bool ConfirmPlaintextRestore()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,
         "解密后将在你选择的位置新建文件夹，里面的报表和结转资料为明文。确认恢复到你信任的位置？","解密恢复",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;
     public bool ConfirmPlaintextExport()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,

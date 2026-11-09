@@ -19,7 +19,7 @@ internal sealed partial class SqlCipherVaultBackend
         }
         return document!;
     }
-    public void CommitCalculation(CalculationResult result,IReadOnlyList<PerformanceDocument> documents,Action<Action> originalSession,CancellationToken token)
+    public void CommitCalculation(CalculationResult result,IReadOnlyList<PerformanceDocument> documents,Action<Action> originalSession,CancellationToken token,bool allowDuplicate)
     {
         // 两个模块共用同一连接和事务；任一保存失败或提交前取消，双方业务写入同时回滚。
         lock(gate)originalSession(()=>
@@ -28,7 +28,7 @@ internal sealed partial class SqlCipherVaultBackend
             var performance=new PerformanceStore(active);
             using var lease=active.Enter();using var c=active.Open();using var tx=c.BeginTransaction();
             foreach(var document in documents){token.ThrowIfCancellationRequested();performance.Import(c,tx,document);}
-            repository!.Save(c,tx,result);
+            repository!.Save(c,tx,result,allowDuplicate);
             token.ThrowIfCancellationRequested();active.Lifetime.ThrowIfCancellationRequested();tx.Commit();
         });
     }
