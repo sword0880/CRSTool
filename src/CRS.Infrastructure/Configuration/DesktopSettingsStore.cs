@@ -8,6 +8,30 @@ public sealed class DesktopSettingsStore(string? localDataRoot = null) : IDeskto
 {
     private readonly string root = localDataRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     public string SettingsPath => Path.Combine(root, "CRS", "settings.json");
+    private string OverviewTaxYearPath => Path.Combine(root, "CRS", "overview-tax-year.txt");
+
+    public int? LoadOverviewTaxYear()
+    {
+        try
+        {
+            return int.TryParse(File.ReadAllText(OverviewTaxYearPath), out var year) && year is >= 2000 and <= 2100
+                ? year : null;
+        }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+    }
+
+    public void SaveOverviewTaxYear(int year)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(OverviewTaxYearPath)!);
+        var temporary = OverviewTaxYearPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, year.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            File.Move(temporary, OverviewTaxYearPath, true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
 
     public DesktopSettings Load()
     {

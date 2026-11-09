@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
@@ -59,8 +60,8 @@ public partial class BackgroundServiceViewModel : ObservableObject
     private string? appliedResultFilter;
     [ObservableProperty] private bool onlyIssues;
     // 下拉建议允许补充手工任务编号，不把筛选范围限制为当前页。
-    public ObservableCollection<string> HistoryPlugins { get; } = ["", "crs.national-team", "crs.heartbeat"];
-    public ObservableCollection<string> HistoryJobs { get; } = [""];
+    public ObservableCollection<string> HistoryPlugins { get; } = ["", DataCleanupTask.ServiceId, "crs.national-team", "crs.heartbeat"];
+    public ObservableCollection<string> HistoryJobs { get; } = ["", DataCleanupTask.JobId];
     [RelayCommand]
     private Task FilterHistoryAsync() => WithStatusAsync(async () =>
     {

@@ -27,38 +27,77 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public IReadOnlySet<string> ArchivedOriginalHashes(string[] hashes,CancellationToken token)
         => vault?.ArchivedOriginalHashes(hashes,guard!,token) ?? new HashSet<string>();
 
-    public CalculationService CreateHistoricalCalculator(IExchangeRateProvider rates,string broker,int year,
+    public IDesktopCalculationSession BeginHistoricalCalculation(IExchangeRateProvider rates,string broker,int year,
         IReadOnlyList<HistoricalOriginalInput> originals)
     {
         var byName = originals.ToDictionary(o => o.Name, StringComparer.OrdinalIgnoreCase);
-        return CalculationServices.Create(rates,broker,year,null,(name,token) =>
+        return BeginCalculation(rates, broker, year, byName);
+    }
+
+    public IDesktopCalculationSession BeginCalculation(IExchangeRateProvider rates, string broker, int year)
+        => BeginCalculation(rates, broker, year, null);
+
+    private IDesktopCalculationSession BeginCalculation(IExchangeRateProvider rates, string broker, int year,
+        IReadOnlyDictionary<string, HistoricalOriginalInput>? historical)
+    {
+        FrozenInput ReadHistorical(string name, CancellationToken token)
         {
-            var original = byName[name];
+            var original = historical![name];
             var input = original.LocalPath is { } path
                 ? FrozenInput.Read(path,original.Name,token)
                 : vault?.ReadArchivedOriginal(original.Name,original.Sha256,guard!,token);
             if (input is null || !input.Sha256.Equals(original.Sha256,StringComparison.OrdinalIgnoreCase))
                 throw new CrsException($"「{original.Name}」缺失或内容与历史摘要不符，请选择对应原件。");
             return input;
-        });
-    }
-    public IDesktopCalculationSession BeginCalculation(IExchangeRateProvider rates,string broker,int year)
-    {
-        if(vault is null)return new DesktopCalculationSession(CreateCalculator(rates,broker,year),
-            (result,token,allowDuplicate)=>{token.ThrowIfCancellationRequested();repository.SaveImport(result,allowDuplicate);});
-        var prepared=new List<CRS.Application.Performance.PerformanceDocument>();
-        long stagedBytes=0;
-        var calculator=CalculationServices.Create(rates,broker,year,(input,token,_,facts)=>
+        }
+
+        Func<string, CancellationToken, FrozenInput>? readOriginal = historical is null ? null : ReadHistorical;
+        if (vault is null)
+            return new DesktopCalculationSession(CalculationServices.Create(rates, broker, year, null, readOriginal),
+                (result, token, allowDuplicate) =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (historical is null) repository.SaveImport(result, allowDuplicate);
+                    else repository.Save(result, token);
+                });
+
+        var prepared = new List<CRS.Application.Performance.PerformanceDocument>();
+        FrozenInput? incomeOriginal = null;
+        long stagedBytes = 0;
+        void Reserve(long bytes)
+        {
+            stagedBytes += bytes;
+            if (stagedBytes > 128L * 1024 * 1024)
+                throw new CrsException("本次导入超过 128 MiB 准备限额，请缩小导入批次。");
+        }
+
+        void PreparePerformance(FrozenInput input, CancellationToken token, List<string> _, BrokerSourceDocument? facts)
         {
             token.ThrowIfCancellationRequested();
-            if(prepared.Any(x=>x.Hash==input.Sha256))return;
-            var document=vault.PrepareSharedPerformance(input,broker,token,guard!,facts);
-            stagedBytes+=document.Raw.LongLength+PerformanceCodec.Encode(document.Data).LongLength;
-            if(stagedBytes>128L*1024*1024)throw new CrsException("本次税务与绩效联合导入超过128MiB准备限额，请缩小导入批次。");
+            if (prepared.Any(x => x.Hash == input.Sha256)) return;
+            var document = vault.PrepareSharedPerformance(input, broker, token, guard!, facts);
             prepared.Add(document);
-        });
-        return new DesktopCalculationSession(calculator,(result,token,allowDuplicate)=>vault.CommitCalculation(result,prepared,guard!,token,allowDuplicate),
-            ()=>{foreach(var document in prepared)System.Security.Cryptography.CryptographicOperations.ZeroMemory(document.Raw);prepared.Clear();});
+            Reserve(document.Raw.LongLength + PerformanceCodec.Encode(document.Data).LongLength);
+        }
+
+        void PrepareIncome(FrozenInput input, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            if (historical is not null && historical[input.Name].LocalPath is null) return;
+            Reserve(input.Length);
+            incomeOriginal = input;
+        }
+
+        var calculator = CalculationServices.Create(rates, broker, year,
+            historical is null ? PreparePerformance : null, readOriginal, PrepareIncome);
+        return new DesktopCalculationSession(calculator,
+            (result, token, allowDuplicate) => vault.CommitCalculation(result, prepared, incomeOriginal, guard!, token, allowDuplicate),
+            () =>
+            {
+                foreach (var document in prepared) System.Security.Cryptography.CryptographicOperations.ZeroMemory(document.Raw);
+                prepared.Clear();
+                incomeOriginal = null;
+            });
     }
     /// <summary>只读取本地查询 ID，不读取服务令牌。</summary>
     public string ReadQueryId() => FlexConfiguration.ReadQueryId(ConfigPath);

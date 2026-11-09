@@ -45,7 +45,7 @@ internal static class DataCleanupViewChecks
         var unavailable=new DataCleanupViewModel(null);Check(!unavailable.ScanCommand.CanExecute(null)&&!unavailable.ExecuteCommand.CanExecute(null),"无后台入口不能清理");
         var gateway=new Gateway();var model=new DataCleanupViewModel(gateway);Check(!model.ExecuteCommand.CanExecute(null),"扫描前禁止执行");
         await model.ScanCommand.ExecuteAsync(null);Check(gateway.Executions==0&&model.ExecuteCommand.CanExecute(null),"扫描不提交删除，预览后才允许执行");
-        Check(gateway.Options is{HistoricalBackupsToKeep:1,IncludeHistoricalBackups:true},"手动扫描默认包含旧升级副本并保留一份历史副本");
+        Check(gateway.Options is{HistoricalBackupsToKeep:0,IncludeHistoricalBackups:true},"手动扫描默认包含旧升级副本，只留最近可用回退快照");
         Check(model.Entries.Single(x=>x.Entry.Id=="live").Size=="未统计","受保护资料未知大小不显示为零");
         model.IncludeBackups=false;Check(!model.ExecuteCommand.CanExecute(null)&&model.Entries.Count==0,"修改范围使旧预览失效");
         await model.ScanCommand.ExecuteAsync(null);await model.ExecuteCommand.ExecuteAsync(null);

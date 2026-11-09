@@ -41,9 +41,10 @@ public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction 
         ResultChanged?.Invoke();
     }
     /// <summary>先读取对应复核资料，再原子切换各页面的结果。</summary>
-    public async Task DisplayAsync(CalculationResult value, string fingerprint = "")
+    public async Task DisplayAsync(CalculationResult value, string fingerprint = "", CancellationToken cancellation = default)
     {
         var notes = await UseCases.ReviewsAsync(value.SnapshotId);
+        cancellation.ThrowIfCancellationRequested();
         Reviews = notes; Fingerprint = fingerprint; Result = value;
         Status = ResultStatus;
         OnPropertyChanged(nameof(HasResult)); OnPropertyChanged(nameof(DisplayYear)); OnPropertyChanged(nameof(AccountScope));

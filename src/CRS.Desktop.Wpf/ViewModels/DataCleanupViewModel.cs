@@ -22,7 +22,7 @@ public sealed partial class DataCleanupViewModel(IDataCleanupGateway? gateway):O
     public bool Available=>gateway?.CanExecute==true;
     [ObservableProperty,NotifyCanExecuteChangedFor(nameof(ScanCommand)),NotifyCanExecuteChangedFor(nameof(ExecuteCommand)),NotifyCanExecuteChangedFor(nameof(CheckResultCommand)),NotifyCanExecuteChangedFor(nameof(StopWaitingCommand)),NotifyPropertyChangedFor(nameof(CanEdit))]private bool busy;
     [ObservableProperty]private int logRetentionDays=14;
-    [ObservableProperty]private int backupsToKeep=1;
+    [ObservableProperty]private int backupsToKeep=new DataCleanupOptions().HistoricalBackupsToKeep;
     [ObservableProperty]private bool includeBackups=true;
     [ObservableProperty]private string message="先扫描用途与大小，再按预览清理。扫描不会修改后台资料。";
     [ObservableProperty]private string summary="尚未扫描";

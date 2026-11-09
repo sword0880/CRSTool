@@ -17,6 +17,11 @@ public sealed partial class BackgroundRuntime
         if(request.RequestId==Guid.Empty||request.PluginId is not null||request.JobId is not null||request.Cursor is not null||request.ExecutionId is not null||request.Cron is not null||request.TimeZoneId is not null)return Reply("InvalidRequest");
         try
         {
+            if(request.Command==DataCleanupTask.HistoryCommand)
+            {
+                if(request.Payload is not null||request.RelatedRequestId is not null||request.ResultFilter is not null)return Reply("InvalidRequest");
+                return new(WorkerProtocol.Version,request.RequestId,"Ok",History:cleanup.TaskHistory(caller.Sid));
+            }
             if(request.Command=="PauseAutoCleanup")
             {
                 if(request.Payload is not null||request.RelatedRequestId is not null)return Reply("InvalidRequest");

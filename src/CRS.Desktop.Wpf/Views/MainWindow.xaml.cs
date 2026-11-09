@@ -35,6 +35,7 @@ public partial class MainWindow : FluentWindow
         shell.Settings?.ClearSecurityInputs();
         shell.Reports.ClearSensitiveInputs(); // 锁定也清空导出密码，不能随页面缓存继续保留。
         shell.Performance.ClearForLock(); // 绩效与税务同样属于敏感会话，锁定时取消并清理。
+        shell.Dashboard.ClearForLock();
         shell.State.UseCases.EndSession(); shell.Import.CancelCommand.Execute(null); shell.History.CancelOperationCommand.Execute(null);
         shell.Import.Token=""; shell.State.Clear(); DataContext=null;
     }

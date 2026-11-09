@@ -10,6 +10,7 @@ public partial class HistoryViewModel : ObservableObject
     public WorkspaceState State { get; }
     public ObservableCollection<HistoryItem> Rows { get; } = [];
     public ObservableCollection<HistoryItem> RecentRows { get; } = [];
+    public event Action? RecentTasksRefreshed;
     public ObservableCollection<HistoryTaskRow> SelectableRows { get; } = [];
     public ObservableCollection<HistoryItem> AggregationSelection { get; } = [];
     [ObservableProperty] private HistoryTaskRow? selectedRow;
@@ -121,6 +122,7 @@ public partial class HistoryViewModel : ObservableObject
     {
         RecentRows.Clear();
         foreach (var row in rows.Take(5)) RecentRows.Add(row);
+        RecentTasksRefreshed?.Invoke();
     }
 
     [RelayCommand(CanExecute = nameof(CanOperate))]

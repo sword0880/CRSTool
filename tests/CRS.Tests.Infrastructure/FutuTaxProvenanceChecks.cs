@@ -4,6 +4,7 @@ using CRS.Application;
 using CRS.Application.Abstractions;
 using CRS.Domain;
 using CRS.Infrastructure;
+using Dapper;
 using NPOI.XSSF.UserModel;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
@@ -51,14 +52,43 @@ internal static class FutuTaxProvenanceChecks
         Check(loaded.ImportProvenance!.SequenceEqual(result.ImportProvenance!),"SQLCipher历史保留交易及收入版本");
         File.WriteAllText(Path.Combine(root,"exchange_rate.json"),"""{"2025":{"CNY":1,"HKD":1,"USD":1}}""");
         var workflow = new DesktopWorkflow(new DesktopOperations(vault.Repository,root,vault));
-        var source = (await workflow.CalculateAsync(new([trades,pdf],2025,"FUTU",true,true,false,null,false),default)).Result;
+        var request = new DesktopCalculationRequest([trades,income],2025,"FUTU",true,true,false,null,false);
+        var imported = (await workflow.ImportAsync(request, (_, _) => Task.FromResult(ImportDecision.SaveNew), default))!.Result;
+        var importedPlan = await workflow.PrepareHistoricalRecalculationAsync(imported.SnapshotId,default);
+        Check(!imported.IsReplayable && importedPlan.Originals.Count==2 && importedPlan.Originals.All(original=>original.InVault),
+            "不保存规范化快照也会归档交易和 Excel 股息原件");
+        File.Delete(income);
+        var fromVault = await workflow.RecalculateHistoryAsync(new(imported.SnapshotId,new Dictionary<string,string>(),null,false),default);
+        Check(fromVault.Result.Summary==imported.Summary && fromVault.Result.RecalculatedFromSnapshotId==imported.SnapshotId,
+            "删除本地 Excel 原件后仍可从保险库重算");
+
+        // 模拟旧版只保存收入结果与摘要，交易原件仍可由已归档的绩效文档读取。
+        var source = service.Calculate([trades,pdf],2025,true,true);
+        vault.Repository.Save(source);
         var plan = await workflow.PrepareHistoricalRecalculationAsync(source.SnapshotId,default);
         var missing = plan.Originals.Single(original => !original.InVault);
-        var fresh = await workflow.RecalculateHistoryAsync(new(source.SnapshotId,
-            new Dictionary<string,string>{{missing.Name,pdf}},null,false),default);
+        var repair = new HistoricalRecalculationRequest(source.SnapshotId,new Dictionary<string,string>{{missing.Name,pdf}},null,false);
+        using (var connection = vault.OpenForTest())
+            connection.Execute("CREATE TRIGGER reject_futu_repair BEFORE INSERT ON calculations BEGIN SELECT RAISE(ABORT,'synthetic'); END;");
+        try
+        {
+            await workflow.RecalculateHistoryAsync(repair,default);
+            throw new Exception("注入保存失败未生效");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            Check((await workflow.PrepareHistoricalRecalculationAsync(source.SnapshotId,default)).Originals.Any(original=>!original.InVault),
+                "重算保存失败时同时回滚补选的收入原件");
+        }
+        using (var connection = vault.OpenForTest()) connection.Execute("DROP TRIGGER reject_futu_repair;");
+        var fresh = await workflow.RecalculateHistoryAsync(repair,default);
         Check(missing.Kind==HistoricalOriginalKind.Income && fresh.Result.RecalculatedFromSnapshotId==source.SnapshotId
             && fresh.Result.Summary==source.Summary,"富途历史新算复用库内交易，补选 PDF 收入主表");
-        File.Delete(trades);File.Delete(income);
+        File.Delete(trades);File.Delete(pdf);
+        var repaired = await workflow.PrepareHistoricalRecalculationAsync(source.SnapshotId,default);
+        Check(repaired.Originals.All(original=>original.InVault)
+            && (await workflow.RecalculateHistoryAsync(repair with { LocalFiles=new Dictionary<string,string>() },default)).Result.Summary==source.Summary,
+            "补选 PDF 成功后，旧任务再次重算无需本地文件");
         var replay=service.Replay(loaded);
         Check(replay.ImportProvenance!.SequenceEqual(loaded.ImportProvenance!)&&replay.Summary==loaded.Summary
             &&replay.CanonicalInputDigest==loaded.CanonicalInputDigest,"无原件重放保留原版本、金额及规范输入摘要");
@@ -82,6 +112,9 @@ internal static class FutuTaxProvenanceChecks
         await restored.RestoreAsync(backup,target,"Synthetic-Futu-Provenance-2026",false,"Restored-Futu-Provenance-2026");
         await restored.UnlockAsync(target,"Restored-Futu-Provenance-2026");await TestStores.Authenticate(restored);
         Check(restored.Repository.Load(result.SnapshotId).ImportProvenance!.SequenceEqual(result.ImportProvenance!),"加密备份恢复保留全部富途版本依据");
+        var restoredWorkflow = new DesktopWorkflow(new DesktopOperations(restored.Repository,root,restored));
+        Check((await restoredWorkflow.RecalculateHistoryAsync(new(imported.SnapshotId,new Dictionary<string,string>(),null,false),default))
+            .Result.Summary==imported.Summary,"恢复加密备份后仍可使用已归档的股息原件重算");
         Console.WriteLine($"富途税务版本通过：{passed}项。");
     }
 

@@ -38,6 +38,7 @@ if(args is ["--task-button-checks"]){await TaskCenterButtonChecks.RunAsync();ret
 if(args is ["--worker-status-preview",var workerDirectory]){WorkerStatusPreview.Run(workerDirectory);return;}
 if(args is ["--performance-component-preview",var componentDirectory]){PerformanceComponentPreview.Run(componentDirectory);return;}
 if(args is ["--date-picker-style"]){DatePickerStyleChecks.Run();return;}
+if(args is ["--dashboard-checks"]){await DashboardInteractionChecks.RunAsync();DashboardInteractionChecks.CheckPage();return;}
 if(args is ["--plugin-management-preview",var pluginManagementDirectory]){PluginManagementPreview.Run(pluginManagementDirectory);return;}
 if(args is ["--execution-log-ui",var logScreenshot]){ExecutionLogViewChecks.Run(logScreenshot);return;}
 if(args.Contains("--background-ui")){var index=Array.IndexOf(args,"--background-ui");BackgroundServiceViewChecks.Run(args[index+1],args.ElementAtOrDefault(index+2));return;}
@@ -46,7 +47,7 @@ if(args.Length>0)throw new ArgumentException("未知WPF验证参数，请先构�
 var cases=new FakeUseCases();
 var shell=new ShellViewModel(cases,new SilentInteraction());
 await shell.State.DisplayAsync(cases.Result);
-if (!shell.Reports.ExportCommand.CanExecute(null) || shell.Reports.ExportCarryCommand.CanExecute(null) || shell.Dashboard.IssueCount!="1") throw new Exception("结果未同步至概览 / 导出。");
+if (!shell.Reports.ExportCommand.CanExecute(null) || shell.Reports.ExportCarryCommand.CanExecute(null)) throw new Exception("结果未同步至导出。");
 var frozenStatus=shell.State.ResultStatus;shell.State.Status="汇率读取完成";
 if (shell.State.ResultStatus!=frozenStatus) throw new Exception("操作提示覆盖了冻结核算状态。");
 shell.State.IsBusy=true;
@@ -55,14 +56,10 @@ shell.State.IsBusy=false;
 shell.Review.Evidence="上一份资料";shell.Review.Confirmed=true;shell.Import.Year=2024;
 if (shell.State.HasResult || shell.Review.Confirmed || shell.Review.Evidence!="" || shell.Results.IncomeChart.Series.Length!=0 || shell.Reports.ExportCommand.CanExecute(null)) throw new Exception("跨年度沿用了旧结果。");
 await shell.History.RefreshCommand.ExecuteAsync(null);
-if (shell.Dashboard.RecentTasks.Count!=1) throw new Exception("概览任务列表与历史未联动。");
 shell.History.Selected=shell.History.Rows.Single();await shell.History.OpenCommand.ExecuteAsync(null);
 if (shell.State.Fingerprint!="" || shell.State.DisplayYear!=2025) throw new Exception("历史恢复没有使用冻结上下文。");
-await shell.State.DisplayAsync(new() {Year=2025,Summary=new(0,0,0,0,0,0,0),SnapshotId="ZERO",ImportedTradeCount=0});
-if (shell.Dashboard.TradeCount!="0") throw new Exception("真实零笔被显示为未知。");
-await shell.State.DisplayAsync(new() {Year=2025,Summary=new(0,0,0,0,0,0,0),SnapshotId="LEGACY"});
-if (shell.Dashboard.TradeCount!="未登记") throw new Exception("旧记录缺失笔数被当作零。");
-Console.WriteLine("WPF 模型验证通过：结果联动、并发门槛、输入失效、任务列表和历史（5 项）。");
+Console.WriteLine("WPF 模型验证通过：结果联动、并发门槛、输入失效和历史。");
+await DashboardInteractionChecks.RunAsync();
 await ImportInteractionChecks.RunAsync();
 await HistoryInteractionChecks.RunAsync();
 await AnnualAggregationInteractionChecks.RunAsync();
@@ -105,7 +102,7 @@ class FakeUseCases : IDesktopUseCases
     public Task VerifyOriginalFilesAsync(string id,string[] files,string? opening,CancellationToken cancellation)=>Task.CompletedTask;
     public virtual Task<CalculationResult> ReplayAsync(string id,CancellationToken cancellation)=>Task.FromResult(Result);
     public virtual Task<CalculationResult> AggregateAnnualAsync(string[] sourceIds,bool ownershipConfirmed,CancellationToken cancellation)=>Task.FromResult(Result);
-    public Task<CalculationResult> LoadAsync(string id)=>Task.FromResult(Result);
+    public virtual Task<CalculationResult> LoadAsync(string id)=>Task.FromResult(Result);
     public Task<List<ReviewNote>> ReviewsAsync(string id)=>Task.FromResult(new List<ReviewNote>());
     public Task SaveReviewAsync(string id,string category,string evidence)=>Task.CompletedTask;
     public virtual Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.CompletedTask;

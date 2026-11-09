@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
@@ -16,7 +17,16 @@ public partial class BackgroundServiceViewModel
     {
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(lifetime);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        var (rows,pending)=await ReadHistoryPagesAsync(deadline.Token);
+        var cleanupOnly=appliedPlugin==DataCleanupTask.ServiceId||appliedJob==DataCleanupTask.JobId;
+        var (rows,pending)=cleanupOnly?(new List<ExecutionRecord>(),null):await ReadHistoryPagesAsync(deadline.Token);
+        var cleanupNote="";
+        if((appliedPlugin is null or DataCleanupTask.ServiceId)&&(appliedJob is null or DataCleanupTask.JobId))
+        {
+            var (maintenanceRows,note)=await ReadCleanupHistoryAsync(deadline.Token);
+            rows.AddRange(maintenanceRows);
+            cleanupNote=note;
+            rows=rows.OrderByDescending(x=>x.StartedUtc).ToList();
+        }
         lifetime.ThrowIfCancellationRequested();
         // 收齐整个日期范围后更新，失败不展示半份记录。
         var ids=rows.Select(x=>x.ExecutionId).ToHashSet();
@@ -28,9 +38,30 @@ public partial class BackgroundServiceViewModel
             else{var index=History.IndexOf(existing);if(existing!=rows[i])History[index]=rows[i];if(index!=i)History.Move(index,i);}
         }
         PendingRequests.Clear();foreach(var row in pending??[])PendingRequests.Add(row);
-        PendingStatus=pending is null?"后台尚未提供待执行请求信息。":pending.Count==0?"当前筛选下没有待执行的手动请求。":"当前待执行请求（与记录日期无关）；详情请到“当前任务”查看。";
-        HistorySummary=$"{appliedHistoryStartDate:yyyy-MM-dd} 至 {appliedHistoryEndDate:yyyy-MM-dd}（北京时间） · 共 {rows.Count} 条执行记录";
+        PendingStatus=cleanupOnly?"正在等待或运行的清理请到「当前任务」查看。":pending is null?"后台尚未提供待执行请求信息。":pending.Count==0?"当前筛选下没有待执行的手动请求。":"当前待执行请求（与记录日期无关）；详情请到“当前任务”查看。";
+        HistorySummary=$"{appliedHistoryStartDate:yyyy-MM-dd} 至 {appliedHistoryEndDate:yyyy-MM-dd}（北京时间） · 共 {rows.Count} 条执行记录"+cleanupNote;
         UpdateHistorySuggestions();
+    }
+    private async Task<(IEnumerable<ExecutionRecord> Rows,string Note)> ReadCleanupHistoryAsync(CancellationToken token)
+    {
+        BackgroundResponse reply;
+        do
+        {
+            reply=await client.QueryAsync(DataCleanupTask.HistoryCommand,token);
+            if(reply.Code=="RateLimited")await Task.Delay(500,token);
+        }while(reply.Code=="RateLimited");
+        if(reply.Code=="Forbidden")return([]," · 清理记录需要管理员权限");
+        if(reply.Code is "UnknownCommand" or "UnsupportedCommand")return([]," · 当前后台版本尚未提供清理记录");
+        if(reply.Code!="Ok")return([]," · 清理记录暂不可用，请稍后重试");
+        if(reply.History is not {Count:<=32} history||history.Any(x=>x.PluginId!=DataCleanupTask.ServiceId||x.JobId!=DataCleanupTask.JobId
+            ||!x.ExecutionId.StartsWith("cleanup:",StringComparison.Ordinal)||x.EndedUtc is null)
+            ||history.Select(x=>x.ExecutionId).Distinct().Count()!=history.Count)
+            throw new System.IO.InvalidDataException("后台清理记录格式不一致，请核对前后台版本。");
+        return(history.Where(row=>
+        {
+            var day=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Normalize(row.StartedUtc).DateTime);
+            return day>=appliedHistoryStartDate&&day<=appliedHistoryEndDate&&(appliedResultFilter!="Issues"||IsIssueResult(row.Result));
+        }),"");
     }
     private async Task<(List<ExecutionRecord> Rows,IReadOnlyList<BackgroundPendingRequest>? Pending)> ReadHistoryPagesAsync(CancellationToken token)
     {

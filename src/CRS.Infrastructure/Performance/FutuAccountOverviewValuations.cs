@@ -24,7 +24,7 @@ internal static class FutuAccountOverviewValuations
         return valuations.Select(v =>
         {
             if (!reports.TryGetValue(v.Id, out var report)) return v;
-            if (preferredPeriod.TryGetValue((v.AccountId, v.Date), out var closing) &&
+            if (preferredPeriod.TryGetValue((v.AccountId, report.Snapshot.Date), out var closing) &&
                 (!report.HasReportRows || report.IsClosing != closing)) return null;
             return report.Snapshot;
         }).OfType<ValuationSnapshot>().ToArray();
@@ -39,34 +39,69 @@ internal static class FutuAccountOverviewValuations
         var byPeriod = positions.Where(r => r["时期类型"] is "期初" or "期末").ToLookup(ReportPeriod);
         var balances = table.Read("资金总览", false, "时期类型", "日期", "账户号码", "币种", "金额") ?? [];
         var cashByPeriod = balances.Where(r => r["时期类型"] is "期初" or "期末").ToLookup(ReportPeriod);
+        var dates = byPeriod.Select(g => (g.Key.Date, g.Key.Phase))
+            .Concat(cashByPeriod.Select(g => (g.Key.Date, g.Key.Phase))).ToHashSet();
         foreach (var snapshot in snapshots)
         {
             if (snapshot.Date.Year != year && snapshot.Date.Year != year - 1) continue;
             var isClosing = snapshot.Date.Year == year;
-            var period = (snapshot.AccountId, snapshot.Date, isClosing ? "期末" : "期初");
-            var rows = byPeriod[period];
-            var marketValues = rows.Where(r => r["品类"] == "证券")
-                .ToLookup(r => (r["代码名称"].ToUpperInvariant(), r["交易所/市场"].ToUpperInvariant(),
-                    FutuFields.Currency(r["币种"]), FutuFields.Money(r["数量/面值"], "数量/面值")));
-            var cash = cashByPeriod[period].ToLookup(r => FutuFields.Currency(r["币种"]));
-            var fundRows = rows.Where(r => r["品类"] == "基金").Select(ReadFundValue).ToArray();
-            var funds = fundRows.Select(f => f.Component).OfType<ValuationComponent>().ToArray();
-            var holdings = snapshot.Components.Select(c => c.Kind == "Cash" || c is { Kind: "Liability", Security: "", Market: "" }
-                ? WithCashBalance(c, cash) : WithMarketValue(c, marketValues)).ToArray();
-            var securityKeys = holdings.Where(h => h.Kind == "Security").Select(PositionKey).ToHashSet();
-            // 空白基金市值按零处理。异常值和重复持仓仍须核对。
-            var incomplete = fundRows.Any(f => f.Invalid) ||
-                funds.GroupBy(PositionKey).Any(g => g.Count() > 1 || securityKeys.Contains(g.Key)) ||
-                rows.Any(r => r["品类"] != "基金" &&
-                    (r["品类"] != "证券" || FutuFields.Money(r["数量/面值"], "数量/面值") < 0));
-            var valuation = snapshot with
-            {
-                Components = [.. holdings, .. funds],
-                Quality = incomplete ? PerformanceQuality.InsufficientData : snapshot.Quality
-            };
-            yield return new(valuation, isClosing, rows.Any() || cash.Count > 0);
+            var phase = isClosing ? "期末" : "期初";
+            var date = ReportDate(snapshot.Date, phase, dates);
+            var period = (snapshot.AccountId, date, phase);
+            yield return Project(snapshot, date, isClosing, byPeriod[period], cashByPeriod[period]);
         }
     }
+
+    private static DateOnly ReportDate(DateOnly boundary, string phase, HashSet<(DateOnly Date, string Phase)> dates)
+    {
+        if (boundary.Month != 12 || boundary.Day != 31 || dates.Contains((boundary, phase))) return boundary;
+        var friday = boundary.DayOfWeek switch
+        {
+            DayOfWeek.Saturday => boundary.AddDays(-1),
+            DayOfWeek.Sunday => boundary.AddDays(-2),
+            _ => boundary
+        };
+        // 以整份报表该期的真实日期为准，避免无余额账户的日历占位日期遮住同一报表的估值。
+        return dates.Contains((friday, phase)) ? friday : boundary;
+    }
+
+    private static ReportValuation Project(ValuationSnapshot snapshot, DateOnly date, bool isClosing,
+        IEnumerable<FutuRow> rows, IEnumerable<FutuRow> balances)
+    {
+        var securities = rows.Where(r => r["品类"] == "证券").ToLookup(ReadPosition);
+        var cash = balances.ToLookup(r => FutuFields.Currency(r["币种"]));
+        var fundRows = rows.Where(r => r["品类"] == "基金").Select(ReadFundValue).ToArray();
+        var funds = fundRows.Select(f => f.Component).OfType<ValuationComponent>().ToArray();
+
+        // 旧投影只记录了日历年末的证券，遇到券商周五结单时从当日持仓恢复展示组成。
+        var components = date == snapshot.Date ? snapshot.Components : AtReportDate(snapshot.Components, securities);
+        var holdings = components.Select(c => IsCash(c) ? WithCashBalance(c, cash) : WithMarketValue(c, securities)).ToArray();
+        var securityKeys = holdings.Where(h => h.Kind == "Security").Select(PositionKey).ToHashSet();
+        var incomplete = fundRows.Any(f => f.Invalid) ||
+            funds.GroupBy(PositionKey).Any(g => g.Count() > 1 || securityKeys.Contains(g.Key)) ||
+            securities.Any(g => g.Key.Quantity < 0) || rows.Any(r => r["品类"] is not ("证券" or "基金"));
+        var valuation = snapshot with
+        {
+            Date = date,
+            AsOf = date == snapshot.Date ? snapshot.AsOf : End(date),
+            Components = [.. holdings, .. funds],
+            Quality = incomplete ? PerformanceQuality.InsufficientData : snapshot.Quality
+        };
+        return new(valuation, isClosing, rows.Any() || cash.Count > 0);
+    }
+
+    private static ValuationComponent[] AtReportDate(ValuationComponent[] components,
+        ILookup<(string Security, string Market, string Currency, decimal Quantity), FutuRow> securities)
+        => [.. components.Where(c => c.Kind != "Security" || c.Security.Length == 0).Select(c => c with { Amount = null }),
+            .. securities.Select(g => new ValuationComponent("Security", g.Key.Currency, null, g.Key.Security,
+                g.Key.Market, Math.Abs(g.Key.Quantity)))];
+
+    private static (string Security, string Market, string Currency, decimal Quantity) ReadPosition(FutuRow row)
+        => (row["代码名称"].ToUpperInvariant(), row["交易所/市场"].ToUpperInvariant(),
+            FutuFields.Currency(row["币种"]), FutuFields.Money(row["数量/面值"], "数量/面值"));
+
+    private static bool IsCash(ValuationComponent c)
+        => c.Kind == "Cash" || c is { Kind: "Liability", Security: "", Market: "" };
 
     private static (string AccountId, DateOnly Date, string Phase) ReportPeriod(FutuRow row)
         => (AccountId("FUTU", "FUTU:" + row["账户号码"]), FutuFields.Date(row["日期"]), row["时期类型"]);

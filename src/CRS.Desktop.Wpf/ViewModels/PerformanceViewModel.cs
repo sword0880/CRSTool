@@ -271,7 +271,7 @@ public partial class PerformanceViewModel : ObservableObject
         var count = covered.Sum(broker => broker.CoveredAccounts);
         var expected = year.Brokers.Sum(broker => broker.ExpectedAccounts);
         var coverage = new List<string> { $"{count}/{expected} 个账户" };
-        if (year.MissingYearEnd) coverage.Add("缺年末估值");
+        if (year.MissingYearEnd) coverage.Add("缺 12 月 31 日估值");
         foreach (var broker in year.Brokers.Where(broker => broker.CoveredAccounts < broker.ExpectedAccounts))
         {
             var reason = broker.MissingRates ? "缺汇率" : "缺同日完整估值";

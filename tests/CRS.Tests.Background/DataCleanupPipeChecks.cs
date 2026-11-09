@@ -26,7 +26,7 @@ internal static class DataCleanupPipeChecks
             Check((await runtime.HandleAsync(preview,reader,default)).Code=="Forbidden","普通用户不能扫描后台私有资料");
             Check((await runtime.HandleAsync(preview with{Payload="{\"Path\":\"C:\\\\outside\"}"},admin,default)).Code=="CleanupUnavailable","客户端不能指定清理路径");
             Check((await runtime.HandleAsync(preview with{Payload="{\"LogRetentionDays\":14,\"LogRetentionDays\":1}"},admin,default)).Code=="InvalidRequest","拒绝重复选项字段");
-            Check((await runtime.HandleAsync(preview with{Payload="{\"HistoricalBackupsToKeep\":0}"},admin,default)).Code=="CleanupUnavailable","服务端强制至少保留一份历史备份");
+            Check((await runtime.HandleAsync(preview with{Payload="{\"HistoricalBackupsToKeep\":-1}"},admin,default)).Code=="CleanupUnavailable","服务端拒绝负数的额外备份保留量");
             Check((await runtime.HandleAsync(preview,admin,default)).Code=="Ok","管理员可开始有界异步扫描");
             Check((await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetDataCleanupStatus",RelatedRequestId:preview.RequestId),new("other-admin",true),default)).Code=="Forbidden","另一管理员身份不能冒领操作记录");
             using var stop=new CancellationTokenSource();var pipe="CRS.Cleanup."+Guid.NewGuid().ToString("N");var running=new BackgroundPipeServer(runtime,pipe).RunAsync(stop.Token);
@@ -68,6 +68,11 @@ internal static class DataCleanupPipeChecks
                 Check((await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetDataCleanupTasks"),reader,default)).Code=="Forbidden","非管理员不能读取后台私有清理摘要");
                 reply=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"AcknowledgeDataCleanupTask",RelatedRequestId:taskId));
                 Check(reply.Code=="Ok"&&JsonSerializer.Deserialize<DataCleanupTaskOverview>(reply.Payload!)!.Notification is null,"通知确认经管理管道持久化，之后不再重复提醒");
+                var history=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),DataCleanupTask.HistoryCommand);
+                Check((await runtime.HandleAsync(history,reader,default)).Code=="Forbidden","普通用户不能读取清理历史");
+                var record=(await client.QueryAsync(DataCleanupTask.HistoryCommand)).History?.Single();
+                Check(record is{JobId:DataCleanupTask.JobId,Result:"Succeeded"}&&record.ExecutionId=="cleanup:"+taskId.ToString("N"),
+                    "真实管道返回已确认通知的清理执行记录");
                 Check((await client.QueryAsync("PauseAutoCleanup")).Code=="Ok","真实管理员控制管道可确认自动清理暂停");
             }
             finally{stop.Cancel();try{await running;}catch(OperationCanceledException){}}

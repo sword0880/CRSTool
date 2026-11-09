@@ -54,7 +54,23 @@ internal static class SmokeCheck
             await shell.History.RefreshCommand.ExecuteAsync(null);
             shell.History.Selected = shell.History.Rows.Single(); await shell.History.OpenCommand.ExecuteAsync(null);
             if (shell.Results.Trades.Count != 0) throw new InvalidOperationException("引用型历史不应恢复未保存交易。");
+            var overviewOnly = args.Contains("--overview-only");
+            if (overviewOnly) shell.State.Clear();
+            await shell.Dashboard.RefreshAsync();
             if (shell.Dashboard.RecentTasks.Count != 1 || shell.Dashboard.TradeCount != "1") throw new InvalidOperationException("概览未读取真实任务。");
+            if (overviewOnly)
+            {
+                if (shell.State.HasResult || shell.Dashboard.SelectedYear != 2025)
+                    throw new InvalidOperationException("概览没有独立读取可用年度。");
+                await shell.Dashboard.SelectYearAsync(2024);
+                if (!shell.Dashboard.ShowEmpty) throw new InvalidOperationException("概览空年度没有导入引导。");
+                await shell.Dashboard.SelectYearAsync(2025);
+                await shell.Dashboard.OpenDetailCommand.ExecuteAsync("review");
+                if (shell.State.Result?.SnapshotId != result.SnapshotId || bindingErrors.Errors.Count != 0)
+                    throw new InvalidOperationException("概览没有打开正确的核对范围，或出现界面绑定错误。");
+                Console.Error.WriteLine("smoke: overview page passed");
+                return;
+            }
             var imageIndex = Array.IndexOf(args, "--image");
             var imagePath = imageIndex >= 0 && imageIndex + 1 < args.Length ? args[imageIndex + 1] : null;
             if(args.Contains("--brand-icons"))

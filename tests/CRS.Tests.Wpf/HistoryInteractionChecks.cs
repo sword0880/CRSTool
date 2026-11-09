@@ -10,10 +10,11 @@ internal static class HistoryInteractionChecks
     {
         var cases = new Cases(); var interaction = new Interaction(); var shell = new ShellViewModel(cases, interaction);
         await shell.History.RefreshCommand.ExecuteAsync(null);
+        await shell.Dashboard.RefreshAsync();
         var recent = shell.Dashboard.RecentTasks.Select(r => r.Id).ToArray();
         shell.History.Selected = shell.History.Rows[0];
         await shell.History.NextPageCommand.ExecuteAsync(null);
-        if (shell.History.PageNumber != 2 || shell.History.Selected is not null
+        if (shell.History.PageNumber != 2 || shell.History.Selected is not null || recent.Length != 5
             || !recent.SequenceEqual(shell.Dashboard.RecentTasks.Select(r => r.Id)))
             throw new Exception("历史翻页遗留选中项，或把概览最新任务替换为旧页。");
         await shell.History.NextPageCommand.ExecuteAsync(null);
@@ -60,6 +61,7 @@ internal static class HistoryInteractionChecks
         if (cases.Archived) throw new Exception("未确认便归档了历史。");
         interaction.ArchiveConfirmed = true;
         await history.ArchiveCommand.ExecuteAsync(null);
+        await shell.Dashboard.RefreshAsync();
         if (!cases.Archived || history.Rows.Any(row => row.Id == "H000") || history.AggregationSelection.Any(row => row.Id == "H000")
             || shell.Dashboard.RecentTasks.Any(row => row.Id == "H000"))
             throw new Exception("归档后日常历史或概览未刷新。");
@@ -106,6 +108,8 @@ internal static class HistoryInteractionChecks
         public override Task<HistoryPageResult> QueryArchivedHistoryAsync(int pageNumber,int pageSize)
             => Task.FromResult(new HistoryPageResult(
                 Archived ? [new HistoryItem("H000",2025,"synthetic",false,0) { IsArchived=true }] : [],Archived?1:0,1,pageSize));
+        public override Task<CalculationResult> LoadAsync(string id)
+            => Task.FromResult(new CalculationResult { SnapshotId=id,Year=2025,Summary=new(0,0,0,0,0,0,0) });
         public override Task SetHistoryArchivedAsync(string id,bool archived)
         {
             if (id!="H000") throw new Exception("归档目标不匹配。");

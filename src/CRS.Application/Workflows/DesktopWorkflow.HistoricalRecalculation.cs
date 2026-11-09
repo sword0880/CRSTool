@@ -43,14 +43,14 @@ public sealed partial class DesktopWorkflow
                 throw new CrsException("所选期初结转与原任务不一致，请核对原件。");
 
             var rates = await operations.LoadRatesAsync(source.Year, cancellation);
-            var calculator = operations.CreateHistoricalCalculator(rates, source.Broker, source.Year,
+            using var calculation = operations.BeginHistoricalCalculation(rates, source.Broker, source.Year,
                 originals.Select(o => new HistoricalOriginalInput(o.Name, o.Sha256, paths.GetValueOrDefault(o.Name))).ToArray());
-            var result = calculator.Calculate(originals.Where(o => o.Kind != HistoricalOriginalKind.Opening).Select(o => o.Name).ToArray(),
+            var result = calculation.Calculator.Calculate(originals.Where(o => o.Kind != HistoricalOriginalKind.Opening).Select(o => o.Name).ToArray(),
                 source.Year, source.OpeningZero, source.ScopeConfirmed,
                 originals.SingleOrDefault(o => o.Kind == HistoricalOriginalKind.Opening)?.Name,
                 carry, cancellation, request.SaveCanonicalSnapshot, source.AccountPeriods, source.SnapshotId);
             cancellation.ThrowIfCancellationRequested();
-            operations.Repository.Save(result,cancellation);
+            calculation.Commit(result,cancellation);
             return new DesktopCalculationOutcome(result, rates.Fingerprint);
         }, token);
     }

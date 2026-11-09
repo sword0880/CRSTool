@@ -1,4 +1,5 @@
 using CRS.DesktopClient.ViewModels;
+using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
@@ -40,6 +41,27 @@ internal static class HistoryDateChecks
             control.FailDate=null;model.HistoryStartDate=today;
             control.Unsupported=true;await model.FilterHistoryCommand.ExecuteAsync(null);
             Check(model.History.Count==0&&model.Status.Contains("尚不支持按日期"),"旧后台明确提示不支持，不把跨日记录当成当天结果");
+            control.Unsupported=false;control.CleanupSupported=true;
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            Check(model.History.Count==76&&model.HistoryPlugins.Contains(DataCleanupTask.ServiceId)
+                &&model.HistoryJobs.Contains(DataCleanupTask.JobId),"默认查询合并同一天的调度与清理记录");
+            count=control.Calls;
+            model.HistoryJob=DataCleanupTask.JobId;
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            var cleanup=model.History.Single();
+            Check(cleanup.JobId==DataCleanupTask.JobId&&control.Calls==count,"可直接选择清理任务，且不查询调度记录");
+            using(var log=model.CreateExecutionLog(cleanup))
+            {
+                await log.RefreshCommand.ExecuteAsync(null);
+                Check(log.FullLogText.Contains("提交清理任务")&&log.FullLogText.Contains("已清理 0 个文件")
+                    &&log.Status.Contains("服务采样"),"清理记录详情显示实际汇总与提交时间");
+            }
+            model.OnlyIssues=true;model.HistoryStartDate=today.AddDays(-1);
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            Check(model.History.Single().Result=="Interrupted","清理记录遵循北京时间与仅异常筛选");
+            control.CleanupSupported=false;
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            Check(model.History.Count==0&&model.HistorySummary.Contains("尚未提供清理记录"),"旧后台明确提示清理记录暂不支持");
         }
         finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
     }
@@ -47,9 +69,19 @@ internal static class HistoryDateChecks
     {if(!ok)throw new Exception(text);Console.WriteLine("PASS 执行记录日期界面："+text);}
     private sealed class Control:IBackgroundControl
     {
-        public int Calls;public bool Unsupported;public DateOnly? FailDate;
+        public int Calls;public bool Unsupported,CleanupSupported;public DateOnly? FailDate;
         public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
+            if(request.Command==DataCleanupTask.HistoryCommand)
+            {
+                var now=CRS.Timing.BeijingClock.Now;
+                var previous=now.AddDays(-1);
+                return Task.FromResult(CleanupSupported?new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",History:
+                [
+                    new("cleanup:today",DataCleanupTask.ServiceId,DataCleanupTask.JobId,now,now,now,"Succeeded","已清理 0 个文件。",1),
+                    new("cleanup:yesterday",DataCleanupTask.ServiceId,DataCleanupTask.JobId,previous,previous,previous,"Interrupted","已中断。",1)
+                ]):new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"UnknownCommand"));
+            }
             Calls++;
             if(Unsupported)return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"UnknownCommand"));
             if(request.Command!="GetHistoryByDate")throw new Exception("未使用日期查询接口");

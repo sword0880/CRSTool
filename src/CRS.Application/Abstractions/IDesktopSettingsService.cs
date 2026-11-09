@@ -5,6 +5,8 @@ public interface IDesktopSettingsService
 {
     DesktopSettings Load();
     Task SaveAsync(DesktopSettings settings);
+    int? LoadOverviewTaxYear() => null;
+    void SaveOverviewTaxYear(int year) { }
 }
 
 public sealed record DesktopSettings(string DatabaseDirectory, string LogDirectory,

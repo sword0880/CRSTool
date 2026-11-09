@@ -47,12 +47,12 @@ internal static class DataCleanupChecks
             var before=Fingerprints(f.Root);var directories=Directory.GetDirectories(f.Root,"*",SearchOption.AllDirectories).Length;
             var audit=service.Audit(new());var after=Fingerprints(f.Root);
             Check(before.Count==after.Count&&before.All(x=>after[x.Key]==x.Value)&&directories==Directory.GetDirectories(f.Root,"*",SearchOption.AllDirectories).Length,"扫描完全只读，不写目录或记录");
-            Check(audit.Progress is{ScannedFiles:19,VerifiedFiles:>0,VerifiedBytes:>0}
+            Check(audit.Progress is{ScannedFiles:23,VerifiedFiles:>0,VerifiedBytes:>0}
                 &&audit.Progress.ScannedBytes==audit.Entries.Sum(x=>x.Bytes??0),"扫描如实累计文件数、大小与校验读取量，统计不依赖删除数量");
-            Check(audit.Entries.Count(x=>x.Selected)==4&&audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Selected)==3,"默认清理过期日志和旧副本，保留当前与最近一份有效历史副本");
+            Check(audit.Entries.Count(x=>x.Selected)==5&&audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Selected)==4,"默认选中过期日志与四份历史副本");
             Check(!audit.Entries.Single(x=>x.Id==f.Current).Eligible,"当前维护引用的快照始终保护");
-            Check(audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Eligible)==3,"默认保留当前快照和最近一份完整历史快照");
-            await Denied(()=>service.Audit(new(0,2,true)),"拒绝非法日志保留期");await Denied(()=>service.Audit(new(14,0,true)),"拒绝不保留任何历史回退副本");
+            Check(audit.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Eligible)==4,"当前快照验证通过时默认只保留这一份");
+            await Denied(()=>service.Audit(new(0,2,true)),"拒绝非法日志保留期");await Denied(()=>service.Audit(new(14,-1,true)),"拒绝负数的额外保留量");
             var scanning=service.BeginPreview(Guid.NewGuid(),"admin",new(14,2,true));
             Check(scanning is{State:"Scanning",Progress:not null}&&scanning.DeletedFiles==0,"异步扫描受理时立即提供独立扫描进度");
             var preview=await Wait(service,scanning);await Denied(()=>service.Status(preview.OperationId,"another-sid"),"预览按实际调用者身份隔离");
@@ -75,6 +75,14 @@ internal static class DataCleanupChecks
             Put(Path.Combine(f.Root,"maintenance",f.Old[0],"snapshot/service-key.dpapi"),"damaged");var result=service.Audit(new(14,2,true));
             Check(!result.Entries.Single(x=>x.Id==f.Old[0]).Eligible&&result.Entries.Count(x=>x.Category=="UpgradeBackup"&&x.Eligible)==1,"损坏副本不计入保留两份，改保留后续完整副本");
             var preview=await Preview(service);f.Clock.Value=f.Clock.Value.AddMinutes(16);await Denied(()=>service.BeginExecute(Guid.NewGuid(),preview.OperationId,"admin"),"过期预览不能执行");
+        }
+        f=Create(parent);
+        await using(var service=new WorkerDataCleanup(f.Root,f.Clock))
+        {
+            var preview=await Wait(service,service.BeginPreview(Guid.NewGuid(),"admin",new()));
+            Put(Path.Combine(f.Root,"maintenance",f.Current,"snapshot/service-key.dpapi"),"damaged after preview");
+            var result=await Wait(service,service.BeginExecute(Guid.NewGuid(),preview.OperationId,"admin"));
+            Check(result.State=="Interrupted"&&result.DeletedFiles==0,"只保留的一份快照发生变化时拒绝删除");
         }
         f=Create(parent);
         await using(var service=new WorkerDataCleanup(f.Root,f.Clock))

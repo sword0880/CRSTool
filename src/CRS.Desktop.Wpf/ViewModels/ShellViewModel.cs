@@ -26,11 +26,15 @@ public sealed class ShellViewModel : ObservableObject
         State = new(useCases, interaction,documentPassword ?? (vault is null?null:()=>vault.DocumentEncryptionPassword)); Results = new(State);
         History = new(State, () => NavigateRequested?.Invoke("tax"), () => NavigateRequested?.Invoke("import"));
         Performance=new(State,performance);
-        Dashboard = new(State, History, Performance, page => NavigateRequested?.Invoke(page));
         Review = new(State); Reports = new(State); ExchangeRates = new(State);
         Settings = settings is null ? null : new(State, settings,vault,cleanup);
         WorkerClient = workerClient ?? new();
         StatusBar = new(WorkerClient, Settings?.Cleanup);
         Import = new(State, () => { NavigateRequested?.Invoke("tax"); _ = History.RefreshCommand.ExecuteAsync(null); });
+        Dashboard = new(State, Performance, settings, page => NavigateRequested?.Invoke(page), year =>
+        {
+            Import.Year = year;
+            NavigateRequested?.Invoke("import");
+        });
     }
 }

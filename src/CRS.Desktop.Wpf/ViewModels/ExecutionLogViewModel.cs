@@ -1,6 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
@@ -17,6 +18,7 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     public CancellationToken Lifetime=>token;
     public string ExecutionId=>record.ExecutionId;
     public string TaskLabel=>record.PluginId+" / "+record.JobId;
+    private bool IsCleanup=>record.PluginId==DataCleanupTask.ServiceId&&record.JobId==DataCleanupTask.JobId;
     public bool IsRunning=>record.Result=="Running";
     public string StateLabel=>ResultLabel(record.Result);
     public string StateBackground=>record.Result=="Succeeded"?"#ECFDF5":IsRunning?"#EFF6FF":"#FFF7ED";
@@ -45,15 +47,17 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var response=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:ExecutionId),Lifetime);
+            var response=IsCleanup?await client.QueryAsync(DataCleanupTask.HistoryCommand,Lifetime)
+                :await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:ExecutionId),Lifetime);
             Lifetime.ThrowIfCancellationRequested();
-            if(response.Code=="Ok" && response.Execution is { } latest && latest.ExecutionId==ExecutionId)
+            var execution=IsCleanup?response.History?.FirstOrDefault(x=>x.ExecutionId==ExecutionId):response.Execution;
+            if(response.Code=="Ok" && execution is { } latest && latest.ExecutionId==ExecutionId)
             {
                 record=latest;Render();Status="服务采样："+Time(CRS.Timing.BeijingClock.Now)+"（北京时间）";
             }
             else Status=response.Code switch
             {
-                "UnknownExecution"=>"服务已清理这条记录，以下保留打开时的快照。",
+                "UnknownExecution" or "Ok"=>"服务已清理这条记录，以下保留打开时的快照。",
                 "UnknownCommand"=>"后台服务版本尚不支持日志查询，请更新服务；以下为打开时的快照。",
                 "RateLimited"=>"查询频繁，请稍后刷新；以下为上次快照。",
                 _=>"日志暂不可用；以下为上次快照。"
@@ -68,7 +72,12 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(StateLabel));OnPropertyChanged(nameof(StateBackground));OnPropertyChanged(nameof(StateForeground));
-        var lines=new List<string>
+        var lines=IsCleanup?new List<string>
+        {
+            $"[{Time(record.StartedUtc)}] 提交清理任务",
+            "",
+            "当前结果："+ResultLabel(record.Result)
+        }:new List<string>
         {
             $"[{Time(record.ScheduledUtc)}] 计划触发",
             $"[{Time(record.StartedUtc)}] 开始执行 · 第 {record.Attempt} 次尝试",

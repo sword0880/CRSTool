@@ -12,14 +12,15 @@ public static class CalculationServices
         =>Create(rates,broker,year,null);
     internal static CalculationService Create(IExchangeRateProvider rates,string broker,int year,
         Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? sharedImport,
-        Func<string,CancellationToken,FrozenInput>? readOriginal=null)
+        Func<string,CancellationToken,FrozenInput>? readOriginal=null,
+        Action<FrozenInput,CancellationToken>? archiveIncome=null)
     {
         var log = LogManager.GetCurrentClassLogger();
         readOriginal ??= FrozenInput.Read;
         IBrokerImporter importer = broker switch
         {
             "IBKR" => new IbkrImporter { SharedImport=sharedImport, ReadOriginal=readOriginal },
-            "FUTU" => new FutuImporter(year) { SharedImport=sharedImport, ReadOriginal=readOriginal },
+            "FUTU" => new FutuImporter(year) { SharedImport=sharedImport, ReadOriginal=readOriginal, ArchiveIncome=archiveIncome },
             _ => throw new CrsException("不支持所选券商。")
         };
         return new CalculationService(rates, importer, new CarryValidator(), new FileCalculationEvidence(),

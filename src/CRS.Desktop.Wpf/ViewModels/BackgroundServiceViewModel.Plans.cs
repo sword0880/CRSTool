@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CRS.Maintenance;
 namespace CRS.DesktopClient.ViewModels;
 
 public partial class BackgroundServiceViewModel
@@ -44,8 +45,8 @@ public sealed class ServicePlanItem:ObservableObject
         Cleanup=cleanup;
         if(cleanup is not null)cleanup.PropertyChanged+=(_,_)=>OnPropertyChanged(string.Empty);
     }
-    public string PluginId=>Job?.PluginId??"后台服务";
-    public string JobId=>Job?.JobId??"data-cleanup";
+    public string PluginId=>Job?.PluginId??DataCleanupTask.ServiceId;
+    public string JobId=>Job?.JobId??DataCleanupTask.JobId;
     public string Name=>Job?.Name??"后台资料自动清理";
     public string Cron=>Job?.Cron??(Cleanup?.AutomaticCleanupPlan is {} plan?$"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时":"保留周期待确认");
     public bool? Enabled=>Job?.Enabled??(Cleanup?.TaskStatusKnown==true&&Cleanup.AutomaticCleanupPlan is{State:not("Unavailable" or "NotStarted")}?true:null);

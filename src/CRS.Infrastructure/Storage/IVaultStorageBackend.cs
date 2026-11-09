@@ -16,6 +16,6 @@ public interface IVaultStorageBackend : IVaultService
     FrozenInput? ReadArchivedOriginal(string name, string hash, Action<Action> originalSession, CancellationToken token);
     PerformanceDocument PrepareSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,
         Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null);
-    void CommitCalculation(CalculationResult result,IReadOnlyList<PerformanceDocument> documents,
+    void CommitCalculation(CalculationResult result,IReadOnlyList<PerformanceDocument> documents,FrozenInput? incomeOriginal,
         Action<Action> originalSession,CancellationToken token,bool allowDuplicate);
 }

@@ -33,17 +33,19 @@ internal static class CleanupTaskChecks
             var timer=Stopwatch.StartNew();var submitted=cleanup.SubmitTask(id,"admin-a",Fast);
             Check(timer.Elapsed<TimeSpan.FromSeconds(2)&&submitted.Current?.Id==id,"提交只等待任务落盘，不等待扫描或删除");
             var result=await FinishedAsync(cleanup,"admin-a");
-            Check(result.State=="Completed"&&result.DeletedFiles==13&&result.CountsComplete,"前台不参与等待，后台独立完成扫描及13个合成文件清理");
+            Check(result.State=="Completed"&&result.DeletedFiles==17&&result.CountsComplete,"前台不参与等待，后台独立完成扫描及17个合成文件清理");
             Check(cleanup.TaskOverview("admin-a").Notification?.Id==id,"后台完成后提供未读结果通知");
             Check(cleanup.TaskOverview("admin-b").LatestResult is null,"其他管理员不能读取个人提交记录");
             Check(cleanup.SubmitTask(id,"admin-a",Fast).LatestResult?.Id==id,"相同提交编号重试不再次执行");
             Check(key.SequenceEqual(File.ReadAllBytes(Path.Combine(f.Root,"service-key.dpapi")))&&File.ReadAllText(Path.Combine(f.Root,"plugins/crs.national-team/raw/evidence.pdf"))=="original evidence","当前密钥和插件原件原字节保留");
-            Check(Directory.Exists(Path.Combine(f.Root,"maintenance",f.Current))&&Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[0])),"保留当前快照和最近一份有效回退副本");
+            Check(Directory.Exists(Path.Combine(f.Root,"maintenance",f.Current))&&f.Old.All(x=>!Directory.Exists(Path.Combine(f.Root,"maintenance",x))),"仅保留最新有效回退副本");
         }
         await using(var restart=new WorkerDataCleanup(f.Root,f.Clock))
         {
             Check(restart.TaskOverview("admin-a").Notification?.Id==id,"后台重启仍保存结果，前台不需要原操作编号");
             Check(restart.AcknowledgeTask(id,"admin-a").Notification is null,"确认通知后不再重复提醒");
+            Check(restart.TaskHistory("admin-a").Single().Checkpoint!.Contains("17 个文件")&&restart.TaskHistory("admin-b").Count==0,
+                "历史跨重启及通知确认保留，按提交人隔离");
         }
         await using var again=new WorkerDataCleanup(f.Root,f.Clock);
         Check(again.TaskOverview("admin-a").Notification is null,"通知已读状态跨后台重启保留");

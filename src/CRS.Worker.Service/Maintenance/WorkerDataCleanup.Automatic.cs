@@ -74,7 +74,7 @@ public sealed partial class WorkerDataCleanup
         }
         catch(Exception error) when(AutomaticFailure(error)){state="Unavailable";due=null;}
         return new(state,due,(int)schedule.StartupDelay.TotalSeconds,(int)schedule.CheckInterval.TotalSeconds,
-            (int)schedule.SuccessInterval.TotalSeconds,(int)schedule.RetryInterval.TotalSeconds,14,1);
+            (int)schedule.SuccessInterval.TotalSeconds,(int)schedule.RetryInterval.TotalSeconds,14,1){KeepLatestUsableBackupOnly=true};
     }
 
     private static bool AutomaticFailure(Exception error)=>error is IOException or InvalidDataException or UnauthorizedAccessException or
@@ -103,7 +103,9 @@ public sealed partial class WorkerDataCleanup
             Update(operation,"Scanning","后台正在核对清理范围；前台无需等待。");CheckpointTask(operation);
             Scan(operation,cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
-            if(operation.Targets.Count==0)Update(operation,"Completed","无需清理；当前资料和恢复副本保留。");
+            if(operation.Targets.Count==0)Update(operation,"Completed",operation.UnverifiedBackups==0
+                ?"无需清理；当前资料和恢复副本保留。"
+                :"没有可安全清理的项目。"+UnverifiedHint(operation));
             else
             {
                 lock(stateGate)operation.Status=operation.Status with{State="Running",ExpiresAt=null,CanExecute=false,Message="后台正在按保留规则清理。"};

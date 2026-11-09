@@ -14,6 +14,7 @@ internal static class AutomaticCleanupChecks
         var root=Path.Combine(Path.GetTempPath(),"CRS.AutomaticCleanup",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
         await RetentionAndRestartAsync(root);
         await DamagedHistoryAsync(root);
+        await MissingArchiveAsync(root);
         await ManualAndMaintenanceAsync(root);
         await PauseAndCorruptionAsync(root);
         await SchedulerAsync(root);
@@ -30,7 +31,7 @@ internal static class AutomaticCleanupChecks
         try
         {
             var plan=cleanup.TaskOverview("admin").AutomaticPlan!;
-            Check(plan is{State:"Waiting",StartupDelaySeconds:7200,SuccessIntervalSeconds:86400,RetryIntervalSeconds:3600,LogRetentionDays:14,HistoricalBackupsToKeep:1}
+            Check(plan is{State:"Waiting",StartupDelaySeconds:7200,SuccessIntervalSeconds:86400,RetryIntervalSeconds:3600,LogRetentionDays:14,KeepLatestUsableBackupOnly:true}
                 &&plan.NextDueAt==CRS.Timing.BeijingClock.Read(f.Clock).AddHours(2),"计划摘要来自实际循环参数、启动等待和保留规则");
             await cleanup.PauseAutomaticAsync(default);
             Check(cleanup.TaskOverview("admin").AutomaticPlan?.State=="Paused","维护暂停准确反映到计划摘要");
@@ -43,8 +44,8 @@ internal static class AutomaticCleanupChecks
         await using(var cleanup=new WorkerDataCleanup(f.Root,f.Clock))
         {
             var result=await Start(cleanup);
-            Check(result.State=="Completed"&&result.DeletedFiles==13,"默认自动清理一个旧日志和三个旧快照");
-            Check(Directory.Exists(Path.Combine(f.Root,"maintenance",f.Current))&&Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[0]))&&f.Old.Skip(1).All(x=>!Directory.Exists(Path.Combine(f.Root,"maintenance",x))),"当前快照和最近一份有效历史快照保留");
+            Check(result.State=="Completed"&&result.DeletedFiles==17,"默认自动清理一个旧日志和四个旧快照");
+            Check(Directory.Exists(Path.Combine(f.Root,"maintenance",f.Current))&&f.Old.All(x=>!Directory.Exists(Path.Combine(f.Root,"maintenance",x))),"当前快照可用时只保留当前快照");
             Check(key.SequenceEqual(File.ReadAllBytes(Path.Combine(f.Root,"service-key.dpapi")))&&File.ReadAllText(Path.Combine(f.Root,"plugins/crs.national-team/raw/evidence.pdf"))=="original evidence","密钥与正在使用的插件原件保持原字节");
             Check(cleanup.TryStartAutomatic(default,Fast) is null,"完成后不连续重扫，持久化下一次执行时间");
         }
@@ -55,9 +56,23 @@ internal static class AutomaticCleanupChecks
     }
     private static async Task DamagedHistoryAsync(string root)
     {
-        var f=DataCleanupChecks.Create(root);File.WriteAllText(Path.Combine(f.Root,"maintenance",f.Old[0],"snapshot/service-key.dpapi"),"damaged");
+        var f=DataCleanupChecks.Create(root);
+        File.WriteAllText(Path.Combine(f.Root,"maintenance",f.Current,"snapshot/service-key.dpapi"),"damaged");
+        File.WriteAllText(Path.Combine(f.Root,"maintenance",f.Old[0],"snapshot/service-key.dpapi"),"damaged");
         await using var cleanup=new WorkerDataCleanup(f.Root,f.Clock);var result=await Start(cleanup);
-        Check(result.State=="Completed"&&Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[0]))&&Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[1])),"损坏副本保留调查，另保留一份真正有效的历史副本");
+        Check(result.State=="Completed"&&Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[0]))&&Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[1]))
+            &&result.Message.Contains("2 份备份未能核实"),"当前快照不可用时保留一份真正有效的历史副本，并说明保留的异常副本");
+    }
+    private static async Task MissingArchiveAsync(string root)
+    {
+        var f=DataCleanupChecks.Create(root);
+        File.Delete(Path.Combine(f.Root,"maintenance",f.Old[3]+".json"));
+        await using var cleanup=new WorkerDataCleanup(f.Root,f.Clock);
+        Check((await Start(cleanup)).DeletedFiles==13&&Directory.Exists(Path.Combine(f.Root,"maintenance",f.Old[3])),
+            "无归档的副本保留，其余已核实旧副本仍清理");
+        f.Clock.Value=f.Clock.Value.AddDays(1).AddMinutes(1);
+        var next=await Start(cleanup);
+        Check(next.DeletedFiles==0&&next.Message.Contains("1 份备份未能核实"),"零删除通知说明未能核实的副本");
     }
     private static async Task ManualAndMaintenanceAsync(string root)
     {

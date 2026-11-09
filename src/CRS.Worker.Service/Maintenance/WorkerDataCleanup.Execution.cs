@@ -70,7 +70,11 @@ public sealed partial class WorkerDataCleanup
             {
                 if(current?.Stage is not ("Committed" or "RolledBack"))throw new InvalidDataException("当前升级尚未完成。");
                 foreach(var retained in operation.Retained)
-                {if(Hash(Child("maintenance/"+retained.Entry.Id+".json"),token,operation)!=retained.ArchiveHash)throw new InvalidDataException("保留副本的维护记录已改变。");VerifySnapshot(retained,false,token,operation);}
+                {
+                    var proof=string.Equals(retained.Entry.Id,current.Id,StringComparison.OrdinalIgnoreCase)?journal:Child("maintenance/"+retained.Entry.Id+".json");
+                    if(Hash(proof,token,operation)!=retained.ArchiveHash)throw new InvalidDataException("保留副本的维护记录已改变。");
+                    VerifySnapshot(retained,false,token,operation);
+                }
             }
             foreach(var target in operation.Targets)
             {
@@ -112,7 +116,7 @@ public sealed partial class WorkerDataCleanup
                 File.Delete(Path.Combine(container,"retired.json"));Directory.Delete(container,false);WriteAudit(operation,previewId);
             }
             Phase(operation,"SavingResults","正在保存清理结果。");
-            Update(operation,"Completed","清理完成。已保留使用中的资料、维护记录和指定数量的历史回退副本。");
+            Update(operation,"Completed","清理完成。已保留使用中的资料、维护记录和恢复副本。"+UnverifiedHint(operation));
         }
         catch(OperationCanceledException){Update(operation,"Interrupted","清理中断；已清理的字节无法恢复，残留副本将在下次扫描中显示。");}
         catch(Exception error) when(error is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or FormatException or InvalidOperationException or OverflowException)

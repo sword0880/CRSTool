@@ -28,7 +28,7 @@ internal static class CleanupTaskPresentation
         return detail;
     }
     internal static TaskActivityItem Activity(DataCleanupTask task,bool verified)=>new(
-        new BackgroundTaskActivityRow("后台服务","data-cleanup",task.Origin=="Automatic"?"后台资料清理（自动）":"后台资料清理（手动）",
+        new BackgroundTaskActivityRow(DataCleanupTask.ServiceId,DataCleanupTask.JobId,task.Origin=="Automatic"?"后台资料清理（自动）":"后台资料清理（手动）",
             task.State=="Queued"?"Waiting":"Running","DataCleanup",RequestId:task.Id,QueuePosition:task.State=="Queued"?1:null),
         (verified?"":"上次状态：")+Detail(task),task.SubmittedAt);
 }

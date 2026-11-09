@@ -224,6 +224,29 @@ internal static class PerformanceChecks
         if (conflictRow.NetAssetsUnavailableReason != "同日估值资料冲突")
             throw new Exception("两份有差异的期末原件被静默取舍。");
         Console.WriteLine("账户汇总归档验证通过：期末优先、基金市值与空白、负现金、缺余额及期末冲突。");
+
+        var weekend = WriteReport("futu-weekend.xlsx", "2023",
+            [["WK1", "完整账户"], ["WK2", "缺同日现金账户"], ["WK3", "缺估值账户"]],
+            [["期末", "20231229", "WK1", "证券", "DEMO-HK", "HK", "HKD", "2", "80"],
+             ["期末", "20231229", "WK1", "基金", "DEMO-FUND", "", "HKD", "2", "40"],
+             ["期末", "20231229", "WK2", "证券", "DEMO-HK", "HK", "HKD", "1", "10"]],
+            [["期末", "20231229", "WK1", "HKD", "-5"], ["期末", "20231228", "WK2", "HKD", "20"]]);
+        var weekendOpening = WriteReport("futu-weekend-opening.xlsx", "2024", [["WK1", "完整账户"]],
+            [["期初", "20231229", "WK1", "证券", "DEMO-HK", "HK", "HKD", "2", "999"]],
+            [["期初", "20231229", "WK1", "HKD", "500"]]);
+        await cases.ImportAsync(weekendOpening, "FUTU");
+        await cases.ImportAsync(weekend, "FUTU");
+        var shifted = await cases.LoadAsync();
+        var friday = new DateOnly(2023, 12, 29);
+        var calendarEnd = new DateOnly(2023, 12, 31);
+        var overview = shifted.Data with { Valuations = shifted.AccountOverviewValuations! };
+        var weekendAnnual = PerformanceAccountValuations.Annual(overview, To,
+            [new("FRI", "HKD", "CNY", friday, 2, Source("同日汇率")),
+             new("SUN", "HKD", "CNY", calendarEnd, 3, Source("不同日汇率"))]).Single(y => y.Year == 2023);
+        if (shifted.Data.Valuations.Any(v => v.Date == friday) || weekendAnnual.Date != friday ||
+            weekendAnnual.TotalCny is not null || weekendAnnual.Brokers.Single() is not { NetAssetsCny: 230, CoveredAccounts: 1, ExpectedAccounts: 3 })
+            throw new Exception("周末年末没有用券商实际日期合计同日持仓和现金，或错误混入其他日期/期初资料。");
+        Console.WriteLine("富途周末年末汇总通过：使用周五日期、证券和基金市值、同日现金和汇率，保留覆盖缺口。");
     }
 
     private sealed class MarketHandler(bool summer=false):HttpMessageHandler
@@ -287,6 +310,17 @@ internal static class PerformanceChecks
                 Console.WriteLine($"真实绩效样本 {++index} {broker}：累计账户 {w.Data.Accounts.Length}，事件 {w.Data.Events.Length}，净值快照 {w.Data.Valuations.Length}；问题码 {string.Join(',',result.Result.Issues.Select(i=>i.Code).Distinct().Order())}；未以程序值倒填独立对账。");
             }
         }
+        var workspace = await cases.LoadAsync();
+        var friday = new DateOnly(2023, 12, 29);
+        var overview = workspace.Data with { Valuations = workspace.AccountOverviewValuations! };
+        // 仅验证归档报表能否提供完整的同日组成，合成汇率不用于输出金额。
+        var annual = PerformanceAccountValuations.Annual(overview, To,
+            [new("SAMPLE-HKD", "HKD", "CNY", friday, 1, Source("测试汇率")),
+             new("SAMPLE-USD", "USD", "CNY", friday, 1, Source("测试汇率"))]).Single(y => y.Year == 2023);
+        var futu = annual.Brokers.Single(b => b.Broker == "FUTU");
+        if (annual.Date != friday || futu.CoveredAccounts == 0 || futu.NetAssetsCny is null)
+            throw new Exception("富途 2023 原表的 12 月 29 日估值仍未进入年度资产明细。");
+        Console.WriteLine($"富途 2023 原表估值日 {annual.Date:yyyy-MM-dd}，可用同日组成覆盖 {futu.CoveredAccounts}/{futu.ExpectedAccounts} 个账户。");
     }
     private static async Task Reject(Func<Task> action){try{await action();}catch(CrsException){return;}catch(OperationCanceledException){return;}throw new Exception("绩效应拒绝的操作被放行。");}
 }

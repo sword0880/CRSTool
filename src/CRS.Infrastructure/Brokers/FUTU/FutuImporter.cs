@@ -10,6 +10,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
 {
     internal const string ProjectionVersion=TaxImportProvenance.FutuAutomaticProjectionVersion;
     internal Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? SharedImport {get;init;}
+    internal Action<FrozenInput, CancellationToken>? ArchiveIncome { get; init; }
     internal Func<string,CancellationToken,FrozenInput> ReadOriginal { get; init; } = FrozenInput.Read;
     /// <summary>识别交易和收入用途，绑定可靠账户，拒绝重叠主数据且保留缺失资料问题。</summary>
     public ImportData Parse(IEnumerable<string> files, string? opening = null, CancellationToken cancellation = default)
@@ -82,6 +83,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
         if (data.Issues.Any(i => i.Code == "UNSUPPORTED_ASSET")) data.Warnings.Add("未支持的成交品类保留在资料缺项中。");
         data.Warnings.Add("富途年度汇总为收入主数据。系统按券商成交金额、费用、现金余额和持仓数量自动核对，并从有来源的买入批次计算成本。");
         RecordVersion(data,incomeInput,incomeIsPdf?FutuDividendPdfImporter.ReaderVersion:FutuDividendExcelImporter.ReaderVersion);
+        ArchiveIncome?.Invoke(incomeInput, cancellation);
         return data;
     }
     // 同一年度工作簿中，富途会在账号名称附带尾号，收入主表则使用账户类型名称。
