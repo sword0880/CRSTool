@@ -75,14 +75,14 @@
      </WrapPanel>
      <WrapPanel IsEnabled="{Binding CanChangeHistory}">
       <TextBlock Text="插件" VerticalAlignment="Center" Margin="0,0,8,0"/>
-      <ComboBox Width="220" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryPlugins}" Text="{Binding HistoryPlugin,UpdateSourceTrigger=PropertyChanged}" ToolTip="留空显示全部插件，或输入插件编号" Margin="0,0,16,8"/>
+      <ComboBox x:Name="HistoryPluginFilter" Width="220" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryPlugins}" Text="{Binding HistoryPlugin,UpdateSourceTrigger=PropertyChanged}" ToolTip="留空时可选择所有插件的任务，或输入插件编号" Margin="0,0,16,8"/>
       <TextBlock Text="任务" VerticalAlignment="Center" Margin="0,0,8,0"/>
-      <ComboBox Width="240" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryJobs}" Text="{Binding HistoryJob,UpdateSourceTrigger=PropertyChanged}" ToolTip="留空显示全部任务，或输入任务编号" Margin="0,0,12,8"/>
+      <ComboBox x:Name="HistoryJobFilter" Width="240" IsEditable="True" IsTextSearchEnabled="False" ItemsSource="{Binding HistoryJobs}" Text="{Binding HistoryJob,UpdateSourceTrigger=PropertyChanged}" ToolTip="仅列出所选插件的任务。留空查询该范围内的全部任务，也可输入任务编号" Margin="0,0,12,8"/>
       <CheckBox x:Name="OnlyIssuesCheckBox" Content="仅异常" IsChecked="{Binding OnlyIssues}" VerticalAlignment="Center" Margin="0,0,12,8" ToolTip="服务端筛选非成功、非运行、非主动取消的异常执行；来源冷却或插件启动异常不一定有执行记录。"/>
       <Button Content="查询记录" Command="{Binding FilterHistoryCommand}" Margin="0,0,12,8"/>
       <Button Content="查看日志" Click="OnViewLog" ToolTip="查看选中执行的运行日志" Margin="0,0,0,8"/>
      </WrapPanel>
-     <TextBlock Text="按北京时间的执行开始日期查询，包含开始和结束日期；插件和任务留空表示全部。仅异常包含失败、延期重试、中断等结果。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextSecondaryBrush}"/>
+     <TextBlock Text="日期按北京时间，包含首尾两天。选中插件后只列出该插件的任务；清空插件可选全部任务。任务留空时查询当前范围内的全部记录。" TextWrapping="Wrap" Foreground="{DynamicResource BrandTextSecondaryBrush}"/>
      <TextBlock Text="{Binding PendingStatus}" TextWrapping="Wrap" Margin="0,6"/>
      <DataGrid x:Name="PendingRequestsGrid" ItemsSource="{Binding PendingRequests}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MaxHeight="120">
       <DataGrid.Style><Style TargetType="DataGrid"><Style.Triggers><Trigger Property="HasItems" Value="False"><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></DataGrid.Style>

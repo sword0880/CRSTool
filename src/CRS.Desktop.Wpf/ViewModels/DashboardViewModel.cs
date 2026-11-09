@@ -32,13 +32,19 @@ public partial class DashboardViewModel : ObservableObject
     private bool isReading = true;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowEmpty)), NotifyCanExecuteChangedFor(nameof(OpenImportCommand))]
     private bool loadFailed;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CoverageToggleLabel))]
+    private bool isCoverageExpanded;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsViewingHistory))]
+    private HistoryItem? openedHistoryTask;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasResult), nameof(ShowEmpty), nameof(ScopeTitle), nameof(AccountScope),
+    [NotifyPropertyChangedFor(nameof(HasResult), nameof(ShowEmpty), nameof(ScopeTitle), nameof(BrokerCoverage),
+        nameof(HasAccountCoverage), nameof(CoverageSummary),
         nameof(TradeCount), nameof(IssueCount), nameof(MatchCount), nameof(TaxStatus), nameof(TaxHint))]
     [NotifyCanExecuteChangedFor(nameof(OpenDetailCommand), nameof(OpenImportCommand))]
     private CalculationResult? result;
 
     public bool HasResult => Result is not null;
+    public bool IsViewingHistory => OpenedHistoryTask is not null;
     public bool CanSelectYear => !IsReadingIndex && Years.Count > 0;
     public bool ShowEmpty => !IsReading && !LoadFailed && !HasResult && SelectedYear.HasValue;
     public string EmptyMessage => RecentTasks.Count == 0 && chosenYear is null
@@ -49,19 +55,36 @@ public partial class DashboardViewModel : ObservableObject
         : $"导入 {SelectedYear} 年报表";
     public string ScopeTitle => Result is not { } value ? "" : value.IsAnnualAggregate
         ? $"{value.Year} 年度汇总"
-        : $"{value.Year} 年 · {BrokerName(value.Broker)}";
-    public string AccountScope
+        : $"{value.Year} 年 · {PerformanceViewModel.BrokerName(value.Broker)}";
+    public IReadOnlyList<DashboardBrokerCoverage> BrokerCoverage { get; private set; } = [];
+    public bool HasAccountCoverage => BrokerCoverage.Count > 0;
+    public string CoverageSummary => HasAccountCoverage
+        ? $"覆盖 {BrokerCoverage.Sum(x => x.Count):N0} 个账户 · {string.Join(" · ", BrokerCoverage.Select(x => $"{x.Broker} {x.Count:N0}"))}"
+        : "覆盖账户未登记";
+    public string CoverageToggleLabel => IsCoverageExpanded ? "收起明细" : "查看明细";
+
+    partial void OnResultChanged(CalculationResult? value)
     {
-        get
+        IsCoverageExpanded = false;
+        if (value is null)
         {
-            if (Result is not { } value) return "";
-            var accounts = value.IsAnnualAggregate
-                ? value.AggregationSources.SelectMany(s => s.Accounts.Select(a => $"{BrokerName(s.Broker)} / {a}"))
-                : value.CoveredAccounts.AsEnumerable();
-            var scope = string.Join("、", accounts.Distinct());
-            return scope.Length == 0 ? "账户范围未登记" : $"覆盖账户 · {scope}";
+            BrokerCoverage = [];
+            return;
         }
+        // 年度结果保留来源券商关系，跨券商的同名账号分开计数。
+        var accounts = value.IsAnnualAggregate
+            ? value.AggregationSources.SelectMany(source => source.Accounts.Select(account => (source.Broker, Account: account)))
+            : value.CoveredAccounts.Select(account => (value.Broker, Account: account));
+        BrokerCoverage = accounts.Where(x => !string.IsNullOrWhiteSpace(x.Account))
+            .GroupBy(x => x.Broker, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group =>
+            {
+                var ids = group.Select(x => x.Account).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+                return new DashboardBrokerCoverage(PerformanceViewModel.BrokerName(group.Key), ids.Length, string.Join(" · ", ids));
+            }).ToArray();
     }
+
     public string TradeCount => Result is { } value ? value.ImportedTradeCount?.ToString("N0") ?? "未登记" : "—";
     public string IssueCount => Result?.Issues.Count.ToString("N0") ?? "—";
     public string MatchCount => Result?.Matches.Count.ToString("N0") ?? "—";
@@ -89,17 +112,45 @@ public partial class DashboardViewModel : ObservableObject
     private void Navigate(string page) => navigate(page);
 
     [RelayCommand]
+    private void ToggleCoverage() => IsCoverageExpanded = HasAccountCoverage && !IsCoverageExpanded;
+
+    [RelayCommand]
     private void OpenAccountOverview()
     {
         Performance.ShowAccountOverview = true;
         navigate("performance");
     }
 
+    internal void ShowOpenedHistory(HistoryItem task, CalculationResult opened)
+    {
+        if (lifetime.IsCancellationRequested) return;
+        var reloadIndex = IsReadingIndex;
+        readVersion++;
+        OpenedHistoryTask = task;
+        if (!Years.Contains(task.Year)) Years = Years.Append(task.Year).OrderDescending().ToArray();
+        SelectedYear = task.Year;
+        Result = opened;
+        LoadFailed = false;
+        IsReading = false;
+        IsReadingIndex = false;
+        if (reloadIndex) _ = RefreshAsync();
+    }
+
+    [RelayCommand]
+    private Task ReturnToYearOverviewAsync()
+    {
+        if (OpenedHistoryTask is not { } task || lifetime.IsCancellationRequested) return Task.CompletedTask;
+        chosenYear = task.Year;
+        OpenedHistoryTask = null;
+        return RefreshAsync();
+    }
+
     [RelayCommand]
     public async Task RefreshAsync()
     {
         if (lifetime.IsCancellationRequested) return;
-        var version = BeginRead();
+        // 刷新任务列表时保留从导入历史明确打开的结果。
+        var version = IsViewingHistory ? ++readVersion : BeginRead();
         IsReadingIndex = true;
         try
         {
@@ -122,17 +173,19 @@ public partial class DashboardViewModel : ObservableObject
             preferredByYear = preferred;
             RecentTasks = recent;
             var options = preferred.Keys.Concat(Enumerable.Range(2000, currentYear - 2000 + 1))
+                .Concat(OpenedHistoryTask is { } opened ? [opened.Year] : [])
                 .Distinct().OrderDescending().ToArray();
             if (!Years.SequenceEqual(options)) Years = options;
             if (!preferenceLoaded)
             {
                 var savedYear = ReadPreference();
-                if (savedYear is int year && preferred.ContainsKey(year)) chosenYear = year;
+                if (chosenYear is null && savedYear is int year && preferred.ContainsKey(year)) chosenYear = year;
                 preferenceLoaded = true;
             }
-            SelectedYear = chosenYear ?? (preferred.Count > 0 ? preferred.Keys.Max() : currentYear - 1);
+            if (!IsViewingHistory)
+                SelectedYear = chosenYear ?? (preferred.Count > 0 ? preferred.Keys.Max() : currentYear - 1);
             IsReadingIndex = false;
-            await LoadSelectedResultAsync(version);
+            if (!IsViewingHistory) await LoadSelectedResultAsync(version);
         }
         catch (Exception error) { ReportReadFailure(version, error); }
         finally
@@ -148,6 +201,7 @@ public partial class DashboardViewModel : ObservableObject
     public async Task SelectYearAsync(int year)
     {
         if (lifetime.IsCancellationRequested || !CanSelectYear || year == SelectedYear || !Years.Contains(year)) return;
+        OpenedHistoryTask = null;
         var version = BeginRead();
         chosenYear = year;
         SelectedYear = year;
@@ -195,15 +249,8 @@ public partial class DashboardViewModel : ObservableObject
     {
         if (version != readVersion) return;
         State.UseCases.LogFailure(error.GetType().Name);
-        LoadFailed = true;
+        if (!IsViewingHistory) LoadFailed = true;
     }
-
-    private static string BrokerName(string broker) => broker switch
-    {
-        "FUTU" => "富途证券",
-        "IBKR" => "盈透证券（IBKR）",
-        _ => broker
-    };
 
     private bool CanOpenDetail() => State.IsIdle && HasResult && !lifetime.IsCancellationRequested;
     private bool CanOpenTask() => State.IsIdle && !lifetime.IsCancellationRequested;
@@ -234,6 +281,7 @@ public partial class DashboardViewModel : ObservableObject
     {
         lifetime.Cancel();
         readVersion++;
+        OpenedHistoryTask = null;
         Result = null;
         RecentTasks = [];
         preferredByYear.Clear();
@@ -241,3 +289,5 @@ public partial class DashboardViewModel : ObservableObject
         Years = [];
     }
 }
+
+public sealed record DashboardBrokerCoverage(string Broker, int Count, string Accounts);

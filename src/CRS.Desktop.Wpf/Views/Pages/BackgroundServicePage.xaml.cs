@@ -53,6 +53,8 @@ public partial class BackgroundServicePage : UserControl
             _ = model.RefreshServiceStatusCommand.ExecuteAsync(null);
         else if (TaskCenterTabs.SelectedItem == ServicePlansTab && model.Jobs.Count == 0 && !model.Busy)
             _ = model.RefreshCommand.ExecuteAsync(null);
+        else if (TaskCenterTabs.SelectedItem == ExecutionHistoryTab)
+            _ = model.LoadHistoryOptionsAsync();
     }
     private void OnPlanDoubleClick(object sender,MouseButtonEventArgs e)
     {

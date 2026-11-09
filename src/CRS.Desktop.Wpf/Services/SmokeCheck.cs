@@ -54,9 +54,15 @@ internal static class SmokeCheck
             await shell.History.RefreshCommand.ExecuteAsync(null);
             shell.History.Selected = shell.History.Rows.Single(); await shell.History.OpenCommand.ExecuteAsync(null);
             if (shell.Results.Trades.Count != 0) throw new InvalidOperationException("引用型历史不应恢复未保存交易。");
+            if (shell.Dashboard.OpenedHistoryTask?.Id != result.SnapshotId)
+                throw new InvalidOperationException("导入历史没有把已打开的结果同步到概览。");
             var overviewOnly = args.Contains("--overview-only");
-            if (overviewOnly) shell.State.Clear();
-            await shell.Dashboard.RefreshAsync();
+            if (overviewOnly)
+            {
+                shell.State.Clear();
+                await shell.Dashboard.ReturnToYearOverviewCommand.ExecuteAsync(null);
+            }
+            else await shell.Dashboard.RefreshAsync();
             if (shell.Dashboard.RecentTasks.Count != 1 || shell.Dashboard.TradeCount != "1") throw new InvalidOperationException("概览未读取真实任务。");
             if (overviewOnly)
             {

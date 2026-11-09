@@ -247,7 +247,7 @@ public partial class PerformanceViewModel : ObservableObject
     }
     [RelayCommand(CanExecute=nameof(CanRun))] private async Task RefreshAsync()=>await Run(Reload);
 
-    private static string BrokerName(string broker) => broker switch
+    internal static string BrokerName(string broker) => broker switch
     {
         "FUTU" => "富途证券",
         "IBKR" => "盈透证券（IBKR）",

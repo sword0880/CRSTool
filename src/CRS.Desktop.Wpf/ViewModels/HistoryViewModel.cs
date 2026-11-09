@@ -11,6 +11,7 @@ public partial class HistoryViewModel : ObservableObject
     public ObservableCollection<HistoryItem> Rows { get; } = [];
     public ObservableCollection<HistoryItem> RecentRows { get; } = [];
     public event Action? RecentTasksRefreshed;
+    public event Action<HistoryItem, CalculationResult>? ResultOpened;
     public ObservableCollection<HistoryTaskRow> SelectableRows { get; } = [];
     public ObservableCollection<HistoryItem> AggregationSelection { get; } = [];
     [ObservableProperty] private HistoryTaskRow? selectedRow;
@@ -154,8 +155,15 @@ public partial class HistoryViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanOpen))]
     private async Task OpenAsync()
     {
-        var id = Selected!.Id;
-        await State.RunAsync(async () => await State.DisplayAsync(await State.UseCases.LoadAsync(id)));
+        var task = Selected!;
+        if (await State.RunAsync(async () =>
+        {
+            var result = await State.UseCases.LoadAsync(task.Id);
+            if (result.SnapshotId != task.Id || result.Year != task.Year)
+                throw new CrsException("核算结果与所选任务不一致。");
+            await State.DisplayAsync(result);
+        }) && State.Result is { } opened && opened.SnapshotId == task.Id)
+            ResultOpened?.Invoke(task, opened);
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenImport))]

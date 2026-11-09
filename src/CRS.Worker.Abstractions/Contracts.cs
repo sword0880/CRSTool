@@ -49,7 +49,26 @@ public sealed record TaskDefinition(string PluginId, string JobId, string Name, 
 /// <summary>历史只包含结果分类。时间均带北京时间 +08:00；Utc 字段名仅保留现有协议键名。</summary>
 public sealed record ExecutionRecord(string ExecutionId, string PluginId, string JobId,
     DateTimeOffset ScheduledUtc, DateTimeOffset StartedUtc, DateTimeOffset? EndedUtc,
-    string Result, string? Checkpoint, int Attempt, IReadOnlyList<ExecutionProgressEvent>? Progress=null);
+    string Result, string? Checkpoint, int Attempt, IReadOnlyList<ExecutionProgressEvent>? Progress=null)
+{
+    public static ExecutionRecord FromDataCleanupTask(CRS.Maintenance.DataCleanupTask task)
+    {
+        var result = task.State switch
+        {
+            "Completed" => "Succeeded",
+            "Interrupted" => "Interrupted",
+            "Unavailable" => "Failed",
+            _ => throw new ArgumentException("清理任务尚未结束。", nameof(task))
+        };
+        var origin = task.Origin == "Automatic" ? "自动清理" : "手动清理";
+        var deleted = task.CountsComplete
+            ? $"已清理 {task.DeletedFiles:N0} 个文件 / {task.DeletedBytes:N0} 字节。"
+            : "删除数量未完整记录。";
+        var message = task.Message[..Math.Min(300, task.Message.Length)];
+        return new("cleanup:" + task.Id.ToString("N"), CRS.Maintenance.DataCleanupTask.ServiceId, CRS.Maintenance.DataCleanupTask.JobId,
+            task.SubmittedAt, task.SubmittedAt, task.FinishedAt, result, $"{origin}。{deleted} {message}", 1);
+    }
+}
 
 /// <summary>仅传递白名单阶段及公开标量，不记录URL参数、响应正文或异常消息。</summary>
 public sealed record BackgroundProgress(string Stage,DateOnly? Date=null,string? Market=null,int Received=0,int Added=0,int Duplicates=0,int Pending=0,int? HttpStatus=null,DateTimeOffset? Until=null)

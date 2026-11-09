@@ -10,18 +10,8 @@ public sealed partial class WorkerDataCleanup
         {
             return RecentTasks().Where(record=>TaskVisible(record,sid)&&!TaskActive(record.Task)
                 &&!(active?.Id==record.Task.Id&&active.Task is{IsCompleted:false}))
-                .Select(record=>ToExecutionRecord(record.Task)).ToArray();
+                .Select(record=>ExecutionRecord.FromDataCleanupTask(record.Task)).ToArray();
         }
-    }
-
-    private static ExecutionRecord ToExecutionRecord(DataCleanupTask task)
-    {
-        var origin=task.Origin=="Automatic"?"自动清理":"手动清理";
-        var result=task.State switch{"Completed"=>"Succeeded","Interrupted"=>"Interrupted",_=>"Failed"};
-        var deleted=task.CountsComplete?$"已清理 {task.DeletedFiles:N0} 个文件 / {task.DeletedBytes:N0} 字节。":"删除数量未完整记录。";
-        var message=task.Message[..Math.Min(300,task.Message.Length)];
-        return new("cleanup:"+task.Id.ToString("N"),DataCleanupTask.ServiceId,DataCleanupTask.JobId,task.SubmittedAt,
-            task.SubmittedAt,task.FinishedAt,result,$"{origin}。{deleted} {message}",1);
     }
 
     public DataCleanupTaskOverview TaskOverview(string sid)

@@ -36,5 +36,6 @@ public sealed class ShellViewModel : ObservableObject
             Import.Year = year;
             NavigateRequested?.Invoke("import");
         });
+        History.ResultOpened += Dashboard.ShowOpenedHistory;
     }
 }

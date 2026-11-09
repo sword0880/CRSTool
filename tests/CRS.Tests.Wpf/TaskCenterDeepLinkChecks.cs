@@ -4,6 +4,7 @@ using CRS.DesktopClient.Views.Pages;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
@@ -103,13 +104,30 @@ internal static class TaskCenterDeepLinkChecks
         model.OnlyIssues = false;
         window.UpdateLayout();
         if (check.IsChecked != false) throw new InvalidOperationException("恢复全部记录未清除勾选。");
+        await WaitForAsync(() => model.HistoryJobs.Contains("manual"));
+        var pluginFilter = (ComboBox)page.FindName("HistoryPluginFilter");
+        var jobFilter = (ComboBox)page.FindName("HistoryJobFilter");
+        jobFilter.SetCurrentValue(Selector.SelectedItemProperty, DataCleanupTask.JobId);
+        pluginFilter.SetCurrentValue(Selector.SelectedItemProperty, "plugin.one");
+        if (model.HistoryJob != "" || jobFilter.Text != "" || !model.HistoryJobs.SequenceEqual(new[] { "", "one", "shared" }))
+            throw new InvalidOperationException("插件切换未过滤任务或未清掉不匹配的任务。");
+        jobFilter.SetCurrentValue(Selector.SelectedItemProperty, "shared");
+        pluginFilter.SetCurrentValue(Selector.SelectedItemProperty, "plugin.two");
+        if (model.HistoryJob != "shared" || !model.HistoryJobs.ToHashSet().SetEquals(new[] { "", "shared", "manual" }))
+            throw new InvalidOperationException("插件切换清掉了仍然有效的任务，或遗漏后续页的任务。");
+        pluginFilter.SetCurrentValue(Selector.SelectedItemProperty, DataCleanupTask.ServiceId);
+        if (model.HistoryJob != "" || !model.HistoryJobs.SequenceEqual(new[] { "", DataCleanupTask.JobId }))
+            throw new InvalidOperationException("后台服务只应列出资料清理任务。");
+        pluginFilter.SetCurrentValue(Selector.SelectedItemProperty, "");
+        if (model.HistoryPlugin != "" || !model.HistoryJobs.ToHashSet().SetEquals(new[] { "", DataCleanupTask.JobId, "one", "shared", "manual" }))
+            throw new InvalidOperationException("清空插件后未恢复全部去重后的任务。");
         await Task.Delay(3500);
         if (control.HistoryReads != 0) throw new InvalidOperationException("进入执行记录或等待3秒后仍自动查询。");
         foreach (var status in new[] { "RetryDeferred", "Failed", "AccessBlocked", "SourceSchemaChanged", "Interrupted", "Rejected" })
             if (!BackgroundServiceViewModel.IsIssueResult(status)) throw new InvalidOperationException("异常状态丢失 " + status);
         foreach (var status in new[] { "Succeeded", "NotPublished", "Running", "Cancelled" })
             if (BackgroundServiceViewModel.IsIssueResult(status)) throw new InvalidOperationException("普通或主动取消状态误报为异常 " + status);
-        Console.WriteLine("PASS 任务中心：唯一入口、底栏直达、计划阻塞时独立检查健康、离线提示、历史保留手动查询。");
+        Console.WriteLine("PASS 任务中心：插件与任务下拉联动、跨页任务、后台清理、历史手动查询和原有导航。");
     }
 
     private static void Click(UIElement element) => element.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, element));
@@ -142,6 +160,14 @@ internal static class TaskCenterDeepLinkChecks
                 PlansRequested.TrySetResult();
                 await ReleasePlans.Task.WaitAsync(token);
                 return new(WorkerProtocol.Version, request.RequestId, "Unavailable");
+            }
+            if (request.Command == "GetHistoryJobs")
+            {
+                var first = request.Cursor is null;
+                TaskDefinition Job(string plugin, string job) => new(plugin, job, job, "0 * * * * ?", "China Standard Time", true, 1, false);
+                return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: first
+                    ? [Job("plugin.one", "one"), Job("plugin.one", "shared")]
+                    : [Job("plugin.two", "manual"), Job("plugin.two", "shared")], NextCursor: first ? "page-two" : null);
             }
             if (request.Command == "GetTaskActivity")
             {

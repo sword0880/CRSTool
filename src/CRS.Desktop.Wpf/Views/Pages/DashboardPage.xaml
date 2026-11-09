@@ -40,9 +40,43 @@
     </StackPanel>
    </Border>
    <StackPanel Visibility="{Binding HasResult, Converter={StaticResource BooleanVisibility}}">
-    <TextBlock Text="{Binding ScopeTitle}" FontSize="16" FontWeight="SemiBold"/>
-    <TextBlock Text="{Binding AccountScope}" Foreground="{DynamicResource BrandTextHintBrush}"
-               TextWrapping="Wrap" Margin="0,4,0,12"/>
+    <DockPanel>
+     <ui:Button x:Name="ReturnToYearOverviewButton" DockPanel.Dock="Right" Appearance="Transparent" Padding="8,4"
+                Content="查看本年度概览" Command="{Binding ReturnToYearOverviewCommand}"
+                Foreground="{DynamicResource BrandAccentBrush}"
+                Visibility="{Binding IsViewingHistory, Converter={StaticResource BooleanVisibility}}"/>
+     <StackPanel>
+      <TextBlock Text="{Binding ScopeTitle}" FontSize="16" FontWeight="SemiBold"/>
+      <TextBlock Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,4,0,0"
+                 Visibility="{Binding IsViewingHistory, Converter={StaticResource BooleanVisibility}}">
+       <Run Text="来自导入历史 · "/><Run Text="{Binding OpenedHistoryTask.CreatedUtc, Mode=OneWay, Converter={StaticResource TaskTime}}"/>
+      </TextBlock>
+     </StackPanel>
+    </DockPanel>
+    <DockPanel Margin="0,4,0,10">
+     <ui:Button x:Name="AccountCoverageToggle" DockPanel.Dock="Right" Appearance="Transparent" Padding="8,4"
+                Content="{Binding CoverageToggleLabel}" Command="{Binding ToggleCoverageCommand}"
+                Foreground="{DynamicResource BrandAccentBrush}" ToolTip="本次税务结果覆盖的账户"
+                Visibility="{Binding HasAccountCoverage, Converter={StaticResource BooleanVisibility}}"/>
+     <TextBlock Text="{Binding CoverageSummary}" Foreground="{DynamicResource BrandTextHintBrush}"
+                TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0"/>
+    </DockPanel>
+    <ItemsControl x:Name="BrokerCoverageRows" ItemsSource="{Binding BrokerCoverage}" Grid.IsSharedSizeScope="True" Margin="0,0,0,8"
+                  Visibility="{Binding IsCoverageExpanded, Converter={StaticResource BooleanVisibility}}">
+      <ItemsControl.ItemTemplate>
+       <DataTemplate>
+        <Grid Margin="0,0,0,6">
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" SharedSizeGroup="CoverageBroker"/>
+          <ColumnDefinition Width="*"/>
+         </Grid.ColumnDefinitions>
+         <TextBlock Text="{Binding Broker}" FontWeight="SemiBold" MaxWidth="180" TextWrapping="Wrap"/>
+         <TextBlock Grid.Column="1" Text="{Binding Accounts}" Foreground="{DynamicResource BrandTextHintBrush}"
+                    TextWrapping="Wrap" Margin="16,0,0,0"/>
+        </Grid>
+       </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
     <Grid Margin="0,0,0,20">
      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
      <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
@@ -76,16 +110,17 @@
      </Button>
     </Grid>
    </StackPanel>
-   <Border Style="{StaticResource Card}" Margin="0,0,0,16"
+   <Border BorderBrush="{DynamicResource BrandBorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,0,0,16"
            Visibility="{Binding Performance.Available, Converter={StaticResource BooleanVisibility}}">
-    <StackPanel>
-     <DockPanel>
-      <ui:Button DockPanel.Dock="Right" Content="查看账户汇总" Command="{Binding OpenAccountOverviewCommand}"
-                 IsEnabled="{Binding State.IsIdle}" Appearance="Transparent" Foreground="{DynamicResource BrandAccentBrush}"/>
-      <TextBlock Text="证券账户" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-     </DockPanel>
-     <TextBlock Text="{Binding Performance.AccountBrokerSummary}" Margin="0,6,0,0" TextWrapping="Wrap"/>
-    </StackPanel>
+    <DockPanel>
+     <ui:Button DockPanel.Dock="Right" Content="查看账户汇总" Command="{Binding OpenAccountOverviewCommand}"
+                IsEnabled="{Binding State.IsIdle}" Appearance="Transparent" Padding="8,4"
+                Foreground="{DynamicResource BrandAccentBrush}"/>
+     <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0">
+      <Run Text="证券账户总览" FontWeight="SemiBold"/><Run Text="　"/>
+      <Run Text="{Binding Performance.AccountBrokerSummary, Mode=OneWay}" Foreground="{DynamicResource BrandTextHintBrush}"/>
+     </TextBlock>
+    </DockPanel>
    </Border>
    <Border Style="{StaticResource Card}">
     <StackPanel>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CRS.DesktopClient.Services;
 using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
@@ -47,24 +48,35 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var response=IsCleanup?await client.QueryAsync(DataCleanupTask.HistoryCommand,Lifetime)
-                :await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetExecution",ExecutionId:ExecutionId),Lifetime);
+            var (code, execution, latestOnly) = await ReadExecutionAsync();
             Lifetime.ThrowIfCancellationRequested();
-            var execution=IsCleanup?response.History?.FirstOrDefault(x=>x.ExecutionId==ExecutionId):response.Execution;
-            if(response.Code=="Ok" && execution is { } latest && latest.ExecutionId==ExecutionId)
+            if(code=="Ok" && execution is { } latest && latest.ExecutionId==ExecutionId)
             {
                 record=latest;Render();Status="服务采样："+Time(CRS.Timing.BeijingClock.Now)+"（北京时间）";
             }
-            else Status=response.Code switch
+            else Status=code switch
             {
+                "Ok" when latestOnly=>"旧后台只能查询最近一次清理结果，以下保留打开时的快照。",
                 "UnknownExecution" or "Ok"=>"服务已清理这条记录，以下保留打开时的快照。",
-                "UnknownCommand"=>"后台服务版本尚不支持日志查询，请更新服务；以下为打开时的快照。",
+                "UnknownCommand" or "UnsupportedCommand"=>"后台服务版本尚不支持日志查询，请更新服务；以下为打开时的快照。",
+                "Forbidden" when IsCleanup=>"清理记录需要管理员权限，以下保留打开时的快照。",
                 "RateLimited"=>"查询频繁，请稍后刷新；以下为上次快照。",
                 _=>"日志暂不可用；以下为上次快照。"
             };
         }
         catch(OperationCanceledException) when(Lifetime.IsCancellationRequested) { }
         catch(Exception) { if(!Lifetime.IsCancellationRequested)Status="服务不可用或响应超时；以下为上次快照。"; }
+    }
+
+    private async Task<(string Code, ExecutionRecord? Record, bool LatestOnly)> ReadExecutionAsync()
+    {
+        if (IsCleanup)
+        {
+            var (code, history, latestOnly) = await WorkerDataCleanupGateway.ReadHistoryAsync(client, Lifetime);
+            return (code, history?.FirstOrDefault(x => x.ExecutionId == ExecutionId), latestOnly);
+        }
+        var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetExecution", ExecutionId: ExecutionId), Lifetime);
+        return (response.Code, response.Execution, false);
     }
     private static string Time(DateTimeOffset value)=>value.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture);
     /// <summary>时间线仅由真实持久字段组成；未保存的逐步调试过程不能凭空补写。</summary>

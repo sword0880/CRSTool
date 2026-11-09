@@ -155,7 +155,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try
         {
             var response = await HandleCoreAsync(request, caller, token);
-            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetDiagnosticJobs" or "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
+            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetDiagnosticJobs" or "GetHistoryJobs" or "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
                 repository.Audit(caller.Sid, request.RequestId, request.Command, response.Code);
             return response;
         }
@@ -253,12 +253,19 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         if (fault is not null) return Reply(fault);
         if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
         if (request.PageSize < 1 || request.PageSize > (request.Command=="GetHistoryByDate"?50:10)) return Reply("InvalidRequest");
-        if (request.Command is "GetJobs" or "GetDiagnosticJobs")
+        if (request.Command is "GetJobs" or "GetDiagnosticJobs" or "GetHistoryJobs")
         {
-            var plans = repository.Plans().Where(x=>request.Command=="GetDiagnosticJobs"
-                ?catalog.Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&job.Descriptor.Diagnostic)
-                :!catalog.Jobs.Any(job=>job.PluginId==x.PluginId && job.Descriptor.JobId==x.JobId && (job.Descriptor.ManualOnly||job.Descriptor.Diagnostic)))
-                .Where(x => request.Cursor is null || string.CompareOrdinal(x.PluginId + ":" + x.JobId, request.Cursor) > 0).Take(request.PageSize + 1).ToArray();
+            var matching = repository.Plans().Where(x => request.Command switch
+                {
+                    "GetDiagnosticJobs" => catalog.Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&job.Descriptor.Diagnostic),
+                    "GetJobs" => !catalog.Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&(job.Descriptor.ManualOnly||job.Descriptor.Diagnostic)),
+                    _ => true
+                });
+            // 筛选清单的顺序须与游标一致，即使一个插件编号是另一编号的前缀。
+            if (request.Command == "GetHistoryJobs")
+                matching = matching.OrderBy(x => x.PluginId + ":" + x.JobId, StringComparer.Ordinal);
+            var plans = matching.Where(x => request.Cursor is null || string.CompareOrdinal(x.PluginId + ":" + x.JobId, request.Cursor) > 0)
+                .Take(request.PageSize + 1).ToArray();
             var page = plans.Take(request.PageSize).ToArray();
             return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: page, NextCursor: plans.Length > page.Length ? page[^1].PluginId + ":" + page[^1].JobId : null);
         }

@@ -130,15 +130,6 @@ public partial class BackgroundServiceViewModel : ObservableObject
         if(keepMaintenance)SelectedPlan=maintenancePlan;
         else Selected = Jobs.FirstOrDefault(x => x.PluginId == key?.PluginId && x.JobId == key.JobId) ?? Jobs.FirstOrDefault();
     }
-    private void UpdateHistorySuggestions()
-    {
-        // 建议保留已见过的任务；空白表示全部，也可输入未加载的历史编号。
-        foreach (var row in Jobs.Select(x => (x.PluginId,x.JobId)).Concat(History.Select(x => (x.PluginId,x.JobId))))
-        {
-            if (!HistoryPlugins.Contains(row.PluginId)) HistoryPlugins.Add(row.PluginId);
-            if (!HistoryJobs.Contains(row.JobId)) HistoryJobs.Add(row.JobId);
-        }
-    }
     [RelayCommand]
     private Task MoreJobsAsync() => WithStatusAsync(async () =>
     {
@@ -146,6 +137,7 @@ public partial class BackgroundServiceViewModel : ObservableObject
         var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetJobs", Cursor: JobsCursor), lifetime);
         if (response.Code != "Ok") { Status = "计划读取失败：" + response.Code; return; }
         foreach (var row in response.Jobs ?? []) if (!Jobs.Any(x => x.PluginId == row.PluginId && x.JobId == row.JobId)) Jobs.Add(row);
+        UpdateHistorySuggestions();
         JobsCursor = response.NextCursor; Status = JobsCursor is null ? "已读取全部计划。" : "已加载下一页计划。";
     });
     public static bool IsIssueResult(string result) =>

@@ -96,6 +96,8 @@ internal static class TaskCenterRefreshChecks
                 return new(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,1,new(4,2,1,12,0,0,3)));
             }
             if(request.Command=="GetJobs")return new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[]);
+            if(request.Command is CRS.Maintenance.DataCleanupTask.HistoryCommand or "GetDataCleanupTasks")
+                return new(WorkerProtocol.Version,request.RequestId,"UnknownCommand");
             if(request.Command=="GetTaskActivity")
             {
                 if(ActivityUnavailable)return new(WorkerProtocol.Version,request.RequestId,"Unavailable");

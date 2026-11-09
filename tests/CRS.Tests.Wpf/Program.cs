@@ -38,7 +38,8 @@ if(args is ["--task-button-checks"]){await TaskCenterButtonChecks.RunAsync();ret
 if(args is ["--worker-status-preview",var workerDirectory]){WorkerStatusPreview.Run(workerDirectory);return;}
 if(args is ["--performance-component-preview",var componentDirectory]){PerformanceComponentPreview.Run(componentDirectory);return;}
 if(args is ["--date-picker-style"]){DatePickerStyleChecks.Run();return;}
-if(args is ["--dashboard-checks"]){await DashboardInteractionChecks.RunAsync();DashboardInteractionChecks.CheckPage();return;}
+if(args is ["--dashboard-checks"] or ["--dashboard-checks",_])
+{await DashboardInteractionChecks.RunAsync();DashboardInteractionChecks.CheckPage(args.ElementAtOrDefault(1));return;}
 if(args is ["--plugin-management-preview",var pluginManagementDirectory]){PluginManagementPreview.Run(pluginManagementDirectory);return;}
 if(args is ["--execution-log-ui",var logScreenshot]){ExecutionLogViewChecks.Run(logScreenshot);return;}
 if(args.Contains("--background-ui")){var index=Array.IndexOf(args,"--background-ui");BackgroundServiceViewChecks.Run(args[index+1],args.ElementAtOrDefault(index+2));return;}

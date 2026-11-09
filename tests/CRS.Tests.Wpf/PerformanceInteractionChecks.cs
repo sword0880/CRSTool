@@ -215,7 +215,7 @@ internal static class PerformanceInteractionChecks
         public void ShowError(string message){if(message!=ExpectedError && !message.Contains("synthetic network failure"))throw new Exception(message);LastError=message;}
         public void OpenFolder(string path){}
     }
-    private sealed class Cases:IPerformanceUseCases
+    internal sealed class Cases:IPerformanceUseCases
     {
         public PerformanceData Data=new(){Accounts=[new("A","IBKR","合成账户","USD",new(2024,12,31))]};
         public ValuationSnapshot[]? AccountOverviewValuations;

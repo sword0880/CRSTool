@@ -2,6 +2,7 @@ using CRS.DesktopClient.ViewModels;
 using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
+using System.Text.Json;
 
 internal static class HistoryDateChecks
 {
@@ -41,6 +42,7 @@ internal static class HistoryDateChecks
             control.FailDate=null;model.HistoryStartDate=today;
             control.Unsupported=true;await model.FilterHistoryCommand.ExecuteAsync(null);
             Check(model.History.Count==0&&model.Status.Contains("尚不支持按日期"),"旧后台明确提示不支持，不把跨日记录当成当天结果");
+            var legacyReads=control.LegacyCleanupReads;
             control.Unsupported=false;control.CleanupSupported=true;
             await model.FilterHistoryCommand.ExecuteAsync(null);
             Check(model.History.Count==76&&model.HistoryPlugins.Contains(DataCleanupTask.ServiceId)
@@ -59,9 +61,42 @@ internal static class HistoryDateChecks
             model.OnlyIssues=true;model.HistoryStartDate=today.AddDays(-1);
             await model.FilterHistoryCommand.ExecuteAsync(null);
             Check(model.History.Single().Result=="Interrupted","清理记录遵循北京时间与仅异常筛选");
+            Check(control.LegacyCleanupReads==legacyReads,"新版后台使用完整清理历史");
             control.CleanupSupported=false;
             await model.FilterHistoryCommand.ExecuteAsync(null);
             Check(model.History.Count==0&&model.HistorySummary.Contains("尚未提供清理记录"),"旧后台明确提示清理记录暂不支持");
+            var finished=CRS.Timing.BeijingClock.Now;
+            var latest=new DataCleanupTask(Guid.NewGuid(),"Manual","Completed",finished,finished,finished,0,0,true,"无需清理。");
+            control.LatestCleanup=latest;
+            model.OnlyIssues=false;
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            var legacy=model.History.Single();
+            Check(legacy.ExecutionId=="cleanup:"+latest.Id.ToString("N")&&legacy.Result=="Succeeded"
+                &&model.HistorySummary.Contains("仅提供最近一次清理结果"),"旧后台用已保存的最近结果补全清理记录");
+            using(var log=model.CreateExecutionLog(legacy))
+            {
+                await log.RefreshCommand.ExecuteAsync(null);
+                Check(log.FullLogText.Contains("手动清理")&&log.FullLogText.Contains("已清理 0 个文件")
+                    &&log.Status.Contains("服务采样"),"旧后台的清理结果可打开并刷新日志摘要");
+                control.LatestCleanup=latest with{Id=Guid.NewGuid()};
+                await log.RefreshCommand.ExecuteAsync(null);
+                Check(log.ExecutionId==legacy.ExecutionId&&log.Status.Contains("只能查询最近一次"),"最近结果变更时保留原日志快照");
+            }
+            model.OnlyIssues=true;
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            Check(model.History.Count==0,"旧后台回退结果也遵守仅异常筛选");
+            model.OnlyIssues=false;
+            model.HistoryEndDate=today.AddDays(-1);
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            Check(model.History.Count==0,"不把旧后台最近结果放入其他日期");
+            control.LegacyCleanupForbidden=true;
+            await model.FilterHistoryCommand.ExecuteAsync(null);
+            Check(model.History.Count==0&&model.HistorySummary.Contains("需要管理员权限"),"旧后台清理记录仍受管理员权限限制");
+            await model.LoadHistoryOptionsAsync();
+            model.HistoryPlugin="crs.heartbeat";
+            Check(model.HistoryJobs.SequenceEqual(new[] { "", "heartbeat" })&&model.HistoryJob=="","旧后台可从诊断清单取得所选插件的任务");
+            model.HistoryPlugin="";
+            Check(model.HistoryJobs.Contains("scheduled")&&model.HistoryJobs.Contains("one"),"清空插件后合并计划和已查询的历史任务");
         }
         finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
     }
@@ -69,9 +104,28 @@ internal static class HistoryDateChecks
     {if(!ok)throw new Exception(text);Console.WriteLine("PASS 执行记录日期界面："+text);}
     private sealed class Control:IBackgroundControl
     {
-        public int Calls;public bool Unsupported,CleanupSupported;public DateOnly? FailDate;
+        public int Calls,LegacyCleanupReads;
+        public bool Unsupported,CleanupSupported,LegacyCleanupForbidden;
+        public DataCleanupTask? LatestCleanup;
+        public DateOnly? FailDate;
         public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
+            if(request.Command is "GetJobs" or "GetDiagnosticJobs")
+            {
+                var diagnostic=request.Command=="GetDiagnosticJobs";
+                return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:
+                    [new(diagnostic?"crs.heartbeat":"plugin",diagnostic?"heartbeat":"scheduled","任务","0 * * * * ?","China Standard Time",true,1,false)]));
+            }
+            if(request.Command=="GetHistoryJobs")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"UnknownCommand"));
+            if(request.Command=="GetDataCleanupTasks")
+            {
+                LegacyCleanupReads++;
+                if(LegacyCleanupForbidden)return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Forbidden"));
+                return Task.FromResult(LatestCleanup is null
+                    ?new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"UnknownCommand")
+                    :new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",
+                        Payload:JsonSerializer.Serialize(new DataCleanupTaskOverview(null,LatestCleanup,null,true))));
+            }
             if(request.Command==DataCleanupTask.HistoryCommand)
             {
                 var now=CRS.Timing.BeijingClock.Now;

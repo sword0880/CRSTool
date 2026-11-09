@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CRS.DesktopClient.Services;
 using CRS.Maintenance;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
@@ -12,6 +13,75 @@ public partial class BackgroundServiceViewModel
     [ObservableProperty] private string historySummary="默认选择北京时间当天，请点击“查询记录”。";
     private DateOnly appliedHistoryStartDate;
     private DateOnly appliedHistoryEndDate;
+    private readonly HashSet<(string PluginId,string JobId)> knownHistoryTasks = [(DataCleanupTask.ServiceId,DataCleanupTask.JobId)];
+    private bool loadingHistoryOptions;
+
+    partial void OnHistoryPluginChanged(string value)
+    {
+        UpdateHistoryJobs();
+        if (!string.IsNullOrWhiteSpace(value) && !HistoryJobs.Contains(HistoryJob?.Trim() ?? ""))
+            HistoryJob = "";
+    }
+
+    private void UpdateHistorySuggestions() => RememberHistoryTasks(Jobs.Select(x => (x.PluginId,x.JobId))
+        .Concat(History.Select(x => (x.PluginId,x.JobId))).Concat(PendingRequests.Select(x => (x.PluginId,x.JobId))));
+
+    private void RememberHistoryTasks(IEnumerable<(string PluginId,string JobId)> tasks)
+    {
+        foreach (var task in tasks)
+        {
+            if (knownHistoryTasks.Add(task) && !HistoryPlugins.Contains(task.PluginId))
+                HistoryPlugins.Add(task.PluginId);
+        }
+        UpdateHistoryJobs();
+    }
+
+    private void UpdateHistoryJobs()
+    {
+        var plugin = HistoryPlugin?.Trim() ?? "";
+        var jobs = knownHistoryTasks.Where(x => plugin.Length == 0 || x.PluginId == plugin)
+            .Select(x => x.JobId).ToHashSet(StringComparer.Ordinal);
+        // 保留仍然可选的项，避免重新绑定列表时清掉有效的任务筛选。
+        for (var i = HistoryJobs.Count - 1; i > 0; i--)
+            if (!jobs.Contains(HistoryJobs[i])) HistoryJobs.RemoveAt(i);
+        foreach (var job in jobs.Order(StringComparer.Ordinal))
+            if (!HistoryJobs.Contains(job)) HistoryJobs.Add(job);
+    }
+
+    internal async Task LoadHistoryOptionsAsync()
+    {
+        if (loadingHistoryOptions || lifetime.IsCancellationRequested) return;
+        loadingHistoryOptions = true;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+        deadline.CancelAfter(TimeSpan.FromSeconds(12));
+        try
+        {
+            if (await ReadHistoryOptionsAsync("GetHistoryJobs", deadline.Token) == "UnknownCommand")
+            {
+                await ReadHistoryOptionsAsync("GetJobs", deadline.Token);
+                await ReadHistoryOptionsAsync("GetDiagnosticJobs", deadline.Token);
+            }
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested) { }
+        catch (BackgroundServiceException) { } // 保留已经知道的任务，仍可手工输入任务编号。
+        finally { loadingHistoryOptions = false; }
+    }
+
+    private async Task<string> ReadHistoryOptionsAsync(string command, CancellationToken token)
+    {
+        var cursors = new HashSet<string>(StringComparer.Ordinal);
+        string? cursor = null;
+        while (true)
+        {
+            var page = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), command, Cursor: cursor), token);
+            token.ThrowIfCancellationRequested();
+            if (page.Code == "RateLimited") { await Task.Delay(500, token); continue; }
+            if (page.Code != "Ok") return page.Code;
+            RememberHistoryTasks((page.Jobs ?? []).Select(x => (x.PluginId,x.JobId)));
+            cursor = page.NextCursor;
+            if (cursor is null || !cursors.Add(cursor)) return "Ok";
+        }
+    }
 
     private async Task LoadHistoryAsync()
     {
@@ -44,10 +114,10 @@ public partial class BackgroundServiceViewModel
     }
     private async Task<(IEnumerable<ExecutionRecord> Rows,string Note)> ReadCleanupHistoryAsync(CancellationToken token)
     {
-        BackgroundResponse reply;
+        (string Code, IReadOnlyList<ExecutionRecord>? History, bool LatestOnly) reply;
         do
         {
-            reply=await client.QueryAsync(DataCleanupTask.HistoryCommand,token);
+            reply=await WorkerDataCleanupGateway.ReadHistoryAsync(client,token);
             if(reply.Code=="RateLimited")await Task.Delay(500,token);
         }while(reply.Code=="RateLimited");
         if(reply.Code=="Forbidden")return([]," · 清理记录需要管理员权限");
@@ -61,7 +131,7 @@ public partial class BackgroundServiceViewModel
         {
             var day=DateOnly.FromDateTime(CRS.Timing.BeijingClock.Normalize(row.StartedUtc).DateTime);
             return day>=appliedHistoryStartDate&&day<=appliedHistoryEndDate&&(appliedResultFilter!="Issues"||IsIssueResult(row.Result));
-        }),"");
+        }),reply.LatestOnly?" · 当前后台仅提供最近一次清理结果":"");
     }
     private async Task<(List<ExecutionRecord> Rows,IReadOnlyList<BackgroundPendingRequest>? Pending)> ReadHistoryPagesAsync(CancellationToken token)
     {
