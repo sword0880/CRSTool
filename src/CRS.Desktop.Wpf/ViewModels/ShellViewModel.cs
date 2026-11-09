@@ -23,7 +23,8 @@ public sealed class ShellViewModel : ObservableObject
     public event Action<string>? NavigateRequested;
     public ShellViewModel(IDesktopUseCases useCases, IUserInteraction interaction, IDesktopSettingsService? settings = null,IVaultService? vault=null,CRS.Application.Performance.IPerformanceUseCases? performance=null,Func<string>? documentPassword=null,IDataCleanupGateway? cleanup=null,CRS.Worker.Ipc.BackgroundPipeClient? workerClient=null)
     {
-        State = new(useCases, interaction,documentPassword ?? (vault is null?null:()=>vault.DocumentEncryptionPassword)); Results = new(State); History = new(State, () => NavigateRequested?.Invoke("tax"));
+        State = new(useCases, interaction,documentPassword ?? (vault is null?null:()=>vault.DocumentEncryptionPassword)); Results = new(State);
+        History = new(State, () => NavigateRequested?.Invoke("tax"), () => NavigateRequested?.Invoke("import"));
         Performance=new(State,performance);
         Dashboard = new(State, History, Performance, page => NavigateRequested?.Invoke(page));
         Review = new(State); Reports = new(State); ExchangeRates = new(State);

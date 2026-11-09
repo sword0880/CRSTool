@@ -16,6 +16,9 @@ public sealed class FrozenInput
         Sha256=Convert.ToHexStringLower(SHA256.HashData(content));
     }
     internal static FrozenInput Read(string path,CancellationToken cancellation=default)
+        => Read(path,path,cancellation);
+
+    internal static FrozenInput Read(string path,string name,CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         // 读取期间拒绝写入与替换；随后关闭原件，后续解析不再依赖原路径。
@@ -31,7 +34,7 @@ public sealed class FrozenInput
         }
         cancellation.ThrowIfCancellationRequested();
         if(file.ReadByte()!=-1) throw new CrsException("源文件在读取期间发生变化，请重试。");
-        return new(path,bytes);
+        return new(name,bytes);
     }
     // 不公开底层数组，避免某个解析器修改其他用途所依赖的冻结内容。
     public Stream OpenRead()=>new MemoryStream(content,0,content.Length,false,false);

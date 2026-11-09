@@ -30,6 +30,8 @@ public interface IPerformanceUseCases
     Task<bool> FetchBenchmarkAsync(string symbol,PerformanceRequest request,CancellationToken cancellation=default,bool force=false)=>Task.FromResult(false);
     Task<PerformanceCurve> CurveAsync(string runId,string benchmark,CancellationToken cancellation=default)=>Task.FromResult(new PerformanceCurve([],benchmark,"暂无曲线资料。"));
     Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default);
+    Task<PerformanceFx[]> ReadCachedValuationRatesAsync(DateOnly[] dates, CancellationToken cancellation=default)
+        => Task.FromResult<PerformanceFx[]>([]);
     Task<bool> ImportAsync(string path,string broker,CancellationToken cancellation=default);
     Task<bool> ImportManualAsync(string json,CancellationToken cancellation=default);
     Task<bool> AddAccountAsync(ManualPerformanceAccount input,CancellationToken cancellation=default);

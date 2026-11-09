@@ -12,7 +12,8 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
     /// <summary>执行年度导入、FIFO、税额及三项对账，并生成不可混用的来源快照。</summary>
     public CalculationResult Calculate(string[] files, int year, bool openingZero, bool scopeConfirmed,
         string? openingXml = null, CarryDocument? carry = null, CancellationToken cancellation = default,
-        bool saveCanonicalSnapshot = false,IReadOnlyList<AccountPeriodEvidence>? accountPeriods=null)
+        bool saveCanonicalSnapshot = false,IReadOnlyList<AccountPeriodEvidence>? accountPeriods=null,
+        string? recalculatedFromSnapshotId=null)
     {
         if (year is < 2000 or > 2100) throw new CrsException("年度必须在 2000 至 2100 之间。");
         if ((openingXml is not null || carry is not null) && openingZero || openingXml is not null && carry is not null)
@@ -30,14 +31,14 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         // IBKR 允许重复选择同一原件，解析器只读取一次，引用清单也只记录一次。
         files=files.DistinctBy(Path.GetFullPath,StringComparer.OrdinalIgnoreCase).ToArray();
         var result=CalculateParsed(data, files, year, openingZero, scopeConfirmed, openingXml, carry, cancellation,
-            saveCanonicalSnapshot: saveCanonicalSnapshot);
+            saveCanonicalSnapshot: saveCanonicalSnapshot,recalculatedFromSnapshotId:recalculatedFromSnapshotId);
         result.SealForPersistence(evidence.InfrastructureAssemblyHash); return result.Freeze();
     }
 
     /// <summary>使用已经规范化的领域输入执行统一计算，供原始导入和本地快照重放共用。</summary>
     private CalculationResult CalculateParsed(ImportData data, string[] files, int year, bool openingZero, bool scopeConfirmed,
         string? openingXml, CarryDocument? carry, CancellationToken cancellation, ReplayExecutionContext? replayContext = null,
-        string? canonicalInputOverride = null, bool saveCanonicalSnapshot = false)
+        string? canonicalInputOverride = null, bool saveCanonicalSnapshot = false, string? recalculatedFromSnapshotId=null)
     {
         // 保存合入结转前的原始期初记录；完整快照另外保存结转，重放只合入一次。
         var rawOpeningLots = FifoOrdering.Lots(data.OpeningLots).Select(l => l.Copy()).ToArray();
@@ -125,7 +126,8 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             canonical=node.ToJsonString();
         }
         var canonicalDigest = evidence.Hash(Encoding.UTF8.GetBytes(canonical));
-        var result = new CalculationResult { Broker = data.Broker, ImportProvenance=TaxImportProvenance.Merge(data.ImportProvenance??[]), ImportedTradeCount = data.Trades.Count(t => t.Time.Year == year),
+        var result = new CalculationResult { Broker = data.Broker, RecalculatedFromSnapshotId=recalculatedFromSnapshotId,
+            ImportProvenance=TaxImportProvenance.Merge(data.ImportProvenance??[]), ImportedTradeCount = data.Trades.Count(t => t.Time.Year == year),
             AccountPeriods=data.AccountPeriods.Count==0?null:(SnapshotList<AccountPeriodEvidence>)data.AccountPeriods.OrderBy(p=>p.Account,StringComparer.Ordinal).ToList(),
             AccountCoverage=data.AccountPeriods.Count==0?null:(SnapshotList<AccountCoverage>)accounts.Select(account=>
             {

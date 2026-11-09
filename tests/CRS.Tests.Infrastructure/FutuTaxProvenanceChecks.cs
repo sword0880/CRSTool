@@ -45,6 +45,15 @@ internal static class FutuTaxProvenanceChecks
         using var vault=new VaultManager();await vault.CreateAsync(Path.Combine(root,"vault"),"Synthetic-Futu-Provenance-2026");await TestStores.Enroll(vault);
         vault.Repository.Save(result);var loaded=vault.Repository.Load(result.SnapshotId);
         Check(loaded.ImportProvenance!.SequenceEqual(result.ImportProvenance!),"SQLCipher历史保留交易及收入版本");
+        File.WriteAllText(Path.Combine(root,"exchange_rate.json"),"""{"2025":{"CNY":1,"HKD":1,"USD":1}}""");
+        var workflow = new DesktopWorkflow(new DesktopOperations(vault.Repository,root,vault));
+        var source = (await workflow.CalculateAsync(new([trades,pdf],2025,"FUTU",true,true,false,null,false),default)).Result;
+        var plan = await workflow.PrepareHistoricalRecalculationAsync(source.SnapshotId,default);
+        var missing = plan.Originals.Single(original => !original.InVault);
+        var fresh = await workflow.RecalculateHistoryAsync(new(source.SnapshotId,
+            new Dictionary<string,string>{{missing.Name,pdf}},null,false),default);
+        Check(missing.Kind==HistoricalOriginalKind.Income && fresh.Result.RecalculatedFromSnapshotId==source.SnapshotId
+            && fresh.Result.Summary==source.Summary,"富途历史新算复用库内交易，补选 PDF 收入主表");
         File.Delete(trades);File.Delete(income);
         var replay=service.Replay(loaded);
         Check(replay.ImportProvenance!.SequenceEqual(loaded.ImportProvenance!)&&replay.Summary==loaded.Summary

@@ -23,6 +23,12 @@ public interface IDesktopUseCases
     Task<HistoryPageResult> QueryHistoryAsync(int pageNumber, int pageSize);
     Task<HistoryPageResult> QueryArchivedHistoryAsync(int pageNumber, int pageSize);
     Task SetHistoryArchivedAsync(string id, bool archived);
+    Task<HistoricalRecalculationPlan> PrepareHistoricalRecalculationAsync(string id, CancellationToken token)
+        => throw new NotSupportedException();
+    Task<DesktopCalculationOutcome> RecalculateHistoryAsync(HistoricalRecalculationRequest request, CancellationToken token)
+        => throw new NotSupportedException();
+    Task<IReadOnlyList<ImportHistoryComparison>> CompareImportHistoryAsync(string id, CancellationToken token)
+        => throw new NotSupportedException();
     /// <summary>查询历史报告及期初原件要求。</summary>
     Task<OriginalFileRequirements> OriginalFileRequirementsAsync(string id);
     /// <summary>验证用户重新选择的原件，不修改历史结果。</summary>

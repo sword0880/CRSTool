@@ -12,6 +12,8 @@ public interface IVaultStorageBackend : IVaultService
     IPerformanceUseCases CreatePerformanceUseCases(bool online=true);
     Action<Action> CaptureGuard();
     void Execute(Action action);
+    IReadOnlySet<string> ArchivedOriginalHashes(string[] hashes, Action<Action> originalSession, CancellationToken token);
+    FrozenInput? ReadArchivedOriginal(string name, string hash, Action<Action> originalSession, CancellationToken token);
     PerformanceDocument PrepareSharedPerformance(FrozenInput input,string broker,CancellationToken cancellation,
         Action<Action> originalSession,BrokerSourceDocument? sourceFacts=null);
     void CommitCalculation(CalculationResult result,IReadOnlyList<PerformanceDocument> documents,

@@ -9,9 +9,78 @@ public sealed record PerformanceAccountValuation(DateOnly? Date, string? Currenc
     public string? NetAssetsUnavailableReason { get; init; }
 }
 
+public sealed record PerformanceAnnualBrokerAssets(string Broker, decimal? NetAssetsCny,
+    PerformanceCurrencyAmount[] NativeAmounts, int CoveredAccounts, int ExpectedAccounts, bool MissingRates);
+
+public sealed record PerformanceAnnualAssets(int Year, DateOnly? Date, bool MissingYearEnd,
+    PerformanceAnnualBrokerAssets[] Brokers, decimal? TotalCny);
+
 /// <summary>从本地绩效资料读取每个账户最新的日末估值。</summary>
 public static class PerformanceAccountValuations
 {
+    public static DateOnly[] AnnualDates(PerformanceData data, DateOnly through)
+    {
+        var accountIds = data.Accounts.Select(a => a.Id).ToHashSet();
+        return data.Valuations.Where(v => v.Moment == ValuationMoment.EndOfDay &&
+                v.Date.Year >= 2000 && v.Date <= through && accountIds.Contains(v.AccountId))
+            .GroupBy(v => v.Date.Year).Select(g => g.Max(v => v.Date)).Order().ToArray();
+    }
+
+    public static PerformanceAnnualAssets[] Annual(PerformanceData data, DateOnly through,
+        PerformanceFx[] cachedRates, CancellationToken cancellation = default)
+    {
+        var dates = AnnualDates(data, through);
+        if (dates.Length == 0) return [];
+
+        var importedPairs = data.Fx.ToLookup(f => (f.From, f.To, f.Date));
+        var additionalRates = cachedRates.Where(f =>
+            !importedPairs.Contains((f.From, f.To, f.Date)) && !importedPairs.Contains((f.To, f.From, f.Date)));
+        var context = new PerformanceCalculationContext(data with { Fx = [.. data.Fx, .. additionalRates] },
+            new(data.Accounts.Select(a => a.Id).ToArray(), through, through), cancellation);
+        var byYear = dates.ToDictionary(date => date.Year);
+        return Enumerable.Range(dates[0].Year, dates[^1].Year - dates[0].Year + 1)
+            .Select(year => byYear.TryGetValue(year, out var date)
+                ? ReadYear(context, date, year < through.Year && date != new DateOnly(year, 12, 31))
+                : new PerformanceAnnualAssets(year, null, false, [], null)).ToArray();
+    }
+
+    private static PerformanceAnnualAssets ReadYear(PerformanceCalculationContext context, DateOnly date, bool missingYearEnd)
+    {
+        // 账户一旦进入资料覆盖范围，后续年份缺少同日快照时保留缺口。
+        var brokers = context.Accounts.Values
+            .Where(a => a.TrustedFrom <= date || context.Valuations.Contains((a.Id, date, ValuationMoment.EndOfDay)))
+            .GroupBy(a => a.Broker)
+            .Select(group =>
+            {
+                var accounts = group.Select(a => ReadAnnualAccount(context, a.Id, date)).ToArray();
+                var covered = accounts.Where(a => a.Amount.HasValue).ToArray();
+                return new PerformanceAnnualBrokerAssets(group.Key,
+                    covered.Length == 0 ? null : covered.Sum(a => a.Amount!.Value),
+                    SumByCurrency(covered.SelectMany(a => a.Native).Select(a => (a.Currency, a.Amount))),
+                    covered.Length, accounts.Length, accounts.Any(a => a.Amount is null && a.Native.Length > 0));
+            }).ToArray();
+        var total = !missingYearEnd && brokers.Length > 0 && brokers.All(b => b.CoveredAccounts == b.ExpectedAccounts)
+            ? brokers.Sum(b => b.NetAssetsCny) : (decimal?)null;
+        return new(date.Year, date, missingYearEnd, brokers, total);
+    }
+
+    private static (decimal? Amount, PerformanceCurrencyAmount[] Native) ReadAnnualAccount(
+        PerformanceCalculationContext context, string id, DateOnly date)
+    {
+        context.Cancellation.ThrowIfCancellationRequested();
+        var diagnostics = new PerformanceDiagnostics(context);
+        var valuation = new PerformanceValuationEngine(context, diagnostics);
+        var snapshot = valuation.Snapshot(id, date, ValuationMoment.EndOfDay);
+        if (snapshot is null) return (null, []);
+
+        // 沿用日末估值的持仓定价和原币投影。原币净额为零时无需汇率。
+        _ = ReadAmount(() => valuation.AccountNav(id, date, ValuationMoment.EndOfDay));
+        var native = NativeNetAssets(snapshot, diagnostics.Exposure);
+        return native.Length == 0 ? (null, []) :
+            (ReadAmount(() => valuation.SumConverted(native.Where(a => a.Amount != 0)
+                .Select(a => (a.Amount!.Value, a.Currency, date)))), native);
+    }
+
     public static IReadOnlyDictionary<string, PerformanceAccountValuation> Latest(
         PerformanceData data, DateOnly through, CancellationToken cancellation = default)
     {

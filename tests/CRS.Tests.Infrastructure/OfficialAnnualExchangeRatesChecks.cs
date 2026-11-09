@@ -45,6 +45,13 @@ internal static class OfficialAnnualExchangeRatesChecks
 
         using var offline = new HttpClient(new StubHandler(_ => throw new HttpRequestException("Synthetic offline")));
         var restarted = new OfficialAnnualExchangeRates(root, offline, clock);
+        var valuationRates = restarted.ReadCachedValuationRates(
+            [new(2023, 12, 31), new(2025, 12, 30), new(2026, 1, 12), new(2026, 1, 14)]);
+        Check(valuationRates.Length == 6 &&
+            valuationRates.Single(f => f.From == "USD" && f.Date.Year == 2026).Rate == 7.024m &&
+            valuationRates.Single(f => f.From == "HKD" && f.Date.Year == 2025).Rate == .90394m &&
+            valuationRates.Single(f => f.From == "USD" && f.Date.Year == 2023).Source.RowIdentity == "2023-12-29",
+            "年度资产须复用估值日或之前的最近报价，不能套用税务均值或缓存范围外的报价");
         var restored = await restarted.LoadAsync(2026, default, refresh: true);
         Check(restored.Fingerprint == current.Fingerprint, "离线时须恢复同年度的已校验缓存");
         await CheckUnavailable(() => restarted.LoadAsync(2024, default), 2024);

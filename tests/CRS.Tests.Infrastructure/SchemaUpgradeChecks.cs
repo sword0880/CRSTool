@@ -21,7 +21,7 @@ internal static class SchemaUpgradeChecks
         using var session=new VaultSession(directory,key.Clone());
         using(var c=session.Open())
         {
-            if(c.ExecuteScalar<int>("PRAGMA user_version")!=3) throw new Exception("新建库未使用新版结构。");
+            if(c.ExecuteScalar<int>("PRAGMA user_version")!=DatabaseSchema.CurrentVersion) throw new Exception("新建库未使用新版结构。");
             // 模拟真正的旧版业务结构，而不是只改版本数字；认证表保持原样。
             c.Execute("""
                 DROP TABLE calculation_import_history; DROP TABLE run_execution_artifacts; DROP TABLE execution_artifacts; DROP TABLE reviews; DROP TABLE calculations;
@@ -54,7 +54,7 @@ internal static class SchemaUpgradeChecks
         using(var c=session.Open())
         {
             DatabaseSchema.Ensure(session,c);
-            if(c.ExecuteScalar<int>("PRAGMA user_version")!=3 || c.ExecuteScalar<string>("SELECT result_json FROM calculations WHERE id='LEGACY'")!=original
+            if(c.ExecuteScalar<int>("PRAGMA user_version")!=DatabaseSchema.CurrentVersion || c.ExecuteScalar<string>("SELECT result_json FROM calculations WHERE id='LEGACY'")!=original
                 || c.ExecuteScalar<int>("SELECT execution_archived FROM calculations WHERE id='LEGACY'")!=0
                 || c.ExecuteScalar<int>("SELECT COUNT(*) FROM execution_artifacts")!=0) throw new Exception("升级改写旧结果或补造程序归档。");
             var count=Directory.GetFiles(directory,"schema-v1-*.crsbak").Length; DatabaseSchema.Ensure(session,c);
@@ -81,7 +81,7 @@ internal static class SchemaUpgradeChecks
             if(c.ExecuteScalar<int>("PRAGMA user_version")!=99) throw new Exception("新版本被降级。");
             c.Execute("PRAGMA user_version=1"); Reject<CrsException>(()=>DatabaseSchema.Ensure(session,c));
             if(Directory.GetFiles(directory,"schema-v1-*.crsbak").Length!=count) throw new Exception("未识别结构仍执行升级备份。");
-            c.Execute("PRAGMA user_version=3");
+            c.Execute($"PRAGMA user_version={DatabaseSchema.CurrentVersion}");
         }
         // 旧版升级前备份与新版含程序文件备份都通过现有便携恢复路径。
         using var restored=new VaultManager(); var oldTarget=Path.Combine(root,"restored-schema-old");

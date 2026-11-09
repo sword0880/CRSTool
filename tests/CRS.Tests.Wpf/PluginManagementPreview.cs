@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CRS.DesktopClient.Views.Pages;
 using CRS.PluginHost;
 
@@ -43,11 +44,21 @@ internal static class PluginManagementPreview
                         if(page.Rows[0].IsNextEnabled || saves.Count!=1 || !saves[0].EndsWith(":False",StringComparison.Ordinal))
                             throw new InvalidOperationException("插件启动选项未透传到原保存回调");
                     }
+                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                    root.UpdateLayout();
                     var bitmap=new RenderTargetBitmap(width,740,96,96,PixelFormats.Pbgra32);
                     bitmap.Render(root);
                     var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
                     using var output=File.Create(Path.Combine(directory,$"plugin-management-{width}.png"));
                     encoder.Save(output);
+                    var row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
+                    var sample = row.TranslatePoint(new Point(row.ActualWidth / 2, row.ActualHeight - 5), root);
+                    var pixel = new byte[4];
+                    bitmap.CopyPixels(new Int32Rect((int)sample.X, (int)sample.Y, 1, 1), pixel, 4, 0);
+                    var selection = ((SolidColorBrush)app.FindResource("BrandPressedSurfaceBrush")).Color;
+                    var actual = Color.FromArgb(pixel[3], pixel[2], pixel[1], pixel[0]);
+                    if (actual != selection)
+                        throw new InvalidOperationException($"插件选中行底色为 {actual}，应为 {selection}。行选中状态：{row.IsSelected}，行背景：{row.Background}。");
                 }
                 Console.WriteLine("PASS 插件管理：80行合成状态、只读与禁排序、行回收、整行选择、保存回调及三种宽度截图");
             }

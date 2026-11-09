@@ -13,10 +13,31 @@ internal static class ImportHistoryIndex
         CREATE TABLE calculation_import_history(
           snapshot_id TEXT NOT NULL PRIMARY KEY REFERENCES calculations(id),
           broker TEXT NOT NULL, identity TEXT, details TEXT NOT NULL,
-          archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)));
+          archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)), archive_group TEXT);
         CREATE INDEX calculation_import_identity ON calculation_import_history(identity,archived);
         CREATE INDEX calculation_import_broker ON calculation_import_history(broker);
-        """;
+        """ + ArchiveIndex;
+    private const string ArchiveIndex = "CREATE INDEX calculation_archive_group ON calculation_import_history(archive_group,archived);";
+
+    internal static void AddArchiveGroups(SqliteConnection c, SqliteTransaction tx)
+    {
+        c.CreateFunction<string,int,string,string?>("crs_archive_group", (broker,year,json) =>
+        {
+            try
+            {
+                var details = JsonSerializer.Deserialize<Details>(json);
+                return details?.Sources is { Length: > 0 } sources
+                    && sources.All(s => s?.Sha256 is { Length: 64 } hash && hash.All(Uri.IsHexDigit))
+                    ? ArchiveGroup(broker,year,sources) : null;
+            }
+            catch (JsonException) { return null; }
+        },isDeterministic:true);
+        c.Execute("""
+            ALTER TABLE calculation_import_history ADD COLUMN archive_group TEXT;
+            UPDATE calculation_import_history AS h SET archive_group=crs_archive_group(broker,
+              (SELECT year FROM calculations WHERE id=h.snapshot_id),details);
+            """ + ArchiveIndex,transaction:tx);
+    }
 
     private const string Projection = """
         WITH bounded AS MATERIALIZED (
@@ -50,9 +71,10 @@ internal static class ImportHistoryIndex
                 new { identity }, tx) != 0)
                 throw new CrsException("另一项操作已保存相同资料的结果。请重试以打开已有结果。");
             c.Execute("""
-                INSERT INTO calculation_import_history(snapshot_id,broker,identity,details)
-                VALUES(@Id,@Broker,@identity,@json)
-                """, new { row.Id, row.Broker, identity, json = JsonSerializer.Serialize(details) }, tx);
+                INSERT INTO calculation_import_history(snapshot_id,broker,identity,details,archive_group)
+                VALUES(@Id,@Broker,@identity,@json,@archiveGroup)
+                """, new { row.Id, row.Broker, identity, json = JsonSerializer.Serialize(details),
+                    archiveGroup = ArchiveGroup(row.Broker,row.Year,details.Sources) }, tx);
         }
     }
 
@@ -68,18 +90,21 @@ internal static class ImportHistoryIndex
         });
         if (current is null) return null;
         var key = Identity(result.Broker,current);
+        var archiveGroup = ArchiveGroup(result.Broker,result.Year,current.Sources);
         using var command = c.CreateCommand();
         // SQLite 逐行读取；只取索引摘要与提示所需字段。
         command.Transaction = tx;
         command.CommandText = """
             SELECT calculations.id,year,created_utc,complete,issues,archived,identity,details,
-              (SELECT COUNT(*) FROM calculation_import_history AS copy WHERE copy.identity=h.identity AND copy.archived=0)
+              CASE WHEN h.archive_group=$archiveGroup THEN (SELECT COUNT(*) FROM calculation_import_history AS copy
+                WHERE copy.archive_group=$archiveGroup AND copy.archived=0) ELSE 0 END
             FROM calculation_import_history AS h JOIN calculations ON calculations.id=h.snapshot_id
             WHERE h.broker=$broker
             ORDER BY (identity=$key) DESC,archived,julianday(created_utc) DESC,calculations.id DESC
             """;
         command.Parameters.AddWithValue("$broker", result.Broker);
         command.Parameters.AddWithValue("$key", (object?)key ?? DBNull.Value);
+        command.Parameters.AddWithValue("$archiveGroup", archiveGroup);
         using var rows = command.ExecuteReader();
         ImportReview? shared = null;
         ImportReview? overlapMatch = null;
@@ -117,6 +142,48 @@ internal static class ImportHistoryIndex
 
     private static string[] Names(IEnumerable<SourceReport> sources)
         => sources.Select(s => s.File).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+
+    internal static IReadOnlyList<ImportHistoryComparison> Compare(SqliteConnection c, SqliteTransaction tx, string id, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var rows = c.Query<ComparisonRow>("""
+            WITH group_rows AS MATERIALIZED (
+              SELECT h.snapshot_id,c.created_utc,c.complete,c.issues,h.archived
+              FROM calculation_import_history AS h JOIN calculations AS c ON c.id=h.snapshot_id
+              WHERE h.archive_group=(SELECT archive_group FROM calculation_import_history WHERE snapshot_id=@id)
+              ORDER BY (h.snapshot_id=@id) DESC,h.archived,julianday(c.created_utc) DESC,h.snapshot_id DESC LIMIT 100
+            )
+            SELECT r.snapshot_id AS Id,r.created_utc AS CreatedUtc,r.complete AS Complete,r.issues AS Issues,r.archived AS IsArchived,
+              CASE WHEN json_valid(h.details) THEN json_extract(h.details,'$.Conditions') END AS Conditions,
+              CASE WHEN json_valid(h.details) THEN json_extract(h.details,'$.Files') END AS FileRoles,
+              CASE WHEN length(CAST(c.result_json AS BLOB))<=@MaxBytes
+                THEN CASE WHEN json_valid(c.result_json) THEN json_extract(c.result_json,'$.Summary') END END AS Summary
+            FROM group_rows AS r JOIN calculations AS c ON c.id=r.snapshot_id
+              JOIN calculation_import_history AS h ON h.snapshot_id=r.snapshot_id
+            ORDER BY (r.snapshot_id=@id) DESC,r.archived,julianday(r.created_utc) DESC,r.snapshot_id DESC
+            """,new { id, PersistedResultLimits.MaxBytes },tx).ToArray();
+        if (rows.Length < 2) throw new CrsException("当前任务暂无可比较的同批记录。");
+        var baseline = ReadJson<Condition[]>(rows[0].Conditions);
+        return rows.Select(row =>
+        {
+            token.ThrowIfCancellationRequested();
+            var selected = row.Id == id;
+            var conditions = ReadJson<Condition[]>(row.Conditions);
+            string[] differences = selected ? []
+                : baseline is null || conditions is null ? ["部分历史核算条件未登记"]
+                : baseline.Except(conditions).Concat(conditions.Except(baseline)).Select(condition => condition.Label).Distinct().ToArray();
+            if (!selected && row.FileRoles != rows[0].FileRoles) differences = ["报表用途", ..differences];
+            var summary = ReadJson<TaxSummary>(row.Summary);
+            return new ImportHistoryComparison(row.Id,CRS.Timing.BeijingClock.NormalizeText(row.CreatedUtc),row.Complete,row.Issues,row.IsArchived,
+                summary?.GainCny,summary?.EstimatedTopUpCny,differences,selected);
+        }).ToArray();
+    }
+
+    private static T? ReadJson<T>(string? json)
+    {
+        try { return json is null ? default : JsonSerializer.Deserialize<T>(json); }
+        catch (JsonException) { return default; }
+    }
 
     private static Details? Read(Snapshot row)
     {
@@ -169,10 +236,27 @@ internal static class ImportHistoryIndex
     private static string? Identity(string broker, Details details) => details.Conditions is null
         ? null : Digest(new { Broker = broker, details.Files, details.Conditions });
 
+    // 归档按整批原件归组，导入去重仍使用包含核算条件的 Identity。
+    private static string ArchiveGroup(string broker, int year, SourceReport[] sources)
+        => Digest(new { broker, year, hashes = sources.Select(s => s.Sha256.ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray() });
+
     private static string Digest<T>(T value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
 
     private sealed record Details(SourceReport[] Sources, string[] Files, Condition[]? Conditions);
     private sealed record Condition(string Label, string Digest);
+
+    private sealed class ComparisonRow
+    {
+        public string Id { get; set; } = "";
+        public string CreatedUtc { get; set; } = "";
+        public bool Complete { get; set; }
+        public int Issues { get; set; }
+        public bool IsArchived { get; set; }
+        public string? Conditions { get; set; }
+        public string? FileRoles { get; set; }
+        public string? Summary { get; set; }
+    }
 
     private sealed class Snapshot
     {

@@ -1,11 +1,15 @@
 namespace CRS.Application;
 
+public enum HistoryReplayAvailability { NoSnapshot, DifferentBuild, Available }
+
 /// <summary>历史运行索引，供应用和界面查询，保持现有存储字段语义。</summary>
 public sealed record HistoryItem(string Id, int Year, string CreatedUtc, bool Complete, int Issues, string Broker = "未登记", string? ParentSnapshotId = null, bool IsAnnualAggregate = false, string AccountScope = "")
 {
     public string DuplicateGroup { get; init; } = "";
     public int ActiveCopies { get; init; }
     public bool IsArchived { get; init; }
+    public HistoryReplayAvailability ReplayAvailability { get; init; }
+    public string? RecalculatedFromSnapshotId { get; init; }
 }
 
 /// <summary>分页索引同时返回总数，避免界面把最近一百份误当作全部历史。</summary>

@@ -13,6 +13,10 @@ public sealed class LocalStore : ICalculationRepository
 {
     public string DirectoryPath { get; }
     private readonly VaultSession session;
+    private static readonly Lazy<(string App, string Domain, string Infrastructure)> ExecutionBuild = new(() => (
+        RunEvidenceSeal.AssemblyHash(typeof(CalculationResult).Assembly.Location),
+        RunEvidenceSeal.AssemblyHash(typeof(FifoEngine).Assembly.Location),
+        RunEvidenceSeal.AssemblyHash(typeof(LocalStore).Assembly.Location)));
     /// <summary>打开本地 SQLite 存储并初始化版本化表结构，不向仓库写入账户资料。</summary>
     internal LocalStore(VaultSession session,bool create=false)
     {
@@ -39,10 +43,18 @@ public sealed class LocalStore : ICalculationRepository
     /// <summary>在事务中保存计算结果和可用结转，参数化写入避免说明文本改变 SQL。</summary>
     public void Save(CalculationResult r) => SaveImport(r, true);
 
-    public void SaveImport(CalculationResult r, bool allowDuplicate)
+    public void Save(CalculationResult r, CancellationToken token) => SaveImport(r,true,token);
+
+    public void SaveImport(CalculationResult r, bool allowDuplicate) => SaveImport(r,allowDuplicate,default);
+
+    private void SaveImport(CalculationResult r, bool allowDuplicate, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         using var lease=session.Enter();using var c=Open();using var tx=c.BeginTransaction();
-        Save(c,tx,r,allowDuplicate);tx.Commit();
+        Save(c,tx,r,allowDuplicate);
+        token.ThrowIfCancellationRequested();
+        session.Lifetime.ThrowIfCancellationRequested();
+        tx.Commit();
     }
     internal void Save(SqliteConnection c,SqliteTransaction tx,CalculationResult r,bool allowDuplicate=true)
     {
@@ -57,6 +69,10 @@ public sealed class LocalStore : ICalculationRepository
         if (r.ParentSnapshotId is { } parent && (parent == r.SnapshotId
             || c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations WHERE id=@Parent AND year=@Year", new { Parent = parent, r.Year }, tx) != 1))
             throw new CrsException("复算父运行不存在或年度不一致，不能保存。");
+        if (r.RecalculatedFromSnapshotId is { } origin && (origin == r.SnapshotId
+            || c.ExecuteScalar<int>("SELECT COUNT(*) FROM calculations WHERE id=@origin AND year=@Year",
+                new { origin, r.Year }, tx) != 1))
+            throw new CrsException("当前规则重算的来源任务不存在或年度不一致，不能保存。");
         // 来源任务必须存在且属于相同年度，汇总记录与来源关系在同一事务中保存。
         foreach (var source in r.AggregationSources)
             if (source.SnapshotId == r.SnapshotId || source.Year != r.Year
@@ -93,31 +109,47 @@ public sealed class LocalStore : ICalculationRepository
             """, new { Archived = archived }, tx);
         // 总数减少时回到最后有效页，刷新后不显示空的越界页。
         var page = Math.Min(pageNumber, Math.Max(1, (int)Math.Ceiling(total / (double)pageSize)));
+        var build = ExecutionBuild.Value;
         // SQLite INTEGER 返回 Int64，先映射可写行模型再构造领域记录，避免 record 构造类型不匹配。
         // 先限制本页，再处理 JSON；超大或损坏单条记录仍占据原历史位置，但不拖垮整页。
         var rows = c.Query<HistoryRow>("""
             WITH page AS MATERIALIZED (
-              SELECT c.id,h.identity FROM calculations AS c LEFT JOIN calculation_import_history AS h ON h.snapshot_id=c.id
+              SELECT c.id,h.archive_group FROM calculations AS c LEFT JOIN calculation_import_history AS h ON h.snapshot_id=c.id
               WHERE COALESCE(h.archived,0)=@Archived ORDER BY julianday(created_utc) DESC,c.id DESC LIMIT @Limit OFFSET @Offset
             ),
             bounded AS (SELECT calculations.*,CASE WHEN length(CAST(result_json AS BLOB)) BETWEEN 1 AND @MaxBytes
-              THEN CASE WHEN json_valid(result_json) THEN result_json ELSE NULL END ELSE NULL END AS safe_json,page.identity
+              THEN CASE WHEN json_valid(result_json) THEN result_json ELSE NULL END ELSE NULL END AS safe_json,
+              page.archive_group
               FROM calculations INNER JOIN page ON calculations.id=page.id)
             SELECT id AS Id,year AS Year,created_utc AS CreatedUtc,complete AS Complete,issues AS Issues,
               COALESCE(substr(json_extract(safe_json,'$.Broker'),1,32),CASE WHEN safe_json IS NULL THEN '记录异常' ELSE '未登记' END) AS Broker,
               substr(json_extract(safe_json,'$.ParentSnapshotId'),1,128) AS ParentSnapshotId,
+              substr(json_extract(safe_json,'$.RecalculatedFromSnapshotId'),1,128) AS RecalculatedFromSnapshotId,
               COALESCE(json_array_length(json_extract(safe_json,'$.AggregationSources')),0) AS AggregationSourceCount,
               CASE WHEN length(CAST(json_extract(safe_json,'$.CoveredAccounts') AS BLOB))<=262144
                 THEN json_extract(safe_json,'$.CoveredAccounts') ELSE '[]' END AS AccountsJson,
-              substr(identity,1,8) AS DuplicateGroup,
-              (SELECT COUNT(*) FROM calculation_import_history AS h WHERE h.identity=bounded.identity AND h.archived=0) AS ActiveCopies,
-              (SELECT COUNT(*) FROM calculation_import_history AS h WHERE h.identity=bounded.identity) AS TotalCopies
+              (json_extract(safe_json,'$.IsReplayable') IS 1
+                AND json_extract(safe_json,'$.InputRecoveryMode') IS @ReplayMode
+                AND COALESCE(length(trim(json_extract(safe_json,'$.CanonicalInputJson'))),0)>0) AS HasReplaySnapshot,
+              (json_extract(safe_json,'$.EvidenceSeal') IS NULL OR (
+                json_extract(safe_json,'$.EvidenceSeal.ApplicationSha256') IS @App
+                AND json_extract(safe_json,'$.EvidenceSeal.DomainSha256') IS @Domain
+                AND json_extract(safe_json,'$.EvidenceSeal.InfrastructureSha256') IS @Infrastructure)) AS ReplayBuildMatches,
+              substr(archive_group,1,8) AS DuplicateGroup,
+              (SELECT COUNT(*) FROM calculation_import_history AS h
+                WHERE h.archive_group=bounded.archive_group AND h.archived=0) AS ActiveCopies,
+              (SELECT COUNT(*) FROM calculation_import_history AS h
+                WHERE h.archive_group=bounded.archive_group) AS TotalCopies
             FROM bounded ORDER BY julianday(created_utc) DESC,id DESC
             """,
-            new { Limit = pageSize, Offset = (page - 1) * pageSize, MaxBytes=PersistedResultLimits.MaxBytes, Archived=archived }, tx)
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, MaxBytes=PersistedResultLimits.MaxBytes,
+                Archived=archived, ReplayMode=(int)InputRecoveryMode.CanonicalLocalSnapshot, build.App, build.Domain, build.Infrastructure }, tx)
             .Select(r => new HistoryItem(r.Id, r.Year, CRS.Timing.BeijingClock.NormalizeText(r.CreatedUtc), r.Complete == 1, r.Issues, r.Broker, r.ParentSnapshotId, r.AggregationSourceCount > 0 || r.Broker == "MULTI",
                 string.Join("、",ReadAccounts(r.AccountsJson)))
-                { DuplicateGroup=r.TotalCopies>1?r.DuplicateGroup:"", ActiveCopies=r.ActiveCopies, IsArchived=archived }).ToList();
+                { DuplicateGroup=r.TotalCopies>1?r.DuplicateGroup:"", ActiveCopies=r.ActiveCopies,
+                    IsArchived=archived, RecalculatedFromSnapshotId=r.RecalculatedFromSnapshotId,
+                    ReplayAvailability = !r.HasReplaySnapshot ? HistoryReplayAvailability.NoSnapshot
+                        : r.ReplayBuildMatches ? HistoryReplayAvailability.Available : HistoryReplayAvailability.DifferentBuild }).ToList();
         return new(rows, total, page, pageSize);
     }
 
@@ -128,6 +160,23 @@ public sealed class LocalStore : ICalculationRepository
         return ImportHistoryIndex.Find(c,tx,result,cancellation);
     }
 
+    public IReadOnlyList<ImportHistoryComparison> CompareImportHistory(string id, CancellationToken token)
+    {
+        using var lease=session.Enter(); using var c=Open(); using var tx=c.BeginTransaction(deferred:true);
+        return ImportHistoryIndex.Compare(c,tx,id,token);
+    }
+
+    public CarryDocument? ReadHistoricalCarry(string id, CancellationToken token)
+    {
+        using var lease=session.Enter(); using var c=Open();
+        token.ThrowIfCancellationRequested();
+        var bytes = c.ExecuteScalar<byte[]>("SELECT carry FROM calculations WHERE id=@id AND length(carry) BETWEEN 1 AND @MaxBytes",
+            new { id, CarryFiles.MaxBytes });
+        token.ThrowIfCancellationRequested();
+        try { return bytes is null ? null : CarryFiles.Decode(bytes); }
+        catch (CrsException) { return null; }
+    }
+
     public void SetHistoryArchived(string id, bool archived)
     {
         using var lease=session.Enter(); using var c=Open(); using var tx=c.BeginTransaction();
@@ -135,7 +184,8 @@ public sealed class LocalStore : ICalculationRepository
             UPDATE calculation_import_history AS current SET archived=@Archived WHERE snapshot_id=@Id
               AND (@Archived=0 OR current.archived=1 OR EXISTS(
                 SELECT 1 FROM calculation_import_history AS other
-                WHERE other.identity=current.identity AND other.archived=0 AND other.snapshot_id<>current.snapshot_id))
+                WHERE other.archive_group=current.archive_group
+                  AND other.archived=0 AND other.snapshot_id<>current.snapshot_id))
             """,new { Id=id, Archived=archived },tx);
         if(changed!=1) throw new CrsException("只能归档有另一条在用副本的重复任务，每组须至少保留一条。");
         session.Lifetime.ThrowIfCancellationRequested();
@@ -189,6 +239,7 @@ public sealed class LocalStore : ICalculationRepository
         public string Broker { get; set; } = "未登记";
         public string Id { get; set; } = "";
         public string? ParentSnapshotId { get; set; }
+        public string? RecalculatedFromSnapshotId { get; set; }
         public int AggregationSourceCount { get; set; }
         public string AccountsJson { get; set; } = "[]";
         public int Year { get; set; }
@@ -198,5 +249,7 @@ public sealed class LocalStore : ICalculationRepository
         public string DuplicateGroup { get; set; } = "";
         public int ActiveCopies { get; set; }
         public int TotalCopies { get; set; }
+        public bool HasReplaySnapshot { get; set; }
+        public bool ReplayBuildMatches { get; set; }
     }
 }

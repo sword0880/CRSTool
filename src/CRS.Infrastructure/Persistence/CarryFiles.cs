@@ -5,6 +5,7 @@ namespace CRS.Infrastructure;
 
 public static class CarryFiles
 {
+    internal const int MaxBytes = 2 * 1024 * 1024;
     private sealed record Envelope(string Format, string Sha256, CarryDocument Data);
     /// <summary>仅从可信年末库存创建结转，保存成本、费用及舍入余差。</summary>
     public static CarryDocument Create(CalculationResult r)
@@ -19,17 +20,24 @@ public static class CarryFiles
     /// <summary>限量读取结转文件，验证格式、摘要及内部批次约束。</summary>
     public static CarryDocument Read(string path)
     {
+        // 大小检查与正文读取使用同一只读句柄；读取期间禁止写入或替换原件。
+        using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (file.Length is <= 0 or > MaxBytes) throw new CrsException("结转文件必须非空且不能超过 2 MB。");
+        var bytes = new byte[(int)file.Length]; file.ReadExactly(bytes);
+        if (file.ReadByte() != -1) throw new CrsException("结转文件在读取期间发生变化，请重试。");
+        return Decode(bytes);
+    }
+
+    internal static CarryDocument Decode(byte[] bytes)
+    {
         try
         {
-            // 大小检查与正文读取使用同一只读句柄；读取期间禁止写入或替换原件。
-            using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (file.Length is <= 0 or > 2 * 1024 * 1024) throw new CrsException("结转文件必须非空且不能超过 2 MB。");
-            var bytes = new byte[(int)file.Length]; file.ReadExactly(bytes);
-            if (file.ReadByte() != -1) throw new CrsException("结转文件在读取期间发生变化，请重试。");
             PersistedResultLimits.Validate(bytes,"结转文件");
             var e = JsonSerializer.Deserialize<Envelope>(bytes);
-            if (e is null || e.Format != "CRS_DOTNET_LOT_CARRY" || e.Data is null || e.Sha256 != XmlFields.HashJson(e.Data)) throw new CrsException("结转格式或摘要无效。");
-            Validate(e.Data, e.Data.Year + 1, e.Data.Accounts); return e.Data;
+            if (e is null || e.Format != "CRS_DOTNET_LOT_CARRY" || e.Data is null || e.Sha256 != XmlFields.HashJson(e.Data))
+                throw new CrsException("结转格式或摘要无效。");
+            Validate(e.Data,e.Data.Year+1,e.Data.Accounts);
+            return e.Data;
         }
         catch (JsonException) { throw new CrsException("结转文件不是有效的 C# 版 JSON。"); }
     }

@@ -3,9 +3,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views.Pages;
 using CRS.DesktopClient.Views.Pages.Performance;
+using LiveChartsCore.SkiaSharpView.WPF;
 
 /// <summary>验证绩效只读子视图可独立排版，完全使用合成模型，不访问真实资料库。</summary>
 internal static class PerformanceComponentPreview
@@ -17,7 +19,7 @@ internal static class PerformanceComponentPreview
         {
             try
             {
-                var app=new System.Windows.Application();
+                var app=new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=Wpf.Ui.Appearance.ApplicationTheme.Light});
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
@@ -28,6 +30,17 @@ internal static class PerformanceComponentPreview
                     { NetAssetsByCurrency = [new("HKD", 20000), new("USD", 1200)], CashByCurrency = [new("HKD", 0), new("USD", -50)] },
                     new("盈透证券（IBKR）", "美股账户 · 尾号 5678", new(2025, 11, 30), "USD", 34567, 1234),
                     new("富途证券", "待补资料账户", null, null, null, null)];
+                performance.UpdateAnnualAssets(
+                    [new(2023, null, false, [], null),
+                    new(2024, new(2024, 12, 31), false,
+                        [new("FUTU", 130000, [new("HKD", 142000)], 1, 1, false),
+                            new("IBKR", 160000, [new("USD", 22400)], 1, 1, false)], 290000),
+                    new(2025, new(2025, 12, 31), false,
+                        [new("FUTU", 185000, [new("HKD", 203000)], 1, 1, false),
+                            new("IBKR", 240000, [new("USD", 33600)], 1, 1, false)], 425000),
+                    new(2026, new(2026, 10, 9), false,
+                        [new("FUTU", null, [], 0, 1, false),
+                            new("IBKR", 270000, [new("USD", 37900)], 1, 1, false)], null)], 2026);
                 string? route = null;
                 shell.NavigateRequested += page => route = page;
                 shell.Dashboard.OpenAccountOverviewCommand.Execute(null);
@@ -53,16 +66,39 @@ internal static class PerformanceComponentPreview
                     view.DataContext=shell.Performance;
                     foreach(var width in new[]{1040,1280,1440})
                     {
+                        var height = name == "accounts" ? 740 : 600;
                         var root=new Border{Background=(Brush)app.FindResource("BrandCanvasBrush"),Child=view};
-                        root.Measure(new(width,600));root.Arrange(new Rect(0,0,width,600));root.UpdateLayout();
-                        if(view.ActualWidth<width-2||view.ActualHeight<598)
+                        root.Measure(new(width,height));root.Arrange(new Rect(0,0,width,height));root.UpdateLayout();
+                        if(view.ActualWidth<width-2||view.ActualHeight<height-2)
                             throw new InvalidOperationException($"绩效 {name} 子视图没有填满视口：{view.ActualWidth}x{view.ActualHeight}");
                         var tables=Collect<DataGrid>(view).ToArray();
                         if (name == "accounts")
                         {
                             var accountTable = (DataGrid)view.FindName("AccountTable");
                             var totalsTable = (DataGrid)view.FindName("AccountTotalsTable");
+                            var assetsChart = (CartesianChart)view.FindName("AnnualAssetsChart");
+                            var annualTable = (DataGrid)view.FindName("AnnualAssetTable");
+                            var latestValue = (TextBlock)view.FindName("LatestAssetValue");
+                            var assetVisibility = (Button)view.FindName("LatestAssetVisibilityButton");
+                            var details = (Expander)view.FindName("AccountDetailsPanel");
                             var showAll = (CheckBox)view.FindName("ShowAccountsWithoutAmounts");
+                            if (assetsChart.ActualHeight < 230 || assetsChart.Series.Count() != 3
+                                || assetsChart.YAxes.Single().MinLimit != 0)
+                                throw new InvalidOperationException("账户汇总的年度资产图未显示或未绑定两家券商和总额折线。");
+                            if (annualTable.Items.Count != 4 || latestValue.Text != "¥ ••••••" || details.IsExpanded
+                                || latestValue.TranslatePoint(new(0, 0), root).Y >= assetsChart.TranslatePoint(new(0, 0), root).Y
+                                || assetsChart.TranslatePoint(new(0, 0), root).Y >= annualTable.TranslatePoint(new(0, 0), root).Y)
+                                throw new InvalidOperationException("账户汇总应依次显示最新规模、趋势、年度表，默认折叠账户明细。");
+                            if (assetVisibility.Visibility != Visibility.Visible || assetVisibility.Command?.CanExecute(null) != true)
+                                throw new InvalidOperationException("有金额时应可以主动显示。");
+                            assetVisibility.Command.Execute(null);
+                            if (latestValue.Text != $"¥ {270000m:N2}" || !Equals(assetVisibility.ToolTip, "隐藏最新净资产金额"))
+                                throw new InvalidOperationException("点击小眼睛后金额或提示未更新。");
+                            assetVisibility.Command.Execute(null);
+                            if (latestValue.Text != "¥ ••••••")
+                                throw new InvalidOperationException("再次点击小眼睛后金额未隐藏。");
+                            details.IsExpanded = true;
+                            root.UpdateLayout();
                             if (accountTable.Items.Count != 2 || accountTable.Items.Groups?.Count != 2 || totalsTable.Items.Count != 3)
                                 throw new InvalidOperationException("账户汇总未显示分组、合计或默认隐藏无金额账户。");
                             showAll.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
@@ -70,6 +106,7 @@ internal static class PerformanceComponentPreview
                             if (accountTable.Items.Count != 3 || totalsTable.Items.Count != 3)
                                 throw new InvalidOperationException("勾选后未恢复无金额账户，或合计发生变化。");
                             showAll.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, false);
+                            details.IsExpanded = false;
                             root.UpdateLayout();
                         }
                         if(name is "exposure" or "history")
@@ -92,8 +129,26 @@ internal static class PerformanceComponentPreview
                             throw new InvalidOperationException("绩效资料补录缺少日期控件。");
                         if(name=="charts" && !Collect<TabControl>(view).Any())
                             throw new InvalidOperationException("绩效曲线组件丢失内部图表标签。");
-                        var image=new RenderTargetBitmap(width,600,96,96,PixelFormats.Pbgra32);
+                        var image=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
+                        Window? chartHost = null;
+                        if (name == "accounts")
+                        {
+                            chartHost = new Window
+                            {
+                                Width = width, Height = height, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
+                                ShowActivated = false, ShowInTaskbar = false, Left = -10000, Top = -10000, Content = root
+                            };
+                            chartHost.Show();
+                            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                        }
                         image.Render(root);
+                        if (chartHost is not null)
+                        {
+                            performance.ToggleLatestAssetAmountCommand.Execute(null);
+                            chartHost.Close();
+                            if (performance.ShowLatestAssetAmount)
+                                throw new InvalidOperationException("离开账户汇总后仍保留金额显示状态。");
+                        }
                         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));
                         using var file=File.Create(Path.Combine(directory,$"performance-{name}-{width}.png"));
                         encoder.Save(file);

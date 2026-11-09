@@ -5,6 +5,11 @@ public interface ICalculationRepository
 {
     /// <summary>事务保存新运行及可用结转，不覆盖既有运行。</summary>
     void Save(CalculationResult result);
+    void Save(CalculationResult result, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        Save(result);
+    }
     void SaveImport(CalculationResult result, bool allowDuplicate) => Save(result);
     /// <summary>查询最近的运行索引。</summary>
     List<HistoryItem> History();
@@ -13,6 +18,9 @@ public interface ICalculationRepository
     HistoryPageResult QueryArchivedHistory(int pageNumber, int pageSize);
     ImportReview? FindImportMatch(CalculationResult result, CancellationToken cancellation);
     void SetHistoryArchived(string id, bool archived);
+    IReadOnlyList<ImportHistoryComparison> CompareImportHistory(string id, CancellationToken token)
+        => throw new NotSupportedException();
+    CarryDocument? ReadHistoricalCarry(string id, CancellationToken token) => null;
     /// <summary>恢复指定运行的冻结结果。</summary>
     CalculationResult Load(string id);
     /// <summary>追加人工复核依据，不改变原始金额。</summary>

@@ -4,6 +4,7 @@ using CRS.Domain;
 using CRS.Domain.Performance;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
+using LiveChartsCore.SkiaSharpView;
 
 internal static class PerformanceInteractionChecks
 {
@@ -11,6 +12,7 @@ internal static class PerformanceInteractionChecks
     internal static async Task RunAsync()
     {
         await CheckAccountOverviewAsync();
+        await CheckAnnualAssetsAsync();
         var cases=new Cases();var interaction=new Interaction();var shell=new ShellViewModel(new FakeUseCases(),interaction,performance:cases,documentPassword:()=>"Synthetic-Encrypted-Password");var vm=shell.Performance;
         await vm.RefreshCommand.ExecuteAsync(null);vm.Currency="USD";vm.From=new(2024,12,31);vm.To=new(2025,12,31);
         vm.ManualAccount=vm.Accounts.Single();vm.NavDate=new(2025,6,30);vm.SecuritiesValue=10;vm.CashValue=20;vm.Receivable=3;vm.Liability=4;vm.Payable=5;vm.ManualSource="合成来源";vm.NavComplete=true;
@@ -149,6 +151,60 @@ internal static class PerformanceInteractionChecks
             throw new Exception("锁定未清理账户汇总和概览。");
     }
 
+    private static async Task CheckAnnualAssetsAsync()
+    {
+        var year = CRS.Timing.BeijingClock.Today.Year;
+        var oldest = new DateOnly(year - 4, 12, 31);
+        var earlier = oldest.AddYears(2);
+        var previous = earlier.AddYears(1);
+        var current = new DateOnly(year, 1, 1);
+        var source = new PerformanceSource("SYNTHETIC", "annual");
+        ValuationSnapshot Snapshot(string account, DateOnly date, string currency, decimal amount)
+            => new($"{account}-{date.DayNumber}", account, new(date.ToDateTime(new(23, 59)), TimeSpan.Zero),
+                date, ValuationMoment.EndOfDay, [new("Cash", currency, amount)], source);
+        var cases = new Cases
+        {
+            Data = new()
+            {
+                Accounts = [new("A", "IBKR", "盈透合成账户", "USD", oldest),
+                    new("B", "FUTU", "富途合成账户", "HKD", oldest), new("C", "FUTU", "新账户", "HKD", current.AddDays(1))],
+                Valuations = [Snapshot("A", oldest, "USD", 10), Snapshot("B", oldest, "HKD", 20),
+                    Snapshot("A", earlier, "USD", 20), Snapshot("B", earlier, "HKD", -10),
+                    Snapshot("A", previous, "USD", 30), Snapshot("B", previous, "JPY", 0),
+                    Snapshot("A", current, "USD", 40)],
+                Fx = [new("local", "USD", "CNY", previous, 7.1m, source)]
+            }
+        };
+        cases.AccountOverviewValuations = cases.Data.Valuations.Select(v => v.Id == $"B-{oldest.DayNumber}"
+            ? v with { Components = [new("Cash", "HKD", 30)] } : v).ToArray();
+        var vm = new ShellViewModel(new FakeUseCases(), new Interaction(), performance: cases).Performance;
+        await vm.RefreshCommand.ExecuteAsync(null);
+        if (!vm.HasAnnualRateGaps || vm.LatestAssetAmount != "—" || vm.ToggleLatestAssetAmountCommand.CanExecute(null)
+            || !vm.LatestAssetCaption.Contains($"{current:yyyy-MM-dd} 日末")
+            || cases.MarketRequests != 0)
+            throw new Exception("年度资产未区分缺汇率与估值缺失，或刷新触发了行情请求。");
+
+        cases.CachedValuationRates = new[] { oldest, earlier, previous, current }.SelectMany(date =>
+            new PerformanceFx[] { new($"usd-{date.DayNumber}", "USD", "CNY", date, 7, source),
+                new($"hkd-{date.DayNumber}", "HKD", "CNY", date, 1, source) }).ToArray();
+        await vm.RefreshCommand.ExecuteAsync(null);
+        var totals = vm.AnnualAssetsChart.Series.OfType<LineSeries<decimal?>>().Single();
+        var futu = vm.AnnualAssetsChart.Series.OfType<StackedColumnSeries<decimal?>>().Single(s => s.Name == "富途证券");
+        if (totals.Values?.SequenceEqual([100m, null, 130m, 213m, null]) != true || !totals.EnableNullSplitting
+            || futu.Values?.SequenceEqual([30m, null, -10m, 0m, null]) != true
+            || vm.AnnualAssetRows[0] is not { Date: var latestDate, CoveredCny: 280m, CoveredAccounts: 1, ExpectedAccounts: 2 }
+            || latestDate != current || !vm.AnnualAssetRows[0].Coverage.Contains("富途证券缺同日完整估值")
+            || vm.AnnualAssetRows[^2] is not { Date: null, CoveredCny: null }
+            || vm.LatestAssetAmount != "¥ ••••••" || !vm.LatestAssetCaption.Contains("部分覆盖"))
+            throw new Exception("年度资产未使用归档日末估值、原币折算和同日覆盖，或未保留真实零值及缺年断点。");
+        vm.ToggleLatestAssetAmountCommand.Execute(null);
+        if (vm.LatestAssetAmount != $"¥ {280m:N2}")
+            throw new Exception("主动显示后未呈现最新净资产金额。");
+        vm.ClearForLock();
+        if (vm.HasAnnualAssetPoints || vm.AnnualAssetRows.Length > 0 || vm.ShowLatestAssetAmount || vm.LatestAssetAmount != "—")
+            throw new Exception("锁定后仍保留年度资产资料。");
+    }
+
     private sealed class Interaction:IUserInteraction
     {
         public bool Consent;
@@ -163,6 +219,9 @@ internal static class PerformanceInteractionChecks
     {
         public PerformanceData Data=new(){Accounts=[new("A","IBKR","合成账户","USD",new(2024,12,31))]};
         public ValuationSnapshot[]? AccountOverviewValuations;
+        public PerformanceFx[] CachedValuationRates = [];
+        public Task<PerformanceFx[]> ReadCachedValuationRatesAsync(DateOnly[] dates, CancellationToken cancellation=default)
+            => Task.FromResult(CachedValuationRates.Where(f => dates.Contains(f.Date)).ToArray());
         private readonly PerformanceRun run=new("0123456789abcdef",null,DateTimeOffset.UtcNow,"synthetic",new(),new("Performance.v1",new(["A"],new(2024,12,31),new(2025,12,31),"USD"),[new("Twr","TWR",null,"比例",PerformanceQuality.InsufficientData,"缺净值")],[],[],[new("合成账户","IBKR",null,null,null,null,null,null,"USD")],[],new(2024,12,31)));
         public PerformanceRequest? Request;public bool Wait;public int Exports;public SensitiveExportConsent? Consent;public string Password="";
         public bool OnlineUpdatesAllowed {get;private set;}

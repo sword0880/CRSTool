@@ -7,7 +7,7 @@ namespace CRS.Infrastructure;
 /// <summary>只升级已验证的加密业务库；结构修改与版本提交同事务，旧结果不重算、不重封存。</summary>
 internal static class DatabaseSchema
 {
-    internal const int CurrentVersion=3;
+    internal const int CurrentVersion=4;
     private const string BaseTables="""
         CREATE TABLE calculations(id TEXT PRIMARY KEY, year INTEGER NOT NULL, created_utc TEXT NOT NULL,
           complete INTEGER NOT NULL, issues INTEGER NOT NULL, result_json TEXT NOT NULL, carry BLOB,
@@ -35,11 +35,11 @@ internal static class DatabaseSchema
         {
             if(version!=0 || c.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type='table'",transaction:tx)!=0)
                 throw new CrsException("新建目标已有数据库结构，不会重建或覆盖。");
-            c.Execute(BaseTables+ArchiveTables+ImportHistoryIndex.Schema+"PRAGMA user_version=3;",transaction:tx);
+            c.Execute(BaseTables+ArchiveTables+ImportHistoryIndex.Schema+$"PRAGMA user_version={CurrentVersion};",transaction:tx);
         }
         else
         {
-            if(version is not (1 or 2 or CurrentVersion)) throw new CrsException("保险库业务格式无效或版本不支持。");
+            if(version is <1 or >CurrentVersion) throw new CrsException("保险库业务格式无效或版本不支持。");
             Validate(c,tx,version);
             if(version<CurrentVersion)
             {
@@ -49,8 +49,13 @@ internal static class DatabaseSchema
                 else VaultBackupFiles.Write(session,VaultFiles.ReadEnvelope(session.DirectoryPath),path);
                 if(version==1)
                     c.Execute("ALTER TABLE calculations ADD COLUMN execution_archived INTEGER NOT NULL DEFAULT 0 CHECK(execution_archived IN (0,1));"+ArchiveTables,transaction:tx);
-                c.Execute(ImportHistoryIndex.Schema+"PRAGMA user_version=3;",transaction:tx);
-                ImportHistoryIndex.Add(c,tx,null);
+                if(version<3)
+                {
+                    c.Execute(ImportHistoryIndex.Schema,transaction:tx);
+                    ImportHistoryIndex.Add(c,tx,null);
+                }
+                else ImportHistoryIndex.AddArchiveGroups(c,tx);
+                c.Execute($"PRAGMA user_version={CurrentVersion};",transaction:tx);
                 if(c.ExecuteScalar<long>("PRAGMA page_count",transaction:tx)*c.ExecuteScalar<long>("PRAGMA page_size",transaction:tx)
                     >ChunkedVaultBackup.MaxDatabaseBytes)
                     throw new CrsException("导入历史索引会使数据库超过 2 GiB 备份上限，升级已取消。");
@@ -78,8 +83,9 @@ internal static class DatabaseSchema
         }
         if(version>=3)
         {
-            Columns("calculation_import_history",[("snapshot_id","TEXT",1,1),("broker","TEXT",1,0),
-                ("identity","TEXT",0,0),("details","TEXT",1,0),("archived","INTEGER",1,0)]);
+            Columns("calculation_import_history",new[]{("snapshot_id","TEXT",1L,1L),("broker","TEXT",1L,0L),
+                ("identity","TEXT",0L,0L),("details","TEXT",1L,0L),("archived","INTEGER",1L,0L)}
+                .Concat(version>=4?new[]{("archive_group","TEXT",0L,0L)}:[]).ToArray());
             References("calculation_import_history",[("snapshot_id","calculations","id")]);
         }
         void Columns(string table,(string Name,string Type,long Required,long PrimaryKey)[] expected)

@@ -62,6 +62,9 @@ public sealed class CalculationResult
     public string SnapshotId { get=>snapshotId; set {CheckMutable(); snapshotId=value;} }
     /// <summary>复算另存新运行并保留父运行，不覆盖原始冻结结果。</summary>
     public string? ParentSnapshotId { get=>parentSnapshotId; set {CheckMutable(); parentSnapshotId=value;} }
+    /// <summary>按当前规则重读原件生成的结果，关联用来选择输入的历史任务。</summary>
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)]
+    public string? RecalculatedFromSnapshotId { get; init; }
     /// <summary>年度汇总的来源任务，随结果持久化并在底稿中披露。</summary>
     public SnapshotList<AggregationSource> AggregationSources { get; init; } = [];
     [JsonIgnore] public bool IsAnnualAggregate => AggregationSources.Count > 0;

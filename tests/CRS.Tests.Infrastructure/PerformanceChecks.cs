@@ -147,8 +147,7 @@ internal static class PerformanceChecks
 
     private static async Task CheckFutuOverviewAsync(string root)
     {
-        using var book = new XSSFWorkbook();
-        void Sheet(string name, params string[][] rows)
+        static void Sheet(XSSFWorkbook book, string name, params string[][] rows)
         {
             var sheet = book.CreateSheet(name);
             for (var row = 0; row < rows.Length; row++)
@@ -157,22 +156,43 @@ internal static class PerformanceChecks
                 for (var column = 0; column < rows[row].Length; column++) cells.CreateCell(column).SetCellValue(rows[row][column]);
             }
         }
-        Sheet("账户信息", ["年份", "账户号码", "账户名称"], ["2025", "DEMO1", "多币种账户"], ["2025", "DEMO2", "空余额账户"]);
-        Sheet("交易流水", ["成交时间", "品类", "代码名称", "方向", "数量/面值", "价格", "币种", "账户号码", "交易所/市场"]);
-        Sheet("持仓总览", ["时期类型", "日期", "账户号码", "品类", "代码名称", "交易所/市场", "币种", "数量/面值", "市值"],
+        string WriteReport(string name, string year, string[][] accounts, string[][] positions, string[][] cash)
+        {
+            using var book = new XSSFWorkbook();
+            Sheet(book, "账户信息", [["年份", "账户号码", "账户名称"], .. accounts.Select(a => new[] { year, a[0], a[1] })]);
+            Sheet(book, "交易流水", ["成交时间", "品类", "代码名称", "方向", "数量/面值", "价格", "币种", "账户号码", "交易所/市场"]);
+            Sheet(book, "持仓总览", [["时期类型", "日期", "账户号码", "品类", "代码名称", "交易所/市场", "币种", "数量/面值", "市值"], .. positions]);
+            Sheet(book, "资金总览", [["时期类型", "日期", "账户号码", "币种", "金额"], .. cash]);
+            var path = Path.Combine(root, name);
+            using var stream = File.Create(path);
+            book.Write(stream, true);
+            return path;
+        }
+
+        var file = WriteReport("futu-overview.xlsx", "2025",
+            [["DEMO1", "多币种账户"], ["DEMO2", "空余额账户"], ["DEMO3", "空白基金账户"], ["DEMO4", "异常基金账户"]],
+            [
             ["期末", "20251231", "DEMO1", "证券", "DEMO-HK", "HK", "HKD", "2", "80"],
             ["期末", "20251231", "DEMO1", "证券", "DEMO-US", "US", "USD", "3", "150"],
-            ["期末", "20251231", "DEMO2", "证券", "DEMO-HK", "HK", "HKD", "1", "10"]);
-        Sheet("资金总览", ["时期类型", "日期", "账户号码", "币种", "金额"],
+            ["期末", "20251231", "DEMO1", "基金", "DEMO-FUND", "", "USD", "2", "40"],
+            ["期末", "20251231", "DEMO2", "证券", "DEMO-HK", "HK", "HKD", "1", "10"],
+            ["期末", "20251231", "DEMO3", "基金", "", "", "", "", ""],
+            ["期末", "20251231", "DEMO4", "基金", "DEMO-INVALID", "", "HKD", "1", "异常"]
+            ],
+            [
             ["期末", "20251231", "DEMO1", "HKD", "20"], ["期末", "20251231", "DEMO1", "USD", "-5"],
-            ["期末", "20251231", "DEMO2", "HKD", "0"], ["期末", "20251231", "DEMO2", "USD", ""]);
-        var file = Path.Combine(root, "futu-overview.xlsx");
-        using (var stream = File.Create(file)) book.Write(stream, true);
+            ["期末", "20251231", "DEMO2", "HKD", "0"], ["期末", "20251231", "DEMO2", "USD", ""],
+            ["期末", "20251231", "DEMO3", "HKD", "5"], ["期末", "20251231", "DEMO4", "HKD", "6"]
+            ]);
+        var next = WriteReport("futu-overview-next.xlsx", "2026", [["DEMO1", "多币种账户"]],
+            [["期初", "20251231", "DEMO1", "证券", "DEMO-HK", "HK", "HKD", "2", "999"]],
+            [["期初", "20251231", "DEMO1", "HKD", "500"]]);
 
         using var vault = new VaultManager();
         await vault.CreateAsync(Path.Combine(root, "futu-overview"), "Synthetic-Overview-Password");
         await TestStores.Enroll(vault);
         var cases = vault.CreatePerformanceUseCases(false);
+        await cases.ImportAsync(next, "FUTU");
         await cases.ImportAsync(file, "FUTU");
         var workspace = await cases.LoadAsync();
         if (workspace.Data.Valuations.SelectMany(v => v.Components).Any(c => c.Kind == "Security" && c.Amount.HasValue)
@@ -181,13 +201,29 @@ internal static class PerformanceChecks
         var rows = PerformanceAccountValuations.Latest(workspace.Data with { Valuations = valuations }, To);
         var first = rows[workspace.AccountIdentities.Single(i => i.AccountNumber == "DEMO1").AccountId];
         var second = rows[workspace.AccountIdentities.Single(i => i.AccountNumber == "DEMO2").AccountId];
-        if (!first.NetAssetsByCurrency.SequenceEqual([new("HKD", 100), new("USD", 145)])
+        var blankFund = rows[workspace.AccountIdentities.Single(i => i.AccountNumber == "DEMO3").AccountId];
+        var invalidFund = rows[workspace.AccountIdentities.Single(i => i.AccountNumber == "DEMO4").AccountId];
+        if (!first.NetAssetsByCurrency.SequenceEqual([new("HKD", 100), new("USD", 185)])
             || !first.CashByCurrency.SequenceEqual([new("HKD", 20), new("USD", -5)])
             || second.Cash is not null || !second.CashByCurrency.SequenceEqual([new("HKD", 0), new("USD", null)])
             || second.NetAssets is not null || second.NetAssetsByCurrency.Length != 0
-            || second.NetAssetsUnavailableReason != "缺现金余额")
+            || second.NetAssetsUnavailableReason != "缺现金余额"
+            || blankFund.NetAssets != 5 || invalidFund.NetAssetsUnavailableReason != "资产资料不完整")
             throw new Exception("归档市值、负现金或空白余额未正确投影到账户汇总。");
-        Console.WriteLine("账户汇总归档验证通过：同日报表市值、原币净资产、负现金和缺余额边界。");
+        var annual = PerformanceAccountValuations.Annual(workspace.Data with { Valuations = valuations }, To,
+            [new("HKD", "HKD", "CNY", To, 1, Source("HKD")), new("USD", "USD", "CNY", To, 7, Source("USD"))]).Last();
+        if (annual.TotalCny is not null || annual.Brokers.Single() is not { NetAssetsCny: 1400, CoveredAccounts: 2, ExpectedAccounts: 4 })
+            throw new Exception("基金估值或空白基金金额未正确计入年度资产，或缺项被当成完整覆盖。");
+        var conflict = WriteReport("futu-overview-conflict.xlsx", "2025", [["DEMO1", "多币种账户"]],
+            [["期末", "20251231", "DEMO1", "证券", "DEMO-HK", "HK", "HKD", "2", "700"]],
+            [["期末", "20251231", "DEMO1", "HKD", "200"]]);
+        await cases.ImportAsync(conflict, "FUTU");
+        var conflicted = await cases.LoadAsync();
+        var conflictRow = PerformanceAccountValuations.Latest(conflicted.Data with { Valuations = conflicted.AccountOverviewValuations! }, To)
+            [conflicted.AccountIdentities.Single(i => i.AccountNumber == "DEMO1").AccountId];
+        if (conflictRow.NetAssetsUnavailableReason != "同日估值资料冲突")
+            throw new Exception("两份有差异的期末原件被静默取舍。");
+        Console.WriteLine("账户汇总归档验证通过：期末优先、基金市值与空白、负现金、缺余额及期末冲突。");
     }
 
     private sealed class MarketHandler(bool summer=false):HttpMessageHandler

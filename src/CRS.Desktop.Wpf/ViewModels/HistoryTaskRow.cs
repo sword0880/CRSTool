@@ -7,7 +7,8 @@ public partial class HistoryTaskRow : ObservableObject
 {
     public HistoryItem Task { get; }
     public bool CanInclude => !Task.IsAnnualAggregate && !Task.IsArchived;
-    public string TaskKind => Task.IsAnnualAggregate ? "年度汇总" : "账户任务";
+    public string TaskKind => Task.IsAnnualAggregate ? "年度汇总" : Task.RecalculatedFromSnapshotId is not null ? "原件重算" : "账户任务";
+    public string? SourceTaskId => Task.RecalculatedFromSnapshotId ?? Task.ParentSnapshotId;
     public string BrokerLabel => Task.Broker == "MULTI" ? "多券商" : Task.Broker;
     [ObservableProperty] private bool isIncluded;
     public HistoryTaskRow(HistoryItem task, bool included) { Task = task; isIncluded = included; }

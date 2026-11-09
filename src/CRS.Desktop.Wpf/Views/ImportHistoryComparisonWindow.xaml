@@ -1,0 +1,26 @@
+<Window x:Class="CRS.DesktopClient.Views.ImportHistoryComparisonWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="同批任务差异" Width="1020" Height="500" MinWidth="660" MinHeight="350"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource BrandCanvasBrush}" Foreground="{DynamicResource BrandTextPrimaryBrush}">
+    <DockPanel Margin="24">
+        <TextBlock DockPanel.Dock="Top" Text="以所选任务为基准比较，最多显示 100 条同批记录。" TextWrapping="Wrap" Margin="0,0,0,14"/>
+        <ui:Button DockPanel.Dock="Bottom" Content="关闭" IsCancel="True" IsDefault="True" HorizontalAlignment="Right" Margin="0,14,0,0"/>
+        <DataGrid x:Name="ComparisonGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="保存时间（北京）" Binding="{Binding SavedAt}" Width="153"/>
+                <DataGridTextColumn Header="任务编号" Binding="{Binding Id}" Width="145"/>
+                <DataGridTextColumn Header="结果状态" Binding="{Binding Status}" Width="145"/>
+                <DataGridTextColumn Header="已核算收益（元）" Binding="{Binding RealizedGainCny, StringFormat=N2, TargetNullValue=—}" Width="130"/>
+                <DataGridTextColumn Header="预计补税（元）" Binding="{Binding EstimatedTopUpCny, StringFormat=N2, TargetNullValue=—}" Width="125"/>
+                <DataGridTextColumn Header="与所选任务的差异" Binding="{Binding Differences}" Width="*" MinWidth="165">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="4"/></Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

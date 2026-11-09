@@ -3,7 +3,8 @@ using CRS.Domain.Performance;
 namespace CRS.Application.Performance;
 
 /// <summary>每次任务绑定原解锁会话；取消后不保存半份结果，历史始终另存。</summary>
-public sealed partial class PerformanceUseCases(IPerformanceStore store,IPerformanceFiles files,CancellationToken session,IPerformanceMarketData? market=null) : IPerformanceUseCases
+public sealed partial class PerformanceUseCases(IPerformanceStore store,IPerformanceFiles files,CancellationToken session,
+    IPerformanceMarketData? market=null, Func<DateOnly[], PerformanceFx[]>? cachedValuationRates=null) : IPerformanceUseCases
 {
     private readonly PerformanceOnlineAccess onlineAccess=new();
     public bool OnlineUpdatesAllowed=>!session.IsCancellationRequested && onlineAccess.Allowed;
@@ -32,6 +33,8 @@ public sealed partial class PerformanceUseCases(IPerformanceStore store,IPerform
         catch(Exception) when(linked.IsCancellationRequested) {throw new OperationCanceledException(linked.Token);}
     });
     public Task<PerformanceWorkspace> LoadAsync(CancellationToken cancellation=default)=>Run(cancellation,_=>store.Load());
+    public Task<PerformanceFx[]> ReadCachedValuationRatesAsync(DateOnly[] dates, CancellationToken cancellation=default)
+        => Run(cancellation, _ => cachedValuationRates?.Invoke(dates) ?? []);
     public Task<bool> ImportAsync(string path,string broker,CancellationToken cancellation=default)=>Run(cancellation,token=>
     {var document=files.Read(path,broker,token);token.ThrowIfCancellationRequested();return store.Import(document);});
     public Task<bool> ImportManualAsync(string json,CancellationToken cancellation=default)=>Run(cancellation,token=>

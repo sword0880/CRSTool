@@ -8,6 +8,7 @@ public sealed class IbkrXmlParser
 {
     internal const string ProjectionVersion="IBKR.Tax.v1";
     internal Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? SharedImport {get;init;}
+    internal Func<string,CancellationToken,FrozenInput> ReadOriginal { get; init; } = FrozenInput.Read;
     private readonly Dictionary<(string Account, string Type, string Id), string> seen = [];
     private readonly Dictionary<(string Account, DateOnly End), Dictionary<SecurityKey, decimal>> snapshots = [];
     private readonly HashSet<(SecurityKey Key, string Id)> openingIds = [];
@@ -34,7 +35,7 @@ public sealed class IbkrXmlParser
     /// <summary>校验文件类型和报告期间，并按账户分派成交、现金、持仓及未支持事件。</summary>
     private void Read(string path, bool opening)
     {
-        var input=FrozenInput.Read(path,cancellation);var sourceFacts=IbkrSourceReader.Read(input,cancellation);var name=input.Name;
+        var input=ReadOriginal(path,cancellation);var sourceFacts=IbkrSourceReader.Read(input,cancellation);var name=input.Name;
         var statements=sourceFacts.Root.Section("FlexStatements")!.Rows("FlexStatement");
         foreach (var s in statements)
         {

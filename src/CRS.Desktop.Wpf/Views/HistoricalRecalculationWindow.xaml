@@ -1,0 +1,46 @@
+<Window x:Class="CRS.DesktopClient.Views.HistoricalRecalculationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="按当前规则重新计算并另存" Width="730" Height="560" MinWidth="570" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource BrandCanvasBrush}" Foreground="{DynamicResource BrandTextPrimaryBrush}">
+    <DockPanel Margin="24">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <ui:Button Content="取消" IsCancel="True" Margin="0,0,8,0"/>
+            <ui:Button x:Name="CalculateButton" Content="重新计算并另存" Appearance="Primary" IsDefault="True" Click="Calculate"/>
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock x:Name="Heading" Style="{StaticResource PageTitle}" TextWrapping="Wrap"/>
+                <TextBlock x:Name="Basis" Margin="0,8,0,12" TextWrapping="Wrap"/>
+                <TextBlock Text="保险库原件会在计算时核对内容。请补选缺失文件；文件改名后也可按原内容校验。"
+                           TextWrapping="Wrap" Margin="0,0,0,12"/>
+                <ItemsControl x:Name="Originals">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="0,0,0,1" Padding="0,6">
+                                <DockPanel>
+                                    <ui:Button DockPanel.Dock="Right" Content="选择文件" Click="PickOriginal" Margin="8,0,0,0"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Status}" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel x:Name="CarryPanel" Margin="0,12,0,4">
+                    <WrapPanel>
+                        <ui:Button Content="补选上年结转 JSON" Click="PickCarry"/>
+                        <TextBlock x:Name="CarryLabel" Text="原任务使用了期初结转，请补选原件。" Margin="8,4,0,0"/>
+                    </WrapPanel>
+                </StackPanel>
+                <CheckBox x:Name="SaveSnapshot" Margin="0,12,0,0">
+                    <TextBlock Text="保存可重放规范化快照（含敏感数据）" TextWrapping="Wrap"/>
+                </CheckBox>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

@@ -69,6 +69,7 @@ internal static class CalculationCommitChecks
         await TestStores.Authenticate(vault);
         check(Directory.GetFiles(directory,"schema-v2-*.crsbak").Length==1
             && vault.Repository.QueryHistory(1,1).Rows.Single().ActiveCopies==2,"旧库升级保留备份并跨页识别已有重复组");
+        var priorCopies = vault.Repository.History().Select(task => task.Id).ToArray();
 
         File.WriteAllText(Path.Combine(root,"exchange_rate.json"),"""{"2025":{"CNY":1},"2026":{"CNY":1}}""");
         var workflow = new DesktopWorkflow(new DesktopOperations(vault.Repository, root, vault));
@@ -119,6 +120,17 @@ internal static class CalculationCommitChecks
             catch (CrsException) { check(vault.Repository.History().Count==count+1,"提交时拦截新出现的同批次并发重复"); }
         }
 
+        var referenceRequest = request with { SaveCanonicalSnapshot=false };
+        var reference = (await workflow.ImportAsync(referenceRequest,(m,_)=>Answer(m,ImportDecision.SaveNew),default))!.Result;
+        var copies = vault.Repository.History().Where(t => t.Id==initial.SnapshotId || t.Id==saved.SnapshotId || t.Id==reference.SnapshotId).ToArray();
+        check(review is { Kind: ImportMatchKind.SharedFiles } && review.Differences.SequenceEqual(["完整快照选项"])
+            && copies.Length==3 && copies.All(t => t.ActiveCopies==priorCopies.Length+3 && t.DuplicateGroup.Length>0)
+            && copies.Select(t => t.DuplicateGroup).Distinct().Count()==1,
+            "不同快照选项仍分别提示导入，历史归档合为同一重复组");
+        check(copies.Single(t => t.Id==reference.SnapshotId).ReplayAvailability==HistoryReplayAvailability.NoSnapshot
+            && copies.Where(t => t.Id!=reference.SnapshotId).All(t => t.ReplayAvailability==HistoryReplayAvailability.Available),
+            "历史列表区分完整快照和仅保留原件引用的任务");
+
         await workflow.SaveReviewAsync(initial.SnapshotId,"合成复核","保留归档任务复核依据");
         await workflow.SetHistoryArchivedAsync(initial.SnapshotId,true);
         var archived = await workflow.QueryArchivedHistoryAsync(1,50);
@@ -128,11 +140,87 @@ internal static class CalculationCommitChecks
             && vault.Repository.Reviews(initial.SnapshotId).Count==1,"归档保留冻结结果和复核记录，并从日常列表移出");
         var replayed = await workflow.ReplayAsync(initial.SnapshotId,default);
         check(replayed.ParentSnapshotId==initial.SnapshotId,"归档任务仍可用作复算父任务");
-        try { await workflow.SetHistoryArchivedAsync(saved.SnapshotId,true); throw new Exception("归档了最后一个在用副本"); }
-        catch (CrsException) { check(vault.Repository.History().Any(t=>t.Id==saved.SnapshotId),"归档事务保留最后一个在用副本"); }
+        await workflow.SetHistoryArchivedAsync(saved.SnapshotId,true);
+        foreach (var prior in priorCopies) await workflow.SetHistoryArchivedAsync(prior,true);
+        check(vault.Repository.History().Single(t=>t.Id==reference.SnapshotId).ActiveCopies==1,
+            "另一条在用副本仅保存引用时仍可归档");
+        try { await workflow.SetHistoryArchivedAsync(reference.SnapshotId,true); throw new Exception("归档了最后一个在用副本"); }
+        catch (CrsException) { check(vault.Repository.History().Any(t=>t.Id==reference.SnapshotId),"归档事务保留最后一个在用副本"); }
         await workflow.SetHistoryArchivedAsync(initial.SnapshotId,false);
+        await workflow.SetHistoryArchivedAsync(saved.SnapshotId,false);
+        foreach (var prior in priorCopies) await workflow.SetHistoryArchivedAsync(prior,false);
         check((await workflow.QueryArchivedHistoryAsync(1,50)).TotalCount==0
             && vault.Repository.History().Any(t=>t.Id==initial.SnapshotId),"恢复后重新出现在日常列表");
+
+        // 用旧结构打开带归档标记的已有库，确保新分组可回填且归档不丢失。
+        await workflow.SetHistoryArchivedAsync(initial.SnapshotId,true);
+        using (var c = vault.OpenForTest())
+            c.Execute("DROP INDEX calculation_archive_group; ALTER TABLE calculation_import_history DROP COLUMN archive_group; PRAGMA user_version=3;");
+        vault.Lock();
+        await vault.UnlockAsync(directory,"Synthetic-Atomic-Import-2026");
+        await TestStores.Authenticate(vault);
+        workflow = new DesktopWorkflow(new DesktopOperations(vault.Repository,root,vault));
+        check(Directory.GetFiles(directory,"schema-v3-*.crsbak").Length==1
+            && (await workflow.QueryArchivedHistoryAsync(1,50)).Rows.Single().DuplicateGroup.Length>0
+            && vault.Repository.History().Single(t=>t.Id==reference.SnapshotId).ActiveCopies==priorCopies.Length+2,
+            "v3 旧库回填整批原件分组并保留原归档状态");
+
+        File.WriteAllText(Path.Combine(root,"exchange_rate.json"),"""{"2025":{"CNY":1,"USD":7},"2026":{"CNY":1}}""");
+        var plan = await workflow.PrepareHistoricalRecalculationAsync(initial.SnapshotId,default);
+        check(plan is { Broker:"IBKR", Year:2025, NeedsCarry:false } && plan.Originals.Single() is { InVault:true },
+            "已归档历史带出券商、年度和保险库原件");
+        var renewed = await workflow.RecalculateHistoryAsync(new(initial.SnapshotId,new Dictionary<string,string>(),null,false),default);
+        var renewedRow = vault.Repository.History().Single(t=>t.Id==renewed.Result.SnapshotId);
+        var comparison = await workflow.CompareImportHistoryAsync(initial.SnapshotId,default);
+        check(renewedRow.RecalculatedFromSnapshotId==initial.SnapshotId
+            && vault.Repository.Load(renewedRow.Id).RecalculatedFromSnapshotId==initial.SnapshotId
+            && renewedRow.ActiveCopies==priorCopies.Length+3 && comparison.First().IsSelected
+            && comparison.Single(t=>t.Id==renewedRow.Id).Differences.Contains("汇率配置或汇率"),
+            "原件按现行汇率另存、关联旧任务，不同核算条件仍可在同批任务中对照");
+        await workflow.SetHistoryArchivedAsync(renewedRow.Id,true);
+        check((await workflow.QueryArchivedHistoryAsync(1,50)).Rows.Any(t=>t.Id==renewedRow.Id),
+            "同批条件不同的新算也可归档");
+
+        // 税务历史有两份原件，保险库只有其中一份。新算应允许混合读取且验证补选内容。
+        var taxOnly = new DesktopWorkflow(new DesktopOperations(vault.Repository,root));
+        var mixed = (await taxOnly.CalculateAsync(request with { Files=[first,second], SaveCanonicalSnapshot=false },default)).Result;
+        var mixedPlan = await workflow.PrepareHistoricalRecalculationAsync(mixed.SnapshotId,default);
+        var missing = mixedPlan.Originals.Single(o=>!o.InVault);
+        check(mixedPlan.Originals.Count==2 && missing.Name==Path.GetFileName(second),"旧任务只要求补选保险库缺少的原件");
+        count = vault.Repository.History().Count;
+        try
+        {
+            _ = await workflow.RecalculateHistoryAsync(new(mixed.SnapshotId,new Dictionary<string,string>{{missing.Name,first}},null,false),default);
+            throw new Exception("内容不符的补选文件仍被核算");
+        }
+        catch (CrsException ex) when (ex.Message.Contains("历史摘要"))
+        {
+            check(vault.Repository.History().Count==count,"补选原件摘要不符时不保存新任务");
+        }
+        var renamedSecond = Path.Combine(root,"second-copy.xml");
+        File.Copy(second,renamedSecond);
+        var mixedResult = await workflow.RecalculateHistoryAsync(new(mixed.SnapshotId,
+            new Dictionary<string,string>{{missing.Name,renamedSecond}},null,false),default);
+        check(mixedResult.Result.CoveredAccounts.Count==2 && mixedResult.Result.RecalculatedFromSnapshotId==mixed.SnapshotId,
+            "保险库原件与改名的本地原件可共同完成新算");
+
+        var seed = new CalculationResult { Year=2024, SnapshotId="PRIOR-CARRY", Summary=new(0,0,0,0,0,0,0),
+            CarryEligible=true, Sources=[new("prior.xml",plan.Originals[0].Sha256,"FIRST",new(2024,1,1),new(2024,12,31),true,true,true)] };
+        vault.Repository.Save(seed);
+        var carryPath = Path.Combine(root,"prior-carry.json");
+        var carry = CarryFiles.Create(seed);
+        File.WriteAllBytes(carryPath,CarryFiles.Encode(carry));
+        var carryHistory = (await taxOnly.CalculateAsync(request with { OpeningZero=false, UseCarry=true, OpeningPath=carryPath },default)).Result;
+        var carryPlan = await workflow.PrepareHistoricalRecalculationAsync(carryHistory.SnapshotId,default);
+        var carryResult = await workflow.RecalculateHistoryAsync(new(carryHistory.SnapshotId,new Dictionary<string,string>(),null,false),default);
+        check(carryPlan is { HasVaultCarry:true, NeedsCarry:false } && carryResult.Result.RecalculatedFromSnapshotId==carryHistory.SnapshotId,
+            "历史新算按摘要复用库内上年结转");
+        File.WriteAllBytes(carryPath,CarryFiles.Encode(carry with { SourceSnapshotId="EXTERNAL-CARRY" }));
+        var external = (await taxOnly.CalculateAsync(request with { OpeningZero=false, UseCarry=true, OpeningPath=carryPath },default)).Result;
+        check((await workflow.PrepareHistoricalRecalculationAsync(external.SnapshotId,default)).NeedsCarry,
+            "缺少原上年结转时列为待补文件");
+        var externalResult = await workflow.RecalculateHistoryAsync(new(external.SnapshotId,new Dictionary<string,string>(),carryPath,false),default);
+        check(externalResult.Result.RecalculatedFromSnapshotId==external.SnapshotId,"补齐原上年结转后另存当前规则结果");
     }
     private sealed class Rates:IExchangeRateProvider
     {public string Fingerprint=>"synthetic";public AppliedRate Get(int year,string currency)=>new(year,currency,1,"synthetic","","",null,null,false,true);}

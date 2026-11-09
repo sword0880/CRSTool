@@ -23,6 +23,25 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     /// <summary>装配年度计算所需基础设施。</summary>
     public CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025)
         =>CalculationServices.Create(rates,broker,year);
+
+    public IReadOnlySet<string> ArchivedOriginalHashes(string[] hashes,CancellationToken token)
+        => vault?.ArchivedOriginalHashes(hashes,guard!,token) ?? new HashSet<string>();
+
+    public CalculationService CreateHistoricalCalculator(IExchangeRateProvider rates,string broker,int year,
+        IReadOnlyList<HistoricalOriginalInput> originals)
+    {
+        var byName = originals.ToDictionary(o => o.Name, StringComparer.OrdinalIgnoreCase);
+        return CalculationServices.Create(rates,broker,year,null,(name,token) =>
+        {
+            var original = byName[name];
+            var input = original.LocalPath is { } path
+                ? FrozenInput.Read(path,original.Name,token)
+                : vault?.ReadArchivedOriginal(original.Name,original.Sha256,guard!,token);
+            if (input is null || !input.Sha256.Equals(original.Sha256,StringComparison.OrdinalIgnoreCase))
+                throw new CrsException($"「{original.Name}」缺失或内容与历史摘要不符，请选择对应原件。");
+            return input;
+        });
+    }
     public IDesktopCalculationSession BeginCalculation(IExchangeRateProvider rates,string broker,int year)
     {
         if(vault is null)return new DesktopCalculationSession(CreateCalculator(rates,broker,year),

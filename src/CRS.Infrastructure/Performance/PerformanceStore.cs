@@ -82,7 +82,7 @@ internal sealed class PerformanceStore : IPerformanceStore
     {
         var identities=new List<PerformanceAccountIdentity>();
         var snapshotsByDocument = valuations.Where(v => v.Moment == ValuationMoment.EndOfDay).ToLookup(v => v.Source.DocumentId);
-        var overview = new Dictionary<string, ValuationSnapshot>();
+        var overview = new Dictionary<string, FutuAccountOverviewValuations.ReportValuation>();
         foreach(var row in c.Query<(string Hash,string Name,string Format)>("SELECT hash,name,format FROM performance_documents WHERE format IN ('.xml','.xlsx') ORDER BY hash",transaction:tx))
         {
             session.Lifetime.ThrowIfCancellationRequested();
@@ -94,15 +94,15 @@ internal sealed class PerformanceStore : IPerformanceStore
                 {
                     using var table = new FutuTable(input, session.Lifetime);
                     identities.AddRange(PerformanceAccountIdentityReader.ReadFutu(table));
-                    foreach (var snapshot in FutuAccountOverviewValuations.ReadAvailable(table, snapshotsByDocument[row.Hash]))
-                        overview.Add(snapshot.Id, snapshot);
+                    foreach (var valuation in FutuAccountOverviewValuations.ReadAvailable(table, snapshotsByDocument[row.Hash]))
+                        overview.Add(valuation.Snapshot.Id, valuation);
                 }
                 else identities.AddRange(PerformanceAccountIdentityReader.Read(input,row.Format));
             }
             finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(raw);}
         }
         return (identities.GroupBy(i=>i.AccountId).Select(g=>g.First()).ToArray(),
-            overview.Count == 0 ? null : valuations.Select(v => overview.GetValueOrDefault(v.Id, v)).ToArray());
+            overview.Count == 0 ? null : FutuAccountOverviewValuations.SelectForOverview(valuations, overview));
     }
     private static PerformanceData Merge(IEnumerable<PerformanceData> input)
     {

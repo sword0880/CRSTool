@@ -212,12 +212,20 @@
   <Style.Triggers>
    <Trigger Property="AlternationIndex" Value="1"><Setter Property="Background" Value="{DynamicResource BrandSurfaceAltBrush}"/></Trigger>
    <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource BrandHoverSurfaceBrush}"/></Trigger>
-   <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{DynamicResource BrandAccentPaleBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource BrandBorderStrongBrush}"/></Trigger>
+   <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{DynamicResource BrandPressedSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource BrandBorderStrongBrush}"/></Trigger>
   </Style.Triggers>
  </Style>
  <Style x:Key="UiPluginTableCell" TargetType="DataGridCell">
+  <!-- 选中状态由整行上色，单元格只标出键盘焦点。 -->
+  <Setter Property="Background" Value="Transparent"/>
+  <Setter Property="BorderBrush" Value="Transparent"/>
   <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
   <Setter Property="Padding" Value="8,0"/>
+  <Style.Triggers>
+   <Trigger Property="IsKeyboardFocusWithin" Value="True">
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandAccentDarkBrush}"/>
+   </Trigger>
+  </Style.Triggers>
  </Style>
  <Style x:Key="UiPluginAction" TargetType="Button" BasedOn="{StaticResource BrandButton}">
   <Setter Property="Width" Value="36"/><Setter Property="Height" Value="36"/>

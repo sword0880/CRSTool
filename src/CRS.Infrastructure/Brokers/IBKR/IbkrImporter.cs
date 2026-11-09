@@ -7,7 +7,8 @@ namespace CRS.Infrastructure;
 public sealed class IbkrImporter : IBrokerImporter
 {
     internal Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? SharedImport {get;init;}
+    internal Func<string,CancellationToken,FrozenInput> ReadOriginal { get; init; } = FrozenInput.Read;
     /// <summary>读取 IBKR XML 并返回规范化记录，保留既有解析和取消语义。</summary>
     public ImportData Parse(IEnumerable<string> files, string? opening = null, CancellationToken cancellationToken = default)
-        => new IbkrXmlParser {SharedImport=SharedImport}.Parse(files, opening, cancellationToken);
+        => new IbkrXmlParser {SharedImport=SharedImport,ReadOriginal=ReadOriginal}.Parse(files, opening, cancellationToken);
 }

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using CRS.Application.Abstractions;
+using CRS.Domain.Performance;
 using CRS.Timing;
 
 namespace CRS.Infrastructure;
@@ -15,6 +16,28 @@ public sealed class OfficialAnnualExchangeRates(string cacheDirectory, HttpClien
     private readonly SemaphoreSlim gate = new(1);
 
     private sealed record CacheEntry(int Version, DateOnly From, DateOnly Through, DateTimeOffset FetchedAt, CentralParityQuote[] Quotes);
+
+    public OfficialAnnualExchangeRates() : this(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS", "exchange-rates")) { }
+
+    internal PerformanceFx[] ReadCachedValuationRates(DateOnly[] dates)
+    {
+        var rates = new List<PerformanceFx>();
+        foreach (var year in dates.Distinct().GroupBy(date => date.Year))
+        {
+            var cached = Read(year.Key);
+            if (cached is null) continue;
+            foreach (var date in year.Where(date => date >= cached.From && date <= cached.Through))
+            {
+                var quote = cached.Quotes.LastOrDefault(q => q.Date <= date);
+                if (quote is null || date.DayNumber - quote.Date.DayNumber > 14) continue;
+                var source = new PerformanceSource(SafeCentralParityFeed.Url, quote.Date.ToString("yyyy-MM-dd"));
+                rates.Add(new($"SAFE:USD:{date.DayNumber}", "USD", "CNY", date, quote.Usd, source, PerformanceQuality.Reconstructed));
+                rates.Add(new($"SAFE:HKD:{date.DayNumber}", "HKD", "CNY", date, quote.Hkd, source, PerformanceQuality.Reconstructed));
+            }
+        }
+        return rates.ToArray();
+    }
 
     public async Task<IExchangeRateProvider> LoadAsync(int year, CancellationToken cancellation, bool refresh = false)
     {

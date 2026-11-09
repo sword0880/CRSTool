@@ -1,15 +1,25 @@
 <Page x:Class="CRS.DesktopClient.Views.Pages.HistoryPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:converters="clr-namespace:CRS.DesktopClient.Converters">
- <Page.Resources><converters:UtcTimestampConverter x:Key="TaskTime"/></Page.Resources>
+ <Page.Resources>
+  <converters:UtcTimestampConverter x:Key="TaskTime"/>
+  <BooleanToVisibilityConverter x:Key="HistoryHintVisibility"/>
+ </Page.Resources>
  <Grid Margin="24,26,32,24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <StackPanel><TextBlock Text="{Binding Title}" Style="{StaticResource PageTitle}"/><TextBlock Text="同一重复组至少保留一条任务。归档后可随时恢复，复算及汇总仍可引用原任务。" Style="{StaticResource Subtitle}"/></StackPanel>
   <!-- 校验和复算均保留原任务；后台不满足历史口径门槛时明确拒绝。 -->
   <StackPanel Grid.Row="1">
    <WrapPanel><ui:Button Content="刷新任务" Command="{Binding RefreshCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="打开所选结果" Command="{Binding OpenCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="校验报告原件" Command="{Binding VerifyOriginalsCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="复算并另存" Command="{Binding ReplayCommand}" Style="{StaticResource ActionButton}"/><!-- 抵免复核另存结果，国家限额与凭证关系展示在税务页。 --><ui:Button Content="导入抵免明细" Command="{Binding ReviewForeignCreditCommand}" Style="{StaticResource ActionButton}"/><ui:Button Content="取消本页操作" Command="{Binding CancelOperationCommand}" Style="{StaticResource ActionButton}"/></WrapPanel>
-   <WrapPanel Margin="0,0,0,10">
+   <WrapPanel Margin="0,0,0,6">
     <ui:Button Content="{Binding ArchiveViewLabel}" Command="{Binding ToggleArchiveViewCommand}" Margin="0,0,8,0"/>
     <ui:Button Content="归档所选重复任务" Command="{Binding ArchiveCommand}" Margin="0,0,8,0"/>
     <ui:Button Content="恢复所选任务" Command="{Binding RestoreCommand}"/>
+    <ui:Button Content="查看同批差异" Command="{Binding CompareGroupCommand}" Margin="8,0,0,0"/>
+    <ui:Button Content="按当前规则重新计算并另存" Command="{Binding RecalculateCurrentCommand}" Margin="8,0,0,0"/>
    </WrapPanel>
+   <TextBlock Text="{Binding ArchiveHint}" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,6"/>
+   <StackPanel Visibility="{Binding NeedsOriginalImport, Converter={StaticResource HistoryHintVisibility}}" Margin="0,0,0,8">
+    <TextBlock Text="{Binding ReplayHint}" Foreground="#64748B" TextWrapping="Wrap"/>
+    <ui:Button Content="前往数据导入" Command="{Binding OpenImportCommand}" Margin="0,4,0,0"/>
+   </StackPanel>
   </StackPanel>
   <!-- 汇总勾选跨页保留；确认归属后才允许提交，所有金额由后台计算。 -->
   <Border Grid.Row="2" Style="{StaticResource Card}" Padding="16,12" Margin="0,4,0,14" Background="{DynamicResource BrandAccentPaleBrush}">
@@ -36,7 +46,7 @@
     </WrapPanel>
    </StackPanel>
   </Border>
-  <DataGrid x:Name="HistoryGrid" Grid.Row="3" ItemsSource="{Binding SelectableRows}" SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False" IsReadOnly="False" IsEnabled="{Binding State.IsIdle}">
+  <DataGrid x:Name="HistoryGrid" Grid.Row="3" ItemsSource="{Binding SelectableRows}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}" SelectionMode="Single" SelectionUnit="FullRow" AutoGenerateColumns="False" IsReadOnly="False" IsEnabled="{Binding State.IsIdle}">
    <DataGrid.Columns>
     <DataGridTemplateColumn Header="纳入汇总" Width="76"><DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding IsIncluded, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanInclude}" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="勾选同年度的来源账户任务"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
     <DataGridTextColumn Header="任务类型" Binding="{Binding TaskKind}" IsReadOnly="True" Width="84"/>
@@ -48,7 +58,7 @@
     <DataGridTextColumn Header="保存时间（北京时间）" Binding="{Binding Task.CreatedUtc, Converter={StaticResource TaskTime}}" IsReadOnly="True" Width="176"/>
     <DataGridCheckBoxColumn Header="完整结果" Binding="{Binding Task.Complete, Mode=OneWay}" IsReadOnly="True"/>
     <DataGridTextColumn Header="待复核数" Binding="{Binding Task.Issues}" IsReadOnly="True"/>
-    <DataGridTextColumn Header="复算父任务" Binding="{Binding Task.ParentSnapshotId}" IsReadOnly="True"/>
+    <DataGridTextColumn Header="来源任务" Binding="{Binding SourceTaskId}" IsReadOnly="True"/>
    </DataGrid.Columns>
   </DataGrid>
   <!-- 页高随导航内容区域变化，分页始终位于表格滚动区域之外。 -->

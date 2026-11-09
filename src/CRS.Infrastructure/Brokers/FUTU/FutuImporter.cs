@@ -9,6 +9,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
 {
     internal const string ProjectionVersion="FUTU.Tax.v1";
     internal Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? SharedImport {get;init;}
+    internal Func<string,CancellationToken,FrozenInput> ReadOriginal { get; init; } = FrozenInput.Read;
     /// <summary>识别交易和收入用途，绑定可靠账户，拒绝重叠主数据且保留缺失资料问题。</summary>
     public ImportData Parse(IEnumerable<string> files, string? opening = null, CancellationToken cancellation = default)
     {
@@ -28,9 +29,9 @@ public sealed class FutuImporter(int year) : IBrokerImporter
         {
             cancellation.ThrowIfCancellationRequested();
             var extension = Path.GetExtension(path).ToLowerInvariant();
-            if (extension == ".pdf") { SetIncome(FrozenInput.Read(path,cancellation),true); continue; }
+            if (extension == ".pdf") { SetIncome(ReadOriginal(path,cancellation),true); continue; }
             if (extension != ".xlsx") throw new CrsException("富途仅支持券商原始 XLSX 和可提取文字的收入 PDF。");
-            var input=FrozenInput.Read(path,cancellation); using var table = new FutuTable(input,cancellation);
+            var input=ReadOriginal(path,cancellation); using var table = new FutuTable(input,cancellation);
             if (table.Read("交易流水", false) is not null)
             {
                 var map = new FutuTradeExcelImporter().Read(input,table, data, year, cancellation);

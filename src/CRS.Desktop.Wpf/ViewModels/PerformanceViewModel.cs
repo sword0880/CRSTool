@@ -106,6 +106,32 @@ public partial class PerformanceViewModel : ObservableObject
     public string AccountOverviewEmptyMessage => AccountOverview.Length == 0
         ? "暂无证券账户，请先导入券商资料或在「资料补录」登记账户。"
         : "暂无有金额的账户，勾选「显示无金额账户」可查看全部。";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAnnualAssetPoints), nameof(NoAnnualAssetPoints))]
+    private ChartPresentation annualAssetsChart = ChartPresentation.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LatestAssetAmount), nameof(LatestAssetCaption), nameof(HasLatestAssetAmount), nameof(HasAnnualRateGaps))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleLatestAssetAmountCommand))]
+    private PerformanceAnnualAssetRow[] annualAssetRows = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LatestAssetAmount), nameof(LatestAssetAmountAction))]
+    private bool showLatestAssetAmount;
+    private PerformanceAnnualAssetRow? LatestAsset => AnnualAssetRows.FirstOrDefault(row => row.Date.HasValue);
+    public bool HasLatestAssetAmount => LatestAsset?.CoveredCny.HasValue == true;
+    public string LatestAssetAmount => LatestAsset?.CoveredCny is { } amount
+        ? ShowLatestAssetAmount ? $"¥ {amount:N2}" : "¥ ••••••"
+        : "—";
+    public string LatestAssetAmountAction => ShowLatestAssetAmount ? "隐藏最新净资产金额" : "显示最新净资产金额";
+    [RelayCommand(CanExecute = nameof(HasLatestAssetAmount))]
+    private void ToggleLatestAssetAmount() => ShowLatestAssetAmount = !ShowLatestAssetAmount;
+    public string LatestAssetCaption => LatestAsset is { Date: { } date } latest
+        ? $"{date:yyyy-MM-dd} 日末 · 已计入 {latest.CoveredAccounts}/{latest.ExpectedAccounts} 个账户" +
+            (latest.CoveredCny is null ? " · 暂无可折算金额" :
+                latest.CoveredAccounts < latest.ExpectedAccounts ? " · 部分覆盖" : "")
+        : "暂无日末估值";
+    public bool HasAnnualRateGaps => AnnualAssetRows.Any(row => row.MissingRates);
+    public bool HasAnnualAssetPoints => AnnualAssetsChart.Series.Length > 0;
+    public bool NoAnnualAssetPoints => !HasAnnualAssetPoints;
     [ObservableProperty] private bool showAccountOverview;
     [ObservableProperty] private string accountBrokerSummary = "正在读取账户资料…";
     public ObservableCollection<PerformanceMetricDisplay> Metrics {get;}=[];
@@ -229,6 +255,35 @@ public partial class PerformanceViewModel : ObservableObject
         _ => broker
     };
 
+    internal void UpdateAnnualAssets(PerformanceAnnualAssets[] years, int currentYear)
+    {
+        ShowLatestAssetAmount = false;
+        AnnualAssetsChart = DesktopChartAdapter.AnnualAssets(years, currentYear, BrokerName);
+        AnnualAssetRows = years.OrderByDescending(year => year.Year).Select(AnnualAssetRow).ToArray();
+    }
+
+    private static PerformanceAnnualAssetRow AnnualAssetRow(PerformanceAnnualAssets year)
+    {
+        if (year.Date is null)
+            return new(year.Year, null, null, "—", 0, 0, "缺日末估值", false);
+
+        var covered = year.Brokers.Where(broker => broker.NetAssetsCny.HasValue).ToArray();
+        var count = covered.Sum(broker => broker.CoveredAccounts);
+        var expected = year.Brokers.Sum(broker => broker.ExpectedAccounts);
+        var coverage = new List<string> { $"{count}/{expected} 个账户" };
+        if (year.MissingYearEnd) coverage.Add("缺年末估值");
+        foreach (var broker in year.Brokers.Where(broker => broker.CoveredAccounts < broker.ExpectedAccounts))
+        {
+            var reason = broker.MissingRates ? "缺汇率" : "缺同日完整估值";
+            coverage.Add(broker.CoveredAccounts == 0 ? $"{BrokerName(broker.Broker)}{reason}"
+                : $"{BrokerName(broker.Broker)} {broker.CoveredAccounts}/{broker.ExpectedAccounts}（{reason}）");
+        }
+        var amounts = covered.Select(broker => $"{BrokerName(broker.Broker)}  {broker.NetAssetsCny:N2}");
+        return new(year.Year, year.Date, covered.Length == 0 ? null : covered.Sum(broker => broker.NetAssetsCny),
+            covered.Length == 0 ? "—" : string.Join("\n", amounts),
+            count, expected, string.Join("\n", coverage), year.Brokers.Any(broker => broker.MissingRates));
+    }
+
     public async Task RefreshAccountBrokerSummaryAsync(CancellationToken cancellation)
     {
         if (closed || useCases is null) return;
@@ -256,7 +311,11 @@ public partial class PerformanceViewModel : ObservableObject
         var next=await useCases!.LoadAsync(token);token.ThrowIfCancellationRequested();if(closed)return;
         var today = DateOnly.FromDateTime(CRS.Timing.BeijingClock.Today);
         var overviewData = next.AccountOverviewValuations is { } valuations ? next.Data with { Valuations = valuations } : next.Data;
-        var latest = await Task.Run(() => PerformanceAccountValuations.Latest(overviewData, today, token), token);
+        var annualDates = PerformanceAccountValuations.AnnualDates(overviewData, today);
+        var rates = await useCases.ReadCachedValuationRatesAsync(annualDates, token);
+        var (latest, annual) = await Task.Run(() => (
+            PerformanceAccountValuations.Latest(overviewData, today, token),
+            PerformanceAccountValuations.Annual(overviewData, today, rates, token)), token);
         token.ThrowIfCancellationRequested();if(closed)return;
         var firstLoad=Accounts.Count==0;var previous=Accounts.Where(a=>a.Selected).Select(a=>a.Account.Id).ToHashSet();
         var nextSnapshotId=next.InputSnapshotId;
@@ -275,6 +334,7 @@ public partial class PerformanceViewModel : ObservableObject
                 NetAssetsUnavailableReason = value.NetAssetsUnavailableReason
             };
         }).OrderBy(a => a.Broker, StringComparer.CurrentCulture).ThenBy(a => a.Alias, StringComparer.CurrentCulture).ToArray();
+        UpdateAnnualAssets(annual, today.Year);
         Portfolios.Clear();foreach(var p in workspace.Portfolios)Portfolios.Add(p with{Name=privacy.Text(p.Name)});
         History.Clear();foreach(var h in workspace.History)History.Add(h with{Scope=privacy.Text(h.Scope)});
         Sources.Clear();foreach(var s in workspace.Sources)Sources.Add(s with{Name=privacy.Text(s.Name)});
@@ -387,6 +447,7 @@ public partial class PerformanceViewModel : ObservableObject
         SelectedHistory=null;SelectedEvent=null;TransferOut=null;TransferIn=null;ManualAccount=null;SelectedPortfolio=null;SelectedSource=null;
         SecuritiesValue=CashValue=Receivable=Liability=Payable=EventAmount=EventQuantity=EventFee=EventWithholding=0;EventSecurity="";EventMarket="";
         AccountOverview = []; ShowAccountsWithoutAmounts = false; AccountBrokerSummary = "";
+        ShowLatestAssetAmount = false; AnnualAssetsChart = ChartPresentation.Empty; AnnualAssetRows = [];
         Accounts.Clear();Events.Clear();Metrics.Clear();Issues.Clear();History.Clear();Portfolios.Clear();Sources.Clear();AccountResults.Clear();Exposure.Clear();workspace=null;run=null;NetAssetsChart=ChartPresentation.Empty;ComparisonChart=ChartPresentation.Empty;HasNetAssetsPoints=false;HasComparisonPoints=false;NetAssetsStatus=ComparisonStatus=CurveExplanation="数据已锁定。";Summary="保险库已锁定，绩效资料已清理。";RefreshCommands();
     }
 }

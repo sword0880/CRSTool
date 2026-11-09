@@ -12,7 +12,9 @@ public interface IUserInteraction
     void OpenFolder(string path);
     Task<ImportDecision> ReviewImportAsync(ImportReview review, CancellationToken cancellation)
         => Task.FromResult(ImportDecision.Cancel);
-    bool ConfirmArchiveHistory() => false;
+    bool ConfirmArchiveHistory(HistoryItem task) => false;
+    HistoricalRecalculationRequest? PickHistoricalRecalculation(HistoricalRecalculationPlan plan) => null;
+    void ShowImportHistoryComparison(IReadOnlyList<ImportHistoryComparison> rows) { }
     string? PickFolder() => null;
     /// <summary>普通导出包含敏感明文，必须由用户明确确认；测试替身可自行控制确认结果。</summary>
     bool ConfirmPlaintextExport()=>false;
@@ -35,9 +37,19 @@ public sealed class UserInteraction : IUserInteraction
             return window.Decision;
         }, System.Windows.Threading.DispatcherPriority.Normal, cancellation).Task;
 
-    public bool ConfirmArchiveHistory() => MessageBox.Show(System.Windows.Application.Current.MainWindow,
-        "将所选任务移到「已归档」。仍可打开、恢复，引用它的复算和年度汇总也可继续使用。确定归档？",
+    public bool ConfirmArchiveHistory(HistoryItem task) => MessageBox.Show(System.Windows.Application.Current.MainWindow,
+        $"归档 {task.Broker} {task.Year} 年、{CRS.Timing.BeijingTime.Display(task.CreatedUtc, "yyyy-MM-dd HH:mm:ss")} 保存的任务？\n\n"
+        + "同批报表的任务可能使用了不同的核算条件，请核对要保留哪一条。归档后仍可打开或恢复。",
         "归档重复任务", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+
+    public HistoricalRecalculationRequest? PickHistoricalRecalculation(HistoricalRecalculationPlan plan)
+    {
+        var window = new Views.HistoricalRecalculationWindow(plan) { Owner = System.Windows.Application.Current.MainWindow };
+        return window.ShowDialog() == true ? window.Request : null;
+    }
+
+    public void ShowImportHistoryComparison(IReadOnlyList<ImportHistoryComparison> rows)
+        => new Views.ImportHistoryComparisonWindow(rows) { Owner = System.Windows.Application.Current.MainWindow }.ShowDialog();
 
     public bool ConfirmPlaintextRestore()=>MessageBox.Show(System.Windows.Application.Current.MainWindow,
         "解密后将在你选择的位置新建文件夹，里面的报表和结转资料为明文。确认恢复到你信任的位置？","解密恢复",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;
