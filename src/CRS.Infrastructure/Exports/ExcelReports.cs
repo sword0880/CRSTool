@@ -31,7 +31,7 @@ public static class ExcelReports
                 ColumnWidths:Enumerable.Range(0,titles.Length).Select(i=>(i==1?48:24)*256).ToArray()),cancellation);
         Sheet("计算说明", ["项目", "内容"], new object?[][] {
             ["年度", r.Year], ["券商", r.Broker], ["计算状态", ResultLabels.Calculation(r.CalculationStatus)], ["数据完整性", ResultLabels.Completeness(r.DataCompleteness)],
-            ["对账状态", ResultLabels.Reconciliation(r.ReconciliationStatus)], ["使用标签", ResultLabels.Usage(r.UsageLabel)], ["可作为完整结果", r.Complete],
+            ["对账状态", ResultLabels.Reconciliation(r.ReconciliationStatus)], ["使用标签", ResultLabels.Usage(r)], ["可作为完整结果", r.Complete],
             ["纳税人范围", r.TaxpayerScopeId], ["纳入账户", string.Join("、", r.CoveredAccounts)], ["临时测算", r.Provisional],
             ["规则版本", TaxEngine.PolicyVersion], ["计算编号", r.SnapshotId], ["复算父任务", r.ParentSnapshotId], ["期末结转可用", r.CarryEligible],
             ["年度汇总", r.IsAnnualAggregate], ["来源任务数", r.AggregationSources.Count],

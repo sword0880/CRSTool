@@ -19,7 +19,7 @@ public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction 
     public bool IsIdle => !IsBusy;
     public bool HasResult => Result is not null;
     public string ResultStatus => Result is { } value
-        ? $"{value.Year} 年 · {(value.IsAnnualAggregate ? "年度汇总" : value.Broker)} · 计算{ResultLabels.Calculation(value.CalculationStatus)} · 资料{ResultLabels.Completeness(value.DataCompleteness)} · 对账{ResultLabels.Reconciliation(value.ReconciliationStatus)} · 用途{ResultLabels.Usage(value.UsageLabel)}"
+        ? $"{value.Year} 年 · {(value.IsAnnualAggregate ? "年度汇总" : value.Broker)} · 计算{ResultLabels.Calculation(value.CalculationStatus)} · 资料{ResultLabels.Completeness(value.DataCompleteness)} · 对账{ResultLabels.Reconciliation(value.ReconciliationStatus)} · 用途{ResultLabels.Usage(value)}"
         : "尚未完成年度核算。";
     public int DisplayYear => Result?.Year ?? Year;
     public string AccountScope => Result is null ? "账户范围尚未确认" : Result.IsAnnualAggregate

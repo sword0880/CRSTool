@@ -15,4 +15,14 @@ public static class ResultLabels
     /// <summary>展示结果允许的使用范围。</summary>
     public static string Usage(UsageLabel value) => value switch
     { UsageLabel.ReviewReady => "可供复核", UsageLabel.Provisional => "临时测算", UsageLabel.ReviewOnly => "仅供人工复核", _ => "未知" };
+
+    public static string Usage(CalculationResult result)
+        => result.Broker == "FUTU" && TaxImportProvenance.UsesFutuAutomaticProjection(result.ImportProvenance)
+            ? result.UsageLabel switch
+            {
+                UsageLabel.ReviewReady => "自动核对通过",
+                UsageLabel.ReviewOnly => "待补资料或处理差异",
+                _ => Usage(result.UsageLabel)
+            }
+            : Usage(result.UsageLabel);
 }

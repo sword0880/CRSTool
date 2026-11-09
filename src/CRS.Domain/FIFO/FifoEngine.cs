@@ -1,5 +1,7 @@
 namespace CRS.Domain;
 
+public sealed record FifoAccountTransfer(SecurityKey From, SecurityKey To, DateOnly Date, decimal Quantity, string File);
+
 public sealed class FifoEngine
 {
     // 显式使用远离零的中点舍入，与 Python ROUND_HALF_UP 保持一致。
@@ -14,11 +16,13 @@ public sealed class FifoEngine
     /// <summary>隔离账户、证券和币种逐批匹配，保留原始金额及跨年舍入余额；不完整成本阻断相关库存。</summary>
     public List<Match> Calculate(IEnumerable<Trade> input, IEnumerable<CostLot> opening,
         IEnumerable<RoundingState> rounding, IEnumerable<Issue> events, int year, Func<int, string, decimal> rate,
-        CancellationToken cancellation = default)
+        CancellationToken cancellation = default, IReadOnlyList<FifoAccountTransfer>? accountTransfers = null)
     {
         Issues.Clear(); Uncertain.Clear(); EndingLots.Clear(); EndingRounding.Clear(); EndingQuantities.Clear();
-        var trades = FifoOrdering.Trades(input.Where(t => (t.Asset is "STK" or "ETF") && t.Time.Year <= year)).ToList();
+        var trades = FifoOrdering.Trades(input.Where(t => (t.Asset is "STK" or "ETF" ||
+            t is { Asset: "FUND", Key.Broker: "FUTU" }) && t.Time.Year <= year)).ToList();
         var openingLots = FifoOrdering.Lots(opening).ToList();
+        var transfers = (accountTransfers ?? []).OrderBy(t => t.Date).ToArray();
         // 同时刻跨文件或相同行序无法证明先后，不能靠文件选择顺序发布可信成本。
         foreach (var group in trades.GroupBy(t => (t.Key, t.Time)))
             if (group.Count() > 1 && (group.Select(t => t.File).Distinct(StringComparer.Ordinal).Count() > 1
@@ -53,14 +57,20 @@ public sealed class FifoEngine
         foreach (var group in trades.GroupBy(t => t.Key))
             if (group.Select(t => t.HasOffset).Concat(openingLots.Where(l => l.Key == group.Key).Select(l => l.HasOffset)).Distinct().Count() > 1)
                 throw new CrsException("同账户证券混用带时区和无时区时间。");
+        var keys = trades.Select(t => t.Key).Concat(openingLots.Select(l => l.Key))
+            .Concat(transfers.SelectMany(t => new[] { t.From, t.To })).Distinct().ToArray();
         foreach (var e in events.Where(e => e.AffectsCost))
-            foreach (var key in trades.Select(t => t.Key).Concat(openingLots.Select(l => l.Key)).Distinct())
+            foreach (var key in keys)
                 if ((e.Account == "" || e.Account == key.Account) && (e.Instrument == "" || e.Instrument == key.Instrument)
                     && (e.Currency == "" || e.Currency == key.Currency)) Uncertain.Add(key);
         var matches = new List<Match>();
+        var transferIndex = 0;
         foreach (var t in trades)
         {
             cancellation.ThrowIfCancellationRequested();
+            var tradeDate = DateOnly.FromDateTime(t.Time.Date);
+            while (transferIndex < transfers.Length && transfers[transferIndex].Date <= tradeDate)
+                MoveAccountLots(transfers[transferIndex++]);
             if (t.Quantity <= 0 || t.Price <= 0 || t.Fee < 0 || t.Gross < 0) throw new CrsException("成交数量、价格或费用无效。");
             var queue = Get(t.Key);
             if (t.Side == "BUY")
@@ -111,6 +121,7 @@ public sealed class FifoEngine
                 if (lot.Quantity == 0) queue.Dequeue();
             }
         }
+        while (transferIndex < transfers.Length) MoveAccountLots(transfers[transferIndex++]);
         foreach (var (key, queue) in stocks)
         {
             EndingQuantities[key] = queue.Sum(l => l.Quantity);
@@ -119,6 +130,33 @@ public sealed class FifoEngine
         EndingRounding.AddRange(ledgers.Where(p => !Uncertain.Contains(p.Key)).Select(p =>
             new RoundingState(p.Key, p.Value.TotalCost - p.Value.TotalCostAllocated, p.Value.Fee - p.Value.FeeAllocated)));
         return matches;
+
+        void MoveAccountLots(FifoAccountTransfer transfer)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var source = Get(transfer.From);
+            var target = Get(transfer.To);
+            // 仅完整库存、无同证券目标库存时保留原始成本顺序和舍入余差。
+            if (Uncertain.Contains(transfer.From) || Uncertain.Contains(transfer.To) ||
+                source.Sum(l => l.Quantity) != transfer.Quantity || target.Count != 0 || ledgers.ContainsKey(transfer.To))
+            {
+                Uncertain.Add(transfer.From);
+                Uncertain.Add(transfer.To);
+                Issues.Add(new("FUTU_UPGRADE_COST_GAP", "券商升级转入转出已配对，但原账户成本库存不完整或目标账户存在历史库存。",
+                    transfer.To.Account, Currency: transfer.To.Currency, Date: transfer.Date, File: transfer.File,
+                    Instrument: transfer.To.Instrument, AffectsCost: true));
+                return;
+            }
+            foreach (var lot in source)
+                target.Enqueue(new CostLot
+                {
+                    Key = transfer.To, Symbol = lot.Symbol, BuyTime = lot.BuyTime, HasOffset = lot.HasOffset,
+                    RecordId = lot.RecordId, SourceFile = lot.SourceFile, Quantity = lot.Quantity,
+                    Cost = lot.Cost, Fee = lot.Fee, CostBasisMode = lot.CostBasisMode
+                });
+            source.Clear();
+            if (ledgers.Remove(transfer.From, out var ledger)) ledgers.Add(transfer.To, ledger);
+        }
 
         // 保留可定位的复核事项，并隔离受影响证券；其他证券仍可独立核算。
         void Ambiguous(SecurityKey key, DateTimeOffset time, string symbol)

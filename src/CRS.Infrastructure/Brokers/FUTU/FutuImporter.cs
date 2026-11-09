@@ -1,13 +1,14 @@
 using CRS.Domain;
 using CRS.Application.Abstractions;
 using CRS.Infrastructure.Pdf;
+using System.Text;
 
 namespace CRS.Infrastructure;
 
 /// <summary>富途输入组合适配器：唯一收入主表加不重叠的年度交易工作簿。</summary>
 public sealed class FutuImporter(int year) : IBrokerImporter
 {
-    internal const string ProjectionVersion="FUTU.Tax.v1";
+    internal const string ProjectionVersion=TaxImportProvenance.FutuAutomaticProjectionVersion;
     internal Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? SharedImport {get;init;}
     internal Func<string,CancellationToken,FrozenInput> ReadOriginal { get; init; } = FrozenInput.Read;
     /// <summary>识别交易和收入用途，绑定可靠账户，拒绝重叠主数据且保留缺失资料问题。</summary>
@@ -34,10 +35,19 @@ public sealed class FutuImporter(int year) : IBrokerImporter
             var input=ReadOriginal(path,cancellation); using var table = new FutuTable(input,cancellation);
             if (table.Read("交易流水", false) is not null)
             {
-                var map = new FutuTradeExcelImporter().Read(input,table, data, year, cancellation);
+                var map = new FutuTradeExcelImporter(useTaxEvidence: true).Read(input,table, data, year, cancellation);
                 SharedImport?.Invoke(input,cancellation,data.Warnings,null);
-                RecordVersion(data,input,FutuTradeExcelImporter.ReaderVersion);
-                foreach (var (name, ids) in map) { if (!nameMap.TryGetValue(name, out var existing)) nameMap[name] = existing = []; existing.UnionWith(ids); }
+                RecordVersion(data,input,FutuTradeExcelImporter.TaxReaderVersion);
+                var currentAccounts = data.Sources.Where(s => s.Purpose == "AnnualActivity" &&
+                        s.Start.Year == year && s.Sha256.Equals(input.Sha256, StringComparison.OrdinalIgnoreCase))
+                    .Select(s => s.Account).ToHashSet();
+                foreach (var (name, ids) in map)
+                    foreach (var id in ids.Where(currentAccounts.Contains))
+                    {
+                        var label = AccountLabel(name, id);
+                        if (!nameMap.TryGetValue(label, out var existing)) nameMap[label] = existing = [];
+                        existing.Add(id);
+                    }
             }
             else SetIncome(input,false);
         }
@@ -50,7 +60,7 @@ public sealed class FutuImporter(int year) : IBrokerImporter
             if (name == "") continue;
             string account;
             if (row["账户号码"] != "") account = "FUTU:" + row["账户号码"];
-            else if (nameMap.TryGetValue(name, out var ids) && ids.Count == 1) account = ids.Single();
+            else if (nameMap.TryGetValue(AccountLabel(name), out var ids) && ids.Count == 1) account = ids.Single();
             else
             {
                 // 收入表只有展示名称时保持独立身份；不把不同名称／语言的账户强行合并。
@@ -68,11 +78,21 @@ public sealed class FutuImporter(int year) : IBrokerImporter
         foreach (var account in data.Sources.Where(s => s.Purpose == "AnnualActivity" && s.Start.Year == year).Select(s => s.Account).Distinct().ToArray())
             if (!data.AnnualIncome.Any(i => i.Account == account)) data.Issues.Add(new("MISSING_ACCOUNT_INCOME", "交易账户没有可唯一绑定的年度收入记录，不能视为零收入。", account));
         if (!data.Sources.Any(s => s.Purpose == "AnnualActivity" && s.Start.Year == year)) data.Issues.Add(new("MISSING_TRADE_FILE", "未提供所选年度交易流水；仅测算股息利息，资本收益和预扣税未确认。"));
-        if (data.SecurityMovements.Count > 0) data.Warnings.Add($"保留 {data.SecurityMovements.Count} 条证券资产事件待复核，未自动调整成本。");
-        if (data.Issues.Any(i => i.Code == "UNSUPPORTED_ASSET")) data.Warnings.Add("未支持的基金或其他品类已明确列于待复核清单，未作为零收益。");
-        data.Warnings.Add("富途年度汇总为收入主数据；资金进出派息明细仅供核对，未重复计入股息。富途报表未提供逐笔券商 FIFO 盈亏，全部对账仍需人工复核。");
+        if (data.SecurityMovements.Count > 0) data.Warnings.Add("系统会核对证券转入转出。能够配对且原成本有据可查的账户升级自动结转，其余事件按账户和证券列出资料缺口。");
+        if (data.Issues.Any(i => i.Code == "UNSUPPORTED_ASSET")) data.Warnings.Add("未支持的成交品类保留在资料缺项中。");
+        data.Warnings.Add("富途年度汇总为收入主数据。系统按券商成交金额、费用、现金余额和持仓数量自动核对，并从有来源的买入批次计算成本。");
         RecordVersion(data,incomeInput,incomeIsPdf?FutuDividendPdfImporter.ReaderVersion:FutuDividendExcelImporter.ReaderVersion);
         return data;
+    }
+    // 同一年度工作簿中，富途会在账号名称附带尾号，收入主表则使用账户类型名称。
+    private static string AccountLabel(string name, string? account = null)
+    {
+        var label = string.Concat(name.Normalize(NormalizationForm.FormKC).Where(c => !char.IsWhiteSpace(c)));
+        if (account is { Length: >= 9 } && account[^4..].All(char.IsAsciiDigit))
+            label = label.Replace($"({account[^4..]})", "", StringComparison.Ordinal);
+        label = label.ToUpperInvariant().Replace("孖展", "融资", StringComparison.Ordinal)
+            .Replace('證', '证').Replace('綜', '综').Replace('帳', '账').Replace('戶', '户').Replace('資', '资');
+        return label == "A股通账户" ? "A股通融资账户" : label;
     }
     private static void RecordVersion(ImportData data,FrozenInput input,string reader)
     {

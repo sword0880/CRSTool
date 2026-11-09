@@ -57,7 +57,7 @@
     <DataGridTextColumn Header="任务编号" Binding="{Binding Task.Id}" IsReadOnly="True" Width="200"/>
     <DataGridTextColumn Header="保存时间（北京时间）" Binding="{Binding Task.CreatedUtc, Converter={StaticResource TaskTime}}" IsReadOnly="True" Width="176"/>
     <DataGridCheckBoxColumn Header="完整结果" Binding="{Binding Task.Complete, Mode=OneWay}" IsReadOnly="True"/>
-    <DataGridTextColumn Header="待复核数" Binding="{Binding Task.Issues}" IsReadOnly="True"/>
+    <DataGridTextColumn Header="问题数" Binding="{Binding Task.Issues}" IsReadOnly="True"/>
     <DataGridTextColumn Header="来源任务" Binding="{Binding SourceTaskId}" IsReadOnly="True"/>
    </DataGrid.Columns>
   </DataGrid>

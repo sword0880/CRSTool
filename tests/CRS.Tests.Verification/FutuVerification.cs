@@ -55,10 +55,12 @@ internal static class FutuVerification
         foreach (var year in Enumerable.Range(2021, 5))
         {
             var data = Sample(directory, year); var expected = reference.RootElement.GetProperty(year.ToString());
-            var trades = expected.GetProperty("trades").EnumerateArray().ToList(); Assert(trades.Count == data.Trades.Count);
+            // 旧 Python 基准只解析证券成交，基金申赎由新版专项验证。
+            var securities = data.Trades.Where(t => t.Asset == "STK").ToArray();
+            var trades = expected.GetProperty("trades").EnumerateArray().ToList(); Assert(trades.Count == securities.Length);
             foreach (var e in trades)
             {
-                var t = data.Trades.Single(t => t.Row == e.GetProperty("row").GetInt32());
+                var t = securities.Single(t => t.Row == e.GetProperty("row").GetInt32());
                 Assert(t.Side == e.GetProperty("side").GetString() && t.Quantity == Number(e, "quantity") && t.Price == Number(e, "price")
                     && t.Gross == Number(e, "gross") && t.Fee == Number(e, "fee") && t.Net == Number(e, "net") && t.Key.Currency == e.GetProperty("currency").GetString());
                 Assert(t.Time.DateTime == DateTime.Parse(e.GetProperty("time").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
@@ -84,7 +86,8 @@ internal static class FutuVerification
             Assert(r.Matches.Count == 2 && r.Matches.Sum(m => m.Revenue) == 1.01m && r.Matches.Sum(m => m.Cost) == .68m && r.Matches.Sum(m => m.SellFee) == .03m && r.Summary.GainCny == .30m);
             Assert(r.Summary.DividendCny == 100 && r.Summary.InterestCny == 5 && r.Summary.ForeignCredit == 8);
             Assert(r.TradeAmountChecks.All(c => c.Status == "一致") && r.TradeAmountChecks[0].Row == 2);
-            Assert(r.Broker == "FUTU" && !r.Complete && r.EstimatedTopUpCny is null && r.ReconciliationStatus == ReconciliationStatus.NotVerifiable);
+            Assert(r.Broker == "FUTU" && !r.Complete && r.EstimatedTopUpCny is null && r.ReconciliationStatus == ReconciliationStatus.NotVerifiable
+                && r.Issues.Any(i => i.Code == "TAX_CREDIT_UNVERIFIED") && r.Issues.Any(i => i.Code == "FUTU_CASH_EVIDENCE"));
             var replay = calculator.Replay(r); Assert(replay.Summary == r.Summary && replay.FundMovements.Count == r.FundMovements.Count && replay.TradeAmountChecks.Count == 3);
             var store = TestStores.Create(Path.Combine(workspace, "futu-db")); store.Save(r); Assert(store.Load(r.SnapshotId).AnnualIncome.Count == 1);
             var report = Path.Combine(workspace, "futu-report.xlsx"); ExcelReports.Export(report, r);

@@ -37,7 +37,7 @@ internal static class PasswordProtectedReports
         yield return new("小财牛 · 税务核算摘要", true);
         yield return new($"年度：{r.Year}    券商：{r.Broker}    计算编号：{r.SnapshotId}");
         yield return new($"账户：{string.Join("、", r.CoveredAccounts)}");
-        yield return new($"计算状态：{ResultLabels.Calculation(r.CalculationStatus)}；资料：{ResultLabels.Completeness(r.DataCompleteness)}；对账：{ResultLabels.Reconciliation(r.ReconciliationStatus)}；用途：{ResultLabels.Usage(r.UsageLabel)}");
+        yield return new($"计算状态：{ResultLabels.Calculation(r.CalculationStatus)}；资料：{ResultLabels.Completeness(r.DataCompleteness)}；对账：{ResultLabels.Reconciliation(r.ReconciliationStatus)}；用途：{ResultLabels.Usage(r)}");
         yield return new("税务汇总（人民币）", true);
         foreach (var row in TaxSummaryPresentation.Rows(r))
         {

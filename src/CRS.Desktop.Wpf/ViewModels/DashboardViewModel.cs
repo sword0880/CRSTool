@@ -15,7 +15,7 @@ public partial class DashboardViewModel : ObservableObject
     public string IssueCount => State.Result?.Issues.Count.ToString("N0") ?? "—";
     public string MatchCount => State.Result?.Matches.Count.ToString("N0") ?? "—";
     public string TaxStatus => State.Result is { } r ? ResultLabels.Calculation(r.CalculationStatus) : "尚未计算";
-    public string TaxHint => State.Result is { } r ? ResultLabels.Usage(r.UsageLabel) : "等待导入年度资料";
+    public string TaxHint => State.Result is { } r ? ResultLabels.Usage(r) : "等待导入年度资料";
     public ObservableCollection<HistoryItem> RecentTasks { get; } = [];
     public DashboardViewModel(WorkspaceState state, HistoryViewModel history, PerformanceViewModel performance, Action<string> navigate)
     {

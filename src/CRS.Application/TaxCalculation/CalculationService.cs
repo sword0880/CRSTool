@@ -28,6 +28,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
         cancellation.ThrowIfCancellationRequested();
         var data = importer.Parse(files, openingXml, cancellation);
         if(accountPeriods is not null) data.AccountPeriods.AddRange(accountPeriods);
+        scopeConfirmed = scopeConfirmed || AnnualReconciliation.HasFutuAnnualScope(data, year);
         // IBKR 允许重复选择同一原件，解析器只读取一次，引用清单也只记录一次。
         files=files.DistinctBy(Path.GetFullPath,StringComparer.OrdinalIgnoreCase).ToArray();
         var result=CalculateParsed(data, files, year, openingZero, scopeConfirmed, openingXml, carry, cancellation,
@@ -56,7 +57,8 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             used[c] = r; return r.Value;
         }
         var engine = new FifoEngine();
-        var matches = engine.Calculate(data.Trades, data.OpeningLots, data.OpeningRounding, issues, year, Rate, cancellation);
+        var accountTransfers = AnnualReconciliation.MatchFutuAccountUpgrades(data, year, scopeConfirmed, carry is not null, issues);
+        var matches = engine.Calculate(data.Trades, data.OpeningLots, data.OpeningRounding, issues, year, Rate, cancellation, accountTransfers);
         issues.AddRange(engine.Issues);
         positionReconciled = AnnualReconciliation.CheckPositions(data, end, accounts, engine, issues, positionReconciled, cancellation);
         var income = data.Broker == "FUTU" ? data.AnnualIncome.Where(i => i.Year == year).Select(i => new Income(i.Account, i.Year, i.Currency, i.Dividend, i.Interest)).ToList()
@@ -77,13 +79,15 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
                 .GroupBy(c => (c.Account, c.Currency))
                 .Select(g => new ForeignTaxPayment(g.Key.Account, year, g.Key.Currency, -g.Sum(c => c.Amount))).ToList(), data.Broker);
         var (pnlChecks, cashChecks) = AnnualReconciliation.CheckSalesAndCash(data, year, begin, end, matches, issues, cancellation);
+        var hasReconciliationEvidence = data.Broker != "FUTU" ||
+            AnnualReconciliation.HasFutuReconciliationEvidence(data, begin, end, accounts, matches, cashChecks, issues);
         foreach (var r in used.Values.Where(r => !r.SourceConfirmed)) issues.Add(new("RATE_SOURCE", "实际使用的汇率尚未登记来源。", Currency: r.Currency));
         var clock = timeProvider ?? TimeProvider.System;
         // 业务年度固定使用北京时间；宿主时区不能改变同一时刻的临时结果状态。
         var provisional = replayContext?.Provisional ?? (year >= CRS.Timing.BeijingClock.Read(clock).Year || used.Values.Any(r => r.Provisional));
         var finalIssues = issues.Distinct().ToList();
         var (calculationStatus, completeness, reconciliation, usage, estimated) = ResultStatusPolicy.Evaluate(
-            finalIssues, scopeConfirmed, positionReconciled, cashChecks, pnlChecks, provisional, used.Values, summary, data.Broker != "FUTU");
+            finalIssues, scopeConfirmed, positionReconciled, cashChecks, pnlChecks, provisional, used.Values, summary, hasReconciliationEvidence);
         summary = summary with { EstimatedTopUpCny = estimated };
         // 规范化快照同时保存排序后的领域记录，使历史结果在原文件暂时不可用时仍可重放审计。
         // 指纹采用解析器返回的冻结来源，不在计算结束后重新打开可能已被替换的原件。
@@ -140,7 +144,7 @@ public sealed class CalculationService(IExchangeRateProvider rates, IBrokerImpor
             SecurityMovements = data.SecurityMovements, Year = year, Summary = summary, TaxInputs = taxInputs, Matches = matches, Issues = finalIssues, Warnings = data.Warnings,
             CashChecks = cashChecks, PnlChecks = pnlChecks, Rates = used.Values.OrderBy(r => r.Currency).ToList(), Sources = data.Sources,
             EndingLots = engine.EndingLots, EndingRounding = engine.EndingRounding, OpeningZero = openingZero, ScopeConfirmed = scopeConfirmed,
-            Provisional = provisional, Reconciled = data.Broker != "FUTU" && positionReconciled && pnlChecks.All(p => p.Status == "一致") && cashChecks.Count > 0 && cashChecks.All(c => c.Status == "一致"),
+            Provisional = provisional, Reconciled = reconciliation == ReconciliationStatus.Matched,
             CarryEligible = positionReconciled && engine.Uncertain.Count == 0 && !provisional && !data.AccountPeriods.Any(p=>p.Closed is {} close && close<=end)
                 && !finalIssues.Any(i => i.AffectsCost || i.Code is "INCOMPLETE_PERIOD" or "OPENING_UNCONFIRMED" or "SCOPE_UNCONFIRMED" or "UNSUPPORTED_POSITION"),
             CalculationStatus = calculationStatus, DataCompleteness = completeness, ReconciliationStatus = reconciliation, UsageLabel = usage,

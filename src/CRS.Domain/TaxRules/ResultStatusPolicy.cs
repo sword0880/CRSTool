@@ -8,16 +8,17 @@ public static class ResultStatusPolicy
         ReconciliationStatus reconciliation, UsageLabel usage, decimal? estimated) Evaluate(
         List<Issue> finalIssues, bool scopeConfirmed, bool positionReconciled,
         List<CashReconciliation> cashChecks, List<PnlReconciliation> pnlChecks,
-        bool provisional, IEnumerable<AppliedRate> appliedRates, TaxSummary summary, bool hasIndependentPnlEvidence = true)
+        bool provisional, IEnumerable<AppliedRate> appliedRates, TaxSummary summary, bool hasReconciliationEvidence = true)
     {
         var completenessCodes = new[] { "INCOMPLETE_PERIOD", "OPENING_UNCONFIRMED", "SCOPE_UNCONFIRMED", "MISSING_END_POSITIONS",
             "MISSING_COST", "POSITION_MISMATCH", "UNSUPPORTED_TRANSFER", "UNSUPPORTED_SECTION", "CASH_REPORT_MISMATCH",
-            "MISSING_TRADE_FILE", "MISSING_CASH_FLOWS", "MISSING_ACCOUNT_INCOME", "INCOME_ACCOUNT_UNCONFIRMED", "OPENING_CONFLICT" };
+            "MISSING_TRADE_FILE", "MISSING_CASH_FLOWS", "MISSING_ACCOUNT_INCOME", "INCOME_ACCOUNT_UNCONFIRMED", "OPENING_CONFLICT",
+            "FUTU_CASH_EVIDENCE", "FUND_TRADE_EVIDENCE", "FUND_POSITION_EVIDENCE", "FUTU_UPGRADE_COST_GAP" };
         var incomplete = finalIssues.Any(i => completenessCodes.Contains(i.Code)) || !scopeConfirmed;
         var hardBlocked = finalIssues.Any(i => i.Code is "DUPLICATE_CONFLICT" or "LOT_OVERLAP" or "XML_INVALID");
         var reconciliation = cashChecks.Count == 0 && pnlChecks.Count == 0 && !positionReconciled ? ReconciliationStatus.NotVerifiable
             : cashChecks.Any(c => c.Status != "一致") || pnlChecks.Any(p => p.Status != "一致") || !positionReconciled
-                ? ReconciliationStatus.Differences : cashChecks.Count == 0 || !hasIndependentPnlEvidence ? ReconciliationStatus.NotVerifiable : ReconciliationStatus.Matched;
+                ? ReconciliationStatus.Differences : cashChecks.Count == 0 || !hasReconciliationEvidence ? ReconciliationStatus.NotVerifiable : ReconciliationStatus.Matched;
         var calculationStatus = hardBlocked ? CalculationStatus.Blocked : finalIssues.Count == 0 ? CalculationStatus.Completed : CalculationStatus.Partial;
         var completeness = incomplete ? DataCompleteness.Incomplete : finalIssues.Count == 0 ? DataCompleteness.Confirmed : DataCompleteness.Unconfirmed;
         var usage = provisional ? UsageLabel.Provisional : calculationStatus == CalculationStatus.Completed && reconciliation == ReconciliationStatus.Matched

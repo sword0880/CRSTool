@@ -41,7 +41,10 @@ internal sealed class AnnualInputPreparation(ICarryValidator carryValidator)
                     if (carry.Lots.Where(l => l.Key == p.Key).Sum(l => l.Quantity) != p.Quantity)
                         issues.Add(new("POSITION_MISMATCH", "结转 LOT 数量与富途期初数量不一致。", p.Key.Account, p.Symbol, p.Key.Currency, p.Date, Instrument: p.Key.Instrument, AffectsCost: true));
         }
-        if (!scopeConfirmed) issues.Add(new("SCOPE_UNCONFIRMED", "请确认活动报告未过滤账户、证券或现金类型。"));
+        if (!scopeConfirmed) issues.Add(new("SCOPE_UNCONFIRMED", data.Broker == "FUTU" &&
+            TaxImportProvenance.UsesFutuAutomaticProjection(data.ImportProvenance)
+                ? "无法从富途年度交易报表及收入主表核对账户范围，请补充涵盖同一批账户的原件。"
+                : "请确认活动报告未过滤账户、证券或现金类型。"));
         bool positionReconciled = true;
         foreach (var account in accounts)
         {
@@ -63,7 +66,11 @@ internal sealed class AnnualInputPreparation(ICarryValidator carryValidator)
                 if (next <= window.End) issues.Add(new("INCOMPLETE_PERIOD", $"{section}报告未覆盖需要核对的账户活动期间。", account, AffectsCost: data.Broker == "FUTU" && section == "成交"));
             }
             var newbornZero=data.AccountPeriods.Any(p=>p.Account==account && p.Opened.Year==year && p.OpeningZeroConfirmed);
-            if (!openingZero && !newbornZero && carry is null && !data.Sources.Any(s => s.Opening && s.Account == account))
+            var firstActivity = reports.Where(s => s.Purpose == "AnnualActivity").Min(s => (DateOnly?)s.Start);
+            var futuOpeningEvidence = data.Broker == "FUTU" && TaxImportProvenance.UsesFutuAutomaticProjection(data.ImportProvenance)
+                && firstActivity is { } first && data.BeginningPositions.Any(p => p.Key.Account == account &&
+                    (p.Date == first || p.Date == first.AddDays(-1)));
+            if (!openingZero && !newbornZero && !futuOpeningEvidence && carry is null && !data.Sources.Any(s => s.Opening && s.Account == account))
                 issues.Add(new("OPENING_UNCONFIRMED", "需期初 LOT 或确认期初无持仓。", account));
             if (!reports.Any(s => s.HasPositions && s.End == window.End))
             { positionReconciled = false; issues.Add(new("MISSING_END_POSITIONS", "缺少年末完整持仓 SUMMARY。", account)); }

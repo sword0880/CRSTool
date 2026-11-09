@@ -4,6 +4,11 @@ namespace CRS.Application;
 public sealed record TaxImportProvenance(int Version,string Broker,string SourceFileHash,string ImportBatchId,
     string ReaderVersion,string ProjectionVersion)
 {
+    public const string FutuAutomaticProjectionVersion = "FUTU.Tax.v2";
+
+    internal static bool UsesFutuAutomaticProjection(IReadOnlyCollection<TaxImportProvenance>? values)
+        => values is { Count: > 0 } && values.All(p => p.ProjectionVersion == FutuAutomaticProjectionVersion);
+
     internal static void Validate(IEnumerable<SourceReport> sources,IReadOnlyCollection<TaxImportProvenance>? values,string broker)
     {
         if(values is null)return; // 旧记录未知，不据当前代码补造。
