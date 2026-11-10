@@ -47,4 +47,4 @@ IBKR 可选择多份活动 XML；富途分别选择股息收入主表和交易�
 
 ### V2.0 及以后：按需在线服务
 
-只有出现多设备同步等真实需求时，才评估账号登录、授权及云端存储。**在线身份认证与本地数据库解锁必须分离**，用户离线计算的基本能力不依赖服务器。产品需求由 [SECURITY_DESIGN.md](../specifications/SECURITY_DESIGN.md) 约束，待办追踪见 [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)。
+只有出现多设备同步等真实需求时，才评估账号登录、授权及云端存储。**在线身份认证与本地数据库解锁必须分离**，用户离线计算的基本能力不依赖服务器。产品需求由 [安全设计基线](../specifications/security/SECURITY_DESIGN.md) 约束，待办追踪见 [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)。

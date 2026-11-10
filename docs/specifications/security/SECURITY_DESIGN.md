@@ -1,8 +1,18 @@
 # CRS 数据安全与用户体系设计规范
 
-> **文档状态：设计基线及完整验收目标。** 独立 Security、主密码、SQLCipher、加密备份、离线 TOTP 与锁定已进入源码；公开版加密导出与全部发布验收尚未完成。当前实现和证据边界见 [AUTH_IMPLEMENTATION.md](../guides/AUTH_IMPLEMENTATION.md)，运行事实以 [PRIVACY.md](../guides/PRIVACY.md) 与源码为准。
+> **文档状态：设计基线及完整验收目标。** 独立 Security、主密码、SQLCipher、加密备份、离线 TOTP 与锁定已进入源码；公开版加密导出与全部发布验收尚未完成。当前实现和证据边界见 [AUTH_IMPLEMENTATION.md](../../guides/AUTH_IMPLEMENTATION.md)，运行事实以 [PRIVACY.md](../../guides/PRIVACY.md) 与源码为准。
 >
-> 版本：1.3（设计基线：五项目分层 + 拒绝明文库 + 离线 TOTP）｜修订日期：2026-10-10｜适用：.NET 10 / WPF / SQLite + Dapper 的 CRS 项目。
+> 版本：1.4（安全架构边界与认证路径澄清）｜修订日期：2026-11-10｜适用：.NET 10 / WPF / SQLite + Dapper 的 CRS 项目。
+
+
+
+## 文档职责与认证路径
+
+- **本文（安全架构基线）**：定义本地保险库、数据加密、密钥边界、备份恢复、隐私风险及安全发布门槛。
+- **[离线 TOTP 认证规范](SECURITY_AUTH_SPEC.md)**：定义 TOTP 模式的协议、状态机、防重放、恢复码及认证验收；不替代本文的数据安全架构。
+- **[认证当前实现](../../guides/AUTH_IMPLEMENTATION.md)** 与 **[Windows Hello 当前实现](../../implementation/WINDOWS_HELLO.md)**：描述当前代码路径和已知限制，不代表所有发布验收已通过。
+- Windows Hello 是用户在首次设置时明确选择的替代本地认证路径，不是 TOTP 的第二因素，也不是 TOTP 失败时的自动回退。
+- 税务公式、FIFO 和税务法律适用不由安全文档定义，分别以税务规则、计算证据和实现文档为准。
 
 ## 1. 设计决策与边界
 
@@ -10,7 +20,7 @@ CRS 的正式产品名称为“小财牛”，当前由开发者自用，可能�
 
 **决策：**
 
-1. **本地解锁 ≠ 在线登录。** 首次设置主密码保护本地数据库，Windows 当前用户保管受保护本机密钥；日常仅验证完全离线的 RFC6238 TOTP 后进入业务。换电脑／本机凭证失效时保留主密码和独立恢复路径。TOTP 详见 [SECURITY_AUTH_SPEC.md](SECURITY_AUTH_SPEC.md)。
+1. **本地解锁 ≠ 在线登录。** 首次设置主密码保护本地数据库，Windows 当前用户保管受保护本机密钥；默认使用完全离线的 RFC6238 TOTP。首次设置时可明确选择 Windows Hello 替代路径；已登记方式失败、取消或不可用时不得自动切换。TOTP 详见 [SECURITY_AUTH_SPEC.md](SECURITY_AUTH_SPEC.md)，Hello 行为见 [WINDOWS_HELLO.md](../../implementation/WINDOWS_HELLO.md)。换电脑／本机凭证失效时保留主密码和独立恢复路径。
 2. **加密数据 ≠ 应用界面上锁。** 数据库静态加密是基础；解锁界面只是访问入口，不能代替数据库加密。
 3. **不绑定公司 Windows 账号。** 不把 Windows SID、机器标识或 DPAPI 当作唯一解密/恢复条件，确保更换电脑可恢复。
 4. **不改动既有计算口径。** Domain 的 FIFO、税额、证券身份、来源证据和冻结复算规则不依赖 UI、数据库加密实现或在线身份认证。
@@ -29,7 +39,7 @@ CRS 的正式产品名称为“小财牛”，当前由开发者自用，可能�
 | V2.0 可选在线版 | 多设备/同步 | 在线身份认证、同步协议、密钥与身份分离 | 有真实需求再设计 |
 | V3.0 可选 SaaS | 多租户服务 | 租户隔离、服务端授权、审计、应急响应 | 另立安全架构设计 |
 
-公开发布不等于一定需要在线账号；个人用户在自己的设备上用本地保险库即可运行。V1.0 的实施项与现有业务缺口统一在 [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) 登记；正式测试门槛实施时同步修订 `../validation/TEST_SPEC.md` 与 `../validation/RELEASE_ACCEPTANCE.md`。
+公开发布不等于一定需要在线账号；个人用户在自己的设备上用本地保险库即可运行。V1.0 的实施项与现有业务缺口统一在 [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) 登记；正式测试门槛实施时同步修订 `../validation/TEST_SPEC.md` 与 `../validation/RELEASE_ACCEPTANCE.md`。
 
 ## 3. 资产、威胁与防护边界
 
@@ -62,7 +72,7 @@ CRS 的正式产品名称为“小财牛”，当前由开发者自用，可能�
 
 **首次启动（目标行为）：** 创建或恢复保险库 → 设置主密码 → 创建 DEK/Key Envelope/Recovery Slot → 初始化加密库 → 验证可以重新解锁 → 提醒用户离线保存恢复密钥。创建失败不得遗留看似成功的空保险库。
 
-**每次启动：** 检查目标库及格式；有效加密保险库由本机 DPAPI 槽准备受限认证，验证 TOTP 并原子消费时间步后进入工作区。首次／本机凭证失效时使用主密码及恢复流程；不得把本机槽解封当作已通过手机验证。发现明文头即拒绝读取及迁移业务；库损坏、错误凭证或未知格式不回退明文、不自动覆盖或新建。
+**每次启动：** 检查目标库及格式；有效加密保险库由本机 DPAPI 槽准备受限认证，再完成用户已登记的本地认证方式。TOTP 模式必须验证并原子消费时间步；Hello 模式必须完成 Windows 系统验证。DPAPI 本机槽解封本身不授予业务会话。首次／本机凭证失效时使用主密码及恢复流程。发现明文头即拒绝读取及迁移业务；库损坏、错误凭证或未知格式不回退明文、不自动覆盖或新建。
 
 **重新创建：** 文件不存在，或者用户在收到“不支持旧明文库”提示后明确选择“创建新的加密保险库”时，才进入初始化向导；必须指定不存在的文件／空目录作为目标。如果默认目录已有旧 `crs.db`，要求用户另选新位置或自行在应用外妥善处置旧文件；应用不得自动重命名、删除或覆盖它。新保险库不会继承旧库中的历史任务、快照和复核结果，必要数据需要重新从券商原始报表导入。
 
@@ -75,7 +85,7 @@ CRS 的正式产品名称为“小财牛”，当前由开发者自用，可能�
 - **修改密码**：先用旧密码/有效恢复密钥证明拥有访问权，再派生新的 KEK、重新封装同一个 DEK；不要求全库重写。更新封装槽应原子完成，失败可回滚。
 - **遗忘密码**：只有持有有效恢复密钥时允许重新设置主密码；不提供默认管理员密码、万能密码或服务器后门。
 - **全部凭证丢失**：主密码与恢复密钥丢失后无法按便携方案换电脑；本机槽也不可解封时无法恢复。仍有效的本机槽及手机只能维持本机访问，不能重设未知密码。
-- **DPAPI 本机槽**：日常无需重复输入主密码，由 Windows CurrentUser 保护 DEK，手机 TOTP 仍为必需。本机槽不纳入便携备份，不替代主密码／独立恢复槽，也不能抵御拥有同用户环境权限的恶意进程；Windows Hello 暂未接入。
+- **DPAPI 本机槽**：日常无需重复输入主密码，由 Windows CurrentUser 保护 DEK；本机槽只准备受限认证，不单独放行业务。之后仍须完成所选的 TOTP 或 Windows Hello 验证。本机槽不纳入便携备份，不替代主密码／独立恢复槽，也不能抵御拥有同用户环境权限的恶意进程。Hello 的实际接入与失败边界见 [WINDOWS_HELLO.md](../../implementation/WINDOWS_HELLO.md)。
 
 ## 5. 数据库集成、明文库拒绝策略与新建
 
@@ -107,7 +117,7 @@ CRS 的正式产品名称为“小财牛”，当前由开发者自用，可能�
 
 新增 `CRS.Tests.Security` 专测密码派生、密钥封装、恢复密钥、失败条件及版本兼容；`CRS.Tests.Infrastructure` 专测 SQLCipher、磁盘格式识别和备份 I/O。`Verify-Architecture.ps1` 需新增项目引用、程序集及命名空间边界检查。
 
-保留 **SQLite + Dapper** 访问模型，不因为加密改用 EF Core，也不引入云端计算服务或在线账号。详见 [SAD.md](../architecture/SAD.md) 与 [PROJECT_STRUCTURE.md](../architecture/PROJECT_STRUCTURE.md)。
+保留 **SQLite + Dapper** 访问模型，不因为加密改用 EF Core，也不引入云端计算服务或在线账号。详见 [SAD.md](../../architecture/SAD.md) 与 [PROJECT_STRUCTURE.md](../../architecture/PROJECT_STRUCTURE.md)。
 
 SQLCipher 的 NuGet 构建、原生运行库、加密参数、兼容性、许可证及供应链应做独立验证；`Microsoft.Data.Sqlite.Core` 与支持 SQLCipher 的底层提供器需要一致配置。不得将标准 SQLite Provider 误认为天然具有加密能力。微软的 [SQLite 加密指南](https://learn.microsoft.com/en-us/dotnet/standard/data/sqlite/encryption) 示例采用 `Microsoft.Data.Sqlite.Core` 加 `SQLitePCLRaw.bundle_e_sqlcipher`；该 bundle 为**非官方、无官方支持的 SQLCipher 构建**，不能因示例存在就直接认定满足正式发布维护要求。
 
@@ -167,7 +177,7 @@ WPF 原有九个业务页面不变，增加启动层（创建保险库、解锁�
 
 | 功能 | V1.0 | V1.5 | V2.0 以后 |
 | --- | --- | --- | --- |
-| 本地保险库（首次主密码，本机日常 TOTP） | 必须 | 必须 | 保留 |
+| 本地保险库（首次主密码；默认日常 TOTP，可首次明确选择 Hello） | 必须 | 必须 | 保留 |
 | 自动锁定、改密、恢复 | 必须 | 必须 | 保留 |
 | 加密数据库/备份 | 必须 | 必须 | 保留 |
 | 多保险库/本机多个使用者 | 可不做 | 必须独立隔离 | 保留 |
@@ -207,14 +217,14 @@ WPF 原有九个业务页面不变，增加启动层（创建保险库、解锁�
 5. **完成备份、导出和发布核验：** 加密备份恢复、明文导出提示、公开版可选加密导出、依赖许可证及分层回归测试。
 6. **最后按需评估在线账号：** 只有确有同步/网络服务需求时才单独设计身份服务。
 
-安全改造不得更改 `FIFO_TOTAL_COST_V3`、`CRS.CanonicalInput.v2` 的业务语义，也不得以当前加密架构重写冻结历史事实。测试、发布与剩余问题分别参考 [TEST_SPEC.md](../validation/TEST_SPEC.md)、[RELEASE_ACCEPTANCE.md](../validation/RELEASE_ACCEPTANCE.md)、[KNOWN_ISSUES.md](../KNOWN_ISSUES.md)。
+安全改造不得更改 `FIFO_TOTAL_COST_V3`、`CRS.CanonicalInput.v2` 的业务语义，也不得以当前加密架构重写冻结历史事实。测试、发布与剩余问题分别参考 [TEST_SPEC.md](../../validation/TEST_SPEC.md)、[RELEASE_ACCEPTANCE.md](../../validation/RELEASE_ACCEPTANCE.md)、[KNOWN_ISSUES.md](../../KNOWN_ISSUES.md)。
 
 ## 10. 离线 TOTP 认证专项（P0，规划/待验收）
 
 **规范入口：** [SECURITY_AUTH_SPEC.md](SECURITY_AUTH_SPEC.md)。在 V1.0 正常使用路径中，主密码只解封装 DEK；TOTP 验证成功且在 SQLCipher 内原子消费时间窗口后，才建立 `Authenticated` 业务会话。受限认证连接在 MFA 完成前不得暴露给业务工作流或视图。TOTP 的安全边界仅为应用会话门槛，不应宣称拥有主密码者在外部无法解密数据库。
 
 - 首次创建：必须扫码并成功确认首码；中途中断仅可继续绑定/恢复，不可进入业务。
-- 正常登录：首次主密码保护数据库，日常在已启用 Windows 用户环境中仅输入 Authenticator 六位 TOTP；仍沿用 **10 分钟无活动锁定**，主密码用于显式维护／跨机恢复。
+- 正常登录：首次主密码保护数据库；TOTP 模式日常输入 Authenticator 六位代码，首次明确选择 Hello 的用户按系统验证路径解锁。两种路径均沿用 **10 分钟无活动锁定**，主密码用于显式维护／跨机恢复；任何路径失败均不得自动降级。
 - 密钥：TOTP Secret 与高熵恢复码属于独立安全数据；不得将六位 TOTP 用作 DEK/KEK；不依赖 Microsoft/Entra 网络服务。
 - 手机丢失：主密码 + 已保存的一次性高熵 MFA 恢复码进入 `RecoveryOnly`，强制重新绑定；忘记密码由独立 256 位数据库恢复密钥走紧急恢复。
 - 本地局限：本机管理员/恶意软件、主密码泄露者绕过 UI、Windows 时间或数据库快照回退不能由离线 TOTP 根治。

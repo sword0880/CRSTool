@@ -4,7 +4,7 @@
 
 ## 安全模块的目标架构（五个生产项目，尚未实现）
 
-**已决定新增 `CRS.Security` 独立类库**。当前四项目源码以及已有的 `Infrastructure/Security/` 目录仍按“当前结构”描述；安全能力尚未落地，不能把本节目标树当作已完成事实。详细规范见 [SECURITY_DESIGN.md](../specifications/SECURITY_DESIGN.md)，新增离线 MFA 认证详见 [SECURITY_AUTH_SPEC.md](../specifications/SECURITY_AUTH_SPEC.md)。
+**已决定新增 `CRS.Security` 独立类库**。当前四项目源码以及已有的 `Infrastructure/Security/` 目录仍按“当前结构”描述；安全能力尚未落地，不能把本节目标树当作已完成事实。详细规范见 [SECURITY_DESIGN.md](../specifications/security/SECURITY_DESIGN.md)，新增离线 MFA 认证详见 [SECURITY_AUTH_SPEC.md](../specifications/security/SECURITY_AUTH_SPEC.md)。
 
 ```text
 CRS/

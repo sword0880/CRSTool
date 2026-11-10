@@ -1,5 +1,7 @@
 # TOTP 默认与首次 Windows Hello 选择
 
+> **文档边界：** 本文记录 Windows Hello 替代认证路径的当前实现，不改变 [安全设计基线](../specifications/security/SECURITY_DESIGN.md) 或 [离线 TOTP 认证规范](../specifications/security/SECURITY_AUTH_SPEC.md) 对数据安全、TOTP 模式及失败关闭的要求。总体入口见 [安全与认证规范索引](../specifications/security/README.md)。
+
 2026-10-13，按用户确认实现：默认 TOTP；首次没有验证器时，可明确选择 Windows Hello。已绑定 TOTP 后，不会因为错误、取消、冷却或手机丢失自动切换。
 
 ## 使用与恢复

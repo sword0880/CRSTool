@@ -26,9 +26,9 @@
 | 编号 | 等级 | 证据性质 | 风险/反方判断 | 正确整改及关闭条件 |
 |---|---|---|---|---|
 | AR-02 | P0 发布阻断 | D：`docs/KNOWN_ISSUES.md`、`docs/deployment/WORKER_UPGRADE_AND_RECOVERY.md` | Worker 数据代次/升级恢复、跨机器 ServiceKey 灾备、硬断电/磁盘满和真实 SCM 恢复未形成完整生产证据。自动测试通过不能证明灾备能恢复。 | 先做隔离机器端到端：正常升级、错误候选、断电/磁盘满中断、回滚、跨用户/跨机器恢复；核验密钥/数据一致性及恢复点。 |
-| AR-03 | P1 架构 | A+D：`src/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs` 和 `docs/architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md` P1-07 | 后台插件依然运行于 Worker 进程；失控插件可能迫使整个 Worker 退出。程序集白名单、能力声明不是 OS 沙箱；未来若允许非内置插件，代码还可直接访问同进程授予的操作系统资源。 | 正式限制为签名且人工审核的内置插件；扩展到第三方之前使用低权限独立进程与最小能力 IPC；验证 CPU/内存/线程失控、强杀、重启重放的故障隔离。 |
+| AR-03 | P1 架构 | A+D：`src/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs` 和 `docs/archive/architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md` P1-07（现 ARCH-207）| 后台插件依然运行于 Worker 进程；失控插件可能迫使整个 Worker 退出。程序集白名单、能力声明不是 OS 沙箱；未来若允许非内置插件，代码还可直接访问同进程授予的操作系统资源。 | 正式限制为签名且人工审核的内置插件；扩展到第三方之前使用低权限独立进程与最小能力 IPC；验证 CPU/内存/线程失控、强杀、重启重放的故障隔离。 |
 | AR-04 | P1 监控可靠性 | D：`docs/KNOWN_ISSUES.md` 最新采集记录；A：`src/Plugins/CRS.Plugins.NationalTeam.Jobs/` | 2026-10-22 的取消修复解决失控退出，不等于 15 秒查询时延达标；官方来源临时故障、原件重新核验开销与跨插件额度公平性仍未完全闭环。UI 不能把缺失数据当作 0。 | 长达数千原件的真实数据 P95/P99 查询延迟监测、只读快照缓存/失效与证据核验分层设计；构建跨插件共享预算与长期来源模拟测试；保持损坏证据失败关闭。 |
-| AR-05 | P0 金融发布门槛 | D：`docs/KNOWN_ISSUES.md`、`docs/architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md` | 税务 FIFO/汇率/券商事实与绩效 TWR/XIRR 现有隔离回归，不等于真实跨年度税务底稿与独立金额对账全部通过。任何“正确可申报”或真实国家队减持结论都需要额外证据。 | 独立税务黄金数据集、费用/企业行动/同秒成交先后、不同账户与年度结转回放；绩效真实期初市值和转仓对账；国家队证据按披露者和份额边界分级，不做未经证实的归因。 |
+| AR-05 | P0 金融发布门槛 | D：`docs/KNOWN_ISSUES.md`、旧版计划（任务映射见当前 `ARCHITECTURE_REMEDIATION_PLAN.md`） | 税务 FIFO/汇率/券商事实与绩效 TWR/XIRR 现有隔离回归，不等于真实跨年度税务底稿与独立金额对账全部通过。任何“正确可申报”或真实国家队减持结论都需要额外证据。 | 独立税务黄金数据集、费用/企业行动/同秒成交先后、不同账户与年度结转回放；绩效真实期初市值和转仓对账；国家队证据按披露者和份额边界分级，不做未经证实的归因。 |
 | AR-06 | P1 工程治理 | A：`.github/workflows/wpf-ui-design-checks.yml` | 原 PR CI 聚焦 WPF、市场同步与少量 Worker 测试，但没有把 `--manual-immediate` 任务排队与快照场景作为常规门禁，局部回归可能在 UI 构建绿色时漏掉。 | 本 PR 接入任务快照和通知审计的故障注入测试；后续独立增设 Worker 安全、灾备故障注入与国家队真实样本只读 CI 阶段。避免在普通 PR 运行有破坏性的生产数据库测试。 |
 
 证据等级：**A** = 直接阅读当前源码可复核；**D** = 当前仓库文档明确记录待验收（不是本轮独立验证）。没有把“可能”写成已发生事故。此前已修复的旧 Quartz、Core/Jobs/UI 所有权迁移和 2026-10-22 成交日志取消问题不重复立项。

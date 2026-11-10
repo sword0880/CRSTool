@@ -6,9 +6,11 @@
 >
 > 现状依据：`../architecture/API_SPEC.md`、`../implementation/CAPITAL_GAIN_FIFO_SPEC.md`、`../implementation/TAX_ENGINE_SPEC.md`、`../guides/FOREIGN_CREDIT_REVIEW.md`、`KNOWN_ISSUES.md`、`../architecture/SAD.md`。本文件重点承接 `AR-03`、`AR-08`、`AR-09`、`AR-10`、`AR-11`；`AR-02`、`AR-04` 中的已完成逻辑应保留，不重新定义 FIFO 算法。
 
-2026-10-11 实施进展：AR-08 已在当前 IBKR 活动／期初及富途 XLSX／PDF 路径接入单次冻结字节与同源摘要，具体机制与限制见 [INPUT_CONSISTENCY.md](../implementation/INPUT_CONSISTENCY.md)。AR-11 导出取消与原子提交也已有自动证据；本目标契约的其他要求仍不能视为全部完成。
+2026-10-11 实施进展：AR-08 已在当前 IBKR 活动／期初及富途 XLSX／PDF 路径接入单次冻结字节与同源摘要，具体机制与限制见 [INPUT_CONSISTENCY.md](../../implementation/INPUT_CONSISTENCY.md)。AR-11 导出取消与原子提交也已有自动证据；本目标契约的其他要求仍不能视为全部完成。
 
-AR-09 结构部分见 [CANONICAL_VALIDATION.md](../implementation/CANONICAL_VALIDATION.md)。后续已接入结果冻结、三个计算程序集指纹、持久载荷摘要、固定编码及新任务程序文件归档，详见 [FROZEN_EVIDENCE.md](../implementation/FROZEN_EVIDENCE.md)和[DATABASE_UPGRADE.md](../implementation/DATABASE_UPGRADE.md)。这不是下文全部目标封套：桌面／安全程序集及运行时／依赖完整身份、跨版本兼容与全部旧格式迁移仍开放。
+AR-09 结构部分见 [CANONICAL_VALIDATION.md](../../implementation/CANONICAL_VALIDATION.md)。后续已接入结果冻结、三个计算程序集指纹、持久载荷摘要、固定编码及新任务程序文件归档，详见 [FROZEN_EVIDENCE.md](../../implementation/FROZEN_EVIDENCE.md)和[DATABASE_UPGRADE.md](../../implementation/DATABASE_UPGRADE.md)。这不是下文全部目标封套：桌面／安全程序集及运行时／依赖完整身份、跨版本兼容与全部旧格式迁移仍开放。
+
+> **职责边界：** 本文定义跨税务与绩效计算的输入快照、来源摘要、规则/程序集版本、冻结输出、复算资格和证据封套；不定义税法适用性（见 [税务规则验证规范](../tax/TAX_RULE_VALIDATION.md)），不定义 TaxEngine/FIFO 算法（见 implementation 文档），也不负责密钥/加密格式（见 [安全设计](../security/SECURITY_DESIGN.md)）。
 
 ## 1. 目标、非目标与核心约束
 
@@ -20,7 +22,7 @@ AR-09 结构部分见 [CANONICAL_VALIDATION.md](../implementation/CANONICAL_VALI
 4. **结果可信到什么程度**：数据完整性、对账、法律适用性、四维状态、问题及不确定值是什么？
 5. **将来还能否验证**：原始文件和历史执行环境是否充分；若材料不足，为何只能展示冻结结果而不能复算？
 
-**非目标**：本文件不是税法适用性批准、不是以 SHA-256 代替数字签名、不承诺只凭摘要即可恢复已遗失的原始报表，也不改变现有本地数据库是否已加密的事实。安全加密设计的唯一详细规范是 `SECURITY_DESIGN.md`；Work 正在实施的加密模块由其规范约束，本文只定义计算证据在安全存储中的使用约定。
+**非目标**：本文件不是税法适用性批准、不是以 SHA-256 代替数字签名、不承诺只凭摘要即可恢复已遗失的原始报表，也不改变现有本地数据库是否已加密的事实。安全加密设计的上位规范是 `../security/SECURITY_DESIGN.md`；Work 正在实施的加密模块由其规范约束，本文只定义计算证据在安全存储中的使用约定。
 
 ### 1.1 不可违反的原则
 
@@ -219,4 +221,4 @@ AR-09 结构部分见 [CANONICAL_VALIDATION.md](../implementation/CANONICAL_VALI
 
 ---
 
-**职责关联：** `TAX_RULE_VALIDATION.md` 约束**税务规则能否用于目标场景**；本文件约束**某次结果用了什么输入/规则并能否复现**；`RELEASE_PLAN.md` 综合两者决定发布验收。
+**职责关联：** `../tax/TAX_RULE_VALIDATION.md` 约束**税务规则能否用于目标场景**；本文件约束**某次结果用了什么输入/规则并能否复现**；`RELEASE_PLAN.md` 综合两者决定发布验收。

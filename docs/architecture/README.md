@@ -20,9 +20,9 @@
 - [Worker服务密钥恢复](WORKER_SERVICE_KEY_RECOVERY.md)
 - [国家队功能分类与增长治理](NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)
 - [国家队市场周期研究需求](NATIONAL_TEAM_MARKET_REGIME_REQUIREMENTS_20261024.md)
-- [架构整改计划](ARCHITECTURE_REMEDIATION_PLAN_20261020.md)
+- [架构整改计划（唯一主计划）](ARCHITECTURE_REMEDIATION_PLAN.md)
 - [当前未关闭问题](../KNOWN_ISSUES.md)
 
-PRD 与 SAD 属于产品和系统设计背景；日期化审查、早期方案及分阶段整改记录保留在本目录。它们与当前源码或 [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md) 冲突时，不得直接作为当前事实。专项验收证据见 [验证目录](../validation/README.md)。
+PRD 与 SAD 属于产品和系统设计背景；当前整改任务只维护在 [唯一主计划](ARCHITECTURE_REMEDIATION_PLAN.md)，原日期化计划已移入 [历史归档](../archive/architecture/README.md)。安全、税务和计算证据规范按领域维护在 [规范目录](../specifications/README.md)。它们与当前源码或 [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md) 冲突时，不得直接作为当前事实。专项验收证据见 [验证目录](../validation/README.md)。
 
 [返回文档首页](../README.md)
