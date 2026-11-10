@@ -1,5 +1,7 @@
 # CRSTool 国家队 ETF 持仓与国家队股票持仓：反方架构评审与整改建议
 
+> **归档说明**：本文保留早期反方评审的风险识别和决策背景，不作为当前实现状态或最新架构结论。当前模块入口见 [国家队模块文档](../../modules/national-team/README.md)，实际实施与开放风险以当前架构状态和模块实施记录为准。
+
 -   **评审对象**：CRSTool 主分支中的国家队 ETF
     持仓监控，以及国家队直接股票持仓模块
 -   **评审视角**：反方架构师 / 数据可信度 / 长期可维护性 / 投资研究风险
@@ -446,8 +448,7 @@ Worker 的总体架构。
 ## 8. 参考入口
 
 -   仓库主分支：https://github.com/sword0880/CRSTool/tree/main
--   ETF
-    国家队监控一期设计文档：https://github.com/sword0880/CRSTool/blob/main/docs/NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md
--   国家队当前实施记录：https://github.com/sword0880/CRSTool/blob/main/docs/implementation/NATIONAL_TEAM_ARCHITECTURE.md
+-   [ETF国家队监控一期历史设计](ETF_MONITOR_PHASE1_DESIGN.md)
+-   [国家队当前实施记录](../../implementation/NATIONAL_TEAM_ARCHITECTURE.md)
 
 > 注：参考文档的路径与当前分支内容可能随仓库更新而变化。实施整改前应重新核对主分支文件、实际代码和测试结果。

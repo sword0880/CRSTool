@@ -1,7 +1,9 @@
 # 小财牛 国家队大规模减持预警：技术设计与反方架构评审
 
+> **当前实施状态唯一入口**：[国家队披露证据与通知实施记录](../../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。本文是增量业务设计与验收基线，不替代实际代码、运行回执或当前发布验收。
+
 > **文档性质**：增量技术设计（实施建议）＋反方架构审查＋验收计划  
-> **建议文件名（入库时）**：`docs/NATIONAL_TEAM_EXIT_ALERT_DESIGN.md`  
+> **当前文件路径**：`docs/modules/national-team/DRAWDOWN_ALERT_DESIGN.md`  
 > **版本**：v1.0 · 2026-10-19  
 > **状态**：**有条件通过（Conditional Go）**；研究预览已实现，真实历史与正式发布尚未通过；当前实施状态见下方补充
 > **目标仓库**：https://github.com/sword0880/CRSTool/tree/main  
@@ -11,12 +13,12 @@
 
 ## 当前实施核对（2026-10-19，本地源码与实机）
 
-2026-10-21 M0续项：源码新增只读逐日缺口诊断（`audit-gaps.json/md`），并收紧具名机构最低净减持证明的日历、交易日、正数份额与修订身份门槛；说明及待验收命令见[实施记录](implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。该变更尚未通过本轮Windows构建/实机核验，不替代250日历史、两市20日连续采集或公开来源许可。
+2026-10-21 M0续项：源码新增只读逐日缺口诊断（`audit-gaps.json/md`），并收紧具名机构最低净减持证明的日历、交易日、正数份额与修订身份门槛；说明及待验收命令见[实施记录](../../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。该变更尚未通过本轮Windows构建/实机核验，不替代250日历史、两市20日连续采集或公开来源许可。
 
 
-2026-10-20继续核验24只ETF官方报告、同日份额口径及真实覆盖，并修复单只查询扫描全库原件和取消不及时的问题。最新状态以[监控核验记录](implementation/WORKER_RUNTIME.md#monitor-readiness)为准；下文重建后94条事实是早期快照，不是最新覆盖。
+2026-10-20继续核验24只ETF官方报告、同日份额口径及真实覆盖，并修复单只查询扫描全库原件和取消不及时的问题。最新状态以[监控核验记录](../../implementation/WORKER_RUNTIME.md#monitor-readiness)为准；下文重建后94条事实是早期快照，不是最新覆盖。
 
-本文原有章节是设计基线；示意接口不应重复创建。现已具备三车道事件、相邻份额窗口、具名持仓下界、修订更正、持久Outbox、公共通知组件、邮件设置和WPF预警中心，详见[实施记录](implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。
+本文原有章节是设计基线；示意接口不应重复创建。现已具备三车道事件、相邻份额窗口、具名持仓下界、修订更正、持久Outbox、公共通知组件、邮件设置和WPF预警中心，详见[实施记录](../../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。
 
 本轮补齐只读历史研究回放：固定样本和有效期、冻结规则/输入、逐日5/20日完整窗口与样本广度、按公布/首见截止时间筛选机构证据、首次模拟触发日及覆盖报告，可导出并从冻结输入复算。所有回填回放均为`RetrospectiveStudy`、`TimingProof=NotProven`，不能等同于当时通知或真实历史策略验收。当前入口是研究命令工具，尚无WPF回放入口。
 
@@ -67,8 +69,8 @@
 
 从本轮读取的仓库文件看：
 
-- `docs/NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md`（v2.2，2026-10-15）已确定单插件 `crs.national-team`、双入口、A/B/C 证据分层、官方数据、追加式修订、Windows Service、Named Pipes 和市场数据隔离。
-- `docs/implementation/WORKER_RUNTIME.md` 记载当前已将采集、市场库写入和修订操作迁至 `CRS.Worker.Service`；WPF 只读查询；采集计划默认北京时间 **23:15**，服务启动后补采。
+- `docs/../../archive/national-team/ETF_MONITOR_PHASE1_DESIGN.md`（v2.2，2026-10-15）已确定单插件 `crs.national-team`、双入口、A/B/C 证据分层、官方数据、追加式修订、Windows Service、Named Pipes 和市场数据隔离。
+- `docs/../../implementation/WORKER_RUNTIME.md` 记载当前已将采集、市场库写入和修订操作迁至 `CRS.Worker.Service`；WPF 只读查询；采集计划默认北京时间 **23:15**，服务启动后补采。
 - 已存在 `CRS.Plugins.NationalTeam.Core`、`CRS.Plugins.NationalTeam.Jobs`、`CRS.Plugins.NationalTeamWatch`（UI 旧程序集名称）等逻辑/程序集边界，`source-policy.db` 管理交易所来源限流与冷却。
 - `docs/implementation/NATIONAL_TEAM_EQUITY.md` 说明最新一批改动已做 A/B/C 语义、逐日尝试与阶段记录、股票持股快照文案和原文定位等整改，并报告 **170 条合成/确定性回归通过**。它**没有**说明 250 日覆盖、连续 20 个真实交易日或生产安装已通过。
 - 2026-10-15 的一次受控真实采集，取得两市五只初始 ETF 的 **25 条份额事实（5 个交易日）**。这是一项技术 POC，不是完整数据链验收。
@@ -479,9 +481,9 @@ M1 可以先内部开发、使用合成数据或已审核的少量实际数据�
 
 ## 12. 文档治理与落地边界
 
-- **已有主设计不覆盖**：`docs/NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md` 继续作为 ETF 基础采集和插件业务主设计。
-- **新增本专项文件**：`docs/NATIONAL_TEAM_EXIT_ALERT_DESIGN.md` 只写预警领域、计算、事件、通知与验收。
-- **通用宿主不重复定义**：Windows Service / Quartz / IPC 权威规则仍在 `docs/CRS_BACKGROUND_SERVICE_DESIGN.md` 与插件架构文件。
+- **已有主设计不覆盖**：`docs/../../archive/national-team/ETF_MONITOR_PHASE1_DESIGN.md` 继续作为 ETF 基础采集和插件业务主设计。
+- **新增本专项文件**：`docs/modules/national-team/DRAWDOWN_ALERT_DESIGN.md` 只写预警领域、计算、事件、通知与验收。
+- **通用宿主不重复定义**：Windows Service / Quartz / IPC 权威规则仍在 `docs/../../architecture/BACKGROUND_SERVICE_DESIGN.md` 与插件架构文件。
 - **实施日志另记**：在 `docs/implementation/` 建立预警整改/测试记录；每条结论标注代码实现、合成测试、真实数据验收、正式发布四种不同状态。
 - **代码改造前**：开发人员再次核对主分支最新 Schema、命名空间与实际类路径，不按本文的示意名称盲目创建重复类。
 - **安全纪律**：不访问或影响CRS税务数据库、TOTP/个人账户数据；不绕过官方访问限制；不以插件作为执行沙箱。
@@ -504,12 +506,12 @@ M1 可以先内部开发、使用合成数据或已审核的少量实际数据�
 
 ### 小财牛 当前公开设计与进度
 
-1. 一期业务设计：https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md
-2. Worker迁移记录：https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/implementation/WORKER_RUNTIME.md
-3. 2026-10-19 P0整改记录：https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/implementation/NATIONAL_TEAM_EQUITY.md
-4. 国家队插件进度：https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/implementation/NATIONAL_TEAM_ARCHITECTURE.md
-5. 数据源联网POC：https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/DATA_SOURCE_POC.md
-6. Worker总体方案：https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/CRS_BACKGROUND_SERVICE_DESIGN.md
+1. 一期业务设计：../../archive/national-team/ETF_MONITOR_PHASE1_DESIGN.md
+2. Worker迁移记录：../../../../implementation/WORKER_RUNTIME.md
+3. 2026-10-19 P0整改记录：../../implementation/NATIONAL_TEAM_EQUITY.md
+4. 国家队插件进度：../../implementation/NATIONAL_TEAM_ARCHITECTURE.md
+5. 数据源联网POC：../../validation/national-team/DATA_SOURCE_POC_20261014.md
+6. Worker总体方案：../../architecture/BACKGROUND_SERVICE_DESIGN.md
 
 ### 官方／公开资料
 
