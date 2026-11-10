@@ -4,9 +4,9 @@
 >
 > 版本：1.0（2026-10-10）｜维护主体：产品/税务规则负责人｜适用：.NET 10 WPF 本地境外证券所得**辅助测算**。
 >
-> **单一事实原则：** 当前实现以 `../implementation/TAX_ENGINE_SPEC.md`、`../implementation/CAPITAL_GAIN_FIFO_SPEC.md`、`../guides/FOREIGN_CREDIT_REVIEW.md` 和实际源码为准。本文件只规范规则来源、验证和上线门槛；对法律适用的判断必须经独立复核，不得凭本文把辅助结果升级为申报结论。
+> **单一事实原则：** 当前实现以 `../../implementation/TAX_ENGINE_SPEC.md`、`../../implementation/CAPITAL_GAIN_FIFO_SPEC.md`、`../../guides/FOREIGN_CREDIT_REVIEW.md` 和实际源码为准。本文件只规范规则来源、验证和上线门槛；对法律适用的判断必须经独立复核，不得凭本文把辅助结果升级为申报结论。
 
-> **职责边界：** 本文只管理法规来源、所得分类/适用条件、规则状态、独立复核和税务场景放行门槛；不定义或直接修改 TaxEngine/FIFO 公式，也不替代单次计算证据。当前计算实现见 [税额引擎当前实现](../../implementation/TAX_ENGINE_SPEC.md)，FIFO 行为见 [FIFO 计算实现约定](../../implementation/CAPITAL_GAIN_FIFO_SPEC.md)，计算证据见 [计算证据与确定性复算规范](../calculation/CALCULATION_EVIDENCE_SPEC.md)，抵免资料操作见 [境外税额抵免复核](../../guides/FOREIGN_CREDIT_REVIEW.md)。
+> **职责边界：** 本文只管理法规来源、所得分类/适用条件、规则状态、独立复核和税务场景放行门槛；不定义或直接修改 TaxEngine/FIFO 公式，也不替代单次计算证据。当前计算实现见 [税额引擎当前实现](../../../implementation/TAX_ENGINE_SPEC.md)，FIFO 行为见 [FIFO 计算实现约定](../../../implementation/CAPITAL_GAIN_FIFO_SPEC.md)，计算证据见 [计算证据与确定性复算规范](../calculation/CALCULATION_EVIDENCE_SPEC.md)，抵免资料操作见 [境外税额抵免复核](../../../guides/FOREIGN_CREDIT_REVIEW.md)。
 
 ## 1. 目的与适用范围
 
@@ -29,7 +29,7 @@
 | `APPROVED_SCOPED` | 指定场景签认 | 签认人、依据、范围、限制、日期均记录 | 只在明确范围内供辅助核对，不表示机关核准 |
 | `OUT_OF_SCOPE` | 不支持 | 禁止自动套用，保持未知值/人工处理 | 否 |
 
-**硬性规则：** `Summary.SupplementTax` 为既有公式计算值，不是最终税务认定；当完整性、对账、口径或证据门槛未满足时，`CalculationResult.EstimatedTopUpCny` 必须保持 `null`，并在页面和导出清晰说明原因。禁止用 0 代替未知额；不允许人工备注直接解除成本或法规问题。参见 `../implementation/TAX_ENGINE_SPEC.md`、`KNOWN_ISSUES.md` 的 AR-06/07。
+**硬性规则：** `Summary.SupplementTax` 为既有公式计算值，不是最终税务认定；当完整性、对账、口径或证据门槛未满足时，`CalculationResult.EstimatedTopUpCny` 必须保持 `null`，并在页面和导出清晰说明原因。禁止用 0 代替未知额；不允许人工备注直接解除成本或法规问题。参见 `../../implementation/TAX_ENGINE_SPEC.md`、`../../KNOWN_ISSUES.md` 的 AR-06/07。
 
 ## 3. 官方规范来源登记（核对截至 2026-10-10）
 
@@ -43,7 +43,7 @@
 | `FORM-OVERSEAS-B` | [《个人所得税年度自行纳税申报表（B 表）》填表说明（上海税务局）](https://shanghai.chinatax.gov.cn/bsfw/xzzx/bgxz/sbzsl/202402/t470789.html) | 境外所得 B 表及境外所得抵免明细表；其他境外所得的栏目与次年申报期限 | 用于报表字段映射参考，**尚不代表本项目可生成合规申报表** |
 | `GUIDANCE-FX` | [境外所得外币折算问答（辽宁税务局）](https://liaoning.chinatax.gov.cn/art/2021/5/12/art_99_60907.html) | 指向公告第 12 条及实施条例第 32 条 | **明确提示：现有报价日平均汇率不是已验证的法定折算规则** |
 
-参考文件：`../guides/EXCHANGE_RATE_SOURCES.md`（2026 报价日平均值仅临时测算；2021–2025 来源未全部重新核验）、`../guides/FOREIGN_CREDIT_REVIEW.md`（抵免不完整及凭证边界）。
+参考文件：`../../guides/EXCHANGE_RATE_SOURCES.md`（2026 报价日平均值仅临时测算；2021–2025 来源未全部重新核验）、`../../guides/FOREIGN_CREDIT_REVIEW.md`（抵免不完整及凭证边界）。
 
 ## 4. 税务规则核验矩阵（核心工作台）
 
@@ -82,7 +82,7 @@
 | `Reviewer` / `ReviewedAt` / `EvidenceIds` | 签认时是 | 独立复核身份、日期、证据与适用限制 |
 | `KnownExclusions` | 是 | 特殊证券事件、资金流水缺口、汇率不适用等 |
 
-**规则变更流程：** 增加规则版本和有效年度 → 补入法规来源及反例 → 增补独立测试样本 → 审核不同证券/账户情形 → 税务适用签认 → 与源代码和 `../implementation/TAX_ENGINE_SPEC.md` 同步 → 生成带版本标识的新计算。不得静默重写既有冻结历史。
+**规则变更流程：** 增加规则版本和有效年度 → 补入法规来源及反例 → 增补独立测试样本 → 审核不同证券/账户情形 → 税务适用签认 → 与源代码和 `../../implementation/TAX_ENGINE_SPEC.md` 同步 → 生成带版本标识的新计算。不得静默重写既有冻结历史。
 
 **更正法规理解时：** 旧任务保留原计算规则/版本及历史提示；新计算使用新版本并生成新的运行 ID，不能覆盖旧结果。若发现涉及重大计算风险，公开版应提供受影响版本列表与必要警示。
 
@@ -90,7 +90,7 @@
 
 | 测试 ID | 输入/场景 | 最低验收点 | 责任分类 |
 | --- | --- | --- | --- |
-| `TX-T01` | 买入两批、分次卖出、费用含费/未含费 | FIFO 数量及成本守恒，防买入费双扣；与 `../implementation/CAPITAL_GAIN_FIFO_SPEC.md` 基线一致 | 算法 |
+| `TX-T01` | 买入两批、分次卖出、费用含费/未含费 | FIFO 数量及成本守恒，防买入费双扣；与 `../../implementation/CAPITAL_GAIN_FIFO_SPEC.md` 基线一致 | 算法 |
 | `TX-T02` | 同证券同时间且排序不可证 | `AMBIGUOUS_FIFO_ORDER`，可信成本阻断 | 数据 |
 | `TX-T03` | 缺历史 LOT、价格仅有持仓市价 | `MISSING_COST`，收益保持未知 | 数据 |
 | `TX-T04` | 分笔盈利与亏损互现 | 同时生成**现有算法结果**和**法规待核实标记**，不得自动把合计法定化 | 税务解释 |
@@ -134,10 +134,10 @@ blocking_issues: [AR-06, AR-12]
 
 **某一具体场景可完成“适用性验证”**：条文已核实 + 明确居民/所得/来源/税年条件 + 独立真实样本对账 + 负责人签认，记录审定范围与反例。只对已签认范围解除对应规则问题。
 
-**公开版发布阻断条件**：税务法定折算、成本口径、抵免适用性等与用户可见金额实质有关且未签认时，不得将 `EstimatedTopUpCny`、Excel 或宣传语标注为“已核定应补税”“申报可直接采用”。可以作为**明确限制范围的辅助测算版**发布的前提是业务与合规负责人确认风险提示、阻断门槛、真实样本和发布条款符合预期；总体发布批准仍由 `../validation/RELEASE_ACCEPTANCE.md` 管理。
+**公开版发布阻断条件**：税务法定折算、成本口径、抵免适用性等与用户可见金额实质有关且未签认时，不得将 `EstimatedTopUpCny`、Excel 或宣传语标注为“已核定应补税”“申报可直接采用”。可以作为**明确限制范围的辅助测算版**发布的前提是业务与合规负责人确认风险提示、阻断门槛、真实样本和发布条款符合预期；总体发布批准仍由 `../../validation/RELEASE_ACCEPTANCE.md` 管理。
 
-**任务入口：** `KNOWN_ISSUES.md` 的 AR-06、AR-07、AR-12。新增规则/样例/审计材料写入本文件或受版本管理的非敏感验收记录；不要重复建立第二套待办清单。
+**任务入口：** `../../KNOWN_ISSUES.md` 的 AR-06、AR-07、AR-12。新增规则/样例/审计材料写入本文件或受版本管理的非敏感验收记录；不要重复建立第二套待办清单。
 
 ---
 
-**文档责任边界：** `../implementation/TAX_ENGINE_SPEC.md` 描述当前实现；本文定义**如何核验税务适用性**；`../calculation/CALCULATION_EVIDENCE_SPEC.md` 说明**如何固定某次计算使用的输入/规则/输出**；`RELEASE_PLAN.md` 规定**何时可以公开发布**。三者不能互相替代。
+**文档责任边界：** `../../implementation/TAX_ENGINE_SPEC.md` 描述当前实现；本文定义**如何核验税务适用性**；`../calculation/CALCULATION_EVIDENCE_SPEC.md` 说明**如何固定某次计算使用的输入/规则/输出**；`../RELEASE_PLAN.md` 规定**何时可以公开发布**。三者不能互相替代。

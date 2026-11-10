@@ -39,7 +39,7 @@ CRS 的正式产品名称为“小财牛”，当前由开发者自用，可能�
 | V2.0 可选在线版 | 多设备/同步 | 在线身份认证、同步协议、密钥与身份分离 | 有真实需求再设计 |
 | V3.0 可选 SaaS | 多租户服务 | 租户隔离、服务端授权、审计、应急响应 | 另立安全架构设计 |
 
-公开发布不等于一定需要在线账号；个人用户在自己的设备上用本地保险库即可运行。V1.0 的实施项与现有业务缺口统一在 [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) 登记；正式测试门槛实施时同步修订 `../validation/TEST_SPEC.md` 与 `../validation/RELEASE_ACCEPTANCE.md`。
+公开发布不等于一定需要在线账号；个人用户在自己的设备上用本地保险库即可运行。V1.0 的实施项与现有业务缺口统一在 [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) 登记；正式测试门槛实施时同步修订 `../../validation/TEST_SPEC.md` 与 `../../validation/RELEASE_ACCEPTANCE.md`。
 
 ## 3. 资产、威胁与防护边界
 
