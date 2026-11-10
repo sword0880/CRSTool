@@ -1,11 +1,11 @@
 # CRS 后台任务服务架构设计：Windows Service + Quartz.NET
 
-> 实施进度（2026-10-15）：[ETF已迁入Worker](implementation/WORKER_RUNTIME.md#etf-worker-migration)，双入口包、独占加密市场库与只读桌面已接线；测试环境不迁移旧研究库。完整服务升级恢复、官方完整日历和长期数据验收仍开放，以下一期目标不是全部已完成的声明。
+> 实施进度（2026-10-15）：[ETF已迁入Worker](../implementation/WORKER_RUNTIME.md#etf-worker-migration)，双入口包、独占加密市场库与只读桌面已接线；测试环境不迁移旧研究库。完整服务升级恢复、官方完整日历和长期数据验收仍开放，以下一期目标不是全部已完成的声明。
 
 > 版本：**v1.0**｜日期：**2026-10-15**｜状态：**架构决定已冻结，实施/安装/网站数据源仍需POC验收**  
 > ADR：**ADR-BG-001**｜适用范围：CRS全部需要无人值守执行的第一方可信插件  
-> 上层规范：[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)  
-> 业务实例：[NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md](./NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)  
+> 上层规范：[CRS_PLUGIN_ARCHITECTURE.md](PLUGIN_ARCHITECTURE.md)  
+> 业务实例：[NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md](../archive/national-team/ETF_MONITOR_PHASE1_DESIGN.md)  
 > 技术基线：Windows 10/11；C# / .NET 10；WPF；Quartz.NET（实施时锁定兼容版本）；独立SQLCipher（任务与市场库）
 
 ## 1. 决策、目标与非目标

@@ -1,11 +1,11 @@
 # CRS 插件化总体架构设计（宿主级规范）
 
-> 当前实施以[ETF Worker迁移](implementation/WORKER_RUNTIME.md#etf-worker-migration)为准：桌面入口仅申请navigation，jobs/schedules/http-public/storage-private由后台责任承接，旧桌面能力声明在加载前拒绝。本文后续保留的早期单宿主契约示例不构成当前回退路径。
+> 当前实施以[ETF Worker迁移](../implementation/WORKER_RUNTIME.md#etf-worker-migration)为准：桌面入口仅申请navigation，jobs/schedules/http-public/storage-private由后台责任承接，旧桌面能力声明在加载前拒绝。本文后续保留的早期单宿主契约示例不构成当前回退路径。
 
 > 版本：**v2.2 / 后台Windows Service架构决策**｜日期：2026-10-15｜状态：**有条件通过，须完成P0验证**  
 > 技术基线：C# / .NET 10 / WPF；Windows 10 19041+；本地优先  
 > 适用：**今后新增且边界独立的业务能力优先插件化**；现有税务及已落地绩效功能不强制搬迁  
-> 配套文档：[NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md](./NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md)；**后台实现唯一专项规范：**[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)
+> 配套文档：[NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md](../archive/national-team/ETF_MONITOR_PHASE1_DESIGN.md)；**后台实现唯一专项规范：**[CRS_BACKGROUND_SERVICE_DESIGN.md](BACKGROUND_SERVICE_DESIGN.md)
 
 ## 0. 已冻结的新架构决策（ADR-PLG-003 / 2026-10-15）
 
@@ -73,7 +73,7 @@
 个人税务SQLCipher/TOTP不在Service对外契约；公开研究数据在ProgramData。
 ```
 
-**这是两个进程运行时、一个业务插件包的架构**。同一插件可以只带UI、只带后台、或两个入口。两个宿主按同一官方受信清单校验和加载各自可执行的组件。Quartz只存在于Service中。完整服务设计见[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)。
+**这是两个进程运行时、一个业务插件包的架构**。同一插件可以只带UI、只带后台、或两个入口。两个宿主按同一官方受信清单校验和加载各自可执行的组件。Quartz只存在于Service中。完整服务设计见[CRS_BACKGROUND_SERVICE_DESIGN.md](BACKGROUND_SERVICE_DESIGN.md)。
 
 ### 2.1 项目与文件结构（目标增量，不破坏当前项目）
 
@@ -258,7 +258,7 @@ Started             --退出/禁用要求---->  Stopping -> Stopped -> Disposed
 - **插件状态拆分**：每个`PluginId`同时记录`UiState`/`BackgroundState`/`PackageVersion`/`DataSchemaVersion`。仅UI故障不能停止正常后台同步；业务插件被管理员禁用才停止其Quartz触发器（有界取消在途作业）；升级须协调服务维护期和数据库版本。
 - 初始验证规模内Quartz线程池初始建议2～3（**后续按实际监控规模实测**），单插件同一日数据采集防重入。20仅指表格约20行视口，不是ETF数量上限。停止过程尊重CancellationToken、停止超时并保留Checkpoint；WPF只展示轻量结果DTO，不加载原始HTML/海量证据。
 
-详细的二进制目录、JobStore、IPC契约、服务账户、安装脚本、升级顺序和测试以[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)为准。
+详细的二进制目录、JobStore、IPC契约、服务账户、安装脚本、升级顺序和测试以[CRS_BACKGROUND_SERVICE_DESIGN.md](BACKGROUND_SERVICE_DESIGN.md)为准。
 
 ## 9. 里程碑与通过条件
 

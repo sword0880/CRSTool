@@ -1,16 +1,16 @@
 # CRS「国家队持仓与ETF观察」插件——历史第一期设计
 
-> 本文仅保留最初设计与证据约束用于追溯，不作为当前组件、接口或可用功能清单。当前结构见[功能分层](architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)，当前实施与开放门槛见[重构续项](implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。
+> 本文仅保留最初设计与证据约束用于追溯，不作为当前组件、接口或可用功能清单。当前结构见[功能分层](../../architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md)，当前实施与开放门槛见[重构续项](../../implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。
 
-> 2026-10-24原始目标复核：见[市场高低位与持仓方向需求对照](architecture/NATIONAL_TEAM_MARKET_REGIME_REQUIREMENTS_20261024.md)。本期份额观察、股票快照及服务安装不等于已实现顶部/底部判断或国家队真实成交识别；行情/NAV、样本市值与行业方向、时间样本外验证另按该文M1—M4验收。以下保留分期设计和历史状态，不能以第一期交付代替整体目标。
+> 2026-10-24原始目标复核：见[市场高低位与持仓方向需求对照](../../architecture/NATIONAL_TEAM_MARKET_REGIME_REQUIREMENTS_20261024.md)。本期份额观察、股票快照及服务安装不等于已实现顶部/底部判断或国家队真实成交识别；行情/NAV、样本市值与行业方向、时间样本外验证另按该文M1—M4验收。以下保留分期设计和历史状态，不能以第一期交付代替整体目标。
 
-> 2026-10-15实施更新：[ETF公开任务已迁入Worker](implementation/WORKER_RUNTIME.md#etf-worker-migration)，桌面关闭后继续采集。测试阶段采用全新Schema 2加密市场库，不迁移旧桌面研究数据；交易日历与长期覆盖目标仍按本文门槛独立验收。
+> 2026-10-15实施更新：[ETF公开任务已迁入Worker](../../implementation/WORKER_RUNTIME.md#etf-worker-migration)，桌面关闭后继续采集。测试阶段采用全新Schema 2加密市场库，不迁移旧桌面研究数据；交易日历与长期覆盖目标仍按本文门槛独立验收。
 
-> 文件：`NATIONAL_TEAM_ETF_MONITOR_PHASE1_DESIGN.md`  
+> 文件：`docs/archive/national-team/ETF_MONITOR_PHASE1_DESIGN.md`  
 > **更新日期：2026-10-15；版本：v2.2（Windows Service后台运行专项同步）**  
 > 状态：**有条件通过；免费数据通道M0、真实WPF插件POC和升级恢复P0尚未验证**  
 > 技术：C# / .NET 10 / WPF / SQLite(可选SQLCipher)  
-> **总体架构依据：**[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)；**后台技术唯一专项依据：**[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)  
+> **总体架构依据：**[CRS_PLUGIN_ARCHITECTURE.md](../../architecture/PLUGIN_ARCHITECTURE.md)；**后台技术唯一专项依据：**[CRS_BACKGROUND_SERVICE_DESIGN.md](../../architecture/BACKGROUND_SERVICE_DESIGN.md)  
 > 第一阶段：中央汇金及国家队**核心宽基ETF，监控数量按用户配置**；初始链路验证5只。20仅指表格约20行的可见空间，更多记录滚动查看，不限制启用数量。
 > 后续：扩展**中央汇金等机构对上市公司的直接持股/增减持披露研究**，不把股票“国家队持仓”误作实时交易。
 
@@ -88,7 +88,7 @@ CRS.Worker.Service（Windows服务账户，无界面）
 UI不直接写Quartz库/market.db，不创建第二套定时任务。
 ```
 
-**第一期物理发布至少Core/Jobs与Ui分离**，二者由同一个`plugin.json`发行和管理。后台服务独立于WPF运行；在服务未安装/未启动时，ETF页面可展示缓存状态与明确的“后台服务不可用”，不能暗中启动WPF自有Quartz降级造成双调度。后台宿主的权威协议见[CRS_BACKGROUND_SERVICE_DESIGN.md](./CRS_BACKGROUND_SERVICE_DESIGN.md)。
+**第一期物理发布至少Core/Jobs与Ui分离**，二者由同一个`plugin.json`发行和管理。后台服务独立于WPF运行；在服务未安装/未启动时，ETF页面可展示缓存状态与明确的“后台服务不可用”，不能暗中启动WPF自有Quartz降级造成双调度。后台宿主的权威协议见[CRS_BACKGROUND_SERVICE_DESIGN.md](../../architecture/BACKGROUND_SERVICE_DESIGN.md)。
 
 ### 2.2 依赖约束
 
@@ -707,6 +707,6 @@ public interface IEtfShareSource
 10. WPF XAML在ALC的兼容性议题：<https://github.com/dotnet/wpf/issues/1700>
 11. SQLite在线备份与WAL：<https://www.sqlite.org/backup.html>、<https://www.sqlite.org/wal.html>
 12. CRS公开项目结构与绩效当前状态：<https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/architecture/PROJECT_STRUCTURE.md>
-13. CRS通用插件宿主规范（本项目配套文件）：[CRS_PLUGIN_ARCHITECTURE.md](./CRS_PLUGIN_ARCHITECTURE.md)
+13. CRS通用插件宿主规范（本项目配套文件）：[CRS_PLUGIN_ARCHITECTURE.md](../../architecture/PLUGIN_ARCHITECTURE.md)
 
 > 核实声明：本轮还核实了CRS公开`CRS.sln`、`CRS.Desktop.Wpf.csproj`、`docs/architecture/PROJECT_STRUCTURE.md`和既有绩效规格。交易所公开页面不等于稳定正式API；**仍未验证当前两市内部数据接口可持续合法调用**，也未执行本地WPF/插件编译测试。所有HTTP参数、历史范围、发布许可与实际软件兼容性，均以M0/A-0现场POC为准。
