@@ -51,7 +51,7 @@ public partial class BackgroundServicePage : UserControl
         refresh.Stop();
         if (TaskCenterTabs.SelectedItem == ServiceStatusTab)
             _ = model.RefreshServiceStatusCommand.ExecuteAsync(null);
-        else if (TaskCenterTabs.SelectedItem == ServicePlansTab && model.Jobs.Count == 0 && !model.Busy)
+        else if (TaskCenterTabs.SelectedItem == ServicePlansTab && !model.Busy)
             _ = model.RefreshCommand.ExecuteAsync(null);
         else if (TaskCenterTabs.SelectedItem == ExecutionHistoryTab)
             _ = model.LoadHistoryOptionsAsync();
@@ -66,7 +66,7 @@ public partial class BackgroundServicePage : UserControl
     {
         var parent=(BackgroundServiceViewModel)DataContext;
         if(parent.Lifetime.IsCancellationRequested || parent.Busy)return;
-        if(plan.IsMaintenance)new MaintenancePlanWindow(parent.Cleanup,parent.Lifetime){Owner=Window.GetWindow(this)}.ShowDialog();
+        if(plan.IsMaintenance)new MaintenancePlanWindow(plan,parent.Lifetime){Owner=Window.GetWindow(this)}.ShowDialog();
         else new ScheduleEditWindow(new(parent,plan.Job!)){Owner=Window.GetWindow(this)}.ShowDialog();
     }
     // 只响应实际数据行，双击表头、滚动条或空白处不能误开上次选择的日志。

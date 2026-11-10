@@ -5,7 +5,7 @@ using CRS.Application.Abstractions;
 
 namespace CRS.DesktopClient.ViewModels;
 
-/// <summary>独立浏览已保存的年度结果，打开明细时才切换工作区的核算结果。</summary>
+/// <summary>选择已保存的年度结果，并同步工作区的核算页面。</summary>
 public partial class DashboardViewModel : ObservableObject
 {
     private readonly IDesktopSettingsService? settings;
@@ -45,7 +45,7 @@ public partial class DashboardViewModel : ObservableObject
 
     public bool HasResult => Result is not null;
     public bool IsViewingHistory => OpenedHistoryTask is not null;
-    public bool CanSelectYear => !IsReadingIndex && Years.Count > 0;
+    public bool CanSelectYear => State.IsIdle && !IsReadingIndex && Years.Count > 0;
     public bool ShowEmpty => !IsReading && !LoadFailed && !HasResult && SelectedYear.HasValue;
     public string EmptyMessage => RecentTasks.Count == 0 && chosenYear is null
         ? "还没有导入年度资料。"
@@ -102,6 +102,7 @@ public partial class DashboardViewModel : ObservableObject
         state.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(state.IsBusy)) return;
+            OnPropertyChanged(nameof(CanSelectYear));
             OpenDetailCommand.NotifyCanExecuteChanged();
             OpenTaskCommand.NotifyCanExecuteChanged();
             OpenImportCommand.NotifyCanExecuteChanged();
@@ -139,7 +140,7 @@ public partial class DashboardViewModel : ObservableObject
     [RelayCommand]
     private Task ReturnToYearOverviewAsync()
     {
-        if (OpenedHistoryTask is not { } task || lifetime.IsCancellationRequested) return Task.CompletedTask;
+        if (OpenedHistoryTask is not { } task || lifetime.IsCancellationRequested || !State.IsIdle) return Task.CompletedTask;
         chosenYear = task.Year;
         OpenedHistoryTask = null;
         return RefreshAsync();
@@ -150,7 +151,9 @@ public partial class DashboardViewModel : ObservableObject
     {
         if (lifetime.IsCancellationRequested) return;
         // 刷新任务列表时保留从导入历史明确打开的结果。
-        var version = IsViewingHistory ? ++readVersion : BeginRead();
+        var indexOnly = IsViewingHistory;
+        var version = indexOnly ? ++readVersion : BeginRead();
+        var workspaceVersion = State.ResultVersion;
         IsReadingIndex = true;
         try
         {
@@ -182,10 +185,12 @@ public partial class DashboardViewModel : ObservableObject
                 if (chosenYear is null && savedYear is int year && preferred.ContainsKey(year)) chosenYear = year;
                 preferenceLoaded = true;
             }
-            if (!IsViewingHistory)
-                SelectedYear = chosenYear ?? (preferred.Count > 0 ? preferred.Keys.Max() : currentYear - 1);
+            if (indexOnly) return;
+            await State.WaitForIdleAsync(lifetime.Token);
+            if (version != readVersion) return;
+            SelectedYear = chosenYear ?? (preferred.Count > 0 ? preferred.Keys.Max() : currentYear - 1);
             IsReadingIndex = false;
-            if (!IsViewingHistory) await LoadSelectedResultAsync(version);
+            await LoadSelectedResultAsync(version, workspaceVersion);
         }
         catch (Exception error) { ReportReadFailure(version, error); }
         finally
@@ -208,7 +213,7 @@ public partial class DashboardViewModel : ObservableObject
         try { settings?.SaveOverviewTaxYear(year); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         { State.UseCases.LogFailure(error.GetType().Name); }
-        try { await LoadSelectedResultAsync(version); }
+        try { await LoadSelectedResultAsync(version, State.ResultVersion); }
         catch (Exception error) { ReportReadFailure(version, error); }
         finally { if (version == readVersion) IsReading = false; }
     }
@@ -231,11 +236,33 @@ public partial class DashboardViewModel : ObservableObject
         return ++readVersion;
     }
 
-    private async Task LoadSelectedResultAsync(int version)
+    private async Task LoadSelectedResultAsync(int version, int workspaceVersion)
     {
-        if (SelectedYear is not int year || !preferredByYear.TryGetValue(year, out var task)) return;
+        bool IsCurrent() => version == readVersion && !lifetime.IsCancellationRequested
+            && State.IsIdle && State.ResultVersion == workspaceVersion;
+
+        if (SelectedYear is not int year) return;
+        if (!IsCurrent()) { if (version == readVersion) LoadFailed = true; return; }
+
+        State.Year = year;
+        if (!preferredByYear.TryGetValue(year, out var task))
+        {
+            if (State.HasResult) State.Clear();
+            State.Status = EmptyMessage;
+            return;
+        }
+        if (State.Result is { } active && active.Year != year)
+        {
+            State.Clear();
+            workspaceVersion = State.ResultVersion;
+        }
+        if (!State.HasResult) State.Status = $"正在打开 {year} 年核算结果……";
         var saved = await ReadResultAsync(task.Id, year);
-        if (version == readVersion) Result = saved;
+        var displayed = IsCurrent() && (ReferenceEquals(State.Result, saved)
+            || await State.DisplayAsync(saved, cancellation: lifetime.Token, isCurrent: IsCurrent));
+        if (version != readVersion) return;
+        if (displayed) Result = saved;
+        else LoadFailed = true;
     }
 
     private async Task<CalculationResult> ReadResultAsync(string id, int year)
@@ -249,7 +276,12 @@ public partial class DashboardViewModel : ObservableObject
     {
         if (version != readVersion) return;
         State.UseCases.LogFailure(error.GetType().Name);
-        if (!IsViewingHistory) LoadFailed = true;
+        if (!IsViewingHistory)
+        {
+            LoadFailed = true;
+            if (State.IsIdle && !State.HasResult && SelectedYear is int year)
+                State.Status = $"暂时无法读取 {year} 年核算结果。";
+        }
     }
 
     private bool CanOpenDetail() => State.IsIdle && HasResult && !lifetime.IsCancellationRequested;
@@ -260,12 +292,20 @@ public partial class DashboardViewModel : ObservableObject
     private void OpenImport() => openImport(SelectedYear!.Value);
 
     [RelayCommand(CanExecute = nameof(CanOpenDetail))]
-    private Task OpenDetailAsync(string page) => OpenResultAsync(Result!.SnapshotId, Result.Year, page);
+    private async Task OpenDetailAsync(string page)
+    {
+        if (Result is { } selected && await OpenResultAsync(selected.SnapshotId, selected.Year) is not null) navigate(page);
+    }
 
     [RelayCommand(CanExecute = nameof(CanOpenTask))]
-    private Task OpenTaskAsync(HistoryItem task) => OpenResultAsync(task.Id, task.Year, "tax");
+    private async Task OpenTaskAsync(HistoryItem task)
+    {
+        if (await OpenResultAsync(task.Id, task.Year) is not { } opened) return;
+        ShowOpenedHistory(task, opened);
+        navigate("tax");
+    }
 
-    private async Task OpenResultAsync(string id, int year, string page)
+    private async Task<CalculationResult?> OpenResultAsync(string id, int year)
     {
         var opened = await State.RunAsync(async () =>
         {
@@ -274,7 +314,7 @@ public partial class DashboardViewModel : ObservableObject
             lifetime.Token.ThrowIfCancellationRequested();
             await State.DisplayAsync(selected, cancellation: lifetime.Token);
         });
-        if (opened && !lifetime.IsCancellationRequested) navigate(page);
+        return opened && !lifetime.IsCancellationRequested && State.Result is { } result && result.SnapshotId == id ? result : null;
     }
 
     public void ClearForLock()

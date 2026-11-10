@@ -19,17 +19,16 @@ public sealed partial class DataCleanupViewModel
     [ObservableProperty]private string taskNotificationMessage="";
     [ObservableProperty]private DataCleanupTask? currentTask;
     [ObservableProperty]private DataCleanupTask? latestTaskResult;
-    [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus)),NotifyPropertyChangedFor(nameof(AutomaticPlanNext))]private bool taskStatusKnown;
-    [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus)),NotifyPropertyChangedFor(nameof(AutomaticPlanPolicy)),NotifyPropertyChangedFor(nameof(AutomaticPlanNext))]
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus))]private bool taskStatusKnown;
+    [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus)),NotifyPropertyChangedFor(nameof(AutomaticPlanPolicy))]
     private DataCleanupAutomaticPlan? automaticCleanupPlan;
     public string AutomaticPlanPolicy=>AutomaticCleanupPlan is {} plan
-        ?$"{(plan.Cron is { } cron ? $"北京时间 Cron {cron}" : $"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时再次到期")}；未完成时 {TimeSpan.FromSeconds(plan.RetryIntervalSeconds).TotalMinutes:N0} 分钟后重试。日志保留 {plan.LogRetentionDays} 天。"
-            +(plan.KeepLatestUsableBackupOnly?"保留最近一份可用回退快照；无法核实的副本保留。":$"保留当前快照及 {plan.HistoricalBackupsToKeep} 份有效历史副本。")
-        :"后台按保留规则执行；尚未取得计划详情。";
+        ?(plan.Cron is null?$"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时再次到期。":"")
+            +$"未完成时 {TimeSpan.FromSeconds(plan.RetryIntervalSeconds).TotalMinutes:N0} 分钟后重试。日志保留 {plan.LogRetentionDays} 天。"
+            +(plan.KeepLatestUsableBackupOnly?"保留最近一份可用回退快照，无法核实的副本也保留。":$"保留当前快照及 {plan.HistoricalBackupsToKeep} 份有效历史副本。")
+        :"尚未取得后台清理规则。";
     public string AutomaticPlanStatus=>!TaskStatusKnown?"状态未确认":AutomaticCleanupPlan?.State switch
     {"Running"=>"清理执行中","Waiting"=>"已启用，等待到期","Due"=>"已到期，等待可用时机","Paused"=>"维护暂停中，到期后恢复","NotStarted"=>"自动清理循环尚未启动","Unavailable"=>"计划状态不可用，请检查后台",_=>"当前后台未提供维护计划摘要，请更新配套后台。"};
-    public string AutomaticPlanNext=>TaskStatusKnown&&AutomaticCleanupPlan?.NextDueAt is {} due
-        ?$"下次到期：{due:yyyy-MM-dd HH:mm:ss}（北京时间）；实际执行需等待当前清理或维护结束。":"下次到期时间未确认。";
     public bool TasksAvailable=>Tasks?.CanExecute==true;
     public string TaskAccessMessage=>TasksAvailable?"后台按服务计划清理旧日志和已核验的旧升级副本；当前数据库、密钥和插件原件保留。":"需要管理员权限及支持后台清理任务的配套服务。";
     private bool CanSubmitTask()=>TasksAvailable&&!TaskRequestBusy;

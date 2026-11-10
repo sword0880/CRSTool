@@ -1,29 +1,34 @@
 <Page x:Class="CRS.DesktopClient.Views.Pages.PerformancePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF" xmlns:parts="clr-namespace:CRS.DesktopClient.Views.Pages.Performance">
  
  <!-- 由父级可用空间驱动布局，无需在 Loaded 时查找主窗口的 Navigation 名称。 -->
- <Grid><Grid Margin="24,20,28,20" x:Name="ViewportGrid" VerticalAlignment="Stretch"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+ <Grid><Grid Margin="24,20,28,20" x:Name="ViewportGrid" VerticalAlignment="Stretch"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <StackPanel><TextBlock Text="投资绩效与基准对比" Style="{StaticResource PageTitle}"/>
-   <TextBlock Text="{Binding NetworkStatus}" Style="{StaticResource Subtitle}" TextWrapping="Wrap"/>
+   <TextBlock Text="{Binding NetworkStatus}" Style="{StaticResource Subtitle}" Margin="0,0,0,10"/>
   </StackPanel>
   <!-- 核心操作固定在顶部，导入与计算无需滚到页面底部。 -->
-  <WrapPanel Grid.Row="1" Margin="0,0,0,12" IsEnabled="{Binding State.IsIdle}">
-    <WrapPanel.Style><Style TargetType="WrapPanel"><Style.Triggers>
+  <StackPanel x:Name="PerformanceControls" Grid.Row="1" Margin="0,0,0,8">
+   <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
      <DataTrigger Binding="{Binding ShowAccountOverview}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-    </Style.Triggers></Style></WrapPanel.Style>
-   <TextBlock Text="共用证券流水导入的数据" VerticalAlignment="Center" Margin="0,0,12,0"/>
-   <ComboBox Width="112" ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}" Margin="0,0,8,0"/>
-   <DatePicker SelectedDateFormat="Short" Width="128" SelectedDate="{Binding From}" Margin="0,0,6,0"/><TextBlock Text="→" VerticalAlignment="Center" Margin="0,0,6,0"/><DatePicker SelectedDateFormat="Short" Width="128" SelectedDate="{Binding To}" Margin="0,0,8,0"/>
-   <ComboBox Width="78" ItemsSource="{Binding Currencies}" SelectedItem="{Binding Currency}" Margin="0,0,8,0"/>
-   <Button x:Name="CalculateButton" Content="联网更新 / 重算" Command="{Binding CalculateCommand}" Margin="0,0,8,0"/>
-   <Button Content="刷新资料" Command="{Binding RefreshCommand}"/>
-  </WrapPanel>
-   <Border Grid.Row="2" Background="{DynamicResource BrandAccentPaleBrush}" Margin="0,0,0,12">
-    <Border.Style><Style TargetType="Border" BasedOn="{StaticResource Card}"><Style.Triggers>
-     <DataTrigger Binding="{Binding ShowAccountOverview}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-    </Style.Triggers></Style></Border.Style>
-    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap"/>
+   </Style.Triggers></Style></StackPanel.Style>
+   <WrapPanel x:Name="PerformanceToolbar" IsEnabled="{Binding State.IsIdle}">
+    <StackPanel Orientation="Horizontal" Margin="0,0,8,5">
+     <TextBlock Text="期间" Style="{StaticResource UiHintText}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+     <ComboBox Width="120" Height="32" MinHeight="32" FontSize="13" ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}" AutomationProperties.Name="统计期间"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Margin="0,0,8,5">
+     <DatePicker x:Name="PerformanceFrom" SelectedDateFormat="Short" Width="132" Height="32" FontSize="13" SelectedDate="{Binding From}" AutomationProperties.Name="开始日期"/>
+     <TextBlock Text="→" VerticalAlignment="Center" Foreground="{DynamicResource BrandTextHintBrush}" Margin="5,0"/>
+     <DatePicker x:Name="PerformanceTo" SelectedDateFormat="Short" Width="132" Height="32" FontSize="13" SelectedDate="{Binding To}" AutomationProperties.Name="结束日期"/>
+    </StackPanel>
+    <ComboBox Width="88" Height="32" MinHeight="32" FontSize="13" ItemsSource="{Binding Currencies}" SelectedItem="{Binding Currency}" Margin="0,0,8,5" AutomationProperties.Name="报告币种"/>
+    <Button x:Name="CalculateButton" Content="联网更新 / 重算" Command="{Binding CalculateCommand}" Style="{StaticResource UiPrimaryButton}" MinHeight="32" Height="32" FontSize="13" Padding="11,4" Margin="0,0,6,5"/>
+    <Button Content="刷新资料" Command="{Binding RefreshCommand}" MinHeight="32" Height="32" FontSize="13" Padding="10,4" Margin="0,0,0,5"/>
+   </WrapPanel>
+   <Border Background="{DynamicResource BrandAccentSoftBrush}" BorderBrush="{DynamicResource BrandBorderStrongBrush}" BorderThickness="2,0,0,0" CornerRadius="4" Padding="9,4">
+    <TextBlock x:Name="PerformanceSummary" Text="{Binding Summary}" Style="{StaticResource UiStatusText}"/>
    </Border>
-  <TabControl Grid.Row="3" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+  </StackPanel>
+  <TabControl Grid.Row="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
    <!-- 导航主题的默认选页容器会按内容扩高；用有限星号行承载页内容。 -->
    <TabControl.Template><ControlTemplate TargetType="TabControl"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TabPanel IsItemsHost="True" Panel.ZIndex="1"/><ContentPresenter Grid.Row="1" ContentSource="SelectedContent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/></Grid></ControlTemplate></TabControl.Template>
    <TabItem Header="绩效工作台"><parts:PerformanceWorkbenchView/></TabItem>

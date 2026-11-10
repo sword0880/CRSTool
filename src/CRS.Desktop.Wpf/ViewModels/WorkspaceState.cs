@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CRS.Application.Abstractions;
 using CRS.DesktopClient.Services;
@@ -16,6 +17,7 @@ public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction 
     [ObservableProperty] private CalculationResult? result;
     public string Fingerprint { get; private set; } = "";
     public IReadOnlyList<ReviewNote> Reviews { get; private set; } = [];
+    internal int ResultVersion { get; private set; }
     public bool IsIdle => !IsBusy;
     public bool HasResult => Result is not null;
     public string ResultStatus => Result is { } value
@@ -36,19 +38,36 @@ public partial class WorkspaceState(IDesktopUseCases useCases, IUserInteraction 
     /// <summary>输入变更后解除旧结果、复核关联及导出资格。</summary>
     public void Clear()
     {
+        ResultVersion++;
         Result = null; Fingerprint = ""; Reviews = [];
         OnPropertyChanged(nameof(HasResult)); OnPropertyChanged(nameof(DisplayYear)); OnPropertyChanged(nameof(AccountScope));
         ResultChanged?.Invoke();
     }
     /// <summary>先读取对应复核资料，再原子切换各页面的结果。</summary>
-    public async Task DisplayAsync(CalculationResult value, string fingerprint = "", CancellationToken cancellation = default)
+    public async Task<bool> DisplayAsync(CalculationResult value, string fingerprint = "", CancellationToken cancellation = default,
+        Func<bool>? isCurrent = null)
     {
         var notes = await UseCases.ReviewsAsync(value.SnapshotId);
         cancellation.ThrowIfCancellationRequested();
+        if (isCurrent is not null && !isCurrent()) return false;
+        ResultVersion++;
         Reviews = notes; Fingerprint = fingerprint; Result = value;
         Status = ResultStatus;
         OnPropertyChanged(nameof(HasResult)); OnPropertyChanged(nameof(DisplayYear)); OnPropertyChanged(nameof(AccountScope));
         ResultChanged?.Invoke();
+        return true;
+    }
+    internal async Task WaitForIdleAsync(CancellationToken cancellation)
+    {
+        if (IsIdle) return;
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnBusyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(IsBusy) && IsIdle) ready.TrySetResult();
+        }
+        PropertyChanged += OnBusyChanged;
+        try { if (!IsIdle) await ready.Task.WaitAsync(cancellation); }
+        finally { PropertyChanged -= OnBusyChanged; }
     }
     /// <summary>防止跨页面重复操作，并统一显示取消和脱敏错误。</summary>
     public async Task<bool> RunAsync(Func<Task> action)

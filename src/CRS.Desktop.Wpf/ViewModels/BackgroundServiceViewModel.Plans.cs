@@ -2,6 +2,9 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CRS.Maintenance;
+using CRS.PluginHost;
+using CRS.Timing;
+using CRS.Worker.Ipc;
 namespace CRS.DesktopClient.ViewModels;
 
 public partial class BackgroundServiceViewModel
@@ -32,6 +35,28 @@ public partial class BackgroundServiceViewModel
             }
         }
     }
+
+    private async Task ReadLegacyPlanStartsAsync(IEnumerable<ServicePlanItem> plans)
+    {
+        // 旧版 GetJobs 没有执行摘要。只读取当前页缺少摘要的任务，每项至多一条历史记录。
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            foreach (var row in plans.Where(x => x.Job is { PlanState: null, LastStartedAt: null }).ToArray())
+            {
+                var reply = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetFilteredHistory",
+                    PluginId: row.PluginId, JobId: row.JobId, PageSize: 1), deadline.Token);
+                if (reply.Code != "Ok") return;
+                if (reply.History is [var execution] && execution.PluginId == row.PluginId && execution.JobId == row.JobId)
+                    row.SetLegacyLastStart(execution.StartedUtc);
+                else if (reply.History is { Count: 0 } && reply.NextCursor is null)
+                    row.SetLegacyLastStart(null);
+            }
+        }
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested && deadline.IsCancellationRequested) { }
+        catch (BackgroundServiceException) { }
+    }
 }
 
 public sealed class ServicePlanItem:ObservableObject
@@ -39,7 +64,15 @@ public sealed class ServicePlanItem:ObservableObject
     public CRS.Worker.Abstractions.TaskDefinition? Job{get;}
     public DataCleanupViewModel? Cleanup{get;}
     public bool IsMaintenance=>Job is null;
-    public ServicePlanItem(CRS.Worker.Abstractions.TaskDefinition job)=>Job=job;
+    private readonly DateTimeOffset? legacyNextDue;
+    public ServicePlanItem(CRS.Worker.Abstractions.TaskDefinition job):this(job,BeijingClock.Now){}
+    internal ServicePlanItem(CRS.Worker.Abstractions.TaskDefinition job,DateTimeOffset observedAt)
+    {
+        Job=job;
+        if(job is {Enabled:true,NeedsReconcile:false,PlanState:null,NotBefore:null,NextScheduledAt:null}
+            && CronEditor.Preview(job.Cron,job.TimeZoneId,observedAt,count:1).Next is [var next])
+            legacyNextDue=next;
+    }
     internal ServicePlanItem(DataCleanupViewModel? cleanup)
     {
         Cleanup=cleanup;
@@ -48,8 +81,7 @@ public sealed class ServicePlanItem:ObservableObject
     public string PluginId=>Job?.PluginId??DataCleanupTask.ServiceId;
     public string JobId=>Job?.JobId??DataCleanupTask.JobId;
     public string Name=>Job?.Name??"后台资料自动清理";
-    public string Cron=>Job?.Cron??(Cleanup?.AutomaticCleanupPlan is {} plan
-        ?plan.Cron??$"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时":"保留周期待确认");
+    public string Cron=>Job?.Cron??Cleanup?.AutomaticCleanupPlan?.Cron??"—";
     public bool? Enabled=>Job?.Enabled??(Cleanup?.TaskStatusKnown==true&&Cleanup.AutomaticCleanupPlan is{State:not("Unavailable" or "NotStarted")}?true:null);
     public long? Revision=>Job?.Revision;
     public bool? NeedsReconcile=>Job?.NeedsReconcile;
@@ -67,11 +99,25 @@ public sealed class ServicePlanItem:ObservableObject
         "Waiting" when Cleanup.LatestTaskResult?.State is "Unavailable" or "Interrupted"=>"上次未完成",
         "Waiting"=>"等待执行", _=>"状态未确认"
     } : "状态未确认");
-    public DateTimeOffset? LastStartedAt=>Job?.LastStartedAt??(Cleanup?.TaskStatusKnown==true
+    private DateTimeOffset? legacyLastStartedAt;
+    private bool legacyHistoryConfirmed;
+    internal void SetLegacyLastStart(DateTimeOffset? startedAt)
+    {
+        legacyLastStartedAt = startedAt;
+        legacyHistoryConfirmed = true;
+        OnPropertyChanged(nameof(LastStartedAt));
+        OnPropertyChanged(nameof(LastStartedText));
+    }
+
+    public DateTimeOffset? LastStartedAt=>Job?.LastStartedAt??legacyLastStartedAt??(Cleanup?.TaskStatusKnown==true
         ?Cleanup.CurrentTask?.StartedAt??Cleanup.LatestTaskResult?.StartedAt??Cleanup.LatestTaskResult?.SubmittedAt:null);
-    public string LastStartedText=>LastStartedAt is { } time?CRS.Timing.BeijingClock.Normalize(time).ToString("yyyy-MM-dd HH:mm:ss"):
-        Job?.PlanState is not null||Cleanup?.TaskStatusKnown==true?"暂无记录":"未确认";
-    public string NextDueText=>Job is {} job?(job.PlanState is "Disabled" or "Unavailable"||!job.Enabled&&job.PlanState is null?"—":
-        (job.NotBefore??job.NextScheduledAt) is {} next?CRS.Timing.BeijingClock.Normalize(next).ToString("yyyy-MM-dd HH:mm:ss"):"按计划执行")
-        :Cleanup?.TaskStatusKnown==true&&Cleanup.AutomaticCleanupPlan?.NextDueAt is {} due?due.ToString("yyyy-MM-dd HH:mm:ss"):"未确认";
+    public string LastStartedText=>LastStartedAt is { } time?FormatTime(time):
+        Job?.PlanState is not null||legacyHistoryConfirmed||Cleanup?.TaskStatusKnown==true?"暂无记录":"未确认";
+    private bool HasNoUpcomingJob=>Job is {PlanState:"Disabled" or "Unavailable"} or {Enabled:false,PlanState:null};
+    public DateTimeOffset? NextDueAt=>Job is {} job
+        ?HasNoUpcomingJob?null:job.NotBefore??job.NextScheduledAt??legacyNextDue
+        :Cleanup?.TaskStatusKnown==true?Cleanup.AutomaticCleanupPlan?.NextDueAt:null;
+    public string NextDueText=>NextDueAt is {} next?FormatTime(next):HasNoUpcomingJob?"—":"未确认";
+
+    private static string FormatTime(DateTimeOffset time)=>BeijingClock.Normalize(time).ToString("yyyy-MM-dd HH:mm:ss");
 }

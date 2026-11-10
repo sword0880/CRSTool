@@ -110,7 +110,7 @@ public partial class BackgroundServiceViewModel : ObservableObject
     private Task RefreshAsync() => WithStatusAsync(async () => { await LoadAsync(); Status = ServiceStatus; });
     private async Task LoadAsync()
     {
-        // 状态刷新不查询执行记录；历史只由用户的“查询记录”命令读取。
+        // 当前任务采样独立于历史查询。只有旧版计划需要额外补读最近启动时间。
         await RefreshTaskActivityAsync();
         var health = await ReadServiceHealthAsync();
         lifetime.ThrowIfCancellationRequested();
@@ -124,6 +124,7 @@ public partial class BackgroundServiceViewModel : ObservableObject
         UpdateHistorySuggestions();
         if(keepMaintenance)SelectedPlan=maintenancePlan;
         else Selected = Jobs.FirstOrDefault(x => x.PluginId == key?.PluginId && x.JobId == key.JobId) ?? Jobs.FirstOrDefault();
+        await ReadLegacyPlanStartsAsync(PlanRows);
     }
     [RelayCommand]
     private Task MoreJobsAsync() => WithStatusAsync(async () =>
@@ -131,9 +132,11 @@ public partial class BackgroundServiceViewModel : ObservableObject
         if (JobsCursor is null) { Status = "没有更多计划。"; return; }
         var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), "GetJobs", Cursor: JobsCursor), lifetime);
         if (response.Code != "Ok") { Status = "计划读取失败：" + response.Code; return; }
+        var previousCount = PlanRows.Count;
         foreach (var row in response.Jobs ?? []) if (!Jobs.Any(x => x.PluginId == row.PluginId && x.JobId == row.JobId)) Jobs.Add(row);
         UpdateHistorySuggestions();
         JobsCursor = response.NextCursor; Status = JobsCursor is null ? "已读取全部计划。" : "已加载下一页计划。";
+        await ReadLegacyPlanStartsAsync(PlanRows.Skip(previousCount));
     });
     public static bool IsIssueResult(string result) =>
         result is not ("Succeeded" or "NotPublished" or "Running" or "Cancelled");

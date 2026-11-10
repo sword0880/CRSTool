@@ -3,9 +3,9 @@ using Wpf.Ui.Controls;
 namespace CRS.DesktopClient.Views;
 public partial class MaintenancePlanWindow:FluentWindow
 {
-    public MaintenancePlanWindow(DataCleanupViewModel? model,CancellationToken lifetime)
+    public MaintenancePlanWindow(ServicePlanItem plan,CancellationToken lifetime)
     {
-        InitializeComponent();DataContext=model;
+        InitializeComponent();DataContext=plan;
         var registration=lifetime.Register(()=>Dispatcher.BeginInvoke(new Action(()=>{if(IsLoaded)Close();})));
         Closed+=(_,_)=>registration.Dispose();
         Loaded+=(_,_)=>{if(lifetime.IsCancellationRequested)Close();};

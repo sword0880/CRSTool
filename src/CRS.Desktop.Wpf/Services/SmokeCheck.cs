@@ -66,10 +66,10 @@ internal static class SmokeCheck
             if (shell.Dashboard.RecentTasks.Count != 1 || shell.Dashboard.TradeCount != "1") throw new InvalidOperationException("概览未读取真实任务。");
             if (overviewOnly)
             {
-                if (shell.State.HasResult || shell.Dashboard.SelectedYear != 2025)
-                    throw new InvalidOperationException("概览没有独立读取可用年度。");
+                if (shell.State.Result?.SnapshotId != result.SnapshotId || shell.Dashboard.SelectedYear != 2025)
+                    throw new InvalidOperationException("概览没有打开可用年度的工作区结果。");
                 await shell.Dashboard.SelectYearAsync(2024);
-                if (!shell.Dashboard.ShowEmpty) throw new InvalidOperationException("概览空年度没有导入引导。");
+                if (!shell.Dashboard.ShowEmpty || shell.State.HasResult) throw new InvalidOperationException("概览空年度没有清除旧结果或提供导入引导。");
                 await shell.Dashboard.SelectYearAsync(2025);
                 await shell.Dashboard.OpenDetailCommand.ExecuteAsync("review");
                 if (shell.State.Result?.SnapshotId != result.SnapshotId || bindingErrors.Errors.Count != 0)

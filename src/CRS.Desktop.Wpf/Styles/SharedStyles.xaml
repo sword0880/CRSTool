@@ -119,6 +119,20 @@
  </Style>
  <Style x:Key="MetricValue" TargetType="TextBlock"><Setter Property="FontSize" Value="30"/><Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/><Setter Property="FontWeight" Value="Bold"/><Setter Property="Margin" Value="0,8,0,4"/></Style>
  <Style x:Key="InputLabel" TargetType="TextBlock"><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/><Setter Property="Margin" Value="0,14,0,6"/></Style>
+ <Style x:Key="TaskPlanHeading" TargetType="TextBlock"><Setter Property="FontSize" Value="22"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+ <Style x:Key="TaskPlanIdentity" TargetType="TextBlock"><Setter Property="Foreground" Value="#64748B"/><Setter Property="Margin" Value="0,5,0,0"/></Style>
+ <Style x:Key="TaskPlanCaption" TargetType="TextBlock"><Setter Property="Foreground" Value="#475569"/><Setter Property="Margin" Value="0,0,0,6"/></Style>
+ <Style x:Key="TaskPlanCard" TargetType="Border">
+  <Setter Property="Background" Value="{DynamicResource BrandSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource BrandBorderBrush}"/>
+  <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="12"/><Setter Property="Padding" Value="16"/>
+ </Style>
+ <Style x:Key="TaskPlanTimesCard" TargetType="Border">
+  <Setter Property="Background" Value="{DynamicResource BrandAccentPaleBrush}"/><Setter Property="CornerRadius" Value="10"/>
+  <Setter Property="Padding" Value="14,10"/><Setter Property="Margin" Value="0,14,0,4"/>
+ </Style>
+ <Style x:Key="TaskPlanCron" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+  <Setter Property="FontFamily" Value="Consolas"/><Setter Property="FontSize" Value="16"/><Setter Property="IsReadOnly" Value="True"/>
+ </Style>
  <Style x:Key="ActionButton" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}"><Setter Property="Margin" Value="0,0,10,8"/><Setter Property="MinHeight" Value="36"/></Style>
  <Style TargetType="DataGrid">
   <Setter Property="IsReadOnly" Value="True"/><Setter Property="CanUserAddRows" Value="False"/><Setter Property="CanUserDeleteRows" Value="False"/>

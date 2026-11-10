@@ -63,7 +63,9 @@ internal static class CleanupTaskModelChecks
         Check(model.AutomaticPlanStatus.Contains("未提供"),"旧后台缺少维护计划时明确未确认，不编造下次时间");
         gateway.Overview=gateway.Overview with{AutomaticPlan=new("Waiting",CRS.Timing.BeijingClock.Now.AddDays(1),300,30,86400,3600,14,1)};
         await model.RefreshTaskCommand.ExecuteAsync(null);
-        Check(model.AutomaticPlanPolicy.Contains("24")&&model.AutomaticPlanStatus.Contains("已启用")&&model.AutomaticPlanNext.Contains("下次到期"),"从服务摘要展示真实保留规则及到期时间");
+        var legacyPlan=new ServicePlanItem(model);
+        Check(model.AutomaticPlanPolicy.Contains("24")&&model.AutomaticPlanStatus.Contains("已启用")&&legacyPlan.Cron=="—"
+            &&legacyPlan.NextDueAt==gateway.Overview.AutomaticPlan.NextDueAt,"从服务摘要展示真实保留规则及到期时间");
         model.StopWaiting();Check(gateway.Overview.Current is not null,"关闭设置的等待清理不取消后台任务");
         await model.SubmitTaskCommand.ExecuteAsync(null);Check(gateway.Created==1,"重复点击由后台复用已存在任务");
         gateway.Complete();var restarted=new DataCleanupViewModel(gateway);await restarted.RefreshTaskCommand.ExecuteAsync(null);

@@ -54,7 +54,7 @@ internal static class TaskCenterButtonChecks
             else response=request.Command switch
             {
                 "GetHealth"=>new(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",now,now,1)),
-                "GetJobs"=>new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[new("plugin",request.Cursor is null?"one":"two","任务","0 * * * * ?","China Standard Time",true,1,false)],NextCursor:request.Cursor is null?"plans-2":null),
+                "GetJobs"=>new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[new("plugin",request.Cursor is null?"one":"two","任务","0 * * * * ?","China Standard Time",true,1,false){PlanState="Waiting"}],NextCursor:request.Cursor is null?"plans-2":null),
                 "GetTaskActivity"=>new(WorkerProtocol.Version,request.RequestId,"Ok",TaskActivity:new(now,[],0,0,0)),
                 CRS.Maintenance.DataCleanupTask.HistoryCommand or "GetDataCleanupTasks"=>new(WorkerProtocol.Version,request.RequestId,"UnknownCommand"),
                 "GetHistoryByDate"=>new(WorkerProtocol.Version,request.RequestId,"Ok",History:[new(request.Cursor is null?"one":"two","plugin","one",now,now,now,"Succeeded",null,1)],NextCursor:request.Cursor is null?"history-2":null,PendingRequests:[],Payload:request.Payload),

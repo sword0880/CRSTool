@@ -52,6 +52,7 @@ internal static class PerformanceComponentPreview
                 if (route != "performance" || tabs.SelectedItem is not TabItem { Header: "账户汇总" })
                     throw new InvalidOperationException("概览未直达绩效的账户汇总页签。");
                 Directory.CreateDirectory(directory);
+                CheckToolbar(performancePage,tabs,performance,directory);
                 foreach (var (name,view) in new (string, UserControl)[]
                 {
                     ("accounts",new PerformanceAccountsView()),
@@ -155,13 +156,45 @@ internal static class PerformanceComponentPreview
                         root.Child=null;
                     }
                 }
-                Console.WriteLine("PASS 绩效组件化：账户汇总直达和分组，以及七类绩效子视图的合成截图。");
+                Console.WriteLine("PASS 绩效组件化：紧凑筛选区及窄屏换行、账户汇总直达和分组，以及七类绩效子视图的合成截图。");
             }
             catch(Exception error){failure=error;}
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();thread.Join();
         if(failure is not null)throw failure;
+    }
+
+    private static void CheckToolbar(PerformancePage page,TabControl tabs,PerformanceViewModel model,string directory)
+    {
+        var controls=(StackPanel)page.FindName("PerformanceControls");
+        if(controls.Visibility!=Visibility.Collapsed)throw new InvalidOperationException("账户汇总页仍显示绩效筛选区。");
+        tabs.SelectedIndex=0;
+        model.From=new(2025,11,9);model.To=new(2026,11,10);
+        var toolbar=(WrapPanel)page.FindName("PerformanceToolbar");
+        var summary=(TextBlock)page.FindName("PerformanceSummary");
+        var from=(DatePicker)page.FindName("PerformanceFrom");
+        var to=(DatePicker)page.FindName("PerformanceTo");
+        var calculate=(Button)page.FindName("CalculateButton");
+        page.Background=(Brush)Application.Current.FindResource("BrandSurfaceBrush");
+        foreach(var width in new[]{1040,620})
+        {
+            page.Measure(new(width,600));page.Arrange(new Rect(0,0,width,600));page.UpdateLayout();
+            var action=calculate.TranslatePoint(new Point(),toolbar);
+            if(controls.Visibility!=Visibility.Visible||summary.Text!=model.Summary||calculate.Command!=model.CalculateCommand
+                ||from.TranslatePoint(new Point(),toolbar).Y!=to.TranslatePoint(new Point(),toolbar).Y
+                ||action.X+calculate.ActualWidth>toolbar.ActualWidth+1
+                ||(width==1040?controls.ActualHeight>76||action.Y>=32:action.Y<32))
+                throw new InvalidOperationException($"绩效筛选区在 {width} DIP 下未正确压缩或换行。");
+            var image=new RenderTargetBitmap(width,600,96,96,PixelFormats.Pbgra32);image.Render(page);
+            var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));
+            using var file=File.Create(Path.Combine(directory,$"performance-toolbar-{width}.png"));encoder.Save(file);
+        }
+        var initialSummary=model.Summary;
+        var summaryHeight=summary.ActualHeight;
+        model.Summary=string.Join(" ",Enumerable.Repeat(initialSummary,4));page.UpdateLayout();
+        if(summary.ActualHeight<=summaryHeight)throw new InvalidOperationException("长状态提示没有按可用宽度换行。");
+        model.Summary=initialSummary;
     }
 
     private static IEnumerable<T> Collect<T>(DependencyObject root) where T:DependencyObject

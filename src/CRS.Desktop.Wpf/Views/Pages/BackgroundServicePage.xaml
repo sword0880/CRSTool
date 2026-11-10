@@ -48,21 +48,23 @@
      <TextBlock Text="双击任务或按 Enter 查看详情。修改计划和手动执行需要管理员权限。" Foreground="{DynamicResource BrandTextSecondaryBrush}" TextWrapping="Wrap"/>
      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,0"/>
     </StackPanel>
-    <DataGrid x:Name="PlansGrid" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding PlanRows}" SelectedItem="{Binding SelectedPlan}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
-     <DataGrid.Columns>
+    <pages:TaskPlanDataGrid x:Name="PlansGrid" Style="{DynamicResource {x:Type DataGrid}}" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding PlanRows}" SelectedItem="{Binding SelectedPlan}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+     <pages:TaskPlanDataGrid.Columns>
       <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="220" ElementStyle="{StaticResource PlanCellText}"/>
       <DataGridTextColumn Header="执行周期" Binding="{Binding Cron}" Width="140" ElementStyle="{StaticResource PlanCellText}"/>
       <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled,Mode=OneWay}" IsThreeState="True"/>
       <DataGridTextColumn Header="当前状态" Binding="{Binding StateText}" Width="140" ElementStyle="{StaticResource PlanCellText}"/>
       <DataGridTextColumn Header="上次执行时间（北京时间）" Binding="{Binding LastStartedText}" SortMemberPath="LastStartedAt" Width="200" ElementStyle="{StaticResource PlanCellText}"/>
-      <DataGridTextColumn Header="到期／重试时间（北京时间）" Binding="{Binding NextDueText}" Width="220" ElementStyle="{StaticResource PlanCellText}"/>
+      <DataGridTextColumn Header="下次执行时间（北京时间）" Binding="{Binding NextDueText}" SortMemberPath="NextDueAt" Width="220" ElementStyle="{StaticResource PlanCellText}">
+       <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="ToolTip" Value="显示计划时间或重试时间。旧版后台未提供计划时间时，按 Cron 和任务时区推算。"/></Style></DataGridTextColumn.HeaderStyle>
+      </DataGridTextColumn>
       <DataGridTextColumn Header="任务编号（英文）" Binding="{Binding JobId}"/><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/>
       <DataGridTextColumn Header="修订" Binding="{Binding Revision}"/>
       <DataGridCheckBoxColumn Header="计划待生效" Binding="{Binding NeedsReconcile,Mode=OneWay}" IsThreeState="True">
        <DataGridCheckBoxColumn.HeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="ToolTip" Value="勾选表示计划已保存，后台正在应用；该标记不表示任务运行或排队。"/></Style></DataGridCheckBoxColumn.HeaderStyle>
       </DataGridCheckBoxColumn>
-     </DataGrid.Columns>
-    </DataGrid>
+     </pages:TaskPlanDataGrid.Columns>
+    </pages:TaskPlanDataGrid>
     <Button x:Name="MorePlansButton" Grid.Row="2" Content="加载更多计划" Command="{Binding MoreJobsCommand}" Visibility="{Binding HasMoreJobs,Converter={StaticResource TaskButtonVisibility}}" HorizontalAlignment="Left" Margin="0,10,0,0"/>
    </Grid></TabItem>
    <TabItem x:Name="ExecutionHistoryTab" Header="执行记录"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>

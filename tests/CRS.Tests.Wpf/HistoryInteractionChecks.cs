@@ -38,12 +38,13 @@ internal static class HistoryInteractionChecks
         if (shell.History.ReplayCommand.CanExecute(null) || !shell.History.ReplayHint.Contains("其他版本"))
             throw new Exception("旧构建生成的快照未禁用复算或给出解释。");
         shell.History.Selected = shell.History.Rows[0];
+        var activeBeforeReplay = shell.State.Result;
         var replayTask = shell.History.ReplayCommand.ExecuteAsync(null);
         await cases.Started.Task;
         if (!shell.History.CancelOperationCommand.CanExecute(null) || shell.History.OpenCommand.CanExecute(null))
             throw new Exception("复算期间取消或并发门槛错误。");
         shell.History.CancelOperationCommand.Execute(null); await replayTask;
-        if (cases.Saved || shell.State.HasResult || shell.State.IsBusy)
+        if (cases.Saved || shell.State.Result != activeBeforeReplay || shell.State.IsBusy)
             throw new Exception("取消复算仍保存结果，或未解除忙碌。");
         cases.CancelOnly = false;
         await shell.History.ReplayCommand.ExecuteAsync(null);

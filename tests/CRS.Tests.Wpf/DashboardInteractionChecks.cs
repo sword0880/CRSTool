@@ -10,6 +10,7 @@ using CRS.Application;
 using CRS.Application.Abstractions;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views.Pages;
+using CRS.Domain;
 
 internal static class DashboardInteractionChecks
 {
@@ -29,12 +30,18 @@ internal static class DashboardInteractionChecks
         Check(shell.Dashboard.SelectedYear == 2023 && shell.Dashboard.Result == annual
             && shell.Dashboard.ScopeTitle == "2023 年度汇总"
             && shell.Dashboard.TradeCount == "90" && shell.Dashboard.IssueCount == "1", "默认最新有数据年度，跨页优先年度汇总");
-        Check(!shell.State.HasResult && shell.Dashboard.RecentTasks[0].Year == 2022, "仅预览核算结果，最近任务跨年度");
+        Check(shell.State.Result == annual && shell.Results.TaxTables.Count == 1 && shell.Dashboard.RecentTasks[0].Year == 2022,
+            "默认年度直接打开同一份年度汇总，最近任务仍跨年度");
         Check(shell.Dashboard.CoverageSummary == "覆盖 5 个账户 · 富途证券 3 · 盈透证券（IBKR） 2"
             && shell.Dashboard.BrokerCoverage[0].Accounts == "DEMO-1001 · F-2302 · F-6209"
             && shell.Dashboard.BrokerCoverage[1].Accounts == "DEMO-1001 · U4010923", "按券商统计并对同券商重复账户去重");
         await shell.Dashboard.OpenDetailCommand.ExecuteAsync("review");
         Check(route == "review" && shell.State.Result == annual, "明细打开同一份冻结结果");
+        await shell.Dashboard.SelectYearAsync(2022);
+        Check(shell.State.Result == old && shell.State.DisplayYear == 2022 && shell.Results.Trades.Single().Time.Year == 2022
+            && shell.Results.TaxTables.Count == 1 && shell.Reports.ExportCommand.CanExecute(null) && route == "review",
+            "从概览换年立即同步交易、税务和导出范围");
+        await shell.Dashboard.SelectYearAsync(2023);
 
         var pending = new TaskCompletionSource<CalculationResult>();
         useCases.PendingRead = pending.Task;
@@ -43,14 +50,26 @@ internal static class DashboardInteractionChecks
         pending.SetResult(old);
         await olderRead;
         Check(shell.Dashboard.ShowEmpty && shell.Dashboard.SelectedYear == 2024 && shell.Dashboard.Result is null
-            && shell.Dashboard.EmptyMessage.Contains("2024") && shell.State.Result == annual, "迟到的旧结果不覆盖空年份，也不清掉工作区");
+            && shell.Dashboard.EmptyMessage.Contains("2024") && !shell.State.HasResult && shell.State.DisplayYear == 2024
+            && shell.Results.Trades.Count == 0 && shell.Results.TaxTables.Count == 0 && !shell.Reports.ExportCommand.CanExecute(null),
+            "空年份清空各页，迟到的快照不会恢复旧资料");
+        var pendingNotes = new TaskCompletionSource<List<ReviewNote>>();
+        useCases.PendingNotes = pendingNotes.Task;
+        var olderNotes = shell.Dashboard.SelectYearAsync(2022);
+        await shell.Dashboard.SelectYearAsync(2024);
+        pendingNotes.SetResult([]);
+        await olderNotes;
+        Check(shell.Dashboard.ShowEmpty && !shell.State.HasResult, "迟到的复核资料也不能回写旧年度");
         shell.Dashboard.OpenImportCommand.Execute(null);
         Check(route == "import" && shell.Import.Year == 2024, "空年份导入预填年度");
 
         await shell.Dashboard.OpenTaskCommand.ExecuteAsync(shell.Dashboard.RecentTasks[0]);
-        Check(route == "tax" && shell.State.Result == old && shell.Dashboard.SelectedYear == 2024, "打开跨年度最近任务不改变概览筛选");
-        await shell.Dashboard.SelectYearAsync(2022);
+        Check(route == "tax" && shell.State.Result == old && shell.Dashboard.SelectedYear == 2022 && shell.Dashboard.IsViewingHistory,
+            "打开跨年度最近任务与导入历史打开结果一致");
+        await shell.Dashboard.ReturnToYearOverviewCommand.ExecuteAsync(null);
         Check(shell.Dashboard.TradeCount == "未登记" && shell.Dashboard.ScopeTitle.Contains("盈透证券"), "旧快照缺失笔数保留未知状态");
+        await shell.Dashboard.SelectYearAsync(2023);
+        await shell.Dashboard.SelectYearAsync(2022);
         var reopened = new ShellViewModel(useCases, new SilentInteraction(), preference);
         await reopened.Dashboard.RefreshAsync();
         Check(reopened.Dashboard.SelectedYear == 2022, "重新进入后恢复仍有结果的上次年度");
@@ -58,9 +77,11 @@ internal static class DashboardInteractionChecks
         reopened = new ShellViewModel(useCases, new SilentInteraction(), preference);
         await reopened.Dashboard.RefreshAsync();
         Check(reopened.Dashboard.SelectedYear == 2023 && reopened.Dashboard.TradeCount == "0", "上次年度已无结果时回退，保留真实零笔");
+        await reopened.Dashboard.SelectYearAsync(2024);
         useCases.FailReads = true;
-        await reopened.Dashboard.RefreshAsync();
-        Check(reopened.Dashboard.LoadFailed && !reopened.Dashboard.ShowEmpty, "读取失败和无数据分开");
+        await reopened.Dashboard.SelectYearAsync(2023);
+        Check(reopened.Dashboard.LoadFailed && !reopened.Dashboard.ShowEmpty && !reopened.State.HasResult
+            && reopened.State.Status.Contains("2023"), "读取失败和无数据分开，其他页面也不显示旧年度");
         useCases.FailReads = false;
         await reopened.Dashboard.RefreshCommand.ExecuteAsync(null);
         Check(reopened.Dashboard.HasResult, "可以重试读取");
@@ -91,6 +112,7 @@ internal static class DashboardInteractionChecks
         await dashboard.RefreshAsync();
         await shell.History.RefreshCommand.ExecuteAsync(null);
         shell.History.Selected = shell.History.Rows.Single(row => row.Id == historical.SnapshotId);
+        await shell.State.DisplayAsync(historical);
         var pending = new TaskCompletionSource<CalculationResult>();
         cases.PendingRead = pending.Task;
         var delayedDefault = dashboard.RefreshAsync();
@@ -104,7 +126,7 @@ internal static class DashboardInteractionChecks
         await dashboard.OpenDetailCommand.ExecuteAsync("trades");
         Check(shell.State.Result == historical, "从概览点进明细仍使用历史记录的快照");
         await dashboard.ReturnToYearOverviewCommand.ExecuteAsync(null);
-        Check(dashboard.Result == annual && !dashboard.IsViewingHistory, "同年度可明确切回默认汇总");
+        Check(dashboard.Result == annual && shell.State.Result == annual && !dashboard.IsViewingHistory, "同年度可明确切回默认汇总");
         await shell.History.ToggleArchiveViewCommand.ExecuteAsync(null);
         shell.History.Selected = shell.History.Rows.Single();
         await shell.History.OpenCommand.ExecuteAsync(null);
@@ -112,7 +134,7 @@ internal static class DashboardInteractionChecks
         Check(dashboard.Result == archived && dashboard.OpenedHistoryTask?.IsArchived == true
             && dashboard.SelectedYear == 2022 && preference.LoadOverviewTaxYear() == 2023, "跨年打开归档记录切换概览年份，不改启动偏好");
         await dashboard.SelectYearAsync(2023);
-        Check(dashboard.Result == annual && !dashboard.IsViewingHistory, "手动换年恢复年度概览模式");
+        Check(dashboard.Result == annual && shell.State.Result == annual && !dashboard.IsViewingHistory, "手动换年恢复年度概览模式");
     }
 
     internal static void CheckPage(string? previewDirectory = null)
@@ -145,10 +167,14 @@ internal static class DashboardInteractionChecks
                     Content = page, Width = 900, Height = 760,
                     Background = (Brush)app.FindResource("BrandCanvasBrush"), FontFamily = new("Microsoft YaHei UI"), FontSize = 14
                 };
+                shell.State.IsBusy = true;
                 host.Show();
                 host.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Check(!shell.State.HasResult, "其他页面忙碌时不切换工作区");
+                shell.State.IsBusy = false;
+                host.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 var selector = (ComboBox)page.FindName("YearSelector");
-                Check(selector.SelectedItem is 2023 && shell.Dashboard.HasResult, "真实页面首次加载默认年度");
+                Check(selector.SelectedItem is 2023 && shell.State.Result == source, "真实页面首次加载并打开默认年度");
                 var coverage = (Button)page.FindName("AccountCoverageToggle");
                 var rows = (ItemsControl)page.FindName("BrokerCoverageRows");
                 Check(coverage.IsVisible && Equals(coverage.Content, "查看明细") && !rows.IsVisible
@@ -163,10 +189,10 @@ internal static class DashboardInteractionChecks
                 coverage.Command.Execute(null);
                 selector.SetCurrentValue(ComboBox.SelectedItemProperty, 2024);
                 host.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Check(shell.Dashboard.SelectedYear == 2024 && shell.Dashboard.ShowEmpty, "真实下拉框触发空年度");
+                Check(shell.Dashboard.SelectedYear == 2024 && shell.Dashboard.ShowEmpty && !shell.State.HasResult, "真实下拉框触发空年度");
                 selector.SetCurrentValue(ComboBox.SelectedItemProperty, 2023);
                 host.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Check(shell.Dashboard.TradeCount == "90" && !rows.IsVisible, "切回有数据年度，覆盖账户恢复折叠");
+                Check(shell.Dashboard.TradeCount == "90" && shell.State.Result == source && !rows.IsVisible, "切回有数据年度，各页同步并恢复折叠");
                 var historyPage = new HistoryPage(shell);
                 host.Content = historyPage;
                 host.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -179,7 +205,7 @@ internal static class DashboardInteractionChecks
                 var yearOverview = (Button)page.FindName("ReturnToYearOverviewButton");
                 Check(yearOverview.IsVisible && shell.Dashboard.TradeCount == "16", "从导入历史打开后，实际概览显示该记录");
                 ((IAsyncRelayCommand)yearOverview.Command).ExecuteAsync(null).GetAwaiter().GetResult();
-                Check(!yearOverview.IsVisible && shell.Dashboard.TradeCount == "90", "实际页面可切回本年度概览");
+                Check(!yearOverview.IsVisible && shell.Dashboard.TradeCount == "90" && shell.State.Result == source, "实际页面可切回本年度概览");
                 host.Close();
             }
             catch (Exception error) { failure = error; }
@@ -217,7 +243,9 @@ internal static class DashboardInteractionChecks
     private static CalculationResult Create(string broker, int year, int? trades) => new()
     {
         SnapshotId = broker, Broker = broker, Year = year, ImportedTradeCount = trades,
-        CoveredAccounts = ["TEST"], Summary = new(0, 0, 0, 0, 0, 0, 0)
+        CoveredAccounts = ["TEST"], Summary = new(0, 0, 0, 0, 0, 0, 0),
+        SessionTrades = trades == 0 ? [] : [new(new("TEST", "DEMO", "USD", broker), "DEMO", new(year, 1, 2, 0, 0, 0, TimeSpan.Zero),
+            true, "BUY", 1, 1, 1, 0, -1, "DEMO", "synthetic.xml", 1, "STK", null)]
     };
 
     private static HistoryItem Row(CalculationResult result) => new(result.SnapshotId, result.Year, "2025-06-01T00:00:00Z",
@@ -233,6 +261,7 @@ internal static class DashboardInteractionChecks
         public HistoryItem[] Rows { get; set; } = [];
         public HistoryItem[] ArchivedRows { get; init; } = [];
         public Task<CalculationResult>? PendingRead { get; set; }
+        public Task<List<ReviewNote>>? PendingNotes { get; set; }
         public bool FailReads { get; set; }
 
         public override Task<HistoryPageResult> QueryHistoryAsync(int pageNumber, int pageSize)
@@ -240,6 +269,13 @@ internal static class DashboardInteractionChecks
                 Rows.Length, pageNumber, pageSize));
         public override Task<HistoryPageResult> QueryArchivedHistoryAsync(int pageNumber, int pageSize)
             => Task.FromResult(new HistoryPageResult(ArchivedRows.ToList(), ArchivedRows.Length, pageNumber, pageSize));
+        public override IReadOnlyList<Trade> Trades(CalculationResult result) => result.SessionTrades;
+        public override Task<List<ReviewNote>> ReviewsAsync(string id)
+        {
+            var pending = PendingNotes;
+            PendingNotes = null;
+            return pending ?? base.ReviewsAsync(id);
+        }
 
         public override Task<CalculationResult> LoadAsync(string id)
         {

@@ -47,8 +47,8 @@ internal static class ScheduleEditChecks
     }
     private sealed class Control:IBackgroundControl
     {
-        internal TaskDefinition Plan=new("plugin","target","合成禁用任务","0 * * * * ?","China Standard Time",false,2,false);
-        internal TaskDefinition Other=new("plugin","other","其他任务","0 * * * * ?","China Standard Time",true,1,false);
+        internal TaskDefinition Plan=new("plugin","target","合成禁用任务","0 * * * * ?","China Standard Time",false,2,false){PlanState="Disabled"};
+        internal TaskDefinition Other=new("plugin","other","其他任务","0 * * * * ?","China Standard Time",true,1,false){PlanState="Waiting"};
         internal readonly List<BackgroundRequest> Requests=[];
         private readonly HashSet<Guid> accepted=[];
         internal bool Forbidden,Conflict,DropReply;
@@ -66,8 +66,8 @@ internal static class ScheduleEditChecks
             if(Conflict||request.PluginId!=Plan.PluginId||request.JobId!=Plan.JobId||request.ExpectedRevision!=Plan.Revision)return Task.FromResult(Reply("InvalidOrStaleRequest"));
             Plan=request.Command switch
             {
-                "Pause"=>Plan with{Enabled=false,Revision=Plan.Revision+1},
-                "Resume"=>Plan with{Enabled=true,Revision=Plan.Revision+1},
+                "Pause"=>Plan with{Enabled=false,Revision=Plan.Revision+1,PlanState="Disabled"},
+                "Resume"=>Plan with{Enabled=true,Revision=Plan.Revision+1,PlanState="Waiting"},
                 _=>Plan with{Cron=request.Cron!,TimeZoneId=request.TimeZoneId!,Revision=Plan.Revision+1}
             };
             accepted.Add(request.RequestId);

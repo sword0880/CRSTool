@@ -1,4 +1,5 @@
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -50,7 +51,8 @@ internal static class CleanupTaskViewChecks
         while(shell.StatusBar.TaskLabel!="运行 0 · 等待 1")
         {if(DateTimeOffset.UtcNow>until)throw new Exception("排队中的清理被误算为运行中，或底栏未取得状态。");await Task.Delay(20);}
         window.Width=1040;Capture(window,Path.Combine(directory,"main-cleanup-queued-1040.png"));
-        gateway.Overview=gateway.Overview with{Current=gateway.Overview.Current! with{State="Scanning",Progress=new("VerifyingBackups",null,859,119382731,VerifiedBytes:4096)}};
+        var cleanupStarted=new DateTimeOffset(2026,11,9,15,10,48,TimeSpan.FromHours(8));
+        gateway.Overview=gateway.Overview with{Current=gateway.Overview.Current! with{State="Scanning",StartedAt=cleanupStarted,Progress=new("VerifyingBackups",null,859,119382731,VerifiedBytes:4096)}};
         await model.RefreshTaskCommand.ExecuteAsync(null);await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
         var footer=(Wpf.Ui.Controls.Button)window.FindName("FooterTasksButton");
         if(footer.Content?.ToString()!="运行 1 · 等待 0"||shell.StatusBar.TaskLabel!="运行 1 · 等待 0")throw new Exception("扫描清理没有立即计入底栏总运行数，或额外显示了清理名称与阶段。");
@@ -75,16 +77,29 @@ internal static class CleanupTaskViewChecks
                 activity.Jobs.Add(new("crs.national-team","evidence-integrity","证据完整性巡检（合成）","0 30 2 * * ?","China Standard Time",true,2,false));
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 var plans=(DataGrid)tasks.FindName("PlansGrid");
+                CheckPlanCornerWidth(plans);
                 var maintenance=activity.PlanRows.Single(x=>x.IsMaintenance);
                 if(tasks.FindName("AutomaticCleanupPlanCard") is not null||!plans.Items.Contains(maintenance)||maintenance.Cron!="0 0 3 * * ?"||maintenance.NextDueText=="未确认")throw new Exception("统一任务列表没有显示自动清理的 Cron 与下次执行。");
                 var shares=activity.PlanRows.Single(x=>x.JobId=="official-share-sync");
-                if(!plans.Columns.Any(x=>Equals(x.Header,"上次执行时间（北京时间）"))||shares.LastStartedText!="2026-11-09 23:15:00"
+                if(!plans.Columns.Any(x=>Equals(x.Header,"上次执行时间（北京时间）"))||!plans.Columns.Any(x=>Equals(x.Header,"下次执行时间（北京时间）"))
+                    ||shares.LastStartedText!="2026-11-09 23:15:00"
                     ||shares.StateText!="等待重试"||maintenance.StateText!="执行中")throw new Exception("服务计划没有统一状态和上次执行时间。");
                 activity.SelectedPlan=maintenance;
                 if(activity.PauseCommand.CanExecute(null)||activity.ResumeCommand.CanExecute(null))throw new Exception("维护任务错误地允许发送插件启停命令。");
                 Capture(taskWindow,Path.Combine(directory,"task-center-maintenance-plan-1040.png"));
-                var detail=new MaintenancePlanWindow(model,lifetime.Token){Owner=taskWindow};
-                try{detail.Show();await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);Capture(detail,Path.Combine(directory,"maintenance-plan-detail-620.png"));}
+                var detail=new MaintenancePlanWindow(maintenance,lifetime.Token){Owner=taskWindow};
+                try
+                {
+                    detail.Show();await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                    var cron=(TextBox)detail.FindName("PlanCron");
+                    if(detail.Title!="任务详情"||!cron.IsReadOnly||cron.Text!="0 0 3 * * ?"
+                        ||((TextBlock)detail.FindName("PlanLastStarted")).Text!="2026-11-09 15:10:48"
+                        ||((TextBlock)detail.FindName("PlanNextDue")).Text!=maintenance.NextDueText
+                        ||!((TextBlock)detail.FindName("PlanRetention")).Text.Contains("日志保留 14 天"))
+                        throw new Exception("清理详情没有按任务详情布局显示只读 Cron、执行时间和清理规则。");
+                    Capture(detail,Path.Combine(directory,"maintenance-plan-detail-720.png"));
+                    detail.Width=620;Capture(detail,Path.Combine(directory,"maintenance-plan-detail-620.png"));
+                }
                 finally{detail.Close();}
             }
             finally{lifetime.Cancel();taskWindow.Close();}
@@ -105,6 +120,26 @@ internal static class CleanupTaskViewChecks
         await model.DismissTaskNotificationCommand.ExecuteAsync(null);await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
         if(notice.Visibility!=Visibility.Collapsed)throw new Exception("已读提醒没有收起。");
         Capture(window,Path.Combine(directory,"main-notification-read-1040.png"));
+    }
+    private static void CheckPlanCornerWidth(DataGrid plans)
+    {
+        var scroll=(ScrollViewer)plans.Template.FindName("DG_ScrollViewer",plans);
+        var chrome=(Grid)VisualTreeHelper.GetChild(scroll,0);
+        var corner=chrome.Children.OfType<Button>().Single(x=>x.Command==DataGrid.SelectAllCommand);
+        // 用报错中的偏移值验证真实模板，无需依赖测试机器的缩放比例。
+        var key=(DependencyPropertyKey)typeof(DataGrid).GetField("CellsPanelHorizontalOffsetPropertyKey",BindingFlags.NonPublic|BindingFlags.Static)!.GetValue(null)!;
+        var original=plans.CellsPanelHorizontalOffset;
+        try
+        {
+            plans.SetValue(key,12d);
+            if(corner.Width!=12)throw new Exception("正常的表头偏移没有传给全选按钮。");
+            plans.SetValue(key,-0.12062726176097271);
+            if(corner.Width!=0)throw new Exception("全选按钮宽度没有限制为非负值。");
+        }
+        finally{plans.SetValue(key,original);}
+        scroll.ScrollToRightEnd();plans.UpdateLayout();
+        if(scroll.HorizontalOffset<=0)throw new Exception("服务计划不能横向滚动。");
+        scroll.ScrollToLeftEnd();plans.UpdateLayout();
     }
     private sealed class Control:IBackgroundControl
     {

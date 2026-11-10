@@ -35,11 +35,42 @@ internal static class TaskCenterRefreshChecks
             if(model.History.Count!=0 || model.PendingRequests.Count!=0)throw new Exception("空筛选遗留旧执行或排队请求。");
             control.ProvidePending=false;model.HistoryJob="";await model.FilterHistoryCommand.ExecuteAsync(null);
             if(!model.PendingStatus.Contains("尚未提供"))throw new Exception("旧服务缺少排队字段被当作零。");
+            await CheckPlanStartsAsync(model,control);
             await FooterRefreshAsync(control,new BackgroundPipeClient(pipe),stop.Token);
             Console.WriteLine("PASS 执行记录：仅手动查询、状态刷新不覆盖历史、运行与待执行分别显示、空筛选清理。");
         }
         finally{control.ReleaseHealth.TrySetResult();stop.Cancel();try{await listening;}catch(OperationCanceledException){}}
     }
+
+    private static async Task CheckPlanStartsAsync(BackgroundServiceViewModel model,Control control)
+    {
+        control.IncludePlans=true;
+        var queriedHistory=model.History.Single();
+        var datedQueries=control.Calls.Count(x=>x=="GetHistoryByDate");
+        await model.RefreshCommand.ExecuteAsync(null);
+        ServicePlanItem Row(string jobId)=>model.PlanRows.Single(x=>x.JobId==jobId);
+        if(Row(control.Record.JobId).LastStartedText!="2026-11-09 15:10:48"||Row(control.Record.JobId).Cron!="0 0/5 * * * ?")
+            throw new Exception("旧服务计划没有显示最近启动的北京时间或原始 Cron。");
+        if(Row("empty").LastStartedText!="暂无记录"||Row("modern").LastStartedAt!=Control.PlanStart.AddHours(1))
+            throw new Exception("没有正确区分无执行记录与服务提供的最近启动时间。");
+        if(Row(control.Record.JobId).NextDueAt is not { Minute:var nextMinute,Second:0 }||nextMinute%5!=0
+            ||Row("modern").NextDueText!="2026-11-09 17:10:48")
+            throw new Exception("列表未按 Cron 补算旧版的下次时间，或未优先采用服务提供的时间。");
+        await model.MoreJobsCommand.ExecuteAsync(null);
+        if(Row("wrong-record").LastStartedText!="未确认"||!control.PlanHistoryQueries.SequenceEqual(new[]{control.Record.JobId,"empty","wrong-record"}))
+            throw new Exception("未按页和任务补读历史，或错误采用了其他任务的记录。");
+        if(model.History.Single()!=queriedHistory||control.Calls.Count(x=>x=="GetHistoryByDate")!=datedQueries)
+            throw new Exception("补读计划时间影响了执行记录页。");
+        var alternateZone=Row(control.Record.JobId).Job! with{Cron="0 0 9 * * ?",TimeZoneId="Eastern Standard Time"};
+        if(new ServicePlanItem(alternateZone,Control.PlanStart).NextDueText!="2026-11-09 22:00:00"
+            ||new ServicePlanItem(alternateZone with{NotBefore=Control.PlanStart.AddMinutes(15)},Control.PlanStart).NextDueText!="2026-11-09 15:25:48"
+            ||new ServicePlanItem(alternateZone with{Enabled=false},Control.PlanStart).NextDueText!="—"
+            ||new ServicePlanItem(alternateZone with{NeedsReconcile=true},Control.PlanStart).NextDueText!="未确认"
+            ||new ServicePlanItem(alternateZone with{Cron="invalid"},Control.PlanStart).NextDueText!="未确认")
+            throw new Exception("下次执行时间未遵守任务时区、重试或计划状态。");
+        Console.WriteLine("PASS 服务计划：原始 Cron、旧服务的上次和下次执行时间、重试和时区，保留已查询的执行记录。");
+    }
+
     private static async Task FooterRefreshAsync(Control control,BackgroundPipeClient client,CancellationToken token)
     {
         control.BlockHistory=true;
@@ -80,12 +111,15 @@ internal static class TaskCenterRefreshChecks
     private sealed class Control:IBackgroundControl
     {
         internal readonly ConcurrentQueue<string> Calls=new();
+        internal readonly ConcurrentQueue<string> PlanHistoryQueries=new();
         internal readonly TaskCompletionSource HealthRequested=new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal readonly TaskCompletionSource ReleaseHealth=new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal readonly TaskCompletionSource ReleaseHistory=new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal bool BlockHistory;
         internal bool ProvidePending=true;
         internal bool ActivityUnavailable;
+        internal bool IncludePlans;
+        internal static readonly DateTimeOffset PlanStart=new(2026,11,9,7,10,48,TimeSpan.Zero);
         internal ExecutionRecord Record=new(Guid.NewGuid().ToString("N"),"crs.national-team","market-activity-sync",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,null,"Running",null,1);
         public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
@@ -95,7 +129,21 @@ internal static class TaskCenterRefreshChecks
                 HealthRequested.TrySetResult();await ReleaseHealth.Task.WaitAsync(token);
                 return new(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,1,new(4,2,1,12,0,0,3)));
             }
-            if(request.Command=="GetJobs")return new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[]);
+            if(request.Command=="GetJobs")
+            {
+                TaskDefinition Plan(string job)=>new(Record.PluginId,job,job,"0 0/5 * * * ?","China Standard Time",true,1,false);
+                if(!IncludePlans)return new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[]);
+                if(request.Cursor=="next")return new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[Plan("wrong-record")]);
+                return new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[Plan(Record.JobId),Plan("empty"),
+                    Plan("modern") with{PlanState="Waiting",LastStartedAt=PlanStart.AddHours(1),NextScheduledAt=PlanStart.AddHours(2)}],NextCursor:"next");
+            }
+            if(request.Command=="GetFilteredHistory" && IncludePlans && !BlockHistory)
+            {
+                if(request.PluginId!=Record.PluginId||request.JobId is null||request.PageSize!=1)
+                    throw new Exception("计划补读必须按插件和任务限定为一条执行记录。");
+                PlanHistoryQueries.Enqueue(request.JobId);
+                return new(WorkerProtocol.Version,request.RequestId,"Ok",History:request.JobId=="empty"?[]:[Record with{StartedUtc=PlanStart}]);
+            }
             if(request.Command is CRS.Maintenance.DataCleanupTask.HistoryCommand or "GetDataCleanupTasks")
                 return new(WorkerProtocol.Version,request.RequestId,"UnknownCommand");
             if(request.Command=="GetTaskActivity")

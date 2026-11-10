@@ -104,7 +104,7 @@ class FakeUseCases : IDesktopUseCases
     public virtual Task<CalculationResult> ReplayAsync(string id,CancellationToken cancellation)=>Task.FromResult(Result);
     public virtual Task<CalculationResult> AggregateAnnualAsync(string[] sourceIds,bool ownershipConfirmed,CancellationToken cancellation)=>Task.FromResult(Result);
     public virtual Task<CalculationResult> LoadAsync(string id)=>Task.FromResult(Result);
-    public Task<List<ReviewNote>> ReviewsAsync(string id)=>Task.FromResult(new List<ReviewNote>());
+    public virtual Task<List<ReviewNote>> ReviewsAsync(string id)=>Task.FromResult(new List<ReviewNote>());
     public Task SaveReviewAsync(string id,string category,string evidence)=>Task.CompletedTask;
     public virtual Task ExportAsync(string path,CalculationResult result,string fingerprint,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.CompletedTask;
     public virtual Task ExportCarryAsync(string path,CalculationResult result,CancellationToken cancellation=default,SensitiveExportConsent? consent=null)=>Task.CompletedTask;
