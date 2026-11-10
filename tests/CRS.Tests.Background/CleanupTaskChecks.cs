@@ -6,7 +6,7 @@ using CRS.Worker.Service;
 internal static class CleanupTaskChecks
 {
     private static int passed;
-    private static readonly AutomaticCleanupSchedule Fast=AutomaticCleanupSchedule.Default with{StartupDelay=TimeSpan.Zero,CheckInterval=TimeSpan.FromMilliseconds(10),DutyCycle=1};
+    private static readonly AutomaticCleanupSchedule Fast=AutomaticCleanupSchedule.Default with{DutyCycle=1};
     private static void Check(bool value,string text){if(!value)throw new Exception(text);passed++;Console.WriteLine("PASS 后台清理任务："+text);}
     internal static async Task RunAsync()
     {
@@ -85,10 +85,10 @@ internal static class CleanupTaskChecks
         await using(var cleanup=new WorkerDataCleanup(f.Root,f.Clock)){id=cleanup.SubmitTask(Guid.NewGuid(),"admin-a",Fast).Current!.Id;await FinishedAsync(cleanup,"admin-a");}
         var path=Path.Combine(f.Root,"maintenance/cleanup-tasks",id.ToString("N")+".json");var record=JsonNode.Parse(File.ReadAllText(path))!;
         record["Task"]!["State"]="Queued";record["Task"]!["FinishedAt"]=null;record["Task"]!["DeletedFiles"]=0;record["Task"]!["DeletedBytes"]=0;File.WriteAllText(path,record.ToJsonString());
-        await using var restart=new WorkerDataCleanup(f.Root,f.Clock);using var stop=new CancellationTokenSource();
-        var loop=restart.RunAutomaticAsync((_,_,_)=>{},stop.Token,Fast);
-        try{Check((await FinishedAsync(restart,"admin-a")).Id==id,"尚未开始的已提交任务在服务重启后继续执行，任务编号不变");}
-        finally{stop.Cancel();try{await loop;}catch(OperationCanceledException){}}
+        await using var restart=new WorkerDataCleanup(f.Root,f.Clock);
+        restart.InitializeAutomaticSchedule(Fast);
+        await restart.RunAutomaticOnceAsync(null,default,recoverOnly:true);
+        Check((await FinishedAsync(restart,"admin-a")).Id==id,"尚未开始的已提交任务在服务重启后继续执行，任务编号不变");
     }
     private static async Task CorruptStoreAsync(string root)
     {

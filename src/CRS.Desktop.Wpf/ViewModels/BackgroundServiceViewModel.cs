@@ -69,7 +69,7 @@ public partial class BackgroundServiceViewModel : ObservableObject
         {
             History.Clear();PendingRequests.Clear();PendingStatus="尚未查询等待开始的请求。";
             HistorySummary=HistoryStartDate is null||HistoryEndDate is null?"请选择开始日期和结束日期。":"开始日期不能晚于结束日期。";
-            Status=HistorySummary;return;
+            return;
         }
         appliedHistoryStartDate=DateOnly.FromDateTime(start);
         appliedHistoryEndDate=DateOnly.FromDateTime(end);
@@ -77,13 +77,8 @@ public partial class BackgroundServiceViewModel : ObservableObject
         appliedJob = string.IsNullOrWhiteSpace(HistoryJob) ? null : HistoryJob.Trim();
         appliedResultFilter = OnlyIssues ? "Issues" : null;
         History.Clear();PendingRequests.Clear();
-        Status="正在查询执行记录和等待开始的请求……";HistorySummary=$"正在查询 {appliedHistoryStartDate:yyyy-MM-dd} 至 {appliedHistoryEndDate:yyyy-MM-dd} 的记录……";
+        HistorySummary=$"正在查询 {appliedHistoryStartDate:yyyy-MM-dd} 至 {appliedHistoryEndDate:yyyy-MM-dd} 的记录……";
         await LoadHistoryAsync();
-        Status = OnlyIssues
-            ? History.Count==0
-                ? "未找到匹配的异常记录。来源冷却或插件启动失败可能没有执行记录。可到「服务状态」页签查看服务健康情况。"
-                : "已按日期、插件和任务筛选异常记录。"
-            : HistorySummary;
     }, reportHistoryFailure: true);
     /// <summary>底栏直达执行记录；正在刷新时排队应用导航条件，避免忙碌状态吞掉用户点击。</summary>
     public async Task OpenExecutionHistoryAsync(bool issues)
@@ -197,20 +192,20 @@ public partial class BackgroundServiceViewModel : ObservableObject
         catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
         {
             PendingStatus = "待执行请求未确认。列表保留上次快照。";
-            Status = "后台服务不可用或响应超时。列表保留上次快照。";
-            if (reportHistoryFailure) HistorySummary = Status;
+            const string message = "后台服务不可用或响应超时。列表保留上次快照。";
+            if (reportHistoryFailure) HistorySummary = message; else Status = message;
         }
         catch (OperationCanceledException) { }
         catch (System.IO.InvalidDataException error)
         {
-            Status=error.Message;
+            if(!reportHistoryFailure)Status=error.Message;
             History.Clear();PendingRequests.Clear();PendingStatus="待执行请求未确认。";HistorySummary="执行记录未确认，请重新查询。";
         }
         catch (Exception)
         {
             PendingStatus = "待执行请求未确认。列表保留上次快照。";
-            Status = "后台服务不可用或版本不兼容。请在「服务状态」页签检查连接。列表保留上次快照。";
-            if (reportHistoryFailure) HistorySummary = Status;
+            const string message = "后台服务不可用或版本不兼容。请在「服务状态」页签检查连接。列表保留上次快照。";
+            if (reportHistoryFailure) HistorySummary = message; else Status = message;
         }
         finally { Busy = false; }
     }

@@ -119,7 +119,7 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
     {
         var retry=result.RetryAt is {} until?until-CRS.Timing.BeijingClock.Now:
             result.SourceIssues==0&&result.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(5);
-        return new(result.SourceIssues>0||result.HasMore?"RetryDeferred":result.ReceivedRows+result.ExistingSources==0?"NotPublished":"Succeeded",
+        return new(result.HasSourceFailure?"Failed":result.SourceIssues>0||result.HasMore?"RetryDeferred":result.ReceivedRows+result.ExistingSources==0?"NotPublished":"Succeeded",
             ActivityCheckpoint(result),retry<TimeSpan.FromSeconds(30)?TimeSpan.FromSeconds(30):retry);
     }
 

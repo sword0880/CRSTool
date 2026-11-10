@@ -1,5 +1,6 @@
 using System.Text;
 using CRS.Domain;
+using CRS.ExchangeRates;
 using CRS.Infrastructure;
 
 internal static class OfficialAnnualExchangeRatesChecks
@@ -58,6 +59,20 @@ internal static class OfficialAnnualExchangeRatesChecks
         var nextYear = new OfficialAnnualExchangeRates(root, offline,
             new FixedClock(new DateTimeOffset(2027, 1, 2, 0, 0, 0, TimeSpan.Zero)));
         await CheckUnavailable(() => nextYear.LoadAsync(2026, default), 2026);
+
+        var scheduledLookups = 0;
+        var desktop = new OfficialAnnualExchangeRates(NewCachePath(), offline, clock, (year, _) =>
+        {
+            scheduledLookups++;
+            var (from, through) = CentralParitySnapshot.YearEndRange(year);
+            return Task.FromResult<CentralParitySnapshot?>(new(1, from, through, clock.GetUtcNow(),
+                [new(through, 7.0288m, .90322m)]));
+        });
+        var imported = await desktop.LoadAsync(2025, default);
+        Check(imported.Fingerprint == closed.Fingerprint && desktop.CachedFingerprint(2025) == closed.Fingerprint,
+            "桌面应优先复用后台年末报价并建立同一汇率指纹");
+        await desktop.LoadAsync(2025, default);
+        Check(scheduledLookups == 1, "已取得年度末日报价后应复用本机缓存");
         Console.WriteLine("官方年度汇率验证通过：单位、年末报价、当年均值、无效报价及跨年度缓存隔离。");
     }
 

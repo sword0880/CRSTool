@@ -6,7 +6,7 @@ using CRS.Worker.Ipc;
 namespace CRS.DesktopClient.Services;
 
 /// <summary>只传固定清理选项和操作编号；查询停止或超时不会取消已受理的后台清理。</summary>
-public sealed partial class WorkerDataCleanupGateway:IDataCleanupGateway,IDataCleanupTaskGateway
+public sealed partial class WorkerDataCleanupGateway:IDataCleanupGateway,IDataCleanupTaskGateway,IWorkerLogSettingsGateway
 {
     private readonly Func<BackgroundRequest,CancellationToken,Task<BackgroundResponse>> send;
     public WorkerDataCleanupGateway(){send=new BackgroundPipeClient().SendAsync;}

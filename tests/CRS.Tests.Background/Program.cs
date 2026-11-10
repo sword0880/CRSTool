@@ -8,11 +8,13 @@ using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 if(args is ["--diagnostic-jobs"]){await DiagnosticJobChecks.RunAsync();return;}
+if(args is ["--task-failure-policy"]){await TaskFailurePolicyChecks.RunAsync();return;}
 if(args is ["--command-tracker"]){BackgroundCommandTrackerChecks.Run();return;}
 if(args is ["--staged-documents",var stagedRoot]){StagedDocumentChecks.Run(stagedRoot);return;}
 if(args is ["--document-ingress-boundaries",var ingressRoot]){await DocumentIngressBoundaryChecks.RunAsync(ingressRoot);return;}
 if(args is ["--data-cleanup"]){await DataCleanupChecks.RunAsync();await DataCleanupPipeChecks.RunAsync();return;}
 if(args is ["--automatic-cleanup"]){await AutomaticCleanupChecks.RunAsync();return;}
+if(args is ["--annual-exchange-rates"]){await AnnualExchangeRateJobChecks.RunAsync();return;}
 if(args is ["--cleanup-tasks"]){await CleanupTaskChecks.RunAsync();return;}
 if(args is ["--data-cleanup-audit",var cleanupRoot]){await using var audit=new WorkerDataCleanup(cleanupRoot);Console.WriteLine(JsonSerializer.Serialize(audit.Audit(new())));return;}
 if(args is ["--supervised-plugins"]){await SupervisedPluginChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS.SupervisedPlugins",Guid.NewGuid().ToString("N")));return;}

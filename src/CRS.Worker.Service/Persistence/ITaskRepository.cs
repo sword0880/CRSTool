@@ -2,6 +2,8 @@ using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 namespace CRS.Worker.Service;
 
+public sealed record TaskFailureNotice(string Id,string PluginId,string JobId,string Result,DateTimeOffset At,string[] Attempted);
+
 /// <summary>
 /// 调度器仅经仓储操作权威状态；接口不暴露数据库连接、事务、SQL或提供方类型。
 /// Save（含禁用时取消待执行命令）、Begin、End及关联命令状态必须各自原子提交。
@@ -31,4 +33,8 @@ public interface ITaskRepository
     List<(Guid RequestId, string PluginId, string JobId)> PendingRuns();
     /// <summary>取消Pending，并为Running持久记录取消意图；不将尚未确认的业务结果宣称为已取消。</summary>
     void CancelPending(string plugin, string job);
+    void QueueFailureNotice(string id,string plugin,string job,string result) { }
+    TaskFailureNotice? NextFailureNotice() => null;
+    void MarkFailureChannel(TaskFailureNotice notice,string channel) { }
+    void CompleteFailureNotice(string id) { }
 }

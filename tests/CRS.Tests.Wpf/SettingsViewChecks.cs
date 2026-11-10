@@ -7,6 +7,7 @@ using CRS.Application.Abstractions;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views;
 using CRS.DesktopClient.Views.Settings;
+using CRS.Maintenance;
 
 /// <summary>使用隔离设置替身渲染真实窗口，不访问个人数据库或发送通知。</summary>
 internal static class SettingsViewChecks
@@ -22,7 +23,8 @@ internal static class SettingsViewChecks
             app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/BrandPalette.xaml")});
             app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
             var vault=new VaultInteractionChecks.FakeVault{HelloSupported=true};vault.CompleteEnrollmentAsync(true).GetAwaiter().GetResult();
-            var model=new SettingsViewModel(new WorkspaceState(new SettingsUseCases(),new SilentInteraction()),new Settings(),vault,cleanupAudit is null?null:new DataCleanupViewChecks.PreviewGateway(cleanupAudit));
+            var workerLogs=new WorkerLogs();
+            var model=new SettingsViewModel(new WorkspaceState(new SettingsUseCases(),new SilentInteraction()),new Settings(),vault,cleanupAudit is null?workerLogs:new DataCleanupViewChecks.PreviewGateway(cleanupAudit));
             var window=new SettingsWindow(model);
             if(window.FindName("LoggingSection") is not LoggingSettingsView)
                 throw new InvalidOperationException("日志设置未采用独立子视图。");
@@ -32,6 +34,22 @@ internal static class SettingsViewChecks
                 {
                     await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
                     await VerifyLoginSelectionAsync(window,model,vault);
+                    if(cleanupAudit is null)
+                    {
+                        model.SelectedSection=model.Sections.Single(x=>x.Key=="logging");
+                        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                        var logging=(LoggingSettingsView)window.FindName("LoggingSection");
+                        var retention=(Wpf.Ui.Controls.NumberBox)logging.FindName("WorkerLogRetentionBox");
+                        if(!retention.IsEnabled||retention.Value!=14)throw new Exception("前台没有读取后台日志保留天数。");
+                        retention.SetCurrentValue(Wpf.Ui.Controls.NumberBox.ValueProperty,30d);
+                        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                        if(model.WorkerLogRetentionDays!=30||!model.SaveCommand.CanExecute(null))
+                            throw new Exception($"前台输入未提交，保留天数={model.WorkerLogRetentionDays}，可以保存={model.SaveCommand.CanExecute(null)}。");
+                        await model.SaveCommand.ExecuteAsync(null);
+                        if(workerLogs.Settings!=new WorkerLogSettings(30,1)||!model.WorkerLogSettingsMessage.Contains("30 天"))
+                            throw new Exception("保存设置没有更新后台日志保留天数。"+model.WorkerLogSettingsMessage);
+                        Console.WriteLine("PASS 前台可读取并保存后台日志保留天数。");
+                    }
                     Directory.CreateDirectory(directory);Capture(window,Path.Combine(directory,"settings.png"));
                     var tree=(TreeView)window.FindName("SectionNavigation");tree.UpdateLayout();
                     var group=(TreeViewItem)tree.ItemContainerGenerator.ContainerFromIndex(1);group.UpdateLayout();
@@ -145,6 +163,17 @@ internal static class SettingsViewChecks
     {
         public DesktopSettings Load()=>new("D:\\CRS\\data","D:\\CRS\\logs");
         public Task SaveAsync(DesktopSettings settings)=>Task.CompletedTask;
+    }
+    private sealed class WorkerLogs:IDataCleanupGateway,IWorkerLogSettingsGateway
+    {
+        public bool CanExecute=>true;
+        public WorkerLogSettings Settings {get;private set;}=new();
+        public Task<WorkerLogSettings> LoadLogSettingsAsync(CancellationToken token)=>Task.FromResult(Settings);
+        public Task<WorkerLogSettings> SaveLogSettingsAsync(WorkerLogSettings settings,CancellationToken token)
+            =>Task.FromResult(Settings=settings with{Revision=settings.Revision+1});
+        public Task<DataCleanupStatus> PreviewAsync(DataCleanupOptions options,IProgress<DataCleanupStatus>? progress,CancellationToken token)=>throw new NotSupportedException();
+        public Task<DataCleanupStatus> ExecuteAsync(Guid previewId,Guid executionId,IProgress<DataCleanupStatus>? progress,CancellationToken token)=>throw new NotSupportedException();
+        public Task<DataCleanupStatus> StatusAsync(Guid operationId,IProgress<DataCleanupStatus>? progress,CancellationToken token)=>throw new NotSupportedException();
     }
     // 保留完整配置表单交互，所有地址为不可投递的保留域；发送接口仍没有实现。
     private sealed class SettingsUseCases:FakeUseCases,IDesktopUseCases

@@ -41,6 +41,7 @@ internal static class DataCleanupChecks
     public static async Task RunAsync()
     {
         var parent=Path.Combine(Path.GetTempPath(),"CRS.DataCleanup",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(parent);
+        VerifyServiceLog(Path.Combine(parent,"service-log"));
         var f=Create(parent);
         await using(var service=new WorkerDataCleanup(f.Root,f.Clock))
         {
@@ -140,5 +141,36 @@ internal static class DataCleanupChecks
             var result2=await Wait(service,service.BeginExecute(Guid.NewGuid(),next.OperationId,"admin"));Check(result2.State=="Completed"&&!Directory.EnumerateDirectories(Path.Combine(f.Root,"maintenance/cleanup-trash")).Any(),"重新扫描后完成残留副本清理");
         }
         Console.WriteLine($"资料清理隔离验证通过：{passed} 项。隔离资料：{parent}");
+    }
+
+    private static void VerifyServiceLog(string root)
+    {
+        var clock = new Clock { Value = new(2026, 10, 27, 23, 59, 0, TimeSpan.FromHours(8)) };
+        var logs = Path.Combine(root, "logs");
+        var unknown = Path.Combine(logs, "service-unknown1.jsonl");
+        Put(unknown, "unknown file");
+        for (var days = 1; days <= 15; days++)
+            Put(Path.Combine(logs, $"service-{clock.Value.AddDays(-days):yyyyMMdd}.jsonl"), "old log");
+
+        var first = Path.Combine(logs, "service-20261027.jsonl");
+        var next = Path.Combine(logs, "service-20261028.jsonl");
+        using (var log = new ServiceEventLog(root, clock))
+        {
+            log.Write("Started", "service", "line 1\r\nline 2");
+            clock.Value = clock.Value.AddMinutes(2);
+            var nearLimit = new string('x', 1024 * 1024);
+            for (var entry = 0; entry < 6; entry++) log.Write("Diagnostic", "service", nearLimit);
+            log.Write("Overflow", "service", "should be suppressed");
+        }
+
+        using var record = JsonDocument.Parse(File.ReadLines(first).Single());
+        var fields = record.RootElement;
+        var timestamp = fields.GetProperty("time").GetDateTimeOffset();
+        Check(timestamp.Offset == TimeSpan.FromHours(8) && timestamp.Day == 27
+            && fields.GetProperty("category").GetString() == "Started" && fields.GetProperty("job").GetString() == "service"
+            && fields.GetProperty("result").GetString() == "line 1\r\nline 2", "服务日志使用北京时间和兼容的单行 JSON 字段");
+        Check(File.ReadLines(next).Count() == 5, "北京时间跨日写入新文件，达到每日容量后停止追加");
+        Check(File.Exists(unknown) && Directory.GetFiles(logs, "*.jsonl").Length == 18,
+            "写日志和跨日轮转只追加文件，保留期统一交给资料清理");
     }
 }

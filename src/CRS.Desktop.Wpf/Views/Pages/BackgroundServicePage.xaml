@@ -54,6 +54,7 @@
       <DataGridTextColumn Header="执行周期" Binding="{Binding Cron}" Width="140" ElementStyle="{StaticResource PlanCellText}"/>
       <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled,Mode=OneWay}" IsThreeState="True"/>
       <DataGridTextColumn Header="当前状态" Binding="{Binding StateText}" Width="140" ElementStyle="{StaticResource PlanCellText}"/>
+      <DataGridTextColumn Header="上次执行时间（北京时间）" Binding="{Binding LastStartedText}" SortMemberPath="LastStartedAt" Width="200" ElementStyle="{StaticResource PlanCellText}"/>
       <DataGridTextColumn Header="到期／重试时间（北京时间）" Binding="{Binding NextDueText}" Width="220" ElementStyle="{StaticResource PlanCellText}"/>
       <DataGridTextColumn Header="任务编号（英文）" Binding="{Binding JobId}"/><DataGridTextColumn Header="插件" Binding="{Binding PluginId}"/>
       <DataGridTextColumn Header="修订" Binding="{Binding Revision}"/>

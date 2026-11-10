@@ -16,9 +16,11 @@ WorkspaceState 管理跨页面忙碌状态和结果失效。富途收入与交�
 
 ## 本机设置
 
-IDesktopSettingsService 由 DesktopSettingsStore 实现，持久化、路径校验和原子写入在 Infrastructure。SettingsViewModel 只收集选项。启动组合根读取设置后创建 LocalStore 并配置 NLog；保存后下次启动使用新目录，当前数据库不移动。
+IDesktopSettingsService 由 DesktopSettingsStore 实现，持久化、路径校验和原子写入在 Infrastructure。SettingsViewModel 只收集选项。桌面组合根在启动时配置日志，并在设置保存后立即更新日志输出。数据库目录在下次启动时生效。
 
-SQLCipher + Dapper，业务 user_version=2；NPOI 处理 Excel，PdfPig 处理已支持文本 PDF，NLog 输出脱敏日志。加密 v1 库先生成可恢复备份再事务升级，程序文件归档随新任务保存，见 [升级保护](../implementation/DATABASE_UPGRADE.md)。设置及默认路径见 [设置说明](../guides/SETTINGS.md)。
+桌面组件通过 `ILogger<T>` 记录脱敏事件，`DesktopLogging` 管理 Serilog 文件输出和轮转。后台服务将诊断写入独立的 JSON 行文件，任务中心从加密任务仓储读取执行记录。设置及默认路径见 [设置说明](../guides/SETTINGS.md)。
+
+SQLCipher + Dapper，业务 user_version=2；NPOI 处理 Excel，PdfPig 处理已支持文本 PDF。加密 v1 库先生成可恢复备份再事务升级，程序文件归档随新任务保存，见 [升级保护](../implementation/DATABASE_UPGRADE.md)。
 
 ## 重放与限制
 

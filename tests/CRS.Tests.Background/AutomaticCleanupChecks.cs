@@ -5,7 +5,7 @@ using CRS.Worker.Service;
 internal static class AutomaticCleanupChecks
 {
     private static int passed;
-    private static readonly AutomaticCleanupSchedule Fast=AutomaticCleanupSchedule.Default with{StartupDelay=TimeSpan.Zero,CheckInterval=TimeSpan.FromMilliseconds(10),DutyCycle=1};
+    private static readonly AutomaticCleanupSchedule Fast=AutomaticCleanupSchedule.Default with{DutyCycle=1};
     private static void Check(bool value,string name){if(!value)throw new InvalidOperationException(name);passed++;Console.WriteLine("PASS 自动清理："+name);}
     private static Task<CRS.Maintenance.DataCleanupStatus> Start(WorkerDataCleanup cleanup,AutomaticCleanupSchedule? schedule=null)
         =>cleanup.TryStartAutomatic(default,schedule??Fast)??throw new Exception("未受理自动清理。");
@@ -19,24 +19,44 @@ internal static class AutomaticCleanupChecks
         await PauseAndCorruptionAsync(root);
         await SchedulerAsync(root);
         await PlanOverviewAsync(root);
+        await RetryLimitAsync(root);
         Console.WriteLine($"自动清理隔离验证通过：{passed}项。隔离目录：{root}");
+    }
+
+    private static async Task RetryLimitAsync(string root)
+    {
+        var f=DataCleanupChecks.Create(root);
+        await using var cleanup=new WorkerDataCleanup(f.Root,f.Clock);
+        var notices=0;
+        cleanup.InitializeAutomaticSchedule(Fast,_=>notices++);
+        using var lease=new FileStream(Path.Combine(f.Root,"maintenance.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
+        for(var attempt=1;attempt<=4;attempt++)
+        {
+            Check((await Start(cleanup)).State=="Interrupted","维护锁竞争触发安全重试");
+            var plan=cleanup.TaskOverview("admin").AutomaticPlan!;
+            if(attempt<4)
+            {
+                Check(notices==0&&plan.Failures==attempt&&plan.NextDueAt==f.Clock.Value+Fast.RetryInterval,"清理重试前保留失败次数和期限");
+                f.Clock.Value=plan.NextDueAt!.Value;
+            }
+            else Check(notices==1&&plan.Failures==0&&plan.NextDueAt==Fast.NextAfter(f.Clock.Value),"清理三次重试用尽后通知并恢复每日计划");
+        }
     }
     private static async Task PlanOverviewAsync(string root)
     {
         var f=DataCleanupChecks.Create(root);await using var cleanup=new WorkerDataCleanup(f.Root,f.Clock);
         Check(cleanup.TaskOverview("admin").AutomaticPlan is{State:"NotStarted",NextDueAt:null},"尚未启动循环时不报告虚假的下一次执行");
-        using var stop=new CancellationTokenSource();
-        var schedule=AutomaticCleanupSchedule.Default with{StartupDelay=TimeSpan.FromHours(2)};
-        var loop=cleanup.RunAutomaticAsync((_,_,_)=>{},stop.Token,schedule);
-        try
+        cleanup.InitializeAutomaticSchedule(AutomaticCleanupSchedule.Default);
+        var plan=cleanup.TaskOverview("admin").AutomaticPlan!;
+        Check(plan is{State:"Waiting",Cron:"0 0 3 * * ?",TimeZoneId:"China Standard Time",RetryIntervalSeconds:3600,LogRetentionDays:14,KeepLatestUsableBackupOnly:true}
+            &&plan.NextDueAt==new DateTimeOffset(2026,10,28,3,0,0,TimeSpan.FromHours(8)),"计划显示北京时间每日 03:00 的 Cron 和下次执行");
+        File.WriteAllText(Path.Combine(f.Root,"maintenance/automatic-cleanup.json"),JsonSerializer.Serialize(new
         {
-            var plan=cleanup.TaskOverview("admin").AutomaticPlan!;
-            Check(plan is{State:"Waiting",StartupDelaySeconds:7200,SuccessIntervalSeconds:86400,RetryIntervalSeconds:3600,LogRetentionDays:14,KeepLatestUsableBackupOnly:true}
-                &&plan.NextDueAt==CRS.Timing.BeijingClock.Read(f.Clock).AddHours(2),"计划摘要来自实际循环参数、启动等待和保留规则");
-            await cleanup.PauseAutomaticAsync(default);
-            Check(cleanup.TaskOverview("admin").AutomaticPlan?.State=="Paused","维护暂停准确反映到计划摘要");
-        }
-        finally{stop.Cancel();try{await loop;}catch(OperationCanceledException){}}
+            Format=1,NextRunAt=f.Clock.Value.AddDays(1),LastOperationId=(Guid?)null,LastState="Completed"
+        }));
+        Check(cleanup.TaskOverview("admin").AutomaticPlan?.NextDueAt==plan.NextDueAt,"旧版按间隔保存的记录可接续到新的 Cron 时间");
+        await cleanup.PauseAutomaticAsync(default);
+        Check(cleanup.TaskOverview("admin").AutomaticPlan?.State=="Paused","维护暂停准确反映到计划摘要");
     }
     private static async Task RetentionAndRestartAsync(string root)
     {
@@ -124,10 +144,15 @@ internal static class AutomaticCleanupChecks
     }
     private static async Task SchedulerAsync(string root)
     {
-        var f=DataCleanupChecks.Create(root);await using var cleanup=new WorkerDataCleanup(f.Root,f.Clock);using var stop=new CancellationTokenSource();
-        var completed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var count=0;
-        var loop=cleanup.RunAutomaticAsync((category,_,result)=>{if(category=="AutomaticDataCleanup"){count++;completed.TrySetResult();}},stop.Token,Fast);
-        try{await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));await Task.Delay(80);Check(count==1,"真实定时循环按持久状态执行，不在每次检查时重复扫描");}
-        finally{stop.Cancel();try{await loop;}catch(OperationCanceledException){}}
+        var f=DataCleanupChecks.Create(root);await using var cleanup=new WorkerDataCleanup(f.Root,f.Clock);
+        cleanup.InitializeAutomaticSchedule(Fast);
+        var count=0;
+        void Observe(string category,string job,string result){if(category=="AutomaticDataCleanup")count++;}
+        await cleanup.RunAutomaticOnceAsync(Observe,default,recoverOnly:true);
+        Check(count==0,"新服务的协调循环等待首次 Cron 触发");
+        f.Clock.Value=Fast.NextAfter(f.Clock.Value);
+        await cleanup.RunAutomaticOnceAsync(Observe,default,recoverOnly:false);
+        await cleanup.RunAutomaticOnceAsync(Observe,default,recoverOnly:true);
+        Check(count==1&&cleanup.TaskOverview("admin").AutomaticPlan?.NextDueAt==f.Clock.Value.AddDays(1),"Cron 触发一次，恢复检查不重复扫描");
     }
 }

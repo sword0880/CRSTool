@@ -18,11 +18,12 @@ public sealed partial class DataCleanupViewModel
     [ObservableProperty]private string taskNotificationTitle="";
     [ObservableProperty]private string taskNotificationMessage="";
     [ObservableProperty]private DataCleanupTask? currentTask;
+    [ObservableProperty]private DataCleanupTask? latestTaskResult;
     [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus)),NotifyPropertyChangedFor(nameof(AutomaticPlanNext))]private bool taskStatusKnown;
     [ObservableProperty,NotifyPropertyChangedFor(nameof(AutomaticPlanStatus)),NotifyPropertyChangedFor(nameof(AutomaticPlanPolicy)),NotifyPropertyChangedFor(nameof(AutomaticPlanNext))]
     private DataCleanupAutomaticPlan? automaticCleanupPlan;
     public string AutomaticPlanPolicy=>AutomaticCleanupPlan is {} plan
-        ?$"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时再次到期；未完成时 {TimeSpan.FromSeconds(plan.RetryIntervalSeconds).TotalMinutes:N0} 分钟后重试。日志保留 {plan.LogRetentionDays} 天。"
+        ?$"{(plan.Cron is { } cron ? $"北京时间 Cron {cron}" : $"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时再次到期")}；未完成时 {TimeSpan.FromSeconds(plan.RetryIntervalSeconds).TotalMinutes:N0} 分钟后重试。日志保留 {plan.LogRetentionDays} 天。"
             +(plan.KeepLatestUsableBackupOnly?"保留最近一份可用回退快照；无法核实的副本保留。":$"保留当前快照及 {plan.HistoricalBackupsToKeep} 份有效历史副本。")
         :"后台按保留规则执行；尚未取得计划详情。";
     public string AutomaticPlanStatus=>!TaskStatusKnown?"状态未确认":AutomaticCleanupPlan?.State switch
@@ -66,7 +67,7 @@ public sealed partial class DataCleanupViewModel
     }
     internal void ApplyTaskOverview(DataCleanupTaskOverview overview)
     {
-        CurrentTask=overview.Current;AutomaticCleanupPlan=overview.AutomaticPlan;TaskStatusKnown=true;
+        CurrentTask=overview.Current;LatestTaskResult=overview.LatestResult;AutomaticCleanupPlan=overview.AutomaticPlan;TaskStatusKnown=true;
         notification=overview.Notification;HasTaskNotification=notification is not null;
         if(notification is null){TaskNotificationTitle="";TaskNotificationMessage="";return;}
         TaskNotificationTitle=notification.State=="Completed"&&notification.CountsComplete?"后台资料清理完成":"后台资料清理未全部完成";

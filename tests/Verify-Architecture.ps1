@@ -27,13 +27,13 @@ foreach ($reference in $infraProject.SelectNodes('//ProjectReference')) {
 foreach ($root in @($domain,$app)) {
     foreach ($file in Get-ChildItem $root -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
         $source = Get-Content -Raw -LiteralPath $file.FullName
-        Assert-Boundary (-not ($source -match '(?m)^\s*using\s+(?:CRS\.Infrastructure|CRS\.Desktop|NPOI|Dapper|NLog|Wpf\.Ui|LiveChartsCore|System\.Windows)\b')) "业务层反向依赖实现：$($file.Name)"
+        Assert-Boundary (-not ($source -match '(?m)^\s*using\s+(?:CRS\.Infrastructure|CRS\.Desktop|NPOI|Dapper|Serilog|Wpf\.Ui|LiveChartsCore|System\.Windows)\b')) "业务层反向依赖实现：$($file.Name)"
     }
 }
 foreach ($entry in @(@($wpf,'Views'),@($wpf,'ViewModels'),@($wpf,'Controls'))) {
     foreach ($file in Get-ChildItem (Join-Path $entry[0] $entry[1]) -Filter '*.cs' -Recurse) {
         $source = Get-Content -Raw -LiteralPath $file.FullName
-        Assert-Boundary (-not ($source -match '(?m)^\s*using\s+(?:CRS\.Infrastructure|NPOI|Dapper|NLog|Microsoft\.Data\.Sqlite|System\.Net\.Http)\b')) "前台越过用例边界：$($file.Name)"
+        Assert-Boundary (-not ($source -match '(?m)^\s*using\s+(?:CRS\.Infrastructure|NPOI|Dapper|Serilog|Microsoft\.Data\.Sqlite|System\.Net\.Http)\b')) "前台越过用例边界：$($file.Name)"
         Assert-Boundary (-not ($source -match '\bIDesktopOperations\b|\bICalculationRepository\b|\bFifoEngine\b|\bTaxEngine\b|File\.(Read|Write)')) "前台出现后台职责：$($file.Name)"
         Assert-Boundary (-not ($source -match '\b(PerformanceCalculator|PerformanceCostCalculator|PerformanceCurveCalculator|XirrSolver)\s*\.')) "前台直接运行绩效算法：$($file.Name)"
     }

@@ -185,8 +185,9 @@ internal static class WorkerCancellationChecks
         await session.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await runtime.HandleAsync(Request("CancelRun"), Admin, default);
         await Until(() => repository.FindCommand(run.RequestId, Admin.Sid)?.State == "Completed");
-        Check(!unresponsive && repository.History().Single() is { Result: "Failed", Checkpoint: "error=TimeoutException" },
-            "收尾已完成的TimeoutException记录实际失败，不误判为插件失控");
+        Check(!unresponsive && repository.History().Single() is { Result: "Failed", Checkpoint: "error=TimeoutException" }
+            && repository.Plans().Single().NotBefore is null && repository.NextFailureNotice() is null,
+            "取消收尾的TimeoutException记录实际失败，不误判为失控或自动重试");
     }
     private static async Task HealthFailure(string root, byte[] key, string operation)
     {

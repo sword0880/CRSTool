@@ -17,8 +17,8 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> uploads = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetDiagnosticJobs", "GetHistoryJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks",CRS.Maintenance.DataCleanupTask.HistoryCommand];
-    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument","PauseAutoCleanup","SubmitDataCleanupTask","AcknowledgeDataCleanupTask"];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetDiagnosticJobs", "GetHistoryJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks",CRS.Maintenance.DataCleanupTask.HistoryCommand,WorkerProtocol.GetAnnualExchangeRates,WorkerProtocol.GetWorkerLogSettings];
+    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument","PauseAutoCleanup","SubmitDataCleanupTask","AcknowledgeDataCleanupTask",WorkerProtocol.SaveWorkerLogSettings];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public async Task RunAsync(CancellationToken token)
     {

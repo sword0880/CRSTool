@@ -17,18 +17,21 @@ internal sealed class ExecutionCancellation : IDisposable
         this.callbackFailed = callbackFailed;
         stopping = stoppingToken.Register(Cancel);
         scheduler = schedulerToken.Register(Cancel);
-        deadline = new Timer(_ => Cancel(), null, timeout, Timeout.InfiniteTimeSpan);
+        deadline = new Timer(_ => RequestCancellation(timedOut:true), null, timeout, Timeout.InfiniteTimeSpan);
     }
     public CancellationToken Token => source.Token;
     public bool IsCancellationRequested => requested.Task.IsCompleted;
     public Task Requested => requested.Task;
     public Task Callbacks { get { lock (sync) return callbacks; } }
-    public void Cancel()
+    public bool TimedOut { get; private set; }
+    public void Cancel() => RequestCancellation(timedOut:false);
+    private void RequestCancellation(bool timedOut)
     {
         lock (sync)
         {
             if (closed || cancelled) return;
             cancelled = true;
+            TimedOut = timedOut;
             // CancelAsync立即设置令牌状态，插件回调由线程池执行；不在runtime gate内等待。
             callbacks = ObserveAsync(source.CancelAsync());
             requested.TrySetResult();

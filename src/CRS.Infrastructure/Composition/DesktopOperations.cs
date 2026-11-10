@@ -1,14 +1,16 @@
 using CRS.Domain;
 using CRS.Application.Abstractions;
-using NLog;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CRS.Infrastructure;
 
 /// <summary>适配现有基础设施行为；窗口只使用 Core 契约。</summary>
 public sealed class DesktopOperations(ICalculationRepository repository, string configPath,IVaultStorageBackend? vault=null,
-    OfficialAnnualExchangeRates? officialRates=null) : IDesktopOperations
+    OfficialAnnualExchangeRates? officialRates=null, ILoggerFactory? loggerFactory=null) : IDesktopOperations
 {
     private readonly Action<Action>? guard=vault?.CaptureGuard();
+    private readonly ILogger<DesktopOperations> log=loggerFactory?.CreateLogger<DesktopOperations>()??NullLogger<DesktopOperations>.Instance;
     /// <summary>取得本次运行配置位置。</summary>
     public string ConfigPath => configPath;
     /// <summary>提供历史仓储端口。</summary>
@@ -22,7 +24,7 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public string RateFingerprint(int year) => officialRates?.CachedFingerprint(year) ?? LoadRates().Fingerprint;
     /// <summary>装配年度计算所需基础设施。</summary>
     public CalculationService CreateCalculator(IExchangeRateProvider rates, string broker = "IBKR", int year = 2025)
-        =>CalculationServices.Create(rates,broker,year);
+        =>CalculationServices.Create(rates,broker,year,null,loggerFactory:loggerFactory);
 
     public IReadOnlySet<string> ArchivedOriginalHashes(string[] hashes,CancellationToken token)
         => vault?.ArchivedOriginalHashes(hashes,guard!,token) ?? new HashSet<string>();
@@ -53,7 +55,7 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
 
         Func<string, CancellationToken, FrozenInput>? readOriginal = historical is null ? null : ReadHistorical;
         if (vault is null)
-            return new DesktopCalculationSession(CalculationServices.Create(rates, broker, year, null, readOriginal),
+            return new DesktopCalculationSession(CalculationServices.Create(rates, broker, year, null, readOriginal, loggerFactory:loggerFactory),
                 (result, token, allowDuplicate) =>
                 {
                     token.ThrowIfCancellationRequested();
@@ -89,7 +91,7 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
         }
 
         var calculator = CalculationServices.Create(rates, broker, year,
-            historical is null ? PreparePerformance : null, readOriginal, PrepareIncome);
+            historical is null ? PreparePerformance : null, readOriginal, PrepareIncome, loggerFactory);
         return new DesktopCalculationSession(calculator,
             (result, token, allowDuplicate) => vault.CommitCalculation(result, prepared, incomeOriginal, guard!, token, allowDuplicate),
             () =>
@@ -119,20 +121,20 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     public async Task DownloadAsync(string queryId, string token, DateOnly from, DateOnly to, string path, CancellationToken cancellation)
     {
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
-        var bytes = await new FlexClient(http).DownloadAsync(queryId, token, from, to, cancellation);
+        var bytes = await new FlexClient(http, loggerFactory?.CreateLogger<FlexClient>()).DownloadAsync(queryId, token, from, to, cancellation);
         cancellation.ThrowIfCancellationRequested();
         // 完成网络请求后仍检查当前保险库会话；锁定后的旧下载不得继续落盘。
         void Write() {cancellation.ThrowIfCancellationRequested(); VaultFiles.AtomicWrite(path,bytes,true);}
         if(guard is null) Write(); else guard(Write);
     }
     /// <summary>记录固定失败类别，不记录原始错误正文。</summary>
-    public void LogFailure(string exceptionType) => LogManager.GetCurrentClassLogger().Warn("操作失败；类别={0}", SensitiveLog.FailureCategory(exceptionType));
+    public void LogFailure(string exceptionType) => log.LogWarning("操作失败；类别={Category:l}", SensitiveDiagnostics.FailureCategory(exceptionType));
     /// <summary>统一后台导出策略只读检查，不提前创建明文文件。</summary>
     public void ValidateExportDestination(string path,bool plaintext,bool temporaryLocationConfirmed)=>ExportDestinationPolicy.Validate(path,plaintext,temporaryLocationConfirmed);
     /// <summary>枚举只允许固定事件；非法值也不把任意字符串写入日志。</summary>
     public void LogExportEvent(SensitiveExportOperation operation,SensitiveExportOutcome outcome)
     {
         if(!Enum.IsDefined(operation) || !Enum.IsDefined(outcome)) return;
-        LogManager.GetCurrentClassLogger().Info("敏感文件操作；类型={0}；结果={1}",operation,outcome);
+        log.LogInformation("敏感文件操作；类型={Operation}；结果={Outcome}",operation,outcome);
     }
 }

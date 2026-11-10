@@ -1,12 +1,12 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using CRS.Domain;
-using NLog;
+using Microsoft.Extensions.Logging;
 
 namespace CRS.Infrastructure;
 
 /// <summary>通过调用方提供的 HttpClient 建立可取消的 IBKR Flex 下载服务。</summary>
-public sealed class FlexClient(HttpClient client)
+public sealed class FlexClient(HttpClient client, ILogger<FlexClient>? log = null)
 {
     private const string BaseUrl = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/";
     /// <summary>发送生成请求并有限轮询获取 XML；令牌仅驻留调用期间，不写入日志。</summary>
@@ -49,7 +49,7 @@ public sealed class FlexClient(HttpClient client)
             }
             return buffer.ToArray();
         }
-        catch (HttpRequestException) { LogManager.GetCurrentClassLogger().Warn("Flex 网络请求失败"); throw new CrsException("无法连接 IBKR，请检查代理、证书及网络设置。"); }
+        catch (HttpRequestException) { log?.LogWarning("Flex 网络请求失败"); throw new CrsException("无法连接 IBKR，请检查代理、证书及网络设置。"); }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested) { throw new CrsException("IBKR 连接超时，请稍后重试。"); }
     }
     /// <summary>只展示经过验证的数字错误码，丢弃服务返回的任意描述与 URL。</summary>

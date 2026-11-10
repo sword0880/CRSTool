@@ -11,9 +11,13 @@ namespace CRS.Worker.Service;
 /// <summary>加密仓储是唯一权威；内存触发器、命令恢复和开始执行按同一门闩排序。</summary>
 public sealed partial class BackgroundRuntime(ITaskRepository repository, BackgroundPluginCatalog catalog,
     Action<string, string, string>? diagnostics = null, Action? onUnresponsive = null,
-    TimeSpan? executionTimeout = null, WorkerExecutionSettings? executionSettings = null,WorkerNotificationGateway? notifications=null,SourceBudgetRegistry? sources=null,WorkerDataCleanup? cleanup=null,WorkerDocumentInbox? documentInbox=null) : IBackgroundControl, IAsyncDisposable
+    TimeSpan? executionTimeout = null, WorkerExecutionSettings? executionSettings = null,WorkerNotificationGateway? notifications=null,SourceBudgetRegistry? sources=null,WorkerDataCleanup? cleanup=null,WorkerDocumentInbox? documentInbox=null,
+    WorkerAnnualExchangeRates? annualRates=null) : IBackgroundControl, IAsyncDisposable
 {
     private readonly WorkerExecutionSettings settings = (executionSettings ?? new()).Validate();
+    private readonly HostedBackgroundJob? annualRatesJob = annualRates is null ? null
+        : new(WorkerAnnualExchangeRates.ServiceId, WorkerAnnualExchangeRates.Descriptor, annualRates);
+    private IEnumerable<HostedBackgroundJob> Jobs => annualRatesJob is null ? catalog.Jobs : catalog.Jobs.Append(annualRatesJob);
     private readonly SemaphoreSlim gate = new(1);
     private readonly CancellationTokenSource stopping = new();
     private readonly CancellationTokenSource queryStopping = new();
@@ -35,7 +39,9 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try { _ = new CronExpression(cron); } catch (FormatException) { throw new ArgumentException("Cron 不合法。"); }
         TimeZoneInfo.FindSystemTimeZoneById(zone);
     }
-    private bool HasHandler(TaskDefinition plan) => catalog.CanDispatch(plan.PluginId)&&catalog.Jobs.Any(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
+    private bool IsAnnualRates(TaskDefinition plan) => annualRatesJob is not null && plan.PluginId == annualRatesJob.PluginId;
+    private bool HasHandler(TaskDefinition plan) => (IsAnnualRates(plan) || catalog.CanDispatch(plan.PluginId))
+        && Jobs.Any(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
     private async Task TripFaultAsync(string state)
     {
         fault ??= state;
@@ -48,7 +54,9 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         scheduler = await QuartzSchedulerBuilder.Create().UseProperties(new NameValueCollection
             { { "quartz.scheduler.instanceName", "CRS.Worker." + Guid.NewGuid().ToString("N") }, { "quartz.threadPool.maxConcurrency", settings.EffectiveMaxConcurrency.ToString(System.Globalization.CultureInfo.InvariantCulture) } }).BuildScheduler(token);
         scheduler.Context.Add("crs.worker.runtime", this);
-        foreach (var group in catalog.Jobs.GroupBy(x => x.PluginId).Select(x => x.ToArray()).ToArray())
+        if (annualRatesJob is not null && catalog.Jobs.Any(x => x.PluginId == annualRatesJob.PluginId))
+            catalog.Quarantine(annualRatesJob.PluginId, "ReservedHostId");
+        foreach (var group in Jobs.GroupBy(x => x.PluginId).Select(x => x.ToArray()).ToArray())
         {
             try { foreach (var job in group) Validate(job.Descriptor.DefaultCron, job.Descriptor.TimeZoneId); }
             catch (Exception error) when (error is ArgumentException or TimeZoneNotFoundException or InvalidTimeZoneException)
@@ -84,12 +92,16 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         foreach (var plan in repository.Plans().Where(HasHandler))
         {
             await ApplyAsync(plan, token);
-            var descriptor = catalog.Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId).Descriptor;
-            // 启动补偿由插件显式声明，禁止所有普通定时任务一律启动执行。
-            if (plan.Enabled && descriptor.RunOnStartup && plan.NotBefore is null)
+            var descriptor = Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId).Descriptor;
+            // 年度更新只在计划时间已过、该年报价仍待更新时补跑。
+            if (plan.Enabled && descriptor.RunOnStartup && plan.NotBefore is null
+                && (!IsAnnualRates(plan) || annualRates!.NeedsCatchUp(plan)))
                 await scheduler.ScheduleJob(AutomaticTrigger(plan, "startup").StartAt(CRS.Timing.BeijingClock.Now.AddSeconds(2)).Build(), cancellationToken: token);
         }
         await RestorePendingAsync(token);
+        await ScheduleCleanupAsync(token);
+        QueueCleanupRecovery(token);
+        QueueFailureNotifications();
         await scheduler.Start(token);
     }
     private static TriggerBuilder<PluginJobDispatcher> AutomaticTrigger(TaskDefinition plan, string kind) => TriggerBuilder.Create<PluginJobDispatcher>()
@@ -103,7 +115,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         {
             await scheduler!.ScheduleJob(AutomaticTrigger(plan, "cron")
                 .WithCronSchedule(plan.Cron, x => x.InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(plan.TimeZoneId))
-                    .WithMisfireInstruction(CronTriggerMisfireInstruction.DoNothing)).Build(), cancellationToken: token);
+                    .WithMisfireInstruction(IsAnnualRates(plan) ? CronTriggerMisfireInstruction.FireAndProceed : CronTriggerMisfireInstruction.DoNothing)).Build(), cancellationToken: token);
             await ScheduleRetryAsync(plan, token);
         }
         repository.Reconciled(plan);
@@ -141,12 +153,18 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             foreach (var plan in repository.Plans().Where(x => x.NeedsReconcile && HasHandler(x))) await ApplyAsync(plan, token);
             await RestorePendingAsync(token);
             foreach (var plugin in pluginWriters.Keys) await WakeWaitingAsync(plugin, token);
+            QueueCleanupRecovery(token);
+            QueueFailureNotifications();
         }
         catch (Exception error) when (StorageError(error)) { await TripFaultAsync("StorageFault"); }
         finally { gate.Release(); }
     }
     public async Task<BackgroundResponse> HandleAsync(BackgroundRequest request, BackgroundCaller caller, CancellationToken token)
     {
+        if (request.Command == WorkerProtocol.GetAnnualExchangeRates)
+            return annualRates?.Query(request, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
+        if (request.Command is WorkerProtocol.GetWorkerLogSettings or WorkerProtocol.SaveWorkerLogSettings)
+            return await HandleLogSettingsAsync(request, caller, token);
         if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, token);
         if(request.Command is "PutPluginDocument" or "GetPluginDocument" or "ListPluginDocuments")return await HandleDocumentsAsync(request,caller,token);
         if(request.Command is "BeginDataCleanupPreview" or "GetDataCleanupStatus" or "ExecuteDataCleanup" or "PauseAutoCleanup" or "SubmitDataCleanupTask" or "GetDataCleanupTasks" or "AcknowledgeDataCleanupTask" or CRS.Maintenance.DataCleanupTask.HistoryCommand)return await HandleCleanupAsync(request,caller,token);
@@ -257,8 +275,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         {
             var matching = repository.Plans().Where(x => request.Command switch
                 {
-                    "GetDiagnosticJobs" => catalog.Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&job.Descriptor.Diagnostic),
-                    "GetJobs" => !catalog.Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&(job.Descriptor.ManualOnly||job.Descriptor.Diagnostic)),
+                    "GetDiagnosticJobs" => Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&job.Descriptor.Diagnostic),
+                    "GetJobs" => !Jobs.Any(job=>job.PluginId==x.PluginId&&job.Descriptor.JobId==x.JobId&&(job.Descriptor.ManualOnly||job.Descriptor.Diagnostic)),
                     _ => true
                 });
             // 筛选清单的顺序须与游标一致，即使一个插件编号是另一编号的前缀。
@@ -267,6 +285,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             var plans = matching.Where(x => request.Cursor is null || string.CompareOrdinal(x.PluginId + ":" + x.JobId, request.Cursor) > 0)
                 .Take(request.PageSize + 1).ToArray();
             var page = plans.Take(request.PageSize).ToArray();
+            if (request.Command == "GetJobs")
+                for (var i = 0; i < page.Length; i++) page[i] = await DescribePlanAsync(page[i],token);
             return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: page, NextCursor: plans.Length > page.Length ? page[^1].PluginId + ":" + page[^1].JobId : null);
         }
         // 新查询命令让旧服务明确返回不支持，避免忽略任务筛选后展示混合结果。
@@ -312,11 +332,12 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         if (request.Command is not ("RunNow" or "Pause" or "Resume" or "ChangeSchedule" or "CancelRun")) return Reply("UnknownCommand");
         var plan = repository.Plans().SingleOrDefault(x => x.PluginId == request.PluginId && x.JobId == request.JobId);
         if (plan is null || !HasHandler(plan)) return Reply("JobUnavailable");
-        if(request.Command is "Resume" or "ChangeSchedule" && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId&&x.Descriptor.JobId==plan.JobId).Descriptor.Diagnostic)
+        var descriptor = Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId).Descriptor;
+        if(request.Command is "Resume" or "ChangeSchedule" && descriptor.Diagnostic)
             return Reply("DiagnosticOnly");
-        if(request.Command is "Resume" or "ChangeSchedule" && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId && x.Descriptor.JobId==plan.JobId).Descriptor.ManualOnly)
+        if(request.Command is "Resume" or "ChangeSchedule" && descriptor.ManualOnly)
             return Reply("ManualOnly");
-        if(request.Command=="RunNow" && request.Payload is null && catalog.Jobs.Single(x=>x.PluginId==plan.PluginId && x.Descriptor.JobId==plan.JobId).Descriptor.ManualOnly)
+        if(request.Command=="RunNow" && request.Payload is null && descriptor.ManualOnly)
             return Reply("ParametersRequired");
         var accepted = false;
         try
@@ -392,6 +413,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                 || repository.PendingRuns().Any(x=>x.PluginId==plan.PluginId&&x.JobId==plan.JobId)) return;
             if (request is null && plan.NotBefore > CRS.Timing.BeijingClock.Now
                 || request is {} delayed && ManualNotBefore(delayed,plan)>CRS.Timing.BeijingClock.Now) return;
+            if (request is { } manualRequest ? ManualNotBefore(manualRequest,plan) is null : plan.NotBefore is null)
+                plan = plan with { Failures = 0 };
             source = new(stopping.Token,cancellationToken,executionTimeout??TimeSpan.FromMinutes(15),
                 ()=>diagnostics?.Invoke("PluginCancellationFailed",key.Group,"CallbackFailed"));
             if(request is { } requestId)payload=repository.ReadCommand(requestId).Payload;
@@ -403,7 +426,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         finally { gate.Release(); }
         if (execution is null || source is null || plan is null) return;
         BackgroundJobResult result;
-        var handler = catalog.Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
+        var handler = Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
         // 参数来自已提交的持久命令，强杀恢复后继续使用同一业务操作。
         var work = Task.Run(() => handler.Session is IProgressBackgroundSession progress
             ?progress.ExecuteWithProgressAsync(plan.JobId,payload,detail=>SaveProgressAsync(execution,detail,source.Token),source.Token,request)
@@ -441,7 +464,9 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         {
             if (fault == "StorageFault") return;
             if(source.IsCancellationRequested&&result.Status=="RetryDeferred")result=new("Cancelled");
+            if(source.TimedOut&&fault is null&&result.Status=="Cancelled")result=new("Failed","ExecutionTimeout");
             repository.End(execution, plan, result, request);
+            QueueFailureNotifications();
             diagnostics?.Invoke("ExecutionCompleted", plan.PluginId + ":" + plan.JobId, result.Status);
             var updated = repository.Plans().Single(x => Key(x).Equals(key));
             await ScheduleRetryAsync(updated, CancellationToken.None);
@@ -465,7 +490,19 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             }
             finally{source.Dispose();}
         }
-        if(request is not null && result.Status=="RetryDeferred")await ReconcileAsync(CancellationToken.None);
+        if(request is not null && (result.Status=="RetryDeferred" || TaskRetryPolicy.IsFailure(result.Status)))
+            await ReconcileAsync(CancellationToken.None);
+    }
+
+    private async Task<TaskDefinition> DescribePlanAsync(TaskDefinition plan,CancellationToken token)
+    {
+        var key=Key(plan);
+        var pending=waiting.ContainsKey(key)||queued.ContainsKey(key);
+        var state = !HasHandler(plan)?"Unavailable":running.ContainsKey(key)?"Running":!plan.Enabled&&!pending?"Disabled":
+            plan.NeedsReconcile?"Reconcile":plan.NotBefore is not null?plan.Failures>0?"Retry":"Deferred":pending?"Queued":"Waiting";
+        var next = plan.Enabled && state!="Unavailable" && scheduler is not null
+            ? (await scheduler.GetTrigger(TriggerKey(key,"cron"),token))?.NextFireTimeUtc : null;
+        return plan with {PlanState=state,NextScheduledAt=next};
     }
     /// <summary>阶段记录与控制查询共享短数据库门槛，落盘失败立即停止采集，避免产生虚假进度。</summary>
     private static BackgroundJobResult ClassifyExecutionFailure(Exception error)=>error switch
@@ -499,6 +536,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         finally { gate.Release(); }
         queryStopping.Cancel(); // 插件取消回调不能在全局锁内执行。
         await Task.WhenAll(queries).WaitAsync(token);
+        if (cleanupRecovery is not null) await cleanupRecovery.WaitAsync(token);
+        if (failureNotifications is not null) await failureNotifications.WaitAsync(token);
         if (scheduler is not null && scheduler.Status != SchedulerStatus.Shutdown) await scheduler.Shutdown(waitForJobsToComplete: true, token);
         await catalog.DrainQueriesAsync(token);
     }

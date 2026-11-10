@@ -8,7 +8,7 @@ using Microsoft.Data.Sqlite;
 namespace CRS.Worker.Service;
 
 /// <summary>SQLCipher 是计划唯一权威；运行态只保存 RAMJobStore，可由此库重建。</summary>
-public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
+public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposable
 {
     private readonly SqliteConnection db;
     private readonly object gate = new();
@@ -46,14 +46,28 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
                 DROP INDEX IF EXISTS audit_request;
                 CREATE TABLE IF NOT EXISTS command_request(request TEXT PRIMARY KEY,sid TEXT NOT NULL,command TEXT NOT NULL,payload TEXT NOT NULL,plugin TEXT,job TEXT,state TEXT NOT NULL,code TEXT NOT NULL,execution TEXT,created TEXT NOT NULL);
                 CREATE UNIQUE INDEX IF NOT EXISTS one_pending_manual ON command_request(plugin,job) WHERE command='RunNow' AND state IN ('Pending','Running');
+                CREATE TABLE IF NOT EXISTS task_latest(plugin TEXT NOT NULL,job TEXT NOT NULL,id TEXT NOT NULL,started TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(plugin,job));
+                CREATE TABLE IF NOT EXISTS task_failure_notice(id TEXT PRIMARY KEY,plugin TEXT NOT NULL,job TEXT NOT NULL,result TEXT NOT NULL,utc TEXT NOT NULL,attempted TEXT NOT NULL DEFAULT '[]');
+                CREATE TRIGGER IF NOT EXISTS task_latest_begin AFTER INSERT ON execution BEGIN
+                    INSERT INTO task_latest VALUES(NEW.plugin,NEW.job,NEW.id,NEW.started,NEW.result)
+                    ON CONFLICT(plugin,job) DO UPDATE SET id=NEW.id,started=NEW.started,result=NEW.result;
+                END;
+                CREATE TRIGGER IF NOT EXISTS task_latest_end AFTER UPDATE OF result ON execution BEGIN
+                    UPDATE task_latest SET result=NEW.result WHERE plugin=NEW.plugin AND job=NEW.job AND id=NEW.id;
+                END;
                 PRAGMA application_id=1129468738; PRAGMA user_version=2;
                 """);
             NormalizeStoredTimes();
+            Execute("""
+                INSERT OR IGNORE INTO task_latest
+                SELECT e.plugin,e.job,e.id,e.started,e.result FROM execution e
+                WHERE e.rowid=(SELECT x.rowid FROM execution x WHERE x.plugin=e.plugin AND x.job=e.job ORDER BY x.started DESC,x.rowid DESC LIMIT 1);
+                """);
             Execute("UPDATE task SET zone=$zone,revision=revision+1,reconcile=1 WHERE zone<>$zone", ("$zone", CRS.Timing.BeijingClock.ZoneId));
             Execute("UPDATE execution SET ended=$now,result='Interrupted' WHERE result='Running'", ("$now", Now));
             // 已请求取消但尚未确认业务结果的运行，重启后保留中断事实，禁止自动重放。
             Execute("UPDATE command_request SET state='Completed',code='Interrupted' WHERE state='Running' AND command='RunNow' AND code='CancellationRequested'");
-            Execute("UPDATE command_request SET state='Pending',code='Accepted' WHERE state='Running' AND command='RunNow'");
+            Execute("UPDATE command_request SET state='Pending',code=CASE WHEN code='RetryDeferred' THEN code ELSE 'Accepted' END WHERE state='Running' AND command='RunNow'");
             migration.Commit();
         }
         catch { db?.Dispose(); CryptographicOperations.ZeroMemory(key); throw; }
@@ -117,9 +131,10 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
         {
             lock (gate)
             {
-                using var command = Command("SELECT * FROM task ORDER BY plugin,job"); using var reader = command.ExecuteReader();
+                using var command = Command("SELECT t.*,e.started,e.result FROM task t LEFT JOIN task_latest e ON e.plugin=t.plugin AND e.job=t.job ORDER BY t.plugin,t.job"); using var reader = command.ExecuteReader();
                 var list = new List<TaskDefinition>();
-                while (reader.Read()) list.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5), reader.GetInt64(6), reader.GetBoolean(7), reader.IsDBNull(8) ? null : CRS.Timing.BeijingClock.Parse(reader.GetString(8)), reader.GetInt32(9)));
+                while (reader.Read()) list.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5), reader.GetInt64(6), reader.GetBoolean(7), reader.IsDBNull(8) ? null : CRS.Timing.BeijingClock.Parse(reader.GetString(8)), reader.GetInt32(9))
+                {LastStartedAt=reader.IsDBNull(10)?null:CRS.Timing.BeijingClock.Parse(reader.GetString(10)),LastResult=reader.IsDBNull(11)?null:reader.GetString(11)});
                 return list;
             }
         });
@@ -174,21 +189,25 @@ public sealed class EncryptedTaskRepository : ITaskRepository, IDisposable
             {
                 // 执行结果和退避一次提交；进程中断后不会丢失已接受的失败分类。
                 using var tx = db.BeginTransaction();
-                if(requestId is {} cancelled && ReadCommandState(cancelled)?.Code=="CancellationRequested" && result.Status=="RetryDeferred")
+                var cancellationRequested=requestId is {} cancelled && ReadCommandState(cancelled)?.Code=="CancellationRequested";
+                if(cancellationRequested && result.Status=="RetryDeferred")
                     result=new("Cancelled");
                 Execute("UPDATE execution SET ended=$now,result=$result,checkpoint=$checkpoint WHERE id=$id", ("$now", Now), ("$result", result.Status), ("$checkpoint", result.Checkpoint), ("$id", id));
-                var failed = result.Status is "Failed" or "AccessBlocked" or "SourceSchemaChanged";
-                var deferred = failed || result.Status is "NotPublished" or "RetryDeferred";
+                var failed = TaskRetryPolicy.IsFailure(result.Status);
+                var retryFailure = failed && !cancellationRequested && plan.Failures < TaskRetryPolicy.MaximumRetries;
+                var deferred = retryFailure || result.Status is "NotPublished" or "RetryDeferred";
                 var seconds = Math.Min(21600, 60 * Math.Pow(2, Math.Min(plan.Failures, 8)));
                 // 权限/结构变化需要长时间冷却，绝不立即反复重试受限站点。
                 if (result.Status is "AccessBlocked" or "SourceSchemaChanged") seconds = 86400;
                 if (!failed) seconds = 300;
                 if (result.RetryAfter is { } retry) seconds = Math.Clamp(retry.TotalSeconds, failed ? seconds : 30, 86400);
-                Execute("UPDATE task SET failures=$f,not_before=$n WHERE plugin=$p AND job=$j", ("$f", failed ? Math.Min(plan.Failures + 1, 100) : result.Status == "Succeeded" ? 0 : plan.Failures), ("$n", deferred ? CRS.Timing.BeijingClock.Now.AddSeconds(seconds).ToString("O") : null), ("$p", plan.PluginId), ("$j", plan.JobId));
+                Execute("UPDATE task SET failures=$f,not_before=$n WHERE plugin=$p AND job=$j", ("$f", retryFailure ? plan.Failures + 1 : result.Status == "RetryDeferred" ? plan.Failures : 0), ("$n", deferred ? CRS.Timing.BeijingClock.Now.AddSeconds(seconds).ToString("O") : null), ("$p", plan.PluginId), ("$j", plan.JobId));
+                if (failed && !retryFailure && !cancellationRequested && plan.PluginId != "crs.heartbeat")
+                    QueueFailureNotice(id,plan.PluginId,plan.JobId,result.Status);
                 // 延后重试仍是同一持久命令；保留原参数，不能退化为无参数的自动任务。
                 if (requestId is { } request)
                 {
-                    if(result.Status=="RetryDeferred")Execute("UPDATE command_request SET state='Pending',code='RetryDeferred',execution=NULL WHERE request=$r",("$r",request.ToString("N")));
+                    if(retryFailure||result.Status=="RetryDeferred")Execute("UPDATE command_request SET state='Pending',code='RetryDeferred',execution=NULL WHERE request=$r",("$r",request.ToString("N")));
                     else CompleteCommand(request, result.Status);
                 }
                 // 高频诊断心跳单独保留100条，不能消耗500条业务历史额度；运行中执行不参与清理。

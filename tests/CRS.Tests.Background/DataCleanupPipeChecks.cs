@@ -15,7 +15,7 @@ internal static class DataCleanupPipeChecks
         try
         {
             using var repository=new EncryptedTaskRepository(Path.Combine(root,"scheduler-config.db"),key);
-            await using var catalog=new BackgroundPluginCatalog();await using var cleanup=new WorkerDataCleanup(root);
+            await using var catalog=new BackgroundPluginCatalog();await using var cleanup=new WorkerDataCleanup(root,null,new WorkerLogSettingsStore(root,key));
             await using var runtime=new BackgroundRuntime(repository,catalog,cleanup:cleanup);await runtime.StartAsync(default);
             var admin=new BackgroundCaller("test-admin",true);var reader=new BackgroundCaller("test-reader",false);
             var pause=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"PauseAutoCleanup");
@@ -73,11 +73,50 @@ internal static class DataCleanupPipeChecks
                 var record=(await client.QueryAsync(DataCleanupTask.HistoryCommand)).History?.Single();
                 Check(record is{JobId:DataCleanupTask.JobId,Result:"Succeeded"}&&record.ExecutionId=="cleanup:"+taskId.ToString("N"),
                     "真实管道返回已确认通知的清理执行记录");
+                await CheckLogRetentionAsync(client,runtime);
                 Check((await client.QueryAsync("PauseAutoCleanup")).Code=="Ok","真实管理员控制管道可确认自动清理暂停");
             }
             finally{stop.Cancel();try{await running;}catch(OperationCanceledException){}}
         }
         finally{CryptographicOperations.ZeroMemory(key);}
         Console.WriteLine($"资料清理后台与真实管道验证通过：{passed} 项。");
+
+        async Task CheckLogRetentionAsync(BackgroundPipeClient client,BackgroundRuntime runtime)
+        {
+            BackgroundRequest Save(WorkerLogSettings settings)=>new(WorkerProtocol.Version,Guid.NewGuid(),WorkerProtocol.SaveWorkerLogSettings,
+                Payload:JsonSerializer.Serialize(settings));
+            var read=await client.QueryAsync(WorkerProtocol.GetWorkerLogSettings);
+            var initial=JsonSerializer.Deserialize<WorkerLogSettings>(read.Payload!)!;
+            Check(read.Code=="Ok"&&initial==new WorkerLogSettings(),"未配置时后台日志默认保留 14 天");
+            var update=Save(initial with {RetentionDays=7});
+            Check((await runtime.HandleAsync(update,new("reader",false),default)).Code=="Forbidden"
+                &&(await client.SendAsync(Save(initial with {RetentionDays=366}))).Code=="InvalidLogSettings","后台拒绝普通用户和超出范围的保留策略");
+            var saved=await client.SendAsync(update);
+            Check(saved.Code=="Ok"&&new WorkerLogSettingsStore(root,key).Read()==new WorkerLogSettings(7,1)
+                &&(await client.SendAsync(Save(initial with {RetentionDays=60}))).Code=="LogSettingsConflict","管理员可保存策略，重读仍有效并拒绝过期修订");
+
+            var oldTime=CRS.Timing.BeijingClock.Now.AddDays(-8);
+            var old=Path.Combine(root,"logs",FormattableString.Invariant($"service-{oldTime:yyyyMMdd}.jsonl"));
+            var recent=Path.Combine(root,"logs",FormattableString.Invariant($"service-{CRS.Timing.BeijingClock.Now:yyyyMMdd}.jsonl"));
+            File.WriteAllText(old,"synthetic old log");File.SetLastWriteTimeUtc(old,oldTime.UtcDateTime);
+            File.WriteAllText(recent,"synthetic current log");
+            var submit=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"SubmitDataCleanupTask"));
+            Check(submit.Code=="Ok","配置策略后可提交后台清理");
+            var limit=DateTimeOffset.UtcNow.AddSeconds(20);
+            DataCleanupTaskOverview? overview=null;
+            while(DateTimeOffset.UtcNow<limit)
+            {
+                var reply=await client.QueryAsync("GetDataCleanupTasks");
+                if(reply is {Code:"Ok",Payload:{} payload})
+                {
+                    overview=JsonSerializer.Deserialize<DataCleanupTaskOverview>(payload)!;
+                    if(overview.Current is null)break;
+                }
+                else if(reply.Code!="RateLimited")throw new InvalidOperationException("读取清理结果失败："+reply.Code);
+                await Task.Delay(200);
+            }
+            Check(overview is {Current:null,AutomaticPlan.LogRetentionDays:7,LatestResult:{State:"Completed",DeletedFiles:1}}
+                &&!File.Exists(old)&&File.Exists(recent),"资料清理按配置删除过期文件并保留当天日志");
+        }
     }
 }

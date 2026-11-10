@@ -50,7 +50,7 @@ internal sealed partial class SqlCipherVaultBackend
         {
             originalSession(()=>
             {
-                var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this),active.Lifetime);
+                var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this,loggerFactory:loggerFactory),active.Lifetime);
                 document=new PerformanceFiles(CaptureGuard(),exports).Read(input,broker,cancellation,sourceFacts);
                 cancellation.ThrowIfCancellationRequested();
             });
@@ -92,7 +92,7 @@ internal sealed partial class SqlCipherVaultBackend
     {
         lock(gate)
         {
-            var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this),active.Lifetime);
+            var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this,loggerFactory:loggerFactory),active.Lifetime);
             return new PerformanceUseCases(new PerformanceStore(active),new PerformanceFiles(CaptureGuard(),exports),active.Lifetime,
                 online ? new YahooPerformanceMarketData() : null, online ? new OfficialAnnualExchangeRates().ReadCachedValuationRates : null);
         }

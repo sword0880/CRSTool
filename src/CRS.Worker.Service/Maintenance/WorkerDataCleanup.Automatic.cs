@@ -1,5 +1,7 @@
 using System.Text.Json;
 using CRS.Maintenance;
+using CRS.Timing;
+using Quartz;
 namespace CRS.Worker.Service;
 
 public sealed partial class WorkerDataCleanup
@@ -8,8 +10,14 @@ public sealed partial class WorkerDataCleanup
     private CancellationTokenSource? automaticCancellation;
     private DateTimeOffset automaticPausedUntil;
     private AutomaticCleanupSchedule? automaticSchedule;
-    private DateTimeOffset automaticReadyAt;
-    private sealed record AutomaticState(int Format,DateTimeOffset NextRunAt,Guid? LastOperationId,string LastState);
+    private bool scheduledCleanupDue;
+    private DateTimeOffset automaticUnavailableUntil;
+    private Action<Guid>? reportTerminalFailure;
+    private sealed record AutomaticState(int Format,DateTimeOffset NextRunAt,Guid? LastOperationId,string LastState)
+    {
+        public string? Cron { get; init; }
+        public int Failures { get; init; }
+    }
     private string AutomaticStatePath => Child("maintenance/automatic-cleanup.json");
     private bool HasManualPreview()=>operations.Values.Any(x=>!x.Automatic&&!x.BackgroundTask&&x.Status is{State:"Ready",CanExecute:true}&&x.Status.ExpiresAt>=Now);
 
@@ -21,40 +29,43 @@ public sealed partial class WorkerDataCleanup
         var state=JsonSerializer.Deserialize<AutomaticState>(File.ReadAllBytes(path),Json)??throw new InvalidDataException("自动清理记录缺失。");
         if(state.Format!=1||state.NextRunAt==default||state.LastState is not ("NeverRun" or "Running" or "Completed" or "Interrupted" or "Unavailable" or "Paused"))
             throw new InvalidDataException("自动清理记录无效。");
+        if (state is { Cron: null, LastState: "Completed" })
+        {
+            // 旧版完成时间加 24 小时保存。还原完成时间，再按新的每日计划计算。
+            var schedule = automaticSchedule ?? AutomaticCleanupSchedule.Default;
+            var completed = state.NextRunAt.AddDays(-1);
+            state = state with { NextRunAt = schedule.NextAfter(completed) };
+        }
         return state;
     }
 
     private void WriteAutomaticState(AutomaticState state)
     {
         Directory.CreateDirectory(Child("maintenance"));
-        AtomicJson(AutomaticStatePath,state);
+        AtomicJson(AutomaticStatePath,state with { Cron = (automaticSchedule ?? AutomaticCleanupSchedule.Default).Cron });
     }
 
-    internal async Task RunAutomaticAsync(Action<string,string,string> diagnostic,CancellationToken token,AutomaticCleanupSchedule? schedule=null)
+    internal void InitializeAutomaticSchedule(AutomaticCleanupSchedule schedule,Action<Guid>? reportTerminalFailure=null)
     {
-        schedule??=AutomaticCleanupSchedule.Default;
-        lock(stateGate){automaticSchedule=schedule;automaticReadyAt=Now+schedule.StartupDelay;}
-        using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,stopping.Token);
-        await Task.Delay(schedule.StartupDelay,clock,linked.Token).ConfigureAwait(false);
-        while(true)
+        lock (stateGate) { automaticSchedule = schedule; this.reportTerminalFailure=reportTerminalFailure; }
+    }
+
+    internal async Task RunAutomaticOnceAsync(Action<string,string,string>? diagnostic,CancellationToken token,bool recoverOnly)
+    {
+        var schedule = automaticSchedule ?? AutomaticCleanupSchedule.Default;
+        lock (stateGate) if (recoverOnly && automaticUnavailableUntil > Now) return;
+        try
         {
-            linked.Token.ThrowIfCancellationRequested();
-            try
-            {
-                var work=TryResumeQueuedTask(linked.Token,schedule)??TryStartAutomatic(linked.Token,schedule);
-                if(work is not null)
-                {
-                    var result=await work.ConfigureAwait(false);
-                    diagnostic("AutomaticDataCleanup","service",FormattableString.Invariant($"{result.State};Files={result.DeletedFiles};Bytes={result.DeletedBytes}"));
-                }
-            }
-            catch(OperationCanceledException) when(linked.IsCancellationRequested){throw;}
-            catch(Exception error) when(AutomaticFailure(error))
-            {
-                diagnostic("AutomaticDataCleanupUnavailable","service",error.GetType().Name);
-                await Task.Delay(schedule.RetryInterval,clock,linked.Token).ConfigureAwait(false);
-            }
-            await Task.Delay(schedule.CheckInterval,clock,linked.Token).ConfigureAwait(false);
+            var work = TryResumeQueuedTask(token, schedule) ?? TryStartAutomatic(token, schedule, recoverOnly);
+            if (work is null) return;
+            var result = await work.ConfigureAwait(false);
+            diagnostic?.Invoke("AutomaticDataCleanup","service",FormattableString.Invariant($"{result.State};Files={result.DeletedFiles};Bytes={result.DeletedBytes}"));
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error) when (AutomaticFailure(error))
+        {
+            lock (stateGate) automaticUnavailableUntil = Now + schedule.RetryInterval;
+            diagnostic?.Invoke("AutomaticDataCleanupUnavailable","service",error.GetType().Name);
         }
     }
 
@@ -62,37 +73,48 @@ public sealed partial class WorkerDataCleanup
     {
         var schedule=automaticSchedule??AutomaticCleanupSchedule.Default;
         var state="NotStarted";DateTimeOffset? due=null;
+        var retentionDays = WorkerLogSettings.DefaultRetentionDays;
+        var failures=0;
         try
         {
+            retentionDays = ReadLogSettings().RetentionDays;
             var saved=ReadAutomaticState();
+            failures=saved.Failures;
             if(automaticSchedule is not null)
             {
-                due=new[]{saved.NextRunAt,automaticReadyAt,automaticPausedUntil}.Max();
+                due=saved.LastState=="NeverRun"&&!scheduledCleanupDue?schedule.NextAfter(Now)
+                    : saved.NextRunAt>automaticPausedUntil?saved.NextRunAt:automaticPausedUntil;
                 state=active is{BackgroundTask:true,Task.IsCompleted:false}?"Running":due>Now?"Waiting":"Due";
                 if(automaticPausedUntil>Now||saved.LastState=="Paused"&&saved.NextRunAt>Now)state="Paused";
             }
         }
         catch(Exception error) when(AutomaticFailure(error)){state="Unavailable";due=null;}
-        return new(state,due,(int)schedule.StartupDelay.TotalSeconds,(int)schedule.CheckInterval.TotalSeconds,
-            (int)schedule.SuccessInterval.TotalSeconds,(int)schedule.RetryInterval.TotalSeconds,14,1){KeepLatestUsableBackupOnly=true};
+        return new(state,due,0,30,86400,(int)schedule.RetryInterval.TotalSeconds,retentionDays,1)
+        {KeepLatestUsableBackupOnly=true,Cron=schedule.Cron,TimeZoneId=BeijingClock.ZoneId,Failures=failures};
     }
 
     private static bool AutomaticFailure(Exception error)=>error is IOException or InvalidDataException or UnauthorizedAccessException or
-        JsonException or FormatException or InvalidOperationException or OverflowException;
+        JsonException or FormatException or InvalidOperationException or ArgumentOutOfRangeException or OverflowException;
 
-    internal Task<DataCleanupStatus>? TryStartAutomatic(CancellationToken token,AutomaticCleanupSchedule? schedule=null)
+    internal Task<DataCleanupStatus>? TryStartAutomatic(CancellationToken token,AutomaticCleanupSchedule? schedule=null,bool recoverOnly=false)
     {
         schedule??=AutomaticCleanupSchedule.Default;
         lock(stateGate)
         {
             token.ThrowIfCancellationRequested();
+            if (!recoverOnly) scheduledCleanupDue = true;
             if(automaticPausedUntil>Now)return null;
             if(active?.Task is{IsCompleted:false}||HasManualPreview())return null;
             if(RecentTasks().Any(x=>x.Task.State=="Queued"))return null;
             var state=ReadAutomaticState();if(state.NextRunAt>Now)return null;
+            // 让 Quartz 优先执行正常的每日触发；协调只处理漏跑、受阻或失败后的到期项。
+            if (recoverOnly && !scheduledCleanupDue && (state.LastState == "NeverRun"
+                || state.LastState == "Completed" && Now - state.NextRunAt < TimeSpan.FromMinutes(1))) return null;
             var current=new WorkerUpgradeJournal(root).Read();
             if(current is not null&&current.Stage is not ("Committed" or "RolledBack"))return null;
-            return StartBackgroundTask(Guid.NewGuid(),AutomaticSid,true,token,schedule);
+            var run = StartBackgroundTask(Guid.NewGuid(),AutomaticSid,true,token,schedule);
+            scheduledCleanupDue = false;
+            return run;
         }
     }
 
@@ -100,6 +122,7 @@ public sealed partial class WorkerDataCleanup
     {
         try
         {
+            lock(stateGate) operation.StartedAt=Now;
             Update(operation,"Scanning","后台正在核对清理范围；前台无需等待。");CheckpointTask(operation);
             Scan(operation,cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
@@ -128,8 +151,12 @@ public sealed partial class WorkerDataCleanup
                 lock(stateGate)
                 {
                     var saved=ReadAutomaticState();
-                    var next=Now+(operation.Status.State=="Completed"?schedule.SuccessInterval:schedule.RetryInterval);
-                    WriteAutomaticState(new(1,saved.NextRunAt>next?saved.NextRunAt:next,operation.Id,operation.Status.State));
+                    var failed=operation.Status.State!="Completed"&&!cancellation.IsCancellationRequested;
+                    var exhausted=failed&&saved.Failures>=TaskRetryPolicy.MaximumRetries;
+                    var next=operation.Status.State=="Completed"||exhausted?schedule.NextAfter(Now):Now+schedule.RetryInterval;
+                    if (saved.LastState == "Paused" && saved.NextRunAt > next) next = saved.NextRunAt;
+                    if(exhausted)reportTerminalFailure?.Invoke(operation.Id);
+                    WriteAutomaticState(new(1,next,operation.Id,operation.Status.State){Failures=failed&&!exhausted?saved.Failures+1:0});
                 }
             }
             finally
@@ -157,7 +184,9 @@ public sealed partial class WorkerDataCleanup
             try
             {
                 var state=ReadAutomaticState();
-                WriteAutomaticState(state with{NextRunAt=state.NextRunAt>automaticPausedUntil?state.NextRunAt:automaticPausedUntil,LastState="Paused"});
+                var due = state.LastState == "NeverRun" && !scheduledCleanupDue
+                    ? (automaticSchedule ?? AutomaticCleanupSchedule.Default).NextAfter(Now) : state.NextRunAt;
+                WriteAutomaticState(state with{NextRunAt=due>automaticPausedUntil?due:automaticPausedUntil,LastState="Paused"});
             }
             catch(Exception error) when(AutomaticFailure(error)){}
             cancellation=automaticCancellation;running=active is{BackgroundTask:true}?active.Task:null;
@@ -173,7 +202,13 @@ public sealed partial class WorkerDataCleanup
     }
 }
 
-internal sealed record AutomaticCleanupSchedule(TimeSpan StartupDelay,TimeSpan CheckInterval,TimeSpan SuccessInterval,TimeSpan RetryInterval,double DutyCycle)
+internal sealed record AutomaticCleanupSchedule(string Cron,TimeSpan RetryInterval,double DutyCycle)
 {
-    internal static AutomaticCleanupSchedule Default{get;}=new(TimeSpan.FromMinutes(5),TimeSpan.FromSeconds(30),TimeSpan.FromDays(1),TimeSpan.FromHours(1),.1);
+    internal static AutomaticCleanupSchedule Default { get; } = new("0 0 3 * * ?", TimeSpan.FromHours(1), .1);
+
+    internal DateTimeOffset NextAfter(DateTimeOffset time)
+    {
+        var expression = new CronExpression(Cron, TimeZoneInfo.FindSystemTimeZoneById(BeijingClock.ZoneId));
+        return BeijingClock.Normalize(expression.GetNextValidTimeAfter(time) ?? throw new InvalidOperationException("清理计划已没有后续触发时间。"));
+    }
 }

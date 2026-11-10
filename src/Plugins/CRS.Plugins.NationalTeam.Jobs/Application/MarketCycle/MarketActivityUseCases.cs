@@ -44,10 +44,13 @@ public sealed partial class MarketActivityUseCases : MarketUseCaseScope
         var daily=new Dictionary<DateOnly,CollectionDay>();var nextCursor=from;
         var retryByMarket=new Dictionary<string,DateTimeOffset>();
         DateTimeOffset? retryAt=null;
-        MarketActivitySyncReport Result(bool more)=>new(days,issues,received,sourceCalls,closed,empty,firstFailure,more,skipped,retryAt,firstDate,firstMarket);
+        var hasSourceFailure=false;
+        MarketActivitySyncReport Result(bool more)=>new(days,issues,received,sourceCalls,closed,empty,firstFailure,more,skipped,retryAt,firstDate,firstMarket)
+        {HasSourceFailure=hasSourceFailure};
         void Failure(string code,DateOnly day,string market,DateTimeOffset? until=null)
         {
             issues++;
+            hasSourceFailure|=code is not ("SourceCooldown" or "SourceBudgetUnavailable" or "OpenDayNoOfficialData");
             // 并行完成顺序不能改变“首个失败”的日期及同日沪深排序。
             if(firstDate is null||day<firstDate||day==firstDate&&market=="SSE"&&firstMarket=="SZSE")
             {firstFailure=code;firstDate=day;firstMarket=market;}

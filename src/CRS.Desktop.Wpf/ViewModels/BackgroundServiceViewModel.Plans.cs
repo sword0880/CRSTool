@@ -48,11 +48,30 @@ public sealed class ServicePlanItem:ObservableObject
     public string PluginId=>Job?.PluginId??DataCleanupTask.ServiceId;
     public string JobId=>Job?.JobId??DataCleanupTask.JobId;
     public string Name=>Job?.Name??"后台资料自动清理";
-    public string Cron=>Job?.Cron??(Cleanup?.AutomaticCleanupPlan is {} plan?$"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时":"保留周期待确认");
+    public string Cron=>Job?.Cron??(Cleanup?.AutomaticCleanupPlan is {} plan
+        ?plan.Cron??$"成功后 {TimeSpan.FromSeconds(plan.SuccessIntervalSeconds).TotalHours:N0} 小时":"保留周期待确认");
     public bool? Enabled=>Job?.Enabled??(Cleanup?.TaskStatusKnown==true&&Cleanup.AutomaticCleanupPlan is{State:not("Unavailable" or "NotStarted")}?true:null);
     public long? Revision=>Job?.Revision;
     public bool? NeedsReconcile=>Job?.NeedsReconcile;
-    public string StateText=>Job is {} job?(job.Enabled?job.NeedsReconcile?"等待计划生效":"已启用":"已禁用"):Cleanup?.AutomaticPlanStatus??"需要管理员权限查看维护计划";
-    public string NextDueText=>Job is {} job?(!job.Enabled?"—":job.NotBefore?.ToString("yyyy-MM-dd HH:mm:ss")??"按计划执行")
+    public string StateText => Job is { } job ? (job.PlanState switch
+    {
+        "Running"=>"执行中", "Unavailable"=>"任务不可用", "Disabled"=>"已暂停", "Reconcile"=>"等待计划生效",
+        "Retry"=>"等待重试", "Deferred"=>"等待来源或资源", "Queued"=>"已排队",
+        "Waiting" when job.LastResult is "Failed" or "AccessBlocked" or "SourceSchemaChanged"=>"上次执行失败",
+        "Waiting"=>"等待执行",
+        _=>!job.Enabled?"已暂停":job.NeedsReconcile?"等待计划生效":job.NotBefore is not null?"等待再次执行":"等待执行"
+    }) : (Cleanup?.TaskStatusKnown==true ? Cleanup.AutomaticCleanupPlan?.State switch
+    {
+        "Running"=>"执行中", "Paused"=>"已暂停", "Unavailable"=>"任务不可用", "Due"=>"已到期", "NotStarted"=>"等待计划生效",
+        "Waiting" when Cleanup.AutomaticCleanupPlan.Failures>0=>"等待重试",
+        "Waiting" when Cleanup.LatestTaskResult?.State is "Unavailable" or "Interrupted"=>"上次未完成",
+        "Waiting"=>"等待执行", _=>"状态未确认"
+    } : "状态未确认");
+    public DateTimeOffset? LastStartedAt=>Job?.LastStartedAt??(Cleanup?.TaskStatusKnown==true
+        ?Cleanup.CurrentTask?.StartedAt??Cleanup.LatestTaskResult?.StartedAt??Cleanup.LatestTaskResult?.SubmittedAt:null);
+    public string LastStartedText=>LastStartedAt is { } time?CRS.Timing.BeijingClock.Normalize(time).ToString("yyyy-MM-dd HH:mm:ss"):
+        Job?.PlanState is not null||Cleanup?.TaskStatusKnown==true?"暂无记录":"未确认";
+    public string NextDueText=>Job is {} job?(job.PlanState is "Disabled" or "Unavailable"||!job.Enabled&&job.PlanState is null?"—":
+        (job.NotBefore??job.NextScheduledAt) is {} next?CRS.Timing.BeijingClock.Normalize(next).ToString("yyyy-MM-dd HH:mm:ss"):"按计划执行")
         :Cleanup?.TaskStatusKnown==true&&Cleanup.AutomaticCleanupPlan?.NextDueAt is {} due?due.ToString("yyyy-MM-dd HH:mm:ss"):"未确认";
 }

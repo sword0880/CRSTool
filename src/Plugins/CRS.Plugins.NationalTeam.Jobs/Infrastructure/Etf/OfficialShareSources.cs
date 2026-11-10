@@ -47,7 +47,8 @@ public sealed class OfficialShareSources(IPluginHttpGateway http,IRawEvidenceSto
             catch(Exception error)
             {
                 lock(issues)issues.Add(name+"："+error.Message);
-                var failure=error.Data[OfficialResponse.FailureKey] as SourceFailure??new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,"SourceFailed","SourceRequestFailed");
+                var failure=error.Data[OfficialResponse.FailureKey] as SourceFailure??new(market,name.StartsWith("SZSE ",StringComparison.Ordinal)?name[5..]:null,
+                    "SourceFailed",error is CRS.Worker.Abstractions.SourceBudgetUnavailableException budget?"Budget:"+budget.Code:"SourceRequestFailed");
                 lock(failures)failures.Add(failure);
                 if(failure is {State:"ParseFailed",SourceUrl:{} url}&&http is IOfficialSourceValidationFeedback feedback&&error.Data["EtfContractFeedbackRecorded"] is not true)
                 {

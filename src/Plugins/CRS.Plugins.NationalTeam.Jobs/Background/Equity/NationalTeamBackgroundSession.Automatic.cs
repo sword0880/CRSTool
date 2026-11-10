@@ -68,7 +68,7 @@ public sealed partial class NationalTeamBackgroundSession
         {return AutomaticSourceWait(current,"SourceUnavailable");}
     }
     private static bool AutomaticContractError(Exception error)=>error is InvalidDataException or System.Text.Json.JsonException or KeyNotFoundException or FormatException or OverflowException;
-    private BackgroundJobResult AutomaticSourceWait(Uri source,string reason)=>new("RetryDeferred","automaticEquity="+reason,AutomaticDelay(source,null));
+    private BackgroundJobResult AutomaticSourceWait(Uri source,string reason)=>new("Failed","automaticEquity="+reason,AutomaticDelay(source,null));
     private async Task<BackgroundJobResult> AutomaticHttpUnavailable(Uri source,int status,CancellationToken token)
     {
         await workspace!.Equity.RecordAutomaticEquityIssueAsync(null,$"官方来源返回HTTP{status}，尚未完成本次取数；保留队列等待",null,token);

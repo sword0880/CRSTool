@@ -44,7 +44,13 @@ public sealed record BackgroundJobResult(string Status, string? Checkpoint = nul
 /// <summary>服务和管理端共用的只读计划快照，修订号用于并发编辑检测。</summary>
 public sealed record TaskDefinition(string PluginId, string JobId, string Name, string Cron,
     string TimeZoneId, bool Enabled, long Revision, bool NeedsReconcile,
-    DateTimeOffset? NotBefore = null, int Failures = 0);
+    DateTimeOffset? NotBefore = null, int Failures = 0)
+{
+    public DateTimeOffset? LastStartedAt { get; init; }
+    public string? LastResult { get; init; }
+    public string? PlanState { get; init; }
+    public DateTimeOffset? NextScheduledAt { get; init; }
+}
 
 /// <summary>历史只包含结果分类。时间均带北京时间 +08:00；Utc 字段名仅保留现有协议键名。</summary>
 public sealed record ExecutionRecord(string ExecutionId, string PluginId, string JobId,

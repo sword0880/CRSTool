@@ -145,20 +145,21 @@ public sealed partial class NationalTeamBackgroundSession
     {
         if(!(request.Operation=="sync"))throw new InvalidDataException("任务与业务参数不匹配。");
         var calendarYear=CRS.Timing.BeijingClock.Now.Year;
-        var calendarIssues=0;
+        var calendarIssues=0;var failed=false;
         foreach(var market in new[]{"SSE","SZSE"})
         foreach(var year in new[]{calendarYear-1,calendarYear})
         {
             try
             {
                 var uri=ReviewedExchangeCalendar.Source(market,year);var response=await http!.GetAsync(uri,token);
-                if(response.StatusCode!=200){calendarIssues++;continue;}
+                if(response.StatusCode!=200){calendarIssues++;failed=true;continue;}
                 await workspace!.Etf.RegisterCalendarAsync(market,year,response.Content,uri,token);
             }
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-            catch(Exception error) when(error is InvalidDataException or HttpRequestException or TimeoutException or InvalidOperationException){calendarIssues++;}
+            catch(SourceBudgetUnavailableException){calendarIssues++;}
+            catch(Exception error) when(error is InvalidDataException or HttpRequestException or TimeoutException or InvalidOperationException){calendarIssues++;failed=true;}
         }
-        return calendarIssues==0?BackgroundJobResult.Success("calendar=ReviewedAnnualSchedule"):new("RetryDeferred",$"calendarSourceIssues={calendarIssues}",TimeSpan.FromMinutes(30));
+        return calendarIssues==0?BackgroundJobResult.Success("calendar=ReviewedAnnualSchedule"):new(failed?"Failed":"RetryDeferred",$"calendarSourceIssues={calendarIssues}",TimeSpan.FromMinutes(30));
     }
 
     [NationalTeamJob("official-share-sync","官方ETF份额同步","0 15 23 * * ?","China Standard Time",true,true,Group="collection",MaximumConcurrency=2,Order=1)]
@@ -170,7 +171,7 @@ public sealed partial class NationalTeamBackgroundSession
         var report=request.From is null && request.To is null?await workspace!.Etf.SyncRecentAsync(token):
             await workspace!.Etf.SyncAsync(request.From??today.AddDays(-7),request.To??today,token);
         // 采集事务已持久标记待评价；独立评价任务接手，不能让评价冲突改写已完成采集的终态。
-        return new(report.SourceIssues>0 || report.HasMore?"RetryDeferred":report.ReceivedRows==0?"NotPublished":"Succeeded",
+        return new(report.HasSourceFailure?"Failed":report.SourceIssues>0 || report.HasMore?"RetryDeferred":report.ReceivedRows==0?"NotPublished":"Succeeded",
             $"days={report.QueriedDays};sourceIssues={report.SourceIssues};rows={report.ReceivedRows};evaluation=IndependentJob;importPrepareMs={report.ImportPreparationMilliseconds};importCommitHeldMs={report.ImportCommitHeldMilliseconds};importAttempts={report.ImportPreparationAttempts}",report.HasMore?TimeSpan.FromSeconds(30):TimeSpan.FromMinutes(30));
     }
 

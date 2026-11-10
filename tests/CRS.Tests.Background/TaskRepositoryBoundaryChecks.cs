@@ -45,10 +45,11 @@ internal static class TaskRepositoryBoundaryChecks
             Sql("DROP TRIGGER fail_claim");
 
             var id=repository.Begin(plan,DateTimeOffset.UtcNow,request.RequestId);
+            var runningPlan=repository.Plans().Single();
             Sql("CREATE TRIGGER fail_complete BEFORE UPDATE ON command_request WHEN NEW.state='Completed' BEGIN SELECT RAISE(ABORT,'injected'); END");
-            StorageFailure(()=>repository.End(id,plan,new("Failed"),request.RequestId));
-            Check(repository.FindExecution(id) is{Result:"Running",EndedUtc:null} && repository.Plans().Single()==plan
-                && repository.FindCommand(request.RequestId,"test") is{State:"Running"},"完成回执失败时结果、退避和命令状态共同回滚");
+            StorageFailure(()=>repository.End(id,plan with{Failures=3},new("Failed"),request.RequestId));
+            Check(repository.FindExecution(id) is{Result:"Running",EndedUtc:null} && repository.Plans().Single()==runningPlan
+                && repository.FindCommand(request.RequestId,"test") is{State:"Running"}&&repository.NextFailureNotice() is null,"完成回执失败时结果、通知、退避和命令状态共同回滚");
             Sql("DROP TRIGGER fail_complete");
             repository.End(id,plan,BackgroundJobResult.Success(),request.RequestId);
             Check(repository.FindExecution(id) is{Result:"Succeeded"} && repository.FindCommand(request.RequestId,"test") is{State:"Completed",Code:"Succeeded"},"故障注入移除后显式重试完整提交");

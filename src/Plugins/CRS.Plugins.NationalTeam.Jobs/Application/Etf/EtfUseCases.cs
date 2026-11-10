@@ -35,7 +35,7 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
         var backlog=await SyncAsync(from,to,token,false,batch);
         return new(recent.QueriedDays+backlog.QueriedDays,recent.SourceIssues+backlog.SourceIssues,recent.ReceivedRows+backlog.ReceivedRows,
             gaps.Any(x=>x.Date<from||x.Date>to))
-        {ImportPreparationMilliseconds=recent.ImportPreparationMilliseconds+backlog.ImportPreparationMilliseconds,
+        {HasSourceFailure=recent.HasSourceFailure||backlog.HasSourceFailure,ImportPreparationMilliseconds=recent.ImportPreparationMilliseconds+backlog.ImportPreparationMilliseconds,
             ImportCommitHeldMilliseconds=recent.ImportCommitHeldMilliseconds+backlog.ImportCommitHeldMilliseconds,
             ImportPreparationAttempts=recent.ImportPreparationAttempts+backlog.ImportPreparationAttempts};
     }
@@ -50,7 +50,8 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
         if(!await syncGate.WaitAsync(0,token))throw new InvalidDataException("已有联网采集运行中，请等待或取消当前操作。");
         var completed=0;var receivedRows=0;var issues=new HashSet<string>();var contiguous=true;int totalAdded=0,totalDuplicates=0,totalPending=0;
         long importPreparation=0,importHeld=0;var importAttempts=0;
-        SyncReport Finish()=>new(completed,issues.Count,receivedRows){ImportPreparationMilliseconds=importPreparation,ImportCommitHeldMilliseconds=importHeld,ImportPreparationAttempts=importAttempts};
+        var hasSourceFailure=false;
+        SyncReport Finish()=>new(completed,issues.Count,receivedRows){HasSourceFailure=hasSourceFailure,ImportPreparationMilliseconds=importPreparation,ImportCommitHeldMilliseconds=importHeld,ImportPreparationAttempts=importAttempts};
         try
         {
             await ReportAsync(new("RangeStarted",from));
@@ -84,6 +85,7 @@ public sealed partial class EtfUseCases : MarketUseCaseScope
                     throw;
                 }
                 if(result.Issues?.Count>0||result.Failures?.Count>0)contiguous=false;
+                hasSourceFailure|=result.Failures?.Any(x=>!x.Reason.StartsWith("Budget:",StringComparison.Ordinal))==true;
                 CollectionCommitResult committed;
                 try
                 {

@@ -65,7 +65,9 @@ public partial class SettingsViewModel : ObservableObject
 
     public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null,IDataCleanupGateway? cleanup=null)
     {
-        State = state; this.service = service; this.vault=vault;Cleanup=new(cleanup); InitializeWebhooks(); Reload(); InitializeNavigation();
+        State = state; this.service = service; this.vault=vault;Cleanup=new(cleanup);
+        workerLogSettingsGateway=cleanup as IWorkerLogSettingsGateway;
+        InitializeWebhooks(); Reload(); InitializeNavigation();
         state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();SelectPhoneVerificationCommand.NotifyCanExecuteChanged();SelectWindowsHelloCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
     }
     public void Reload()
@@ -74,6 +76,8 @@ public partial class SettingsViewModel : ObservableObject
         DatabaseDirectory = settings.DatabaseDirectory; LogDirectory = settings.LogDirectory;
         LoggingEnabled = settings.LoggingEnabled; LogLevel = settings.LogLevel;
         LogRetentionFiles = settings.LogRetentionFiles; LogFileSizeMb = settings.LogFileSizeMb;
+        ApplyWorkerLogSettings(null);
+        WorkerLogSettingsMessage = "打开本页时读取后台设置。";
         if(SecuritySettingsAvailable) {savedWindowsHelloEnabled=vault!.UsesWindowsHello; WindowsHelloEnabled=savedWindowsHelloEnabled;}
         OnPropertyChanged(nameof(HasLoginMethodChanges));
         SecurityMessage=WindowsHelloEnabled?"当前使用 Windows Hello，进入及解除锁定需要 Windows 验证。":"当前使用手机验证，进入及解除锁定需要手机代码。";
@@ -83,7 +87,7 @@ public partial class SettingsViewModel : ObservableObject
         if(SecuritySettingsAvailable)DocumentPasswordMessage=vault!.DocumentEncryptionPassword.Length>0?"已配置统一文档加密密码。留空保持当前密码；旧文件仍使用其原密码。":"尚未配置文档加密密码，请在此统一设置。";
         Message = "桌面日志保存后立即生效；数据库目录下次启动生效，原数据库不会移动。";
     }
-    private bool CanSave() => State.IsIdle&&!DingTalk.Busy&&!WeChat.Busy;
+    private bool CanSave() => State.IsIdle&&!DingTalk.Busy&&!WeChat.Busy&&!WorkerLogSettingsBusy;
     private bool CanSavePhone()=>State.IsIdle && SecuritySettingsAvailable;
     private bool ValidateSecurityInputs()
     {
@@ -129,6 +133,7 @@ public partial class SettingsViewModel : ObservableObject
     private async Task SaveAsync()
     {
         if(HasLoginMethodChanges && !ValidateSecurityInputs()) return;
+        if(HasWorkerLogChanges&&!await SaveWorkerLogSettingsAsync())return;
         if(HasEmailChanges&&!await SaveEmailCoreAsync())return;
         if(DingTalk.HasChanges&&!await DingTalk.SaveCoreAsync())return;
         if(WeChat.HasChanges&&!await WeChat.SaveCoreAsync())return;

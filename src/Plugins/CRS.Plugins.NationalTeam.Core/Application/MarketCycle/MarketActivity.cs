@@ -15,7 +15,10 @@ public sealed record MarketActivitySyncReport(
     int ExistingSources = 0,
     DateTimeOffset? RetryAt = null,
     DateOnly? FirstFailureDate = null,
-    string? FirstFailureMarket = null);
+    string? FirstFailureMarket = null)
+{
+    public bool HasSourceFailure { get; init; }
+}
 
 public interface IMarketActivitySource
 {

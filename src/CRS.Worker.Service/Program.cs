@@ -88,7 +88,7 @@ namespace CRS.Worker.Service
                 var dispatcher=new CRS.Notifications.NotificationDispatcher([new CRS.Notifications.EmailNotificationChannel(email),
                     new CRS.Notifications.DingTalkNotificationChannel(webhooks),new CRS.Notifications.PushPlusNotificationChannel(webhooks)]);
                 var notifications=new WorkerNotificationGateway(email,dispatcher,webhooks);
-                var diagnostics = new ServiceEventLog(locations.Data);
+                using var diagnostics = new ServiceEventLog(locations.Data);
                 using var sources = new SourceBudgetRegistry(new SqliteSourceBudgetStore(locations.Data,key));
                 await using var catalog = new BackgroundPluginCatalog(onUnresponsive: () =>
                     {try{diagnostics.Write("PluginUnresponsive","service","CancellationGraceExceeded");}finally{Environment.Exit(2);}},
@@ -99,11 +99,13 @@ namespace CRS.Worker.Service
                         new WorkerPluginContext(package.Id,locations.Data,key,notifications,sources),
                         (plugin,phase,code)=>diagnostics.Write("PluginLifecycle",plugin,phase+"."+code)));
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
-                await using var cleanup=new WorkerDataCleanup(locations.Data);
+                await using var cleanup=new WorkerDataCleanup(locations.Data,null,new WorkerLogSettingsStore(locations.Data,key));
                 cleanup.InitializeTasks(diagnostics.Write);
+                var annualRates = new WorkerAnnualExchangeRates(locations.Data, key);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
-                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup,documentInbox:new WorkerDocumentInbox(locations.Data));
-                Task? pipeTask = null;Task? automaticCleanupTask = null;
+                    executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup,
+                    documentInbox:new WorkerDocumentInbox(locations.Data),annualRates:annualRates);
+                Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 var securityTask=StorageSecurity.MonitorAsync(locations.Data,locations.Console,
                     count=>diagnostics.Write("StorageCapacityWarning","service","Entries="+count),listeners.Token,
@@ -117,13 +119,12 @@ namespace CRS.Worker.Service
                     diagnostics.Write("Started", "service", "Running");
                     pipeTask = new BackgroundPipeServer(runtime, locations.Pipe,
                         diagnostic:(command,code)=>diagnostics.Write("PipeRequestFailed",command,code)).RunAsync(listeners.Token);
-                    automaticCleanupTask=cleanup.RunAutomaticAsync(diagnostics.Write,listeners.Token);
                     logger.LogInformation("CRS 后台服务已启动，加载 {Count} 个后台任务。", catalog.Jobs.Count);
                     using var interval = new PeriodicTimer(TimeSpan.FromSeconds(30));
                     while (true)
                     {
                         var tick = interval.WaitForNextTickAsync(stoppingToken).AsTask();
-                        var completed = await Task.WhenAny(tick, pipeTask, securityTask,automaticCleanupTask);
+                        var completed = await Task.WhenAny(tick, pipeTask, securityTask);
                         // 巡检发现权限故障时立即进入停止路径，不再等待下一次30秒协调。
                         if (completed != tick)
                         {
@@ -143,7 +144,6 @@ namespace CRS.Worker.Service
                     {
                         if (pipeTask is not null) try { await pipeTask; } catch (OperationCanceledException) { }
                         try{await securityTask;}catch(OperationCanceledException) when(listeners.IsCancellationRequested){}
-                        if(automaticCleanupTask is not null)try{await automaticCleanupTask;}catch(OperationCanceledException) when(listeners.IsCancellationRequested){}
                     }
                     finally
                     {

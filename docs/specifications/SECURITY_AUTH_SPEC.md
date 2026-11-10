@@ -192,7 +192,7 @@ CREATE TABLE SecurityEvents (
 - 只有主密码恢复或本机 DPAPI 槽成功解封后才能访问加密库内的持久化失败次数；主密码错误仍在当前进程临时限速，不能假定加密库能持久记录密码错误。
 - 计数更新和锁定检查事务化；15 分钟的 `LockedUntilUtc` 会受本机时钟回退影响。对本进程可使用单调计时辅助；安全承诺仍仅限普通客户端。
 - 错误密码、错误恢复密钥、SQLCipher 损坏、不支持版本、缓存同步异常，全部 **fail-closed**：不得自动关闭 MFA、允许游客访问业务或降级为普通 SQLite。
-- 应审查 SQLite WAL/journal、备份临时文件、崩溃转储、WPF 绑定异常与 NLog 格式化对象，以免产生明文 TOTP Secret / DEK。
+- 应审查 SQLite WAL/journal、备份临时文件、崩溃转储、WPF 绑定异常与 Serilog 格式化对象，以免产生明文 TOTP Secret / DEK。
 - SQLCipher key 仅通过经过检查的受控连接注入，不应写入连接字符串、DI singleton 实例、日志或普通配置文件；密钥字节缓冲在可控生命周期内尽可能清理。
 
 ## 5. 架构、依赖与接口
@@ -274,7 +274,7 @@ public interface ILocalAuthenticationUseCases
 | AUTH-12 | 不受支持/损坏/错误密码库 | 阻断且不自动新建空库、不回退普通 SQLite |
 | AUTH-13 | 跨机备份恢复 | 离线恢复成功；`vault.meta` 和 SQLCipher 一致性验证通过 |
 | AUTH-14 | 历史备份/快照回滚 | 旧 MFA 状态风险有明确告知，不声称全局吊销 |
-| AUTH-15 | 机密扫描 | NLog、配置、二维码/异常、WAL/临时目录、导出无意外密钥/Secret 泄露 |
+| AUTH-15 | 机密扫描 | Serilog、配置、二维码/异常、WAL/临时目录、导出无意外密钥/Secret 泄露 |
 | AUTH-16 | 架构约束 | `Application -> Domain`；Security 无外层依赖；WPF 非 Composition 层不能直接用 Infrastructure |
 | AUTH-17 | 业务回归 | 富途/IBKR 导入、FIFO、汇率、税务、历史复算与导出不受安全层修改影响 |
 | AUTH-18 | 时钟回退及同时间步恢复 | 不因系统时间异常自动放行；已消费步不会在同一当前数据库上再次使用 |

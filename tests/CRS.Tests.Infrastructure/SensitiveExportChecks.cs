@@ -1,7 +1,6 @@
 using CRS.Application;
 using CRS.Domain;
 using CRS.Infrastructure;
-using NLog;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 
@@ -53,18 +52,17 @@ internal static class SensitiveExportChecks
         RejectPath(Path.Combine(temp.ToUpperInvariant(),"blocked.xlsx"));
         RejectPath(Path.Combine(temp,"sub","..","blocked.xlsx"));
         if(OperatingSystem.IsWindows()) RejectPath(@"\\?\"+Path.Combine(temp,"blocked.xlsx"));
-        var previous=LogManager.Configuration;
-        try
+        using(var logging=new DesktopLogging())
         {
-            LocalStore.ConfigureLogging(directory,exactLogDirectory:true);
-            operations.LogFailure("PRIVATE-ACCOUNT\r\nPassword=PRIVATE-PASSWORD DEK=PRIVATE-KEY");
-            operations.LogExportEvent(SensitiveExportOperation.EncryptedArchive,SensitiveExportOutcome.Completed);
-            LogManager.Flush(); LogManager.Configuration=previous;
-            var log=File.ReadAllText(Path.Combine(directory,"crs.log"));
-            if(log.Contains("PRIVATE-") || log.Contains(password) || log.Contains(result.SnapshotId) || !log.Contains("UnexpectedException"))
-                throw new Exception("安全日志记录了敏感调用字符串。");
+            logging.Configure(new(directory,directory));
+            var loggedOperations=new DesktopOperations(store,directory,loggerFactory:logging.Factory);
+            loggedOperations.LogFailure("PRIVATE-ACCOUNT\r\nPassword=PRIVATE-PASSWORD DEK=PRIVATE-KEY");
+            loggedOperations.LogExportEvent(SensitiveExportOperation.EncryptedArchive,SensitiveExportOutcome.Completed);
         }
-        finally {LogManager.Configuration=previous;}
+        var log=File.ReadAllText(Path.Combine(directory,"crs.log"));
+        if(log.Contains("PRIVATE-") || log.Contains(password) || log.Contains(result.SnapshotId)
+            || !log.Contains("UnexpectedException") || !log.Contains("EncryptedArchive；结果=Completed"))
+            throw new Exception("安全日志未按允许字段记录。");
         Console.WriteLine("敏感导出通过：后台明文授权、临时目录拒绝、加密／恢复、恶意文本保持字符串、负金额保持数值及日志允许字段。");
         static void RejectPath(string path)
         {try {ExportDestinationPolicy.Validate(path,true,false);} catch(CrsException) {return;} throw new Exception("临时目录别名绕过明文策略。");}

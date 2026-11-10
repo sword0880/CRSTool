@@ -2,23 +2,24 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using CRS.Application.Abstractions;
 using CRS.Domain.Performance;
+using CRS.ExchangeRates;
 using CRS.Timing;
 
 namespace CRS.Infrastructure;
 
 /// <summary>自动获取年度测算使用的官方报价，并保留经过校验的同年缓存。</summary>
-public sealed class OfficialAnnualExchangeRates(string cacheDirectory, HttpClient? client = null, TimeProvider? clock = null)
+public sealed class OfficialAnnualExchangeRates(string cacheDirectory, HttpClient? client = null, TimeProvider? clock = null,
+    Func<int, CancellationToken, Task<CentralParitySnapshot?>>? readScheduled = null)
 {
     private const string Source = "国家外汇管理局（数据来自中国外汇交易中心）";
     private const int MaxCacheBytes = 128 * 1024;
-    private static readonly HttpClient PublicClient = new(new HttpClientHandler { AllowAutoRedirect = false });
-    private readonly ConcurrentDictionary<int, CacheEntry> memory = new();
+    private readonly ConcurrentDictionary<int, CentralParitySnapshot> memory = new();
     private readonly SemaphoreSlim gate = new(1);
 
-    private sealed record CacheEntry(int Version, DateOnly From, DateOnly Through, DateTimeOffset FetchedAt, CentralParityQuote[] Quotes);
+    public OfficialAnnualExchangeRates() : this(readScheduled: null) { }
 
-    public OfficialAnnualExchangeRates() : this(Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS", "exchange-rates")) { }
+    public OfficialAnnualExchangeRates(Func<int, CancellationToken, Task<CentralParitySnapshot?>>? readScheduled) : this(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS", "exchange-rates"), readScheduled: readScheduled) { }
 
     internal PerformanceFx[] ReadCachedValuationRates(DateOnly[] dates)
     {
@@ -45,14 +46,23 @@ public sealed class OfficialAnnualExchangeRates(string cacheDirectory, HttpClien
         var today = DateOnly.FromDateTime(BeijingClock.Normalize(now).Date);
         if (year < 2000 || year > today.Year) throw new CrsException($"请选择 2000 至 {today.Year} 年之间的年度。");
         var ongoing = year == today.Year;
-        var through = ongoing ? today : new DateOnly(year, 12, 31);
-        var from = ongoing ? new DateOnly(year, 1, 1) : through.AddDays(-13);
+        var (from, through) = ongoing ? (new DateOnly(year, 1, 1), today) : CentralParitySnapshot.YearEndRange(year);
 
         await gate.WaitAsync(cancellation).ConfigureAwait(false);
         try
         {
             var cached = Read(year);
             var eligible = cached is not null && cached.From == from && cached.Through <= through ? cached : null;
+            if (!refresh && !ongoing && eligible?.Quotes[^1].Date != through && readScheduled is not null
+                && await readScheduled(year, cancellation).ConfigureAwait(false) is { } scheduled && scheduled.IsYearEnd(year)
+                && (eligible is null || scheduled.Quotes[^1].Date > eligible.Quotes[^1].Date
+                    || scheduled.Quotes[^1].Date == eligible.Quotes[^1].Date && scheduled.FetchedAt > eligible.FetchedAt))
+            {
+                cancellation.ThrowIfCancellationRequested();
+                memory[year] = scheduled;
+                Save(year, scheduled);
+                return Build(year, scheduled, ongoing);
+            }
             if (!refresh && eligible is not null && eligible.Through == through &&
                 (!ongoing || eligible.FetchedAt <= now && now - eligible.FetchedAt < TimeSpan.FromHours(1)))
                 return Build(year, eligible, ongoing);
@@ -68,21 +78,19 @@ public sealed class OfficialAnnualExchangeRates(string cacheDirectory, HttpClien
     }
 
     private async Task<IExchangeRateProvider> Download(int year, DateOnly from, DateOnly through, DateTimeOffset now,
-        bool ongoing, CacheEntry? cached, CancellationToken cancellation)
+        bool ongoing, CentralParitySnapshot? cached, CancellationToken cancellation)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        timeout.CancelAfter(TimeSpan.FromSeconds(20));
         try
         {
-            var quotes = await SafeCentralParityFeed.ReadAsync(client ?? PublicClient, from, through, timeout.Token).ConfigureAwait(false);
-            var entry = new CacheEntry(1, from, through, now, quotes);
-            if (!IsValid(entry, year)) throw new CrsException("官方报价缺失或区间不完整。");
+            var entry = await SafeCentralParityFeed.ReadAsync(from, through, now, cancellation, client).ConfigureAwait(false);
+            if (!entry.IsValid(year)) throw new InvalidDataException("官方报价缺失或区间不完整。");
             cancellation.ThrowIfCancellationRequested();
+            if (cached is not null && cached.Quotes[^1].Date > entry.Quotes[^1].Date) return Build(year, cached, ongoing);
             memory[year] = entry;
             Save(year, entry);
             return Build(year, entry, ongoing);
         }
-        catch (Exception error) when (error is HttpRequestException or IOException or CrsException or OperationCanceledException)
+        catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or OperationCanceledException)
         {
             cancellation.ThrowIfCancellationRequested();
             if (cached is not null) return Build(year, cached, ongoing);
@@ -90,31 +98,20 @@ public sealed class OfficialAnnualExchangeRates(string cacheDirectory, HttpClien
         }
     }
 
-    private static bool IsValid(CacheEntry entry, int year)
-    {
-        var quotes = entry.Quotes;
-        if (entry.Version != 1 || entry.From.Year != year || entry.Through.Year != year || entry.From > entry.Through
-            || quotes is not { Length: > 0 and <= 366 }
-            || !quotes.All(q => q is { Usd: > 0 and <= 1000, Hkd: > 0 and <= 1000 })) return false;
-        if (quotes[0].Date < entry.From || quotes[0].Date.DayNumber - entry.From.DayNumber > 14
-            || quotes[^1].Date > entry.Through || entry.Through.DayNumber - quotes[^1].Date.DayNumber > 14) return false;
-        return quotes.Zip(quotes.Skip(1)).All(p => p.Second.Date.DayNumber - p.First.Date.DayNumber is > 0 and <= 14);
-    }
-
-    private CacheEntry? Read(int year)
+    private CentralParitySnapshot? Read(int year)
     {
         if (memory.TryGetValue(year, out var cached)) return cached;
         try
         {
             using var file = File.OpenRead(CachePath(year));
             if (file.Length is <= 0 or > MaxCacheBytes) return null;
-            var entry = JsonSerializer.Deserialize<CacheEntry>(file);
-            return entry is not null && IsValid(entry, year) ? entry : null;
+            var entry = JsonSerializer.Deserialize<CentralParitySnapshot>(file);
+            return entry is not null && entry.IsValid(year) ? entry : null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { return null; }
     }
 
-    private void Save(int year, CacheEntry entry)
+    private void Save(int year, CentralParitySnapshot entry)
     {
         try
         {
@@ -126,7 +123,7 @@ public sealed class OfficialAnnualExchangeRates(string cacheDirectory, HttpClien
 
     private string CachePath(int year) => Path.Combine(cacheDirectory, FormattableString.Invariant($"safe-midpoint-v1-{year}.json"));
 
-    private static IExchangeRateProvider Build(int year, CacheEntry entry, bool ongoing)
+    private static IExchangeRateProvider Build(int year, CentralParitySnapshot entry, bool ongoing)
     {
         var latest = entry.Quotes[^1];
         var first = ongoing ? entry.Quotes[0].Date : latest.Date;

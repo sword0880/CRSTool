@@ -44,7 +44,13 @@ public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, str
 }
 
 /// <summary>分页与持久命令状态属于第二版协议；旧客户端明确拒绝，固定管道名保持可诊断。</summary>
-public static class WorkerProtocol { public const int Version = 2; }
+public static class WorkerProtocol
+{
+    public const int Version = 2;
+    public const string GetAnnualExchangeRates = "GetAnnualExchangeRates";
+    public const string GetWorkerLogSettings = "GetWorkerLogSettings";
+    public const string SaveWorkerLogSettings = "SaveWorkerLogSettings";
+}
 
 /// <summary>服务端使用实际 Windows 令牌构造调用者，权限字段不进入请求协议。</summary>
 public sealed record BackgroundCaller(string Sid, bool CanManage);

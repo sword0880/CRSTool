@@ -27,7 +27,7 @@ public sealed partial class NationalTeamBackgroundSession
             try
             {
                 var response=await http!.GetAsync(uri,token);
-                if(response.StatusCode!=200)return new("RetryDeferred","southbound=SourceHttp;status="+response.StatusCode,TimeSpan.FromMinutes(30));
+                if(response.StatusCode!=200)return new("Failed","southbound=SourceHttp;status="+response.StatusCode,TimeSpan.FromMinutes(30));
                 var parsed=SouthboundHistorySource.ParsePage(response.Content,from,through);
                 pages.Add(new(uri.AbsoluteUri,response.Content,DateTimeOffset.UtcNow));
                 if(page==parsed.Pages)break;
@@ -35,7 +35,7 @@ public sealed partial class NationalTeamBackgroundSession
             catch(SourceBudgetUnavailableException error){return new("RetryDeferred","southbound="+error.Code,error.Until is {} until?until-CRS.Timing.BeijingClock.Now:TimeSpan.FromMinutes(5));}
             // 旧宿主没有新增来源预算时只拒绝本功能，不影响已有ETF或股票采集的启动。
             catch(ArgumentException){return new("Rejected","southbound=HostSourceBudgetUnsupported");}
-            catch(Exception error) when(error is TimeoutException or System.Net.Http.HttpRequestException){return new("RetryDeferred","southbound=SourceUnavailable",TimeSpan.FromMinutes(30));}
+            catch(Exception error) when(error is TimeoutException or System.Net.Http.HttpRequestException){return new("Failed","southbound=SourceUnavailable",TimeSpan.FromMinutes(30));}
             catch(InvalidDataException){(http as IOfficialSourceValidationFeedback)?.RejectContract(uri);return new("NeedsReview","southbound=SourceContractChanged");}
         }
         try

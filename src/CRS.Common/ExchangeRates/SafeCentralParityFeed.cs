@@ -2,29 +2,34 @@ using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace CRS.Infrastructure;
+namespace CRS.ExchangeRates;
 
-internal sealed record CentralParityQuote(DateOnly Date, decimal Usd, decimal Hkd);
+public sealed record CentralParityQuote(DateOnly Date, decimal Usd, decimal Hkd);
 
 /// <summary>读取国家外汇管理局公开的人民币中间价查询结果。</summary>
-internal static class SafeCentralParityFeed
+public static class SafeCentralParityFeed
 {
-    internal const string Url = "https://www.safe.gov.cn/AppStructured/hlw/RMBQuery.do";
+    public const string Url = "https://www.safe.gov.cn/AppStructured/hlw/RMBQuery.do";
     private const int MaxResponseBytes = 2 * 1024 * 1024;
+    private static readonly HttpClient PublicClient = new(new HttpClientHandler { AllowAutoRedirect = false });
     // 查询结果嵌套在页面布局表格中，匹配报价行时跳过外层行。
     private static readonly Regex Rows = Pattern(@"<tr\b[^>]*>((?:(?!<tr\b).)*?)</tr\s*>");
     private static readonly Regex Cells = Pattern(@"<t[dh]\b[^>]*>(.*?)</t[dh]\s*>");
     private static readonly Regex Tags = Pattern(@"<!--.*?-->|<[^>]*>");
 
-    internal static async Task<CentralParityQuote[]> ReadAsync(HttpClient client, DateOnly from, DateOnly to, CancellationToken token)
+    public static async Task<CentralParitySnapshot> ReadAsync(DateOnly from, DateOnly to, DateTimeOffset fetchedAt,
+        CancellationToken cancellation, HttpClient? client = null)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        var token = timeout.Token;
         var uri = new Uri(FormattableString.Invariant($"{Url}?startDate={from:yyyy-MM-dd}&endDate={to:yyyy-MM-dd}&queryYN=true"));
-        using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+        using var response = await (client ?? PublicClient).GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         await response.Content.LoadIntoBufferAsync(MaxResponseBytes, token).ConfigureAwait(false);
         var html = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
-        try { return Parse(html, from, to); }
-        catch (RegexMatchTimeoutException) { throw new CrsException("官方汇率表格解析超时。"); }
+        try { return new(1, from, to, fetchedAt, Parse(html, from, to)); }
+        catch (RegexMatchTimeoutException) { throw new InvalidDataException("官方汇率表格解析超时。"); }
     }
 
     internal static CentralParityQuote[] Parse(string html, DateOnly from, DateOnly to)
@@ -46,9 +51,9 @@ internal static class SafeCentralParityFeed
             if (values.Length <= dateColumn || !DateOnly.TryParseExact(values[dateColumn], "yyyy-MM-dd",
                 CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) continue;
             if (values.Length <= Math.Max(usdColumn, hkdColumn) || date < from || date > to)
-                throw new CrsException("官方报价的日期或币种列与查询范围不符。");
+                throw new InvalidDataException("官方报价的日期或币种列与查询范围不符。");
             var quote = new CentralParityQuote(date, DirectRate(values[usdColumn]), DirectRate(values[hkdColumn]));
-            if (!quotes.TryAdd(date, quote)) throw new CrsException("官方报价包含重复日期。");
+            if (!quotes.TryAdd(date, quote)) throw new InvalidDataException("官方报价包含重复日期。");
         }
         return quotes.Values.OrderBy(q => q.Date).ToArray();
     }
@@ -58,7 +63,7 @@ internal static class SafeCentralParityFeed
         // 外汇管理局的美元、港元按 100 外币兑人民币列示。
         if (!decimal.TryParse(value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount)
             || amount is <= 0 or > 100_000)
-            throw new CrsException("官方美元或港元中间价无效。");
+            throw new InvalidDataException("官方美元或港元中间价无效。");
         return amount / 100m;
     }
 

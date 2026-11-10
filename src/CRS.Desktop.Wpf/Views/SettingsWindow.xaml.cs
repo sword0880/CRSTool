@@ -22,12 +22,14 @@ public partial class SettingsWindow : FluentWindow
         model.EmailInputCleared+=ClearEmailInput;
         model.DingTalk.InputsCleared+=ClearDingTalkInputs;
         model.WeChat.InputsCleared+=ClearWeChatInputs;
-        Loaded+=async (_,_)=>{await model.CheckHelloAvailabilityAsync();await model.LoadEmailSettingsAsync();await model.LoadWebhookSettingsAsync();};
+        Loaded+=async (_,_)=>{if(model.SelectedSection?.Key=="logging")await model.LoadWorkerLogSettingsAsync();await model.CheckHelloAvailabilityAsync();await model.LoadEmailSettingsAsync();await model.LoadWebhookSettingsAsync();};
         Closed+=(_,_)=> {StorageSection.DatabaseManagementRequested-=OnDatabaseManagementRequested;model.PropertyChanged-=OnModelPropertyChanged;model.EmailInputCleared-=ClearEmailInput;model.DocumentInputsCleared-=ClearDocumentInputs;model.PhoneEnrollmentRequired-=OnPhoneEnrollmentRequired; model.SecurityInputsCleared-=ClearSecurityInputs; model.ClearSecurityInputs(); ClearSecurityInputs();ClearEmailInput();};
     }
-    private void OnModelPropertyChanged(object? sender,PropertyChangedEventArgs e)
+    private async void OnModelPropertyChanged(object? sender,PropertyChangedEventArgs e)
     {
-        if(e.PropertyName==nameof(SettingsViewModel.SelectedSection))SectionContentScroll.ScrollToTop();
+        if(e.PropertyName!=nameof(SettingsViewModel.SelectedSection))return;
+        SectionContentScroll.ScrollToTop();
+        if(sender is SettingsViewModel model && model.SelectedSection?.Key=="logging")await model.LoadWorkerLogSettingsAsync();
     }
     private void OnSectionSelected(object sender,RoutedPropertyChangedEventArgs<object> e)
     {
@@ -51,7 +53,7 @@ public partial class SettingsWindow : FluentWindow
     private void OnClose(object sender, RoutedEventArgs e) => Close();
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        var model=(SettingsViewModel)DataContext;e.Cancel=!locking&&(model.State.IsBusy||model.DingTalk.Busy||model.WeChat.Busy);
+        var model=(SettingsViewModel)DataContext;e.Cancel=!locking&&(model.State.IsBusy||model.DingTalk.Busy||model.WeChat.Busy||model.WorkerLogSettingsBusy);
         if(!e.Cancel){model.Cleanup.StopWaiting();model.DingTalk.InputsCleared-=ClearDingTalkInputs;model.WeChat.InputsCleared-=ClearWeChatInputs;ClearDingTalkInputs();ClearWeChatInputs();}
     }
 }

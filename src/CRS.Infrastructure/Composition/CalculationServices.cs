@@ -1,6 +1,6 @@
 using CRS.Domain;
 using CRS.Application.Abstractions;
-using NLog;
+using Microsoft.Extensions.Logging;
 
 namespace CRS.Infrastructure;
 
@@ -13,9 +13,10 @@ public static class CalculationServices
     internal static CalculationService Create(IExchangeRateProvider rates,string broker,int year,
         Action<FrozenInput,CancellationToken,List<string>,BrokerSourceDocument?>? sharedImport,
         Func<string,CancellationToken,FrozenInput>? readOriginal=null,
-        Action<FrozenInput,CancellationToken>? archiveIncome=null)
+        Action<FrozenInput,CancellationToken>? archiveIncome=null,
+        ILoggerFactory? loggerFactory=null)
     {
-        var log = LogManager.GetCurrentClassLogger();
+        var log = loggerFactory?.CreateLogger<CalculationService>();
         readOriginal ??= FrozenInput.Read;
         IBrokerImporter importer = broker switch
         {
@@ -24,6 +25,6 @@ public static class CalculationServices
             _ => throw new CrsException("不支持所选券商。")
         };
         return new CalculationService(rates, importer, new CarryValidator(), new FileCalculationEvidence(),
-            message => log.Info(message));
+            log is null ? null : message => log.LogInformation("{CalculationSummary:l}", message));
     }
 }

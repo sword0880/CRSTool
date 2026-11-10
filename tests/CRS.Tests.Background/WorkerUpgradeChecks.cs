@@ -139,7 +139,7 @@ internal static class WorkerUpgradeChecks
             var client=new BackgroundPipeClient(pipe);var response=await WorkerProcessReadiness.WaitAsync(client,ordinary);
             var jobs=await client.QueryAsync("GetJobs");
             Check(response.Health?.State=="Degraded"&&response.Plugins?.SingleOrDefault(x=>x.PluginId==pluginId)?.State=="Failed"
-                &&jobs.Code=="Ok"&&jobs.Jobs?.Count==0,"普通启动保留Degraded及失败插件诊断，查询通道可用且不登记故障插件任务");
+                &&jobs.Code=="Ok"&&jobs.Jobs is {} visible&&visible.All(x=>x.PluginId!=pluginId),"普通启动保留Degraded及失败插件诊断，查询通道可用且不登记故障插件任务");
         }
         finally{if(!ordinary.HasExited){ordinary.Kill(entireProcessTree:true);await ordinary.WaitForExitAsync();}}
     }

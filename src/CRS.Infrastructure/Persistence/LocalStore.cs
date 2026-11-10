@@ -3,9 +3,6 @@ using Dapper;
 using System.Text.Json;
 using CRS.Domain;
 using CRS.Application.Abstractions;
-using NLog;
-using NLog.Config;
-using NLog.Targets;
 
 namespace CRS.Infrastructure;
 
@@ -24,19 +21,6 @@ public sealed class LocalStore : ICalculationRepository
         using var lease=session.Enter();
         using var connection = session.Open(create:create);
         DatabaseSchema.Ensure(session,connection,create);
-    }
-    /// <summary>配置 NLog 本地轮转日志，日志正文仅由调用方提供脱敏操作信息。</summary>
-    public static void ConfigureLogging(string directory, bool enabled = true, string minimumLevel = "Info",
-        int retentionFiles = 14, int fileSizeMb = 1, bool exactLogDirectory = false)
-    {
-        var config = new LoggingConfiguration();
-        if (enabled)
-        {
-            var target = new FileTarget("local") { FileName = Path.Combine(exactLogDirectory ? directory : Path.Combine(directory, "logs"), "crs.log"),
-                Layout = NLog.Layouts.Layout.FromMethod(e => $"{CRS.Timing.BeijingClock.Normalize(new DateTimeOffset(e.TimeStamp)):yyyy-MM-dd HH:mm:ss.fff zzz}|{e.Level}|{e.FormattedMessage}"), ArchiveAboveSize = fileSizeMb * 1024L * 1024, MaxArchiveFiles = retentionFiles };
-            config.AddRule(LogLevel.FromString(minimumLevel), LogLevel.Fatal, target);
-        }
-        LogManager.Configuration = config;
     }
     /// <summary>创建启用外键的数据库连接；每次操作自行释放连接。</summary>
     private SqliteConnection Open()=>session.Open();

@@ -156,19 +156,20 @@ public sealed partial class NationalTeamBackgroundSession
     private async Task<BackgroundJobResult> ExecuteEquityDisclosureSync(EtfRequest request,CancellationToken token,Guid? commandId)
     {
         if(!(request.Operation is "sync" or "equity-sync"))throw new InvalidDataException("任务与业务参数不匹配。");
-        var equityIssues=0;var equityRows=0;
+        var equityIssues=0;var equityRows=0;var failed=false;
         // 原结构化候选适配器只支持沪市；新自动原文流程独立覆盖沪深，不把深市登记误报来源故障。
         foreach(var security in (await workspace!.Equity.EquityWatchlistAsync(token)).Where(x=>x.Active&&x.Market=="SSE"))
         {
             try
             {
                 var sourceUri=OfficialEquitySource.Request(security.Market,security.Ticker);var sourceResponse=await http!.GetAsync(sourceUri,token);
-                if(sourceResponse.StatusCode!=200){equityIssues++;continue;}
+                if(sourceResponse.StatusCode!=200){equityIssues++;failed=true;continue;}
                 await workspace.Equity.SaveEquityDisclosureAsync(security.Market,security.Ticker,sourceUri,sourceResponse.Content,token);equityRows++;
             }
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-            catch(Exception error) when(error is InvalidDataException or HttpRequestException or TimeoutException or InvalidOperationException){equityIssues++;}
+            catch(SourceBudgetUnavailableException){equityIssues++;}
+            catch(Exception error) when(error is InvalidDataException or HttpRequestException or TimeoutException or InvalidOperationException){equityIssues++;failed=true;}
         }
-        return new(equityIssues>0?"RetryDeferred":equityRows==0?"NotPublished":"Succeeded",$"equitySources={equityRows};sourceIssues={equityIssues}",TimeSpan.FromMinutes(30));
+        return new(failed?"Failed":equityIssues>0?"RetryDeferred":equityRows==0?"NotPublished":"Succeeded",$"equitySources={equityRows};sourceIssues={equityIssues}",TimeSpan.FromMinutes(30));
     }
 }

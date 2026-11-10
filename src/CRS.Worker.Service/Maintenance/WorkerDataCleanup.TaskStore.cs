@@ -40,7 +40,7 @@ public sealed partial class WorkerDataCleanup
         {state="Running";message="后台正在保存清理结果。";}
         var terminal=state is "Completed" or "Interrupted" or "Unavailable";
         return new(operation.Id,operation.Automatic?"Automatic":"Manual",state,operation.SubmittedAt,status.UpdatedAt,
-            terminal?status.UpdatedAt:null,status.DeletedBytes,status.DeletedFiles,status.CountsComplete,message,status.Progress);
+            terminal?status.UpdatedAt:null,status.DeletedBytes,status.DeletedFiles,status.CountsComplete,message,status.Progress){StartedAt=operation.StartedAt};
     }
     private void RegisterTask(Operation operation)
     {

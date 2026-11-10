@@ -2,11 +2,39 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CRS.Maintenance;
+using CRS.Timing;
 using CRS.Worker.Ipc;
+using Quartz;
 namespace CRS.Worker.Service;
 
 public sealed partial class BackgroundRuntime
 {
+    private Task? cleanupRecovery;
+
+    private async Task ScheduleCleanupAsync(CancellationToken token)
+    {
+        if (cleanup is null) return;
+        var schedule = AutomaticCleanupSchedule.Default;
+        var job = JobBuilder.Create<AutomaticCleanupDispatcher>().WithIdentity(DataCleanupTask.JobId, "crs.maintenance").Build();
+        var trigger = TriggerBuilder.Create().WithIdentity(DataCleanupTask.JobId + ".cron", job.Key.Group)
+            .WithCronSchedule(schedule.Cron, cron => cron.InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(BeijingClock.ZoneId))
+                .WithMisfireInstruction(CronTriggerMisfireInstruction.FireAndProceed)).Build();
+        await scheduler!.ScheduleJob(job, trigger, cancellationToken: token);
+        cleanup.InitializeAutomaticSchedule(schedule,id=>repository.QueueFailureNotice(id.ToString("N"),DataCleanupTask.ServiceId,DataCleanupTask.JobId,"Failed"));
+    }
+
+    private void QueueCleanupRecovery(CancellationToken token)
+    {
+        if (cleanup is not null && cleanupRecovery is not { IsCompleted: false })
+            cleanupRecovery = Task.Run(() => RunCleanupAsync(token, recoverOnly: true), CancellationToken.None);
+    }
+
+    internal async Task RunCleanupAsync(CancellationToken token, bool recoverOnly = false)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, queryStopping.Token);
+        await cleanup!.RunAutomaticOnceAsync(diagnostics, linked.Token, recoverOnly).ConfigureAwait(false);
+    }
+
     private async Task<BackgroundResponse> HandleCleanupAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
     {
         BackgroundResponse Reply(string code,DataCleanupStatus? status=null)=>new(WorkerProtocol.Version,request.RequestId,code,Payload:status is null?null:JsonSerializer.Serialize(status));
@@ -62,4 +90,11 @@ public sealed partial class BackgroundRuntime
         catch(TimeoutException){return Reply("Busy");}
         catch(Exception error) when(error is IOException or InvalidDataException or JsonException or FormatException or ArgumentException){return Reply("CleanupUnavailable");}
     }
+}
+
+[DisallowConcurrentExecution]
+public sealed class AutomaticCleanupDispatcher : IJob
+{
+    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken) =>
+        await ((BackgroundRuntime)context.Scheduler.Context["crs.worker.runtime"]!).RunCleanupAsync(cancellationToken);
 }

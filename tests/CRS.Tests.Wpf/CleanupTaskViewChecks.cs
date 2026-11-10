@@ -57,7 +57,8 @@ internal static class CleanupTaskViewChecks
         Capture(window,Path.Combine(directory,"main-cleanup-verifying-1040.png"));
         using(var lifetime=new CancellationTokenSource())
         {
-            gateway.Overview=gateway.Overview with{AutomaticPlan=new("Running",CRS.Timing.BeijingClock.Now.AddHours(1),300,30,86400,3600,14,1)};
+            gateway.Overview=gateway.Overview with{AutomaticPlan=new("Running",CRS.Timing.BeijingClock.Now.AddHours(1),0,30,86400,3600,14,1)
+                {Cron="0 0 3 * * ?",TimeZoneId=CRS.Timing.BeijingClock.ZoneId}};
             var activity=new BackgroundServiceViewModel(lifetime.Token,new(pipe),model);await activity.RefreshTaskActivityAsync();
             var tasks=new BackgroundServicePage(activity);tasks.ShowCurrentTasks();
             var taskWindow=new Window{Content=tasks,Width=1040,Height=760,Background=(Brush)Application.Current.Resources["BrandCanvasBrush"]};
@@ -68,12 +69,17 @@ internal static class CleanupTaskViewChecks
                 if(grid.Items.Count!=1||activity.RunningTasks[0].ReasonText.Contains("859")!=true)throw new Exception("实际任务中心没有列出清理核验进展。");
                 Capture(taskWindow,Path.Combine(directory,"task-center-cleanup-verifying-1040.png"));
                 tasks.ShowServicePlans();
-                activity.Jobs.Add(new("crs.national-team","official-share-sync","官方ETF份额同步（合成）","0 15 23 * * ?","China Standard Time",true,3,false));
+                var lastStarted=new DateTimeOffset(2026,11,9,23,15,0,TimeSpan.FromHours(8));
+                activity.Jobs.Add(new("crs.national-team","official-share-sync","官方ETF份额同步（合成）","0 15 23 * * ?","China Standard Time",true,3,false)
+                    {LastStartedAt=lastStarted,LastResult="Failed",PlanState="Retry"});
                 activity.Jobs.Add(new("crs.national-team","evidence-integrity","证据完整性巡检（合成）","0 30 2 * * ?","China Standard Time",true,2,false));
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 var plans=(DataGrid)tasks.FindName("PlansGrid");
                 var maintenance=activity.PlanRows.Single(x=>x.IsMaintenance);
-                if(tasks.FindName("AutomaticCleanupPlanCard") is not null||!plans.Items.Contains(maintenance)||!maintenance.Cron.Contains("24")||maintenance.NextDueText=="未确认")throw new Exception("自动清理没有作为普通一行出现在统一任务列表。");
+                if(tasks.FindName("AutomaticCleanupPlanCard") is not null||!plans.Items.Contains(maintenance)||maintenance.Cron!="0 0 3 * * ?"||maintenance.NextDueText=="未确认")throw new Exception("统一任务列表没有显示自动清理的 Cron 与下次执行。");
+                var shares=activity.PlanRows.Single(x=>x.JobId=="official-share-sync");
+                if(!plans.Columns.Any(x=>Equals(x.Header,"上次执行时间（北京时间）"))||shares.LastStartedText!="2026-11-09 23:15:00"
+                    ||shares.StateText!="等待重试"||maintenance.StateText!="执行中")throw new Exception("服务计划没有统一状态和上次执行时间。");
                 activity.SelectedPlan=maintenance;
                 if(activity.PauseCommand.CanExecute(null)||activity.ResumeCommand.CanExecute(null))throw new Exception("维护任务错误地允许发送插件启停命令。");
                 Capture(taskWindow,Path.Combine(directory,"task-center-maintenance-plan-1040.png"));

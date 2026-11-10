@@ -1,4 +1,5 @@
 using CRS.Application.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace CRS.Infrastructure;
 
@@ -7,9 +8,10 @@ public sealed class VaultStorageProviders
 {
     public const string DefaultProvider="sqlcipher";
     private readonly Dictionary<string,Func<IWindowsHelloVerifier?,IVaultStorageBackend>> providers;
-    public VaultStorageProviders(IEnumerable<KeyValuePair<string,Func<IWindowsHelloVerifier?,IVaultStorageBackend>>>? additional=null)
+    public VaultStorageProviders(IEnumerable<KeyValuePair<string,Func<IWindowsHelloVerifier?,IVaultStorageBackend>>>? additional=null,
+        ILoggerFactory? loggerFactory=null)
     {
-        providers=new(StringComparer.OrdinalIgnoreCase){{DefaultProvider,hello=>new SqlCipherVaultBackend(hello)}};
+        providers=new(StringComparer.OrdinalIgnoreCase){{DefaultProvider,hello=>new SqlCipherVaultBackend(hello,loggerFactory)}};
         foreach(var item in additional??[])
         {
             Validate(item.Key);ArgumentNullException.ThrowIfNull(item.Value);

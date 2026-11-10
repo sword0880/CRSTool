@@ -4,9 +4,10 @@ using CRS.Application.Abstractions;
 namespace CRS.Infrastructure;
 
 /// <summary>本机设置原子保存，与数据库文件及券商配置分开管理。</summary>
-public sealed class DesktopSettingsStore(string? localDataRoot = null) : IDesktopSettingsService
+public sealed class DesktopSettingsStore(string? localDataRoot = null, Action<DesktopSettings>? applyLogging = null) : IDesktopSettingsService
 {
     private readonly string root = localDataRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    private readonly object saveGate = new();
     public string SettingsPath => Path.Combine(root, "CRS", "settings.json");
     private string OverviewTaxYearPath => Path.Combine(root, "CRS", "overview-tax-year.txt");
 
@@ -46,6 +47,11 @@ public sealed class DesktopSettingsStore(string? localDataRoot = null) : IDeskto
 
     public Task SaveAsync(DesktopSettings settings) => Task.Run(() =>
     {
+        lock (saveGate) Save(settings);
+    });
+
+    private void Save(DesktopSettings settings)
+    {
         var validated = Validate(settings);
         CheckWritable(validated.DatabaseDirectory); CheckWritable(validated.LogDirectory);
         Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
@@ -55,12 +61,10 @@ public sealed class DesktopSettingsStore(string? localDataRoot = null) : IDeskto
             File.WriteAllText(temporary, JsonSerializer.Serialize(validated, new JsonSerializerOptions { WriteIndented = true }));
             File.Move(temporary, SettingsPath, true);
             // 保存成功后重新配置现有记录器，日志开关、级别、目录和轮转立即生效。
-            LocalStore.ConfigureLogging(validated.LogDirectory, validated.LoggingEnabled, validated.LogLevel,
-                validated.LogRetentionFiles, validated.LogFileSizeMb, exactLogDirectory: true);
-            NLog.LogManager.GetLogger("DesktopSettings").Info("桌面日志设置已应用。");
+            applyLogging?.Invoke(validated);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
-    });
+    }
 
     private static DesktopSettings Validate(DesktopSettings settings)
     {

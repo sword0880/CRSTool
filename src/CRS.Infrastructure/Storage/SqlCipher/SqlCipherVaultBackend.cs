@@ -5,6 +5,7 @@ using CRS.Security.Cryptography;
 using CRS.Security.Vault;
 using CRS.Security.Recovery;
 using Dapper;
+using Microsoft.Extensions.Logging;
 
 namespace CRS.Infrastructure;
 
@@ -12,7 +13,12 @@ namespace CRS.Infrastructure;
 internal sealed partial class SqlCipherVaultBackend : IVaultStorageBackend
 {
     private readonly IWindowsHelloVerifier? hello;
-    public SqlCipherVaultBackend(IWindowsHelloVerifier? hello = null) { this.hello=hello; }
+    private readonly ILoggerFactory? loggerFactory;
+    public SqlCipherVaultBackend(IWindowsHelloVerifier? hello = null, ILoggerFactory? loggerFactory = null)
+    {
+        this.hello = hello;
+        this.loggerFactory = loggerFactory;
+    }
     // 主密码或恢复密钥证明，只用于显式重新登记 Hello 的 Windows 身份。
     private bool pendingPasswordProof;
     private readonly object gate=new();

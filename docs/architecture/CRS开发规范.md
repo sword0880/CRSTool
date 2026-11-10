@@ -6,7 +6,7 @@ WPF 是唯一前台。支持 IBKR Activity Flex XML 和当前富途 XLSX／文�
 
 ## 2. 技术基线
 
-.NET 10；WPF 目标 net10.0-windows10.0.19041.0。WPF UI 4.3.x、CommunityToolkit.Mvvm、DataGridExtensions、LiveChartsCore.SkiaSharpView.WPF。后台使用 NPOI、PdfPig、SQLite + Dapper、NLog；版本由根 Directory.Packages.props 管理，并保留包锁文件。
+.NET 10；WPF 目标 net10.0-windows10.0.19041.0。WPF UI 4.3.x、CommunityToolkit.Mvvm、DataGridExtensions、LiveChartsCore.SkiaSharpView.WPF。基础设施使用 NPOI、PdfPig、SQLite + Dapper 和 Serilog；版本由根 Directory.Packages.props 管理，并保留包锁文件。
 
 ## 3. 分层与实现约束
 

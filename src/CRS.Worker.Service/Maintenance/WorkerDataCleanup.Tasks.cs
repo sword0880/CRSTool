@@ -75,13 +75,14 @@ public sealed partial class WorkerDataCleanup
     {
         var journal=new WorkerUpgradeJournal(root).Read();
         if(journal is not null&&journal.Stage is not ("Committed" or "RolledBack"))throw new InvalidOperationException("后台正在升级维护。");
-        _=ReadAutomaticState();
-        var operation=new Operation(id,sid,new()){Automatic=automatic,BackgroundTask=true,SubmittedAt=Now};
+        var state=ReadAutomaticState();
+        var operation=new Operation(id,sid,new(LogRetentionDays:ReadLogSettings().RetentionDays))
+        {Automatic=automatic,BackgroundTask=true,SubmittedAt=Now};
         if(File.Exists(TaskPath(id)))operation.SubmittedAt=ReadTaskRecord(id).Task.SubmittedAt;
         operation.Status=operation.Status with{State="Queued",UpdatedAt=Now,Message="清理任务已提交后台，可以关闭本页。",Progress=new("Queued",null)};
         var cancellation=CancellationTokenSource.CreateLinkedTokenSource(token,stopping.Token);
         operation.Pacer=new(cancellation.Token,schedule.DutyCycle);
-        try{RegisterTask(operation);WriteAutomaticState(new(1,Now+schedule.RetryInterval,id,"Running"));}
+        try{RegisterTask(operation);WriteAutomaticState(new(1,Now+schedule.RetryInterval,id,"Running"){Failures=automatic?state.Failures:0});}
         catch{cancellation.Dispose();throw;}
         automaticCancellation=cancellation;active=operation;
         foreach(var old in operations.Where(x=>x.Value.BackgroundTask&&x.Value.Task?.IsCompleted!=false).Select(x=>x.Key).ToArray())operations.Remove(old);

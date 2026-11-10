@@ -49,7 +49,7 @@ public sealed partial class WorkerDataCleanupGateway
         if(result is null)throw new InvalidDataException("后台清理任务记录缺失。");
         if(result.AutomaticPlan is {} plan&&(plan.State is not ("NotStarted" or "Running" or "Waiting" or "Due" or "Paused" or "Unavailable")
             ||plan.StartupDelaySeconds<0||plan.CheckIntervalSeconds<1||plan.SuccessIntervalSeconds<1||plan.RetryIntervalSeconds<1
-            ||plan.LogRetentionDays<14||plan.HistoricalBackupsToKeep<1))throw new InvalidDataException("后台维护计划摘要无效。");
+            ||!WorkerLogSettings.IsValidRetention(plan.LogRetentionDays)||plan.HistoricalBackupsToKeep<1))throw new InvalidDataException("后台维护计划摘要无效。");
         foreach(var task in new[]{result.Current,result.LatestResult,result.Notification}.OfType<DataCleanupTask>())
             if(task.Id==Guid.Empty||task.State is not ("Queued" or "Scanning" or "Running" or "Completed" or "Interrupted" or "Unavailable")
                 ||task.DeletedFiles<0||task.DeletedBytes<0||task.SubmittedAt==default||task.UpdatedAt==default)

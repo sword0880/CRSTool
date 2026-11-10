@@ -10,6 +10,7 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
     private const int MaximumFiles=500000;
     private readonly string root;
     private readonly TimeProvider clock;
+    private readonly WorkerLogSettingsStore? logSettings;
     private readonly object stateGate=new();
     private readonly Dictionary<Guid,Operation> operations=[];
     private readonly CancellationTokenSource stopping=new();
@@ -21,15 +22,30 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
         {Progress=new("ScanningLogs",null)};
         public List<Target> Targets=[];public List<Target> Retained=[];public string? CurrentJournalHash;public Task? Task;
         public int UnverifiedBackups;
-        public bool Automatic,BackgroundTask;public DateTimeOffset SubmittedAt;public CleanupWorkPacer? Pacer;
+        public bool Automatic,BackgroundTask;public DateTimeOffset SubmittedAt;public DateTimeOffset? StartedAt;public CleanupWorkPacer? Pacer;
     }
     private sealed record Target(DataCleanupEntry Entry,string FullPath,string? ArchiveHash,string? ManifestHash,
         Dictionary<string,string>? ExpectedHashes,long Length=0,long ModifiedTicks=0);
     private sealed record SnapshotManifest(int Format,string ReleaseHash,Dictionary<string,string> Files);
     private static readonly JsonSerializerOptions Json=new(){RespectRequiredConstructorParameters=true,RespectNullableAnnotations=true};
-    public WorkerDataCleanup(string dataDirectory,TimeProvider? timeProvider=null)
+    public WorkerDataCleanup(string dataDirectory,TimeProvider? timeProvider=null) : this(dataDirectory,timeProvider,null) { }
+
+    internal WorkerDataCleanup(string dataDirectory,TimeProvider? timeProvider,WorkerLogSettingsStore? logSettings)
     {
         root=Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataDirectory));clock=timeProvider??TimeProvider.System;StorageSecurity.RejectLinks(root);
+        this.logSettings = logSettings;
+    }
+    internal bool CanConfigureLogs => logSettings is not null;
+    internal WorkerLogSettings ReadLogSettings() => logSettings?.Read() ?? new();
+    internal WorkerLogSettings? SaveLogSettings(WorkerLogSettings settings)
+    {
+        lock (stateGate)
+        {
+            // 已扫描或已受理的任务使用旧快照，清理期间先保留当前策略。
+            if (active?.Task is { IsCompleted: false } || HasManualPreview() || RecentTasks().Any(x => TaskActive(x.Task)))
+                throw new InvalidOperationException("请等待当前清理任务结束。");
+            return logSettings!.Save(settings);
+        }
     }
     private DateTimeOffset Now=>CRS.Timing.BeijingClock.Read(clock);
     private string Child(string relative)
@@ -40,7 +56,7 @@ public sealed partial class WorkerDataCleanup:IAsyncDisposable
         StorageSecurity.RejectLinks(path);return path;
     }
     private static void Validate(DataCleanupOptions options)
-    {if(options.LogRetentionDays is <1 or >365||options.HistoricalBackupsToKeep is <0 or >20)throw new InvalidDataException("日志至少保留1天，额外历史升级备份可保留0至20份。");}
+    {if(!WorkerLogSettings.IsValidRetention(options.LogRetentionDays)||options.HistoricalBackupsToKeep is <0 or >20)throw new InvalidDataException("日志保留天数为1至365天，额外历史升级备份可保留0至20份。");}
     /// <summary>只读审计入口，用于隔离验证和现场盘点；不会写预览、创建目录或获取维护锁。</summary>
     public DataCleanupStatus Audit(DataCleanupOptions options,CancellationToken token=default)
     {
