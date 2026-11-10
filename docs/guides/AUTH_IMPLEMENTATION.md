@@ -1,5 +1,7 @@
 # 保险库与 Authenticator 当前实现
 
+> **文档边界：** 本文记录当前源码可观察到的使用行为和验收缺口；安全架构目标见 [安全设计基线](../specifications/security/SECURITY_DESIGN.md)，TOTP 协议及防重放门槛见 [离线 TOTP 认证规范](../specifications/security/SECURITY_AUTH_SPEC.md)，Hello 替代路径见 [Windows Hello 当前实现](../implementation/WINDOWS_HELLO.md)。代码已实现不等于安全发布验收通过。
+
 2026-10-13 认证方式补充：默认 TOTP；首次没有验证器时可明确选择 Windows Hello，随后使用所选方式进入。Hello 取消、失败或不可用不放行；已绑定 TOTP 不会自动降级。Hello 模式隐藏手机开关，保留主密码/数据库恢复密钥恢复机制。本文下方手机绑定、手机恢复码及手机开关流程适用于 TOTP 模式，Hello 的流程、格式和验收边界见 [Windows Hello 当前实现](../implementation/WINDOWS_HELLO.md)。
 
 2026-10-20：产品中文名统一为“小财牛”，品牌口号为“财富有数，投资有度”。新生成的绑定二维码使用“小财牛”作为发行者及账户标签前缀，后接保险库短标识。中文名称按 URI 编码，验证码算法和密钥不因显示名称改变。手机上已绑定的旧名称不会自动更新，首次扫码或使用现有换手机流程重新绑定后采用新名称。

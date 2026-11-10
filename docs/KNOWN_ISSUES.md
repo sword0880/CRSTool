@@ -35,7 +35,7 @@
 
 本文件集中保留仍有代码依据的问题，取代过时的分散评审记录。界面完善不等于税额、来源和历史复算已完成业务验收。
 
-2026-10-16按[架构整改计划](architecture/ARCHITECTURE_REMEDIATION_PLAN_20261020.md)开始逐项处理，顺序与证据见[实施记录](implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)：先处理Worker查询锁和当前架构漂移，再推进升级、灾备、信任、ETF、历史复算及公平调度；ARCH-001 P0税务正确性按用户要求最后处理。未完成项及发布阻断仍保留，查询并发整改不能代替升级/恢复闭环。
+2026-10-16按[架构整改计划](architecture/ARCHITECTURE_REMEDIATION_PLAN.md)开始逐项处理，顺序与证据见[实施记录](implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)：先处理Worker查询锁和当前架构漂移，再推进升级、灾备、信任、ETF、历史复算及公平调度；ARCH-001 P0税务正确性按用户要求最后处理。未完成项及发布阻断仍保留，查询并发整改不能代替升级/恢复闭环。
 
 ETF新增[可编辑目录](implementation/NATIONAL_TEAM_ETF.md#etf-configuration)：参考目录与原池合并24个候选，可搜索、新增、修改及停用，新增候选默认停用。用户澄清20仅是界面可见容量，监控数量不受20只限制；旧容量触发器自动解除。参考名称/指数待官方核验，不作为机构持有依据。表格约18行，更多记录在表格内滚动，页面也可整体向下滚动。
 
@@ -76,7 +76,7 @@ ETF新增[可编辑目录](implementation/NATIONAL_TEAM_ETF.md#etf-configuration
 
 ## 安全与公开发布专项（核心已实现，完整发布验收未关闭）
 
-> 对应 [SECURITY_DESIGN.md](specifications/SECURITY_DESIGN.md) 和 [SECURITY_AUTH_SPEC.md](specifications/SECURITY_AUTH_SPEC.md)。已实现项和自动证据见 [AUTH_IMPLEMENTATION.md](guides/AUTH_IMPLEMENTATION.md)；手机实机、真实跨电脑、系统故障及分发审查仍待验收。优先级 P0 对应自用安全加固，P1 对应公开桌面版发布门槛，P2 暂不立项。
+> 对应 [安全设计基线](specifications/security/SECURITY_DESIGN.md) 和 [离线认证规范](specifications/security/SECURITY_AUTH_SPEC.md)。已实现项和自动证据见 [AUTH_IMPLEMENTATION.md](guides/AUTH_IMPLEMENTATION.md)；手机实机、真实跨电脑、系统故障及分发审查仍待验收。优先级 P0 对应自用安全加固，P1 对应公开桌面版发布门槛，P2 暂不立项。
 
 | 编号 | 优先级 | 当前缺口 / 拟完成事项 | 必须提供的验收证据 |
 | --- | --- | --- | --- |

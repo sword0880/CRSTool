@@ -1,10 +1,12 @@
 # SECURITY_AUTH_SPEC.md — CRS 完全离线 TOTP 认证规范
 
 > **状态：设计 / P0 实施与验收目标，不代表已完成代码。**  
-> **实现记录：** 主密码、受限认证、首次扫码、防重放、手机恢复及锁定已进入源码并提供自动测试；实际行为与尚缺人工证据见 [AUTH_IMPLEMENTATION.md](../guides/AUTH_IMPLEMENTATION.md)。本文仍是完整验收规范，不能将自动测试通过等同全部 P0 关闭。
-> 版本：1.2（首次主密码、本机登录及可选手机验证）｜日期：2026-10-10｜适用：.NET 10 / WPF / SQLCipher / Dapper。
-> 上位规范：[SECURITY_DESIGN.md](SECURITY_DESIGN.md)，架构：[PROJECT_STRUCTURE.md](../architecture/PROJECT_STRUCTURE.md)。若本文件与上位规范冲突，以已确认的“五项目架构、10 分钟自动锁定、明文 SQLite 直接拒绝、跨电脑恢复”原则为准。  
+> **实现记录：** 主密码、受限认证、首次扫码、防重放、手机恢复及锁定已进入源码并提供自动测试；实际行为与尚缺人工证据见 [AUTH_IMPLEMENTATION.md](../../guides/AUTH_IMPLEMENTATION.md)。本文仍是完整验收规范，不能将自动测试通过等同全部 P0 关闭。
+> 版本：1.3（TOTP 专项契约及 Hello 替代路径边界）｜日期：2026-11-10｜适用：.NET 10 / WPF / SQLCipher / Dapper。
+> 上位规范：[SECURITY_DESIGN.md](../SECURITY_DESIGN.md)，架构：[PROJECT_STRUCTURE.md](../../architecture/PROJECT_STRUCTURE.md)。若本文件与上位规范冲突，以已确认的“五项目架构、10 分钟自动锁定、明文 SQLite 直接拒绝、跨电脑恢复”原则为准。  
 > **无关范围：** 不实现微软账号登录、Entra ID、MFA 推送、服务器、联网验证、注册/订阅系统；不更改税务计算口径。
+
+> **职责边界：** 本文件只定义选择 TOTP 认证方式时的协议、状态机、恢复和验收契约。首次设置时明确选择 Windows Hello 的替代路径及其限制，以 [Windows Hello 当前实现](../../implementation/WINDOWS_HELLO.md) 为准；当前代码行为见 [认证当前实现](../../guides/AUTH_IMPLEMENTATION.md)。Hello 不得作为 TOTP 失败后的自动降级方式。上位安全架构见 [SECURITY_DESIGN.md](SECURITY_DESIGN.md)。
 
 ## 0. 决策摘要（不得擅自放宽）
 

@@ -1,3 +1,9 @@
+# 归档说明
+
+> **历史版本，非当前执行入口。** 本文保留 2026-10-20 架构评审时的原始任务分级、证据和验收细节。当前唯一权威计划为 [架构专项整改计划](../../architecture/ARCHITECTURE_REMEDIATION_PLAN.md)。旧编号与当前 ARCH 编号的对应关系见当前计划第 0 节；旧 P0-03 已拆分为 ARCH-103（国家队数据就绪）与 ARCH-104（税务独立基准）。本文中的状态和基线仅代表原记录时点。
+
+---
+
 # 小财牛（CRSTool）架构专项整改计划
 
 - 文档状态：Approved for planning（仅确认整改方向，不代表代码整改已实施）
@@ -9,19 +15,19 @@
 
 ## 2026-10-20执行进展
 
-新增实施约束：[数据库抽象与替换边界](DATABASE_PORTABILITY.md)。数据库连接、方言、事务与迁移限定在存储适配器，业务依赖仓储端口；共享来源预算、任务仓储故障边界、保险库存储族及插件仓储工厂已实施；保险库与插件支持通过配置选择已注册提供方，当前仅内置SQLCipher，第二数据库及迁移按文档单独验收。
+新增实施约束：[数据库抽象与替换边界](../../architecture/DATABASE_PORTABILITY.md)。数据库连接、方言、事务与迁移限定在存储适配器，业务依赖仓储端口；共享来源预算、任务仓储故障边界、保险库存储族及插件仓储工厂已实施；保险库与插件支持通过配置选择已注册提供方，当前仅内置SQLCipher，第二数据库及迁移按文档单独验收。
 
-已合并ARCH-201～204的候选实现；Windows复核发现旧桌面调度页面残留导致构建失败，本轮已清理。ARCH-205已迁移手工录入至Application并补应用层/界面测试。对应第二份计划P1-01～05。详见[续记与验证证据](../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。当前为工作区实施/验证阶段，真实服务部署和各任务未覆盖验收仍开放，不以此将P0发布门槛或整个专项标为Closed。
+已合并ARCH-201～204的候选实现；Windows复核发现旧桌面调度页面残留导致构建失败，本轮已清理。ARCH-205已迁移手工录入至Application并补应用层/界面测试。对应第二份计划P1-01～05。详见[续记与验证证据](../../implementation/ARCHITECTURE_IMPLEMENTATION.md#architecture-remediation-continued)。当前为工作区实施/验证阶段，真实服务部署和各任务未覆盖验收仍开放，不以此将P0发布门槛或整个专项标为Closed。
 
-ARCH-206（P1-06）已新增插件独立V1契约、未知版本拒绝和旧请求/响应兼容检查；版本矩阵见[业务契约规范](NATIONALTEAM_BUSINESS_CONTRACT.md)。代码及隔离测试已实施，完整历史发行/实际升级兼容仍保留为未关闭项，详见续记。
+ARCH-206（P1-06）已新增插件独立V1契约、未知版本拒绝和旧请求/响应兼容检查；版本矩阵见[业务契约规范](../../architecture/NATIONALTEAM_BUSINESS_CONTRACT.md)。代码及隔离测试已实施，完整历史发行/实际升级兼容仍保留为未关闭项，详见续记。
 
 ARCH-207（P1-07）已补阶段诊断、失控后不可复用/释放的终止状态、Worker健康拒绝及四阶段真实退出夹具；隔离专项29条通过。SCM/生产恢复门槛仍开放，状态为实施及隔离验证，详见续记。
 
-2026-10-23 P1-07后续：新增[Worker 后台插件进程隔离设计](WORKER_PLUGIN_PROCESS_ISOLATION.md)，并添加 stdio 帧协议的测试用 PluginRunner 原型。原型只在独立进程中执行合成夹具，未由 Worker Service 启动；生产管道、取消多路复用、能力 Broker、Job Object 和 OS 权限隔离仍未实现。P1-07仍为 Open，不得宣称沙箱或第三方插件安全隔离已交付。
+2026-10-23 P1-07后续：新增[Worker 后台插件进程隔离设计](../../architecture/WORKER_PLUGIN_PROCESS_ISOLATION.md)，并添加 stdio 帧协议的测试用 PluginRunner 原型。原型只在独立进程中执行合成夹具，未由 Worker Service 启动；生产管道、取消多路复用、能力 Broker、Job Object 和 OS 权限隔离仍未实现。P1-07仍为 Open，不得宣称沙箱或第三方插件安全隔离已交付。
 
-ARCH-208（P1-08）In Progress：IBKR原件结构读取已统一为不可变来源事实，税务/绩效及账号投影已接入，同步绩效不再重读XML。绩效新导入/新历史已保存实际读取与投影版本并兼容旧记录；IBKR及Futu税务新历史均已接入显式版本审计（含富途交易/收入Excel/PDF）；完整类型化账本、跨版本投影差异和独立真实Golden仍开放，见[来源事实边界](BROKER_SOURCE_FACTS.md)及续记。
+ARCH-208（P1-08）In Progress：IBKR原件结构读取已统一为不可变来源事实，税务/绩效及账号投影已接入，同步绩效不再重读XML。绩效新导入/新历史已保存实际读取与投影版本并兼容旧记录；IBKR及Futu税务新历史均已接入显式版本审计（含富途交易/收入Excel/PDF）；完整类型化账本、跨版本投影差异和独立真实Golden仍开放，见[来源事实边界](../../architecture/BROKER_SOURCE_FACTS.md)及续记。
 
-ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关，统一并发、跨插件FIFO、间隔、冷却与旧状态预合并；健康响应新增来源状态。隔离与回归证据见续记及[预算边界](SHARED_SOURCE_BUDGETS.md)。已补故障健康查询、启动状态校验、真实Worker进程强杀重启19项及十分钟有限持续负载19项；跨日负载、真实服务部署/源站恢复与断电验收仍开放。
+ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关，统一并发、跨插件FIFO、间隔、冷却与旧状态预合并；健康响应新增来源状态。隔离与回归证据见续记及[预算边界](../../architecture/SHARED_SOURCE_BUDGETS.md)。已补故障健康查询、启动状态校验、真实Worker进程强杀重启19项及十分钟有限持续负载19项；跨日负载、真实服务部署/源站恢复与断电验收仍开放。
 
 ## 1. 目的与执行原则
 
@@ -68,9 +74,9 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P0-02：ServiceKey 跨机器灾难恢复尚未闭环
 
-2026-10-23 阶段 2a：新增内部一次性确认/审计状态机与 OpenExisting 只读密钥入口，验证未授权不读钥、重放不重复读钥、审计失败不返回密文；生产停机租约交接、持久重放控制和完整导出仍未接线。见[验证与后续门槛](../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)，P0 保持 Open。
+2026-10-23 阶段 2a：新增内部一次性确认/审计状态机与 OpenExisting 只读密钥入口，验证未授权不读钥、重放不重复读钥、审计失败不返回密文；生产停机租约交接、持久重放控制和完整导出仍未接线。见[验证与后续门槛](../../validation/WORKER_RECOVERY_EXPORT_AUTHORIZATION_20261023.md)，P0 保持 Open。
 
-2026-10-23 进展：内部密钥恢复封装及 Windows 合成拒绝测试进入独立 PR；生产授权/恢复未接入，保持 Open。具体威胁、分阶段退出条件及后续 PluginRunner/国家队规模测量顺序见[安全审查与实施方案](WORKER_SERVICE_KEY_RECOVERY.md)。
+2026-10-23 进展：内部密钥恢复封装及 Windows 合成拒绝测试进入独立 PR；生产授权/恢复未接入，保持 Open。具体威胁、分阶段退出条件及后续 PluginRunner/国家队规模测量顺序见[安全审查与实施方案](../../architecture/WORKER_SERVICE_KEY_RECOVERY.md)。
 
 - 证据：D。现有实施记录指出 ServiceKey 仍依赖 LocalMachine DPAPI 与服务身份，独立恢复凭据和跨机恢复尚未完成。
 - 风险：仅备份数据库和原件，不能保证在新 Windows 机器/新服务身份下恢复解密能力。
@@ -272,15 +278,15 @@ P0 发布门槛应并行推进，不因架构清理而延后。以下阶段描�
 
 ## 9. 参考文档
 
-- [当前架构入口](CURRENT_ARCHITECTURE.md)
-- [项目结构与依赖](PROJECT_STRUCTURE.md)
-- [当前问题与验收缺口](../KNOWN_ISSUES.md)
-- [架构整改实施记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)
-- [Worker 升级与恢复](../deployment/WORKER_UPGRADE_AND_RECOVERY.md)
-- [Worker 插件与后台任务反方审查](../validation/WORKER_ARCHITECTURE_REVIEW.md)
-- [ETF 监控数据验收](../implementation/WORKER_RUNTIME.md#monitor-readiness)
-- [绩效 P0 与共享券商事实](../implementation/PERFORMANCE_ANALYTICS.md)
-- [发布验收](../validation/RELEASE_ACCEPTANCE.md)
+- [当前架构入口](../../architecture/CURRENT_ARCHITECTURE.md)
+- [项目结构与依赖](../../architecture/PROJECT_STRUCTURE.md)
+- [当前问题与验收缺口](../../KNOWN_ISSUES.md)
+- [架构整改实施记录](../../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-remediation)
+- [Worker 升级与恢复](../../deployment/WORKER_UPGRADE_AND_RECOVERY.md)
+- [Worker 插件与后台任务反方审查](../../validation/WORKER_ARCHITECTURE_REVIEW.md)
+- [ETF 监控数据验收](../../implementation/WORKER_RUNTIME.md#monitor-readiness)
+- [绩效 P0 与共享券商事实](../../implementation/PERFORMANCE_ANALYTICS.md)
+- [发布验收](../../validation/RELEASE_ACCEPTANCE.md)
 
 ---
 
