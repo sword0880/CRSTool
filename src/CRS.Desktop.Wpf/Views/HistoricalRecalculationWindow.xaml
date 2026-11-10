@@ -24,7 +24,7 @@
                                     <ui:Button DockPanel.Dock="Right" Content="选择文件" Click="PickOriginal" Margin="8,0,0,0"/>
                                     <StackPanel>
                                         <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding Status}" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
