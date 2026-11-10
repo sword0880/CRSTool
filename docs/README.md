@@ -12,6 +12,9 @@
 | 待处理问题 | [问题与验收缺口](KNOWN_ISSUES.md) | 集中跟踪仍未关闭的问题 |
 | 发布门槛 | [发布验收](validation/RELEASE_ACCEPTANCE.md) | 发布是否通过的唯一验收入口 |
 | 开发约定 | [开发规范](architecture/CRS开发规范.md) | 编码、边界和协作约束 |
+| 架构整改 | [唯一整改主计划](architecture/ARCHITECTURE_REMEDIATION_PLAN.md) | ARCH 编号、整改顺序和关闭条件 |
+| 安全与认证 | [安全规范](specifications/security/README.md) | 安全架构、TOTP 与 Hello 边界 |
+| 税务规则 | [税务规范](specifications/tax/README.md) | 法律适用性、计算实现与证据链 |
 | 使用与账户导入 | [使用指南](guides/README.md) | 券商导入、账户、保险库和隐私 |
 | 后台服务部署 | [Worker升级与恢复](deployment/WORKER_UPGRADE_AND_RECOVERY.md) | 安装、升级、恢复与部署操作 |
 | 国家队研究 | [国家队模块文档](modules/national-team/README.md) | ETF、直接持股、披露证据、NAV、预警和南向研究 |

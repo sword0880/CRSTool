@@ -2,6 +2,8 @@
 
 更新日期：2026-10-10。本文描述代码中的辅助算法，抵免部分已核对官方公告，也不把软件公式声明为所有账户适用的申报结论。未完成的证据与适用边界见 [问题清单](../KNOWN_ISSUES.md)。
 
+> **文档职责：** 本文只描述当前 TaxEngine 实际公式、PolicyVersion 和已知实现限制；不决定这些公式在某个纳税年度/证券市场是否具有法律适用性（见 [税务规则验证规范](../specifications/tax/TAX_RULE_VALIDATION.md)），也不定义一次计算的完整输入/输出证据封套（见 [计算证据规范](../specifications/calculation/CALCULATION_EVIDENCE_SPEC.md)）。FIFO 成本匹配细节见 [FIFO 计算实现约定](CAPITAL_GAIN_FIFO_SPEC.md)。法律适用性和计算证据均不能仅凭本文的代码事实认定通过。
+
 ## 规则与金额
 
 [TaxEngine](../../src/CRS.Domain/TaxRules/TaxEngine.cs) 的 PolicyVersion 为 V2-2026-10，继续沿用项目辅助口径：

@@ -36,7 +36,7 @@
 | [规范快照](CANONICAL_VALIDATION.md) | 版本、结构、上限与损坏拒绝 |
 | [冻结证据](FROZEN_EVIDENCE.md) | 不可变结果、固定编码、程序集与载荷摘要 |
 | [FIFO](CAPITAL_GAIN_FIFO_SPEC.md) | 身份、排序、成本、费用与结转 |
-| [税额引擎](TAX_ENGINE_SPEC.md) | 当前规则、复核与计算范围 |
+| [税额引擎当前实现](TAX_ENGINE_SPEC.md) | 当前 PolicyVersion、公式和代码边界；法律适用性见税务规则验证规范 |
 | [金额展示](AMOUNT_PRESENTATION.md) | 公式金额、预计值及未知与零的区别 |
 | [投资绩效](PERFORMANCE_ANALYTICS.md) | 导入、净值/TWR/XIRR、证据、历史与导出 |
 

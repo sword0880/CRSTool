@@ -8,7 +8,7 @@
 > 日期：2026-10-13  
 > 适用项目：CRS（.NET 10 / WPF / SQLCipher / 完全离线）  
 > 需求定位：新增独立的“海外投资绩效中心”，与既有税务计算中心并列。  
-> 约束：本文件定义新模块需求，不替代 `TAX_ENGINE_SPEC.md`、`CAPITAL_GAIN_FIFO_SPEC.md`、`EXCHANGE_RATE_SOURCES.md`、`FUTU_FIELD_MAPPING.md`、`IBKR_IMPORT_GUIDE.md`、`CALCULATION_EVIDENCE_SPEC.md` 等既有规范；实际字段及实现以项目当前已生效规范为准，冲突须显式评审。
+> 约束：本文件定义绩效模块需求，不替代税额引擎实现、FIFO 算法、汇率/导入规范和 `calculation/CALCULATION_EVIDENCE_SPEC.md`。税务法律适用性由 `tax/TAX_RULE_VALIDATION.md` 管理；绩效与税务共用计算证据契约，但各自保留独立算法和黄金样本。
 
 ---
 

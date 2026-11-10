@@ -1,3 +1,7 @@
+> **归档说明（2026-10-13）**：本文保留早期安全整改方案，不再作为当前规范或实现状态来源。当前安全架构以 [SECURITY_DESIGN.md](../../specifications/security/SECURITY_DESIGN.md) 为准；TOTP 细节以 [SECURITY_AUTH_SPEC.md](../../specifications/security/SECURITY_AUTH_SPEC.md) 为准；实际代码行为以 [AUTH_IMPLEMENTATION.md](../../guides/AUTH_IMPLEMENTATION.md) 和 [WINDOWS_HELLO.md](../../implementation/WINDOWS_HELLO.md) 为准。旧文档中的未实现状态、AUTH-001～024 编号和目标结构只代表原始日期，不得覆盖当前实现与验收记录。
+
+---
+
 # CRS 项目离线身份认证与数据安全整改规范
 
 > 文件名：`CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md`  

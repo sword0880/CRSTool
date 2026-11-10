@@ -7,6 +7,8 @@
 ## 归档索引
 
 - [国家队历史设计与评审](national-team/README.md)
+- [历史架构整改计划](architecture/README.md)
+- [历史安全整改方案](security/README.md)
 - [历史反方评审](ADVERSARIAL_REVIEW.md)
 - [历史合并指南](MERGE_GUIDE.md)
 - [历史发布验收轮次](RELEASE_ACCEPTANCE_HISTORY.md)

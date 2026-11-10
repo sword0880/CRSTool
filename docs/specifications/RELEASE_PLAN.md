@@ -4,7 +4,7 @@
 >
 > 版本：1.0（2026-10-10）｜适用：.NET 10 / WPF (`net10.0-windows10.0.19041.0`) / SQLite + Dapper / 目标 SQLCipher 加密保险库。
 >
-> **权威发布状态**以 `../validation/RELEASE_ACCEPTANCE.md` 的验收证据和 `acceptance.json` 为准。现有文档记录 `ReleaseApproved=false`；**只有权利人和业务验收责任人可以最终放行**。本规范不单独变更发布状态，不覆盖 Work 正在实施的 `SECURITY_DESIGN.md`。
+> **权威发布状态**以 `../validation/RELEASE_ACCEPTANCE.md` 的验收证据和 `acceptance.json` 为准。现有文档记录 `ReleaseApproved=false`；**只有权利人和业务验收责任人可以最终放行**。本规范不单独变更发布状态，不覆盖 [安全设计基线](security/SECURITY_DESIGN.md)。
 
 ## 1. 产品版本与发布策略
 
@@ -30,7 +30,7 @@
 - 所得来源国、分类、成本认定、**不同市场与证券类型股票转让的特别税制**、可抵免税及法定凭证尚待人工核验；
 - 历史复算缺冻结规则/输入/执行证据，或税额状态标记不允许给出预计补税。
 
-继续遵守既有四维状态：`CalculationStatus`、`DataCompleteness`、`ReconciliationStatus`、`UsageLabel`。`Summary.SupplementTax` 不得被 UI 或导出偷换成受门槛限制的 `EstimatedTopUpCny`。适用性验证以 `TAX_RULE_VALIDATION.md` 为准，证据链以 `CALCULATION_EVIDENCE_SPEC.md` 为准。
+继续遵守既有四维状态：`CalculationStatus`、`DataCompleteness`、`ReconciliationStatus`、`UsageLabel`。`Summary.SupplementTax` 不得被 UI 或导出偷换成受门槛限制的 `EstimatedTopUpCny`。适用性验证以 `tax/TAX_RULE_VALIDATION.md` 为准，证据链以 `calculation/CALCULATION_EVIDENCE_SPEC.md` 为准。
 
 ## 3. 发布包方案选型
 
@@ -109,7 +109,7 @@ Windows 软件分发需验证代码签名证书、签名密钥保管、安装包
 | `G1` | 数据安全 | 主密码/恢复密钥、SQLCipher、**离线 TOTP/扫码绑定/原子防重放/MFA 恢复码**、旧明文库拒绝、10 分钟锁定、加密一致性备份、跨设备恢复、敏感信息与日志扫描全部通过 | SEC-01～06 |
 | `G2` | 业务正确性 | FIFO 金额/费用守恒、真实 IBKR/Futu 全年及期初/现金/收入基准、多账户归并、反例、不确定值/状态门槛通过 | AR-06/07/12 |
 | `G3` | 可追溯与复算 | 输入一致性、规范化契约、执行版本/输出摘要、历史冻结、原子导出、旧版阻断用例通过 | AR-03/05/08/09/10/11 |
-| `G4` | 税务适用边界 | `TAX_RULE_VALIDATION.md` 规则状态与限制清楚；对未签认场景（含股票转让特别税制）不声称最终税额/可直接申报 | AR-06、TAX |
+| `G4` | 税务适用边界 | `tax/TAX_RULE_VALIDATION.md` 规则状态与限制清楚；对未签认场景（含股票转让特别税制）不声称最终税额/可直接申报 | AR-06、TAX |
 | `G5` | 依赖与法律 | 所有最终分发 NuGet + 原生二进制的许可证/NOTICE 核验；本项目许可证确定；隐私、用户条款和非税务建议声明通过审阅 | AR-12 / SEC-09 |
 | `G6` | 打包/安装 | 签名、干净 Windows 设备安装、离线运行、卸载后用户数据政策、升级回滚、数据库不被覆盖、AV 兼容测试 | SEC-08/09 |
 | `G7` | 性能与稳定性 | 业务认可的耗时/内存阈值、万级/十万级合成与真实样本、异常/取消/磁盘满测试 | AR-12 |
@@ -235,9 +235,9 @@ artifacts/
 
 | 文件 | 职责 | 本次与 Work 并行的注意事项 |
 | --- | --- | --- |
-| `SECURITY_DESIGN.md` | 密码、密钥、SQLCipher、锁定、备份、拒绝明文库 | **由 Work 的安全实施实际结果更新**，本文件不重复定义密码学接口 |
-| `TAX_RULE_VALIDATION.md` | 具体税务规则的法律适用/验收 | 不直接改 `TaxEngine` 公式；先完成差异矩阵和样例 |
-| `CALCULATION_EVIDENCE_SPEC.md` | 证据封套、一次读取、冻结、输出摘要和复算 | 不绕过应用解锁；加密库下保存证据 |
+| `security/SECURITY_DESIGN.md` | 密码、密钥、SQLCipher、锁定、备份、拒绝明文库 | **由 Work 的安全实施实际结果更新**，本文件不重复定义密码学接口 |
+| `tax/TAX_RULE_VALIDATION.md` | 具体税务规则的法律适用/验收 | 不直接改 `TaxEngine` 公式；先完成差异矩阵和样例 |
+| `calculation/CALCULATION_EVIDENCE_SPEC.md` | 证据封套、一次读取、冻结、输出摘要和复算 | 不绕过应用解锁；加密库下保存证据 |
 | `../validation/RELEASE_ACCEPTANCE.md` | 现有发布门禁及结果 | 只有在真实运行/验收后同步修改，不凭计划更改批准状态 |
 | `KNOWN_ISSUES.md` | AR / SEC 事项唯一任务跟踪入口 | 实施后补验收证据和状态，避免创建平行任务清单 |
 | `PRIVACY.md` | **当前**个人数据存储/网络事实 | Work 完成后按实测更新，不提前宣称已加密 |
@@ -248,6 +248,6 @@ artifacts/
 
 ### TOTP 发布门禁新增项（P0）
 
-`SECURITY_AUTH_SPEC.md` 为离线认证的专项规范；与 `SECURITY_DESIGN.md`、`KNOWN_ISSUES.md` 配套。`G1` 须有 `AUTH-01`～`AUTH-18` 的可审计结果，至少覆盖 RFC6238、Microsoft Authenticator 断网互操作、绑定失败、TOTP 重放/并发、限制次数、10 分钟锁定、手机丢失恢复、跨机恢复以及不支持明文库。不能因为主密码和 SQLCipher 测试通过就宣布 MFA 已完成。
+[离线 TOTP 认证规范](security/SECURITY_AUTH_SPEC.md)为认证专项契约；与[安全设计基线](security/SECURITY_DESIGN.md)、`KNOWN_ISSUES.md` 配套。`G1` 须有 `AUTH-01`～`AUTH-18` 的可审计结果，至少覆盖 RFC6238、Microsoft Authenticator 断网互操作、绑定失败、TOTP 重放/并发、限制次数、10 分钟锁定、手机丢失恢复、跨机恢复以及不支持明文库。不能因为主密码和 SQLCipher 测试通过就宣布 MFA 已完成。
 
 > 这是从 2026-10-10 Library 文档快照生成的合并候选稿。若正在修改安全/加密规范，先做逐节差异合并，不能覆盖更新中的正文。

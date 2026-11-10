@@ -1,14 +1,21 @@
 # 设计与目标规范
 
-这些文件是设计基线、目标契约和验收要求，可能包含未实现能力；不能把目标条款视为现有功能。当前行为见 [实现说明](../implementation/README.md) 和 [使用指南](../guides/README.md)，实际完成程度见 [当前待办](../KNOWN_ISSUES.md)。
+本目录只保存**目标契约、设计基线和验收要求**，不作为当前代码状态的第二份记录。当前实现见 [implementation/](../implementation/README.md)，实际发布资格见 [发布验收](../validation/RELEASE_ACCEPTANCE.md)，未关闭事项见 [KNOWN_ISSUES](../KNOWN_ISSUES.md)。
 
-- [计算证据目标契约](CALCULATION_EVIDENCE_SPEC.md)
-- [发布交付计划](RELEASE_PLAN.md)
-- [海外投资收益率统计需求基线](PERFORMANCE_ANALYTICS_SPEC.md)：待开发评审的目标规范。
-- [离线认证规范](SECURITY_AUTH_SPEC.md)
-- [安全设计基线](SECURITY_DESIGN.md)
-- [税务规则验证规范](TAX_RULE_VALIDATION.md)
-- [离线认证与安全整改基线](CRS_OFFLINE_AUTH_SECURITY_REMEDIATION.md)：目标方案；按用户确认已接入首次明确选择 Hello，其余目标不能视为全部完成，实际边界见 [Hello 当前实现](../implementation/WINDOWS_HELLO.md)。
+## 按领域浏览
 
-[返回文档首页](../README.md)
+- [安全与认证规范](security/README.md) — 数据安全架构、离线 TOTP 认证及其实现边界
+- [税务规则与适用性](tax/README.md) — 法规来源、所得分类、独立复核与场景放行
+- [计算证据与确定性复算](calculation/README.md) — 税务与绩效共用的输入、版本、冻结结果和复算证据
 
+## 其他产品与发布规范
+
+- [发布交付计划](RELEASE_PLAN.md) — 版本阶段、交付要求和发布职责
+- [海外投资收益率统计需求基线](PERFORMANCE_ANALYTICS_SPEC.md) — 绩效模块需求；真实金额验收仍以专项证据为准
+
+## 文档职责原则
+
+- 安全架构不定义税务公式；税务规则不定义认证和密钥；计算证据不替代法规适用性签认。
+- 规范说明“应该满足什么”，实现文档说明“当前代码做了什么”，验证文档说明“哪些条件已被证据证明”。
+- 任何文件中出现的“已实现”均需指向对应实现记录；出现“已通过”均需指向可复核的测试或验收证据。
+- 不以复制一份旧设计来保留历史；被替代的设计移入 `archive/`，并保留归档说明和当前入口。
