@@ -10,7 +10,7 @@
 > **更新日期：2026-10-15；版本：v2.2（Windows Service后台运行专项同步）**  
 > 状态：**有条件通过；免费数据通道M0、真实WPF插件POC和升级恢复P0尚未验证**  
 > 技术：C# / .NET 10 / WPF / SQLite(可选SQLCipher)  
-> **总体架构依据：**[CRS_PLUGIN_ARCHITECTURE.md](../../architecture/PLUGIN_ARCHITECTURE.md)；**后台技术唯一专项依据：**[CRS_BACKGROUND_SERVICE_DESIGN.md](../../architecture/BACKGROUND_SERVICE_DESIGN.md)  
+> **总体架构依据：**[插件化总体架构](../../architecture/PLUGIN_ARCHITECTURE.md)；**后台技术唯一专项依据：**[后台任务服务设计](../../architecture/BACKGROUND_SERVICE_DESIGN.md)  
 > 第一阶段：中央汇金及国家队**核心宽基ETF，监控数量按用户配置**；初始链路验证5只。20仅指表格约20行的可见空间，更多记录滚动查看，不限制启用数量。
 > 后续：扩展**中央汇金等机构对上市公司的直接持股/增减持披露研究**，不把股票“国家队持仓”误作实时交易。
 
@@ -66,7 +66,7 @@
 - **主程序改动仅限**：初始化`CRS.PluginHost`、暴露插件管理入口、导航贡献点、启停状态与错误面板；一期官方发行包预装，不开发任意ZIP安装入口。
 - **禁止更改**税务FIFO/汇率/账户导入业务规则来满足ETF功能；插件不能拿税务连接、密钥、TOTP信息。
 - **新功能优先插件化，但不泛化所有小功能**：插件适合有独立数据、生命周期、页面和版本的模块。宿主公共控件、安全升级或已有税务Bug修复仍在原项目内。
-- 通用宿主架构、加载边界、升级回滚及跨插件权限以`CRS_PLUGIN_ARCHITECTURE.md`为准，本文只描述`NationalTeamWatch`业务插件，防止未来多个文档定义冲突的宿主契约。
+- 通用宿主架构、加载边界、升级回滚及跨插件权限以`docs/architecture/PLUGIN_ARCHITECTURE.md`为准，本文只描述`NationalTeamWatch`业务插件，防止未来多个文档定义冲突的宿主契约。
 
 ## 2. 插件架构——实施级边界和代码结构
 
@@ -88,7 +88,7 @@ CRS.Worker.Service（Windows服务账户，无界面）
 UI不直接写Quartz库/market.db，不创建第二套定时任务。
 ```
 
-**第一期物理发布至少Core/Jobs与Ui分离**，二者由同一个`plugin.json`发行和管理。后台服务独立于WPF运行；在服务未安装/未启动时，ETF页面可展示缓存状态与明确的“后台服务不可用”，不能暗中启动WPF自有Quartz降级造成双调度。后台宿主的权威协议见[CRS_BACKGROUND_SERVICE_DESIGN.md](../../architecture/BACKGROUND_SERVICE_DESIGN.md)。
+**第一期物理发布至少Core/Jobs与Ui分离**，二者由同一个`plugin.json`发行和管理。后台服务独立于WPF运行；在服务未安装/未启动时，ETF页面可展示缓存状态与明确的“后台服务不可用”，不能暗中启动WPF自有Quartz降级造成双调度。后台宿主的权威协议见[后台任务服务设计](../../architecture/BACKGROUND_SERVICE_DESIGN.md)。
 
 ### 2.2 依赖约束
 
@@ -221,7 +221,7 @@ public interface IPluginHostContext
 
 ### 4.2 每个数据源的POC记录模板
 
-建议固定输出`DATA_SOURCE_POC.md`，一行一个场景：
+建议固定输出`docs/validation/national-team/DATA_SOURCE_POC_20261014.md`，一行一个场景：
 
 | 检查项目 | 通过标准 |
 |---|---|
@@ -622,8 +622,8 @@ public interface IEtfShareSource
 
 | 里程碑 | 交付物 | 关键验收门槛 |
 |---|---|---|
-| M0 接口与许可POC | `DATA_SOURCE_POC.md`、5ETF样本证据、历史范围报告 | SSE/SZSE各至少一条合法自动数据路径验证，否则只发布离线研究预览 |
-| M1 通用双宿主与Service | `CRS_PLUGIN_ARCHITECTURE.md`、后台专项文档、WPF插件宿主+Windows Service/Quartz+Named Pipes、假插件 | 未登录Windows仍可运行公开数据作业；SQLCipher Cron配置持久且Quartz触发器重建；无第二调度器；真实WPF加载、包验证与权限测试 |
+| M0 接口与许可POC | `docs/validation/national-team/DATA_SOURCE_POC_20261014.md`、5ETF样本证据、历史范围报告 | SSE/SZSE各至少一条合法自动数据路径验证，否则只发布离线研究预览 |
+| M1 通用双宿主与Service | `docs/architecture/PLUGIN_ARCHITECTURE.md`、后台专项文档、WPF插件宿主+Windows Service/Quartz+Named Pipes、假插件 | 未登录Windows仍可运行公开数据作业；SQLCipher Cron配置持久且Quartz触发器重建；无第二调度器；真实WPF加载、包验证与权限测试 |
 | M2 ETF数据底座 | SSE/SZSE Source、RawStore、双时间轴、历史回补、确定性窗口重算 | 幂等、断点、可审计，不沿用旧NAV，不把缺口计零 |
 | M3 ETF一期交付 | 可配置监控、约20行可滚动表格、份额历史图、同步中心、证据下钻；金额归集仅在官方NAV通过后增量启用 | 5只POC通过；超过20只仍可启用/保存并滚动查看；无国家队交易错误归因 |
 | M4 发布门槛 | 自动采集连续性验证、WPF加载、迁移回滚、税务回归 | 新增POC-09..12与核心PLG/DATA测试通过；手动版不得标自动版 |
@@ -639,7 +639,7 @@ public interface IEtfShareSource
 
 ## 14. 工作拆解（开发Issue建议）
 
-- `ETF-001`：官网数据源与许可POC，保留原始网页数据样本，出具`DATA_SOURCE_POC.md`。
+- `ETF-001`：官网数据源与许可POC，保留原始网页数据样本，出具`docs/validation/national-team/DATA_SOURCE_POC_20261014.md`。
 - `PLG-001`：插件SDK、官方预装manifest可信哈希验证与版本兼容；不开发第三方任意安装器。
 - `PLG-002`：CRS启动生命周期注册、导航贡献点、故障降级。
 - `PLG-003`：插件私有数据目录、WAL安全快照、候选库迁移、UpgradeJournal强杀恢复、RawStore引用核对与启停管理。
@@ -707,6 +707,6 @@ public interface IEtfShareSource
 10. WPF XAML在ALC的兼容性议题：<https://github.com/dotnet/wpf/issues/1700>
 11. SQLite在线备份与WAL：<https://www.sqlite.org/backup.html>、<https://www.sqlite.org/wal.html>
 12. CRS公开项目结构与绩效当前状态：<https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/architecture/PROJECT_STRUCTURE.md>
-13. CRS通用插件宿主规范（本项目配套文件）：[CRS_PLUGIN_ARCHITECTURE.md](../../architecture/PLUGIN_ARCHITECTURE.md)
+13. CRS通用插件宿主规范（本项目配套文件）：[插件化总体架构](../../architecture/PLUGIN_ARCHITECTURE.md)
 
 > 核实声明：本轮还核实了CRS公开`CRS.sln`、`CRS.Desktop.Wpf.csproj`、`docs/architecture/PROJECT_STRUCTURE.md`和既有绩效规格。交易所公开页面不等于稳定正式API；**仍未验证当前两市内部数据接口可持续合法调用**，也未执行本地WPF/插件编译测试。所有HTTP参数、历史范围、发布许可与实际软件兼容性，均以M0/A-0现场POC为准。

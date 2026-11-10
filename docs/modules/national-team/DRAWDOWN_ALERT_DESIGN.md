@@ -3,7 +3,7 @@
 > **当前实施状态唯一入口**：[国家队披露证据与通知实施记录](../../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-exit-alert-implementation)。本文是增量业务设计与验收基线，不替代实际代码、运行回执或当前发布验收。
 
 > **文档性质**：增量技术设计（实施建议）＋反方架构审查＋验收计划  
-> **建议文件名（入库时）**：`docs/modules/national-team/DRAWDOWN_ALERT_DESIGN.md`  
+> **当前文件路径**：`docs/modules/national-team/DRAWDOWN_ALERT_DESIGN.md`  
 > **版本**：v1.0 · 2026-10-19  
 > **状态**：**有条件通过（Conditional Go）**；研究预览已实现，真实历史与正式发布尚未通过；当前实施状态见下方补充
 > **目标仓库**：https://github.com/sword0880/CRSTool/tree/main  
