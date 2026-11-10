@@ -6,7 +6,7 @@
 >
 > **单一事实原则：** 当前实现以 `../../implementation/TAX_ENGINE_SPEC.md`、`../../implementation/CAPITAL_GAIN_FIFO_SPEC.md`、`../../guides/FOREIGN_CREDIT_REVIEW.md` 和实际源码为准。本文件只规范规则来源、验证和上线门槛；对法律适用的判断必须经独立复核，不得凭本文把辅助结果升级为申报结论。
 
-> **职责边界：** 本文只管理法规来源、所得分类/适用条件、规则状态、独立复核和税务场景放行门槛；不定义或直接修改 TaxEngine/FIFO 公式，也不替代单次计算证据。当前计算实现见 [税额引擎当前实现](../../../implementation/TAX_ENGINE_SPEC.md)，FIFO 行为见 [FIFO 计算实现约定](../../../implementation/CAPITAL_GAIN_FIFO_SPEC.md)，计算证据见 [计算证据与确定性复算规范](../calculation/CALCULATION_EVIDENCE_SPEC.md)，抵免资料操作见 [境外税额抵免复核](../../../guides/FOREIGN_CREDIT_REVIEW.md)。
+> **职责边界：** 本文只管理法规来源、所得分类/适用条件、规则状态、独立复核和税务场景放行门槛；不定义或直接修改 TaxEngine/FIFO 公式，也不替代单次计算证据。当前计算实现见 [税额引擎当前实现](../../implementation/TAX_ENGINE_SPEC.md)，FIFO 行为见 [FIFO 计算实现约定](../../implementation/CAPITAL_GAIN_FIFO_SPEC.md)，计算证据见 [计算证据与确定性复算规范](../calculation/CALCULATION_EVIDENCE_SPEC.md)，抵免资料操作见 [境外税额抵免复核](../../guides/FOREIGN_CREDIT_REVIEW.md)。
 
 ## 1. 目的与适用范围
 

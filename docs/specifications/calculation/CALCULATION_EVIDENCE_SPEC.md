@@ -6,9 +6,9 @@
 >
 > 现状依据：`../../architecture/API_SPEC.md`、`../../implementation/CAPITAL_GAIN_FIFO_SPEC.md`、`../../implementation/TAX_ENGINE_SPEC.md`、`../../guides/FOREIGN_CREDIT_REVIEW.md`、`../../KNOWN_ISSUES.md`、`../../architecture/SAD.md`。本文件重点承接 `AR-03`、`AR-08`、`AR-09`、`AR-10`、`AR-11`；`AR-02`、`AR-04` 中的已完成逻辑应保留，不重新定义 FIFO 算法。
 
-2026-10-11 实施进展：AR-08 已在当前 IBKR 活动／期初及富途 XLSX／PDF 路径接入单次冻结字节与同源摘要，具体机制与限制见 [INPUT_CONSISTENCY.md](../../../implementation/INPUT_CONSISTENCY.md)。AR-11 导出取消与原子提交也已有自动证据；本目标契约的其他要求仍不能视为全部完成。
+2026-10-11 实施进展：AR-08 已在当前 IBKR 活动／期初及富途 XLSX／PDF 路径接入单次冻结字节与同源摘要，具体机制与限制见 [INPUT_CONSISTENCY.md](../../implementation/INPUT_CONSISTENCY.md)。AR-11 导出取消与原子提交也已有自动证据；本目标契约的其他要求仍不能视为全部完成。
 
-AR-09 结构部分见 [CANONICAL_VALIDATION.md](../../../implementation/CANONICAL_VALIDATION.md)。后续已接入结果冻结、三个计算程序集指纹、持久载荷摘要、固定编码及新任务程序文件归档，详见 [FROZEN_EVIDENCE.md](../../../implementation/FROZEN_EVIDENCE.md)和[DATABASE_UPGRADE.md](../../../implementation/DATABASE_UPGRADE.md)。这不是下文全部目标封套：桌面／安全程序集及运行时／依赖完整身份、跨版本兼容与全部旧格式迁移仍开放。
+AR-09 结构部分见 [CANONICAL_VALIDATION.md](../../implementation/CANONICAL_VALIDATION.md)。后续已接入结果冻结、三个计算程序集指纹、持久载荷摘要、固定编码及新任务程序文件归档，详见 [FROZEN_EVIDENCE.md](../../implementation/FROZEN_EVIDENCE.md)和[DATABASE_UPGRADE.md](../../implementation/DATABASE_UPGRADE.md)。这不是下文全部目标封套：桌面／安全程序集及运行时／依赖完整身份、跨版本兼容与全部旧格式迁移仍开放。
 
 > **职责边界：** 本文定义跨税务与绩效计算的输入快照、来源摘要、规则/程序集版本、冻结输出、复算资格和证据封套；不定义税法适用性（见 [税务规则验证规范](../tax/TAX_RULE_VALIDATION.md)），不定义 TaxEngine/FIFO 算法（见 implementation 文档），也不负责密钥/加密格式（见 [安全设计](../security/SECURITY_DESIGN.md)）。
 
