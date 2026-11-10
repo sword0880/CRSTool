@@ -76,7 +76,7 @@
      </StackPanel></Expander>
      <Border BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,16"/>
      <CheckBox IsChecked="{Binding ScopeConfirmed}" Visibility="{Binding IsIbkr, Converter={StaticResource BooleanVisibility}}" Margin="0,0,0,16"><TextBlock Text="确认报告未过滤账户、证券或现金类型" TextWrapping="Wrap"/></CheckBox>
-     <TextBlock Visibility="{Binding IsFutu, Converter={StaticResource BooleanVisibility}}" Text="系统按富途年度交易报表与收入主表自动核对账户范围。" TextWrapping="Wrap" Margin="0,0,0,16" Foreground="#64748B"/>
+     <TextBlock Visibility="{Binding IsFutu, Converter={StaticResource BooleanVisibility}}" Text="系统按富途年度交易报表与收入主表自动核对账户范围。" TextWrapping="Wrap" Margin="0,0,0,16" Foreground="{DynamicResource BrandTextHintBrush}"/>
      <CheckBox IsChecked="{Binding SaveCanonicalSnapshot}"><TextBlock Text="保存可重放规范化快照（含敏感数据）" TextWrapping="Wrap"/></CheckBox>
     </StackPanel></Border>
    </Grid>
