@@ -1,5 +1,7 @@
 # 具名ETF持有人披露原件核对
 
+> **本地证据文件说明**：文中标注的 artifacts/ 路径属于本地验收工作区产物，当前未纳入 Git 仓库，因此不能在 GitHub 页面直接打开。复核时必须取得对应原始文件；缺少原件时，不得仅凭摘要认定验收通过。
+
 日期：2026-10-27。范围仅为510300两期公开年报的来源发现、原件保存、页面核对及待审解析样本；没有登记正式持仓、人工确认字段或通知。不能代表用户全部启用ETF已完成持仓跟踪。
 
 ## 原件与报告身份
@@ -9,7 +11,7 @@
 | [上交所2025年报](https://www.sse.com.cn/disclosure/fund/announcement/c/new/2026-03-31/510300_20260331_W6CZ.pdf) | 2025-12-31 | 2026-03-31 | 75，脚注续76 | `9790CC85C6EE6611D52E653F4154632EFF35D588185D1269CADC77082F5FB4C4` |
 | [上交所2024年报](https://www.sse.com.cn/disclosure/fund/announcement/c/new/2025-03-31/510300_20250331_07Z1.pdf) | 2024-12-31 | 2025-03-31 | 72 | `6EABBDBAD90860C41F87DFBE5EB2402780F3D8531A49C13EF4A20AB175820B92` |
 
-原始PDF分别为[2025原件](../../artifacts/national-team-etf-holder-source-review-20261027/510300-2025.pdf)（2,653,317字节、83页）和[2024原件](../../artifacts/national-team-etf-holder-source-review-20261027/510300-2024.pdf)（2,533,438字节、81页）。[2025取得回执](../../artifacts/national-team-etf-holder-source-review-20261027/510300-2025-receipt.json)与[2024取得回执](../../artifacts/national-team-etf-holder-source-review-20261027/510300-2024-receipt.json)保存URL、实际取得时间、长度和哈希。
+原始PDF分别为2025原件（本地验收产物：`artifacts/national-team-etf-holder-source-review-20261027/510300-2025.pdf`，未纳入仓库）（2,653,317字节、83页）和2024原件（本地验收产物：`artifacts/national-team-etf-holder-source-review-20261027/510300-2024.pdf`，未纳入仓库）（2,533,438字节、81页）。2025取得回执（本地验收产物：`artifacts/national-team-etf-holder-source-review-20261027/510300-2025-receipt.json`，未纳入仓库）与2024取得回执（本地验收产物：`artifacts/national-team-etf-holder-source-review-20261027/510300-2024-receipt.json`，未纳入仓库）保存URL、实际取得时间、长度和哈希。
 
 本机首次受限网络无法访问代理，正常权限的.NET读取又遇到TLS连接错误；后续使用运行环境Python的默认证书校验成功读取同一官方URL，未关闭证书校验、未改变系统信任。该研究取得路径不能充当正式Worker网关可用性或自动采集验收。
 
@@ -24,9 +26,9 @@
 | 2025-12-31 | 中央汇金投资有限责任公司 | 35,654,598,859.00 | 40.14% |
 | 2025-12-31 | 中央汇金资产管理有限责任公司 | 37,858,474,974.00 | 42.62% |
 
-已查看完整[2025持有人页](../../artifacts/national-team-etf-holder-source-review-20261027/2025-report-75.png)和[2024持有人页](../../artifacts/national-team-etf-holder-source-review-20261027/2024-report-72.png)。两表实际各有11条，联接基金另列且脚注明确“前十”排除联接基金；不能写死只有10行或把第11条误判为重复。原文名称跨行，PDF表格还含合并单元格导致的空列；首次按固定4列抽取失败，改为核对表头及非空合并列后取得两期各11行。
+已查看完整2025持有人页（本地验收产物：`artifacts/national-team-etf-holder-source-review-20261027/2025-report-75.png`，未纳入仓库）和2024持有人页（本地验收产物：`artifacts/national-team-etf-holder-source-review-20261027/2024-report-72.png`，未纳入仓库）。两表实际各有11条，联接基金另列且脚注明确“前十”排除联接基金；不能写死只有10行或把第11条误判为重复。原文名称跨行，PDF表格还含合并单元格导致的空列；首次按固定4列抽取失败，改为核对表头及非空合并列后取得两期各11行。
 
-待审结果保存在[候选表格JSON](../../artifacts/national-team-etf-holder-source-review-20261027/510300-holder-table-candidates.json)，保留原始换行姓名、规范化名称、单位、页码、哈希及空的公告时刻。状态为`UnreviewedSourceCandidate`，`OriginalConfirmed=false`、`InstalledDatabaseChanged=false`。Python仅用于研究对照；后续C#后台解析与隔离验证单独记于[候选接线](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holder-candidates)，不能将解析接线当作人工审核或正式安装验收。
+待审结果保存在候选表格JSON（本地验收产物：`artifacts/national-team-etf-holder-source-review-20261027/510300-holder-table-candidates.json`，未纳入仓库），保留原始换行姓名、规范化名称、单位、页码、哈希及空的公告时刻。状态为`UnreviewedSourceCandidate`，`OriginalConfirmed=false`、`InstalledDatabaseChanged=false`。Python仅用于研究对照；后续C#后台解析与隔离验证单独记于[候选接线](../implementation/NATIONAL_TEAM_EVIDENCE.md#national-team-etf-holder-candidates)，不能将解析接线当作人工审核或正式安装验收。
 
 ## 后续接线要求
 
