@@ -76,7 +76,7 @@ internal sealed class AiReadPolicyGateway : IAiReadGateway
             ? call.Tool : "unlisted";
         var validSubject = caller is not null &&
             !string.IsNullOrWhiteSpace(caller.Subject) && caller.Subject.Length <= 256;
-        var subjectHash = validSubject ? Fingerprint(caller.Subject) : "unverified";
+        var subjectHash = validSubject && caller is not null ? Fingerprint(caller.Subject) : "unverified";
         var argumentHash = ArgumentsFingerprint(call);
         var requestId = Guid.NewGuid();
         var start = new AiReadAuditEvent(requestId, DateTimeOffset.UtcNow,
