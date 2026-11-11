@@ -159,8 +159,8 @@ var budgetWorker = new FakeWorker();
 var budgetAudit = new FakeAuditSink();
 var budgetGate = AiReadGatewayFactory.Create(budgetWorker, budgetAudit,
     new AiReadPolicyLimits(1, 2, 4));
-var budgetFirst = await budgetGate.ExecuteAsync(caller, Overview(), default);
-var budgetSecond = await budgetGate.ExecuteAsync(caller, Overview(), default);
+var budgetFirst = await new McpReadToolAdapter(budgetGate).CallToolAsync(caller, Overview(), default);
+var budgetSecond = await new OpenAiFunctionReadAdapter(budgetGate).ExecuteFunctionAsync(caller, Overview(), default);
 Check(budgetFirst.Status == "Partial" && budgetSecond.Code == "BudgetExceeded" &&
       budgetWorker.Calls == 1 && budgetAudit.Entries.Count == 4,
       "双入口共享每主体窗口预算，拒绝仍记录审计结果");
