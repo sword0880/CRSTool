@@ -83,7 +83,7 @@ internal sealed class AiReadPolicyGateway : IAiReadGateway
             subjectHash, safeTool, "Attempt", "Received", argumentHash);
         if (!await WriteAuditAsync(start)) return AiResult.Reject(safeTool, "AuditUnavailable");
 
-        if (!validSubject || !caller.PublicResearchAuthorized)
+        if (caller is null || !validSubject || !caller.PublicResearchAuthorized)
             return await FinishAsync(start, AiResult.Reject(safeTool, "Unauthorized"));
         // Unknown tools and invalid arguments also consume caller budget: model-driven
         // retries must not turn the audit path into an unlimited request channel.
