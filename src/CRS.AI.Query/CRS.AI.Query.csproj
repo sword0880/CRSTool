@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><Version>0.1.0</Version><TargetFramework>net10.0-windows</TargetFramework></PropertyGroup>
+ <ItemGroup>
+  <ProjectReference Include="../CRS.AI.Contracts/CRS.AI.Contracts.csproj" />
+  <ProjectReference Include="../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
+ </ItemGroup>
+</Project>
