@@ -35,7 +35,8 @@ RejectWire("coverage", """{"Operation":"coverage","Count":10000,"Offset":0,"Cont
     "IPC 二次校验拒绝无界读取");
 
 var fake = new FakeWorker();
-var gateway = new AiReadQueryService(fake);
+var audit = new FakeAuditSink();
+var gateway = AiReadGatewayFactory.Create(fake, audit, new AiReadPolicyLimits(100, 2, 16));
 var caller = new AiCaller("trusted-local-test", true);
 var mcp = new McpReadToolAdapter(gateway);
 var openai = new OpenAiFunctionReadAdapter(gateway);
@@ -131,6 +132,64 @@ Check((await gateway.ExecuteAsync(caller, Overview(), cancelled.Token)).Code == 
 Check(fake.Operations.All(x => x is "overview" or "coverage") &&
       fake.Payloads.All(x => !x.Contains("RunNow") && !x.Contains("Save") && !x.Contains("export")),
       "全部可达 IPC 路径均为固定只读业务查询");
+// The mandatory gateway factory is shared by both protocol adapters. Audit is a
+// write-before-read AND write-before-release dependency, not an optional log callback.
+Check(audit.Entries.Count >= 2 && audit.Entries.Any(e => e.Phase == "Attempt") &&
+      audit.Entries.Any(e => e.Phase == "Outcome") &&
+      audit.Entries.All(e => e.SubjectSha256 != caller.Subject &&
+          e.ArgumentSha256 != coverageArgs && (e.Tool is AiCatalog.Overview or AiCatalog.Coverage or "unlisted")),
+      "审计仅保存主体及参数指纹，不记录原始输入或账户字段");
+
+var auditDownWorker = new FakeWorker();
+var auditDown = AiReadGatewayFactory.Create(auditDownWorker,
+    new FakeAuditSink { FailAt = 1 });
+Check((await auditDown.ExecuteAsync(caller, Overview(), default)).Code == "AuditUnavailable" &&
+      auditDownWorker.Calls == 0,
+      "写入请求审计失败时必须在 Worker 访问前拒绝");
+
+var outcomeDownWorker = new FakeWorker();
+var outcomeDown = AiReadGatewayFactory.Create(outcomeDownWorker,
+    new FakeAuditSink { FailAt = 2 });
+var outcomeDownResult = await outcomeDown.ExecuteAsync(caller, Overview(), default);
+Check(outcomeDownResult.Code == "AuditUnavailable" && outcomeDownResult.Data is null &&
+      outcomeDownWorker.Calls == 1,
+      "完成审计失败后不可向模型释放查询数据");
+
+var budgetWorker = new FakeWorker();
+var budgetAudit = new FakeAuditSink();
+var budgetGate = AiReadGatewayFactory.Create(budgetWorker, budgetAudit,
+    new AiReadPolicyLimits(1, 2, 4));
+var budgetFirst = await new McpReadToolAdapter(budgetGate).CallToolAsync(caller, Overview(), default);
+var budgetSecond = await new OpenAiFunctionReadAdapter(budgetGate).ExecuteFunctionAsync(caller, Overview(), default);
+Check(budgetFirst.Status == "Partial" && budgetSecond.Code == "BudgetExceeded" &&
+      budgetWorker.Calls == 1 && budgetAudit.Entries.Count == 4,
+      "双入口共享每主体窗口预算，拒绝仍记录审计结果");
+
+var unknownBudgetWorker = new FakeWorker();
+var unknownBudgetGate = AiReadGatewayFactory.Create(unknownBudgetWorker, new FakeAuditSink(),
+    new AiReadPolicyLimits(1, 1, 1));
+var firstUnknown = await unknownBudgetGate.ExecuteAsync(caller,
+    new AiCall("malicious-extra-tool", Args("{}")), default);
+var repeatedUnknown = await unknownBudgetGate.ExecuteAsync(caller, Overview(), default);
+Check(firstUnknown.Code == "UnknownTool" && firstUnknown.Tool == "unlisted" &&
+      repeatedUnknown.Code == "BudgetExceeded" && unknownBudgetWorker.Calls == 0,
+      "未知工具请求同样消耗调用预算且不回显任意工具名");
+
+var pendingReply = new TaskCompletionSource<WorkerReadReply>(
+    TaskCreationOptions.RunContinuationsAsynchronously);
+var concurrentWorker = new FakeWorker
+{
+    Handler = (_, _, _) => pendingReply.Task
+};
+var concurrentGate = AiReadGatewayFactory.Create(concurrentWorker, new FakeAuditSink(),
+    new AiReadPolicyLimits(10, 1, 4));
+var pendingCall = concurrentGate.ExecuteAsync(caller, Overview(), default);
+var concurrentDenied = await concurrentGate.ExecuteAsync(caller, Overview(), default);
+Check(concurrentDenied.Code == "ConcurrencyExceeded" && concurrentWorker.Calls == 1,
+      "并行入口不得绕开进程内最大并发槽");
+pendingReply.SetResult(FakeWorker.Page("[]"));
+Check((await pendingCall).Status == "Partial", "并发拒绝不影响已受理的合法查询");
+
 Console.WriteLine($"AI offline POC: {passed} assertions passed; no Windows SCM, NuGet or network was exercised.");
 
 sealed class FakeWorker : IWorkerPublicReadClient
@@ -148,4 +207,17 @@ sealed class FakeWorker : IWorkerPublicReadClient
     public static WorkerReadReply Page(string items, string? metadata = null, int? next = null) =>
         new("Ok",JsonSerializer.Serialize(new {Items=items,Snapshot="fixed-poc-snapshot",
             NextOffset=next,Metadata=metadata,ContractVersion=1,TotalRows=next is null ? 2 : 1000}));
+}
+
+sealed class FakeAuditSink : IAiReadAuditSink
+{
+    public int? FailAt { get; init; }
+    public List<AiReadAuditEvent> Entries { get; } = [];
+    public Task WriteAsync(AiReadAuditEvent entry, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Entries.Count + 1 == FailAt) throw new IOException("synthetic audit outage");
+        Entries.Add(entry);
+        return Task.CompletedTask;
+    }
 }
