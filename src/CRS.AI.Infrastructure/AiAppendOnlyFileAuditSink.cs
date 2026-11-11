@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CRS.AI.Query;
+using CRS.AI.Contracts;
 
 namespace CRS.AI.Infrastructure;
 
@@ -14,6 +15,13 @@ public sealed class AiAppendOnlyFileAuditSink : IAiReadAuditSink
     private readonly string _path;
     private readonly long _maxFileBytes;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private static readonly HashSet<string> AllowedDecisions = new(StringComparer.Ordinal)
+    {
+        "Received", "Rejected", "Partial", "NotReady", "Unauthorized", "UnknownTool",
+        "InvalidArguments", "BudgetExceeded", "ConcurrencyExceeded", "Cancelled",
+        "UpstreamTimeout", "UpstreamUnavailable", "UpstreamFailure", "UpstreamInvalid",
+        "Unsupported", "AuditUnavailable"
+    };
 
     public AiAppendOnlyFileAuditSink(string absolutePath, long maxFileBytes = DefaultMaxFileBytes)
     {
@@ -29,6 +37,7 @@ public sealed class AiAppendOnlyFileAuditSink : IAiReadAuditSink
     public async Task WriteAsync(AiReadAuditEvent entry, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        ValidateEvent(entry);
         // 仅序列化网关产生的最小审计契约，绝不附加提示词、原始参数或查询结果。
         var payload = JsonSerializer.SerializeToUtf8Bytes(entry);
         if (payload.Length > 1024)
@@ -63,6 +72,26 @@ public sealed class AiAppendOnlyFileAuditSink : IAiReadAuditSink
         {
             _writeGate.Release();
         }
+    }
+
+    private static void ValidateEvent(AiReadAuditEvent entry)
+    {
+        // 文件层再次校验白名单，防止误将主体明文或任意模型文本写入审计文件。
+        if (entry.RequestId == Guid.Empty || entry.TimestampUtc.Offset != TimeSpan.Zero ||
+            entry.Tool is not (AiCatalog.Overview or AiCatalog.Coverage or "unlisted") ||
+            entry.Phase is not ("Attempt" or "Outcome") ||
+            !AllowedDecisions.Contains(entry.Decision) ||
+            !IsSha256OrMarker(entry.SubjectSha256, "unverified", null) ||
+            !IsSha256OrMarker(entry.ArgumentSha256, "invalid", "oversize"))
+            throw new InvalidDataException("Audit event does not match its allowed schema.");
+    }
+
+    private static bool IsSha256OrMarker(string? value, string marker1, string? marker2)
+    {
+        if (value == marker1 || value == marker2 && marker2 is not null)
+            return true;
+        return value is { Length: 64 } &&
+               value.All(c => c is >= '0' and <= '9' or >= 'A' and <= 'F');
     }
 
     private static void RejectReparsePoints(string path)
