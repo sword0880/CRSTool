@@ -1,6 +1,6 @@
 # AI 双入口只读查询 POC（MCP / OpenAI Function Calling）
 
-> 状态：**PR #31 已合并 main，GitHub Windows CI 中 Restore、Release Build、AI 离线测试与架构检查均通过；完整 UI CI 因独立 PluginRunner 测试 TaskCanceledException 失败；未正式部署**。本节新增的审计/预算代码待新 PR CI 验证。本记录对应 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 与 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)，不是生产能力发布声明。基线：2026-11-11 main@944fcac。
+> 状态：**PR #31、#32 已合并 main，公开 ETF 双入口只读 POC 与进程内失败关闭审计门禁已具备代码基础；尚未正式部署**。本 PR 新增本地审计落盘基础设施，仍需 Windows CI 和系统安全验收。此前 PR #31 Windows CI 的 AI 编译和离线测试通过，完整 UI 工作流的其他测试曾失败。本记录对应 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 与 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)，不是生产能力发布声明。基线：2026-11-11 main@884394f。
 
 ## 实际工作范围
 
@@ -46,6 +46,27 @@
 - **离线回归**：请求审计失败不触达 Worker、结果审计失败不泄漏数据、预算共享、并发阻断、指纹不等于原始字段；保留先前只读、质量和分页测试。
 
 **剩余生产阻断**：本增量不能替代 Windows Worker Pipe SID/ACL + 二次业务工具授权、真实 OAuth/MCP 鉴权、账户级持久限额、审计落地持久性和机密存储、撤权、地区及数据外发审查。未经这些核验禁止放开 HTTP、Tunnel 或私有库。更不能把上述内存预算说成可跨服务实例计费保障。
+
+## P1.5 增量：本地只追加审计文件写入器（本 PR）
+
+新增独立 `CRS.AI.Infrastructure` 项目及 `AiAppendOnlyFileAuditSink`，实现现有 `IAiReadAuditSink`，供两个入口共享的 `AiReadGatewayFactory.Create(worker, audit, limits)` 注入。它不会调用模型、监听端口、读取个人数据或改变 Worker 的权限。
+
+- 只接受可信宿主提供的**绝对本机路径**。日志文件和所在目录必须由安装/运维方提前创建并配置访问控制；组件不会自动创建文件或设置 NTFS ACL。未配置、被删除或指向目录联接/符号链接时，审计失败关闭。
+- 每条审计记录仅序列化 `AiReadAuditEvent` 七个最小字段，以 UTF-8 JSONL 追加，并尝试 `WriteThrough` 和 `Flush(true)` 刷盘。写入器采用进程内互斥且禁止同一时刻由其他写入器占用；多实例共享文件不是已支持的场景。
+- 文件尾部无换行视为可能存在未完成记录，拒绝继续写入；默认上限 64 MiB（可信宿主可设 4 KiB 至 1 GiB），到达上限不覆盖、不删减、不自动轮转，调用立即转为 `AuditUnavailable`。上线前需要制定停写后的离线归档及恢复流程。
+- 若 Worker 查询期间文件丢失，`Outcome` 无法写入时仍丢弃业务结果。此操作通过真实本地文件和伪 Worker 离线测试验证。
+- `AiReadPolicyGateway` 原有两秒审计写入截止时间保留；不得把这个文件实现视为安全文件系统、审计防篡改或跨进程额度治理。物理介质失败、恶意管理员篡改、事后留存、备份、OS 身份、文件 ACL、进程崩溃/突然断电恢复仍需独立验收。
+
+### 部署前置条件（当前尚未实施）
+
+1. 使用可信 Windows 服务安装流程预创建专用审计目录和空 JSONL 文件，不使用用户临时目录、共享盘或代码仓库路径。
+2. 只授予实际 Gateway 服务 SID 所需的读/追加权限，并限定管理员与独立审计/备份角色；验证一般交互式用户不能写入或删除。当前代码为 `ReadWrite` 打开方式，服务 SID ACL 必须匹配实际读写行为；**它不是操作系统级 WORM 防篡改存储**。
+3. 设计容量预警、日志完整性验证、受控归档与不可变远端备份，再在安装阶段验证 ACL 和模拟磁盘满/权限丢失/文件缺失/重启恢复。
+4. 先完成独立 Gateway SID、Worker Pipe ACL/二次业务权限和外部调用者鉴权，才考虑真正的 MCP HTTP、OpenAI API 和 Tunnel；本 PR 不提供网络能力。
+
+### 本次补充离线验收
+
+`CRS.Tests.AiQuery` 增加真实本地文件测试：两阶段 JSONL 结构、RequestId 关联、主体和参数不落明文、未预创建文件时不查询 Worker、尾部残缺、容量上限、完成审计失效时不释放结果；其余旧工具与权限回归继续保留。**提交代码不等于 Windows 构建已通过**，以 PR 对应的 GitHub Actions 记录为准。
 
 ## 验证命令与验证证据
 
