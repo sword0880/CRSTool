@@ -159,7 +159,7 @@ internal sealed class AiReadPolicyGateway : IAiReadGateway
         {
             // Independent short deadline: a canceled request still needs an outcome record.
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            await _audit.WriteAsync(entry, deadline.Token);
+            await _audit.WriteAsync(entry, deadline.Token).WaitAsync(deadline.Token);
             return true;
         }
         catch (Exception)
