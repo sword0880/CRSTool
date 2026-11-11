@@ -68,6 +68,7 @@
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Named Pipes、Windows 身份授权及请求协议 |
 | CRS.AI.Contracts | 无 | 候选AI公开只读工具的BCL契约/Schema；未外部部署 |
 | CRS.AI.Query | CRS.AI.Contracts, CRS.Worker.Ipc | 候选只读查询Facade：固定NationalTeam业务操作、上限、质量和脱敏 |
+| CRS.AI.Infrastructure | CRS.AI.Query | 候选 AI 审计存储适配：仅对预创建本地日志文件追加最小审计事件；不配置系统 ACL、不处理网络或模型密钥、未接生产 Gateway |
 | CRS.AI.Adapters | CRS.AI.Contracts | 候选MCP/OpenAI两种工具协议描述与调用分发，不含网络连接 |
 | CRS.Notifications | CRS.Common | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
@@ -98,7 +99,7 @@
 | CRS.Tests.SectorUi | 行业研究界面、分类导航与查询取消 |
 | CRS.Tests.Background | Worker、管道、权限和调度 |
 | CRS.Tests.WorkerEtf | ETF 双入口及后台存储 |
-| CRS.Tests.AiQuery | AI双入口工具一致性、参数/权限、只读来源与质量的无网络POC |
+| CRS.Tests.AiQuery | AI双入口工具一致性、参数/权限、只读质量、共享审计门禁与本地审计文件异常的无网络测试 |
 | CRS.Worker.FixturePlugin | 后台故障与慢查询夹具，不进入发行包 |
 | CRS.Worker.EtfFixture | 隔离 ETF 服务夹具 |
 
