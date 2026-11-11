@@ -9,6 +9,7 @@
 - [项目目录](PROJECT_STRUCTURE.md) — Solution、项目和源码布局
 - [插件化总体架构](PLUGIN_ARCHITECTURE.md) — UI/Worker 双宿主、插件契约与生命周期
 - [后台任务服务设计](BACKGROUND_SERVICE_DESIGN.md) — Windows Service、Quartz.NET、IPC 和恢复边界
+- [AI / MCP 只读数据接入落地方案](AI_MCP_INTEGRATION.md) — ChatGPT/Claude MCP 接入、Worker 查询复用、权限/证据、阶段验收（Proposed）
 
 ## 设计约束与专项决策
 
