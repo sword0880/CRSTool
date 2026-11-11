@@ -55,7 +55,8 @@ public sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRead
                 meta.AcceptedDays, meta.MissingDays, meta.PendingDays, meta.CriticalDays,
                 meta.RejectedDays, meta.CoveragePercent, meta.CalendarVerified,
                 meta.CalendarRangeCovered, meta.State, days);
-            var status = meta.CalendarVerified && meta.CalendarRangeCovered
+            var status = meta.CalendarVerified && meta.CalendarRangeCovered &&
+                         meta.State == "CompleteRegisteredCalendar"
                 ? "Partial" : "NotReady";
             return Result(call.Tool, status, status == "NotReady" ? "CoverageNotVerified" : "RegisteredCalendarOnly",
                 JsonSerializer.SerializeToElement(data));
@@ -63,6 +64,18 @@ public sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRead
         catch (OperationCanceledException)
         {
             return AiResult.Reject(call.Tool, token.IsCancellationRequested ? "Cancelled" : "UpstreamTimeout");
+        }
+        catch (WorkerQueryRejectedException ex)
+        {
+            return AiResult.Reject(call.Tool, ex.Code switch
+            {
+                "Forbidden" or "AccessDenied" => "Unauthorized",
+                "UnknownQuery" or "ProtocolMismatch" => "Unsupported",
+                "PluginBusy" or "RateLimited" or "Busy" => "BudgetExceeded",
+                "Maintenance" or "StorageFault" or "PluginUnresponsive" => "UpstreamUnavailable",
+                "RequestTimedOut" => "UpstreamTimeout",
+                _ => "UpstreamFailure"
+            });
         }
         catch (BackgroundServiceException ex)
         {
@@ -128,8 +141,8 @@ public sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRead
                 Offset = offset, Count = MaxRows, Snapshot = snapshot, ContractVersion = 1
             });
             var response = await worker.QueryAsync(operation, payload, token);
-            if (response.Code != "Ok" || response.Payload is null)
-                throw new InvalidDataException("No usable Worker result.");
+            if (response.Code != "Ok") throw new WorkerQueryRejectedException(response.Code);
+            if (response.Payload is null) throw new InvalidDataException("Worker result is empty.");
             byteCount += Encoding.UTF8.GetByteCount(response.Payload);
             if (byteCount > MaxBytes) throw new InvalidDataException("Too much data.");
             using var document = JsonDocument.Parse(response.Payload, new JsonDocumentOptions { MaxDepth = 32 });
@@ -180,6 +193,10 @@ public sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRead
         }
         else if (element.ValueKind == JsonValueKind.Array)
             foreach (var row in element.EnumerateArray()) RejectDuplicates(row);
+    }
+    private sealed class WorkerQueryRejectedException(string code) : Exception(code)
+    {
+        public string Code { get; } = code;
     }
     private sealed record Snapshot(IReadOnlyList<JsonElement> Rows, JsonElement? Metadata);
     private sealed record Page(string Items, string Snapshot, int? NextOffset,
