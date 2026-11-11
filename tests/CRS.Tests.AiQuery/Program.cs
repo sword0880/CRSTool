@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CRS.AI.Contracts;
 using CRS.AI.Query;
+using CRS.AI.Infrastructure;
 using CRS.AI.Adapters;
 using CRS.Worker.Ipc;
 
