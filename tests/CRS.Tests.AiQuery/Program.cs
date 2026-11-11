@@ -220,6 +220,22 @@ try
           !rawAudit.Contains(coverageArgs, StringComparison.Ordinal),
         "落盘审计不包含主体明文、账户字段或原始查询参数");
 
+    // 即使有人直接调用存储实现，也不能把主体明文冒充指纹写入审计文件。
+    var originalLength = new FileInfo(auditFile).Length;
+    var invalidEventRejected = false;
+    try
+    {
+        await new AiAppendOnlyFileAuditSink(auditFile).WriteAsync(
+            new AiReadAuditEvent(Guid.NewGuid(), DateTimeOffset.UtcNow,
+                caller.Subject, AiCatalog.Overview, "Attempt", "Received", "invalid"), default);
+    }
+    catch (InvalidDataException)
+    {
+        invalidEventRejected = true;
+    }
+    Check(invalidEventRejected && new FileInfo(auditFile).Length == originalLength,
+        "本地审计写入器拒绝非 SHA-256 主体字段且不落盘");
+
     // 审计文件缺失时不允许自动创建，也不能继续请求业务 Worker。
     var missingFile = Path.Combine(auditTestDirectory, "not-provisioned.jsonl");
     var missingWorker = new FakeWorker();
