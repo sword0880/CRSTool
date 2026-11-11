@@ -10,7 +10,7 @@ namespace CRS.AI.Query;
 /// A strictly bounded, offline-testable read facade. Caller identity is asserted by the
 /// trusted local host; an external MCP/HTTP server MUST implement separate authentication.
 /// </summary>
-public sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiReadGateway
+internal sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiReadGateway
 {
     private const int MaxRows = 64, MaxPages = 8, MaxBytes = 48 * 1024;
     private static readonly JsonSerializerOptions Strict = new()
