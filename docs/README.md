@@ -17,6 +17,7 @@
 | 税务规则 | [税务规范](specifications/tax/README.md) | 法律适用性、计算实现与证据链 |
 | 使用与账户导入 | [使用指南](guides/README.md) | 券商导入、账户、保险库和隐私 |
 | 后台服务部署 | [Worker升级与恢复](deployment/WORKER_UPGRADE_AND_RECOVERY.md) | 安装、升级、恢复与部署操作 |
+| AI 接入方案 | [AI Gateway / MCP 双入口架构](architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) | API/MCP 双入口、套餐、网络、安全及分阶段验收（未实现） |
 | 国家队研究 | [国家队模块文档](modules/national-team/README.md) | ETF、直接持股、披露证据、NAV、预警和南向研究 |
 
 ## 文档地图
