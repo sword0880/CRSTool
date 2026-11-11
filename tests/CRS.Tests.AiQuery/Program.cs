@@ -20,6 +20,20 @@ static AiCall Overview(string arg = "{}") => new(AiCatalog.Overview, Args(arg));
 static AiCall Coverage(string arg) => new(AiCatalog.Coverage, Args(arg));
 const string coverageArgs = """{"market":"SSE","ticker":"510300","from":"2026-11-01","to":"2026-11-03"}""";
 
+// The concrete IPC bridge must reject a forged read operation even if another caller bypasses the facade.
+void RejectWire(string operation, string payload, string name)
+{
+    try { WorkerPublicReadClient.ValidateReadOnlyPayload(operation, payload); }
+    catch (InvalidDataException) { Check(true, name); return; }
+    throw new InvalidOperationException(name);
+}
+RejectWire("overview", """{"Operation":"release-query","Count":10,"Offset":0,"ContractVersion":1}""",
+    "IPC 二次校验拒绝伪装成 overview 的状态操作");
+RejectWire("overview", """{"Operation":"overview","Count":10,"Offset":0,"ContractVersion":1,"RefreshSource":true}""",
+    "IPC 二次校验拒绝未授权业务字段");
+RejectWire("coverage", """{"Operation":"coverage","Count":10000,"Offset":0,"ContractVersion":1}""",
+    "IPC 二次校验拒绝无界读取");
+
 var fake = new FakeWorker();
 var gateway = new AiReadQueryService(fake);
 var caller = new AiCaller("trusted-local-test", true);
