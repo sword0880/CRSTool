@@ -85,12 +85,14 @@ internal sealed class AiReadPolicyGateway : IAiReadGateway
 
         if (!validSubject || !caller.PublicResearchAuthorized)
             return await FinishAsync(start, AiResult.Reject(safeTool, "Unauthorized"));
+        // Unknown tools and invalid arguments also consume caller budget: model-driven
+        // retries must not turn the audit path into an unlimited request channel.
+        if (!Reserve(subjectHash))
+            return await FinishAsync(start, AiResult.Reject(safeTool, "BudgetExceeded"));
         if (call is null || safeTool == "unlisted")
             return await FinishAsync(start, AiResult.Reject(safeTool, "UnknownTool"));
         if (token.IsCancellationRequested)
             return await FinishAsync(start, AiResult.Reject(safeTool, "Cancelled"));
-        if (!Reserve(subjectHash))
-            return await FinishAsync(start, AiResult.Reject(safeTool, "BudgetExceeded"));
         if (!_slots.Wait(0))
             return await FinishAsync(start, AiResult.Reject(safeTool, "ConcurrencyExceeded"));
 
@@ -176,7 +178,7 @@ internal sealed class AiReadPolicyGateway : IAiReadGateway
             var raw = call.Arguments.GetRawText();
             return raw.Length <= 4096 ? Fingerprint(raw) : "oversize";
         }
-        catch (InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
         {
             return "invalid";
         }
