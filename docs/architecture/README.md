@@ -9,6 +9,7 @@
 - [项目目录](PROJECT_STRUCTURE.md) — Solution、项目和源码布局
 - [插件化总体架构](PLUGIN_ARCHITECTURE.md) — UI/Worker 双宿主、插件契约与生命周期
 - [后台任务服务设计](BACKGROUND_SERVICE_DESIGN.md) — Windows Service、Quartz.NET、IPC 和恢复边界
+- [AI Gateway / MCP 双入口架构](AI_GATEWAY_MCP_ARCHITECTURE.md) — CRSTool 内置 API 助手与 ChatGPT 只读工具接入、套餐、网络、隐私边界（设计中，未实现）
 
 ## 设计约束与专项决策
 
