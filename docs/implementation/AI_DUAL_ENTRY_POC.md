@@ -1,6 +1,6 @@
 # AI 双入口只读查询 POC（MCP / OpenAI Function Calling）
 
-> 状态：**候选源码已提交，尚未构建/自动测试/正式部署**。本记录对应 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 与 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)，不是生产能力发布声明。基线：2026-11-11 main@944fcac。
+> 状态：**PR #31 已合并 main，GitHub Windows CI 中 Restore、Release Build、AI 离线测试与架构检查均通过；完整 UI CI 因独立 PluginRunner 测试 TaskCanceledException 失败；未正式部署**。本节新增的审计/预算代码待新 PR CI 验证。本记录对应 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 与 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)，不是生产能力发布声明。基线：2026-11-11 main@944fcac。
 
 ## 实际工作范围
 
@@ -35,7 +35,19 @@
 
 地区、数据跨境、OpenAI API Key/预算、MCP OAuth/TLS/Host/Origin/Tunnel 等均需通过 P0 安全验收后才能对外连接。Worker 无个人 SQLCipher 密钥，个人 Performance/税务内容仍不可读取。
 
-## 验证命令（尚未执行）
+## P1 增量：共享调用预算与失败关闭审计（2026-11-11）
+
+新增 `CRS.AI.Query/AiReadPolicyGateway.cs`：通过 `AiReadGatewayFactory.Create(worker, audit, limits)` 创建唯一受控的 `IAiReadGateway`，供 MCP 与 OpenAI 适配器共享。底层 `AiReadQueryService` 改为程序集内部可见，降低宿主直接越过准入层的机会。
+
+- **两阶段审计**：Worker 查询前写入 `Attempt`，释放结果前写入 `Outcome`。审计失败时返回 `AuditUnavailable`，不得读取 Worker（前置失败）或向模型释放已取得的响应（后置失败）。
+- **最小日志**：事件只包含 requestId、UTC 时间、主体 SHA-256 指纹、工具白名单名、阶段、决策、入参 SHA-256 指纹。绝不写原始主体、提示词、工具参数、业务响应或异常堆栈。生产审计 sink 需提供持久化、访问控制、保留周期与恢复验收；本次仅定义接口和离线伪实现，**尚无生产 sink**。
+- **进程内预算**：单主体滑动一分钟调用上限、全部主体共享并发槽、有限主体表；预算使用单调计时 `Stopwatch`，跨两入口由同一个网关实例维护；拒绝请求也写审计。当前默认 20 次/分钟/主体、总并发 2、主体槽 128；仅用于本机 POC。
+- **错误约束**：不回传未列入工具目录的原始工具名；审计、预算、并发和未知异常均只返回固定错误码。真实调用者凭证仍必须在接入层校验，`AiCaller` 绝不能由模型内容生成。
+- **离线回归**：请求审计失败不触达 Worker、结果审计失败不泄漏数据、预算共享、并发阻断、指纹不等于原始字段；保留先前只读、质量和分页测试。
+
+**剩余生产阻断**：本增量不能替代 Windows Worker Pipe SID/ACL + 二次业务工具授权、真实 OAuth/MCP 鉴权、账户级持久限额、审计落地持久性和机密存储、撤权、地区及数据外发审查。未经这些核验禁止放开 HTTP、Tunnel 或私有库。更不能把上述内存预算说成可跨服务实例计费保障。
+
+## 验证命令与验证证据
 
 在 Windows .NET 10 SDK、已恢复 NuGet 的环境运行：
 
@@ -48,7 +60,7 @@ pwsh -File tests/Verify-Architecture.ps1
 
 测试工程目前以伪造 Worker 响应验证：两入口一致性、拒绝未授权/未知工具/非法入参、数据 null、字段脱敏、质量不足、错误响应、分页越界、服务不可用、取消与只读命令路径。
 
-**验证声明**：当前运行环境无 .NET SDK 且不能直接从 GitHub 克隆；因此没有完成编译或测试。待 PR CI 与真实 Windows SCM 验收后，才允许更新为 Verified。
+**验证声明**：PR #31 的 Windows 工作流 [run 43028261293](https://github.com/sword0880/CRSTool/actions/runs/43028261293) 已完成 Restore、Release Build、AI 查询 POC 和架构检查；完整工作流在后续非 AI 的 PluginRunner 故障隔离测试发生 TaskCanceledException 而失败。因此仅可称 AI 离线 POC 在该次 CI 获得通过证据，不能称整体 CI 通过或已完成 Windows SCM / 真实财务数据/发布验收。新审计与准入代码的验证以新 PR CI 为准。
 
 ## 下一阶段实施次序
 
