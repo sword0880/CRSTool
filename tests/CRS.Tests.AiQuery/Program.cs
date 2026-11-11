@@ -137,7 +137,7 @@ Check(fake.Operations.All(x => x is "overview" or "coverage") &&
 Check(audit.Entries.Count >= 2 && audit.Entries.Any(e => e.Phase == "Attempt") &&
       audit.Entries.Any(e => e.Phase == "Outcome") &&
       audit.Entries.All(e => e.SubjectSha256 != caller.Subject &&
-          e.ArgumentSha256 != coverageArgs && e.Tool is AiCatalog.Overview or AiCatalog.Coverage or "unlisted"),
+          e.ArgumentSha256 != coverageArgs && (e.Tool is AiCatalog.Overview or AiCatalog.Coverage or "unlisted")),
       "审计仅保存主体及参数指纹，不记录原始输入或账户字段");
 
 var auditDownWorker = new FakeWorker();
@@ -164,6 +164,16 @@ var budgetSecond = await new OpenAiFunctionReadAdapter(budgetGate).ExecuteFuncti
 Check(budgetFirst.Status == "Partial" && budgetSecond.Code == "BudgetExceeded" &&
       budgetWorker.Calls == 1 && budgetAudit.Entries.Count == 4,
       "双入口共享每主体窗口预算，拒绝仍记录审计结果");
+
+var unknownBudgetWorker = new FakeWorker();
+var unknownBudgetGate = AiReadGatewayFactory.Create(unknownBudgetWorker, new FakeAuditSink(),
+    new AiReadPolicyLimits(1, 1, 1));
+var firstUnknown = await unknownBudgetGate.ExecuteAsync(caller,
+    new AiCall("malicious-extra-tool", Args("{}")), default);
+var repeatedUnknown = await unknownBudgetGate.ExecuteAsync(caller, Overview(), default);
+Check(firstUnknown.Code == "UnknownTool" && firstUnknown.Tool == "unlisted" &&
+      repeatedUnknown.Code == "BudgetExceeded" && unknownBudgetWorker.Calls == 0,
+      "未知工具请求同样消耗调用预算且不回显任意工具名");
 
 var pendingReply = new TaskCompletionSource<WorkerReadReply>(
     TaskCreationOptions.RunContinuationsAsynchronously);
