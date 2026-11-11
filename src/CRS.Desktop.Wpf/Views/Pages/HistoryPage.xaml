@@ -15,9 +15,9 @@
     <ui:Button Content="查看同批差异" Command="{Binding CompareGroupCommand}" Margin="8,0,0,0"/>
     <ui:Button Content="按当前规则重新计算并另存" Command="{Binding RecalculateCurrentCommand}" Margin="8,0,0,0"/>
    </WrapPanel>
-   <TextBlock Text="{Binding ArchiveHint}" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,6"/>
+   <TextBlock Text="{Binding ArchiveHint}" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" Margin="0,0,0,6"/>
    <StackPanel Visibility="{Binding NeedsOriginalImport, Converter={StaticResource HistoryHintVisibility}}" Margin="0,0,0,8">
-    <TextBlock Text="{Binding ReplayHint}" Foreground="#64748B" TextWrapping="Wrap"/>
+    <TextBlock Text="{Binding ReplayHint}" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"/>
     <ui:Button Content="前往数据导入" Command="{Binding OpenImportCommand}" Margin="0,4,0,0"/>
    </StackPanel>
   </StackPanel>
