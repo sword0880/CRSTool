@@ -11,6 +11,12 @@
       "crs.ai.contracts": {
         "type": "Project"
       },
+      "crs.ai.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Query": "[0.1.0, )"
+        }
+      },
       "crs.ai.query": {
         "type": "Project",
         "dependencies": {
