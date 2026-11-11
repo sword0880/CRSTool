@@ -108,6 +108,9 @@ Check(coverage.Status == "NotReady" && coverage.Data?.GetProperty("CoveragePerce
       !coverage.Data!.Value.GetRawText().Contains("InternalPath") &&
       !coverage.Data.Value.GetRawText().Contains("LastAttempt"), "覆盖率质量未通过并删除内部字段");
 
+fake.Handler = (operation, payload, token) => Task.FromResult(new WorkerReadReply("Forbidden", null));
+Check((await gateway.ExecuteAsync(caller, Overview(), default)).Code == "Unauthorized",
+      "Worker 明确拒绝时不将权限问题伪装成数据格式错误");
 fake.Handler = (operation, payload, token) => Task.FromResult(new WorkerReadReply("UnknownQuery", null));
 Check((await gateway.ExecuteAsync(caller, Overview(), default)).Status == "Rejected",
       "旧 Worker 不支持时失败关闭，不伪造空数据");
