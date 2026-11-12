@@ -63,11 +63,11 @@ internal static class Framing
 {
     private static readonly JsonSerializerOptions Json = new() { Converters = { new CRS.Timing.BeijingDateTimeOffsetConverter() } };
     public const int Version = WorkerProtocol.Version;
-    public static async Task<T> ReadAsync<T>(Stream stream, CancellationToken token)
+    public static async Task<T> ReadAsync<T>(Stream stream, CancellationToken token, int maxBytes = 131072)
     {
         var header = new byte[4]; await ReadFrameAsync(stream,header,token);
         var length = BinaryPrimitives.ReadInt32LittleEndian(header);
-        if (length is < 2 or > 131072) throw new InvalidDataException("管道消息长度超过上限。");
+        if (length < 2 || length > maxBytes) throw new InvalidDataException("管道消息长度超过上限。");
         var body = new byte[length]; await ReadFrameAsync(stream,body,token);
         return JsonSerializer.Deserialize<T>(body, Json) ?? throw new InvalidDataException("管道消息格式不正确。");
     }

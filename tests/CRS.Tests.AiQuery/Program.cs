@@ -4,6 +4,15 @@ using CRS.AI.Query;
 using CRS.AI.Infrastructure;
 using CRS.AI.Adapters;
 using CRS.Worker.Ipc;
+using CRS.Tests.AiQuery.Acceptance;
+using CRS.Tests.AiQuery.Checks;
+
+if (args is ["--local-gateway"])
+{
+    await LocalGatewayAcceptance.RunAsync();
+    return 0;
+}
+if (args.Length != 0) return await LiveWorkerAcceptance.RunAsync(args);
 
 var passed = 0;
 void Check(bool ok, string name)
@@ -21,7 +30,7 @@ static AiCall Overview(string arg = "{}") => new(AiCatalog.Overview, Args(arg));
 static AiCall Coverage(string arg) => new(AiCatalog.Coverage, Args(arg));
 const string coverageArgs = """{"market":"SSE","ticker":"510300","from":"2026-11-01","to":"2026-11-03"}""";
 
-// The concrete IPC bridge must reject a forged read operation even if another caller bypasses the facade.
+// 直接调用 IPC 客户端也必须验证业务操作和载荷。
 void RejectWire(string operation, string payload, string name)
 {
     try { WorkerPublicReadClient.ValidateReadOnlyPayload(operation, payload); }
@@ -34,6 +43,7 @@ RejectWire("overview", """{"Operation":"overview","Count":10,"Offset":0,"Contrac
     "IPC 二次校验拒绝未授权业务字段");
 RejectWire("coverage", """{"Operation":"coverage","Count":10000,"Offset":0,"ContractVersion":1}""",
     "IPC 二次校验拒绝无界读取");
+GatewayPayloadChecks.Run(Check);
 
 var fake = new FakeWorker();
 var audit = new FakeAuditSink();
@@ -82,6 +92,7 @@ var a = await mcp.CallToolAsync(caller, Overview(), default);
 var b = await openai.ExecuteFunctionAsync(caller, Overview(), default);
 Check(a.Status == "Partial" && b.Status == "Partial" &&
       a.Data?.GetRawText() == b.Data?.GetRawText(), "MCP/OpenAI结果共用相同事实投影");
+await SnapshotChecks.RunAsync(Check);
 var item = a.Data!.Value[0];
 Check(item.GetProperty("Shares").ValueKind == JsonValueKind.Null &&
       !item.TryGetProperty("AccountNumber", out _) && !a.Data.Value.GetRawText().Contains("SECRET"),
@@ -286,6 +297,7 @@ finally
 }
 
 Console.WriteLine($"AI offline POC: {passed} assertions passed; no Windows SCM, NuGet or network was exercised.");
+return 0;
 
 sealed class FakeWorker : IWorkerPublicReadClient
 {
@@ -299,9 +311,10 @@ sealed class FakeWorker : IWorkerPublicReadClient
         Calls++; Operations.Add(operation); Payloads.Add(payload);
         return Handler(operation,payload,token);
     }
-    public static WorkerReadReply Page(string items, string? metadata = null, int? next = null) =>
-        new("Ok",JsonSerializer.Serialize(new {Items=items,Snapshot="fixed-poc-snapshot",
-            NextOffset=next,Metadata=metadata,ContractVersion=1,TotalRows=next is null ? 2 : 1000}));
+    public static WorkerReadReply Page(string items, string? metadata = null, int? next = null,
+        int? total = null, string snapshot = "fixed-poc-snapshot") =>
+        new("Ok", JsonSerializer.Serialize(new { Items = items, Snapshot = snapshot,
+            NextOffset = next, Metadata = metadata, ContractVersion = 1, TotalRows = total }));
 }
 
 sealed class FakeAuditSink : IAiReadAuditSink

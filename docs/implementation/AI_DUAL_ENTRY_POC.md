@@ -1,6 +1,6 @@
 # AI 双入口只读查询 POC（MCP / OpenAI Function Calling）
 
-> 状态：**PR #31、#32 已合并 main，公开 ETF 双入口只读 POC 与进程内失败关闭审计门禁已具备代码基础；尚未正式部署**。本 PR 新增本地审计落盘基础设施，仍需 Windows CI 和系统安全验收。此前 PR #31 Windows CI 的 AI 编译和离线测试通过，完整 UI 工作流的其他测试曾失败。本记录对应 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 与 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)，不是生产能力发布声明。基线：2026-11-11 main@884394f。
+> PR #31 至 #33 已合并 main，涵盖公开 ETF 双入口、共享审计门禁和本地审计落盘。候选源码已加入 Worker 服务身份隔离、Gateway 本机服务、Windows 用户授权和撤销。网络接入与正式部署待实施。架构见 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 和 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)。
 
 ## 实际工作范围
 
@@ -31,7 +31,7 @@
 
 目前 Worker 对普通已认证 Windows 用户存在 `QueryPlugin` 读取入口，内部还包含 `release-query` 等状态操作。新 AI Facade 将 operation 绑定为上述两个固定值，但**此约束尚不足以放开对公网客户端的访问**。
 
-下一阶段必须先完成专用 Gateway service SID、Worker 对该 SID 的二次操作白名单、Pipe ACL、调用者实际鉴权与 token 撤销；对原查询开展 DB 前后差异检查，证明无业务写副作用。不能将这个由可信宿主构造的 `AiCaller` 直接反序列化自模型请求。
+Worker 侧的专用管道与操作白名单见下方本地身份隔离记录。Gateway 接收用户请求时仍需验证实际调用者和授权撤销。可信宿主根据已验证身份构造 `AiCaller`。
 
 地区、数据跨境、OpenAI API Key/预算、MCP OAuth/TLS/Host/Origin/Tunnel 等均需通过 P0 安全验收后才能对外连接。Worker 无个人 SQLCipher 密钥，个人 Performance/税务内容仍不可读取。
 
@@ -47,7 +47,7 @@
 
 **剩余生产阻断**：本增量不能替代 Windows Worker Pipe SID/ACL + 二次业务工具授权、真实 OAuth/MCP 鉴权、账户级持久限额、审计落地持久性和机密存储、撤权、地区及数据外发审查。未经这些核验禁止放开 HTTP、Tunnel 或私有库。更不能把上述内存预算说成可跨服务实例计费保障。
 
-## P1.5 增量：本地只追加审计文件写入器（本 PR）
+## P1.5 增量：本地只追加审计文件写入器（PR #33）
 
 新增独立 `CRS.AI.Infrastructure` 项目及 `AiAppendOnlyFileAuditSink`，实现现有 `IAiReadAuditSink`，供两个入口共享的 `AiReadGatewayFactory.Create(worker, audit, limits)` 注入。它不会调用模型、监听端口、读取个人数据或改变 Worker 的权限。
 
@@ -62,7 +62,7 @@
 1. 使用可信 Windows 服务安装流程预创建专用审计目录和空 JSONL 文件，不使用用户临时目录、共享盘或代码仓库路径。
 2. 只授予实际 Gateway 服务 SID 所需的读/追加权限，并限定管理员与独立审计/备份角色；验证一般交互式用户不能写入或删除。当前代码为 `ReadWrite` 打开方式，服务 SID ACL 必须匹配实际读写行为；**它不是操作系统级 WORM 防篡改存储**。
 3. 设计容量预警、日志完整性验证、受控归档与不可变远端备份，再在安装阶段验证 ACL 和模拟磁盘满/权限丢失/文件缺失/重启恢复。
-4. 先完成独立 Gateway SID、Worker Pipe ACL/二次业务权限和外部调用者鉴权，才考虑真正的 MCP HTTP、OpenAI API 和 Tunnel；本 PR 不提供网络能力。
+4. 先完成独立 Gateway SID、Worker Pipe ACL、二次业务权限和外部调用者鉴权，再接入 MCP HTTP、OpenAI API 和 Tunnel。
 
 ### 本次补充离线验收
 
@@ -79,13 +79,75 @@ dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build
 pwsh -File tests/Verify-Architecture.ps1
 ```
 
-测试工程目前以伪造 Worker 响应验证：两入口一致性、拒绝未授权/未知工具/非法入参、数据 null、字段脱敏、质量不足、错误响应、分页越界、服务不可用、取消与只读命令路径。
+默认离线测试覆盖双入口一致性、权限与参数、脱敏、空值、覆盖状态、分页、限额、审计和通信故障。
 
-**验证声明**：PR #31 的 Windows 工作流 [run 43028261293](https://github.com/sword0880/CRSTool/actions/runs/43028261293) 已完成 Restore、Release Build、AI 查询 POC 和架构检查；完整工作流在后续非 AI 的 PluginRunner 故障隔离测试发生 TaskCanceledException 而失败。因此仅可称 AI 离线 POC 在该次 CI 获得通过证据，不能称整体 CI 通过或已完成 Windows SCM / 真实财务数据/发布验收。新审计与准入代码的验证以新 PR CI 为准。
+PR #31 的 Windows CI 中，Restore、Release Build、AI 查询 POC 和架构检查通过。该次完整工作流在 PluginRunner 故障隔离测试中因 TaskCanceledException 失败。[Windows CI 回执](https://github.com/sword0880/CRSTool/actions/runs/43028261293)
+
+## 本机 Worker 公开样本验收（2026-11-11）
+
+查询按同一 Worker 快照连续读取，核对已声明的总行数，提前结束或混页时丢弃结果。响应的 `DataVersion` 是公开投影内容的 SHA-256 指纹，供两入口比对内容。Worker 临时分页令牌和查询时刻不参与指纹计算。
+
+在有权核验已安装 Windows 服务身份的本机终端执行以下命令。验收在两个本地适配器上分别使用缩小首页和正常分页，比较数据、状态与版本指纹，并检查两阶段审计记录数量。
+
+```powershell
+dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build -- --live-worker SSE 510300 2026-11-02 2026-11-06
+```
+
+| 查询 | 样本结果 | 缩小首页 / 正常分页 |
+| --- | --- | --- |
+| ETF 概览 | 24 条，状态为 `Partial/FinancialAcceptanceNotEstablished` | 2 / 2 页 |
+| SSE 510300 覆盖率 | 5 个登记交易日均有已接受记录，状态为 `Partial/RegisteredCalendarOnly` | 2 / 1 页 |
+
+两入口数据及版本指纹一致，四次调用生成 8 条本地审计事件。查询前后对公开研究目录的 `market.db`、`market.db-wal`、`source-policy.db` 分别计算 SHA-256，三个文件的指纹均一致。该比较覆盖本次样本时段。独立服务身份、正式审计目录和远程调用鉴权仍需单独验收。
+
+## Worker 本地服务身份隔离（2026-11-12）
+
+- 候选 Worker 增加 `CRS.Worker.Service.v2.ai-public`。管道访问控制列表仅给 Worker 所有者管理权限，给 `NT SERVICE\CRSAiGateway` 精确读写权限。Worker 从 Windows 令牌核对登录账户 SID，要求使用专用虚拟账户。桌面和管理管道对该 SID 显式拒绝。Gateway 客户端连接后核对管道进程与 SCM 中的 Worker PID。 [Windows 虚拟账户](https://learn.microsoft.com/windows/security/identity-protection/access-control/service-accounts) · [命名管道访问权限](https://learn.microsoft.com/windows/win32/ipc/named-pipe-security-and-access-rights)
+- 分派前校验请求只能是 `QueryPlugin` → `crs.national-team` → `overview` 或 `coverage`。只接受约定字段，限制日期、证券标识、分页和业务协议版本。释放快照、导出、研究提交、读取设置和文档以及任务命令均在控制层之前拒绝。
+- Gateway 宿主使用 `WorkerPublicReadClient.ForGateway()`，服务启动账户使用 `NT SERVICE\CRSAiGateway`。两条原有管道继续服务桌面调用。上一节的桌面诊断方式可用于旧版 Worker 的本地样本验收。
+
+隔离测试使用随机命名管道和合成查询。可在管理员终端加 `--scm` 启动一次性测试服务，核验真实虚拟账户及拒绝路径。测试服务仅使用该组隔离管道，结束后移除本次创建的 SCM 注册。
+
+```powershell
+dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --ai-gateway-worker-boundary
+dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --ai-gateway-worker-boundary --scm
+```
+
+本机 Release 构建、架构检查、59 项 AI 离线断言、12 项原有管道断言和 4 项隔离管道断言通过。SCM 以专用虚拟账户启动夹具。两项公开查询进入合成控制层，11 条越权或畸形请求均返回拒绝。测试结束后核对临时服务已删除。已安装 Worker 保持运行，使用桌面诊断入口复跑公开样本通过。
+
+## Gateway 本机服务与用户授权
+
+候选 `CRS.AI.Gateway` 以 `NT SERVICE\CRSAiGateway` 运行。用户管道从 Windows 连接令牌取得实际账户 SID，管理管道要求管理员令牌。命令行在发送请求前核对管道进程与 SCM 中的 Gateway PID，只授予服务读取身份的权限。退出身份识别回调后，Gateway 使用服务身份访问审计及 Worker。 [Windows 身份识别级别](https://learn.microsoft.com/windows/win32/secauthz/impersonation-levels)
+
+首次安装时授权表为空。管理员按账户 SID 授权或撤销，变更刷盘并原子替换后确认。撤销取消该账户进行中的查询，结果写入管道前复核原授权代次，重新授权只对新请求生效。客户端断开后可以按原 SID 重试同一授权命令。
+
+`%ProgramData%\CRSAiGateway\Authorization\subjects.json` 保存允许名单，`Audit\events.jsonl` 记录工具调用的最小两阶段事件。安装器为数据目录和文件预设专用 ACL，服务启动时核对访问权限和路径。审计保留周期和离线归档仍需随正式运维验收。
+
+构建候选包后，可在管理员终端执行首次安装。正式查询需要支持 `.ai-public` 的 Worker。服务状态只确认本机 Gateway 入口就绪。
+
+```powershell
+dotnet publish src/CRS.AI.Gateway -c Release -o artifacts/ai-gateway
+pwsh -File tools/ai/Install-AiGateway.ps1 -PackageDirectory artifacts/ai-gateway
+$gateway = Join-Path $env:ProgramFiles 'CRSAiGateway/CRS.AI.Gateway.exe'
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+& $gateway --grant $sid
+& $gateway --call crs_get_etf_overview_v1
+& $gateway --call crs_get_etf_coverage_v1 '{"market":"SSE","ticker":"510300","from":"2026-11-02","to":"2026-11-06"}'
+& $gateway --revoke $sid
+```
+
+管理员终端的隔离验收使用随机命名管道和合成 Worker。
+
+```powershell
+dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build -- --local-gateway
+```
+
+本机 13 项隔离断言通过，覆盖身份伪造、授权、撤销在途请求、重新授权后隔离旧结果、重载状态及审计脱敏。临时安装验收通过了真实 SCM 虚拟账户启动、状态核验、授权及撤销后的重启持久化，并写入 8 条审计事件。已核对测试服务及目录已清理。当前安装的 Worker 继续运行，尚无 `.ai-public` 管道，经候选 Gateway 发起公开查询返回 `UpstreamUnavailable`。与新版 Worker 的真实数据联查待验证。
+
+临时安装发现显式断开管道会丢失尚未读取的管理响应。Gateway 在回复后创建下一监听实例并关闭当前服务端句柄，延迟读取回归已通过。[Windows 命名管道断开语义](https://learn.microsoft.com/windows/win32/api/namedpipeapi/nf-namedpipeapi-disconnectnamedpipe)
 
 ## 下一阶段实施次序
 
 1. 修正任何 PR CI 编译、lockfile、架构门禁失败并记录回执；
-2. 用真实 Worker 公开研究样本验证两种查询的数值、分页、数据版本、只读副作用；
-3. 单独 PR 实现最小安全 Gateway，先本地只读鉴权，随后 OpenAI Responses API 与 MCP Streamable HTTP 接线；
-4. 最后完成远程授权、Tunnel、费用审计、WPF UI 与正式安装/安全验收。任何阶段不得绕过地区与隐私使用限制。
+2. 在隔离发行环境联合验收候选 Gateway、Worker 与审计归档；
+3. 接入 OpenAI Responses API 与 MCP Streamable HTTP，随后完成远程授权、Tunnel、费用审计、WPF UI 与正式安装及安全验收。

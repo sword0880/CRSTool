@@ -3,22 +3,42 @@ using System.Security.Principal;
 namespace CRS.Worker.Ipc;
 
 /// <summary>桌面只通过本机管道访问服务；服务不可用时明确返回，不启动替代调度器。</summary>
-public sealed class BackgroundPipeClient(string pipeName = BackgroundPipeServer.DefaultPipeName)
+public sealed class BackgroundPipeClient
 {
+    private readonly string pipeName;
+    private readonly bool aiGateway;
+
+    public BackgroundPipeClient(string pipeName = BackgroundPipeServer.DefaultPipeName)
+        : this(pipeName, aiGateway: false) { }
+
+    private BackgroundPipeClient(string pipeName, bool aiGateway)
+    {
+        this.pipeName = pipeName;
+        this.aiGateway = aiGateway;
+    }
+
+    /// <summary>固定使用 Gateway 专用管道，并核验管道进程是 SCM 当前运行的 Worker。</summary>
+    public static BackgroundPipeClient ForAiGateway() => new(BackgroundPipeServer.DefaultPipeName, aiGateway: true);
+
     public async Task<BackgroundResponse> SendAsync(BackgroundRequest request, CancellationToken token = default)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(32));
         using var identity = WindowsIdentity.GetCurrent();
-        var management = BackgroundPipeServer.IsMutation(request.Command) && new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
-        await using var pipe = new NamedPipeClientStream(".", pipeName + (management ? BackgroundPipeServer.ControlSuffix : ""), PipeDirection.InOut,
-            PipeOptions.Asynchronous, TokenImpersonationLevel.Impersonation);
+        var mutation = !aiGateway && BackgroundPipeServer.IsMutation(request.Command);
+        var management = mutation && new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+        await using var pipe = aiGateway
+            ? new NamedPipeClientStream(".", pipeName + AiGatewayWorkerEndpoint.PipeSuffix, AiGatewayWorkerEndpoint.ClientRights,
+                PipeOptions.Asynchronous, TokenImpersonationLevel.Impersonation, HandleInheritability.None)
+            : new NamedPipeClientStream(".", pipeName + (management ? BackgroundPipeServer.ControlSuffix : ""),
+                PipeDirection.InOut, PipeOptions.Asynchronous, TokenImpersonationLevel.Impersonation);
         var submitted=false;
         try
         {
             using var connecting=CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);connecting.CancelAfter(TimeSpan.FromSeconds(3));
             await pipe.ConnectAsync(connecting.Token);
-            if (pipeName == BackgroundPipeServer.DefaultPipeName) PipeServerIdentity.Verify(pipe);
+            if (aiGateway || string.Equals(pipeName, BackgroundPipeServer.DefaultPipeName, StringComparison.OrdinalIgnoreCase))
+                PipeServerIdentity.Verify(pipe);
             submitted=true;await Framing.WriteAsync(pipe, request, deadline.Token);
             var response = await Framing.ReadAsync<BackgroundResponse>(pipe, deadline.Token);
             if (response.RequestId != request.RequestId || response.ProtocolVersion != Framing.Version)
@@ -38,7 +58,7 @@ public sealed class BackgroundPipeClient(string pipeName = BackgroundPipeServer.
         catch(IOException error){throw Failure("ConnectionFailed",error);}
         BackgroundServiceException Failure(string code,Exception? error=null)
         {
-            var unknown=submitted&&BackgroundPipeServer.IsMutation(request.Command);
+            var unknown = submitted && mutation;
             var text=unknown?"后台响应未确认，操作可能已受理。请保留原参数并到任务中心核对，勿重新创建相同任务。":
                 code=="RequestTimedOut"?"后台查询超时，请稍后刷新；当前结果未更新。":
                 code is "AccessDenied" or "ServiceIdentityUnavailable"?"后台访问被拒绝或服务身份无法核实；未取得可用结果，请核对服务及当前Windows权限。":

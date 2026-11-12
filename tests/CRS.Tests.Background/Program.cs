@@ -7,6 +7,17 @@ using CRS.Worker.Ipc;
 using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
+using CRS.Tests.Background.Gateway;
+if (args is ["--ai-gateway-worker-boundary"] or ["--ai-gateway-worker-boundary", "--scm"])
+{
+    await AiGatewayPipeChecks.RunAsync(useScm: args.Length == 2);
+    return;
+}
+if (args is ["--ai-gateway-worker-scm-probe", var gatewayProbePipe])
+{
+    System.ServiceProcess.ServiceBase.Run(new AiGatewayScmProbe(gatewayProbePipe));
+    return;
+}
 if(args is ["--diagnostic-jobs"]){await DiagnosticJobChecks.RunAsync();return;}
 if(args is ["--task-failure-policy"]){await TaskFailurePolicyChecks.RunAsync();return;}
 if(args is ["--command-tracker"]){BackgroundCommandTrackerChecks.Run();return;}

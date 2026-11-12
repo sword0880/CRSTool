@@ -65,10 +65,11 @@
 | CRS.Worker.Abstractions | CRS.Common | 后台会话、任务、查询及存储上下文契约 |
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
 | CRS.Worker.PluginRunner | CRS.Worker.PluginHost | 每插件监督进程、私有stdio双向协议、上下文能力代理；正式源码组合根已启动，部署另验 |
-| CRS.Worker.Ipc | CRS.Worker.Abstractions | Named Pipes、Windows 身份授权及请求协议 |
+| CRS.Worker.Ipc | CRS.Worker.Abstractions | Windows 命名管道、请求协议及身份授权。桌面、管理和候选 Gateway 公开 ETF 查询各有独立访问控制 |
 | CRS.AI.Contracts | 无 | 候选AI公开只读工具的BCL契约/Schema；未外部部署 |
 | CRS.AI.Query | CRS.AI.Contracts, CRS.Worker.Ipc | 候选只读查询Facade：固定NationalTeam业务操作、上限、质量和脱敏 |
-| CRS.AI.Infrastructure | CRS.AI.Query | 候选 AI 审计存储适配：仅对预创建本地日志文件追加最小审计事件；不配置系统 ACL、不处理网络或模型密钥、未接生产 Gateway |
+| CRS.AI.Infrastructure | CRS.AI.Query | 对预创建本地日志文件追加最小 AI 审计事件 |
+| CRS.AI.Gateway | CRS.AI.Contracts, CRS.AI.Query, CRS.AI.Infrastructure, CRS.Worker.Ipc | 候选 Windows 服务宿主和本地命令行客户端，校验用户令牌、管理与撤销授权，通过专用 Worker 管道查询公开 ETF |
 | CRS.AI.Adapters | CRS.AI.Contracts | 候选MCP/OpenAI两种工具协议描述与调用分发，不含网络连接 |
 | CRS.Notifications | CRS.Common | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
@@ -99,7 +100,7 @@
 | CRS.Tests.SectorUi | 行业研究界面、分类导航与查询取消 |
 | CRS.Tests.Background | Worker、管道、权限和调度 |
 | CRS.Tests.WorkerEtf | ETF 双入口及后台存储 |
-| CRS.Tests.AiQuery | AI双入口工具一致性、参数/权限、只读质量、共享审计门禁与本地审计文件异常的无网络测试 |
+| CRS.Tests.AiQuery | AI 双入口工具一致性、参数与权限、只读质量、共享审计以及本机 Gateway 授权与撤销验收 |
 | CRS.Worker.FixturePlugin | 后台故障与慢查询夹具，不进入发行包 |
 | CRS.Worker.EtfFixture | 隔离 ETF 服务夹具 |
 

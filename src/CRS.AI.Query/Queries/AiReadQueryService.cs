@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CRS.AI.Contracts;
@@ -7,12 +8,11 @@ using CRS.Worker.Ipc;
 namespace CRS.AI.Query;
 
 /// <summary>
-/// A strictly bounded, offline-testable read facade. Caller identity is asserted by the
-/// trusted local host; an external MCP/HTTP server MUST implement separate authentication.
+/// 公开 ETF 只读查询，校验参数并将 Worker 响应投影为允许公开的字段。
 /// </summary>
 internal sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiReadGateway
 {
-    private const int MaxRows = 64, MaxPages = 8, MaxBytes = 48 * 1024;
+    private readonly WorkerEtfSnapshotReader _reader = new(worker);
     private static readonly JsonSerializerOptions Strict = new()
     {
         MaxDepth = 32,
@@ -39,7 +39,7 @@ internal sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRe
         try
         {
             var operation = call.Tool == AiCatalog.Overview ? "overview" : "coverage";
-            var snapshot = await ReadAsync(operation, market, ticker, from, to, timeout.Token);
+            var snapshot = await _reader.ReadAsync(operation, market, ticker, from, to, timeout.Token);
             if (operation == "overview")
             {
                 var summary = snapshot.Rows.Select(Deserialize<AiEtfOverviewRow>).ToArray();
@@ -96,7 +96,11 @@ internal sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRe
     }
 
     private static AiResult Result(string tool, string status, string reason, JsonElement data)
-        => new("1.0", tool, status, reason, DateTimeOffset.UtcNow, data, Warnings);
+        => new("1.0", tool, status, reason, DateTimeOffset.UtcNow, data, Warnings)
+        {
+            // 只用脱敏后的公开数据计算指纹，查询时间和临时游标不会改变版本。
+            DataVersion = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(data.GetRawText())))
+        };
 
     private static bool Validate(AiCall call, out string? market, out string? ticker,
         out DateOnly? from, out DateOnly? to)
@@ -125,82 +129,8 @@ internal sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRe
         return true;
     }
 
-    private async Task<Snapshot> ReadAsync(string operation, string? market, string? ticker,
-        DateOnly? from, DateOnly? to, CancellationToken token)
-    {
-        var rows = new List<JsonElement>();
-        JsonElement? metadata = null;
-        string? snapshot = null;
-        int offset = 0, byteCount = 0;
-        for (var pageIndex = 0; pageIndex < MaxPages; pageIndex++)
-        {
-            // Request field names and business V1 match current EtfRequest exactly.
-            var payload = JsonSerializer.Serialize(new
-            {
-                Operation = operation, Market = market, Ticker = ticker, From = from, To = to,
-                Offset = offset, Count = MaxRows, Snapshot = snapshot, ContractVersion = 1
-            });
-            var response = await worker.QueryAsync(operation, payload, token);
-            if (response.Code != "Ok") throw new WorkerQueryRejectedException(response.Code);
-            if (response.Payload is null) throw new InvalidDataException("Worker result is empty.");
-            byteCount += Encoding.UTF8.GetByteCount(response.Payload);
-            if (byteCount > MaxBytes) throw new InvalidDataException("Too much data.");
-            using var document = JsonDocument.Parse(response.Payload, new JsonDocumentOptions { MaxDepth = 32 });
-            RejectDuplicates(document.RootElement);
-            var page = Deserialize<Page>(document.RootElement);
-            if (page.ContractVersion != 1 || string.IsNullOrEmpty(page.Snapshot) ||
-                page.Snapshot.Length > 128 || snapshot is not null && snapshot != page.Snapshot ||
-                page.TotalRows is > MaxRows)
-                throw new InvalidDataException("Invalid snapshot.");
-            snapshot = page.Snapshot;
-            using var items = JsonDocument.Parse(page.Items, new JsonDocumentOptions { MaxDepth = 32 });
-            RejectDuplicates(items.RootElement);
-            if (items.RootElement.ValueKind != JsonValueKind.Array)
-                throw new InvalidDataException("Invalid page items.");
-            foreach (var row in items.RootElement.EnumerateArray())
-            {
-                if (row.ValueKind != JsonValueKind.Object || rows.Count >= MaxRows)
-                    throw new InvalidDataException("Page row limit.");
-                rows.Add(row.Clone());
-            }
-            if (page.Metadata is not null)
-            {
-                using var meta = JsonDocument.Parse(page.Metadata, new JsonDocumentOptions { MaxDepth = 32 });
-                RejectDuplicates(meta.RootElement);
-                if (metadata is not null && metadata.Value.GetRawText() != meta.RootElement.GetRawText())
-                    throw new InvalidDataException("Metadata drift.");
-                metadata = meta.RootElement.Clone();
-            }
-            if (page.NextOffset is null) return new(rows, metadata);
-            if (page.NextOffset <= offset || page.NextOffset != rows.Count)
-                throw new InvalidDataException("Invalid cursor.");
-            offset = page.NextOffset.Value;
-        }
-        throw new InvalidDataException("Too many pages.");
-    }
     private static T Deserialize<T>(JsonElement element)
         => element.Deserialize<T>(Strict) ?? throw new InvalidDataException("Invalid DTO.");
-    private static void RejectDuplicates(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            var names = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var property in element.EnumerateObject())
-            {
-                if (!names.Add(property.Name)) throw new InvalidDataException("Duplicate field.");
-                RejectDuplicates(property.Value);
-            }
-        }
-        else if (element.ValueKind == JsonValueKind.Array)
-            foreach (var row in element.EnumerateArray()) RejectDuplicates(row);
-    }
-    private sealed class WorkerQueryRejectedException(string code) : Exception(code)
-    {
-        public string Code { get; } = code;
-    }
-    private sealed record Snapshot(IReadOnlyList<JsonElement> Rows, JsonElement? Metadata);
-    private sealed record Page(string Items, string Snapshot, int? NextOffset,
-        string? Metadata = null, int ContractVersion = 1, int? TotalRows = null);
     private sealed record CoverageMetadata(string Market, string Ticker, DateOnly From, DateOnly To,
         int RegisteredTradingDays, int AcceptedDays, int MissingDays, int PendingDays,
         int CriticalDays, int RejectedDays, decimal? CoveragePercent, bool CalendarVerified,

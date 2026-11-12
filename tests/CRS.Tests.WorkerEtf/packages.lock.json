@@ -490,11 +490,6 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
-      "System.ServiceProcess.ServiceController": {
-        "type": "Transitive",
-        "resolved": "8.0.0",
-        "contentHash": "jtYVG3bpw2n/NvNnP2g/JLri0D4UtfusTvLeH6cZPNAEjJXJVGspS3wLgVvjNbm+wjaYkFgsXejMTocV1T5DIQ=="
-      },
       "WPF-UI.Abstractions": {
         "type": "Transitive",
         "resolved": "4.3.0",
@@ -770,6 +765,12 @@
           "SQLitePCLRaw.lib.e_sqlcipher": "2.1.11",
           "SQLitePCLRaw.provider.e_sqlcipher": "2.1.11"
         }
+      },
+      "System.ServiceProcess.ServiceController": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.0, )",
+        "resolved": "8.0.0",
+        "contentHash": "jtYVG3bpw2n/NvNnP2g/JLri0D4UtfusTvLeH6cZPNAEjJXJVGspS3wLgVvjNbm+wjaYkFgsXejMTocV1T5DIQ=="
       },
       "WPF-UI": {
         "type": "CentralTransitive",

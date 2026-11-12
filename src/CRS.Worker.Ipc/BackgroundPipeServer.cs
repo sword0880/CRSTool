@@ -17,10 +17,14 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> queries = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> uploads = [];
+    private readonly Dictionary<string, (DateTimeOffset Started, int Count)> gatewayQueries = [];
     private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", "GetDiagnosticJobs", "GetHistoryJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks",CRS.Maintenance.DataCleanupTask.HistoryCommand,WorkerProtocol.GetAnnualExchangeRates,WorkerProtocol.GetWorkerLogSettings];
     private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument","PauseAutoCleanup","SubmitDataCleanupTask","AcknowledgeDataCleanupTask",WorkerProtocol.SaveWorkerLogSettings];
     internal static bool IsMutation(string command) => Writes.Contains(command);
-    public async Task RunAsync(CancellationToken token)
+    public Task RunAsync(CancellationToken token) =>
+        RunAsync(token, enableAiGateway: string.Equals(pipeName, DefaultPipeName, StringComparison.OrdinalIgnoreCase));
+
+    internal async Task RunAsync(CancellationToken token, bool enableAiGateway)
     {
         if(requestTimeout is {} timeout&&(timeout<TimeSpan.FromMilliseconds(100)||timeout>TimeSpan.FromSeconds(20)))
             throw new ArgumentOutOfRangeException(nameof(requestTimeout));
@@ -29,8 +33,9 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         // 第一个实例独占声明端点；后续实例使用相同 ACL，受程序数据目录租约保护。
         try
         {
-            for (var i = 0; i < 4; i++) loops.Add(AcceptLoopAsync(false, CreatePipe(false, i == 0), stop.Token));
-            for (var i = 0; i < 2; i++) loops.Add(AcceptLoopAsync(true, CreatePipe(true, i == 0), stop.Token));
+            StartChannel(Channel.DesktopRead, 4);
+            StartChannel(Channel.Management, 2);
+            if (enableAiGateway) StartChannel(Channel.AiPublicRead, 2);
             foreach (var loop in loops) _ = loop.ContinueWith(_ => stop.Cancel(), CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             await Task.WhenAll(loops);
         }
@@ -39,8 +44,14 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
             stop.Cancel();
             try { await Task.WhenAll(loops); } catch (Exception) { /* 保留原始监听异常并清理其它端点。 */ }
         }
+
+        void StartChannel(Channel channel, int count)
+        {
+            for (var i = 0; i < count; i++)
+                loops.Add(AcceptLoopAsync(channel, CreatePipe(channel, i == 0), stop.Token));
+        }
     }
-    private async Task AcceptLoopAsync(bool management, NamedPipeServerStream initial, CancellationToken token)
+    private async Task AcceptLoopAsync(Channel channel, NamedPipeServerStream initial, CancellationToken token)
     {
         NamedPipeServerStream? pipe = initial;
         try
@@ -48,16 +59,16 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
             while (!token.IsCancellationRequested)
             {
                 await pipe.WaitForConnectionAsync(token);
-                try { await HandleConnectionAsync(pipe, management, token); }
+                try { await HandleConnectionAsync(pipe, channel, token); }
                 catch (Exception error) when (error is IOException or InvalidDataException or OperationCanceledException or JsonException or UnauthorizedAccessException or ArgumentException)
                 { /* 畸形请求、断连和超时仅影响当前连接。 */ }
                 await pipe.DisposeAsync(); pipe = null;
-                token.ThrowIfCancellationRequested(); pipe = CreatePipe(management, false);
+                token.ThrowIfCancellationRequested(); pipe = CreatePipe(channel, false);
             }
         }
         finally { if (pipe is not null) await pipe.DisposeAsync(); }
     }
-    private async Task HandleConnectionAsync(NamedPipeServerStream pipe, bool management, CancellationToken token)
+    private async Task HandleConnectionAsync(NamedPipeServerStream pipe, Channel channel, CancellationToken token)
     {
         using var reading=CancellationTokenSource.CreateLinkedTokenSource(token);reading.CancelAfter(TimeSpan.FromSeconds(5));
         var request = await Framing.ReadAsync<BackgroundRequest>(pipe, reading.Token);
@@ -68,14 +79,34 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
             if (identity.ImpersonationLevel < TokenImpersonationLevel.Impersonation || !identity.IsAuthenticated) throw new UnauthorizedAccessException();
             var principal = new WindowsPrincipal(identity);
             if (principal.IsInRole(new SecurityIdentifier(WellKnownSidType.NetworkSid, null))) throw new UnauthorizedAccessException();
-            caller = new(identity.User!.Value, principal.IsInRole(WindowsBuiltInRole.Administrator));
+            var user = identity.User ?? throw new UnauthorizedAccessException();
+            var gatewayAccount = user.Equals(AiGatewayWorkerEndpoint.Identity);
+            // 仅接受以专用虚拟账户登录的服务进程。共享账户持有同名服务组也不能代用。
+            if (channel == Channel.AiPublicRead)
+            {
+                if (!gatewayAccount) throw new UnauthorizedAccessException();
+                caller = new(user.Value, CanManage: false);
+                return;
+            }
+            if (gatewayAccount || identity.Groups?.Contains(AiGatewayWorkerEndpoint.Identity) == true)
+                throw new UnauthorizedAccessException();
+            caller = new(user.Value, principal.IsInRole(WindowsBuiltInRole.Administrator));
         });
         if (caller is null) throw new UnauthorizedAccessException();
-        var invalid = Limit(caller, management,request.Command=="PutPluginDocument") ?? Validate(request, caller, management);
+        var management = channel == Channel.Management;
+        var gateway = channel == Channel.AiPublicRead;
+        var invalid = Limit(caller, channel, request.Command == "PutPluginDocument");
+        if (invalid is null)
+        {
+            // Gateway 请求先按专用白名单判定，拒绝请求不会触发业务控制层或持久命令审计。
+            invalid = gateway && !AiGatewayWorkerRequestPolicy.Allows(request)
+                ? "Forbidden" : Validate(request, caller, management);
+        }
         var response = invalid is null ? request.Command=="QueryPlugin"?
             await ExecuteConnectedQueryAsync(pipe,request,caller,token):await ExecuteRequestAsync(request,caller,token)
             : new BackgroundResponse(WorkerProtocol.Version, request.RequestId, invalid);
-        if (invalid is not (null or "RateLimited" or "Busy") && Writes.Contains(request.Command)) await control.HandleAsync(request with { Command = "AuditDenied" }, caller, token);
+        if (!gateway && invalid is not (null or "RateLimited" or "Busy") && Writes.Contains(request.Command))
+            await control.HandleAsync(request with { Command = "AuditDenied" }, caller, token);
         // 消息上限是最后防线；超限返回协议错误，不把服务伪装成断线。
         if (JsonSerializer.SerializeToUtf8Bytes(response).Length > 131072) response = new(WorkerProtocol.Version, request.RequestId, "PayloadTooLarge");
         using var replying=CancellationTokenSource.CreateLinkedTokenSource(token);replying.CancelAfter(TimeSpan.FromSeconds(3));
@@ -130,12 +161,19 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         if (Writes.Contains(request.Command) && (!caller.CanManage || !management)) return "Forbidden";
         return null;
     }
-    private string? Limit(BackgroundCaller caller, bool management,bool upload=false)
+    private string? Limit(BackgroundCaller caller, Channel channel, bool upload)
     {
         lock (rateGate)
         {
             // 只读请求无需重放缓存；身份配额独立，修改请求在加密仓储中进行持久幂等校验。
-            var bucket = upload ? uploads : management ? commands : queries; var now = CRS.Timing.BeijingClock.Now;
+            var bucket = channel switch
+            {
+                Channel.AiPublicRead => gatewayQueries,
+                _ when upload => uploads,
+                Channel.Management => commands,
+                _ => queries
+            };
+            var now = CRS.Timing.BeijingClock.Now;
             foreach (var sid in bucket.Where(x => now - x.Value.Started > TimeSpan.FromSeconds(10)).Select(x => x.Key).ToArray()) bucket.Remove(sid);
             if (!bucket.TryGetValue(caller.Sid, out var limit))
             {
@@ -147,15 +185,34 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         }
         return null;
     }
-    private NamedPipeServerStream CreatePipe(bool management, bool first)
+    private NamedPipeServerStream CreatePipe(Channel channel, bool first)
     {
         var acl = new PipeSecurity(); acl.SetAccessRuleProtection(true, false);
         using var identity = WindowsIdentity.GetCurrent(); var owner = identity.User!; acl.SetOwner(owner);
         acl.AddAccessRule(new(new SecurityIdentifier(WellKnownSidType.NetworkSid, null), PipeAccessRights.FullControl, AccessControlType.Deny));
-        foreach (var sid in new[] { owner, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null) })
-            acl.AddAccessRule(new(sid, PipeAccessRights.FullControl, AccessControlType.Allow));
-        if (!management) acl.AddAccessRule(new(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null), PipeAccessRights.ReadWrite | PipeAccessRights.Synchronize, AccessControlType.Allow));
-        return NamedPipeServerStreamAcl.Create(pipeName + (management ? ControlSuffix : ""), PipeDirection.InOut, 8, PipeTransmissionMode.Byte,
+        acl.AddAccessRule(new(owner, PipeAccessRights.FullControl, AccessControlType.Allow));
+        if (channel == Channel.AiPublicRead)
+        {
+            acl.AddAccessRule(new(AiGatewayWorkerEndpoint.Identity, AiGatewayWorkerEndpoint.ClientRights, AccessControlType.Allow));
+        }
+        else
+        {
+            acl.AddAccessRule(new(AiGatewayWorkerEndpoint.Identity, PipeAccessRights.FullControl, AccessControlType.Deny));
+            foreach (var kind in new[] { WellKnownSidType.LocalSystemSid, WellKnownSidType.BuiltinAdministratorsSid })
+                acl.AddAccessRule(new(new SecurityIdentifier(kind, null), PipeAccessRights.FullControl, AccessControlType.Allow));
+            if (channel == Channel.DesktopRead)
+                acl.AddAccessRule(new(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
+                    PipeAccessRights.ReadWrite | PipeAccessRights.Synchronize, AccessControlType.Allow));
+        }
+        var suffix = channel switch
+        {
+            Channel.Management => ControlSuffix,
+            Channel.AiPublicRead => AiGatewayWorkerEndpoint.PipeSuffix,
+            _ => ""
+        };
+        return NamedPipeServerStreamAcl.Create(pipeName + suffix, PipeDirection.InOut, 8, PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous | (first ? PipeOptions.FirstPipeInstance : PipeOptions.None), 16384, 16384, acl);
     }
+
+    private enum Channel { DesktopRead, Management, AiPublicRead }
 }

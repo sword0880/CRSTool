@@ -7,20 +7,20 @@ namespace CRS.Worker.Ipc;
 /// <summary>发送管理请求前核对 SCM 实际 PID，避免服务停止时连接同名伪造管道。</summary>
 internal static class PipeServerIdentity
 {
-    public static void Verify(NamedPipeClientStream pipe)
+    public static void Verify(NamedPipeClientStream pipe, string serviceName = "CRSBackgroundService")
     {
         if (!GetNamedPipeServerProcessId(pipe.SafePipeHandle, out var pipeProcess)) throw new Win32Exception();
         var manager = OpenSCManager(null, null, 1);
         if (manager == IntPtr.Zero) throw new Win32Exception();
         try
         {
-            var service = OpenService(manager, "CRSBackgroundService", 4); // 仅查询状态，不申请服务控制权限。
+            var service = OpenService(manager, serviceName, 4); // 仅查询状态，不申请服务控制权限。
             if (service == IntPtr.Zero) throw new Win32Exception();
             try
             {
                 if (!QueryServiceStatusEx(service, 0, out var status, Marshal.SizeOf<ServiceStatus>(), out _)) throw new Win32Exception();
                 if (status.ProcessId == 0 || status.ProcessId != pipeProcess || status.CurrentState != 4)
-                    throw new UnauthorizedAccessException("管道服务端不属于 SCM 当前运行的 CRS 后台服务。");
+                    throw new UnauthorizedAccessException("管道进程与 SCM 当前运行的目标服务不一致。");
             }
             finally { CloseServiceHandle(service); }
         }

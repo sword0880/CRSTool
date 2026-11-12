@@ -4,5 +4,6 @@
   <ProjectReference Include="../../src/CRS.AI.Query/CRS.AI.Query.csproj" />
   <ProjectReference Include="../../src/CRS.AI.Infrastructure/CRS.AI.Infrastructure.csproj" />
   <ProjectReference Include="../../src/CRS.AI.Adapters/CRS.AI.Adapters.csproj" />
+  <ProjectReference Include="../../src/CRS.AI.Gateway/CRS.AI.Gateway.csproj" />
  </ItemGroup>
 </Project>

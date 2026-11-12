@@ -1,13 +1,16 @@
 using System.Text.Json;
 namespace CRS.AI.Contracts;
 
-// This caller must be constructed by a trusted local host, never from model arguments.
+// 调用者由可信宿主根据本机身份构造，禁止从模型参数反序列化。
 public sealed record AiCaller(string Subject, bool PublicResearchAuthorized);
 public sealed record AiCall(string Tool, JsonElement Arguments);
 public sealed record AiTool(string Name, string Description, JsonElement Schema);
 public sealed record AiResult(string Version, string Tool, string Status, string? Code,
     DateTimeOffset ObservedAt, JsonElement? Data, IReadOnlyList<string> Limitations)
 {
+    /// <summary>公开投影内容的 SHA-256 指纹，不包含 Worker 的临时分页令牌。</summary>
+    public string? DataVersion { get; init; }
+
     public static AiResult Reject(string tool, string code) =>
         new("1.0", tool, "Rejected", code, DateTimeOffset.UtcNow, null, Array.Empty<string>());
 }
