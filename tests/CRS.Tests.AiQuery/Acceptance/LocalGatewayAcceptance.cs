@@ -7,6 +7,7 @@ using CRS.AI.Gateway.Authorization;
 using CRS.AI.Gateway.Transport;
 using CRS.AI.Infrastructure;
 using CRS.AI.Query;
+using CRS.Tests.AiQuery.Fixtures;
 
 namespace CRS.Tests.AiQuery.Acceptance;
 
@@ -76,8 +77,8 @@ internal static class LocalGatewayAcceptance
             using var persisted = await reloaded.AcquireAsync(sid, token);
             Check(persisted is null, "重新加载后保留撤销状态");
             var events = await File.ReadAllLinesAsync(audit, token);
-            Check(events.Length == 8 && events.All(line => !line.Contains(sid, StringComparison.Ordinal)),
-                "四次工具调用写入八条最小审计记录，主体仅保留指纹");
+            Check(events.Length == 4 && events.All(line => !line.Contains(sid, StringComparison.Ordinal)),
+                "两次通过准入的调用写入四条脱敏记录，越权流量不消耗审计容量");
         }
         finally
         {

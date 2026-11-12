@@ -128,14 +128,16 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         try
         {
             var operation=Parse(payload).Operation;
-            return operation is "status" or "release-query" or "export" or "export-breadth"||Operations.Queries.ContainsKey(operation)?operation:"unknown";
+            return operation is "status" or "release-query" or "export" or "export-breadth"||
+                AiPublicOperation(operation) is not null||Operations.Queries.ContainsKey(operation)?operation:"unknown";
         }
         catch(EtfContractException){return "invalid";}
     }
     public BackgroundQueryRouting DescribeQueryRouting()=>new("Operation","Snapshot",
         Operations.Queries.Select(x=>new BackgroundQueryRoute(x.Key,x.Value.Kind==NationalTeamQueryKind.ShortRead?BackgroundQueryWorkload.ShortRead:BackgroundQueryWorkload.ResearchRead))
             .Concat(new[]{new BackgroundQueryRoute("status",BackgroundQueryWorkload.ShortRead),new("release-query",BackgroundQueryWorkload.ShortRead),
-                new("export",BackgroundQueryWorkload.ResearchRead),new("export-breadth",BackgroundQueryWorkload.ResearchRead)}).OrderBy(x=>x.Operation,StringComparer.Ordinal).ToArray());
+                new("export",BackgroundQueryWorkload.ResearchRead),new("export-breadth",BackgroundQueryWorkload.ResearchRead),
+                new("ai-public-overview",BackgroundQueryWorkload.ResearchRead),new("ai-public-coverage",BackgroundQueryWorkload.ResearchRead)}).OrderBy(x=>x.Operation,StringComparer.Ordinal).ToArray());
 
     /// <summary>只读白名单不含审核、采集、文件写入或任意文件路径，普通用户只能读取公开研究结果。</summary>
     public async Task<string> QueryAsync(string payload,CancellationToken token)
@@ -147,6 +149,8 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         if(request.Offset<0||request.Count is <1 or >256)throw new ArgumentException("分页参数不正确。");
         if(request.Snapshot is not null&&request.Operation is ("status" or "export" or "export-breadth"))throw new ArgumentException("此操作不接受分页快照。");
         if(request.ResearchRequest is not null&&request.Operation is not ("research-submit" or "research-status" or "research-release"))throw new ArgumentException("此操作不接受嵌套研究请求。");
+        if(AiPublicOperation(request.Operation) is { } publicOperation)
+            return await ReadAiPublicPageAsync(request with {Operation=publicOperation},token);
         var kind=DescribeQueryRouting().Classify(payload);
         using(await (kind==BackgroundQueryWorkload.ShortRead?shortQueries:researchQueries).EnterAsync(token))
         {
@@ -187,17 +191,23 @@ public sealed partial class NationalTeamBackgroundSession(IBackgroundHostContext
         }
         try
         {
-            var handler=QueryHandler(request.Operation);
-            using var scope=ReadWorkloadScope.Enter(handler.Kind==NationalTeamQueryKind.ShortRead);
-            var result=await handler.Read(request,token);token.ThrowIfCancellationRequested();
-            var rows=result.Rows.Select(row=>{token.ThrowIfCancellationRequested();return BeijingQueryTimes.Normalize(row);}).ToArray();
-            var metadata=result.Metadata is {} value?BeijingQueryTimes.Normalize(value):null;
+            var (rows,metadata)=await ReadQueryRowsAsync(request,token);
             if(rows.Length>10000||rows.Sum(x=>(long)System.Text.Encoding.UTF8.GetByteCount(x))>2*1024*1024)throw new ArgumentException("查询快照超过限额。");
             var id=Guid.NewGuid().ToString("N");
             lock(cacheGate){token.ThrowIfCancellationRequested();snapshots.Add(id,(CRS.Timing.BeijingClock.Now.AddMinutes(10),Canonical(request),rows,metadata));}
             return(id,rows,metadata);
         }
         finally{lock(cacheGate)buildingSnapshots--;}
+    }
+
+    private async Task<(string[] Rows,string? Metadata)> ReadQueryRowsAsync(EtfRequest request,CancellationToken token)
+    {
+        var handler=QueryHandler(request.Operation);
+        using var scope=ReadWorkloadScope.Enter(handler.Kind==NationalTeamQueryKind.ShortRead);
+        var result=await handler.Read(request,token);token.ThrowIfCancellationRequested();
+        var rows=result.Rows.Select(row=>{token.ThrowIfCancellationRequested();return BeijingQueryTimes.Normalize(row);}).ToArray();
+        var metadata=result.Metadata is {} value?BeijingQueryTimes.Normalize(value):null;
+        return(rows,metadata);
     }
 
     /// <summary>协商后至多256行，仍受原46KB响应限额；同一快照连续分页，不截断或重算金融结果。</summary>

@@ -7,7 +7,7 @@ namespace CRS.Worker.Ipc;
 public static class AiGatewayWorkerEndpoint
 {
     public const string ServiceName = "CRSAiGateway";
-    public const string PipeSuffix = ".ai-public";
+    public const string PipeSuffix = ".ai-public.v2";
 
     // 使用 sc.exe showsid CRSAiGateway 核验。服务使用 NT SERVICE\CRSAiGateway 作为登录账户。
     public const string ServiceSid = "S-1-5-80-3904832395-2943114554-1824942487-2770041460-2225003027";

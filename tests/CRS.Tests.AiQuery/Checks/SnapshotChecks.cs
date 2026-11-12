@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CRS.AI.Contracts;
 using CRS.AI.Query;
+using CRS.Tests.AiQuery.Fixtures;
 
 namespace CRS.Tests.AiQuery.Checks;
 

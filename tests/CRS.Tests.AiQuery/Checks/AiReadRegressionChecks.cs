@@ -1,0 +1,213 @@
+using System.Text.Json;
+using CRS.AI.Contracts;
+using CRS.AI.Query;
+using CRS.AI.Adapters;
+using CRS.Worker.Ipc;
+using CRS.Tests.AiQuery.Fixtures;
+
+namespace CRS.Tests.AiQuery.Checks;
+
+internal static class AiReadRegressionChecks
+{
+    public static async Task RunAsync()
+    {
+        var passed = 0;
+        void Check(bool ok, string name)
+        {
+            if (!ok) throw new InvalidOperationException(name);
+            passed++;
+            Console.WriteLine("PASS AI读POC: " + name);
+        }
+        static JsonElement Args(string json)
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.Clone();
+        }
+        static AiCall Overview(string arg = "{}") => new(AiCatalog.Overview, Args(arg));
+        static AiCall Coverage(string arg) => new(AiCatalog.Coverage, Args(arg));
+        const string coverageArgs = """{"market":"SSE","ticker":"510300","from":"2026-11-01","to":"2026-11-03"}""";
+
+        // 直接调用 IPC 客户端也必须验证业务操作和载荷。
+        void RejectWire(string operation, string payload, string name)
+        {
+            try { WorkerPublicReadClient.ValidateReadOnlyPayload(operation, payload); }
+            catch (InvalidDataException) { Check(true, name); return; }
+            throw new InvalidOperationException(name);
+        }
+        RejectWire("overview", """{"Operation":"release-query","Count":10,"Offset":0,"ContractVersion":1}""",
+            "IPC 二次校验拒绝伪装成 overview 的状态操作");
+        RejectWire("overview", """{"Operation":"overview","Count":10,"Offset":0,"ContractVersion":1,"RefreshSource":true}""",
+            "IPC 二次校验拒绝未授权业务字段");
+        RejectWire("coverage", """{"Operation":"coverage","Count":10000,"Offset":0,"ContractVersion":1}""",
+            "IPC 二次校验拒绝无界读取");
+        GatewayPayloadChecks.Run(Check);
+
+        var fake = new FakeWorker();
+        var audit = new FakeAuditSink();
+        var gateway = AiReadGatewayFactory.Create(fake, audit, new AiReadPolicyLimits(100, 2, 16));
+        var caller = new AiCaller("trusted-local-test", true);
+        var mcp = new McpReadToolAdapter(gateway);
+        var openai = new OpenAiFunctionReadAdapter(gateway);
+        Check(mcp.ListTools().Count == 2 && openai.ListFunctions().Count == 2 &&
+              mcp.ListTools().Select(x => x.Name).SequenceEqual(openai.ListFunctions().Select(x => x.Name)) &&
+              openai.ListFunctions().All(x => x.Type == "function" && x.Strict),
+              "MCP 与 OpenAI 工具名/Strict 契约源相同");
+
+        var denied = await mcp.CallToolAsync(new AiCaller("anonymous", false), Overview(), default);
+        Check(denied.Code == "Unauthorized" && fake.Calls == 0, "未经授权时不访问 Worker");
+        Check((await gateway.ExecuteAsync(caller, new AiCall("arbitrary-sql", Args("{}")), default)).Code == "UnknownTool"
+              && fake.Calls == 0, "任意工具/SQL 指令不可透传");
+        foreach (var invalid in new[]
+        {
+            """{"unexpected":true}""", """{"market":"SSE"}""", """{"market":"SSE","market":"SZSE"}"""
+        })
+            Check((await gateway.ExecuteAsync(caller, Overview(invalid), default)).Code == "InvalidArguments"
+                  && fake.Calls == 0, "拒绝 overview 非空/重复参数");
+        foreach (var invalid in new[]
+        {
+            """{"market":"NYSE","ticker":"510300","from":"2026-11-01","to":"2026-11-03"}""",
+            """{"market":"SSE","ticker":"510300","from":"2026-01-01","to":"2026-11-03"}""",
+            """{"market":"SSE","ticker":"../../xx","from":"2026-11-01","to":"2026-11-03"}"""
+        })
+            Check((await gateway.ExecuteAsync(caller, Coverage(invalid), default)).Code == "InvalidArguments"
+                  && fake.Calls == 0, "拒绝非法市场、时间窗和证券标识");
+
+        fake.Handler = (operation, payload, token) =>
+        {
+            Check(operation == "overview", "IPC 封装只允许固定 overview 操作");
+            using var req = JsonDocument.Parse(payload);
+            Check(req.RootElement.GetProperty("Operation").GetString() == "overview", "Worker业务参数不是模型原文");
+            var rows = new[]
+            {
+                new {Market="SSE",Ticker="510300",Name="sample",AsOf=(DateOnly?)null,
+                    Shares=(decimal?)null,Change1=(decimal?)null,Change5=(decimal?)null,Change20=(decimal?)null,
+                    Status="Unknown",CoveredDays=0, AccountNumber="SECRET_MUST_NOT_PASS"}
+            };
+            return Task.FromResult(FakeWorker.Page(JsonSerializer.Serialize(rows)));
+        };
+        var a = await mcp.CallToolAsync(caller, Overview(), default);
+        var b = await openai.ExecuteFunctionAsync(caller, Overview(), default);
+        Check(a.Status == "Partial" && b.Status == "Partial" &&
+              a.Data?.GetRawText() == b.Data?.GetRawText(), "MCP/OpenAI结果共用相同事实投影");
+        await SnapshotChecks.RunAsync(Check);
+        var item = a.Data!.Value[0];
+        Check(item.GetProperty("Shares").ValueKind == JsonValueKind.Null &&
+              !item.TryGetProperty("AccountNumber", out _) && !a.Data.Value.GetRawText().Contains("SECRET"),
+              "未知份额仍为 null、未许可字段被剔除");
+
+        fake.Handler = (operation, payload, token) =>
+        {
+            Check(operation == "coverage", "IPC 封装只允许固定 coverage 操作");
+            var metadata = JsonSerializer.Serialize(new
+            {
+                Market="SSE",Ticker="510300",From=new DateOnly(2026,11,1),To=new DateOnly(2026,11,3),
+                RegisteredTradingDays=2,AcceptedDays=1,MissingDays=1,PendingDays=0,
+                CriticalDays=0,RejectedDays=0,CoveragePercent=(decimal?)50m,
+                CalendarVerified=true,CalendarRangeCovered=false,State="CalendarRangeIncomplete",
+                InternalPath="NEVER_EXPOSE"
+            });
+            var days = JsonSerializer.Serialize(new[]
+            {
+                new {Date=new DateOnly(2026,11,2),State="Accepted",LastAttempt="PRIVATE"},
+                new {Date=new DateOnly(2026,11,3),State="Missing",LastAttempt="PRIVATE"}
+            });
+            return Task.FromResult(FakeWorker.Page(days, metadata));
+        };
+        var coverage = await gateway.ExecuteAsync(caller, Coverage(coverageArgs), default);
+        Check(coverage.Status == "NotReady" && coverage.Data?.GetProperty("CoveragePercent").GetDecimal() == 50m &&
+              !coverage.Data!.Value.GetRawText().Contains("InternalPath") &&
+              !coverage.Data.Value.GetRawText().Contains("LastAttempt"), "覆盖率质量未通过并删除内部字段");
+
+        fake.Handler = (operation, payload, token) => Task.FromResult(new WorkerReadReply("Forbidden", null));
+        Check((await gateway.ExecuteAsync(caller, Overview(), default)).Code == "Unauthorized",
+              "Worker 明确拒绝时不将权限问题伪装成数据格式错误");
+        fake.Handler = (operation, payload, token) => Task.FromResult(new WorkerReadReply("UnknownQuery", null));
+        Check((await gateway.ExecuteAsync(caller, Overview(), default)).Status == "Rejected",
+              "旧 Worker 不支持时失败关闭，不伪造空数据");
+        fake.Handler = (operation, payload, token) => Task.FromResult(FakeWorker.Page("[{\"Market\":\"SSE\",\"Ticker\":\"510300\",\"Name\":\"x\",\"AsOf\":null,\"Shares\":null,\"Change1\":null,\"Change5\":null,\"Change20\":null,\"Status\":\"Unknown\",\"CoveredDays\":0,\"Secret\":\"x\"}]", next: 999));
+        Check((await gateway.ExecuteAsync(caller, Overview(), default)).Code == "UpstreamInvalid",
+              "不接受越界或不连续的快照分页游标");
+        fake.Handler = (operation, payload, token) => throw new BackgroundServiceException(
+            "ServiceUnavailable", Guid.NewGuid(), false, "fake");
+        Check((await gateway.ExecuteAsync(caller, Overview(), default)).Code == "UpstreamUnavailable",
+              "后台关闭不自动连接数据库或启用补充采集");
+
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        fake.Handler = (operation, payload, token) => { token.ThrowIfCancellationRequested(); return Task.FromResult(FakeWorker.Page("[]")); };
+        Check((await gateway.ExecuteAsync(caller, Overview(), cancelled.Token)).Code == "Cancelled",
+              "取消可控返回");
+
+        Check(fake.Operations.All(x => x is "overview" or "coverage") &&
+              fake.Payloads.All(x => !x.Contains("RunNow") && !x.Contains("Save") && !x.Contains("export")),
+              "全部可达 IPC 路径均为固定只读业务查询");
+        // The mandatory gateway factory is shared by both protocol adapters. Audit is a
+        // write-before-read AND write-before-release dependency, not an optional log callback.
+        Check(audit.Entries.Count >= 2 && audit.Entries.Any(e => e.Phase == "Attempt") &&
+              audit.Entries.Any(e => e.Phase == "Outcome") &&
+              audit.Entries.All(e => e.SubjectSha256 != caller.Subject &&
+                  e.ArgumentSha256 != coverageArgs && (e.Tool is AiCatalog.Overview or AiCatalog.Coverage or "unlisted")),
+              "审计仅保存主体及参数指纹，不记录原始输入或账户字段");
+
+        var auditDownWorker = new FakeWorker();
+        var auditDown = AiReadGatewayFactory.Create(auditDownWorker,
+            new FakeAuditSink { FailAt = 1 });
+        Check((await auditDown.ExecuteAsync(caller, Overview(), default)).Code == "AuditUnavailable" &&
+              auditDownWorker.Calls == 0,
+              "写入请求审计失败时必须在 Worker 访问前拒绝");
+
+        var outcomeDownWorker = new FakeWorker();
+        var outcomeDown = AiReadGatewayFactory.Create(outcomeDownWorker,
+            new FakeAuditSink { FailAt = 2 });
+        var outcomeDownResult = await outcomeDown.ExecuteAsync(caller, Overview(), default);
+        Check(outcomeDownResult.Code == "AuditUnavailable" && outcomeDownResult.Data is null &&
+              outcomeDownWorker.Calls == 1,
+              "完成审计失败后不可向模型释放查询数据");
+
+        var budgetWorker = new FakeWorker();
+        var budgetAudit = new FakeAuditSink();
+        var budgetGate = AiReadGatewayFactory.Create(budgetWorker, budgetAudit,
+            new AiReadPolicyLimits(1, 2, 4));
+        var budgetFirst = await new McpReadToolAdapter(budgetGate).CallToolAsync(caller, Overview(), default);
+        var budgetSecond = await new OpenAiFunctionReadAdapter(budgetGate).ExecuteFunctionAsync(caller, Overview(), default);
+        Check(budgetFirst.Status == "Partial" && budgetSecond.Code == "BudgetExceeded" &&
+              budgetWorker.Calls == 1 && budgetAudit.Entries.Count == 2,
+              "双入口共享每主体窗口预算，超限请求不消耗持久审计");
+
+        var unknownBudgetWorker = new FakeWorker();
+        var unknownBudgetGate = AiReadGatewayFactory.Create(unknownBudgetWorker, new FakeAuditSink(),
+            new AiReadPolicyLimits(1, 1, 1));
+        var firstUnknown = await unknownBudgetGate.ExecuteAsync(caller,
+            new AiCall("malicious-extra-tool", Args("{}")), default);
+        var repeatedUnknown = await unknownBudgetGate.ExecuteAsync(caller, Overview(), default);
+        Check(firstUnknown.Code == "UnknownTool" && firstUnknown.Tool == "unlisted" &&
+              repeatedUnknown.Code == "BudgetExceeded" && unknownBudgetWorker.Calls == 0,
+              "未知工具请求同样消耗调用预算且不回显任意工具名");
+
+        var pendingReply = new TaskCompletionSource<WorkerReadReply>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var workerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var concurrentWorker = new FakeWorker
+        {
+            Handler = (_, _, _) =>
+            {
+                workerStarted.SetResult();
+                return pendingReply.Task;
+            }
+        };
+        var concurrentGate = AiReadGatewayFactory.Create(concurrentWorker, new FakeAuditSink(),
+            new AiReadPolicyLimits(10, 1, 4));
+        var pendingCall = concurrentGate.ExecuteAsync(caller, Overview(), default);
+        await workerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var concurrentDenied = await concurrentGate.ExecuteAsync(caller, Overview(), default);
+        Check(concurrentDenied.Code == "ConcurrencyExceeded" && concurrentWorker.Calls == 1,
+              "并行入口不得绕开进程内最大并发槽");
+        pendingReply.SetResult(FakeWorker.Page("[]"));
+        Check((await pendingCall).Status == "Partial", "并发拒绝不影响已受理的合法查询");
+        await AdversarialReadChecks.RunAsync(Check);
+
+        await FileAuditChecks.RunAsync(Check, caller, Overview(), coverageArgs);
+
+        Console.WriteLine($"AI offline POC: {passed} assertions passed; no Windows SCM, NuGet or network was exercised.");
+    }
+}

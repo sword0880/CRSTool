@@ -99,15 +99,18 @@ internal sealed class LocalGatewayServer(IAiReadGateway gateway, LocalAuthorizat
         try
         {
             using var lease = await authorizations.AcquireAsync(sid, disconnected.Token);
-            var result = await gateway.ExecuteAsync(new AiCaller(sid, lease is not null),
-                new AiCall(request.Tool, request.Arguments), lease?.Token ?? disconnected.Token);
-            if (lease is null) await SendAsync(result, disconnected.Token);
-            else
+            if (lease is null)
             {
-                await authorizations.ReplyAsync(sid, lease, current =>
-                    SendAsync(current ? result : AiResult.Reject(result.Tool, "Unauthorized"), disconnected.Token),
-                    disconnected.Token);
+                var tool = request.Tool is AiCatalog.Overview or AiCatalog.Coverage ? request.Tool : "unlisted";
+                await SendAsync(AiResult.Reject(tool, "Unauthorized"), disconnected.Token);
+                return;
             }
+
+            var result = await gateway.ExecuteAsync(new AiCaller(sid, true),
+                new AiCall(request.Tool, request.Arguments), lease.Token);
+            await authorizations.ReplyAsync(sid, lease, current =>
+                SendAsync(current ? result : AiResult.Reject(result.Tool, "Unauthorized"), disconnected.Token),
+                disconnected.Token);
         }
         finally
         {

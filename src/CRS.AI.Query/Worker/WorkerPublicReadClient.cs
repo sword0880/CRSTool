@@ -4,14 +4,17 @@ namespace CRS.AI.Query;
 // 此边界只调用固定的公开 ETF 查询。
 public interface IWorkerPublicReadClient
 {
+    bool UsesSinglePage => false;
     Task<WorkerReadReply> QueryAsync(string operation, string payload, CancellationToken token);
 }
 public sealed record WorkerReadReply(string Code, string? Payload);
 
 public sealed class WorkerPublicReadClient(BackgroundPipeClient client) : IWorkerPublicReadClient
 {
+    public bool UsesSinglePage { get; private init; }
+
     /// <summary>服务宿主使用专用端点。显式传入客户端的构造方式用于桌面诊断和隔离测试。</summary>
-    public static WorkerPublicReadClient ForGateway() => new(BackgroundPipeClient.ForAiGateway());
+    public static WorkerPublicReadClient ForGateway() => new(BackgroundPipeClient.ForAiGateway()) { UsesSinglePage = true };
 
     public async Task<WorkerReadReply> QueryAsync(string operation, string payload, CancellationToken token)
     {

@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.ServiceProcess;
+using System.Text.Json;
 using CRS.Worker.Ipc;
 
 namespace CRS.Tests.Background.Gateway;
@@ -38,8 +39,9 @@ internal static class AiGatewayPipeChecks
             var accepted = control.Requests.ToArray();
             Check(accepted.Length == 3 && accepted.Skip(1).All(x =>
                     x.Caller.Sid == AiGatewayWorkerEndpoint.ServiceSid && !x.Caller.CanManage) &&
-                accepted[1].Request.Payload == Overview && accepted[2].Request.Payload == Coverage,
-                "独立服务令牌只分派两项公开 ETF 查询，拒绝项未进入控制层");
+                Operation(accepted[1].Request) == "ai-public-overview" &&
+                Operation(accepted[2].Request) == "ai-public-coverage",
+                "专用身份仅能分派两项无缓存的公开 ETF 查询");
         }
         finally
         {
@@ -113,6 +115,12 @@ internal static class AiGatewayPipeChecks
 
     internal static BackgroundRequest Query(string payload) => new(WorkerProtocol.Version, Guid.NewGuid(), "QueryPlugin",
         PluginId: AiGatewayWorkerRequestPolicy.PluginId, Payload: payload);
+
+    private static string? Operation(BackgroundRequest request)
+    {
+        using var document = JsonDocument.Parse(request.Payload!);
+        return document.RootElement.GetProperty("Operation").GetString();
+    }
 
     internal static async Task<bool> RejectAsync(Func<Task<BackgroundResponse>> send)
     {

@@ -40,6 +40,7 @@ internal sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRe
         {
             var operation = call.Tool == AiCatalog.Overview ? "overview" : "coverage";
             var snapshot = await _reader.ReadAsync(operation, market, ticker, from, to, timeout.Token);
+            timeout.Token.ThrowIfCancellationRequested();
             if (operation == "overview")
             {
                 var summary = snapshot.Rows.Select(Deserialize<AiEtfOverviewRow>).ToArray();
@@ -55,8 +56,9 @@ internal sealed class AiReadQueryService(IWorkerPublicReadClient worker) : IAiRe
                 meta.AcceptedDays, meta.MissingDays, meta.PendingDays, meta.CriticalDays,
                 meta.RejectedDays, meta.CoveragePercent, meta.CalendarVerified,
                 meta.CalendarRangeCovered, meta.State, days);
-            var status = meta.CalendarVerified && meta.CalendarRangeCovered &&
-                         meta.State == "CompleteRegisteredCalendar"
+            if (!EtfCoverageValidation.IsConsistent(data))
+                return AiResult.Reject(call.Tool, "UpstreamInvalid");
+            var status = meta.State == "CompleteRegisteredCalendar"
                 ? "Partial" : "NotReady";
             return Result(call.Tool, status, status == "NotReady" ? "CoverageNotVerified" : "RegisteredCalendarOnly",
                 JsonSerializer.SerializeToElement(data));

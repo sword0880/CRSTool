@@ -102,6 +102,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
             invalid = gateway && !AiGatewayWorkerRequestPolicy.Allows(request)
                 ? "Forbidden" : Validate(request, caller, management);
         }
+        if (gateway && invalid is null) request = AiGatewayWorkerRequestPolicy.UseSinglePageRoute(request);
         var response = invalid is null ? request.Command=="QueryPlugin"?
             await ExecuteConnectedQueryAsync(pipe,request,caller,token):await ExecuteRequestAsync(request,caller,token)
             : new BackgroundResponse(WorkerProtocol.Version, request.RequestId, invalid);

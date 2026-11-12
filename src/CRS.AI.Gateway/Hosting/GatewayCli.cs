@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using CRS.AI.Gateway.Audit;
 using CRS.AI.Gateway.Transport;
 
 namespace CRS.AI.Gateway.Hosting;
@@ -8,6 +9,7 @@ internal static class GatewayCli
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        if (args is ["--archive-audit"]) return GatewayAuditCommand.Run();
         var client = new LocalGatewayClient(LocalGatewayProtocol.PipeName, verifyService: true);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try
@@ -30,7 +32,7 @@ internal static class GatewayCli
                 Console.WriteLine(response.Code);
                 return response.Code == "Ok" ? 0 : 1;
             }
-            Console.Error.WriteLine("用法：--call <工具名> [JSON参数]，或以管理员身份运行 --status、--grant <SID>、--revoke <SID>。");
+            Console.Error.WriteLine("用法：--call <工具名> [JSON参数]，或以管理员身份运行 --status、--grant <SID>、--revoke <SID>、--archive-audit。");
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or
                                       OperationCanceledException or JsonException or ArgumentException or Win32Exception)

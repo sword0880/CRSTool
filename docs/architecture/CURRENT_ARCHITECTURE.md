@@ -68,7 +68,7 @@
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Windows 命名管道、请求协议及身份授权。桌面、管理和候选 Gateway 公开 ETF 查询各有独立访问控制 |
 | CRS.AI.Contracts | 无 | 候选AI公开只读工具的BCL契约/Schema；未外部部署 |
 | CRS.AI.Query | CRS.AI.Contracts, CRS.Worker.Ipc | 候选只读查询Facade：固定NationalTeam业务操作、上限、质量和脱敏 |
-| CRS.AI.Infrastructure | CRS.AI.Query | 对预创建本地日志文件追加最小 AI 审计事件 |
+| CRS.AI.Infrastructure | CRS.AI.Query | 本地最小 AI 审计事件追加、维护互斥及离线归档校验 |
 | CRS.AI.Gateway | CRS.AI.Contracts, CRS.AI.Query, CRS.AI.Infrastructure, CRS.Worker.Ipc | 候选 Windows 服务宿主和本地命令行客户端，校验用户令牌、管理与撤销授权，通过专用 Worker 管道查询公开 ETF |
 | CRS.AI.Adapters | CRS.AI.Contracts | 候选MCP/OpenAI两种工具协议描述与调用分发，不含网络连接 |
 | CRS.Notifications | CRS.Common | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |

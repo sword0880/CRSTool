@@ -25,7 +25,7 @@ internal sealed class WorkerEtfSnapshotReader(IWorkerPublicReadClient worker)
         int? totalRows = null;
         var bytesRead = 0;
         // 首页使用历史 V1 支持的页大小，服务声明能力后才增大后续页。
-        var count = 10;
+        var count = worker.UsesSinglePage ? MaxRows : 10;
         for (var pageIndex = 0; pageIndex < MaxPages; pageIndex++)
         {
             var offset = rows.Count;
@@ -35,6 +35,7 @@ internal sealed class WorkerEtfSnapshotReader(IWorkerPublicReadClient worker)
                 Offset = offset, Count = count, Snapshot = snapshot, ContractVersion = 1
             });
             var response = await worker.QueryAsync(operation, payload, token);
+            token.ThrowIfCancellationRequested();
             if (response.Code != "Ok") throw new WorkerQueryRejectedException(response.Code);
             if (response.Payload is null) throw new InvalidDataException("Worker result is empty.");
             bytesRead += Encoding.UTF8.GetByteCount(response.Payload);
@@ -46,6 +47,8 @@ internal sealed class WorkerEtfSnapshotReader(IWorkerPublicReadClient worker)
                 page.Snapshot.Length > 128 || (snapshot is not null && snapshot != page.Snapshot) ||
                 page.MaximumPageCount is < 1 or > 256)
                 throw new InvalidDataException("Invalid snapshot.");
+            if (worker.UsesSinglePage && (page.SinglePage != true || page.NextOffset is not null || page.TotalRows is null))
+                throw new InvalidDataException("专用 Worker 查询必须返回完整单页。");
             snapshot = page.Snapshot;
 
             var items = ParseChecked(page.Items);
@@ -110,7 +113,8 @@ internal sealed class WorkerEtfSnapshotReader(IWorkerPublicReadClient worker)
     }
 
     private sealed record Page(string Items, string Snapshot, int? NextOffset,
-        string? Metadata = null, int ContractVersion = 1, int? TotalRows = null, int? MaximumPageCount = null);
+        string? Metadata = null, int ContractVersion = 1, int? TotalRows = null, int? MaximumPageCount = null,
+        bool? SinglePage = null);
 }
 
 internal sealed record WorkerEtfSnapshot(IReadOnlyList<JsonElement> Rows, JsonElement? Metadata);

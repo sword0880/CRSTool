@@ -13,6 +13,7 @@ internal sealed class GatewayStorage(string root)
         FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
 
     public string AuthorizationPath => Path.Combine(root, "Authorization", "subjects.json");
+    public string AuditMaintenancePath => Path.Combine(root, "Authorization", "audit-maintenance.lock");
     public string AuditPath => Path.Combine(root, "Audit", "events.jsonl");
 
     public static GatewayStorage Installed() =>
@@ -26,6 +27,8 @@ internal sealed class GatewayStorage(string root)
         ValidateDirectory(Path.GetDirectoryName(AuthorizationPath)!, protect: false, NoAuditChange & ~FileSystemRights.Delete);
         ValidateDirectory(Path.GetDirectoryName(AuditPath)!, protect: false, NoAuditChange);
         ValidateFile(AuthorizationPath, gatewayCanOwn: true, FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership);
+        if (File.Exists(AuditMaintenancePath))
+            ValidateFile(AuditMaintenancePath, gatewayCanOwn: true, FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership);
         ValidateFile(AuditPath, gatewayCanOwn: false, NoAuditChange);
     }
 

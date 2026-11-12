@@ -121,9 +121,9 @@ public sealed partial class NationalTeamBackgroundSession
     }
     private async Task StopQueriesAsync()
     {
-        var shortDrain=shortQueries.CloseAsync();var researchDrain=researchQueries.CloseAsync();
+        var shortDrain=shortQueries.CloseAsync();var researchDrain=researchQueries.CloseAsync();var aiDrain=aiQueries.CloseAsync();
         await researchStopping.CancelAsync();
-        await Task.WhenAll(shortDrain,researchDrain);
+        await Task.WhenAll(shortDrain,researchDrain,aiDrain);
         Task[] jobs;lock(cacheGate)jobs=researchJobs.Values.SelectMany(x=>x.Release is {} release?new[]{x.Work,release}:new[]{x.Work}).ToArray();
         await Task.WhenAll(jobs);
     }

@@ -11,6 +11,7 @@ public sealed class BoundedWorkAdmission(int capacity,int maximumWaiting,TimeSpa
     private readonly int capacity=capacity is >=1 and <=256?capacity:throw new ArgumentOutOfRangeException(nameof(capacity));
     private readonly int maximumWaiting=maximumWaiting is >=0 and <=256?maximumWaiting:throw new ArgumentOutOfRangeException(nameof(maximumWaiting));
     private readonly TimeSpan waitBudget=waitBudget>=TimeSpan.Zero&&waitBudget<=TimeSpan.FromMinutes(2)?waitBudget:throw new ArgumentOutOfRangeException(nameof(waitBudget));
+    public bool HasWork { get { lock(sync) return active > 0 || waiting.Count > 0; } }
     public async ValueTask<IDisposable> EnterAsync(CancellationToken token,TimeSpan? budget=null)
     {
         if(budget is {} requested&&(requested<TimeSpan.Zero||requested>TimeSpan.FromMinutes(2)))throw new ArgumentOutOfRangeException(nameof(budget));

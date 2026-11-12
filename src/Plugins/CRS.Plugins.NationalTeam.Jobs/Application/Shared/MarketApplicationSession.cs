@@ -7,6 +7,7 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     private readonly BoundedWorkAdmission writeGate=new(1,4,TimeSpan.FromSeconds(5));
     private readonly BoundedWorkAdmission shortReads=new(2,4,TimeSpan.FromSeconds(1));
     private readonly BoundedWorkAdmission researchReads=new(1,1,TimeSpan.FromSeconds(2));
+    private readonly BoundedWorkAdmission aiReads=new(1,0,TimeSpan.Zero);
     private readonly BoundedWorkAdmission backgroundReads=new(1,4,TimeSpan.FromSeconds(2));
     private readonly BoundedWorkAdmission evaluationReads=new(1,1,TimeSpan.FromSeconds(2));
     private readonly BoundedWorkAdmission evaluations=new(1,1,TimeSpan.FromSeconds(2));
@@ -53,7 +54,8 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     }
     internal Task<T> ReadAsync<TPort,T>(Func<TPort,T> query,CancellationToken token) where TPort:class
     {
-        var admission=ReadWorkloadScope.Current switch{ReadWorkloadKind.ShortRead=>shortReads,ReadWorkloadKind.ResearchRead=>researchReads,_=>backgroundReads};
+        var admission=AiPublicReadScope.IsActive?aiReads:ReadWorkloadScope.Current switch
+        {ReadWorkloadKind.ShortRead=>shortReads,ReadWorkloadKind.ResearchRead=>researchReads,_=>backgroundReads};
         return ReadWithAdmissionAsync(admission,query,token);
     }
     // 评价准备使用独立连接和名额；长时间核验不能占住采集的只读门槛，关闭仍统一排空。
@@ -72,7 +74,8 @@ internal sealed class MarketApplicationSession(Func<IMarketRepository> factory) 
     public async ValueTask DisposeAsync()
     {
         disposed=true;
-        await Task.WhenAll(shortReads.CloseAsync(),researchReads.CloseAsync(),backgroundReads.CloseAsync(),evaluationReads.CloseAsync(),writeGate.CloseAsync(),evaluations.CloseAsync()).ConfigureAwait(false);
+        await Task.WhenAll(shortReads.CloseAsync(),researchReads.CloseAsync(),aiReads.CloseAsync(),backgroundReads.CloseAsync(),
+            evaluationReads.CloseAsync(),writeGate.CloseAsync(),evaluations.CloseAsync()).ConfigureAwait(false);
         Volatile.Write(ref independentReads,null);repository?.Dispose();repository=null;
     }
     private async ValueTask<IDisposable> EnterAsync(BoundedWorkAdmission admission,CancellationToken token)

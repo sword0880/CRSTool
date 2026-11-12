@@ -45,6 +45,7 @@ internal static class AdaptiveQueryPageChecks
             Check(wide&&all.Count==104&&all.Select(x=>(x.Market,x.Ticker)).Distinct().Count()==104&&!all.Any(x=>x.Ticker=="799999"),"同一快照完整104行，扩页不重复、不漏行、不混入后插资料");
             var updated=await Page(new("configuration",Count:256));Check(JsonSerializer.Deserialize<EtfConfiguration[]>(updated.Items)!.Length>10&&updated.NextOffset is not null,"大页受字节限额主动缩小，仍可继续读取");
             await session.QueryAsync(JsonSerializer.Serialize(new EtfRequest("release-query",Snapshot:updated.Snapshot)),default);
+            await CheckAiCacheIsolationAsync(session, Check);
         }
         CryptographicOperations.ZeroMemory(context.Key);
 
@@ -67,6 +68,42 @@ internal static class AdaptiveQueryPageChecks
         await CleanupQueue();Check(true,"取消快照走独立短读清理，在途配置尚未返回时已释放快照");
         Console.WriteLine($"PASS 自适应分页合计 {passed}；隔离会话/管道，不替代正式性能验收。");
     }
+
+    private static async Task CheckAiCacheIsolationAsync(NationalTeamBackgroundSession session, Action<bool, string> check)
+    {
+        async Task<string> QueryAsync(EtfRequest request) =>
+            await session.QueryAsync(EtfBusinessProtocol.WriteRequest(request), default);
+        // 连续超限且没有客户端接手续页时，不能积累桌面快照。
+        for (var i = 0; i < 9; i++)
+        {
+            try
+            {
+                await QueryAsync(new("ai-public-overview", Count: 64));
+                throw new InvalidOperationException("超限 AI 查询返回了部分结果。");
+            }
+            catch (InvalidDataException) { }
+        }
+        var desktopSnapshots = new List<EtfQueryPage>();
+        for (var i = 0; i < 8; i++)
+            desktopSnapshots.Add(EtfBusinessProtocol.ReadResponse<EtfQueryPage>(await QueryAsync(new("configuration"))));
+        check(desktopSnapshots.All(page => page.NextOffset is not null) &&
+              desktopSnapshots.Select(page => page.Snapshot).Distinct().Count() == 8,
+            "九次超限 AI 查询后，桌面仍能建立全部八个快照");
+        try
+        {
+            var date = new DateOnly(2026, 11, 2);
+            var page = EtfBusinessProtocol.ReadResponse<EtfQueryPage>(
+                await QueryAsync(new("ai-public-coverage", "SSE", "510300", date, date, Count: 64)));
+            check(page is { SinglePage: true, NextOffset: null, TotalRows: not null } && page.Metadata is not null,
+                "桌面快照池占满时，AI 覆盖率仍能完整单页返回");
+        }
+        finally
+        {
+            foreach (var page in desktopSnapshots)
+                await QueryAsync(new("release-query", Snapshot: page.Snapshot));
+        }
+    }
+
     private static async Task CleanupQueue()
     {
         using var stop=new CancellationTokenSource();var control=new CleanupControl();var pipe="CRS.Etf.Cleanup."+Guid.NewGuid().ToString("N");

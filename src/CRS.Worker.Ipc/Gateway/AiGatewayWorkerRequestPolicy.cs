@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace CRS.Worker.Ipc;
 
@@ -18,12 +19,28 @@ public static class AiGatewayWorkerRequestPolicy
         request.JobId is null && request.Cron is null && request.TimeZoneId is null &&
         request.ExpectedRevision is null && request.Cursor is null && request.PageSize == 10 &&
         request.RelatedRequestId is null && request.ExecutionId is null && request.ResultFilter is null &&
-        ValidatePayload(request.Payload, expectedOperation: null);
+        ValidatePayload(request.Payload, expectedOperation: null, singlePage: true);
 
     public static bool MatchesPayload(string operation, string? payload) =>
         (operation is "overview" or "coverage") && ValidatePayload(payload, operation);
 
-    private static bool ValidatePayload(string? payload, string? expectedOperation)
+    public static bool IsSinglePageRoute(string pluginId, string payload)
+    {
+        if (pluginId != PluginId) return false;
+        using var document = JsonDocument.Parse(payload, new JsonDocumentOptions { MaxDepth = 32 });
+        return document.RootElement.ValueKind == JsonValueKind.Object &&
+            StringValue(document.RootElement, "Operation") is "ai-public-overview" or "ai-public-coverage";
+    }
+
+    internal static BackgroundRequest UseSinglePageRoute(BackgroundRequest request)
+    {
+        // 仅对已经通过校验的专用管道请求改写路由。客户端无法指定内部操作或桌面快照。
+        var payload = JsonNode.Parse(request.Payload!)!.AsObject();
+        payload["Operation"] = "ai-public-" + payload["Operation"]!.GetValue<string>();
+        return request with { Payload = payload.ToJsonString() };
+    }
+
+    private static bool ValidatePayload(string? payload, string? expectedOperation, bool singlePage = false)
     {
         if (string.IsNullOrEmpty(payload) || payload.Length > 4096 ||
             Encoding.UTF8.GetByteCount(payload) > 4096)
@@ -40,7 +57,7 @@ public static class AiGatewayWorkerRequestPolicy
             var operation = StringValue(root, "Operation");
             if ((expectedOperation is not null && operation != expectedOperation) ||
                 !TryReadInt(root, "ContractVersion", out var version) || version != 1 ||
-                !TryReadInt(root, "Offset", out var offset) || offset is < 0 or >= 64 ||
+                !TryReadInt(root, "Offset", out var offset) || offset is < 0 or >= 64 || (singlePage && offset != 0) ||
                 !TryReadInt(root, "Count", out var count) || count < 1 || count > 64 - offset ||
                 !IsValidSnapshot(root, offset))
                 return false;

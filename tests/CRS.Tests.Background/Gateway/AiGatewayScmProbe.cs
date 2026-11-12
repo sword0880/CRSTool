@@ -73,6 +73,8 @@ internal sealed class AiGatewayScmProbe : ServiceBase
             AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Overview.Replace("overview", "release-query")),
             AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Overview.Replace("overview", "export")),
             AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Overview.Replace("overview", "research-submit")),
+            AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Overview.Replace("overview", "ai-public-overview")),
+            AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Overview.Replace("\"Offset\":0", "\"Offset\":1,\"Snapshot\":\"desktop-snapshot\"")),
             AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Overview.Replace("\"Count\":10", "\"Count\":65")),
             AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Overview.Replace("\"Count\":10", "\"Count\":10,\"Count\":9")),
             AiGatewayPipeChecks.Query(AiGatewayPipeChecks.Coverage.Replace("2026-11-06", "2027-01-01"))

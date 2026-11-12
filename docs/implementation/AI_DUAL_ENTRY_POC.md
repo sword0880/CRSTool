@@ -37,11 +37,11 @@ Worker 侧的专用管道与操作白名单见下方本地身份隔离记录。G
 
 ## P1 增量：共享调用预算与失败关闭审计（2026-11-11）
 
-新增 `CRS.AI.Query/AiReadPolicyGateway.cs`：通过 `AiReadGatewayFactory.Create(worker, audit, limits)` 创建唯一受控的 `IAiReadGateway`，供 MCP 与 OpenAI 适配器共享。底层 `AiReadQueryService` 改为程序集内部可见，降低宿主直接越过准入层的机会。
+通过 `CRS.AI.Query/Policy` 的 `AiReadGatewayFactory.Create(worker, audit, limits)` 创建受控的 `IAiReadGateway`，供 MCP 与 OpenAI 适配器共享。审计契约在 `Audit`，只读业务在 `Queries`，Worker 通信在 `Worker`。
 
 - **两阶段审计**：Worker 查询前写入 `Attempt`，释放结果前写入 `Outcome`。审计失败时返回 `AuditUnavailable`，不得读取 Worker（前置失败）或向模型释放已取得的响应（后置失败）。
 - **最小日志**：事件只包含 requestId、UTC 时间、主体 SHA-256 指纹、工具白名单名、阶段、决策、入参 SHA-256 指纹。绝不写原始主体、提示词、工具参数、业务响应或异常堆栈。生产审计 sink 需提供持久化、访问控制、保留周期与恢复验收；本次仅定义接口和离线伪实现，**尚无生产 sink**。
-- **进程内预算**：单主体滑动一分钟调用上限、全部主体共享并发槽、有限主体表；预算使用单调计时 `Stopwatch`，跨两入口由同一个网关实例维护；拒绝请求也写审计。当前默认 20 次/分钟/主体、总并发 2、主体槽 128；仅用于本机 POC。
+- **进程内预算**：单主体滑动一分钟调用上限、全部主体共享全局上限和并发槽。默认 20 次/分钟/主体、全局 60 次/分钟、并发 2、主体槽 128。仅通过准入的请求写两阶段审计，其中包括通过准入后的无效参数和未知工具。
 - **错误约束**：不回传未列入工具目录的原始工具名；审计、预算、并发和未知异常均只返回固定错误码。真实调用者凭证仍必须在接入层校验，`AiCaller` 绝不能由模型内容生成。
 - **离线回归**：请求审计失败不触达 Worker、结果审计失败不泄漏数据、预算共享、并发阻断、指纹不等于原始字段；保留先前只读、质量和分页测试。
 
@@ -123,7 +123,7 @@ dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --ai-ga
 
 `%ProgramData%\CRSAiGateway\Authorization\subjects.json` 保存允许名单，`Audit\events.jsonl` 记录工具调用的最小两阶段事件。安装器为数据目录和文件预设专用 ACL，服务启动时核对访问权限和路径。审计保留周期和离线归档仍需随正式运维验收。
 
-构建候选包后，可在管理员终端执行首次安装。正式查询需要支持 `.ai-public` 的 Worker。服务状态只确认本机 Gateway 入口就绪。
+构建候选包后，可在管理员终端执行首次安装。当前候选 Gateway 查询需要支持 `.ai-public.v2` 的 Worker。服务状态只确认本机 Gateway 入口就绪。
 
 ```powershell
 dotnet publish src/CRS.AI.Gateway -c Release -o artifacts/ai-gateway
@@ -145,6 +145,39 @@ dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build -- --local-ga
 本机 13 项隔离断言通过，覆盖身份伪造、授权、撤销在途请求、重新授权后隔离旧结果、重载状态及审计脱敏。临时安装验收通过了真实 SCM 虚拟账户启动、状态核验、授权及撤销后的重启持久化，并写入 8 条审计事件。已核对测试服务及目录已清理。当前安装的 Worker 继续运行，尚无 `.ai-public` 管道，经候选 Gateway 发起公开查询返回 `UpstreamUnavailable`。与新版 Worker 的真实数据联查待验证。
 
 临时安装发现显式断开管道会丢失尚未读取的管理响应。Gateway 在回复后创建下一监听实例并关闭当前服务端句柄，延迟读取回归已通过。[Windows 命名管道断开语义](https://learn.microsoft.com/windows/win32/api/namedpipeapi/nf-namedpipeapi-disconnectnamedpipe)
+
+## 反方审查与加固
+
+- **持久审计可被拒绝流量耗尽。** 将鉴权、全局与主体预算、并发限制移到落盘前。通过准入的查询依然先审计再访问 Worker、先审计再释放结果。同步刷盘阻塞或写入器忽略取消时，审计等待最多两秒；未结束的写入保有唯一后台写入槽。已取消的请求不能释放晚到的查询结果。
+- **中断的 AI 分页可能占满桌面共享快照池。** Gateway 使用版本化专用管道 `CRS.Worker.Service.v2.ai-public.v2`。Worker 从白名单映射到专用单页读取，校验完整返回，最多 64 行和 46,000 个业务载荷字节。专用路径不存放桌面快照，也不接受外部游标。旧版桌面诊断仍沿原 V1 分页协议。发布时需成套升级 Gateway、Worker 与 NationalTeam 插件。
+- **覆盖率汇总可能掩盖不完整或矛盾的明细。** AI 根据请求区间、去重后的逐日状态和已登记交易日重算计数与比例，并复核日历状态。矛盾结果统一返回 `UpstreamInvalid`。一致但未通过质量条件的记录继续标记 `NotReady`。
+
+验证通过 74 项 AI 离线断言、13 项本机 Gateway 断言、4 项真实 Windows 服务身份断言和 25 项分页断言。连续九次超限 AI 查询后，桌面可建立全部八个快照。桌面快照池占满时，AI 覆盖率仍能返回完整单页。已安装 Worker 的 V1 诊断复跑得到 24 条 ETF 概览及 510300 的 5 个已接受登记交易日。
+
+## AI 读取准入与审计归档整改
+
+- Worker 宿主、NationalTeam 查询会话和数据读取分别为 AI 公开查询预留一个独立名额，等待数为零。桌面有在途或排队的研究读取时，新 AI 请求返回繁忙。已开始的 AI 请求可以与之后进入的桌面读取重叠，宿主给 AI 八秒执行预算。AI 读取沿用一致性快照，原件核验继续优先处理桌面读取。维护会取消并排空两类查询。
+- Gateway 新增管理员命令 `--archive-audit`。先停止 Gateway 服务。命令独占维护锁，校验每条现有记录，将原字节刷盘到 `Audit\Archive\<SHA-256>.jsonl`，核对归档指纹后再用同目录空文件替换活动日志。新文件继承原活动日志权限，归档仅管理员和系统账户可访问。相同内容的重试复用已校验副本，畸形活动文件和指纹不符的同名归档保留供核对。 [Windows 文件替换语义](https://learn.microsoft.com/windows/win32/fileio/moving-and-replacing-files)
+- 首次启动或归档时按需建立维护锁，适用于现有审计目录。归档历史由运维方按留存要求转存。
+
+```powershell
+$gateway = Join-Path $env:ProgramFiles 'CRSAiGateway/CRS.AI.Gateway.exe'
+Stop-Service -Name CRSAiGateway
+& $gateway --archive-audit
+if ($LASTEXITCODE -ne 0) { throw '审计归档未完成。' }
+Start-Service -Name CRSAiGateway
+```
+
+核验命令（管理员终端）：
+
+```powershell
+dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build -- --audit-archive
+dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --ai-read-admission
+```
+
+验证通过 10 项 AI 混合读取断言、9 项归档断言、原有查询分组及分页回归。临时 Windows 服务运行时拒绝归档，停止后归档指纹与原日志一致，重启后成功续写活动日志。该验收使用临时 Gateway 与合成读取夹具。
+
+正式服务保持现有版本。生产真实峰值下的磁盘与 CPU 延迟及长期审计留存仍待验收。
 
 ## 下一阶段实施次序
 

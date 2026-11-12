@@ -8,6 +8,11 @@ using CRS.Worker.PluginHost;
 using CRS.Worker.Service;
 using Microsoft.Data.Sqlite;
 using CRS.Tests.Background.Gateway;
+if (args is ["--ai-read-admission"])
+{
+    await AiReadAdmissionChecks.RunAsync();
+    return;
+}
 if (args is ["--ai-gateway-worker-boundary"] or ["--ai-gateway-worker-boundary", "--scm"])
 {
     await AiGatewayPipeChecks.RunAsync(useScm: args.Length == 2);

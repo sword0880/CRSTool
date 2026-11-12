@@ -11,7 +11,9 @@ public sealed partial class MarketRepository : IMarketReadSessions
     public T Read<T>(Func<IMarketRepository,T> query,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        using var priority=CRS.Common.Concurrency.ReadWorkloadScope.Current==CRS.Common.Concurrency.ReadWorkloadKind.Background?null:raw.PrioritizeQueryVerification();
+        using var priority=AiPublicReadScope.IsActive||
+            CRS.Common.Concurrency.ReadWorkloadScope.Current==CRS.Common.Concurrency.ReadWorkloadKind.Background
+                ?null:raw.PrioritizeQueryVerification();
         using var reader=new MarketRepository(database.OpenReader(),marketCycleApprovalAuditKey.ToArray());
         return reader.database.ReadSnapshot(()=>query(reader),token);
     }

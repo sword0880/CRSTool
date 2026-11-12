@@ -22,7 +22,6 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     private readonly CancellationTokenSource stopping = new();
     private readonly CancellationTokenSource queryStopping = new();
     private readonly HashSet<TaskCompletionSource> activeQueries = [];
-    private readonly Dictionary<(string Plugin,BackgroundQueryWorkload Kind),BoundedWorkAdmission> queryAdmissions=[];
     private readonly Dictionary<JobKey, ExecutionCancellation> running = [];
     private readonly Dictionary<JobKey, string> queued = [];
     private readonly Dictionary<string, SemaphoreSlim> pluginWriters = [];
@@ -165,7 +164,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             return annualRates?.Query(request, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
         if (request.Command is WorkerProtocol.GetWorkerLogSettings or WorkerProtocol.SaveWorkerLogSettings)
             return await HandleLogSettingsAsync(request, caller, token);
-        if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, token);
+        if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, caller, token);
         if(request.Command is "PutPluginDocument" or "GetPluginDocument" or "ListPluginDocuments")return await HandleDocumentsAsync(request,caller,token);
         if(request.Command is "BeginDataCleanupPreview" or "GetDataCleanupStatus" or "ExecuteDataCleanup" or "PauseAutoCleanup" or "SubmitDataCleanupTask" or "GetDataCleanupTasks" or "AcknowledgeDataCleanupTask" or CRS.Maintenance.DataCleanupTask.HistoryCommand)return await HandleCleanupAsync(request,caller,token);
         if(request.Command is "GetEmailSettings" or "SaveEmailSettings" or "TestEmailSettings" or "GetWebhookSettings" or "SaveWebhookSettings" or "TestWebhookSettings")return await HandleEmailAsync(request,caller,token);
@@ -183,58 +182,6 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             return new(WorkerProtocol.Version, request.RequestId, "StorageFault");
         }
         finally { gate.Release(); }
-    }
-    /// <summary>只在准入和退出时持全局锁；插件查询独立限额，维护时取消并排空后才允许释放会话。</summary>
-    private async Task<BackgroundResponse> QueryPluginAsync(BackgroundRequest request, CancellationToken token)
-    {
-        BackgroundResponse Reply(string code, string? payload = null) => new(WorkerProtocol.Version, request.RequestId, code, Payload: payload);
-        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        BoundedWorkAdmission admission;
-        await gate.WaitAsync(token);
-        try
-        {
-            if (fault is not null) return Reply(fault);
-            if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
-            if (maintenance) return Reply("Maintenance");
-            if (request.PluginId is null || request.Payload is null || request.Payload.Length > 4096) return Reply("InvalidRequest");
-            if(!catalog.SupportsQueries(request.PluginId))return Reply("UnknownQuery");
-            var routing=catalog.QueryRouting(request.PluginId);BackgroundQueryWorkload kind;
-            try{kind=routing?.Classify(request.Payload)??BackgroundQueryWorkload.ResearchRead;}
-            catch(Exception error) when(error is System.Text.Json.JsonException or InvalidDataException){return Reply("InvalidRequest");}
-            if(!queryAdmissions.TryGetValue((request.PluginId,kind),out admission!))
-            {
-                // 旧插件保持单读、不积累等待；声明过静态路由的插件才启用分组并发。
-                admission=new(routing is null?1:BackgroundQueryBudgets.Concurrency(kind),routing is null?0:BackgroundQueryBudgets.Waiting(kind),BackgroundQueryBudgets.Wait(kind));
-                if(queryAdmissions.Count>=128)return Reply("PluginBusy");
-                queryAdmissions.Add((request.PluginId,kind),admission);
-            }
-            activeQueries.Add(completed);
-        }
-        finally { gate.Release(); }
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, queryStopping.Token);
-        try
-        {
-            using var lease=await admission.EnterAsync(cancellation.Token);
-            return Reply("Ok", await catalog.QueryAsync(request.PluginId, request.Payload, cancellation.Token));
-        }
-        catch(WorkAdmissionException){return Reply("PluginBusy");}
-        catch (ArgumentException) { return Reply("UnknownQuery"); }
-        catch (System.Text.Json.JsonException) { return Reply("InvalidRequest"); }
-        catch (InvalidDataException) { return Reply("InvalidRequest"); }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
-        catch (OperationCanceledException) { return Reply("RequestTimedOut"); }
-        catch (PluginLifecycleTimeoutException) { throw; } // 不合作插件必须继续走宿主进程终止策略。
-        catch (Exception error)
-        {
-            diagnostics?.Invoke("PluginQueryFailed", request.PluginId, error.GetType().Name);
-            return Reply("PluginQueryFailed");
-        }
-        finally
-        {
-            await gate.WaitAsync(CancellationToken.None);
-            try { activeQueries.Remove(completed); completed.SetResult(); }
-            finally { gate.Release(); }
-        }
     }
     /// <summary>来源存储失效时保留宿主健康诊断；缺失的来源快照不能当作Ready或空额度。</summary>
     private async Task<IReadOnlyList<SourceBudgetHealth>?> SourceHealthAsync()

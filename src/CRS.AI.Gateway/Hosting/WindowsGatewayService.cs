@@ -12,6 +12,7 @@ internal sealed class WindowsGatewayService : ServiceBase
 {
     private readonly CancellationTokenSource stop = new();
     private LocalAuthorizations? authorizations;
+    private FileStream? auditLease;
     private Task? listener;
 
     public WindowsGatewayService()
@@ -27,9 +28,10 @@ internal sealed class WindowsGatewayService : ServiceBase
             throw new UnauthorizedAccessException("Gateway 只能以专用 Windows 服务账户运行。");
         var storage = GatewayStorage.Installed();
         storage.Validate();
+        auditLease = AiAuditMaintenanceLease.OpenService(storage.AuditMaintenancePath);
         authorizations = new LocalAuthorizations(new AuthorizationFile(storage.AuthorizationPath));
         var gateway = AiReadGatewayFactory.Create(WorkerPublicReadClient.ForGateway(),
-            new AiAppendOnlyFileAuditSink(storage.AuditPath));
+            new AiAppendOnlyFileAuditSink(storage.AuditPath, storage.AuditMaintenancePath));
         listener = new LocalGatewayServer(gateway, authorizations, LocalGatewayProtocol.PipeName).RunAsync(stop.Token);
         if (listener.IsCompleted) listener.GetAwaiter().GetResult();
         _ = ObserveAsync(listener);
@@ -40,6 +42,7 @@ internal sealed class WindowsGatewayService : ServiceBase
         stop.Cancel();
         try { listener?.GetAwaiter().GetResult(); }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+        finally { auditLease?.Dispose(); }
     }
 
     protected override void Dispose(bool disposing)
@@ -47,6 +50,7 @@ internal sealed class WindowsGatewayService : ServiceBase
         if (disposing)
         {
             authorizations?.Dispose();
+            auditLease?.Dispose();
             stop.Dispose();
         }
         base.Dispose(disposing);

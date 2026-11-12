@@ -20,6 +20,9 @@ public sealed record EtfQueryPage(string Items,string Snapshot,int? NextOffset,s
     public int? MaximumPageCount {get;init;}
     // 同一快照的完整行数；新端据此识别提前结束，旧服务缺失时沿既有游标契约读取。
     public int? TotalRows {get;init;}
+    // 专用 AI 路由确认结果在当前请求内完整生成，未写入桌面快照缓存。
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SinglePage {get;init;}
 }
 /// <summary>证据导出按有界字节块返回，桌面自行选择输出位置，服务不接收用户路径。</summary>
 public sealed record EvidenceChunk(string Hash,long Length,int Offset,byte[] Bytes,int ContractVersion=EtfBusinessProtocol.Version);
