@@ -64,3 +64,55 @@ Worker Service 是唯一 Quartz 调度宿主。WPF 与 Worker 通过版本化 IP
 ## 7. 当前状态的判断规则
 
 源码存在不代表已部署；离线测试通过不代表 Windows 服务安装成功；服务运行不代表金融数据覆盖或模型有效；模型输出不代表税务金额正确。发布判断只看 [发布验收](../validation/RELEASE_ACCEPTANCE.md) 及可复核证据。
+## 8. 解决方案项目清单与直接依赖
+
+> 本节与 `CRS.sln` 及各 `.csproj` 的直接项目引用保持一一对应。测试门禁会校验项目名称和生产项目直接依赖；新增、删除或调整项目引用时必须同步更新本表。依赖清单是机器可验证的架构事实，不应为追求篇幅而省略。
+
+| 项目 | 直接项目依赖 | 职责 / 边界 |
+| --- | --- | --- |
+| CRS.Domain | 无 | 交易事实、FIFO、税务及绩效规则 |
+| CRS.Application | CRS.Common, CRS.Domain | 用例、端口、冻结结果、DesktopWorkflow |
+| CRS.Security | 无 | 密码学、认证和保险库机制 |
+| CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security, CRS.Documents | 券商解析、持久化、汇率、导出、装配 |
+| CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc, CRS.AI.Models | 桌面进程，具体基础设施仅由 Composition 装配 |
+| CRS.Plugin.Abstractions | CRS.Common | 桌面插件的 BCL 契约 |
+| CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹、有界HTTP正文读取；不依赖业务或宿主 |
+| CRS.Documents | 无 | 公共PDF文字/坐标读取、Excel工作表读取及工作簿生成；文件/行列限额、原始值与显示值分离；依赖PdfPig、NPOI及其运行库，不含券商、税务或持仓规则 |
+| CRS.Plugin.Wpf | CRS.Plugin.Abstractions, CRS.Common | WPF页面贡献、通用分类菜单与宿主顶栏移交契约；时间转换器只适配绑定 |
+| CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
+| CRS.Worker.Abstractions | CRS.Common | 后台会话、任务、查询及存储上下文契约 |
+| CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
+| CRS.Worker.PluginRunner | CRS.Worker.PluginHost | 每插件监督进程、私有stdio双向协议、上下文能力代理；正式源码组合根已启动，部署另验 |
+| CRS.Worker.Ipc | CRS.Worker.Abstractions | Windows 命名管道、请求协议及身份授权。桌面、管理和候选 Gateway 公开 ETF 查询各有独立访问控制 |
+| CRS.AI.Contracts | 无 | AI 只读工具的 BCL 契约、Schema 与调用者标记；源码已进入 main，远程发布未验收 |
+| CRS.AI.Query | CRS.AI.Contracts, CRS.Worker.Ipc | 固定 NationalTeam 只读查询 Facade、参数/分页上限、质量检查与脱敏 |
+| CRS.AI.Infrastructure | CRS.AI.Query | 最小 AI 审计事件追加、维护互斥及离线归档校验 |
+| CRS.AI.Gateway | CRS.AI.Contracts, CRS.AI.Query, CRS.AI.Infrastructure, CRS.Worker.Ipc | 独立 Windows 服务宿主与本地命令入口；校验 Windows 用户身份、授权/撤销并通过专用 Worker 管道查询公开 ETF；尚未作为正式发行部署 |
+| CRS.AI.Adapters | CRS.AI.Contracts | MCP 与 OpenAI 两种工具协议描述与调用分发 |
+| CRS.AI.Client | CRS.AI.Contracts, CRS.AI.Adapters, CRS.AI.Gateway, CRS.AI.Models | 本机 MCP Streamable HTTP 与 OpenAI Responses 命令行入口；MCP 当前仅监听 loopback，不等于远程 ChatGPT 已接通 |
+| CRS.AI.Models | CRS.AI.Adapters, CRS.AI.Contracts, CRS.AI.Gateway, CRS.Common | OpenAI Responses、Anthropic/MiMo/DeepSeek 等模型适配、用户凭证、工具调用及统一附件解析/内存会话 |
+| CRS.Notifications | CRS.Common | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
+| CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
+| CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
+| CRS.Plugins.Heartbeat | CRS.Worker.Abstractions | 后台心跳插件 |
+| CRS.Plugins.NationalTeam.Core | CRS.Common | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
+| CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common, CRS.Documents | 后台采集、市场库、来源策略及查询 |
+| CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
+| CRS.Tests.Domain | 领域和复杂度门禁 |
+| CRS.Tests.Application | 用例和历史复算 |
+| CRS.Tests.Infrastructure | 适配器和持久化 |
+| CRS.Tests.Security | 密码学与认证 |
+| CRS.Tests.Wpf | 绑定、交互和窗口 |
+| CRS.Tests.Verification | 样本及发布验证 |
+| CRS.Tests.PluginHost | 桌面插件宿主 |
+| CRS.Tests.PluginRecovery | UI插件包、页面资源与只读服务边界；Worker恢复另行验证 |
+| CRS.Tests.NationalTeamWatch | ETF 业务与来源 |
+| CRS.Tests.IndexResearch | 指数序列、估值及持久修订研究 |
+| CRS.Tests.IndustryPe | 行业公布PE、修订、来源与历史位置 |
+| CRS.Tests.SectorResearch | 行业质量、估值研究与反方规则 |
+| CRS.Tests.SectorUi | 行业研究界面、分类导航与查询取消 |
+| CRS.Tests.Background | Worker、管道、权限和调度 |
+| CRS.Tests.WorkerEtf | ETF 双入口及后台存储 |
+| CRS.Tests.AiQuery | AI 工具一致性、参数与权限、只读质量、共享审计、本机 Gateway 授权与撤销、MCP 握手/Responses 回传、附件解析与 MCP fileParams 会话集成 |
+| CRS.Worker.FixturePlugin | 后台故障与慢查询夹具，不进入发行包 |
+| CRS.Worker.EtfFixture | 隔离 ETF 服务夹具 |
