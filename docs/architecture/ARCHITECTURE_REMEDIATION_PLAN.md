@@ -2,7 +2,7 @@
 
 > 状态：执行中（本文件是唯一当前权威整改计划）  
 > 文档版本：2.0  
-> 首次编制：2026-10-20｜本次治理：2026-11-10  
+> 首次编制：2026-10-20｜本次治理：2026-11-13  
 > 历史评审基线：`main` / `d843029cfddbc075711170ce45eca424f10f79b8`  
 > 文档用途：将反方架构评审转化为可拆分、可验收、可追踪的专项整改任务。本文是整改计划，不代表所列问题均已在生产环境复现，也不代表任何发布门槛已经通过。
 
@@ -38,7 +38,7 @@
 
 ARCH-206（P1-06）已新增插件独立V1契约、未知版本拒绝和旧请求/响应兼容检查；版本矩阵见[业务契约规范](NATIONALTEAM_BUSINESS_CONTRACT.md)。代码及隔离测试已实施，完整历史发行/实际升级兼容仍保留为未关闭项，详见续记。
 
-ARCH-207（P1-07）已将每插件 `IsolatedPluginSession` 接入 Worker Service 组合根，使用独立 Runner 进程、私有 stdio V2 协议、包摘要/随机挑战/PID 握手及 Job Object 监督。2026-11-13 的最新 [Windows UI 工作流](https://github.com/sword0880/CRSTool/actions/runs/43397935610) 中，项目图/架构检查、启动卡死隔离和 PID 分离检查通过，但模拟 Runner 崩溃后的持久命令终态轮询触发 `TaskCanceledException`；PR #36 的 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 出现相同问题，完整监督/持久执行矩阵未通过。当前 Runner 与 Worker 继承同一服务身份，不构成 OS 权限沙箱；正式服务安装、SCM 生命周期和 OS 权限隔离仍开放，ARCH-207 保持 In Progress。
+ARCH-207（P1-07）已将每插件 `IsolatedPluginSession` 接入 Worker Service 组合根，使用独立 Runner 进程、私有 stdio V2 协议、包摘要/随机挑战/PID 握手及 Job Object 监督。2026-11-13 的最新 [Windows UI 工作流](https://github.com/sword0880/CRSTool/actions/runs/43398848042) 中，项目图/架构检查、启动卡死隔离和 PID 分离检查通过，但模拟 Runner 崩溃后的持久命令终态轮询触发 `TaskCanceledException`；PR #36 的 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 出现相同问题，完整监督/持久执行矩阵未通过。当前 Runner 与 Worker 继承同一服务身份，不构成 OS 权限沙箱；正式服务安装、SCM 生命周期和 OS 权限隔离仍开放，ARCH-207 保持 In Progress。
 
 ARCH-208（P1-08）In Progress：IBKR原件结构读取已统一为不可变来源事实，税务/绩效及账号投影已接入，同步绩效不再重读XML。绩效新导入/新历史已保存实际读取与投影版本并兼容旧记录；IBKR及Futu税务新历史均已接入显式版本审计（含富途交易/收入Excel/PDF）；完整类型化账本、跨版本投影差异和独立真实Golden仍开放，见[来源事实边界](BROKER_SOURCE_FACTS.md)及续记。
 
@@ -102,7 +102,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 | ARCH-204 | **S** `MarketRepository.ValidateEvidence()` 在验证路径中可能记录完整性事件并更新质量问题状态；它被 Evidence/Points 等查询路径调用。证据：[MarketRepository.cs](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Shared/MarketRepository.cs)。 | 拆分纯验证与状态写入：EvidenceVerifier 只返回验证结果；受控 EvidenceIntegrityService 在事务中持久化事件/状态；后台完整性作业负责巡检与修复；普通 QueryService 只读。 | 查询前后数据库写集合不变（除明确声明的审计/计量设施）；完整性作业具备幂等、事务和故障恢复测试；读权限和写权限可分别审计。 |
 | ARCH-205 | **S** `PerformanceViewModel` 直接构造绩效领域对象，并执行金额/时间等校验与 JSON 输入处理。证据：[PerformanceViewModel.cs](../../src/CRS.Desktop.Wpf/ViewModels/Performance/PerformanceViewModel.cs#L254-L281)。 | 将手工估值、投资事件、覆盖确认等流程迁入 Application 用例；ViewModel 负责收集输入、展示状态和呈现错误。避免借此进行无关的全量 ViewModel 重写。 | 业务规则在无 WPF 依赖的应用层测试；UI 测试验证输入映射、加载/保存/错误呈现；不存在重复的 UI 业务校验权威。 |
 | ARCH-206 | **S** IPC 查询使用通用 JSON payload/operation 分发，Host IPC 版本与插件业务 DTO/Schema 版本职责需要进一步明确。证据：[Worker Contracts](../../src/CRS.Worker.Abstractions/Contracts.cs)、[IPC Protocol](../../src/CRS.Worker.Ipc/Protocol.cs)、[NationalTeamBackgroundEntry](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Background/NationalTeamBackgroundEntry.cs)。 | 分离 Host IPC 协议版本、插件业务契约版本和持久化 Schema 版本。公共宿主契约保持小而稳定；各插件维护有版本的请求/响应 DTO、兼容规则和拒绝策略。 | 对缺字段、新字段、未知 operation、旧/新版本客户端、超限 payload 和不兼容 Schema 增加契约测试；不支持版本明确拒绝，不静默降级。 |
-| ARCH-207 | **S/V** 当前插件生命周期故障策略包含宿主退出保护；同进程插件不能被当作 OS 安全沙箱，单个不合作插件可能影响 Worker 可用性。证据：[Worker Service Program.cs](../../src/CRS.Worker.Service/Program.cs#L75-L82)、插件宿主生命周期实现。实际影响需以故障注入验证。 | 先对第一方可信插件实施超时、取消、限流、健康状态与可诊断的故障分级；只有存在明确隔离收益时，才把高风险/高资源插件迁入独立低权限 PluginRunner 进程。暂不开放任意第三方插件。 | 对初始化、查询、执行、取消、Dispose 失控和崩溃进行故障注入；证明故障范围符合设计、宿主能恢复、数据事务不损坏、健康状态不误报。记录哪些情况仍必须重启 Worker。 |
+| ARCH-207 | **进行中** 每插件 Runner 已接入 Worker Service 组合根（`Program.cs` → `processSessions` → `IsolatedPluginSession`），按插件启动独立进程并使用 Job Object、私有 stdio V2 协议；但 Runner 崩溃后的持久命令终态回执测试仍失败（见 run 43398848042）。Runner 与 Worker 未切换独立 Windows 身份，不是 OS 权限沙箱。 | 修复 `RunnerOutcomeUnknown` 后在途持久命令的终态收敛与回执；完成启动、查询、执行、取消、崩溃、重启、排空和维护恢复矩阵。若开放不受信任插件，再另行实施独立服务身份、最小权限 Token、目录 ACL、密钥边界与网络隔离。 | 对启动卡死、查询/执行失控、取消、Dispose、子进程崩溃和 Worker 重启进行故障注入；证明失败命令最终有持久终态、故障不扩散到其它插件、宿主/数据事务可恢复，并在真实 Windows SCM 环境完成安装与升级验收。 |
 | ARCH-208 | **D/V** 税务与绩效对券商交易事实的共享程度不一致；现有文档指出富途已有共享事实路径，而 IBKR 绩效仍有独立适配器。证据：[绩效 P0 记录](../implementation/PERFORMANCE_ANALYTICS.md)。 | 定义不可变 Broker Facts：成交、股息、费用、转仓、持仓/现金事件、账户/证券身份、来源原件与导入版本。税务与绩效分别投影/计算，不强行统一两者算法或数据库安全域。 | Futu/IBKR 同一组导入输入生成可追溯且稳定的事实记录；Tax Projection 与 Performance Projection 有独立黄金样本；重导入幂等、原件可追踪、差异可解释。 |
 | ARCH-209 | **D** Worker 已有并发额度、插件级有界队列和触发合并，但跨插件来源级预算、长期超载与重试风暴仍未全部验收。证据：[当前架构](CURRENT_ARCHITECTURE.md)、[当前问题清单](../KNOWN_ISSUES.md)。 | 在宿主层提供来源级共享预算/健康注册表，统一并发、频率、Retry-After、退避、冷却与公平策略。先采用本地实现，不因抽象需要引入外部消息中间件。 | 同一来源被多个插件调用时预算真正共享；429/403、超时、源站恢复、长期过载和重试风暴测试通过；队列长度、拒绝/延迟原因与来源健康状态可观测。 |
 
