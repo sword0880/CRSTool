@@ -7,10 +7,9 @@
  <Grid Background="{DynamicResource BrandSurfaceBrush}" Margin="14">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
-   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <DockPanel LastChildFill="True" Margin="0,0,0,10">
-   <!-- 常用窗口操作采用图标，悬停提示与辅助技术仍可读出操作名称。 -->
    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
     <ui:Button x:Name="NewChatButton" Icon="{ui:SymbolIcon ChatAdd20}" Appearance="Transparent"
                Width="32" Height="32" Padding="0" Command="{Binding NewChatCommand}"
@@ -33,7 +32,7 @@
    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
    <TextBlock Text="{Binding Usage}" FontSize="11" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"/>
   </StackPanel>
-  <!-- 截图在发送前始终显示，保留选项随每次附件重置。 -->
+  <!-- 截图在发送前始终显示；保留选项只控制截图是否写入聊天历史。 -->
   <Border Grid.Row="3" Padding="8" Margin="0,0,0,6" BorderThickness="1" CornerRadius="5"
           BorderBrush="{DynamicResource BrandBorderBrush}" Visibility="{Binding HasScreenshot, Converter={StaticResource BooleanVisibility}}">
    <Grid>
@@ -52,10 +51,46 @@
     </StackPanel>
    </Grid>
   </Border>
-  <StackPanel Grid.Row="4">
-   <TextBlock Text="问题、近期对话和所选截图会发给当前模型。" FontSize="11"
+  <!-- 附件预览只展示文件名、大小和短文本；完整解析文本仅在内存会话中使用。 -->
+  <Border Grid.Row="4" Padding="8" Margin="0,0,0,6" BorderThickness="1" CornerRadius="5"
+          BorderBrush="{DynamicResource BrandBorderBrush}"
+          Visibility="{Binding HasAttachments, Converter={StaticResource BooleanVisibility}}">
+   <StackPanel>
+    <TextBlock Text="当前会话附件（连续追问会继续引用）" FontWeight="SemiBold" Margin="0,0,0,5"/>
+    <ScrollViewer MaxHeight="132" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <ItemsControl ItemsSource="{Binding Attachments}">
+      <ItemsControl.ItemTemplate>
+       <DataTemplate>
+        <Border Padding="7" Margin="0,0,0,5" CornerRadius="4"
+                Background="{DynamicResource BrandSurfaceAltBrush}" BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1">
+         <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <StackPanel>
+           <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+           <TextBlock Text="{Binding CharacterCount, StringFormat={}{0:N0} 个字符}" FontSize="10"
+                      Foreground="{DynamicResource BrandTextHintBrush}"/>
+           <TextBlock Text="{Binding PreviewText}" FontSize="11" TextWrapping="Wrap" MaxHeight="34"
+                      Foreground="{DynamicResource BrandTextHintBrush}"/>
+          </StackPanel>
+          <ui:Button Grid.Column="1" Icon="{ui:SymbolIcon DismissCircle20}" Appearance="Transparent"
+                     Width="30" Height="30" Padding="0" VerticalAlignment="Top"
+                     Command="{Binding DataContext.RemoveAttachmentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                     CommandParameter="{Binding Id}"
+                     IsEnabled="{Binding DataContext.CanEditDraft, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                     ToolTip="移除此附件" AutomationProperties.Name="移除此附件"/>
+         </Grid>
+        </Border>
+       </DataTemplate>
+      </ItemsControl.ItemTemplate>
+     </ItemsControl>
+    </ScrollViewer>
+    <TextBlock Text="原始文件不会写入聊天历史；新对话、锁定或退出时清理附件内容。"
+               FontSize="10" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"/>
+   </StackPanel>
+  </Border>
+  <StackPanel Grid.Row="5">
+   <TextBlock Text="问题、近期对话、当前会话附件和所选截图会发给当前模型。" FontSize="11"
               Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-   <!-- 组合式输入区：文字区域随内容增长，截图/粘贴与发送操作固定在底部。 -->
    <Border Padding="12,8,10,10" CornerRadius="20" BorderThickness="1">
     <Border.Style>
      <Style TargetType="Border">
@@ -97,6 +132,8 @@
                   Click="OnCapture" ToolTip="截取当前页面选区" AutomationProperties.Name="截取当前页面选区"/>
        <ui:Button Icon="{ui:SymbolIcon ClipboardImage20}" Appearance="Transparent" Width="36" Height="36" Padding="0"
                   Click="OnPaste" ToolTip="粘贴截图" AutomationProperties.Name="粘贴截图"/>
+       <ui:Button Icon="{ui:SymbolIcon Attach20}" Appearance="Transparent" Width="36" Height="36" Padding="0"
+                  Click="OnAttachFiles" ToolTip="添加 TXT、MD、CSV 或 JSON 附件" AutomationProperties.Name="添加文件附件"/>
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
        <ui:Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,6,0"

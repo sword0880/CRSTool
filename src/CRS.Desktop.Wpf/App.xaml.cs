@@ -152,5 +152,5 @@ public partial class App : System.Windows.Application
         locking=false; awaitingUnlock=true; try {OpenWorkspace();} finally {awaitingUnlock=false;}
     }
     /// <summary>退出时清空日志资源，令牌随窗口会话释放。</summary>
-    protected override void OnExit(ExitEventArgs e) {idle?.Stop(); Microsoft.Win32.SystemEvents.SessionSwitch-=SessionChanged; Microsoft.Win32.SystemEvents.PowerModeChanged-=PowerChanged; System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity; vault?.Dispose(); DesktopComposition.Shutdown(); base.OnExit(e); }
+    protected override void OnExit(ExitEventArgs e) {idle?.Stop(); try {workspace?.PrepareLock();} catch { /* 退出时继续释放保险库；附件正文不会写入持久存储。 */ } Microsoft.Win32.SystemEvents.SessionSwitch-=SessionChanged; Microsoft.Win32.SystemEvents.PowerModeChanged-=PowerChanged; System.Windows.Input.InputManager.Current.PreProcessInput-=InputActivity; vault?.Dispose(); DesktopComposition.Shutdown(); base.OnExit(e); }
 }

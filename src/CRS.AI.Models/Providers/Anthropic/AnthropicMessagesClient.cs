@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CRS.AI.Models.Attachments;
 using CRS.AI.Contracts;
 using CRS.AI.Models.Tools;
 
@@ -27,17 +28,21 @@ internal sealed class AnthropicMessagesClient(HttpClient http, string key, strin
             messages.Add(new { role = "user", content = entry.Question });
             messages.Add(new { role = "assistant", content = entry.Answer });
         }
+
+        // 当前问题和当前会话附件内容放入同一条 user 消息；不将原始文件写入本地历史。
+        var userText = AiAttachmentPrompt.Compose(request.Prompt, request.Attachments);
         object content = request.Screenshot is { } image ? new object[]
         {
-            new { type = "text", text = request.Prompt },
+            new { type = "text", text = userText },
             new { type = "image", source = new { type = "base64", media_type = "image/jpeg", data = Convert.ToBase64String(image) } }
-        } : request.Prompt;
+        } : userText;
         messages.Add(new { role = "user", content });
         var turn = new AiModelTurn();
         for (var round = 1; round <= AiModelTurn.MaxRequests; round++)
         {
             using var response = await SendAsync(messages, turn.CanUseTools(round), probe: false, deadline.Token,
-                includesScreenshot: request.Screenshot is not null)
+                includesScreenshot: request.Screenshot is not null,
+                includesAttachments: request.Attachments is { Count: > 0 })
                 .ConfigureAwait(false);
             var message = AnthropicMessage.Read(response.RootElement);
             turn.AddUsage(message.Usage);
@@ -49,7 +54,6 @@ internal sealed class AnthropicMessagesClient(HttpClient http, string key, strin
             }
 
             turn.AdmitTools(calls.Select(call => call.Id).ToArray(), round, AiModelTurn.MaxToolCalls);
-            // Claude 要求在下一条用户消息中成组回传结果，助手内容块须保持原样。
             messages.Add(new { role = "assistant", content = message.Content.Clone() });
             var results = new List<object>(calls.Length);
             foreach (var call in calls)
@@ -76,7 +80,7 @@ internal sealed class AnthropicMessagesClient(HttpClient http, string key, strin
     }
 
     private Task<JsonDocument> SendAsync(List<object> messages, bool allowTools, bool probe, CancellationToken token,
-        bool includesScreenshot = false)
+        bool includesScreenshot = false, bool includesAttachments = false)
     {
         var payload = new Dictionary<string, object>
         {
@@ -90,10 +94,9 @@ internal sealed class AnthropicMessagesClient(HttpClient http, string key, strin
         {
             payload["system"] = AiModelTurn.Instructions;
             if (!mimo || allowTools) payload["tools"] = Tools;
-            // 保留工具结构，使 Claude 能解释前轮结果，同时关闭后续工具选择。
             if (!mimo) payload["tool_choice"] = new { type = allowTools ? "auto" : "none" };
         }
         return AiModelHttp.PostAsync(http, mimo ? MiMoEndpoint : Endpoint, key, payload, token,
-            anthropic: !mimo, includesScreenshot: includesScreenshot);
+            anthropic: !mimo, includesScreenshot: includesScreenshot, includesAttachments: includesAttachments);
     }
 }

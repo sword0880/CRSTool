@@ -9,6 +9,7 @@
 | [架构实施](ARCHITECTURE_IMPLEMENTATION.md) | 导入事务、窄端口、读写隔离、Runner及恢复边界 |
 | [后台运行](WORKER_RUNTIME.md) | 服务、Quartz计划、权限、并发、取消与部署 |
 | [AI 双入口只读 POC](AI_DUAL_ENTRY_POC.md) | MCP/OpenAI 共用只读网关，真实 Worker 操作映射、验证及安全阻断 |
+| [AI 助手附件处理](AI_ATTACHMENTS.md) | WPF/MCP/OpenAI 共用解析器、附件会话、临时文件与安全边界 |
 | [任务中心](TASK_CENTER.md) | 当前活动、历史筛选、手动执行与日志口径 |
 | [查询性能](QUERY_PERFORMANCE.md) | 快照、完整分页、批量传输、取消与测量限制 |
 | [桌面与设置](DESKTOP_UI.md) | 导航、设置草稿、标题栏与独立维护窗口 |

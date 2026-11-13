@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CRS.AI.Adapters;
+using CRS.AI.Models.Attachments;
 using CRS.AI.Models.Tools;
 using CRS.AI.Contracts;
 
@@ -13,7 +14,6 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
     private static readonly IReadOnlyList<OpenAiFunctionDefinition> Tools =
         OpenAiFunctionReadAdapter.DescribeTools(AiCatalog.Tools);
 
-    /// <summary>在统一时限内完成一条问题，汇总每轮用量并返回最终答案。</summary>
     public Task<AiModelAnswer> AskAsync(string prompt, CancellationToken token) =>
         AskChatAsync(new(prompt, []), token);
 
@@ -28,19 +28,22 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
             input.Add(new { role = "user", content = entry.Question });
             input.Add(new { role = "assistant", content = entry.Answer });
         }
-        // 图片只附在当前用户消息，使用内嵌 JPEG，不创建外部文件地址。
+
+        // 当前问题和当前会话附件内容放入同一条 user 消息；附件文本只在本次内存请求中使用。
+        var userText = AiAttachmentPrompt.Compose(request.Prompt, request.Attachments);
         object content = request.Screenshot is { } image ? new object[]
         {
-            new { type = "input_text", text = request.Prompt },
+            new { type = "input_text", text = userText },
             new { type = "input_image", image_url = "data:image/jpeg;base64," + Convert.ToBase64String(image) }
-        } : request.Prompt;
+        } : userText;
         input.Add(new { role = "user", content });
         var turn = new AiModelTurn();
         for (var round = 1; round <= AiModelTurn.MaxRequests; round++)
         {
             var allowTool = turn.CanUseTools(round);
             using var response = await SendAsync(input, allowTool, probe: false, deadline.Token,
-                includesScreenshot: request.Screenshot is not null);
+                includesScreenshot: request.Screenshot is not null,
+                includesAttachments: request.Attachments is { Count: > 0 });
             var root = response.RootElement;
             var output = ResponsesProtocol.ReadOutput(root);
             turn.AddUsage(ResponsesProtocol.ReadUsage(root));
@@ -52,7 +55,6 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
             }
             turn.AdmitTools(calls.Select(call => call.Id).ToArray(), round, provider.MaxCallsPerRound);
 
-            // 每轮回传模型输出与对应工具结果，保持完整对话上下文。
             input.AddRange(output.Select(item => (object)item.Clone()));
             foreach (var call in calls)
             {
@@ -65,7 +67,6 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
         throw new AiModelException("TurnBudgetExceeded");
     }
 
-    /// <summary>只发送固定短提示，验证模型可返回答案，无需访问 Gateway。</summary>
     public async Task TestConnectionAsync(CancellationToken token)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -76,9 +77,8 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
             throw new AiModelException("InvalidProbe");
     }
 
-    /// <summary>发送单轮请求，限制双向报文大小，并将上游失败转换为固定错误码。</summary>
     private Task<JsonDocument> SendAsync(List<object> input, bool allowTool, bool probe, CancellationToken token,
-        bool includesScreenshot = false)
+        bool includesScreenshot = false, bool includesAttachments = false)
     {
         var payload = new Dictionary<string, object>
         {
@@ -93,6 +93,7 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
             payload["tool_choice"] = allowTool ? "auto" : "none";
         }
         provider.Configure(payload, model, probe);
-        return AiModelHttp.PostAsync(http, provider.Endpoint, apiKey, payload, token, includesScreenshot: includesScreenshot);
+        return AiModelHttp.PostAsync(http, provider.Endpoint, apiKey, payload, token,
+            includesScreenshot: includesScreenshot, includesAttachments: includesAttachments);
     }
 }

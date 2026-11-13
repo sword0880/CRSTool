@@ -23,6 +23,9 @@ jobs:
       - name: Verify AI MCP and OpenAI tool parity, read-only data quality and fail-closed boundaries
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build
+      - name: Verify MCP attachment file parameters and in-memory session lifecycle
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build -- --mcp-attachment-integration
       - name: Verify architecture dependency constraints
         shell: pwsh
         run: ./tests/Verify-Architecture.ps1
