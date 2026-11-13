@@ -36,7 +36,7 @@ PR #36 对应 Windows 工作流 [run 43386238746](https://github.com/sword0880/C
 
 **重要：以下正式运行数据最后确认于 2026-10-31，不是 2026-11-13 的实时检查。** main 在其后继续合并代码，但没有在本次文档核对中取得新的正式 Worker 安装回执。
 
-- 最后记录的正式 Worker 代次为 c84d1bf74522495fa91a4cf4ce3a272b，2026-10-31 19:58:15 Committed；当时 PID 42984 / Running / Auto / LocalService。此信息只能作为最后已知基线。
+- main 已将每插件 `CRS.Worker.PluginRunner` 接入 Worker Service 组合根，通过 `IsolatedPluginSession` 运行受信插件；这是源码状态，不代表已安装服务已更新。最后记录的正式 Worker 代次为 c84d1bf74522495fa91a4cf4ce3a272b，2026-10-31 19:58:15 Committed；当时 PID 42984 / Running / Auto / LocalService。此信息只能作为最后已知基线。
 - 当时完成新旧程序、6051 份快照、原密钥摘要、7 项计划、24 只 ETF 配置、29 条股票投影和 10 条旧执行的保全核对。
 - ETF 资料完整性仍不满足发布：最近记录 24 只中 11 只达到 250 个有效交易日，连续 20 日通过为 0/24；报告原件和修订审核仍有缺口。
 - 具名 ETF 披露：当时已登记原件中存在 66 行 NeedsReview；已核验具名持仓为 0 行，实际持仓未知。NotDisclosed 不等于零持仓或清仓。
