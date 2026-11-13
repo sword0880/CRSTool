@@ -117,6 +117,9 @@ public partial class MainWindow
                 return AiScreenshotCapture.Capture(surface);
             }, DispatcherPriority.Render);
 
+            // 等待期间可能发生安全锁定；锁定后不得再打开截图裁剪窗口。
+            if (aiLocked) return;
+
             if (image is null)
             {
                 shell.AiAssistant.Status = "当前页面尚未完成布局，请稍后再截取。";
