@@ -74,24 +74,31 @@ internal static class SupervisedPluginChecks
         var caller=new BackgroundCaller(WindowsIdentity.GetCurrent().User!.Value,true);
         var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.good","one",Payload:"ok");
         var accepted=await runtime.HandleAsync(request,caller,default);Check(accepted.Code=="Accepted","Worker持久受理命令");
-        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(10));CommandReceipt? receipt;
-        do
+        CommandReceipt? receipt;
+        using(var successDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(10)))
         {
-            var response=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId),caller,deadline.Token);
-            receipt=response.Receipt;if(receipt?.State!="Completed")await Task.Delay(25,deadline.Token);
-        }while(receipt?.State!="Completed");
+            do
+            {
+                var response=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId),caller,successDeadline.Token);
+                receipt=response.Receipt;if(receipt?.State!="Completed")await Task.Delay(25,successDeadline.Token);
+            }while(receipt?.State!="Completed");
+        }
         Check(receipt.Code=="Succeeded"&&receipt.ExecutionId is not null,"真实Worker执行通过Runner完成并保存最终Succeeded回执");
         var record=repository.FindExecution(receipt.ExecutionId!);
         Check(record?.Checkpoint=="command="+request.RequestId.ToString("N")&&record.Progress?.Count==1,"执行历史绑定原持久命令且实时阶段已入库");
         var crashRequest=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.good","one",Payload:"hang");
         Check((await runtime.HandleAsync(crashRequest,caller,default)).Code=="Accepted","持久受理即将发生子进程崩溃的执行");
-        while(contexts["crs.good"].Active==0)await Task.Delay(25,deadline.Token);
+        using(var activeDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+            while(contexts["crs.good"].Active==0)await Task.Delay(25,activeDeadline.Token);
         try{await proxies["crs.good"].QueryAsync("crash",default);throw new Exception("未触发真实崩溃");}catch(RunnerOutcomeUnknownException){}
-        do
+        using(var crashDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(10)))
         {
-            var response=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:crashRequest.RequestId),caller,deadline.Token);
-            receipt=response.Receipt;if(receipt?.State!="Completed")await Task.Delay(25,deadline.Token);
-        }while(receipt?.State!="Completed");
+            do
+            {
+                var response=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:crashRequest.RequestId),caller,crashDeadline.Token);
+                receipt=response.Receipt;if(receipt?.State!="Completed")await Task.Delay(25,crashDeadline.Token);
+            }while(receipt?.State!="Completed");
+        }
         record=repository.FindExecution(receipt.ExecutionId!);
         Check(receipt.Code=="Failed"&&record?.Checkpoint=="RunnerOutcomeUnknown"&&contexts["crs.good"].Active==0,
             "执行中真实崩溃保存Failed和结果未知标记，回收额度，不伪报Succeeded");
