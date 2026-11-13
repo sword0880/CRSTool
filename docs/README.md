@@ -1,57 +1,51 @@
 # 小财牛文档中心
 
-这里是 CRSTool（小财牛）的统一文档入口。文档按**架构、业务模块、使用指南、实现记录、规范、部署、验证和归档**分类；本页只负责导航，不复制开发日志或测试数字。
+这里是 CRSTool（小财牛）的统一文档入口。文档按架构、业务模块、使用指南、实现、规范、部署、验证和归档分类；本页只负责导航，不复制开发日志或测试流水。
 
-## 最常用入口
+## 当前最重要的入口
 
-| 目标 | 权威入口 | 说明 |
+| 目标 | 唯一权威入口 | 职责 |
 | --- | --- | --- |
-| 了解项目 | [项目首页](../README.md) | 产品范围、启动与开发入口 |
-| 当前架构 | [当前架构](architecture/CURRENT_ARCHITECTURE.md) | 以现行源码为基线的架构说明 |
-| 当前架构状态 | [架构状态](architecture/ARCHITECTURE_STATUS.md) | 当前模块边界、正式部署证据和未关闭高风险 |
-| 待处理问题 | [问题与验收缺口](KNOWN_ISSUES.md) | 集中跟踪仍未关闭的问题 |
-| 发布门槛 | [发布验收](validation/RELEASE_ACCEPTANCE.md) | 发布是否通过的唯一验收入口 |
-| 开发约定 | [开发规范](architecture/CRS开发规范.md) | 编码、边界和协作约束 |
+| 当前代码架构 | [当前架构](architecture/CURRENT_ARCHITECTURE.md) | 项目分层、进程、依赖与数据所有权 |
+| 当前实现/部署状态 | [架构状态](architecture/ARCHITECTURE_STATUS.md) | 最近合并、已验证能力、正式部署基线和证据时点 |
+| 未关闭工作 | [问题清单](KNOWN_ISSUES.md) | 当前缺口、优先级、验收条件和证据入口 |
+| 是否允许发布 | [发布验收](validation/RELEASE_ACCEPTANCE.md) | ReleaseApproved 与 No-Go/Go 判断 |
 | 架构整改 | [唯一整改主计划](architecture/ARCHITECTURE_REMEDIATION_PLAN.md) | ARCH 编号、整改顺序和关闭条件 |
-| 安全与认证 | [安全规范](specifications/security/README.md) | 安全架构、TOTP 与 Hello 边界 |
-| 税务规则 | [税务规范](specifications/tax/README.md) | 法律适用性、计算实现与证据链 |
-| 使用与账户导入 | [使用指南](guides/README.md) | 券商导入、账户、保险库和隐私 |
-| 后台服务部署 | [Worker升级与恢复](deployment/WORKER_UPGRADE_AND_RECOVERY.md) | 安装、升级、恢复与部署操作 |
-| AI Gateway / MCP 目标架构 | [AI Gateway / MCP 双入口架构](architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) | 目标架构、套餐、网络与安全约束；本机实现进度见实施记录 |
-| 国家队研究 | [国家队模块文档](modules/national-team/README.md) | ETF、直接持股、披露证据、NAV、预警和南向研究 |
-| AI 双入口实现 | [AI 双入口只读 POC](implementation/AI_DUAL_ENTRY_POC.md) | 当前源码、工具映射、Gateway 授权、MCP 与 Responses API 本机验证 |
-| AI 附件处理 | [AI 助手附件处理](implementation/AI_ATTACHMENTS.md) | WPF/MCP 统一解析、附件会话生命周期、隐私与验收边界 |
+| AI 目标架构 | [AI Gateway / MCP 架构](architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) | 双入口、安全域、外部连接与目标边界 |
+| AI 当前实现 | [AI 双入口与附件实现](implementation/AI_DUAL_ENTRY_POC.md) | 当前工具映射、Gateway、MCP、模型适配、附件与测试 |
+| 国家队研究 | [国家队模块文档](modules/national-team/README.md) | ETF、直接持股、披露证据、NAV、市场研究与南向 |
 
 ## 文档地图
 
 | 目录 | 内容 | 文档性质 |
 | --- | --- | --- |
-| [architecture/](architecture/README.md) | 总体架构、插件宿主、Worker、接口、开发规范和架构决策 | 当前架构与设计约束 |
-| [modules/](modules/README.md) | 按业务模块组织的需求、专项设计和模块入口 | 业务域入口 |
+| [architecture/](architecture/README.md) | 总体架构、插件宿主、Worker、接口和开发规范 | 当前结构与设计约束 |
+| [modules/](modules/README.md) | 业务模块需求、专项设计和入口 | 业务域入口 |
 | [guides/](guides/README.md) | 使用、账户导入、认证、隐私和设置 | 用户操作指南 |
-| [implementation/](implementation/README.md) | 模块实现边界、变更记录、数据与运行时细节 | 实施事实与进度记录 |
-| [specifications/](specifications/README.md) | 税务、绩效、安全和发布等目标规格 | 需求与规范 |
+| [implementation/](implementation/README.md) | 模块实现边界、运行时和验证事实 | 实施记录 |
+| [specifications/](specifications/README.md) | 税务、绩效、安全和发布规格 | 需求与规范 |
 | [deployment/](deployment/WORKER_UPGRADE_AND_RECOVERY.md) | 后台服务部署、升级和恢复 | 运维操作 |
 | [validation/](validation/README.md) | 测试范围、发布验收和专项验证记录 | 验证证据 |
-| [archive/](archive/README.md) | 已被后续设计或实现替代的历史方案、评审和验收依据 | 只供追溯，不代表当前状态 |
+| [archive/](archive/README.md) | 被替代的方案、评审和历史验收依据 | 只供追溯 |
 | [examples/](examples/README.md) | 示例与演示资料 | 参考材料 |
 
-## 文档权威性与阅读顺序
+## 文档权威性
 
-当文档之间出现冲突时，按以下顺序判断，不以较新的文件名或单次聊天结论替代证据：
+发生冲突时，按以下顺序判断：
 
-1. **当前源码、自动化测试和可复核的正式环境回执**：用于确认实际行为。
-2. **[架构状态](architecture/ARCHITECTURE_STATUS.md)**：当前模块边界、部署状态和未关闭风险的汇总入口。
-3. **[问题与验收缺口](KNOWN_ISSUES.md) 与 [发布验收](validation/RELEASE_ACCEPTANCE.md)**：前者跟踪待办，后者判断发布门槛；两者职责不同。
-4. **implementation/**：记录具体模块的实现、部署和证据，不把历史记录自动升级为当前事实。
-5. **architecture/、modules/、specifications/**：解释架构约束、业务设计和目标规格；设计不等于实现。
-6. **archive/**：保留历史决策背景，不作为当前实现依据。
+1. 当前源码、自动化测试和可复核的正式环境回执。
+2. [架构状态](architecture/ARCHITECTURE_STATUS.md)：当前实现和部署证据的汇总。
+3. [问题清单](KNOWN_ISSUES.md) 与 [发布验收](validation/RELEASE_ACCEPTANCE.md)：分别管理待办和发布决定。
+4. implementation：具体实现、部署和历史证据。
+5. architecture、modules、specifications：解释设计约束和目标，不代表已经实现。
+6. archive：保留历史决策，不作为当前事实来源。
 
-## 文档维护规则
+## 维护规则
 
-- 每个主题只设一个当前权威入口；其他文档应链接到该入口，不复制维护同一份状态清单。
-- 区分**设计、实现、验证、运维和历史归档**。状态至少明确“已实现”“已验证”“待验证”或“已归档”，不能把代码存在等同于业务验收通过。
-- 日期后缀只用于有明确时间边界的审查、POC、验收快照；持续维护的当前文档使用稳定文件名。
-- 新增内部链接优先使用相对路径；移动或重命名 Markdown 文件时，必须同步更新所有入链并检查目标文件存在。
-- 不因整理而删除唯一的技术约束、反方意见、历史证据或失败记录。失效内容移入 archive，并在归档索引中说明替代入口。
-- 代码、测试或正式环境状态变化时，更新对应主题的实施/验证文档和索引；不要只追加新的平行版本。
+- 每个主题只维护一份当前权威文档；其他入口只链接，不复制同一份状态。
+- 明确区分已实现、自动化已验证、正式部署已验证、业务验收已完成。
+- 当前状态文件只保留当前事实和最后确认时点；日期化过程记录放在专项实施/验证文档或归档。
+- 合并文档时保留关键约束、失败记录和历史证据；对外链接需要兼容时使用短说明页指向新入口。
+- 移动或重命名 Markdown 文件时检查所有相对链接与锚点。不得把单次 CI 通过写成完整发布通过。
+
+[返回项目首页](../README.md)
