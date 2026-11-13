@@ -6,7 +6,9 @@
 >
 > 权威现状先读：[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)、[ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md)、[AI 双入口 POC](../implementation/AI_DUAL_ENTRY_POC.md)和[AI 附件处理](../implementation/AI_ATTACHMENTS.md)。本文保留目标架构与安全约束；当前实际项目、部署范围和验证状态以实施文档及源码为准。后续目标设计不能覆盖当前尚未实现的远程服务、OAuth、Tunnel 和生产部署边界。
 
-## 0. 决策摘要（ADR-AI-001）
+## 0. 决策摘要（ADR-AI-001，目标设计）
+
+以下条目描述目标架构原则，不代表当前已经部署的运行拓扑；当前代码事实见 0.1 节。
 
 1. **统一业务边界，双入口**：WPF 内置助手通过独立的 `CRS.AI.Gateway` 发起 Responses API 分析；ChatGPT 经自定义 MCP / Secure MCP Tunnel 调用 Gateway 的同一套受控业务查询。两条路径共享工具契约、授权、脱敏、审计；不是让 Gateway 重复代 ChatGPT 调用模型。
 2. **Phase 1 仅在合法受支持地区使用 OpenAI API**。Plus 可用于 WPF 内部 API 分析，但 API 独立计费。依 OpenAI 当前官方说明，自建 MCP 直接连接 ChatGPT 需具备支持套餐：Pro 可接只读 read/fetch，Business/Enterprise/Edu 可接完整 MCP；Plus 不作为此能力的交付前提。不得以个人新建 GPT Actions 作为兜底：2026-10-26 后个人套餐停止新建 GPT。最终以实际账号权限和官方最新政策为准。
