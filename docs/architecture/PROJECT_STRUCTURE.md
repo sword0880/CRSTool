@@ -42,6 +42,15 @@ CRS/
 │     ├─ config/
 │     ├─ Views/Pages/
 │     ├─ ViewModels/
+│     │  ├─ AI/          # 小财牛、聊天历史和模型设置
+│     │  ├─ Dashboard/   # 总览
+│     │  ├─ Imports/     # 导入与导入记录
+│     │  ├─ Performance/ # 绩效分析
+│     │  ├─ Settings/    # 系统设置与数据清理
+│     │  ├─ Shell/       # 主窗口、状态栏和共享工作区
+│     │  ├─ TaskCenter/  # 任务中心、计划编辑和执行日志
+│     │  ├─ Tax/         # 税务计算、复核、汇率和报表
+│     │  └─ Vault/       # 安全存储与数据库备份
 │     ├─ Controls/
 │     ├─ Styles/
 │     ├─ Converters/

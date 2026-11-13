@@ -66,7 +66,7 @@ foreach($projection in @('Brokers/IBKR/IbkrXmlParser.cs','Brokers/IBKR/CashBalan
     $source=Get-Content -Raw (Join-Path $infra $projection)
     Assert-Boundary (-not ($source -match '\b(ReadXml|XElement|XDocument)\b')) "IBKR投影应只消费不可变来源事实，不得再次解析XML：$projection"
 }
-$performanceUi=Get-Content -Raw (Join-Path $wpf 'ViewModels/PerformanceViewModel.cs')
+$performanceUi=Get-Content -Raw (Join-Path $wpf 'ViewModels/Performance/PerformanceViewModel.cs')
 Assert-Boundary (-not ($performanceUi -match 'JsonSerializer|new\s+PerformanceData|new\s+ValuationComponent|SecuritiesValue\s*[<>]|BaseCurrencyConfirmed')) '绩效手工录入构造/业务校验必须由 Application 用例拥有。'
 foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter '*.csproj' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
     [xml]$project = Get-Content -Raw $projectFile.FullName
