@@ -1,7 +1,7 @@
 # CRS AI / MCP 只读数据接入：目标设计与实施基线
 
 > 状态：**目标设计部分已落地；本机实现已进入 main，远程接入与生产安全验收未关闭**  
-> 版本：v1.0｜制定：2026-11-11｜范围：CRSTool（小财牛）.NET 10、WPF、Worker、国家队与绩效模块  
+> 版本：v1.1｜原始方案：2026-11-11｜状态更新：2026-11-13｜范围：CRSTool（小财牛）.NET 10、WPF、Worker、国家队与绩效模块  
 > 权威关系：本文件保留原始目标方案；当前实现以 [AI 双入口 POC](../implementation/AI_DUAL_ENTRY_POC.md)、[AI 附件处理](../implementation/AI_ATTACHMENTS.md)、[当前架构](CURRENT_ARCHITECTURE.md)和[架构状态](ARCHITECTURE_STATUS.md)为准。文中 `CRS.Mcp.Server` / `CRS.AI.OpenAI` 是原方案建议名，不是当前 Solution 中的实际项目名。
 
 ## 0. 结论和决策（ADR-AI-001）
@@ -35,7 +35,7 @@ PR [#35](https://github.com/sword0880/CRSTool/pull/35) 已于 2026-11-13 合并�
 
 ## 1. 现有仓库核对基线与接入位置
 
-截至编写时，main 分支可确认：
+以下清单保留 2026-11-11 原始方案编写时的仓库基线；当前 AI 项目结构与实现状态以 0.1 节为准：
 
 - `CRS.sln`：`CRS.Common`、`CRS.Worker.Abstractions`、`CRS.Worker.Ipc`、`CRS.Worker.Service`、`CRS.Worker.PluginHost`、`CRS.Plugins.NationalTeam.Core`、`CRS.Plugins.NationalTeam.Jobs`、`CRS.Plugins.NationalTeamWatch`、`CRS.Application`、`CRS.Infrastructure`、`CRS.Desktop.Wpf` 等。
 - Worker 为唯一 Quartz 调度器；WPF 通过 Named Pipes 走 `CRS.Worker.Ipc`；已有查询分组与负载预算，插件操作通过注册表分发而不是在 AI 服务里复制业务 switch。
