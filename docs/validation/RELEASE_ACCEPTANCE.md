@@ -5,7 +5,7 @@
 
 ## 1. 当前结论依据
 
-1. **最新相关 Windows 工作流未全绿。** PR #35 对应 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 的 Restore、Release Build、AI 工具一致性、附件集成、架构依赖和多个专项检查通过；工作流在 Worker 插件监督/持久执行步骤抛出 TaskCanceledException，后续步骤被跳过。
+1. **最新已核对的 main 代码基线 Windows 工作流未全绿。** PR #36 对应 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 的 Restore、Release Build、AI 工具一致性、附件集成、架构依赖和多个专项检查通过；工作流在 Worker 插件监督/持久执行步骤抛出 TaskCanceledException，后续步骤被跳过。PR #35 的 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 有相同失败。
 2. **正式部署证据落后于当前 main。** 最后可确认的正式 Worker 代次记录为 2026-10-31；没有本次核验后取得的新 head 正式安装回执。不得把 main 上的代码当作生产环境已运行。
 3. **税务与绩效的独立业务正确性仍未签认。** 真实样本解析或内部回归通过不能替代独立金额 Golden Dataset、原币逐项对账和人工签认。
 4. **NationalTeam 金融资料与模型仍有缺口。** 最近正式证据快照为 2026-10-31；ETF 历史覆盖、连续采集、报告原件、具名持仓、市场周期/广度和样本外有效性未满足完整发布条件。
@@ -17,7 +17,7 @@
 | 范围 | 证据 | 结论 |
 | --- | --- | --- |
 | AI 代码合并 | PR #31 至 #35；附件功能 PR #35 已合并 | 源码已进入 main，不代表正式部署 |
-| AI/附件专项 | run 43366766980 的 Release Build、工具一致性、MCP fileParams/会话生命周期和架构依赖步骤通过 | 专项步骤通过；完整工作流失败 |
+| AI/附件专项 | run 43386238746 的 Release Build、工具一致性、MCP fileParams/会话生命周期和架构依赖步骤通过 | 专项步骤通过；完整工作流失败，Worker 插件监督步骤未通过 |
 | 文档同步 | PR #36 已合并 | 仅文档变更，不提供新的代码验收 |
 | Worker 正式运行 | 最后已知代次 c84d1bf74522495fa91a4cf4ce3a272b，2026-10-31 Committed | 只作为历史基线，未证明当前 main 已部署 |
 | NationalTeam | 2026-10-31 正式数据与保全快照 | 覆盖、审核和模型有效性仍未完成 |
