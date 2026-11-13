@@ -248,3 +248,15 @@ dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui 
 ```
 
 上述验收使用合成模型响应、临时配置目录和测试凭证。真实供应商联调需在桌面填写已开通的 API Key。
+
+
+## 附件能力增量（2026-11-13）
+
+桌面助手与 MCP 新增统一附件处理，具体规则、协议、生命周期和开放问题见 [AI 助手附件处理](AI_ATTACHMENTS.md)。
+
+- WPF 和 MCP 都调用 `CRS.AI.Models.Attachments.AiAttachmentParser`；Responses API 与 Anthropic/MiMo 将解析文本作为同一条 user message 的附件引用内容发送。
+- MCP 增加 `crs_chat_start`、`crs_chat_message`、`crs_chat_remove_attachment`、`crs_chat_end`，通过 ChatGPT 官方 `openai/fileParams` 接收文件临时下载引用。
+- MCP 传输继续保持 Stateless；附件使用独立的随机会话句柄和内存 TTL 仓储，不能依赖 HTTP 连接或 transport session。
+- 附件原文不写入 SQLCipher 聊天历史、临时文件目录或日志；历史恢复不恢复附件内容。
+- 当前首版仅开放 UTF-8 TXT/MD/CSV/JSON。PDF/DOCX/XLSX 尚未开放。
+- 自动化 MCP 测试使用假下载器；真实 ChatGPT 账号文件上传、实际下载域名和 UI 授权提示仍需单独验收。不能把协议元数据测试写成真实 ChatGPT 端到端通过。

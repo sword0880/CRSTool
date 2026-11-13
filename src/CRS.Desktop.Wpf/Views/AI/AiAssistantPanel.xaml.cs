@@ -4,6 +4,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using CRS.DesktopClient.ViewModels.AI;
 
 namespace CRS.DesktopClient.Views.AI;
@@ -21,7 +22,6 @@ public partial class AiAssistantPanel : UserControl
     public void FocusPrompt() => Dispatcher.BeginInvoke(() => PromptInput.Focus());
     public void SetDetached(bool detached)
     {
-        // 同一按钮在置顶窗口中表示停靠，同步更新图标、提示和朗读名称。
         var action = detached ? "停靠回主窗口" : "弹出置顶窗口";
         DetachButton.Icon = new Wpf.Ui.Controls.SymbolIcon
         {
@@ -36,9 +36,23 @@ public partial class AiAssistantPanel : UserControl
     private void OnDetach(object sender, RoutedEventArgs e) => DetachRequested?.Invoke(this, EventArgs.Empty);
     private void OnCapture(object sender, RoutedEventArgs e) => CaptureRequested?.Invoke(this, EventArgs.Empty);
 
+    private async void OnAttachFiles(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not AiAssistantViewModel { CanEditDraft: true } model) return;
+        var dialog = new OpenFileDialog
+        {
+            Title = "选择发送给小财牛的文本附件",
+            Multiselect = true,
+            CheckFileExists = true,
+            Filter = "支持的文本附件 (*.txt;*.md;*.csv;*.json)|*.txt;*.md;*.csv;*.json|所有文件 (*.*)|*.*"
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+            await model.AddAttachmentsAsync(dialog.FileNames);
+    }
+
     private void OnPaste(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not AiAssistantViewModel model || model.Busy) return;
+        if (DataContext is not AiAssistantViewModel { CanEditDraft: true } model) return;
         try
         {
             if (Clipboard.GetImage() is { } image) Attach(model, image);
@@ -49,7 +63,7 @@ public partial class AiAssistantPanel : UserControl
 
     private void OnCrop(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not AiAssistantViewModel { Busy: false, Screenshot: { } bytes } model) return;
+        if (DataContext is not AiAssistantViewModel { CanEditDraft: true, Screenshot: { } bytes } model) return;
         var image = (BitmapSource?)new ScreenshotPreviewConverter().Convert(bytes, typeof(BitmapSource),
             null!, System.Globalization.CultureInfo.InvariantCulture);
         if (image is null) return;
@@ -58,7 +72,7 @@ public partial class AiAssistantPanel : UserControl
 
     public void SelectScreenshot(BitmapSource image, Window? ownerOverride = null)
     {
-        if (DataContext is not AiAssistantViewModel model || crop is not null) return;
+        if (DataContext is not AiAssistantViewModel { CanEditDraft: true } model || crop is not null) return;
         var owner = ownerOverride ?? Window.GetWindow(this);
         var dialog = new ScreenshotCropWindow(image) { Owner = owner, Topmost = owner?.Topmost == true };
         crop = dialog;

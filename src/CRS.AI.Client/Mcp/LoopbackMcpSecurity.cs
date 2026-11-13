@@ -9,7 +9,8 @@ namespace CRS.AI.Client.Mcp;
 /// <summary>在 MCP 处理请求正文之前校验本机来源、访问凭证和已声明的正文大小。</summary>
 internal sealed class LoopbackMcpSecurity(string token)
 {
-    internal const int MaxRequestBytes = 16 * 1024;
+    internal const int MaxRequestBytes = 64 * 1024;
+    internal const string OwnerItemKey = "CRS.MCP.CallerIdentity";
     private readonly byte[] tokenHash = HashToken(token);
 
     /// <summary>检查配置值是否符合 32 字节随机凭证对应的无填充 Base64URL 文本格式。</summary>
@@ -22,7 +23,6 @@ internal sealed class LoopbackMcpSecurity(string token)
         var port = context.Connection.LocalPort;
         var host = request.Host.Host;
 
-        // 同时校验实际连接地址、Host 和 Origin，防止浏览器通过 DNS 重绑定访问本机端口。
         if (context.Connection.RemoteIpAddress is not { } remote || !IPAddress.IsLoopback(remote) ||
             request.Host.Port != port ||
             (!host.Equals("localhost", StringComparison.OrdinalIgnoreCase) && host != "127.0.0.1") ||
@@ -35,7 +35,6 @@ internal sealed class LoopbackMcpSecurity(string token)
             return Task.CompletedTask;
         }
 
-        // 使用固定时间比较凭证摘要，且只接受一个 Authorization 请求头。
         var authorization = request.Headers.Authorization;
         if (authorization.Count != 1 ||
             !AuthenticationHeaderValue.TryParse(authorization[0], out var header) ||
@@ -48,6 +47,8 @@ internal sealed class LoopbackMcpSecurity(string token)
             return Task.CompletedTask;
         }
 
+        // 仅向当前请求上下文注入凭证摘要，不把原始访问令牌交给 MCP 工具或附件仓储。
+        context.Items[OwnerItemKey] = Convert.ToHexString(tokenHash);
         context.Response.Headers.CacheControl = "no-store";
         if (request.ContentLength > MaxRequestBytes)
         {

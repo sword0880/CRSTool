@@ -27,6 +27,7 @@ internal static class AiModelMessages
         "InvalidPrompt" => "请输入 1 至 4000 个字符的公开 ETF 问题。",
         "ImageUnsupported" => "当前模型不支持截图，请移除截图或更换模型。",
         "InvalidScreenshot" => "截图格式无效或过大，请重新选择截图。",
+        "InvalidAttachment" => "附件数量、文件格式或解析内容超过限制，请检查后重新选择。",
         "IncompleteResponse" or "TurnBudgetExceeded" => "请求达到处理限制，请缩短问题或拆开查询。",
         _ => "操作未完成，收到无法处理的结果。"
     };

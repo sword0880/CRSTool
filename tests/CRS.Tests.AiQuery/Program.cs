@@ -18,6 +18,7 @@ switch (args)
         await AiModelSettingsChecks.RunAsync();
         break;
     case []:
+        await AiAttachmentChecks.RunAsync();
         await AiReadRegressionChecks.RunAsync();
         await ResponsesApiChecks.RunAsync();
         await AdditionalModelProviderChecks.RunAsync();
