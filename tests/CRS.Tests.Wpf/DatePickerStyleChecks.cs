@@ -7,6 +7,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
+using CRS.AI.Models.Attachments;
+using CRS.DesktopClient.ViewModels.AI;
+using CRS.DesktopClient.Views.AI;
 
 internal static class DatePickerStyleChecks
 {
@@ -38,20 +41,7 @@ internal static class DatePickerStyleChecks
                 if (picker.Template?.FindName("PART_Button", picker) is not Wpf.Ui.Controls.Button button
                     || button.Content is not Wpf.Ui.Controls.SymbolIcon)
                     throw new InvalidOperationException("日期选择器未使用带日历图标的 WPF UI 模板。");
-                button.ApplyTemplate();
-                var content = Descendants(button).OfType<ContentPresenter>().Single(presenter => ReferenceEquals(presenter.Content, button.Content));
-                button.PressedForeground = Brushes.Goldenrod;
-
-                // 设置只读交互状态，在无鼠标和前台窗口的测试桌面也能执行按下样式。
-                SetState(button, typeof(UIElement), UIElement.IsMouseOverProperty, true);
-                SetState(button, typeof(ButtonBase), ButtonBase.IsPressedProperty, true);
-                picker.Dispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
-                if (TextElement.GetForeground(content) != button.PressedForeground
-                    || trace.ToString().Contains("PressedForeground", StringComparison.Ordinal))
-                    throw new InvalidOperationException("日历按钮按下时未从按钮取得正确的前景色。" + Environment.NewLine + trace);
-
-                SetState(button, typeof(ButtonBase), ButtonBase.IsPressedProperty, false);
-                SetState(button, typeof(UIElement), UIElement.IsMouseOverProperty, false);
+                VerifyPressedForeground(button, trace);
                 button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, button));
                 var popup = (Popup)picker.Template.FindName("PART_Popup", picker);
                 if (!picker.IsDropDownOpen || popup.Child is not Calendar calendar)
@@ -62,6 +52,21 @@ internal static class DatePickerStyleChecks
                     throw new InvalidOperationException("下拉日历的选择未同步到日期控件。");
                 picker.IsDropDownOpen = false;
                 Console.WriteLine("日期选择器通过：按下无前景色绑定错误，日历正常打开并提交日期。");
+
+                var model = new AiAssistantViewModel(null, new AiModelSettingsViewModel(null), null);
+                using var attachment = AiAttachmentParser.Parse("sample.txt", "text/plain", "synthetic attachment"u8);
+                model.Attachments.Add(attachment);
+                var panel = new AiAssistantPanel { DataContext = model };
+                panel.Measure(new(440, 640));
+                panel.Arrange(new Rect(0, 0, 440, 640));
+                panel.UpdateLayout();
+                var remove = Descendants(panel).OfType<Wpf.Ui.Controls.Button>()
+                    .Single(item => Equals(item.ToolTip, "移除此附件"));
+                VerifyPressedForeground(remove, trace);
+                remove.Command.Execute(remove.CommandParameter);
+                if (model.HasAttachments)
+                    throw new InvalidOperationException("附件移除按钮未绑定到当前附件。");
+                Console.WriteLine("助手附件通过：按下无前景色绑定错误，附件可移除。");
             }
             catch (Exception error) { failure = error; }
             finally
@@ -74,6 +79,25 @@ internal static class DatePickerStyleChecks
         thread.Start();
         thread.Join();
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static void VerifyPressedForeground(Wpf.Ui.Controls.Button button, System.IO.StringWriter trace)
+    {
+        button.ApplyTemplate();
+        var icon = button.Icon ?? (Wpf.Ui.Controls.IconElement)button.Content;
+        var presenter = Descendants(button).OfType<ContentPresenter>().Single(item => ReferenceEquals(item.Content, icon));
+        button.PressedForeground = Brushes.Goldenrod;
+
+        // 设置只读交互状态，在无鼠标和前台窗口的测试桌面也能执行按下样式。
+        SetState(button, typeof(UIElement), UIElement.IsMouseOverProperty, true);
+        SetState(button, typeof(ButtonBase), ButtonBase.IsPressedProperty, true);
+        button.Dispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
+        if (TextElement.GetForeground(presenter) != button.PressedForeground
+            || trace.ToString().Contains("PressedForeground", StringComparison.Ordinal))
+            throw new InvalidOperationException("按钮按下时未从按钮自身取得正确的前景色。" + Environment.NewLine + trace);
+
+        SetState(button, typeof(ButtonBase), ButtonBase.IsPressedProperty, false);
+        SetState(button, typeof(UIElement), UIElement.IsMouseOverProperty, false);
     }
 
     private static void SetState(DependencyObject element, Type owner, DependencyProperty property, bool value)

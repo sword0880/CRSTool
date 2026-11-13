@@ -154,8 +154,8 @@
    <ContentControl x:Name="AiAssistantDockContent"/>
   </Border>
   <ui:Button x:Name="AiAssistantLauncher" Grid.Row="1" Panel.ZIndex="102" HorizontalAlignment="Right"
-             VerticalAlignment="Bottom" Margin="0,0,18,12" Appearance="Primary"
-             Content="小财牛助手" Icon="{ui:SymbolIcon Chat24}" Click="OnAiLauncherClick"
+             VerticalAlignment="Bottom" Margin="0,0,18,12" Width="36" Height="36" Padding="0" Appearance="Primary"
+             Icon="{ui:SymbolIcon Chat24}" Click="OnAiLauncherClick" ToolTip="小财牛助手"
              AutomationProperties.Name="打开或收起小财牛助手"/>
  </Grid>
 </ui:FluentWindow>

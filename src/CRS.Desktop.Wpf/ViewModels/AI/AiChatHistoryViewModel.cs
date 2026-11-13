@@ -47,12 +47,13 @@ public sealed partial class AiChatHistoryViewModel(IAiChatHistory? history) : Ob
         {
             await history!.DeleteAsync(id, token);
             token.ThrowIfCancellationRequested();
-            Selected = null;
-            Conversation = null;
+            var selectedId = Selected?.Id;
+            if (selectedId == id) Selected = null;
             var list = await history.SearchAsync(Query, token);
             token.ThrowIfCancellationRequested();
             Items = list;
             Status = list.Count == 0 ? "暂无匹配的聊天记录。" : "";
+            Selected = list.FirstOrDefault(item => item.Id == selectedId);
             deleted = true;
         });
         return deleted;

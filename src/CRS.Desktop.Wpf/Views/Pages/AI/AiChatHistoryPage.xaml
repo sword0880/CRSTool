@@ -3,40 +3,125 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
  xmlns:ai="clr-namespace:CRS.DesktopClient.Views.AI">
- <Grid Margin="24,26,32,24">
+ <Grid Margin="24,24,24,16">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <StackPanel Margin="0,0,0,12">
-   <TextBlock Text="我的助手" Style="{StaticResource PageTitle}"/>
-   <TextBlock Text="管理、搜索并继续之前的对话。" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,8"/>
-   <ui:TextBox Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" MaxLength="100" Width="310"
-            HorizontalAlignment="Left" AutomationProperties.Name="搜索聊天历史" PlaceholderText="按问题或回答搜索"/>
-   <TextBlock Text="{Binding Status}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
-  </StackPanel>
-  <!-- 左侧会话列表与右侧只读记录独立滚动。 -->
+  <TextBlock Text="我的助手" Style="{StaticResource PageTitle}" Margin="0,0,0,16"/>
+
   <Grid Grid.Row="1">
-   <Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-   <ListBox x:Name="HistoryList" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}"
-            AutomationProperties.Name="聊天会话" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-    <ListBox.ItemTemplate>
-     <DataTemplate>
-      <StackPanel Margin="4,4,4,6" MaxWidth="260">
-       <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"/>
-       <TextBlock Text="{Binding Model}" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,4,0,0"/>
-       <TextBlock Text="{Binding UpdatedAt.LocalDateTime, StringFormat=g}" Foreground="{DynamicResource BrandTextHintBrush}"/>
-      </StackPanel>
-     </DataTemplate>
-    </ListBox.ItemTemplate>
-   </ListBox>
-   <Grid Grid.Column="1" Margin="20,0,0,0">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="256"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Border Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+           BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12" Padding="10">
+    <Grid>
+     <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/>
+     </Grid.RowDefinitions>
+     <ui:TextBox x:Name="HistorySearch" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" MaxLength="100"
+                 Icon="{ui:SymbolIcon Search16}" AutomationProperties.Name="搜索聊天记录" PlaceholderText="搜索聊天记录"
+                 ToolTip="按问题或回答搜索" Margin="2,2,2,14"/>
+     <TextBlock Grid.Row="1" Text="最近聊天" FontSize="12" FontWeight="SemiBold"
+                Foreground="{DynamicResource BrandTextHintBrush}" Margin="10,0,0,6"/>
+     <TextBlock Grid.Row="2" Text="{Binding Status}" Foreground="{DynamicResource BrandTextHintBrush}"
+                TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="10,4,8,8">
+      <TextBlock.Style><Style TargetType="TextBlock">
+       <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers>
+      </Style></TextBlock.Style>
+     </TextBlock>
+     <ListBox x:Name="HistoryList" Grid.Row="3" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}"
+              AutomationProperties.Name="最近聊天" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+      <ListBox.ItemContainerStyle>
+       <Style TargetType="ListBoxItem" BasedOn="{StaticResource DefaultListBoxItemStyle}">
+        <Setter Property="AutomationProperties.Name" Value="{Binding Title}"/>
+        <Setter Property="Foreground" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+        <Setter Property="Padding" Value="10,0,4,0"/>
+        <Setter Property="Margin" Value="0,0,0,2"/>
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="Template"><Setter.Value>
+         <ControlTemplate TargetType="ListBoxItem">
+          <Border x:Name="RowSurface" CornerRadius="8" Padding="{TemplateBinding Padding}" Background="Transparent"
+                  BorderThickness="1" BorderBrush="Transparent">
+           <ContentPresenter VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+           <Trigger Property="IsMouseOver" Value="True">
+            <Setter TargetName="RowSurface" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+           </Trigger>
+           <Trigger Property="IsSelected" Value="True">
+            <Setter TargetName="RowSurface" Property="Background" Value="{DynamicResource ControlAltFillColorTertiaryBrush}"/>
+           </Trigger>
+           <Trigger Property="IsKeyboardFocusWithin" Value="True">
+            <Setter TargetName="RowSurface" Property="BorderBrush" Value="{DynamicResource ControlStrongStrokeColorDefaultBrush}"/>
+           </Trigger>
+          </ControlTemplate.Triggers>
+         </ControlTemplate>
+        </Setter.Value></Setter>
+       </Style>
+      </ListBox.ItemContainerStyle>
+      <ListBox.ItemTemplate>
+       <DataTemplate>
+        <Grid>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="28"/></Grid.ColumnDefinitions>
+         <TextBlock Text="{Binding Title}" ToolTip="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+         <ui:Button Grid.Column="1" Icon="{ui:SymbolIcon MoreHorizontal20}" Appearance="Transparent" Width="28" Height="28"
+                    Padding="0" BorderThickness="0" ToolTip="会话操作" AutomationProperties.Name="会话操作" Click="OnChatActions">
+          <ui:Button.Style>
+           <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Opacity" Value="0"/>
+            <Style.Triggers>
+             <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+              <Setter Property="Opacity" Value="1"/>
+             </DataTrigger>
+             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+              <Setter Property="Opacity" Value="1"/>
+             </DataTrigger>
+             <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+              <Setter Property="Opacity" Value="1"/>
+             </DataTrigger>
+            </Style.Triggers>
+           </Style>
+          </ui:Button.Style>
+          <ui:Button.ContextMenu>
+           <ContextMenu Placement="Bottom" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="删除会话" Click="OnDelete"/>
+           </ContextMenu>
+          </ui:Button.ContextMenu>
+         </ui:Button>
+        </Grid>
+       </DataTemplate>
+      </ListBox.ItemTemplate>
+     </ListBox>
+    </Grid>
+   </Border>
+
+   <Grid Grid.Column="1" Margin="24,0,0,0">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-    <WrapPanel Margin="0,0,0,8">
-     <WrapPanel.Style><Style TargetType="WrapPanel"><Style.Triggers>
+    <Border BorderBrush="{DynamicResource BrandBorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="0,4,0,12" Margin="0,0,0,8">
+     <Border.Style><Style TargetType="Border"><Style.Triggers>
       <DataTrigger Binding="{Binding Selected}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-     </Style.Triggers></Style></WrapPanel.Style>
-     <ui:Button Content="继续对话" Appearance="Primary" Click="OnContinue" Margin="0,0,8,0"/>
-     <ui:Button Content="删除会话" Click="OnDelete"/>
-    </WrapPanel>
+     </Style.Triggers></Style></Border.Style>
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel Margin="0,0,12,0">
+       <TextBlock Text="{Binding Selected.Title}" ToolTip="{Binding Selected.Title}" TextTrimming="CharacterEllipsis"
+                  FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextPrimaryBrush}"/>
+       <TextBlock FontSize="12" Margin="0,4,0,0" Foreground="{DynamicResource BrandTextHintBrush}" TextTrimming="CharacterEllipsis">
+        <Run Text="{Binding Selected.Model, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Selected.UpdatedAt.LocalDateTime, Mode=OneWay, StringFormat=yyyy-MM-dd HH:mm}"/>
+       </TextBlock>
+      </StackPanel>
+      <ui:Button x:Name="ContinueChatButton" Grid.Column="1" Content="继续对话" Click="OnContinue" VerticalAlignment="Center">
+       <ui:Button.Style><Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}"><Style.Triggers>
+        <DataTrigger Binding="{Binding Conversation}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+       </Style.Triggers></Style></ui:Button.Style>
+      </ui:Button>
+     </Grid>
+    </Border>
     <ai:AiChatTranscript Grid.Row="1" Entries="{Binding Conversation.Entries}"/>
+    <TextBlock Grid.Row="1" Text="选择一条聊天查看对话" HorizontalAlignment="Center" VerticalAlignment="Center"
+               Foreground="{DynamicResource BrandTextHintBrush}" IsHitTestVisible="False">
+     <TextBlock.Style><Style TargetType="TextBlock">
+      <Setter Property="Visibility" Value="Collapsed"/>
+      <Style.Triggers><DataTrigger Binding="{Binding Selected}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+     </Style></TextBlock.Style>
+    </TextBlock>
    </Grid>
   </Grid>
  </Grid>

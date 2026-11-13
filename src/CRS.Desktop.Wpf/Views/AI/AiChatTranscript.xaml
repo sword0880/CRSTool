@@ -4,18 +4,30 @@
  xmlns:local="clr-namespace:CRS.DesktopClient.Views.AI" x:Name="Transcript">
  <UserControl.Resources>
   <local:ScreenshotPreviewConverter x:Key="ScreenshotPreview"/>
+  <Style x:Key="TranscriptText" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+   <Setter Property="IsReadOnly" Value="True"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="SelectionBrush" Value="{DynamicResource ControlAltFillColorQuarternaryBrush}"/>
+   <Setter Property="SelectionOpacity" Value="1"/>
+   <Setter Property="SelectionTextBrush" Value="{DynamicResource BrandTextPrimaryBrush}"/>
+   <Setter Property="TextWrapping" Value="Wrap"/>
+  </Style>
  </UserControl.Resources>
  <!-- 问答保留为纯文本，截图只在用户曾选择保留时展示。 -->
  <ListBox x:Name="MessageList" ItemsSource="{Binding Entries, ElementName=Transcript}"
           BorderThickness="0" Background="Transparent" Padding="0"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="聊天消息"
           HorizontalContentAlignment="Stretch" VirtualizingPanel.IsVirtualizing="True">
+  <ListBox.Resources>
+   <StaticResource x:Key="ListBoxItemSelectedBackgroundThemeBrush" ResourceKey="ControlAltFillColorTertiaryBrush"/>
+   <StaticResource x:Key="ListBoxItemSelectedForegroundThemeBrush" ResourceKey="BrandTextPrimaryBrush"/>
+  </ListBox.Resources>
   <ListBox.ItemTemplate>
    <DataTemplate>
     <StackPanel Margin="0,0,8,12">
-     <TextBlock Text="你" FontWeight="SemiBold" Foreground="{DynamicResource BrandAccentBrush}"/>
-     <TextBox Text="{Binding Question, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
-              TextWrapping="Wrap" Padding="0,4,0,5"/>
+     <TextBlock Text="你" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextPrimaryBrush}"/>
+     <TextBox Text="{Binding Question, Mode=OneWay}" Style="{StaticResource TranscriptText}" Padding="0,4,0,5"/>
      <Image Source="{Binding Screenshot, Converter={StaticResource ScreenshotPreview}}" MaxHeight="160"
             Stretch="Uniform" HorizontalAlignment="Left" AutomationProperties.Name="已保留的截图">
       <Image.Style><Style TargetType="Image"><Style.Triggers><Trigger Property="Source" Value="{x:Null}">
@@ -23,8 +35,7 @@
       </Trigger></Style.Triggers></Style></Image.Style>
      </Image>
      <TextBlock Text="小财牛助手" FontWeight="SemiBold" Margin="0,8,0,0"/>
-     <TextBox Text="{Binding Answer, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
-              TextWrapping="Wrap" Padding="0,4,0,4"/>
+     <TextBox Text="{Binding Answer, Mode=OneWay}" Style="{StaticResource TranscriptText}" Padding="0,4,0,4"/>
     </StackPanel>
    </DataTemplate>
   </ListBox.ItemTemplate>

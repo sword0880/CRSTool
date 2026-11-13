@@ -212,6 +212,8 @@ internal static class SettingsViewChecks
     // 验证正式侧栏路由、回答呈现及锁定后晚到请求无法恢复界面内容。
     private static async Task VerifyAiAssistantAsync(string directory)
     {
+        var brandAccent = (SolidColorBrush)System.Windows.Application.Current.FindResource("BrandAccentBrush");
+        Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(brandAccent.Color, Wpf.Ui.Appearance.ApplicationTheme.Light);
         var service = new ModelService();
         await service.SaveDefaultAsync("deepseek", "deepseek-flash", "synthetic", default);
         var history = new ChatHistory();
@@ -222,8 +224,12 @@ internal static class SettingsViewChecks
         {
             if (!window.Navigate("dashboard")) throw new Exception("无法打开概览。");
             var launcher = (Wpf.Ui.Controls.Button)window.FindName("AiAssistantLauncher");
-            launcher.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             var dock = (Border)window.FindName("AiAssistantDock");
+            window.UpdateLayout();
+            if (dock.IsVisible || launcher.Content is not null || launcher.Icon is null ||
+                launcher.ActualWidth > 36 || launcher.ActualHeight > 36)
+                throw new Exception("助手收起时应只显示紧凑的图标入口。");
+            launcher.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             var surface = (Border)window.FindName("PluginSurface");
             if (dock.Visibility != Visibility.Visible || Panel.GetZIndex(dock) <= Panel.GetZIndex(surface))
                 throw new Exception("助手没有显示在业务页面上层。");
@@ -233,14 +239,18 @@ internal static class SettingsViewChecks
             // 触发真实页面捕获并在模态窗口打开后取消，验证边界与取消结果。
             var capture = (Wpf.Ui.Controls.Button)panel.FindName("CaptureButton");
             var cropOpened = false;
-            _ = window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
-            {
-                if (window.OwnedWindows.Cast<Window>().OfType<ScreenshotCropWindow>().SingleOrDefault() is not { } crop) return;
-                cropOpened = true;
-                crop.Close();
-            });
             capture.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            if (!cropOpened || shell.AiAssistant.HasScreenshot)
+            var captureDeadline = Environment.TickCount64 + 5000;
+            while (!dock.IsVisible && Environment.TickCount64 < captureDeadline)
+            {
+                if (window.OwnedWindows.OfType<ScreenshotCropWindow>().SingleOrDefault() is { IsVisible: true } crop)
+                {
+                    cropOpened = true;
+                    crop.Close();
+                }
+                await Task.Delay(25);
+            }
+            if (!cropOpened || !dock.IsVisible || shell.AiAssistant.HasScreenshot)
                 throw new Exception("页面截图未进入选区，或取消后留下附件。" + shell.AiAssistant.Status);
             // 使用真正编码的合成图验证预览与保留策略，不发送到供应商。
             var preview = new RenderTargetBitmap(64, 32, 96, 96, PixelFormats.Pbgra32);
@@ -270,6 +280,57 @@ internal static class SettingsViewChecks
                 page != typeof(AiChatHistoryPage) || !dock.IsVisible || shell.AiAssistant.Entries.Count != 1 ||
                 shell.AiHistory.Items.Count != 1)
                 throw new Exception("切页丢失助手或聊天历史未接入菜单。");
+            var historyPage = FindVisual<AiChatHistoryPage>(navigation) ?? throw new Exception("聊天历史页面未显示。");
+            var historyList = (ListBox)historyPage.FindName("HistoryList");
+            var search = (Wpf.Ui.Controls.TextBox)historyPage.FindName("HistorySearch");
+            var older = new AiChatSummary(Guid.NewGuid(), "按券商梳理年度交易与资金流水，核对港股通和基金持仓变化", DateTimeOffset.UtcNow.AddDays(-1), "gpt-5-mini");
+            history.Older =
+            [
+                older,
+                new(Guid.NewGuid(), "核对上一年度股息与预扣税", DateTimeOffset.UtcNow.AddDays(-2), "gpt-5-mini"),
+                new(Guid.NewGuid(), "整理美股交易的汇率差异", DateTimeOffset.UtcNow.AddDays(-3), "gpt-5-mini")
+            ];
+            await shell.AiHistory.RefreshAsync();
+            historyList.SelectedIndex = 0;
+            window.UpdateLayout();
+            var selectedRow = (ListBoxItem)historyList.ItemContainerGenerator.ContainerFromIndex(0);
+            var selectedSurface = (Border)selectedRow.Template.FindName("RowSurface", selectedRow);
+            if (!Equals(selectedSurface.Background, window.FindResource("ControlAltFillColorTertiaryBrush")) ||
+                !Equals(selectedRow.Foreground, window.FindResource("BrandTextPrimaryBrush")) ||
+                shell.AiHistory.Conversation?.Id != history.Current?.Id)
+                throw new Exception("选中会话未使用中性背景、深色文字，或未加载聊天记录。");
+            var olderRow = (ListBoxItem)historyList.ItemContainerGenerator.ContainerFromIndex(1);
+            var olderTitle = FindVisual<TextBlock>(olderRow);
+            if (olderRow.ActualHeight > 38 || olderTitle?.TextTrimming != TextTrimming.CharacterEllipsis ||
+                !Equals(olderTitle.ToolTip, older.Title))
+                throw new Exception("最近聊天标题未按单行截断或未保留完整提示。");
+            launcher.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            if (dock.IsVisible) throw new Exception("点击助手图标未收起面板。");
+            VerifyTranscriptColors(historyPage);
+            Capture(window, Path.Combine(directory, "ai-history.png"));
+            window.Width = window.MinWidth;
+            window.Height = window.MinHeight;
+            Capture(window, Path.Combine(directory, "ai-history-compact.png"));
+            var menuButton = FindVisual<Wpf.Ui.Controls.Button>(olderRow) ?? throw new Exception("会话操作按钮缺失。");
+            menuButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            var menu = menuButton.ContextMenu;
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (!menu.IsOpen || ((MenuItem)menu.Items[0]).DataContext is not AiChatSummary target || target.Id != older.Id)
+                throw new Exception("会话菜单未绑定打开菜单的历史项。");
+            menu.IsOpen = false;
+            if (!await shell.AiHistory.DeleteAsync(older.Id) || history.Older.Any(item => item.Id == older.Id) ||
+                shell.AiHistory.Selected?.Id != history.Current?.Id || shell.AiHistory.Conversation?.Id != history.Current?.Id)
+                throw new Exception("删除其他会话时丢失当前选中的聊天。");
+            search.SetCurrentValue(TextBox.TextProperty, "合成 ETF 研究结果");
+            var searchDeadline = Environment.TickCount64 + 5000;
+            while (historyList.Items.Count != 1 && Environment.TickCount64 < searchDeadline) await Task.Delay(25);
+            if (historyList.Items.Count != 1 || ((AiChatSummary)historyList.Items[0]).Id != history.Current?.Id)
+                throw new Exception("最近聊天搜索未找到回答中的关键词。");
+            historyList.SelectedIndex = 0;
+            var continueChat = (Wpf.Ui.Controls.Button)historyPage.FindName("ContinueChatButton");
+            if (!continueChat.IsEnabled) throw new Exception("选中会话后无法继续对话。");
+            continueChat.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            if (!dock.IsVisible) throw new Exception("继续对话未打开助手。");
             shell.AiAssistant.AttachScreenshot(screenshot.ToArray());
             shell.AiAssistant.KeepScreenshot = true;
             shell.AiAssistant.Prompt = "继续问";
@@ -279,6 +340,7 @@ internal static class SettingsViewChecks
             if (shell.AiAssistant.DefaultModelLabel != "DeepSeek · deepseek-flash" ||
                 shell.AiAssistant.Answer != "合成 ETF 研究结果" || !shell.AiAssistant.Usage.Contains("工具调用 1 次"))
                 throw new Exception("研究助手未使用当前模型或没有显示回答。");
+            VerifyTranscriptColors(panel);
             Capture(window, Path.Combine(directory, "ai-assistant.png"));
             shell.AiAssistant.Prompt = "等待取消";
             var inFlight = shell.AiAssistant.AskCommand.ExecuteAsync(null);
@@ -292,15 +354,44 @@ internal static class SettingsViewChecks
         finally { window.Close(); }
     }
 
+    private static void VerifyTranscriptColors(FrameworkElement view)
+    {
+        var transcript = FindVisual<AiChatTranscript>(view) ?? throw new Exception("聊天消息控件缺失。");
+        var messages = (ListBox)transcript.FindName("MessageList");
+        messages.SelectedIndex = 0;
+        view.UpdateLayout();
+        var row = (ListBoxItem)messages.ItemContainerGenerator.ContainerFromIndex(0);
+        var surface = (Border)row.Template.FindName("Border", row);
+        var message = FindVisual<TextBox>(row) ?? throw new Exception("问答正文缺失。");
+        if (!Equals(surface.Background, view.FindResource("ControlAltFillColorTertiaryBrush")) ||
+            !Equals(row.Foreground, view.FindResource("BrandTextPrimaryBrush")) ||
+            !Equals(message.SelectionBrush, view.FindResource("ControlAltFillColorQuarternaryBrush")))
+            throw new Exception("聊天消息行和正文选中时应显示中性背景。");
+    }
+
+    private static T? FindVisual<T>(DependencyObject parent) where T : DependencyObject
+    {
+        if (parent is T match) return match;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+            if (FindVisual<T>(VisualTreeHelper.GetChild(parent, index)) is { } child) return child;
+        return null;
+    }
+
     private sealed class ChatHistory : IAiChatHistory
     {
         public AiChatConversation? Current { get; private set; }
+        public IReadOnlyList<AiChatSummary> Older { get; set; } = [];
 
-        public Task<IReadOnlyList<AiChatSummary>> SearchAsync(string query, CancellationToken token) =>
-            Task.FromResult<IReadOnlyList<AiChatSummary>>(Current is { } chat
-                ? [new(chat.Id, chat.Entries[0].Question, DateTimeOffset.UtcNow, chat.Model)] : []);
+        public Task<IReadOnlyList<AiChatSummary>> SearchAsync(string query, CancellationToken token)
+        {
+            var matches = Older.Where(item => item.Title.Contains(query, StringComparison.OrdinalIgnoreCase));
+            if (Current is { } chat && chat.Entries.Any(entry => entry.Question.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || entry.Answer.Contains(query, StringComparison.OrdinalIgnoreCase)))
+                matches = matches.Prepend(new(chat.Id, chat.Entries[0].Question, DateTimeOffset.UtcNow, chat.Model));
+            return Task.FromResult<IReadOnlyList<AiChatSummary>>(matches.ToArray());
+        }
 
-        public Task<AiChatConversation?> ReadAsync(Guid id, CancellationToken token) => Task.FromResult(Current);
+        public Task<AiChatConversation?> ReadAsync(Guid id, CancellationToken token) => Task.FromResult(Current?.Id == id ? Current : null);
 
         public Task<long> AppendAsync(Guid id, string provider, string model, long revision, AiChatEntry entry, CancellationToken token)
         {
@@ -308,7 +399,12 @@ internal static class SettingsViewChecks
             return Task.FromResult(revision + 1);
         }
 
-        public Task DeleteAsync(Guid id, CancellationToken token) { Current = null; return Task.CompletedTask; }
+        public Task DeleteAsync(Guid id, CancellationToken token)
+        {
+            if (Current?.Id == id) Current = null;
+            Older = Older.Where(item => item.Id != id).ToArray();
+            return Task.CompletedTask;
+        }
     }
     private static async Task VerifyLoginSelectionAsync(SettingsWindow window,SettingsViewModel model,VaultInteractionChecks.FakeVault vault)
     {

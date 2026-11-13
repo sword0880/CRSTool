@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using CRS.Application.Abstractions;
 using CRS.DesktopClient.ViewModels;
 
 namespace CRS.DesktopClient.Views.Pages.AI;
@@ -24,10 +25,17 @@ public partial class AiChatHistoryPage : Page
         else shell.AiHistory.Status = "助手正在回答，请等待当前请求完成。";
     }
 
+    private void OnChatActions(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Wpf.Ui.Controls.Button { ContextMenu: { } menu } button) return;
+        menu.PlacementTarget = button;
+        menu.IsOpen = true;
+    }
+
     private async void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (shell.AiHistory.Selected is not { } selected) return;
-        if (shell.AiAssistant.CurrentId == selected.Id && shell.AiAssistant.Busy)
+        if (sender is not MenuItem { DataContext: AiChatSummary chat }) return;
+        if (shell.AiAssistant.CurrentId == chat.Id && shell.AiAssistant.Busy)
         {
             shell.AiHistory.Status = "请先结束当前请求，再删除此会话。";
             return;
@@ -35,8 +43,8 @@ public partial class AiChatHistoryPage : Page
         if (MessageBox.Show(Window.GetWindow(this), "删除此会话及保留的截图？", "删除聊天记录",
             MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel) != MessageBoxResult.OK) return;
         // 删除异步进行时先清空当前对话，避免新问题同时追加到待删除记录。
-        if (shell.AiAssistant.CurrentId == selected.Id && shell.AiAssistant.NewChatCommand.CanExecute(null))
+        if (shell.AiAssistant.CurrentId == chat.Id && shell.AiAssistant.NewChatCommand.CanExecute(null))
             shell.AiAssistant.NewChatCommand.Execute(null);
-        await shell.AiHistory.DeleteAsync(selected.Id);
+        await shell.AiHistory.DeleteAsync(chat.Id);
     }
 }
