@@ -15,7 +15,7 @@
 
 | 编号 | 当前问题 | 关闭条件 / 证据入口 |
 | --- | --- | --- |
-| P1-01 | 最近 Windows 工作流未全绿：PR #35 对应 run 43366766980 在 Worker 插件监督/持久执行测试失败。 | 修复或解释 SupervisedPluginChecks 的 TaskCanceledException；在最新 main head 重跑完整 Windows 工作流，确认后续步骤全部执行。失败日志见 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980)。 |
+| P1-01 | 最近 Windows 工作流未全绿：PR #35 的 run 43366766980 与 PR #36 的 run 43386238746 均在 Worker 插件监督/持久执行测试失败。 | 修复或解释 SupervisedPluginChecks 的 TaskCanceledException；在最新 main head 重跑完整 Windows 工作流，确认后续步骤全部执行。最新复核见 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746)，前次证据见 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980)。 |
 | P1-02 | 最新 main 代码与最后已确认的正式 Worker 安装版本不一致。 | 获取新 head 对应的正式安装回执，验证版本、服务身份、IPC 协议、数据保全和回滚；在此之前不得把 main 代码视为已部署。最后已知正式代次记录于 2026-10-31。 |
 | P1-03 | 投资绩效缺少独立真实金额对账。 | 补齐真实期初净值、价格、现金流/转仓和原币逐项容差，独立核对 TWR/XIRR。见 [绩效验收](validation/PERFORMANCE_ACCEPTANCE.md)。 |
 | P1-04 / SEC-09 | 公开版安全发布门槛未关闭。 | 完成生产签名、依赖许可证/NOTICE、隐私告知、发行包敏感扫描、真实跨设备恢复和离线安全验收。见 [安全规范](specifications/security/README.md)。 |
