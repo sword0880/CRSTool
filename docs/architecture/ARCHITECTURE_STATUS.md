@@ -4,10 +4,12 @@
 
 ## 1. 仓库与近期合并
 
-- 当前分支：main；核对基线：b0acb9c6f2c29f554f4e3647e895b4f99bf096f4。
+- 当前分支：main；核对基线：aa0d72a3f5aa793378e00e6391d485409430a751。
 - PR #34：助手截图、输入区和导航体验优化，已合并。
 - PR #35：WPF/MCP 统一附件支持，已合并。
 - PR #36：同步 AI Gateway、MCP 和附件文档状态，已合并；该 PR 仅修改 Markdown。
+- PR #37：项目文档合并与精简，已合并；保留兼容入口和历史追溯。
+- PR #38：修复 Runner 结果未知自动重试风险，已合并；普通失败三次重试策略保持不变。
 - AI 只读查询与 Gateway 基础分别经 PR #31、#32、#33 合并。当前代码结构见 [当前架构](CURRENT_ARCHITECTURE.md)。
 
 ## 2. AI 当前实现状态
@@ -25,12 +27,16 @@
 
 ### 最近 CI 证据
 
-PR #36 对应 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 是 main 代码基线的完整 Windows UI 验证；PR #37 文档分支的最新 [run 43398848042](https://github.com/sword0880/CRSTool/actions/runs/43398848042) 在恢复项目清单后再次验证，结果相同。PR #35 的 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 也有同类失败：
+PR #38 已于 2026-11-13 合并到 main，合并提交为 `aa0d72a3f5aa793378e00e6391d485409430a751`；其 PR head 与合并提交的 Git tree 完全一致。以下工作流均针对该代码树完成：
 
-- PR #37 的 Restore、Release Build、AI MCP/OpenAI 工具一致性、MCP 附件 fileParams/内存会话集成、项目依赖/架构检查及此前多项专项检查均通过。
-- 工作流在 “Verify supervised plugin fault isolation and durable execution” 步骤失败：模拟 Runner 崩溃后已记录 `RunnerOutcomeUnknown`，但等待持久命令最终回执时，10 秒期限到达并抛出 `TaskCanceledException`（`SupervisedPluginChecks.cs:93/108`）。
-- Worker PluginRunner 独立进程/项目图工作流 [run 43398848047](https://github.com/sword0880/CRSTool/actions/runs/43398848047) 通过；它不替代上述集成监督与持久命令验收。
-- 后续步骤被跳过。不能将完整工作流或插件监督/持久执行验收标记为通过。PR #37 仅修改文档，没有修改业务源码。
+- WPF UI 完整工作流 [run 43422999898](https://github.com/sword0880/CRSTool/actions/runs/43422999898)：**79/79 步骤通过**，包括 Release Build、AI/MCP 附件、架构依赖和全部后续专项检查。
+- Worker PluginRunner 原型/项目图 [run 43422999954](https://github.com/sword0880/CRSTool/actions/runs/43422999954)：11/11 步骤通过。
+- Worker 升级与恢复 [run 43423000041](https://github.com/sword0880/CRSTool/actions/runs/43423000041)：18/18 步骤通过。
+- NationalTeam storage maintenance [run 43422999950](https://github.com/sword0880/CRSTool/actions/runs/43422999950)：11/11 步骤通过。
+- WPF 工作流中，插件监督与持久执行（step 35）、共享准入/Runner 错误与持久重试（step 38）、结果未知不可重试规则（step 42）均通过。
+- `RunnerOutcomeUnknown` 现在作为持久 `Failed` 终态处理，不自动重放；普通可重试失败仍保留最多三次重试。显式取消、执行记录、检查点和失败通知均有回归覆盖。
+
+以上仅证明当前源码及自动化验证通过；最后可确认的正式 Worker 安装快照仍为 2026-10-31，不能据此宣称生产服务已升级。
 
 ## 3. Worker 与 NationalTeam 最近可确认状态
 
