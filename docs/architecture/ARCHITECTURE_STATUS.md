@@ -25,12 +25,12 @@
 
 ### 最近 CI 证据
 
-PR #35 对应 Windows 工作流 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980)：
+PR #36 对应 Windows 工作流 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 是当前已核对的最新一次完整 Windows UI 工作流；PR #35 的 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 出现相同失败：
 
-- Restore、Release Build、AI MCP/OpenAI 工具一致性、MCP 附件 fileParams/内存会话集成、架构依赖检查，以及此前排列的多项专项检查通过。
+- Restore、Release Build、AI MCP/OpenAI 工具一致性、MCP 附件 fileParams/内存会话集成、架构依赖检查，以及前序多项专项检查通过。
 - 工作流在 “Verify supervised plugin fault isolation and durable execution” 步骤失败，日志为 TaskCanceledException，位置 SupervisedPluginChecks.cs:93/108。
 - 后续步骤被跳过。因此不能写成完整工作流通过，也不能将插件监督/持久执行验收标记为完成。
-- PR #36 为文档更新，没有新的代码验证结果。
+- PR #36 仅修改 Markdown，没有改变生产代码；其工作流重新执行了相同代码基线，并未消除上述失败。
 
 ## 3. Worker 与 NationalTeam 最近可确认状态
 
