@@ -1,10 +1,10 @@
-# AI 双入口只读查询 POC（MCP / OpenAI Function Calling）
+# AI 双入口与附件实现记录（MCP / OpenAI）
 
-> PR #31 至 #35 已合并 main，涵盖公开 ETF 双入口、共享审计门禁、本地审计落盘、Gateway 本机服务、MCP/Responses 客户端及统一附件处理。当前 MCP 仍仅监听本机 loopback；远程 ChatGPT 连接、真实供应商账户和正式生产部署必须单独验收。附件的精确规则与 CI 记录见 [AI 助手附件处理](AI_ATTACHMENTS.md)。架构见 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 和 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)。
+> 更新：2026-11-13。PR #31 至 #35 已合并 main；PR #36 仅同步文档。当前 MCP 仍只监听本机 loopback，远程 ChatGPT、真实供应商账户和生产部署未验收。目标架构见 [AI Gateway / MCP 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md)；本文件是当前实现、附件规则和验证状态的唯一入口。
 
 ## 实际工作范围
 
-初期新增三个 .NET 项目：
+最初的只读查询层由以下三个项目组成；后续已增加 Gateway、Client、Infrastructure 和 Models 等项目：
 
 - `CRS.AI.Contracts`：BCL-only 工具契约、授权调用者标记、结果、数据模型。
 - `CRS.AI.Query`：只通过 `CRS.Worker.Ipc` 连接 Worker 的窄只读桥接；固定操作、数据脱敏、限制分页/时间和字节。
@@ -40,7 +40,7 @@ Worker 侧的专用管道与操作白名单见下方本地身份隔离记录。G
 通过 `CRS.AI.Query/Policy` 的 `AiReadGatewayFactory.Create(worker, audit, limits)` 创建受控的 `IAiReadGateway`，供 MCP 与 OpenAI 适配器共享。审计契约在 `Audit`，只读业务在 `Queries`，Worker 通信在 `Worker`。
 
 - **两阶段审计**：Worker 查询前写入 `Attempt`，释放结果前写入 `Outcome`。审计失败时返回 `AuditUnavailable`，不得读取 Worker（前置失败）或向模型释放已取得的响应（后置失败）。
-- **最小日志**：事件只包含 requestId、UTC 时间、主体 SHA-256 指纹、工具白名单名、阶段、决策、入参 SHA-256 指纹。绝不写原始主体、提示词、工具参数、业务响应或异常堆栈。生产审计 sink 需提供持久化、访问控制、保留周期与恢复验收；本次仅定义接口和离线伪实现，**尚无生产 sink**。
+- **最小日志**：事件只包含 requestId、UTC 时间、主体 SHA-256 指纹、工具白名单名、阶段、决策、入参 SHA-256 指纹。绝不写原始主体、提示词、工具参数、业务响应或异常堆栈。生产审计 sink 需提供持久化、访问控制、保留周期与恢复验收；该段记录最初仅有接口和离线伪实现的阶段，后续 P1.5 已加入本地 JSONL sink，但生产留存、备份和恢复仍未验收。
 - **进程内预算**：单主体滑动一分钟调用上限、全部主体共享全局上限和并发槽。默认 20 次/分钟/主体、全局 60 次/分钟、并发 2、主体槽 128。仅通过准入的请求写两阶段审计，其中包括通过准入后的无效参数和未知工具。
 - **错误约束**：不回传未列入工具目录的原始工具名；审计、预算、并发和未知异常均只返回固定错误码。真实调用者凭证仍必须在接入层校验，`AiCaller` 绝不能由模型内容生成。
 - **离线回归**：请求审计失败不触达 Worker、结果审计失败不泄漏数据、预算共享、并发阻断、指纹不等于原始字段；保留先前只读、质量和分页测试。
@@ -250,14 +250,76 @@ dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui 
 上述验收使用合成模型响应、临时配置目录和测试凭证。真实供应商联调需在桌面填写已开通的 API Key。
 
 
-## 附件能力增量（2026-11-13）
+## AI 附件处理
+<a id="ai-attachments"></a>
 
-桌面助手与 MCP 新增统一附件处理，具体规则、协议、生命周期和开放问题见 [AI 助手附件处理](AI_ATTACHMENTS.md)。
+本节是 WPF、OpenAI 模型调用和 MCP 附件入口的唯一规则来源。三者共用 CRS.AI.Models.Attachments 的解析和策略；附件不会扩展现有金融工具权限。
 
-- WPF 和 MCP 都调用 `CRS.AI.Models.Attachments.AiAttachmentParser`；Responses API 与 Anthropic/MiMo 将解析文本作为同一条 user message 的附件引用内容发送。
-- MCP 增加 `crs_chat_start`、`crs_chat_message`、`crs_chat_remove_attachment`、`crs_chat_end`，通过 ChatGPT 官方 `openai/fileParams` 接收文件临时下载引用。
-- MCP 传输继续保持 Stateless；附件使用独立的随机会话句柄和内存 TTL 仓储，不能依赖 HTTP 连接或 transport session。
-- 附件原文不写入 SQLCipher 聊天历史、临时文件目录或日志；历史恢复不恢复附件内容。
-- 当前首版仅开放 UTF-8 TXT/MD/CSV/JSON。PDF/DOCX/XLSX 尚未开放。
-- 自动化 MCP 测试使用假下载器；真实 ChatGPT 账号文件上传、实际下载域名和 UI 授权提示仍需单独验收。不能把协议元数据测试写成真实 ChatGPT 端到端通过。
-- PR #35 已合并 main；Release Build、AI 工具一致性、附件集成和架构依赖 CI 步骤通过，但完整 Windows 工作流因独立 Worker 插件监督测试的 `TaskCanceledException` 失败。详细日志与命令见 [AI_ATTACHMENTS.md](AI_ATTACHMENTS.md#pr-35-自动化验证记录)。
+### 文件白名单与限制
+
+| 项目 | 限制 |
+| --- | ---: |
+| 格式 | UTF-8 TXT、MD、CSV、JSON |
+| 单文件原始大小 | 10 MiB |
+| 单会话原始文件总量 | 20 MiB |
+| 单会话附件数量 | 5 |
+| 提取文本总量 | 50,000 字符 |
+| JSON 最大深度 | 32 |
+| CSV 最大行数 / 单行长度 | 10,000 / 16,384 字符 |
+| 文件名长度 / UI 预览 | 128 字符 / 240 字符 |
+
+PDF、DOCX、XLSX、图片 OCR 暂不支持。不能只凭扩展名或 MIME 信任文件；扩展名、MIME 和实际内容必须符合白名单。拒绝无效 UTF-8、NUL/非预期控制字符、损坏 JSON、路径分隔符和超限内容。CSV/TXT/MD 仅作为文本读取，不执行公式、宏、脚本或外部链接。
+
+### 数据流与隐私
+
+- WPF 文件选择和 MCP ChatGPT fileParams 最终都进入同一解析器，生成只驻留内存的附件文档。
+- 原始字节在读取/下载及解析后尽力清零；解析文本使用可清零缓冲区，移除、结束或过期时尽力清理。
+- 原始文件不写入临时目录、SQLCipher 聊天历史或日志；历史对话不恢复附件正文，用户需重新上传。
+- 模型请求完成后尽力清理请求缓冲。CLR 字符串、JSON 序列化、HTTP 栈和模型 SDK 可能产生内部副本，不能承诺物理内存零残留。
+- 不记录原始文件路径、临时下载 URL、附件正文或 API Key。
+
+### WPF 行为
+
+- 多选 TXT/MD/CSV/JSON；添加后显示文件名、提取字符数和最多 240 字符预览。
+- 支持逐个移除；问题和附件解析文本作为同一条 user message 发送。
+- 当前会话在后续追问中继续引用已添加附件；发送失败时保留附件，便于修改后重试。
+- 新建对话、锁定和退出时清理附件；恢复历史问答不恢复附件正文。
+
+### MCP / ChatGPT 行为
+
+| 工具 | 行为 |
+| --- | --- |
+| crs_chat_start | 创建临时附件会话 |
+| crs_chat_message | 将问题与文件引用作为同一消息提交；后续追问复用 sessionId |
+| crs_chat_remove_attachment | 按 attachmentId 移除单个附件 |
+| crs_chat_end | 结束会话并清理附件 |
+
+- MCP 仍使用 Stateless Streamable HTTP；附件会话独立于 HTTP/MCP transport session。
+- crs_chat_message 声明 _meta["openai/fileParams"] = ["files"]；文件引用包含 download_url、file_id，以及可选 mime_type、file_name。MCP 正文只传文件引用，不传 Base64 文件字节；JSON 请求正文上限 64 KiB。
+- 下载器只接受 HTTPS 和允许的 OpenAI/ChatGPT 文件域名；拒绝 IP 字面量、非标准端口、用户信息、片段、重定向；禁用代理/Cookie，并限制连接、总时长和 10 MiB 响应体。
+- 会话句柄为 256-bit 随机 Base64URL，绑定当前 Bearer 凭证 SHA-256；空闲 30 分钟或绝对寿命 2 小时过期，最多 64 个活动会话，每分钟清理过期内容，进程停止时清空。
+- 当前 MCP 使用安装级 CRS_MCP_TOKEN；同令牌客户端处于同一调用者身份域。多用户部署前必须增加用户级 OAuth/独立凭证、会话撤权和权限隔离。
+
+### 提示注入与权限边界
+
+附件内容始终是不可信引用数据。系统指令要求忽略附件中试图改变规则、索取资料或调用未授权工具的内容；附件不增加 Gateway 工具权限。文件内容不能触发本地命令、SQL、脚本、宏或自动文件打开。
+
+### ChatGPT 套餐与云端留存
+
+根据 2026-11-13 核对的 OpenAI 官方帮助中心：Business、Enterprise/Edu 支持完整自定义 MCP；Pro 仅支持 read/fetch；Plus 当前不提供自定义 MCP 连接。CRS 的附件会话工具会创建、更新或移除会话状态，属于写入/修改动作，不能以 Pro 的只读权限验收；真实连接前必须确认工作区具有完整 MCP 权限。连接目前仅支持 ChatGPT Web；本机 MCP 需通过 Secure MCP Tunnel 或受控远程 HTTPS 接入。
+
+CRS 不保存本机原始附件，但用户上传到 ChatGPT 的原始文件由 ChatGPT 自身的 Library/数据控制管理；CRS 无法删除 ChatGPT 云端原件。实际留存要求应在上传前按 ChatGPT 当前数据控制设置核对。
+
+### 验证与未关闭项
+
+Windows / .NET 10：
+
+```powershell
+dotnet build CRS.sln -c Release -m:1
+dotnet run --project tests/CRS.Tests.AiQuery -c Release
+dotnet run --project tests/CRS.Tests.AiQuery -c Release -- --mcp-attachment-integration
+```
+
+自动化检查覆盖格式/MIME/UTF-8/JSON/控制字符/路径/大小/数量、会话调用者隔离、逐个移除、TTL、显式结束、fileParams 元数据、同条消息、连续追问和上下文清理。MCP 集成测试使用假下载器，不代表真实 ChatGPT 账号端到端完成。
+
+PR #35 的 Windows run 43366766980 中，Restore、Release Build、AI 工具一致性、MCP 附件集成和架构依赖检查通过；完整工作流在独立 Worker 插件监督/持久执行测试处因 TaskCanceledException 失败，后续步骤被跳过。真实 ChatGPT 文件上传/下载、实际下载域名和授权提示仍需单独验收。
