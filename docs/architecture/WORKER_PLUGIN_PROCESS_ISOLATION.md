@@ -1,6 +1,6 @@
 # Worker 后台插件进程隔离设计
 
-状态（2026-11-13）：**main 已将第一方每插件 Runner 接入 Worker Service 组合根；完整监督/持久执行回归尚未通过，最后已知正式安装服务尚未更新，且该机制不构成 OS 权限沙箱。** `Program.cs` 通过 `processSessions` 创建 `IsolatedPluginSession`；Runner 使用独立进程、私有 stdio V2 协议、包摘要/随机挑战/PID 握手和 Job Object 监督。当前源码事实与 CI 边界见第 11 节及[当前架构状态](ARCHITECTURE_STATUS.md)。
+状态（2026-11-13）：**main 已将第一方每插件 Runner 接入 Worker Service 组合根；结果未知终态闭环与完整自动化监督回归已通过 CI；正式安装服务尚未更新，且该机制不构成 OS 权限沙箱。** `Program.cs` 通过 `processSessions` 创建 `IsolatedPluginSession`；Runner 使用独立进程、私有 stdio V2 协议、包摘要/随机挑战/PID 握手和 Job Object 监督。当前源码事实、重试语义和 CI 边界见第 11 节及[当前架构状态](ARCHITECTURE_STATUS.md)。
 
 范围：CRSTool 的 Windows Service、后台插件加载/执行、内部 IPC、插件私有数据、通知和来源预算。此文档是 P1-07 的设计入口，不授权立即改变正式服务、数据目录、密钥、插件 ID/Job ID、持久化 Schema 或现有桌面 Worker IPC。
 
@@ -141,10 +141,12 @@ flowchart LR
 
 ### 11.2 自动化验证现状
 
-- Worker PluginRunner 独立进程/项目图工作流 [run 43398848047](https://github.com/sword0880/CRSTool/actions/runs/43398848047) 通过。该项验证 Runner 构建、项目图及原型协议，不等于完整 Worker 监督生命周期通过。
-- WPF UI 工作流 [run 43398848042](https://github.com/sword0880/CRSTool/actions/runs/43398848042) 中，项目图/架构检查、插件启动卡死隔离、其它插件继续启动、Runner 与 Worker PID 分离等前序检查通过；PR #36 的 run 43386238746 出现相同集成测试失败。
-- 同一工作流在 `SupervisedPluginChecks` 的持久命令故障恢复阶段失败：模拟 Runner 崩溃后记录 `RunnerOutcomeUnknown`，测试等待持久 `GetCommand` 回执时触发 10 秒截止取消，抛出 `TaskCanceledException`（`SupervisedPluginChecks.cs:93/108`）；后续检查被跳过。不能把该轮标记为全量通过。
-- 当前状态：源码已接线、部分故障隔离检查通过，持久执行结果未知/失败回执闭环仍未通过；P1-01 与 ARCH-207 保持未关闭。
+- PR #38 已合并；其 PR head 与 main 合并提交的 Git tree 一致。
+- WPF UI 完整工作流 [run 43422999898](https://github.com/sword0880/CRSTool/actions/runs/43422999898) **79/79 步骤通过**。其中插件监督与持久执行（step 35）、共享准入/Runner 错误与持久重试（step 38）、结果未知不可重试规则（step 42）均通过。
+- Worker PluginRunner 独立进程/项目图 [run 43422999954](https://github.com/sword0880/CRSTool/actions/runs/43422999954) 11/11 通过；Worker 升级与恢复 [run 43423000041](https://github.com/sword0880/CRSTool/actions/runs/43423000041) 18/18 通过；NationalTeam storage maintenance [run 43422999950](https://github.com/sword0880/CRSTool/actions/runs/43422999950) 11/11 通过。
+- 结果未知语义：执行层将 Runner 崩溃分类为 `Failed / RunnerOutcomeUnknown`；`TaskRetryPolicy.ShouldRetry` 明确禁止该检查点自动重放，仓储事务完成原命令的 Failed 回执并保留执行检查点/失败通知。普通失败仍按原策略最多重试三次；已知 Runner I/O 失败仍可退避，显式取消可结束待重试命令。
+- `SupervisedPluginChecks` 的成功/等待活动/崩溃终态轮询分别使用独立截止时间，避免复用已消耗的 `CancellationTokenSource`。
+- 当前状态：结果未知终态闭环和自动化监督回归已通过；P1-01 已关闭。ARCH-207 仍为 In Progress，原因转为正式服务安装、SCM 生命周期及 OS 权限隔离未验收。
 
 ### 11.3 部署与后续安全门槛
 
