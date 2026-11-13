@@ -73,10 +73,23 @@
      <TextBox x:Name="PromptInput" Grid.Row="0"
               Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="问小财牛"
               ToolTip="输入问题，Enter 换行，Ctrl+Enter 发送" PreviewKeyDown="OnPromptKey"
-              AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="6" MinHeight="54" MaxHeight="132"
+              AcceptsReturn="True" TextWrapping="Wrap" MinLines="1" MaxLines="6" MinHeight="44" MaxHeight="132"
               BorderThickness="0" Background="Transparent" Padding="4,2"
               IsEnabled="{Binding CanEditDraft}" MaxLength="4000"
               VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+     <TextBlock Text="向小财牛提问…" Margin="4,4" Foreground="{DynamicResource BrandTextHintBrush}"
+                IsHitTestVisible="False" VerticalAlignment="Top">
+      <TextBlock.Style>
+       <Style TargetType="TextBlock">
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+         <DataTrigger Binding="{Binding Prompt}" Value="">
+          <Setter Property="Visibility" Value="Visible"/>
+         </DataTrigger>
+        </Style.Triggers>
+       </Style>
+      </TextBlock.Style>
+     </TextBlock>
      <Grid Grid.Row="1" Margin="0,8,0,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding CanEditDraft}">
@@ -86,7 +99,8 @@
                   Click="OnPaste" ToolTip="粘贴截图" AutomationProperties.Name="粘贴截图"/>
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-       <ui:Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,6,0"/>
+       <ui:Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,6,0"
+                  Visibility="{Binding Busy, Converter={StaticResource BooleanVisibility}}"/>
        <ui:Button Content="↑" FontSize="20" Width="38" Height="38" Padding="0"
                   Command="{Binding AskCommand}" Appearance="Primary" ToolTip="发送消息"
                   AutomationProperties.Name="发送消息"/>

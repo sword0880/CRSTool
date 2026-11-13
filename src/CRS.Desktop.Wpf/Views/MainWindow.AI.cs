@@ -90,6 +90,7 @@ public partial class MainWindow
 
         // 保存截图前的可见状态，保证取消、异常和锁定路径不会遗留隐藏的助手窗口。
         var previousDockVisibility = AiAssistantDock.Visibility;
+        var previousLauncherVisibility = AiAssistantLauncher.Visibility;
         var floatingWindow = aiFloating;
         var floatingWasVisible = floatingWindow?.IsVisible == true;
 
@@ -97,6 +98,7 @@ public partial class MainWindow
         {
             // 截图和选区裁剪期间隐藏助手，避免悬浮面板遮挡需要查看的页面内容。
             AiAssistantDock.Visibility = Visibility.Collapsed;
+            AiAssistantLauncher.Visibility = Visibility.Collapsed;
             floatingWindow?.Hide();
 
             // 捕获导航内容或插件表面，不包含桌面及独立的助手窗口。
@@ -143,6 +145,7 @@ public partial class MainWindow
             if (!aiLocked)
             {
                 AiAssistantDock.Visibility = previousDockVisibility;
+                AiAssistantLauncher.Visibility = previousLauncherVisibility;
 
                 if (floatingWasVisible && floatingWindow is not null &&
                     ReferenceEquals(aiFloating, floatingWindow))
