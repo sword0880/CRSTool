@@ -74,8 +74,7 @@ internal static class SupervisedPluginChecks
         var caller=new BackgroundCaller(WindowsIdentity.GetCurrent().User!.Value,true);
         var request=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.good","one",Payload:"ok");
         var accepted=await runtime.HandleAsync(request,caller,default);Check(accepted.Code=="Accepted","Worker持久受理命令");
-        // 该截止时间覆盖两个真实 Worker 命令及子进程回收；为 CI 负载预留合理时间，同时保留失控检测。
-        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(30));CommandReceipt? receipt;
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(10));CommandReceipt? receipt;
         do
         {
             var response=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"GetCommand",RelatedRequestId:request.RequestId),caller,deadline.Token);
