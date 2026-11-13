@@ -56,10 +56,10 @@ public partial class AiAssistantPanel : UserControl
         SelectScreenshot(image);
     }
 
-    public void SelectScreenshot(BitmapSource image)
+    public void SelectScreenshot(BitmapSource image, Window? ownerOverride = null)
     {
         if (DataContext is not AiAssistantViewModel model || crop is not null) return;
-        var owner = Window.GetWindow(this);
+        var owner = ownerOverride ?? Window.GetWindow(this);
         var dialog = new ScreenshotCropWindow(image) { Owner = owner, Topmost = owner?.Topmost == true };
         crop = dialog;
         try

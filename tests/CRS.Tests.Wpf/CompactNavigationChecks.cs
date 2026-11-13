@@ -47,8 +47,15 @@ internal static class CompactNavigationChecks
                     var toggle=(System.Windows.Controls.Button)shell.FindName("NavigationToggleButton");
                     var pluginSurface=(FrameworkElement)shell.FindName("PluginSurface");
                     var navigation=(NavigationView)shell.FindName("Navigation");
-                    Check(navigation.MenuItems.OfType<NavigationViewItem>().Where(x=>x.Visibility==Visibility.Visible)
-                        .Select(x=>x.Content).SequenceEqual(new[]{"概览","投资绩效","AI 聊天历史","导入与记录","税务与报表","系统管理"}),"常用一级入口与分类顺序");
+                    var menuItems=navigation.MenuItems.OfType<NavigationViewItem>().ToArray();
+                    Check(menuItems.Select(x=>x.Content).SequenceEqual(new[]{"概览","投资绩效","导入与记录","税务与报表","我的助手","扩展工具","系统管理"}),
+                        "我的助手固定在扩展工具上方");
+                    Check(menuItems.Where(x=>x.Visibility==Visibility.Visible).Select(x=>x.Content)
+                        .SequenceEqual(new[]{"概览","投资绩效","导入与记录","税务与报表","我的助手","系统管理"}),"常用一级入口与分类顺序");
+                    var assistantPanel=(FrameworkElement)typeof(MainWindow).GetField("aiPanel",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(shell)!;
+                    var prompt=(System.Windows.Controls.TextBox)assistantPanel.FindName("PromptInput")!;
+                    Check(prompt.MinLines==1&&prompt.MaxLines==6&&prompt.AcceptsReturn&&prompt.BorderThickness==new Thickness(0),
+                        "助手输入区支持多行扩展并使用无边框组合样式");
                     Check(records.MenuItems.OfType<NavigationViewItem>().Select(x=>x.Content)
                         .SequenceEqual(new[]{"数据导入","导入历史","交易记录"}),"导入历史与数据导入同组");
                     Check(tasks.MenuItems.OfType<NavigationViewItem>().Select(x=>x.Content)

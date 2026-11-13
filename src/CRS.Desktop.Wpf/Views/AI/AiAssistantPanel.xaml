@@ -54,22 +54,60 @@
   </Border>
   <StackPanel Grid.Row="4">
    <TextBlock Text="问题、近期对话和所选截图会发给当前模型。" FontSize="11"
-              Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" Margin="0,0,0,5"/>
-   <TextBox x:Name="PromptInput" Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="问小财牛"
-            ToolTip="输入问题，Ctrl+Enter 发送" PreviewKeyDown="OnPromptKey" AcceptsReturn="True" TextWrapping="Wrap"
-            IsEnabled="{Binding CanEditDraft}" MaxLength="4000" Height="66" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
-   <DockPanel Margin="0,8,0,0">
-    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-     <ui:Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,5,0"/>
-     <ui:Button Content="发送" Command="{Binding AskCommand}" Appearance="Primary"/>
-    </StackPanel>
-    <WrapPanel IsEnabled="{Binding CanEditDraft}">
-     <ui:Button x:Name="CaptureButton" Icon="{ui:SymbolIcon Cut24}" Appearance="Transparent" Width="32" Height="32" Padding="0"
-                Click="OnCapture" ToolTip="截取当前页面选区" AutomationProperties.Name="截取当前页面选区"/>
-     <ui:Button Icon="{ui:SymbolIcon ClipboardImage20}" Appearance="Transparent" Width="32" Height="32" Padding="0"
-                Click="OnPaste" ToolTip="粘贴截图" AutomationProperties.Name="粘贴截图"/>
-    </WrapPanel>
-   </DockPanel>
+              Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+   <!-- 组合式输入区：文字区域随内容增长，截图/粘贴与发送操作固定在底部。 -->
+   <Border Padding="12,8,10,10" CornerRadius="20" BorderThickness="1">
+    <Border.Style>
+     <Style TargetType="Border">
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandBorderBrush}"/>
+      <Setter Property="Background" Value="{DynamicResource BrandSurfaceAltBrush}"/>
+      <Style.Triggers>
+       <Trigger Property="IsKeyboardFocusWithin" Value="True">
+        <Setter Property="BorderBrush" Value="{DynamicResource BrandAccentBrush}"/>
+       </Trigger>
+      </Style.Triggers>
+     </Style>
+    </Border.Style>
+    <Grid>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <TextBox x:Name="PromptInput" Grid.Row="0"
+              Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="问小财牛"
+              ToolTip="输入问题，Enter 换行，Ctrl+Enter 发送" PreviewKeyDown="OnPromptKey"
+              AcceptsReturn="True" TextWrapping="Wrap" MinLines="1" MaxLines="6" MinHeight="44" MaxHeight="132"
+              BorderThickness="0" Background="Transparent" Padding="4,2"
+              IsEnabled="{Binding CanEditDraft}" MaxLength="4000"
+              VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+     <TextBlock Text="向小财牛提问…" Margin="4,4" Foreground="{DynamicResource BrandTextHintBrush}"
+                IsHitTestVisible="False" VerticalAlignment="Top">
+      <TextBlock.Style>
+       <Style TargetType="TextBlock">
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+         <DataTrigger Binding="{Binding Prompt}" Value="">
+          <Setter Property="Visibility" Value="Visible"/>
+         </DataTrigger>
+        </Style.Triggers>
+       </Style>
+      </TextBlock.Style>
+     </TextBlock>
+     <Grid Grid.Row="1" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding CanEditDraft}">
+       <ui:Button x:Name="CaptureButton" Icon="{ui:SymbolIcon Cut24}" Appearance="Transparent" Width="36" Height="36" Padding="0"
+                  Click="OnCapture" ToolTip="截取当前页面选区" AutomationProperties.Name="截取当前页面选区"/>
+       <ui:Button Icon="{ui:SymbolIcon ClipboardImage20}" Appearance="Transparent" Width="36" Height="36" Padding="0"
+                  Click="OnPaste" ToolTip="粘贴截图" AutomationProperties.Name="粘贴截图"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+       <ui:Button Content="取消" Command="{Binding CancelCommand}" Margin="0,0,6,0"
+                  Visibility="{Binding Busy, Converter={StaticResource BooleanVisibility}}"/>
+       <ui:Button Content="↑" FontSize="20" Width="38" Height="38" Padding="0"
+                  Command="{Binding AskCommand}" Appearance="Primary" ToolTip="发送消息"
+                  AutomationProperties.Name="发送消息"/>
+      </StackPanel>
+     </Grid>
+    </Grid>
+   </Border>
   </StackPanel>
  </Grid>
 </UserControl>
