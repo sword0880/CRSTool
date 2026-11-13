@@ -21,4 +21,6 @@ dotnet run --project src/CRS.Desktop.Wpf
 - [当前架构](docs/architecture/CURRENT_ARCHITECTURE.md)、[插件设计](docs/architecture/PLUGIN_ARCHITECTURE.md)、[全局 UI 样式规范](docs/implementation/BRAND_VISUAL_SYSTEM.md)。
 - [未完成问题](docs/KNOWN_ISSUES.md)、[发布验收](docs/validation/RELEASE_ACCEPTANCE.md)、[测试命令](tests/README.md)。
 
+- [AI 双入口只读 POC](docs/implementation/AI_DUAL_ENTRY_POC.md)、[AI 附件处理](docs/implementation/AI_ATTACHMENTS.md)：查看 WPF 助手、MCP/OpenAI 双通道、附件安全与当前验收边界。
+
 `src/` 为生产代码，`tests/` 为测试与验收，`docs/` 为设计、操作和历史记录，`tools/` 为维护脚本。架构目标、历史实施记录和真实已验收结果不是同一回事，判断当前可用能力请以代码、当前问题表及发布验收为准。
