@@ -1,6 +1,6 @@
 # AI 双入口只读查询 POC（MCP / OpenAI Function Calling）
 
-> PR #31 至 #33 已合并 main，涵盖公开 ETF 双入口、共享审计门禁和本地审计落盘。当前源码已加入 Worker 服务身份隔离、Gateway 本机服务、Windows 用户授权和撤销，以及独立的本机 MCP 和 OpenAI Responses 命令行入口。真实模型和正式部署状态见本文末尾。架构见 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 和 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)。
+> PR #31 至 #35 已合并 main，涵盖公开 ETF 双入口、共享审计门禁、本地审计落盘、Gateway 本机服务、MCP/Responses 客户端及统一附件处理。当前 MCP 仍仅监听本机 loopback；远程 ChatGPT 连接、真实供应商账户和正式生产部署必须单独验收。附件的精确规则与 CI 记录见 [AI 助手附件处理](AI_ATTACHMENTS.md)。架构见 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 和 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)。
 
 ## 实际工作范围
 
@@ -260,3 +260,4 @@ dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui 
 - 附件原文不写入 SQLCipher 聊天历史、临时文件目录或日志；历史恢复不恢复附件内容。
 - 当前首版仅开放 UTF-8 TXT/MD/CSV/JSON。PDF/DOCX/XLSX 尚未开放。
 - 自动化 MCP 测试使用假下载器；真实 ChatGPT 账号文件上传、实际下载域名和 UI 授权提示仍需单独验收。不能把协议元数据测试写成真实 ChatGPT 端到端通过。
+- PR #35 已合并 main；Release Build、AI 工具一致性、附件集成和架构依赖 CI 步骤通过，但完整 Windows 工作流因独立 Worker 插件监督测试的 `TaskCanceledException` 失败。详细日志与命令见 [AI_ATTACHMENTS.md](AI_ATTACHMENTS.md#pr-35-自动化验证记录)。

@@ -2,6 +2,14 @@
 
 > **本地证据文件说明**：文中标注的 artifacts/ 路径属于本地验收工作区产物，当前未纳入 Git 仓库，因此不能在 GitHub 页面直接打开。复核时必须取得对应原始文件；缺少原件时，不得仅凭摘要认定验收通过。
 
+## AI Gateway / MCP 与附件能力（2026-11-13）
+
+- AI 双入口和附件代码已进入 `main`：PR [#35](https://github.com/sword0880/CRSTool/pull/35) 于 2026-11-13 合并。当前源码包含 `CRS.AI.Gateway`、`CRS.AI.Client`、MCP/OpenAI 工具适配、模型供应商适配，以及 WPF/MCP 共用的 `CRS.AI.Models.Attachments`。
+- 附件首版支持 UTF-8 TXT/MD/CSV/JSON；单文件 10 MiB、单会话 20 MiB、最多 5 个文件、提取文本总量 50,000 字符。MCP 使用 `crs_chat_start/message/remove_attachment/end` 与内存 TTL 会话；WPF 附件随当前对话保留，不写入附件原文或提取正文到聊天历史。
+- 本机 MCP 仍只监听 `127.0.0.1:8765`，使用 Bearer 凭证；远程 ChatGPT 连接、OAuth/Secure MCP Tunnel、公网 HTTPS、真实 ChatGPT 文件上传端到端、生产服务安装和多用户身份体系均未验收。不得把 MCP fileParams 协议测试等同于远程接通。
+- PR #35 对应 Windows CI [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980)：Release Build、AI 工具一致性检查、MCP 附件 fileParams/内存会话集成检查和架构依赖检查通过；工作流整体失败于独立的 Worker 插件监督测试 `SupervisedPluginChecks.RunAsync`（`TaskCanceledException`，`SupervisedPluginChecks.cs:93`）。因此 AI 专项检查通过，但该次完整工作流不能标记为全绿。
+- 当前实施与开放项分别以[AI 双入口 POC](../implementation/AI_DUAL_ENTRY_POC.md)、[AI 附件处理](../implementation/AI_ATTACHMENTS.md)和源码为准；本机代码/自动化检查不代表已完成生产部署或真实 ChatGPT 账号验收。
+
 2026-11-04直接持股补齐已正式回读：观察14只、已核10只/26账户，9只更新三季报、公牛保持原固定中报；18份固定原文登记完成，14份既有披露及5份旧候选原始资料保留。保全维护`4b079c0aefc84fd4bb3fc43193205fa6`于14:18:30 Committed，原密钥、6143份快照及各182项新旧程序文件、8项计划、24只ETF配置通过核验。详见[原文补齐与本机验收](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-reviewed-subsets)。此后用户追加自动发现/自动核验功能，尚不能以固定原文登记证明其完成。
 
 2026-11-04直接持股只读核查：实际观察13只沪市股票，已核15个账户合并为4只股票，5只股票另有14条待核验线索；4只已存股东表没有当前机构目录匹配账户。默认清单当前快照均为2026中报，期间差额全部为空。任务成功不等于持股核验或全市场覆盖完成；本轮未补采、审核或部署，见[逐只覆盖核查](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-coverage-audit)。
@@ -10,7 +18,7 @@
 
 2026-11-03增量：[南向累计净买入年度折线](../implementation/SOUTHBOUND.md#southbound-annual-comparison)采用用户明确选择的年内累计净买入：最近五年、相同月日比较，年度归零并核对前一年末基准及每日连续性；新查询/快照版本与原每日买入分开。本机后台已保全更新至Committed，真实采集及五年曲线回读通过，原计划、配置、股票投影和密钥保留；见[部署与UnknownQuery修复](../implementation/SOUTHBOUND.md#southbound-unknown-query-fix)。前台仅保留[年度主图缩放及当日净卖出悬停提示](../implementation/SOUTHBOUND.md#southbound-net-sell-visibility)，金融金额计算仍由后台负责。以下既有金融审核、性能及正式发布风险不因此关闭。
 
-更新：2026-10-31。本文件是模块边界、未关闭高风险、正式部署及证据的唯一当前索引；实施文档保留历史。时刻均为北京时间，源码、隔离回放、正式后台和金融审核分别验收。
+更新：2026-11-13。本文件是模块边界、未关闭高风险、正式部署及证据的唯一当前索引；实施文档保留历史。时刻均为北京时间，源码、隔离回放、正式后台和金融审核分别验收。
 
 当前正式发行：代次`c84d1bf74522495fa91a4cf4ce3a272b`于2026-10-31 19:58:15 Committed，PID42984 / Running / Auto / LocalService。新旧程序各182项、6051份快照及原密钥摘要逐项通过；7项计划、24只ETF配置、29条股票投影、10条旧执行和原11份登记原件逐项保留。索引SHA256：`C681100F7D077FDAB52F85277CE82BCD6E6299D35D61DF8E3C0B716DA5302800`。见正式汇总（本地验收产物：`artifacts/china50-holders-20261031/acceptance.json`，未纳入仓库）、保全回执（本地验收产物：`artifacts/china50-holders-installed-20261031/preservation-acceptance.json`，未纳入仓库）及最终健康（本地验收产物：`artifacts/china50-holders-installed-20261031/final-health.json`，未纳入仓库）。未恢复旧库或删除归档。
 

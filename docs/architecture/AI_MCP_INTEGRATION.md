@@ -1,12 +1,12 @@
-# CRS AI / MCP 只读数据接入落地方案
+# CRS AI / MCP 只读数据接入：目标设计与实施基线
 
-> 状态：**Proposed（设计待实施，未创建生产服务、未通过安全验收）**  
-> 版本：v1.0｜制定：2026-11-11｜范围：CRSTool（小财牛）.NET 10、WPF、Worker、国家队与绩效模块  
-> 权威关系：本文件是 **AI 接入专项目标设计**，不是当前实现说明；已有实现与部署状态仍以 [当前架构](CURRENT_ARCHITECTURE.md)、[架构状态](ARCHITECTURE_STATUS.md)、[问题清单](../KNOWN_ISSUES.md)、[发布验收](../validation/RELEASE_ACCEPTANCE.md) 及源码为准。
+> 状态：**目标设计部分已落地；本机实现已进入 main，远程接入与生产安全验收未关闭**  
+> 版本：v1.1｜原始方案：2026-11-11｜状态更新：2026-11-13｜范围：CRSTool（小财牛）.NET 10、WPF、Worker、国家队与绩效模块  
+> 权威关系：本文件保留原始目标方案；当前实现以 [AI 双入口 POC](../implementation/AI_DUAL_ENTRY_POC.md)、[AI 附件处理](../implementation/AI_ATTACHMENTS.md)、[当前架构](CURRENT_ARCHITECTURE.md)和[架构状态](ARCHITECTURE_STATUS.md)为准。文中 `CRS.Mcp.Server` / `CRS.AI.OpenAI` 是原方案建议名，不是当前 Solution 中的实际项目名。
 
 ## 0. 结论和决策（ADR-AI-001）
 
-**决策**：先复用 CRS Worker 已有只读查询能力，提供独立、可关闭、最小权限的 `CRS.Mcp.Server`，让 ChatGPT、Claude 等 MCP 客户端能够查询**已发布的公开市场研究数据**；再在 WPF 中加入使用同一查询服务的内置 AI 助手。MCP 是**对外工具协议**，不是金融计算引擎，也不承担采集与调度。
+**原始目标决策**：复用 CRS Worker 已有只读查询能力，以独立、可关闭、最小权限的 MCP 入口向 ChatGPT、Claude 等客户端提供**已发布的公开市场研究数据**；WPF 内置助手复用同一只读业务边界。MCP 是**对外工具协议**，不是金融计算引擎，也不承担采集与调度。当前代码采用 `CRS.AI.Gateway` + `CRS.AI.Client` + `CRS.AI.Models` 的项目划分，和本文早期提出的 `CRS.Mcp.Server` 命名不同。
 
 硬性原则：
 
@@ -17,11 +17,25 @@
 5. **外部 AI 无本地信任身份**：MCP/HTTP 入口先独立鉴权，再映射到受限服务主体，Worker 依据真实服务身份和显式白名单二次授权，不能只相信 AI 传来的用户角色。
 6. **双入口不双建设**：MCP 客户端与 WPF 内置 Responses API 适配器共用业务 Query Facade、Schema、数据质量、日志与授权策略。
 
-本期仅新增设计文档，不代表上述能力已实装或现有 `ReleaseApproved` 状态变化。
+原文于 2026-11-11 编写时仅新增设计文档；该历史状态已被 2026-11-13 的代码合并更新。当前实现和差异见下节，仍不得据此改变现有 `ReleaseApproved` 状态或宣称已完成生产发布。
 
-## 1. 现有仓库核对基线与接入位置
+## 0.1 当前实现基线与原方案差异（2026-11-13）
 
-截至编写时，main 分支可确认：
+| 组件 | 当前 main 实际项目/职责 | 状态边界 |
+| --- | --- | --- |
+| `CRS.AI.Contracts` / `CRS.AI.Query` | BCL 工具契约、固定只读业务映射、Worker IPC、质量/分页限制 | 源码与离线检查已合并；真实生产服务未验收 |
+| `CRS.AI.Infrastructure` / `CRS.AI.Gateway` | 最小两阶段审计、Gateway 服务宿主、Windows 用户授权/撤销及专用 Worker 管道 | 本机隔离检查已实现；正式安装、审计归档与恢复演练仍开放 |
+| `CRS.AI.Adapters` / `CRS.AI.Client` | MCP/OpenAI 工具协议适配；本机 MCP Streamable HTTP 与 Responses 命令行入口 | MCP 当前仅监听 `127.0.0.1`，没有公网 HTTPS/OAuth/Tunnel |
+| `CRS.AI.Models` / WPF | OpenAI Responses、Anthropic/MiMo/DeepSeek 模型适配；WPF 助手、模型设置与工具调用 | 真实供应商账户/地区合规和生产预算仍需验收 |
+| `CRS.AI.Models.Attachments` | WPF 与 MCP 共用解析、文件限制、内存会话；MCP `openai/fileParams` 接收 ChatGPT 文件引用 | PR #35 已合并；真实 ChatGPT 远程上传/下载尚未验收 |
+
+PR [#35](https://github.com/sword0880/CRSTool/pull/35) 已于 2026-11-13 合并。Windows CI [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 的 Release Build、AI 工具一致性、附件集成和架构依赖检查通过；整体工作流因独立 Worker 插件监督测试 `TaskCanceledException` 失败。
+
+原方案中 `CRS.Mcp.Server`、公网 OAuth、Secure MCP Tunnel 和多用户 CallerSubject 仍作为目标设计参考；不得把它们描述成当前已部署组件。尤其不能把 `openai/fileParams` 元数据测试或假下载器测试等同于 ChatGPT 已远程连接本机服务。
+
+## 1. 原始方案的仓库核对基线与接入位置
+
+以下清单保留 2026-11-11 原始方案编写时的仓库基线；当前 AI 项目结构与实现状态以 0.1 节为准：
 
 - `CRS.sln`：`CRS.Common`、`CRS.Worker.Abstractions`、`CRS.Worker.Ipc`、`CRS.Worker.Service`、`CRS.Worker.PluginHost`、`CRS.Plugins.NationalTeam.Core`、`CRS.Plugins.NationalTeam.Jobs`、`CRS.Plugins.NationalTeamWatch`、`CRS.Application`、`CRS.Infrastructure`、`CRS.Desktop.Wpf` 等。
 - Worker 为唯一 Quartz 调度器；WPF 通过 Named Pipes 走 `CRS.Worker.Ipc`；已有查询分组与负载预算，插件操作通过注册表分发而不是在 AI 服务里复制业务 switch。
@@ -30,7 +44,7 @@
 - `CRS.Common` 保持 BCL-only，不放 OpenAI、MCP、HTTP、WPF、业务领域类型。
 - 个人绩效由 `IPerformanceUseCases` 和保险库会话提供，不能直接从 Windows Service 读取。
 
-接入位置：在 **Worker IPC 外侧**新设 AI Query Facade 与受控外部适配器。第一阶段优先包装已存在的稳定、公开、可验证查询，不改变 NationalTeam 的数据库模型，也不要求插件一开始实现新的 `IAiDataProvider`。
+原方案建议的接入位置：在 **Worker IPC 外侧**设置 AI Query Facade 与受控外部适配器，包装已存在的稳定、公开、可验证查询，不改变 NationalTeam 数据库模型。当前代码的真实项目划分和职责见 0.1 节。
 
 ### 1.1 目标拓扑
 
@@ -61,7 +75,7 @@
 - MCP Server 与 Worker 分进程，MCP 进程不持有数据库连接或 `OpenDataKey()`，只取得经授权、裁剪的 DTO。
 - 复用既有查询能力时，若该查询存在副作用、无界等待或质量缺口，必须先修复或暂不对 AI 开放。
 
-## 2. 项目目录与依赖方向
+## 2. 原始目标项目目录与依赖方向（实际项目以 0.1 为准）
 
 建议 **按验证需求逐步新增**，避免先创建空项目：
 
@@ -217,7 +231,7 @@ AI 分析最有价值的不是复述数值，而是能区分**事实、推断和
 - “旧版兼容命令绕过只读审核”：Worker 按服务 SID 执行 allowlist，不以命令名称前缀或工具声明替代审计。
 - “修改 MCP tool metadata 让 ChatGPT 不察觉”：版本化 schema；服务升级和客户端重新审核工具定义，不在生产默默改变含义。
 
-## 7. WPF 内置 GPT（P3，非 MCP 前置条件）
+## 7. WPF 内置助手（原 P3 目标；本机代码已实现，生产验收仍开放）
 
 WPF 页签通过本地 `CRS.AI.Query` 的受控调用器获得与 MCP 相同的**数据 DTO**；模型调用使用 OpenAI Responses API 的 Function Calling，API Key 只存在受保护服务端。它不应作为绕过 MCP/Worker 授权的“直连 SQLite 后门”。
 
@@ -226,6 +240,9 @@ WPF 页签通过本地 `CRS.AI.Query` 的受控调用器获得与 MCP 相同的*
 **不推荐**：为了统一界面在 `CRS.Common` 引入 OpenAI SDK、将完整数据库作为模型上下文、把模型结果回写 Published/Immutable 记录。
 
 ## 8. 可执行的阶段任务（含变更边界）
+
+> 以下复选框是原始目标计划的历史快照，不是当前完成度清单；已落地项和剩余阻断以 0.1 节及 AI 双入口 POC 为准。
+
 
 ### P0 — 先锁定基线与安全门槛
 

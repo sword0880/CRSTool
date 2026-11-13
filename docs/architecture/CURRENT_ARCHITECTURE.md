@@ -44,7 +44,7 @@
 
 2026-10-23 ServiceKey 灾备第一阶段：新增内部内存恢复封装组件与合成负例，未接入生产启动/IPC/CLI，主密钥仍由原有机器 DPAPI/SID/ACL 保护。授权导出、目标重封装/只读验库与激活尚未实现，详见[分阶段安全审查](WORKER_SERVICE_KEY_RECOVERY.md)；ARCH-005 / P0-02 保持 Open。
 
-状态：Current（2026-10-20 Windows Release构建与依赖门禁已复核，生产发布门槛另行验收）；源码结构核对日期：2026-10-20。本文描述已接线的结构；设计提案和旧实施记录不能替代本文及源码。新增能力先核对本文、项目文件及启动入口，再参考旧方案。
+状态：Current（基础架构基线为 2026-10-20；2026-11-13 补充 AI 模块与附件边界；生产发布门槛另行验收）；源码结构核对日期：2026-11-13（AI 部分）/2026-10-20（其余基线）。本文描述已接线的结构；设计提案和旧实施记录不能替代本文及源码。新增能力先核对本文、项目文件及启动入口，再参考旧方案。
 
 ## 解决方案生产项目与直接项目依赖
 
@@ -66,13 +66,13 @@
 | CRS.Worker.PluginHost | CRS.Worker.Abstractions | 后台包验证及会话加载 |
 | CRS.Worker.PluginRunner | CRS.Worker.PluginHost | 每插件监督进程、私有stdio双向协议、上下文能力代理；正式源码组合根已启动，部署另验 |
 | CRS.Worker.Ipc | CRS.Worker.Abstractions | Windows 命名管道、请求协议及身份授权。桌面、管理和候选 Gateway 公开 ETF 查询各有独立访问控制 |
-| CRS.AI.Contracts | 无 | 候选AI公开只读工具的BCL契约/Schema；未外部部署 |
-| CRS.AI.Query | CRS.AI.Contracts, CRS.Worker.Ipc | 候选只读查询Facade：固定NationalTeam业务操作、上限、质量和脱敏 |
-| CRS.AI.Infrastructure | CRS.AI.Query | 本地最小 AI 审计事件追加、维护互斥及离线归档校验 |
-| CRS.AI.Gateway | CRS.AI.Contracts, CRS.AI.Query, CRS.AI.Infrastructure, CRS.Worker.Ipc | 候选 Windows 服务宿主和本地命令行客户端，校验用户令牌、管理与撤销授权，通过专用 Worker 管道查询公开 ETF |
+| CRS.AI.Contracts | 无 | AI 只读工具的 BCL 契约、Schema 与调用者标记；源码已进入 main，远程发布未验收 |
+| CRS.AI.Query | CRS.AI.Contracts, CRS.Worker.Ipc | 固定 NationalTeam 只读查询 Facade、参数/分页上限、质量检查与脱敏 |
+| CRS.AI.Infrastructure | CRS.AI.Query | 最小 AI 审计事件追加、维护互斥及离线归档校验 |
+| CRS.AI.Gateway | CRS.AI.Contracts, CRS.AI.Query, CRS.AI.Infrastructure, CRS.Worker.Ipc | 独立 Windows 服务宿主与本地命令入口；校验 Windows 用户身份、授权/撤销并通过专用 Worker 管道查询公开 ETF；尚未作为正式发行部署 |
 | CRS.AI.Adapters | CRS.AI.Contracts | MCP 与 OpenAI 两种工具协议描述与调用分发 |
-| CRS.AI.Client | CRS.AI.Contracts, CRS.AI.Adapters, CRS.AI.Gateway, CRS.AI.Models | 本机 MCP Streamable HTTP 与 OpenAI Responses 命令行入口，使用当前 Windows 用户身份查询 Gateway |
-| CRS.AI.Models | CRS.AI.Adapters, CRS.AI.Contracts, CRS.AI.Gateway, CRS.Common | 模型供应商适配、当前 Windows 用户凭证与默认模型、公开 ETF 工具调用 |
+| CRS.AI.Client | CRS.AI.Contracts, CRS.AI.Adapters, CRS.AI.Gateway, CRS.AI.Models | 本机 MCP Streamable HTTP 与 OpenAI Responses 命令行入口；MCP 当前仅监听 loopback，不等于远程 ChatGPT 已接通 |
+| CRS.AI.Models | CRS.AI.Adapters, CRS.AI.Contracts, CRS.AI.Gateway, CRS.Common | OpenAI Responses、Anthropic/MiMo/DeepSeek 等模型适配、用户凭证、工具调用及统一附件解析/内存会话 |
 | CRS.Notifications | CRS.Common | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
@@ -80,6 +80,13 @@
 | CRS.Plugins.NationalTeam.Core | CRS.Common | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
 | CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common, CRS.Documents | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
+
+### AI 双入口与附件处理
+
+- `CRS.AI.Gateway` 承担本机受控只读查询、Windows 身份授权与审计；`CRS.AI.Client` 提供本机 MCP Streamable HTTP 和 OpenAI Responses 命令行入口；WPF 助手使用 `CRS.AI.Models` 的模型服务与工具分发。
+- MCP 当前仅监听 `127.0.0.1`，使用安装级 Bearer 凭证和 Stateless Streamable HTTP；尚未部署公网 HTTPS、OAuth 或 Secure MCP Tunnel。ChatGPT `openai/fileParams` 协议适配不代表远程 ChatGPT 连接已经完成。
+- `CRS.AI.Models.Attachments` 是 WPF 与 MCP 共用的解析模块。首版仅支持 UTF-8 TXT/MD/CSV/JSON；原始文件不落盘，解析文本仅驻留当前会话内存，移除、结束、锁定、过期或进程退出时尽力清理。
+- 具体项目边界、测试命令和开放风险见[AI 双入口 POC](../implementation/AI_DUAL_ENTRY_POC.md)与[AI 附件处理](../implementation/AI_ATTACHMENTS.md)。
 
 ## 解决方案测试与夹具项目
 
@@ -102,7 +109,7 @@
 | CRS.Tests.SectorUi | 行业研究界面、分类导航与查询取消 |
 | CRS.Tests.Background | Worker、管道、权限和调度 |
 | CRS.Tests.WorkerEtf | ETF 双入口及后台存储 |
-| CRS.Tests.AiQuery | AI 工具一致性、参数与权限、只读质量、共享审计、本机 Gateway 授权与撤销、MCP 握手与 Responses 回传验收 |
+| CRS.Tests.AiQuery | AI 工具一致性、参数与权限、只读质量、共享审计、本机 Gateway 授权与撤销、MCP 握手/Responses 回传、附件解析与 MCP fileParams 会话集成 |
 | CRS.Worker.FixturePlugin | 后台故障与慢查询夹具，不进入发行包 |
 | CRS.Worker.EtfFixture | 隔离 ETF 服务夹具 |
 

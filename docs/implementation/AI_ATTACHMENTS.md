@@ -1,6 +1,6 @@
 # AI 助手附件处理
 
-> 状态：附件模块源码、WPF 界面、MCP 协议和自动化测试已加入候选分支；构建/CI 及真实 ChatGPT 账号端到端验收待核验。
+> 状态：**已合并 main（PR #35，2026-11-13）**。附件解析、WPF 界面、MCP fileParams 工具和自动化测试已进入主分支；PR 对应 Windows CI 的 Release Build 与 AI 专项检查通过，但完整工作流因独立 Worker 插件监督测试失败。真实 ChatGPT 账号端到端与生产部署仍待验收。
 
 ## 1. 目标与范围
 
@@ -108,6 +108,22 @@ dotnet run --project tests/CRS.Tests.AiQuery -c Release -- --client-integration
 自动化检查覆盖：格式/MIME/UTF-8/JSON/控制字符/路径穿越/大小/数量、会话调用者隔离、逐个移除、TTL、显式结束、MCP fileParams 元数据、上传同条消息、连续追问、移除后的上下文清空及会话结束后句柄失效。
 
 真实 ChatGPT 上传验收仍需在目标 ChatGPT 自定义 MCP 连接中验证：文件参数能否实际到达工具、临时下载域名是否在 OpenAI 当前环境下匹配、用户授权提示是否符合预期。自动化测试使用假下载器，不代表已完成真实 ChatGPT 账号端到端验收。
+
+### PR #35 自动化验证记录
+
+- PR：[feat(ai): add unified attachment support for WPF and MCP](https://github.com/sword0880/CRSTool/pull/35)，已合并 main。
+- Windows CI：[run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980)。Restore、Release Build、AI MCP/OpenAI 工具一致性、MCP 附件 fileParams/内存会话集成、架构依赖检查均通过。
+- 工作流整体结论为 **failure**：失败步骤是独立的 `SupervisedPluginChecks.RunAsync`，抛出 `TaskCanceledException`（`SupervisedPluginChecks.cs:93`）；附件集成步骤本身通过。不能将本次完整工作流描述为全绿。
+
+本地复核命令：
+
+```powershell
+dotnet build CRS.sln -c Release -m:1
+dotnet run --project tests/CRS.Tests.AiQuery -c Release
+dotnet run --project tests/CRS.Tests.AiQuery -c Release -- --mcp-attachment-integration
+```
+
+第三条命令使用合成只读结果和假下载器验证 MCP 文件参数及会话生命周期，不会访问真实 ChatGPT 账号，也不验证远程网络连接。
 
 ## 8. 开放项
 

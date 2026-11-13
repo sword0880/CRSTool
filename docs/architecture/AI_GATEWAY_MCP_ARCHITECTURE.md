@@ -1,12 +1,14 @@
 # CRSTool AI Gateway / MCP 双入口架构与落地方案
 
-> 状态：**设计提案，未实现、未部署、未验证** | 版本：v1.0 | 2026-11-11
+> 状态：**目标架构；本机双入口与附件核心已实现，远程 MCP 接入及生产部署未验收** | 版本：v1.1 | 更新：2026-11-13
 > 
 > 适用：CRSTool（.NET 10 / WPF / Windows Service / SQLCipher / 插件体系）
 >
-> 权威现状先读：[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)、[ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md)、[PLUGIN_ARCHITECTURE.md](PLUGIN_ARCHITECTURE.md)、[BACKGROUND_SERVICE_DESIGN.md](BACKGROUND_SERVICE_DESIGN.md)。**本文是新增目标设计，不得将其描述为已实现能力。** 与当前源码/受控权限边界冲突时先出ADR和验证，不得直接改变现有约束。
+> 权威现状先读：[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)、[ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md)、[AI 双入口 POC](../implementation/AI_DUAL_ENTRY_POC.md)和[AI 附件处理](../implementation/AI_ATTACHMENTS.md)。本文保留目标架构与安全约束；当前实际项目、部署范围和验证状态以实施文档及源码为准。后续目标设计不能覆盖当前尚未实现的远程服务、OAuth、Tunnel 和生产部署边界。
 
-## 0. 决策摘要（ADR-AI-001，拟议）
+## 0. 决策摘要（ADR-AI-001，目标设计）
+
+以下条目描述目标架构原则，不代表当前已经部署的运行拓扑；当前代码事实见 0.1 节。
 
 1. **统一业务边界，双入口**：WPF 内置助手通过独立的 `CRS.AI.Gateway` 发起 Responses API 分析；ChatGPT 经自定义 MCP / Secure MCP Tunnel 调用 Gateway 的同一套受控业务查询。两条路径共享工具契约、授权、脱敏、审计；不是让 Gateway 重复代 ChatGPT 调用模型。
 2. **Phase 1 仅在合法受支持地区使用 OpenAI API**。Plus 可用于 WPF 内部 API 分析，但 API 独立计费。依 OpenAI 当前官方说明，自建 MCP 直接连接 ChatGPT 需具备支持套餐：Pro 可接只读 read/fetch，Business/Enterprise/Edu 可接完整 MCP；Plus 不作为此能力的交付前提。不得以个人新建 GPT Actions 作为兜底：2026-10-26 后个人套餐停止新建 GPT。最终以实际账号权限和官方最新政策为准。
@@ -14,6 +16,21 @@
 4. **最高安全边界**：后台 Worker 既有服务权限仅访问公开市场研究数据，**绝不为了 AI 入口而开放个人 SQLCipher 税务库、TOTP 密钥或 WPF 登录会话**。个人数据仅由处于用户登录、明确解锁状态的交互式桌面进程发布最小范围、短时、只读的数据快照。
 5. **AI 一律不掌握最终裁决权**：金额/税费/收益率/历史事实与证据由现有确定性计算引擎产生；AI 只能解释、比较、给出分析，不能修改账本、执行交易、申报税务或静默改动作业。
 6. **强制 P0 门槛**：部署地、API 使用地区、支付资格和跨境数据授权未验证前，不启用外部 OpenAI 连接；离线工作流保持完整可用。
+
+## 0.1 当前实现基线（2026-11-13）
+
+本节描述当前 `main` 源码和已取得的自动化证据；后续架构图与分阶段表仍保留目标设计，不能反向解释为当前部署拓扑。
+
+| 范围 | 当前实现 | 尚未证明的事项 |
+| --- | --- | --- |
+| 只读查询与 Gateway | `CRS.AI.Contracts`、`CRS.AI.Query`、`CRS.AI.Infrastructure`、`CRS.AI.Gateway` 已进入 main；固定工具白名单、Worker 专用管道、Windows 用户授权/撤销和最小审计已有实现及离线检查 | 正式生产安装、正式审计归档/备份、长期负载与真实运维恢复 |
+| 模型调用 | `CRS.AI.Models` 提供 OpenAI Responses、Anthropic Messages、MiMo/DeepSeek 等模型适配；WPF 助手可在本机使用模型设置与工具调用 | 真实供应商 API 账户、地区/跨境合规、生产预算与外发审批 |
+| MCP | `CRS.AI.Client` 承载 Stateless Streamable HTTP，当前仅绑定 `127.0.0.1:8765/mcp`，通过 Bearer 凭证识别本机调用者 | 公网 HTTPS、OAuth、多租户身份、Secure MCP Tunnel、ChatGPT 远程连通 |
+| 附件 | WPF 与 MCP 共用 `CRS.AI.Models.Attachments`；MCP 提供 `crs_chat_start/message/remove_attachment/end` 和 `openai/fileParams` | 真实 ChatGPT 账号上传/下载端到端及目标套餐授权提示 |
+
+附件规则、MCP 会话 TTL、清理、隐私边界和测试命令见[AI 附件处理](../implementation/AI_ATTACHMENTS.md)。PR [#35](https://github.com/sword0880/CRSTool/pull/35) 已合并 main。其 Windows CI [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 中 Release Build、AI 工具一致性、附件集成和架构依赖检查通过；整个工作流因独立 Worker 插件监督测试的 `TaskCanceledException` 失败，不能标记为全绿。
+
+**重要边界：** MCP 文件参数元数据和假下载器集成测试只证明本机协议实现与会话生命周期，不证明 ChatGPT 已经能通过远程网络访问本机 CRS。当前 MCP 仅监听 loopback。
 
 ## 1. 业务需求与边界
 
@@ -34,7 +51,9 @@
 - 无限制 RAG 上传整个数据库或证据原件至模型服务。
 - 代理/第三方服务绕过地区、账号或使用条款限制。
 
-## 2. 运行架构与安全域
+## 2. 目标运行架构与安全域
+
+以下拓扑为远程 MCP/Tunnel 等目标形态，不是当前已经部署的运行图。当前本机 MCP Host 位于 `CRS.AI.Client`，与 `CRS.AI.Gateway` 分离并仅监听 loopback；实际结构见本节前的实现基线。
 
 ```text
 用户交互式 Windows Session                         外部受支持 OpenAI / ChatGPT
