@@ -33,7 +33,7 @@ PR [#35](https://github.com/sword0880/CRSTool/pull/35) 已于 2026-11-13 合并�
 
 原方案中 `CRS.Mcp.Server`、公网 OAuth、Secure MCP Tunnel 和多用户 CallerSubject 仍作为目标设计参考；不得把它们描述成当前已部署组件。尤其不能把 `openai/fileParams` 元数据测试或假下载器测试等同于 ChatGPT 已远程连接本机服务。
 
-## 1. 现有仓库核对基线与接入位置
+## 1. 原始方案的仓库核对基线与接入位置
 
 以下清单保留 2026-11-11 原始方案编写时的仓库基线；当前 AI 项目结构与实现状态以 0.1 节为准：
 
@@ -44,7 +44,7 @@ PR [#35](https://github.com/sword0880/CRSTool/pull/35) 已于 2026-11-13 合并�
 - `CRS.Common` 保持 BCL-only，不放 OpenAI、MCP、HTTP、WPF、业务领域类型。
 - 个人绩效由 `IPerformanceUseCases` 和保险库会话提供，不能直接从 Windows Service 读取。
 
-接入位置：在 **Worker IPC 外侧**新设 AI Query Facade 与受控外部适配器。第一阶段优先包装已存在的稳定、公开、可验证查询，不改变 NationalTeam 的数据库模型，也不要求插件一开始实现新的 `IAiDataProvider`。
+原方案建议的接入位置：在 **Worker IPC 外侧**设置 AI Query Facade 与受控外部适配器，包装已存在的稳定、公开、可验证查询，不改变 NationalTeam 数据库模型。当前代码的真实项目划分和职责见 0.1 节。
 
 ### 1.1 目标拓扑
 
@@ -231,7 +231,7 @@ AI 分析最有价值的不是复述数值，而是能区分**事实、推断和
 - “旧版兼容命令绕过只读审核”：Worker 按服务 SID 执行 allowlist，不以命令名称前缀或工具声明替代审计。
 - “修改 MCP tool metadata 让 ChatGPT 不察觉”：版本化 schema；服务升级和客户端重新审核工具定义，不在生产默默改变含义。
 
-## 7. WPF 内置 GPT（P3，非 MCP 前置条件）
+## 7. WPF 内置助手（原 P3 目标；本机代码已实现，生产验收仍开放）
 
 WPF 页签通过本地 `CRS.AI.Query` 的受控调用器获得与 MCP 相同的**数据 DTO**；模型调用使用 OpenAI Responses API 的 Function Calling，API Key 只存在受保护服务端。它不应作为绕过 MCP/Worker 授权的“直连 SQLite 后门”。
 
@@ -240,6 +240,9 @@ WPF 页签通过本地 `CRS.AI.Query` 的受控调用器获得与 MCP 相同的*
 **不推荐**：为了统一界面在 `CRS.Common` 引入 OpenAI SDK、将完整数据库作为模型上下文、把模型结果回写 Published/Immutable 记录。
 
 ## 8. 可执行的阶段任务（含变更边界）
+
+> 以下复选框是原始目标计划的历史快照，不是当前完成度清单；已落地项和剩余阻断以 0.1 节及 AI 双入口 POC 为准。
+
 
 ### P0 — 先锁定基线与安全门槛
 
