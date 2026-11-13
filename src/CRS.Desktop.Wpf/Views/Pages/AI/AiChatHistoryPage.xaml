@@ -6,7 +6,8 @@
  <Grid Margin="24,26,32,24">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <StackPanel Margin="0,0,0,12">
-   <TextBlock Text="AI 聊天历史" Style="{StaticResource PageTitle}"/>
+   <TextBlock Text="我的助手" Style="{StaticResource PageTitle}"/>
+   <TextBlock Text="管理、搜索并继续之前的对话。" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,8"/>
    <ui:TextBox Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" MaxLength="100" Width="310"
             HorizontalAlignment="Left" AutomationProperties.Name="搜索聊天历史" PlaceholderText="按问题或回答搜索"/>
    <TextBlock Text="{Binding Status}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>

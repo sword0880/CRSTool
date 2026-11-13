@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Threading;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views.AI;
 
@@ -78,7 +79,7 @@ public partial class MainWindow
         window.Hide();
     }
 
-    private void CaptureAiPage(ShellViewModel shell)
+    private async void CaptureAiPage(ShellViewModel shell)
     {
         if (aiLocked || shell.AiAssistant.Busy || aiPanel is null) return;
         if (!shell.AiAssistant.SupportsScreenshot)
@@ -86,17 +87,71 @@ public partial class MainWindow
             shell.AiAssistant.Status = "当前模型无法接收截图，请先在设置中选择支持截图的模型。";
             return;
         }
-        // 捕获导航内容或插件表面，避开独立的悬浮面板和操作系统桌面。
-        var surface = PluginSurface.IsVisible ? PluginSurface :
-            Navigation.SelectedItem is Wpf.Ui.Controls.NavigationViewItem { TargetPageType: { } pageType }
-                ? pageProvider.FindCreatedPage(pageType) : null;
+
+        // 保存截图前的可见状态，保证取消、异常和锁定路径不会遗留隐藏的助手窗口。
+        var previousDockVisibility = AiAssistantDock.Visibility;
+        var floatingWindow = aiFloating;
+        var floatingWasVisible = floatingWindow?.IsVisible == true;
+
         try
         {
-            if (surface is { IsVisible: true } && AiScreenshotCapture.Capture(surface) is { } image)
-                aiPanel.SelectScreenshot(image);
-            else shell.AiAssistant.Status = "当前页面尚未完成布局，请稍后再截取。";
+            // 截图和选区裁剪期间隐藏助手，避免悬浮面板遮挡需要查看的页面内容。
+            AiAssistantDock.Visibility = Visibility.Collapsed;
+            floatingWindow?.Hide();
+
+            // 捕获导航内容或插件表面，不包含桌面及独立的助手窗口。
+            var surface = PluginSurface.IsVisible ? PluginSurface :
+                Navigation.SelectedItem is Wpf.Ui.Controls.NavigationViewItem { TargetPageType: { } pageType }
+                    ? pageProvider.FindCreatedPage(pageType) : null;
+
+            if (surface is not { IsVisible: true })
+            {
+                shell.AiAssistant.Status = "当前页面尚未完成布局，请稍后再截取。";
+                return;
+            }
+
+            // 等待 WPF 完成隐藏后的布局/渲染调度，再捕获当前页面。
+            var image = await Dispatcher.InvokeAsync(() =>
+            {
+                surface.UpdateLayout();
+                return AiScreenshotCapture.Capture(surface);
+            }, DispatcherPriority.Render);
+
+            if (image is null)
+            {
+                shell.AiAssistant.Status = "当前页面尚未完成布局，请稍后再截取。";
+                return;
+            }
+
+            // 裁剪窗口由主窗口拥有；即使助手处于独立置顶状态也不会随其隐藏。
+            aiPanel.SelectScreenshot(image, this);
         }
-        catch (InvalidOperationException) { shell.AiAssistant.Status = "无法截取当前页面，可以粘贴截图。"; }
+        catch (OperationCanceledException) when (aiLocked || Dispatcher.HasShutdownStarted)
+        {
+            // 锁定或窗口关闭时允许中止截图，不再恢复已清理的助手。
+        }
+        catch (Exception error) when (error is InvalidOperationException or ArgumentException or System.Runtime.InteropServices.ExternalException)
+        {
+            if (!aiLocked) shell.AiAssistant.Status = "无法截取当前页面，可以粘贴截图。";
+        }
+        finally
+        {
+            // 锁定流程已清理会话与窗口，不能在 finally 中重新显示助手。
+            if (!aiLocked)
+            {
+                AiAssistantDock.Visibility = previousDockVisibility;
+
+                if (floatingWasVisible && floatingWindow is not null &&
+                    ReferenceEquals(aiFloating, floatingWindow))
+                {
+                    floatingWindow.Show();
+                    floatingWindow.Activate();
+                }
+
+                if (previousDockVisibility == Visibility.Visible || floatingWasVisible)
+                    aiPanel?.FocusPrompt();
+            }
+        }
     }
 
     private void CloseAiForLock(ShellViewModel shell)

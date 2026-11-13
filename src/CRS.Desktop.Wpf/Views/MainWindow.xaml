@@ -5,7 +5,6 @@
     <ui:NavigationView.MenuItems>
      <ui:NavigationViewItem Content="概览" TargetPageType="{x:Type pages:DashboardPage}" Icon="{ui:SymbolIcon Grid24}"/>
      <ui:NavigationViewItem Content="投资绩效" TargetPageType="{x:Type pages:PerformancePage}" Icon="{ui:SymbolIcon Money24}"/>
-     <ui:NavigationViewItem Content="AI 聊天历史" TargetPageType="{x:Type ai:AiChatHistoryPage}" Icon="{ui:SymbolIcon Chat24}"/>
      <!-- 分类只组织导航；折叠态使用分类浮层，展开态使用内联菜单树。 -->
      <ui:NavigationViewItem x:Name="RecordsGroup" Content="导入与记录" Icon="{ui:SymbolIcon Folder24}" Click="OnNavigationGroupClick" ToolTip="导入与记录">
       <ui:NavigationViewItem.MenuItems>
@@ -23,6 +22,8 @@
        <ui:NavigationViewItem Content="汇率管理" TargetPageType="{x:Type pages:ExchangeRatesPage}" Icon="{ui:SymbolIcon Money24}"/>
       </ui:NavigationViewItem.MenuItems>
      </ui:NavigationViewItem>
+     <!-- 我的助手作为独立一级入口，固定放在扩展工具上方。 -->
+     <ui:NavigationViewItem Content="我的助手" TargetPageType="{x:Type ai:AiChatHistoryPage}" Icon="{ui:SymbolIcon Chat24}"/>
      <ui:NavigationViewItem x:Name="ExtensionsGroup" Content="扩展工具" Icon="{ui:SymbolIcon Apps24}" Click="OnNavigationGroupClick" ToolTip="扩展工具" Visibility="Collapsed"/>
      <ui:NavigationViewItem x:Name="TasksGroup" Content="系统管理" Icon="{ui:SymbolIcon Server24}" Click="OnNavigationGroupClick" ToolTip="系统管理">
       <ui:NavigationViewItem.MenuItems>
