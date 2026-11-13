@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using CRS.AI.Client.Mcp;
 using CRS.AI.Models.Attachments;
@@ -13,6 +14,22 @@ namespace CRS.Tests.AiQuery.Acceptance;
 /// <summary>在临时回环端口上验证 MCP 鉴权、只读工具及附件会话协议。</summary>
 internal static class McpClientAcceptance
 {
+    /// <summary>使用合成只读结果运行 MCP 文件参数与会话生命周期验收，不需要管理员管道或真实 Worker。</summary>
+    public static Task RunIsolatedAsync(CancellationToken cancellation)
+    {
+        var dispatch = new AiToolDispatch((call, _) =>
+        {
+            var data = call.Tool == AiCatalog.Coverage
+                ? JsonSerializer.SerializeToElement(new { AcceptedDays = 1 })
+                : JsonSerializer.SerializeToElement(new { Rows = Array.Empty<object>() });
+            var code = call.Tool == AiCatalog.Coverage ? "RegisteredCalendarOnly" : null;
+            var result = new AiResult("1.0", call.Tool, "Partial", code, DateTimeOffset.UtcNow, data,
+                Array.Empty<string>()) { DataVersion = "synthetic-mcp-attachment" };
+            return Task.FromResult(result);
+        });
+        return RunAsync(dispatch, cancellation);
+    }
+
     public static async Task RunAsync(AiToolDispatch dispatch, CancellationToken cancellation)
     {
         const string credential = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";

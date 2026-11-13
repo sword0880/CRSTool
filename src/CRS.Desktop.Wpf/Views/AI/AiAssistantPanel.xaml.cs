@@ -44,7 +44,7 @@ public partial class AiAssistantPanel : UserControl
             Title = "选择发送给小财牛的文本附件",
             Multiselect = true,
             CheckFileExists = true,
-            Filter = "支持的文本附件 (*.txt;*.md;*.csv;*.json)|*.txt;*.md;*.csv;*.json|所有文件 (*.*)|*.*"
+            Filter = "支持的文本附件 (*.txt;*.md;*.csv;*.json)|*.txt;*.md;*.csv;*.json"
         };
         if (dialog.ShowDialog(Window.GetWindow(this)) == true)
             await model.AddAttachmentsAsync(dialog.FileNames);

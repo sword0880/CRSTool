@@ -9,6 +9,10 @@ switch (args)
     case ["--audit-archive"]:
         await AuditArchiveAcceptance.RunAsync();
         break;
+    case ["--mcp-attachment-integration"]:
+        // 使用合成只读结果验证 MCP 附件参数、下载和内存会话生命周期。
+        await McpClientAcceptance.RunIsolatedAsync(CancellationToken.None);
+        break;
     case ["--client-integration"]:
         // 使用管理员授权的临时管道验证 MCP 和 Responses 客户端。
         await LocalGatewayAcceptance.RunAsync(checkClient: true);

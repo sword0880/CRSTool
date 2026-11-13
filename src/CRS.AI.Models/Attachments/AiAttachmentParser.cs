@@ -68,10 +68,11 @@ public static class AiAttachmentParser
             throw new InvalidDataException("附件必须非空且不能超过 10 MiB。");
 
         var bytes = new byte[checked((int)input.Length)];
+        var extra = new byte[1];
         try
         {
             await input.ReadExactlyAsync(bytes.AsMemory(), token).ConfigureAwait(false);
-            if (await input.ReadAsync(new byte[1].AsMemory(), token).ConfigureAwait(false) != 0)
+            if (await input.ReadAsync(extra.AsMemory(), token).ConfigureAwait(false) != 0)
                 throw new InvalidDataException("附件在读取期间发生变化，请重新选择。");
             token.ThrowIfCancellationRequested();
             return Parse(Path.GetFileName(path), null, bytes);
@@ -79,6 +80,7 @@ public static class AiAttachmentParser
         finally
         {
             CryptographicOperations.ZeroMemory(bytes);
+            CryptographicOperations.ZeroMemory(extra);
         }
     }
 
