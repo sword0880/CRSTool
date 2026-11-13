@@ -9,7 +9,7 @@ on:
       - 'tests/CRS.Tests.Background/**'
       - 'tests/Verify-ProjectGraph.ps1'
       - 'docs/architecture/CURRENT_ARCHITECTURE.md'
-      - 'tests/fixtures/CRS.Worker.FixturePlugin/**'
+      - 'tests/Plugin/Fixtures/CRS.Worker.FixturePlugin/**'
       - '.github/workflows/worker-plugin-runner-prototype.yml'
       - 'Directory.Build.props'
       - 'Directory.Packages.props'

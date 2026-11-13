@@ -15,6 +15,6 @@
 
 自动份额日期不等于完整交易日历，不把工作日或返回日期集合补成日历。份额和曲线可以展示；1/5/20日窗口仍依赖已核验日历，不完整时不计算。NAV金额、公司行为、机构持有证明和生产使用/分发许可不在本次技术验证结论内。
 
-可选真实复核：dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --official-live。使用真实宿主网关读取固定2026-10-13公开样本及隔离临时研究库，不读取用户税务库。普通合成回归不要求网络在线。
+可选真实复核：dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --official-live。使用真实宿主网关读取固定2026-10-13公开样本及隔离临时研究库，不读取用户税务库。普通合成回归不要求网络在线。
 
 仍开放：最早历史与250交易日覆盖、完整日历自动来源、发布/修订时点、20交易日连续性、许可及生产发行签名。

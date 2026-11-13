@@ -54,10 +54,18 @@ CRS/
 │  ├─ CRS.Tests.Infrastructure/
 │  ├─ CRS.Tests.Wpf/
 │  ├─ CRS.Tests.Verification/
-│  ├─ CRS.Tests.PluginHost/
-│  ├─ CRS.Tests.PluginRecovery/   # 独立升级进程强杀、WAL和候选页面恢复
-│  ├─ CRS.Tests.NationalTeamWatch/
-│  ├─ fixtures/
+│  ├─ Plugin/                     # 插件宿主与业务插件专项测试
+│  │  ├─ CRS.Tests.PluginHost/
+│  │  ├─ CRS.Tests.PluginRecovery/
+│  │  ├─ CRS.Tests.NationalTeamWatch/
+│  │  ├─ CRS.Tests.IndexResearch/
+│  │  ├─ CRS.Tests.IndustryPe/
+│  │  ├─ CRS.Tests.SectorResearch/
+│  │  ├─ CRS.Tests.SectorUi/
+│  │  └─ Fixtures/                 # 可编译的测试插件
+│  │     ├─ CRS.Worker.FixturePlugin/
+│  │     └─ CRS.Worker.EtfFixture/
+│  ├─ fixtures/                    # 共享输入样本与金样
 │  └─ Verify-Architecture.ps1
 ├─ docs/
 │  ├─ guides/                       # 使用指南

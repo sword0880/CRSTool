@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <ProjectReference Include="../CRS.AI.Adapters/CRS.AI.Adapters.csproj" />
+    <ProjectReference Include="../CRS.AI.Contracts/CRS.AI.Contracts.csproj" />
+    <ProjectReference Include="../CRS.AI.Gateway/CRS.AI.Gateway.csproj" />
+    <ProjectReference Include="../CRS.Common/CRS.Common.csproj" />
+  </ItemGroup>
+</Project>

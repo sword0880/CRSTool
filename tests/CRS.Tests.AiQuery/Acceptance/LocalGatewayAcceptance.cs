@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.IO.Pipes;
 using System.Security.Principal;
 using System.Text.Json;
+using CRS.AI.Models.Tools;
 using CRS.AI.Contracts;
 using CRS.AI.Gateway.Authorization;
 using CRS.AI.Gateway.Transport;
@@ -13,7 +14,7 @@ namespace CRS.Tests.AiQuery.Acceptance;
 
 internal static class LocalGatewayAcceptance
 {
-    public static async Task RunAsync()
+    public static async Task RunAsync(bool checkClient = false)
     {
         using var identity = WindowsIdentity.GetCurrent();
         if (!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
@@ -79,6 +80,29 @@ internal static class LocalGatewayAcceptance
             var events = await File.ReadAllLinesAsync(audit, token);
             Check(events.Length == 4 && events.All(line => !line.Contains(sid, StringComparison.Ordinal)),
                 "两次通过准入的调用写入四条脱敏记录，越权流量不消耗审计容量");
+
+            if (checkClient)
+            {
+                // 恢复合成 Worker 的正常响应，通过临时授权验证两条网络入口共用同一管道。
+                worker.Handler = (operation, _, _) => Task.FromResult(operation == "coverage"
+                    ? FakeWorker.Page("""[{"Date":"2026-11-02","State":"Accepted"}]""", """
+                        {"Market":"SSE","Ticker":"510300","From":"2026-11-02","To":"2026-11-02",
+                         "RegisteredTradingDays":1,"AcceptedDays":1,"MissingDays":0,"PendingDays":0,
+                         "CriticalDays":0,"RejectedDays":0,"CoveragePercent":100,"CalendarVerified":true,
+                         "CalendarRangeCovered":true,"State":"CompleteRegisteredCalendar"}
+                        """)
+                    : FakeWorker.Page("[]"));
+                Check((await SetAsync("Grant")).Code == "Ok", "为本机网络入口验收临时授权");
+                var dispatch = new AiToolDispatch(new WindowsAiReadClient(client).ExecuteAsync);
+                await McpClientAcceptance.RunAsync(dispatch, token);
+                var answer = await Checks.ResponsesApiChecks.RunToolRoundAsync(dispatch, token);
+                Check(answer is { Requests: 2, ToolCalls: 1 } &&
+                      worker.Operations.Skip(2).SequenceEqual(["overview", "coverage", "overview"]),
+                    "MCP 的两项工具与 Responses 概览都通过真实授权管道");
+                Check((await SetAsync("Revoke")).Code == "Ok", "验收后撤销本次授权");
+                Check((await dispatch.ExecuteAsync(AiCatalog.Overview, AiToolDispatch.EmptyArguments, token))
+                      .Code == "Unauthorized" && worker.Calls == 5, "两个网络入口共用 Gateway 撤销门禁");
+            }
         }
         finally
         {

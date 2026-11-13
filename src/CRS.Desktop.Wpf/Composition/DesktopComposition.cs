@@ -1,4 +1,5 @@
 using CRS.Application.Abstractions;
+using CRS.AI.Models;
 using System.IO;
 using CRS.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -29,11 +30,13 @@ internal static class DesktopComposition
         Logging.Configure(settings);
         var officialRates = smoke ? null : new OfficialAnnualExchangeRates(CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ReadAsync);
         var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager,officialRates,Logging.Factory);
-        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke));
+        // 冒烟使用临时配置目录，不读取真实 Windows 用户的模型密钥。
+        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke),new AiModelService(directory));
     }
     public static void LogStartupFailure(Exception error) => Logging.Factory.CreateLogger(typeof(DesktopComposition).FullName!)
         .LogError("程序启动失败；类别={Category:l}", SensitiveDiagnostics.FailureCategory(error.GetType().Name));
     public static void Shutdown() => Logging.Dispose();
 }
 internal sealed record DesktopRuntime(IDesktopUseCases UseCases, IDesktopOperations Operations, string DirectoryPath,
-    IDesktopSettingsService Settings,IVaultService Vault,CRS.Application.Performance.IPerformanceUseCases Performance);
+    IDesktopSettingsService Settings,IVaultService Vault,CRS.Application.Performance.IPerformanceUseCases Performance,
+    IAiModelService AiModels);

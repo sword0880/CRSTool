@@ -360,6 +360,47 @@
         "resolved": "2.6.0",
         "contentHash": "XE8a+11nZg0LRaf+RGABEWaHIf8yGd5w8v/Ra1iWxMBmAVzwuKbW7G21mS0U7w7sh1lYcgckInWGgnz4qyET8A=="
       },
+      "crs.ai.adapters": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Contracts": "[0.1.0, )"
+        }
+      },
+      "crs.ai.contracts": {
+        "type": "Project"
+      },
+      "crs.ai.gateway": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Contracts": "[0.1.0, )",
+          "CRS.AI.Infrastructure": "[0.1.0, )",
+          "CRS.AI.Query": "[0.1.0, )",
+          "CRS.Worker.Ipc": "[2.0.0, )",
+          "System.ServiceProcess.ServiceController": "[8.0.0, )"
+        }
+      },
+      "crs.ai.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Query": "[0.1.0, )"
+        }
+      },
+      "crs.ai.models": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Adapters": "[0.1.0, )",
+          "CRS.AI.Contracts": "[0.1.0, )",
+          "CRS.AI.Gateway": "[1.0.0, )",
+          "CRS.Common": "[1.0.0, )"
+        }
+      },
+      "crs.ai.query": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Contracts": "[0.1.0, )",
+          "CRS.Worker.Ipc": "[2.0.0, )"
+        }
+      },
       "crs.application": {
         "type": "Project",
         "dependencies": {
@@ -373,6 +414,7 @@
       "crs.desktop.wpf": {
         "type": "Project",
         "dependencies": {
+          "CRS.AI.Models": "[1.0.0, )",
           "CRS.Application": "[1.0.0, )",
           "CRS.Infrastructure": "[1.0.0, )",
           "CRS.PluginHost": "[1.0.0, )",
@@ -594,6 +636,12 @@
           "SQLitePCLRaw.lib.e_sqlcipher": "2.1.11",
           "SQLitePCLRaw.provider.e_sqlcipher": "2.1.11"
         }
+      },
+      "System.ServiceProcess.ServiceController": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.0, )",
+        "resolved": "8.0.0",
+        "contentHash": "jtYVG3bpw2n/NvNnP2g/JLri0D4UtfusTvLeH6cZPNAEjJXJVGspS3wLgVvjNbm+wjaYkFgsXejMTocV1T5DIQ=="
       },
       "WPF-UI": {
         "type": "CentralTransitive",

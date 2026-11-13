@@ -3,10 +3,13 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using CRS.AI.Models;
 using CRS.Application.Abstractions;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views;
+using CRS.DesktopClient.Views.Pages.AI;
 using CRS.DesktopClient.Views.Settings;
+using CRS.DesktopClient.Views.Settings.AI;
 using CRS.Maintenance;
 
 /// <summary>使用隔离设置替身渲染真实窗口，不访问个人数据库或发送通知。</summary>
@@ -24,7 +27,7 @@ internal static class SettingsViewChecks
             app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/CRS.Desktop.Wpf;component/Styles/SharedStyles.xaml")});
             var vault=new VaultInteractionChecks.FakeVault{HelloSupported=true};vault.CompleteEnrollmentAsync(true).GetAwaiter().GetResult();
             var workerLogs=new WorkerLogs();
-            var model=new SettingsViewModel(new WorkspaceState(new SettingsUseCases(),new SilentInteraction()),new Settings(),vault,cleanupAudit is null?workerLogs:new DataCleanupViewChecks.PreviewGateway(cleanupAudit));
+            var model=new SettingsViewModel(new WorkspaceState(new SettingsUseCases(),new SilentInteraction()),new Settings(),vault,cleanupAudit is null?workerLogs:new DataCleanupViewChecks.PreviewGateway(cleanupAudit),new ModelService());
             var window=new SettingsWindow(model);
             if(window.FindName("LoggingSection") is not LoggingSettingsView)
                 throw new InvalidOperationException("日志设置未采用独立子视图。");
@@ -69,6 +72,7 @@ internal static class SettingsViewChecks
                             "cleanup"=>"CleanupSection",
                             "security"=>"SecuritySection",
                             "documents"=>"DocumentsSection",
+                            "ai-models"=>"AiModelSection",
                             "notifications"=>"NotificationsSection",
                             "dingtalk"=>"DingTalkSection",
                             "wechat"=>"WeChatSection",
@@ -78,7 +82,7 @@ internal static class SettingsViewChecks
                         if(window.FindName(viewName) is not FrameworkElement panel || !panel.IsVisible)
                             throw new Exception("设置子视图未随目录显示："+section.Key);
                         // SettingsSectionHost 只折叠非当前分类，子控件必须保留同一实例与草稿。
-                        foreach(var other in new[]{"StorageSection","CleanupSection","SecuritySection","DocumentsSection","NotificationsSection","DingTalkSection","WeChatSection","LoggingSection"})
+                        foreach(var other in new[]{"StorageSection","CleanupSection","SecuritySection","DocumentsSection","AiModelSection","NotificationsSection","DingTalkSection","WeChatSection","LoggingSection"})
                             if(other!=viewName && window.FindName(other) is FrameworkElement hidden && hidden.IsVisible)
                                 throw new Exception("非当前设置分类仍显示："+other);
                         Capture(window,Path.Combine(directory,section.Key+".png"));
@@ -92,7 +96,10 @@ internal static class SettingsViewChecks
                     model.SectionSearch="";model.SelectedSection=model.Sections[0];
                     if(model.DatabaseDirectory!="D:\\draft-data")throw new Exception("切换分类丢失未保存输入。");
                     if(model.DocumentPassword!="synthetic-document-only"||documentPassword.Password!=model.DocumentPassword)throw new Exception("切换分类意外清空密码草稿。");
-                    if(model.NavigationGroups.Count!=4||model.NavigationGroups.Single(x=>x.Title=="安全").Children.Count!=2)throw new Exception("清空搜索后未恢复分层目录。");
+                    if(model.NavigationGroups.Count!=5||model.NavigationGroups.Single(x=>x.Title=="安全").Children.Count!=2)throw new Exception("清空搜索后未恢复分层目录。");
+                    await VerifyAiModelsAsync(window, model, directory);
+                    if (cleanupAudit is null) await VerifyAiAssistantAsync(directory);
+                    model.SelectedSection=model.Sections[0];
                     // 最小尺寸必须保留内容视口与固定保存按钮，不能依赖长页滚动才能保存。
                     window.Width=window.MinWidth;window.Height=window.MinHeight;window.UpdateLayout();
                     var save=(FrameworkElement)window.FindName("SaveSettingsButton");
@@ -108,13 +115,14 @@ internal static class SettingsViewChecks
                     var dingToken=(PasswordBox)dingTalk.FindName("DingTalkToken");dingToken.Password="syntheticDingToken";
                     var dingSecret=(PasswordBox)dingTalk.FindName("DingTalkSecret");dingSecret.Password="SECsyntheticSecret";
                     var wxToken=(PasswordBox)((WeChatSettingsView)window.FindName("WeChatSection")).FindName("WeChatToken");wxToken.Password="syntheticWeChatToken";
+                    var aiKey=(PasswordBox)((AiModelSettingsView)window.FindName("AiModelSection")).FindName("ApiKeyInput");aiKey.Password="synthetic-ai-lock";
                     model.SelectedSection=model.Sections[0];
                     if(dingToken.Password.Length==0||wxToken.Password.Length==0)throw new Exception("切换分类丢失通知Token草稿。");
                     model.SectionSearch="微信";
                     if(model.SelectedSection?.Key!="wechat"||model.VisibleSections.Count!=1)throw new Exception("微信搜索没有定位个人微信分类。");
                     model.State.IsBusy=true;
                     window.AbortForLock();
-                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||securityPassword.Password.Length!=0||securityCode.Password.Length!=0||documentPassword.Password.Length!=0||documentConfirmation.Password.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
+                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||securityPassword.Password.Length!=0||securityCode.Password.Length!=0||documentPassword.Password.Length!=0||documentConfirmation.Password.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0||aiKey.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
                 }
                 catch(Exception error){failure=error;}
                 finally{window.Close();}
@@ -129,6 +137,100 @@ internal static class SettingsViewChecks
     {
         window.UpdateLayout();var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(window);
         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var output=File.Create(path);encoder.Save(output);
+    }
+
+    // 通过真实选择器和按钮验证默认模型保存、密码框清空及两项诊断相互独立。
+    private static async Task VerifyAiModelsAsync(SettingsWindow window, SettingsViewModel model, string directory)
+    {
+        model.SectionSearch = "DeepSeek";
+        var view = (AiModelSettingsView)window.FindName("AiModelSection");
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if (model.SelectedSection?.Key != "ai-models" || !view.IsVisible) throw new Exception("AI 模型页无法检索。");
+        var provider = (ComboBox)view.FindName("ProviderInput");
+        var models = (ComboBox)view.FindName("ModelInput");
+        var key = (PasswordBox)view.FindName("ApiKeyInput");
+        // 两家新增供应商应出现在同一选择器，并同步自己的模型列表。
+        foreach (var (id, firstModel) in new[] { ("mimo", "mimo-v2.6-flash"), ("anthropic", "claude-haiku-5-5") })
+        {
+            provider.SelectedItem = model.AiModels.Providers.Single(item => item.Id == id);
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if ((string?)models.SelectedItem != firstModel) throw new Exception("供应商没有加载对应的默认型号。");
+        }
+        key.Password = "previous-provider-draft";
+        provider.SelectedIndex = 1;
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if (key.Password.Length != 0 || model.AiModels.SelectedModel != "gpt-5.4-mini" ||
+            (string?)models.SelectedItem != "gpt-5.4-mini") throw new Exception("切换供应商未更新模型并清空旧密钥。");
+        models.SelectedIndex = 1;
+        key.Password = "synthetic-openai";
+        var button = (Wpf.Ui.Controls.Button)view.FindName("TestAndSaveButton");
+        button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if (model.AiModels.DefaultLabel != "OpenAI · gpt-5-mini" || key.Password.Length != 0 ||
+            model.AiModels.ModelStatus != "连接成功" || !model.AiModels.GatewayStatus.Contains("无法连接 Gateway"))
+            throw new Exception("模型保存、独立诊断或密码清理失败。");
+        Capture(window, Path.Combine(directory, "ai-models.png"));
+        model.SectionSearch = "";
+        Console.WriteLine("PASS AI 模型设置的真实 WPF 选择、测试、保存和凭证清理。");
+    }
+
+    private sealed class ModelService : IAiModelService
+    {
+        private AiModelSettings settings = new(null, new Dictionary<string, AiProviderSetting>());
+        public AiModelSettings LoadSettings() => settings;
+        public Task<AiModelSettings> SaveDefaultAsync(string provider, string model, string? newKey, CancellationToken token) =>
+            Task.FromResult(settings = new(provider, new Dictionary<string, AiProviderSetting> { [provider] = new(model, true) }));
+        public Task TestModelAsync(string provider, string model, string? newKey, CancellationToken token) =>
+            newKey == "synthetic-openai" ? Task.CompletedTask : Task.FromException(new AiModelException("InvalidApiKey"));
+        public Task TestGatewayAsync(CancellationToken token) => Task.FromException(new AiModelException("GatewayUnavailable"));
+        public Task<AiModelSettings> RemoveKeyAsync(string provider, CancellationToken token) => throw new NotSupportedException();
+        public Task<AiModelAnswer> AskDefaultAsync(string expectedProvider, string expectedModel, string prompt, CancellationToken token)
+        {
+            if (settings.DefaultProvider != expectedProvider ||
+                settings.Providers.GetValueOrDefault(expectedProvider)?.Model != expectedModel)
+                throw new AiModelException("DefaultModelChanged");
+            if (prompt == "等待取消") return WaitForCancellationAsync(token);
+            return Task.FromResult(new AiModelAnswer("合成 ETF 研究结果", false, new(12, 4, 16), 2, 1));
+        }
+
+        private static async Task<AiModelAnswer> WaitForCancellationAsync(CancellationToken token)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            throw new InvalidOperationException("测试应先取消请求。");
+        }
+    }
+
+    // 验证正式侧栏路由、回答呈现及锁定后晚到请求无法恢复界面内容。
+    private static async Task VerifyAiAssistantAsync(string directory)
+    {
+        var service = new ModelService();
+        await service.SaveDefaultAsync("deepseek", "deepseek-flash", "synthetic", default);
+        var shell = new ShellViewModel(new SettingsUseCases(), new SilentInteraction(), new Settings(), aiModels: service);
+        var window = new MainWindow(shell, startWorkspace: false);
+        window.Show();
+        try
+        {
+            window.Navigate("ai-assistant");
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            var navigation = (Wpf.Ui.Controls.NavigationView)window.FindName("Navigation");
+            if (navigation.SelectedItem is not Wpf.Ui.Controls.NavigationViewItem { TargetPageType: var page } ||
+                page != typeof(AiAssistantPage)) throw new Exception("AI 研究助手未接入主窗口导航。");
+            shell.AiAssistant.Prompt = "公开 ETF 概览";
+            await shell.AiAssistant.AskCommand.ExecuteAsync(null);
+            if (shell.AiAssistant.DefaultModelLabel != "DeepSeek · deepseek-flash" ||
+                shell.AiAssistant.Answer != "合成 ETF 研究结果" || !shell.AiAssistant.Usage.Contains("工具调用 1 次"))
+                throw new Exception("研究助手未使用当前模型或没有显示回答。");
+            Capture(window, Path.Combine(directory, "ai-assistant.png"));
+            shell.AiAssistant.Prompt = "等待取消";
+            var inFlight = shell.AiAssistant.AskCommand.ExecuteAsync(null);
+            window.PrepareLock();
+            await inFlight;
+            if (shell.AiAssistant.Prompt.Length != 0 || shell.AiAssistant.Answer.Length != 0 ||
+                shell.AiAssistant.Status.Length != 0 || shell.AiAssistant.Busy)
+                throw new Exception("锁定未取消并清理 AI 问答。");
+            Console.WriteLine("PASS AI 研究助手真实导航、默认模型、问答展示和锁定取消。");
+        }
+        finally { window.Close(); }
     }
     private static async Task VerifyLoginSelectionAsync(SettingsWindow window,SettingsViewModel model,VaultInteractionChecks.FakeVault vault)
     {

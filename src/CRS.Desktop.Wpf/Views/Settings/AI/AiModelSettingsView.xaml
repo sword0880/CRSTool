@@ -1,0 +1,33 @@
+<UserControl x:Class="CRS.DesktopClient.Views.Settings.AI.AiModelSettingsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <StackPanel IsEnabled="{Binding CanEdit}">
+  <!-- 仅接收模型选择与新凭证，已保存的 API Key 不会回填到密码框。 -->
+  <StackPanel Orientation="Horizontal">
+   <TextBlock Text="当前默认模型" FontWeight="SemiBold" Margin="0,0,10,0"/>
+   <TextBlock Text="{Binding DefaultLabel}" Foreground="{DynamicResource BrandTextHintBrush}"/>
+  </StackPanel>
+  <TextBlock Text="供应商" Style="{StaticResource InputLabel}"/>
+  <ComboBox x:Name="ProviderInput" AutomationProperties.Name="供应商"
+            ItemsSource="{Binding Providers}" DisplayMemberPath="DisplayName"
+            SelectedItem="{Binding SelectedProvider}" SelectionChanged="OnProviderChanged"/>
+  <TextBlock Text="模型" Style="{StaticResource InputLabel}"/>
+  <ComboBox x:Name="ModelInput" AutomationProperties.Name="模型" ItemsSource="{Binding Models}"
+            SelectedItem="{Binding SelectedModel}"/>
+  <TextBlock Text="API Key" Style="{StaticResource InputLabel}"/>
+  <PasswordBox x:Name="ApiKeyInput" AutomationProperties.Name="API Key" MaxLength="4096"/>
+  <TextBlock Text="{Binding KeyStatus}" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,6,0,0"/>
+  <WrapPanel Margin="0,18,0,10">
+   <ui:Button x:Name="TestAndSaveButton" Content="测试并设为默认" Appearance="Primary" Click="OnTestAndSave" Margin="0,0,8,6"/>
+   <ui:Button Content="测试本机工具" Command="{Binding TestGatewayCommand}" Margin="0,0,8,6"/>
+   <ui:Button Content="清除密钥" IsEnabled="{Binding HasSavedKey}" Click="OnRemoveKey" Margin="0,0,0,6"/>
+  </WrapPanel>
+  <TextBlock Text="模型连接测试会向所选供应商发送一条简短测试消息，可能产生少量 API 用量。"
+             TextWrapping="Wrap" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,0,0,12"/>
+  <TextBlock Text="{Binding ModelStatus, StringFormat=模型连接　{0}}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+  <TextBlock Text="{Binding GatewayStatus, StringFormat=CRS 只读工具　{0}}" TextWrapping="Wrap"
+             AutomationProperties.LiveSetting="Polite" Margin="0,6,0,0"/>
+  <TextBlock Text="{Binding SaveStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,8,0,0"/>
+ </StackPanel>
+</UserControl>

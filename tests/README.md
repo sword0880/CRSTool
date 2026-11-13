@@ -1,5 +1,7 @@
 > **本地验收产物说明：** 文中 `artifacts/` 下的验收 JSON、真实样本和报告属于本机/受控验收工作区，不纳入 Git 仓库；此处仅记录路径和证据类型，不能通过 GitHub 页面直接访问。缺少本地原件时，不得仅凭测试说明认定验收通过。
 
+Visual Studio 的 `tests → Plugin` 对应 `tests/Plugin`，包含插件宿主和业务插件专项测试。`Plugin/Fixtures` 存放可编译的 Worker 测试插件，共享样本仍从 `tests/fixtures` 读取。
+
 ## UI-ARCH 统一视觉回归（Windows）
 
 联网采集并行：`CRS.Tests.NationalTeamWatch --market-sync-diagnostics`包含按日期/市场的有界下载、慢来源隔离、逐日及区间计数、取消、生产任务故障和连续游标检查；`CRS.Tests.Infrastructure --performance-market-concurrency`验证指数/汇率并行、同币种不多发请求、全实例最多4个在途HTTP、正文额度及失败取消。两项使用合成网络及隔离资料，不访问官网或已安装服务。实现见[ETF与成交](../docs/implementation/NATIONAL_TEAM_ETF.md)及[投资绩效](../docs/implementation/PERFORMANCE_ANALYTICS.md)。
@@ -65,7 +67,7 @@ ETF/股票2026-10-24续验：`CRS.Tests.NationalTeamWatch --evidence-adversarial
 ```powershell
 ./tests/Verify-WpfDesignSystem.ps1
 dotnet run --project tests/CRS.Tests.Wpf -c Release -- --shell-brand-preview artifacts/ui-preview/main
-dotnet run --project tests/CRS.Tests.PluginRecovery -c Release -- --ui-visual-preview artifacts/ui-preview/plugins
+dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release -- --ui-visual-preview artifacts/ui-preview/plugins
 ```
 
 第一条检查 XAML 完整性、共享品牌/语义资源是否存在、旧页面硬编码颜色总数不能增长、插件不能反向引用桌面项目；现存遗留次数见 `tests/wpf-color-baseline.json`。后两条对 1040/1280/1440 宽度与 96/120/144 DPI 位图进行**合成布局**渲染。插件预览不会发起 Worker 查询，也不代表真正的数据状态或 Windows per-monitor DPI 验收。PR 的 Windows Actions 截图存档供人工复核；真实键盘、焦点、拖拽和锁屏凭证生命周期仍须实测。设计与待办见 `docs/implementation/DESKTOP_UI.md`。
@@ -78,7 +80,7 @@ dotnet run --project tests/CRS.Tests.PluginRecovery -c Release -- --ui-visual-pr
 
 Worker升级专项：先构建当前Release并发布新的HeartbeatOnly测试包；`./tests/Test-WorkerMaintenance.ps1 -CheckStartupInterop`使用隔离合成文件验证包核验、快照/原件、程序切换、禁止有新事实回退和PowerShell/C#互操作，不操作SCM。`dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --upgrade-only <全新Worker测试包目录>`使用真实SQLCipher/DPAPI与测试自有进程验证升级阶段及强杀；已接入完整后台套件。需独立TEMP目录及Windows管道测试权限，不能替代真实安装服务升级或跨机恢复验收。
 
-插件/ETF开发预览：说明与未完成门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。新增验证入口：`dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release`；`dotnet run --project tests/CRS.Tests.PluginHost -c Release -- artifacts/plugin-preview/Plugins`。双插件测试前用 `./tests/Publish-Plugins.ps1 -IncludeDemo` 生成全新发布目录。测试仅用合成研究数据和独立临时库，不把状态恢复测试称为断电验收。
+插件/ETF开发预览：说明与未完成门槛见[实施记录](../docs/implementation/NATIONAL_TEAM_ARCHITECTURE.md#national-team-modular-refactor)。新增验证入口：`dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release`；`dotnet run --project tests/Plugin/CRS.Tests.PluginHost -c Release -- artifacts/plugin-preview/Plugins`。双插件测试前用 `./tests/Publish-Plugins.ps1 -IncludeDemo` 生成全新发布目录。测试仅用合成研究数据和独立临时库，不把状态恢复测试称为断电验收。
 
 桌面日常开发：编译解决方案或 `CRS.Desktop.Wpf`（Debug/Release、VS F5 均适用）会先构建国家队双入口和 Demo 插件，再由 `Build-DevelopmentPlugins.ps1` 把完整输出、清单和 SHA256 可信索引同步到桌面输出的 `Plugins/<id>/<version>`。无需手动复制 DLL，也无需运行发布/同步脚本。纯后台 Heartbeat 不进入桌面包。更新已加载 DLL 前需停止桌面调试；复制失败会使构建失败。可用 `-p:SyncDevelopmentPlugins=false` 关闭开发同步；`Publish-Plugins.ps1` 已显式关闭此步骤并继续独立生成发行开发包。新增桌面插件时需在 WPF 项目登记同样的仅构建引用；Core 等依赖随入口输出复制。此开发哈希索引不替代生产签名发行链。
 
@@ -143,14 +145,14 @@ WinForms 项目已删除。当前解决方案保留 WPF 前台、Domain／Applic
 
 ```powershell
 ./tests/Publish-Plugins.ps1 -OutputDirectory artifacts/etf-recovery-preview -IncludeDemo
-dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build -- artifacts/etf-recovery-preview/Plugins
-dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build
-dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- artifacts/etf-recovery-preview/Plugins
+dotnet run --project tests/Plugin/CRS.Tests.PluginHost -c Release --no-build -- artifacts/etf-recovery-preview/Plugins
+dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build
+dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- artifacts/etf-recovery-preview/Plugins
 ```
 
 PluginRecovery现验证UI只申请导航、同一双入口清单、UI程序集无Jobs/SQLite引用、实际宿主加载/布局、不创建桌面任务库/市场库、退出清理及拒绝旧调度能力。旧桌面库七中断点测试已随执行归属切换退役；Worker恢复由CRS.Tests.WorkerEtf验证，不继承旧结果作为新服务升级证明。
 
-当前双入口包见[ETF Worker迁移](../docs/implementation/WORKER_RUNTIME.md#etf-worker-migration)。PluginHost保留调度辅助类的隔离时钟回归；实际桌面会话不创建调度器。NationalTeamWatch覆盖纯格式/质量/加密仓储；WorkerEtf覆盖真实独立子进程、命名管道、关闭客户端继续采集、重启恢复及业务去重。`dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --official-live`只读实际安装服务已取得的两市结果，不创建桌面下载器或写库连接；技术验证不替代250日历史或连续20日采集。
+当前双入口包见[ETF Worker迁移](../docs/implementation/WORKER_RUNTIME.md#etf-worker-migration)。PluginHost保留调度辅助类的隔离时钟回归；实际桌面会话不创建调度器。NationalTeamWatch覆盖纯格式/质量/加密仓储；WorkerEtf覆盖真实独立子进程、命名管道、关闭客户端继续采集、重启恢复及业务去重。`dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --official-live`只读实际安装服务已取得的两市结果，不创建桌面下载器或写库连接；技术验证不替代250日历史或连续20日采集。
 
 发布验收、合成性能与许可证清单请运行 ./tests/Run-ReleaseAcceptance.ps1 -Smoke，具体门槛见 [发布验收](../docs/validation/RELEASE_ACCEPTANCE.md)。抵免证据链与界面检查已加入 Infrastructure / WPF 验证项目。
 
@@ -184,7 +186,7 @@ dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --source
 
 ETF自动图表与市场温度：`CRS.Tests.NationalTeamWatch` 新增选择并发、全池同日汇总、缺口/日历、官方成交格式/单位、均值/冲突/损坏检查；可加 `--market-live` 只读核验2026-10-13官网单日并写工作区隔离证据。`CRS.Tests.WorkerEtf <完整Worker包>` 覆盖独立市场任务和真实管道，`--chart-ui <完整Worker包>` 仅跑隔离服务与图表窗口检查（包含LiveCharts延迟绘制等待）。范围与发布目录见[实现说明](../docs/implementation/NATIONAL_TEAM_ETF.md#etf-charts-and-market-activity)。
 
-ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数据修改、旧修订拒绝、命令去重、超过20只启用/编辑/重启、旧触发器移除及停用保留事实；`CRS.Tests.WorkerEtf <完整Worker包>` 增加真实服务配置和WPF新增/修改、第21只启用及滚动回归。20仅指表格视口，不限制监控数量。只读核验已安装目录用 `dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --configuration-live`。配置、排队与参考目录边界见[实施记录](../docs/implementation/NATIONAL_TEAM_ETF.md#etf-configuration)。
+ETF配置增量：`CRS.Tests.NationalTeamWatch` 覆盖目录初始化、元数据修改、旧修订拒绝、命令去重、超过20只启用/编辑/重启、旧触发器移除及停用保留事实；`CRS.Tests.WorkerEtf <完整Worker包>` 增加真实服务配置和WPF新增/修改、第21只启用及滚动回归。20仅指表格视口，不限制监控数量。只读核验已安装目录用 `dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --configuration-live`。配置、排队与参考目录边界见[实施记录](../docs/implementation/NATIONAL_TEAM_ETF.md#etf-configuration)。
 
 ## 单次执行日志
 
@@ -215,12 +217,12 @@ SCM检查需要管理员令牌、创建服务和私有ACL权限，只创建`CRSW
 
 2026-10-20新增`--monitor-audit-live`、`--monitor-backfill-live yyyy-MM-dd yyyy-MM-dd`、`--monitor-backfill-status`和`--monitor-apply-reviewed-metadata 清单路径`，分别用于真实服务只读核验、提交官方历史补采、读取原补采命令回执/执行记录、应用已逐项核验的官方原件口径。补采提交和口径应用会写入后台；口径应用先检查外发渠道和期初/期末交易所份额，下载哈希不符立即停止，缺事实或份额范围不符保留待核查。详见[核验记录](../docs/implementation/WORKER_RUNTIME.md#monitor-readiness)。完整回归及`--exit-alerts`包含12项原件范围、日历依赖、执行中SQL中断和取消恢复检查；回填不计入20日连续采集。
 
-以下命令通过`tests/CRS.Tests.NationalTeamWatch`的Release构建运行。`--exit-alert-replay-checks`验证14项合成规则及文件复算；同时包含在完整ETF回归与`--exit-alerts`中。
+以下命令通过`tests/Plugin/CRS.Tests.NationalTeamWatch`的Release构建运行。`--exit-alert-replay-checks`验证14项合成规则及文件复算；同时包含在完整ETF回归与`--exit-alerts`中。
 
 ```powershell
-dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay-checks
-dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay inputs.json artifacts/replay-restored
-dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay-installed 2025-09-30 2026-06-30 artifacts/replay-real
+dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay-checks
+dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay inputs.json artifacts/replay-restored
+dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alert-replay-installed 2025-09-30 2026-06-30 artifacts/replay-real
 ```
 
 前两项不需要正式服务；第三项只读当前启用池、规则、已接受份额、日历覆盖及机构证据，要求正式服务查询可用。导出`report.md`、`report.json`、`inputs.json`；服务快照另附`evidence.json`原件哈希/来源/修订。所有回放均为事后研究且时效`NotProven`，不发信、不补采、不审核。当前池不是历史无偏样本；无数据或无可计算窗口不能被解读为未发生异常。2026-10-19用户授权清理旧后台数据后，服务及预警IPC已恢复；旧历史需重新采集和核验，不能把新库可查询视为历史回测通过。
@@ -283,11 +285,11 @@ ARCH-208税务版本审计：`CRS.Tests.Infrastructure --tax-provenance`验证�
 2026-11-05巡检CPU预算：`CRS.Tests.Background --storage-scan-budget` 用1000个真实NTFS文件对比同步与默认分批巡检的CPU/工作/休息时间，验证相同覆盖、嵌套受保护文件越权拒绝、轮后休息、取消、完整扫描中与轮间休息时的关键权限复核。`--storage-security <HeartbeatOnly包>` 单独运行真实ACL、链接和宿主故障退出回归。`--storage-growth` 保留十万项完整覆盖与预警验证，显式使用无休息预算以免将容量回归变成长时间CPU预算测试；它不用于证明默认限速效果。生产数据和已安装服务不参与这些测试。
 
 架构续项验证：CRS.Tests.NationalTeamWatch --repository-contracts 检查必需方法无默认实现与启动能力门禁；CRS.Tests.WorkerEtf --storage-providers 包含正式会话拒绝残缺提供方。应用默认回归含北京时间年度跨年边界；CRS.Tests.Background --recovery-export-persistence 使用真实 SQLCipher 和自有子进程，检查持久重放索引、故障关闭及三个阶段强杀。它不是生产导出入口，也不代表跨机恢复验收。详见[实施记录](../docs/implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-followup)。
-行业公布PE独立检查：`dotnet run --project tests/CRS.Tests.IndustryPe -c Release -- --output artifacts/industry-pe-checks-20261025`，覆盖严格解析、加密修订/知识时点、双回执、取消、原件健康和来源持久冷却；使用合成及隔离资料，不代表正式数据或机会有效性验收。
+行业公布PE独立检查：`dotnet run --project tests/Plugin/CRS.Tests.IndustryPe -c Release -- --output artifacts/industry-pe-checks-20261025`，覆盖严格解析、加密修订/知识时点、双回执、取消、原件健康和来源持久冷却；使用合成及隔离资料，不代表正式数据或机会有效性验收。
 
-工行真实原件隔离检查：`dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release -- --icbc-golden artifacts/national-team-equity-expansion-20261025`，要求原件摘要匹配，7项覆盖A/H股、简称、未知投资目的、重启回读及严格大文件额度。正式回执另见[股票扩展证据](../docs/implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-expansion)，隔离测试不能代替实机验收。
+工行真实原件隔离检查：`dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release -- --icbc-golden artifacts/national-team-equity-expansion-20261025`，要求原件摘要匹配，7项覆盖A/H股、简称、未知投资目的、重启回读及严格大文件额度。正式回执另见[股票扩展证据](../docs/implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-expansion)，隔离测试不能代替实机验收。
 
-指数事实链本地原件检查：`dotnet run --project tests/CRS.Tests.IndexResearch -c Release -- --source artifacts/national-team-index-research-20261025/source --output artifacts/national-team-index-research-20261025/isolated`。冻结原件配合显式测试时钟、日历、密钥和合成许可，覆盖解析、金融证明、修订/双回执、取消及来源默认拒绝。`CRS.Tests.SectorUi --index <ui-replay-report.json> <截图路径>`验证11条非空曲线、受理/待审/终态、改日期取消和来源未获准按钮；`CRS.Tests.WorkerEtf --index-pipe <完整候选包> <原件目录> <不存在的输出目录>`验证完整宿主/监督进程/管道，不访问正式服务或互联网。真实原件暂不提交/上传CI；远端只构建新专项，不能将其称为黄金样本运行成功。开放门槛见[指数实施记录](../docs/implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-index-series)。
+指数事实链本地原件检查：`dotnet run --project tests/Plugin/CRS.Tests.IndexResearch -c Release -- --source artifacts/national-team-index-research-20261025/source --output artifacts/national-team-index-research-20261025/isolated`。冻结原件配合显式测试时钟、日历、密钥和合成许可，覆盖解析、金融证明、修订/双回执、取消及来源默认拒绝。`CRS.Tests.SectorUi --index <ui-replay-report.json> <截图路径>`验证11条非空曲线、受理/待审/终态、改日期取消和来源未获准按钮；`CRS.Tests.WorkerEtf --index-pipe <完整候选包> <原件目录> <不存在的输出目录>`验证完整宿主/监督进程/管道，不访问正式服务或互联网。真实原件暂不提交/上传CI；远端只构建新专项，不能将其称为黄金样本运行成功。开放门槛见[指数实施记录](../docs/implementation/NATIONAL_TEAM_MARKET_RESEARCH.md#national-team-index-series)。
 
 农行原件隔离：`CRS.Tests.NationalTeamWatch --abc-golden artifacts/national-team-abc-research-20261025`验证10项固定原件、A股口径、表决权不改股数、损坏回滚和重启边界。`--abc-read-live <目录>`仅查询，`--abc-review-live <目录>`会以稳定请求逐账户正式审核，不可当成普通测试运行。`CRS.Tests.SectorUi --index-installed <起日> <止日> <截图>`仅核验正式未配置新来源许可、无指数事实时的缺口和按钮状态，隐藏空图默认零刻度；有真实已核资料后应采用相应的新验收预期。
 

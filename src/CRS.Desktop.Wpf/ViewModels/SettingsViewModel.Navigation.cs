@@ -32,6 +32,8 @@ public partial class SettingsViewModel
         new("cleanup","数据管理","运行资料清理","查看后台资料用途，清理过期日志和旧升级副本。","清理 缓存 垃圾 空间 ProgramData 维护 快照 备份"),
         new("security","安全","登录与验证","管理当前保险库的登录验证方式。","安全 手机 Windows Hello PIN 指纹 人脸 主密码 验证码"),
         new("documents","安全","文档加密","统一管理文档导出与解密所用的密码。","文档 导出 密码 解密"),
+        // AI 模型使用独立保存流程，并可按供应商名直接检索。
+        new("ai-models","AI","AI 模型","配置公开 ETF 研究助手的默认模型。","模型 人工智能 供应商 DeepSeek OpenAI 小米 MiMo Claude Anthropic API Key"),
         new("notifications","通知渠道","邮件","配置后台通知使用的邮件发送渠道。","邮件 SMTP 授权码 密码 收件 发件 通知 端口 TLS STARTTLS SSL 服务器"),
         new("dingtalk","通知渠道","钉钉","配置钉钉群机器人通知。","钉钉 机器人 Token 加签 通知"),
         new("wechat","通知渠道","个人微信","通过 PushPlus 服务接收个人微信提醒。","微信 PushPlus Token 个人 通知"),

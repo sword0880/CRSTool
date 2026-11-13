@@ -9,7 +9,7 @@ on:
       - 'tools/background/**'
       - 'tests/CRS.Tests.Background/**'
       - 'tests/CRS.Tests.WorkerEtf/**'
-      - 'tests/fixtures/CRS.Worker.EtfFixture/**'
+      - 'tests/Plugin/Fixtures/CRS.Worker.EtfFixture/**'
       - 'tests/Test-NationalTeamScmStorageMigration.ps1'
       - 'tests/Publish-*.ps1'
       - '.github/workflows/national-team-storage-maintenance-checks.yml'

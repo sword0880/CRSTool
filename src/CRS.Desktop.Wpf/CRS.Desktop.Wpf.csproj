@@ -24,6 +24,7 @@
     <ProjectReference Include="../CRS.Infrastructure/CRS.Infrastructure.csproj" />
     <ProjectReference Include="../CRS.PluginHost/CRS.PluginHost.csproj" />
     <ProjectReference Include="../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
+    <ProjectReference Include="../CRS.AI.Models/CRS.AI.Models.csproj" />
     <Using Include="CRS.Domain" />
     <Using Include="CRS.Application" />
     <!-- 配置源归属 WPF 项目，构建与发布时都保留运行目录中的 config 子目录。 -->

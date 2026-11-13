@@ -2,15 +2,41 @@
   "version": 2,
   "dependencies": {
     "net10.0-windows7.0": {
-      "System.Diagnostics.EventLog": {
+      "Microsoft.Extensions.AI.Abstractions": {
         "type": "Transitive",
-        "resolved": "8.0.0",
-        "contentHash": "fdYxcRjQqTTacKId/2IECojlDSFvp7LP5N78+0z/xH7v/Tuw5ZAxu23Y6PTCRinqyu2ePx+Gn1098NC6jM6d+A=="
+        "resolved": "10.11.0",
+        "contentHash": "h4DX/TdJU4fk1GGaf19n6Kujkj6VXbGeL4UEOsQ8+ZJC5fVApPauokCtvBP684BYbczUYZQNfo1mbmyHG4WVSg=="
+      },
+      "ModelContextProtocol": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "3oMhK5W0G3H8+1SbMosV7meE6sKQfmzLKSNtjQ3dGZ+IJU5RomKTs/bKWHFyOJQNMWk//+iClQJfcMpHnwCFsg==",
+        "dependencies": {
+          "ModelContextProtocol.Core": "[2.4.0]"
+        }
+      },
+      "ModelContextProtocol.Core": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "q98pZMlcxhsh0LpGXcT2ow7sGNveCPhDlJT3zJ7Cz5nNyPmPkm8P57dUIUpzv1w6qWbdSZcR/Z+RbZtNYjEmXQ==",
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "10.11.0"
+        }
       },
       "crs.ai.adapters": {
         "type": "Project",
         "dependencies": {
           "CRS.AI.Contracts": "[0.1.0, )"
+        }
+      },
+      "crs.ai.client": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Adapters": "[0.1.0, )",
+          "CRS.AI.Contracts": "[0.1.0, )",
+          "CRS.AI.Gateway": "[1.0.0, )",
+          "CRS.AI.Models": "[1.0.0, )",
+          "ModelContextProtocol.AspNetCore": "[2.4.0, )"
         }
       },
       "crs.ai.contracts": {
@@ -30,6 +56,16 @@
         "type": "Project",
         "dependencies": {
           "CRS.AI.Query": "[0.1.0, )"
+        }
+      },
+      "crs.ai.models": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.AI.Adapters": "[0.1.0, )",
+          "CRS.AI.Contracts": "[0.1.0, )",
+          "CRS.AI.Gateway": "[1.0.0, )",
+          "CRS.Common": "[1.0.0, )",
+          "System.Security.Cryptography.ProtectedData": "[10.0.12, )"
         }
       },
       "crs.ai.query": {
@@ -54,14 +90,26 @@
           "CRS.Worker.Abstractions": "[2.0.0, )"
         }
       },
+      "ModelContextProtocol.AspNetCore": {
+        "type": "CentralTransitive",
+        "requested": "[2.4.0, )",
+        "resolved": "2.4.0",
+        "contentHash": "qo04FrgNKc5obyjzqd8CTu1vofrxcbKnOFVzxQ1+b3G9SBluwRMT31NZTztegJ1QDri4Z/3jUe8UqaIc+2xmCw==",
+        "dependencies": {
+          "ModelContextProtocol": "[2.4.0]"
+        }
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "wO0W8VDMeRJZakRySOmemAnrBZMwEFRlbfBtATxUiLf2I3IhSRnCp1Vt157NWptdE4IJ7eftd5n8q9LtaKHFTQ=="
+      },
       "System.ServiceProcess.ServiceController": {
         "type": "CentralTransitive",
         "requested": "[8.0.0, )",
         "resolved": "8.0.0",
-        "contentHash": "jtYVG3bpw2n/NvNnP2g/JLri0D4UtfusTvLeH6cZPNAEjJXJVGspS3wLgVvjNbm+wjaYkFgsXejMTocV1T5DIQ==",
-        "dependencies": {
-          "System.Diagnostics.EventLog": "8.0.0"
-        }
+        "contentHash": "jtYVG3bpw2n/NvNnP2g/JLri0D4UtfusTvLeH6cZPNAEjJXJVGspS3wLgVvjNbm+wjaYkFgsXejMTocV1T5DIQ=="
       }
     }
   }

@@ -56,7 +56,7 @@
 | CRS.Application | CRS.Common, CRS.Domain | 用例、端口、冻结结果、DesktopWorkflow |
 | CRS.Security | 无 | 密码学、认证和保险库机制 |
 | CRS.Infrastructure | CRS.Domain, CRS.Application, CRS.Security, CRS.Documents | 券商解析、持久化、汇率、导出、装配 |
-| CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc | 桌面进程，具体基础设施仅由 Composition 装配 |
+| CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc, CRS.AI.Models | 桌面进程，具体基础设施仅由 Composition 装配 |
 | CRS.Plugin.Abstractions | CRS.Common | 桌面插件的 BCL 契约 |
 | CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹、有界HTTP正文读取；不依赖业务或宿主 |
 | CRS.Documents | 无 | 公共PDF文字/坐标读取、Excel工作表读取及工作簿生成；文件/行列限额、原始值与显示值分离；依赖PdfPig、NPOI及其运行库，不含券商、税务或持仓规则 |
@@ -70,7 +70,9 @@
 | CRS.AI.Query | CRS.AI.Contracts, CRS.Worker.Ipc | 候选只读查询Facade：固定NationalTeam业务操作、上限、质量和脱敏 |
 | CRS.AI.Infrastructure | CRS.AI.Query | 本地最小 AI 审计事件追加、维护互斥及离线归档校验 |
 | CRS.AI.Gateway | CRS.AI.Contracts, CRS.AI.Query, CRS.AI.Infrastructure, CRS.Worker.Ipc | 候选 Windows 服务宿主和本地命令行客户端，校验用户令牌、管理与撤销授权，通过专用 Worker 管道查询公开 ETF |
-| CRS.AI.Adapters | CRS.AI.Contracts | 候选MCP/OpenAI两种工具协议描述与调用分发，不含网络连接 |
+| CRS.AI.Adapters | CRS.AI.Contracts | MCP 与 OpenAI 两种工具协议描述与调用分发 |
+| CRS.AI.Client | CRS.AI.Contracts, CRS.AI.Adapters, CRS.AI.Gateway, CRS.AI.Models | 本机 MCP Streamable HTTP 与 OpenAI Responses 命令行入口，使用当前 Windows 用户身份查询 Gateway |
+| CRS.AI.Models | CRS.AI.Adapters, CRS.AI.Contracts, CRS.AI.Gateway, CRS.Common | 模型供应商适配、当前 Windows 用户凭证与默认模型、公开 ETF 工具调用 |
 | CRS.Notifications | CRS.Common | 公共多渠道通知契约、渠道注册表与邮件适配器；不依赖业务插件或Worker |
 | CRS.Worker.Service | CRS.Worker.PluginHost, CRS.Worker.Ipc, CRS.Notifications | Windows Service、唯一 Quartz 调度和加密任务库；仅装配和授权调用公共通知组件 |
 | CRS.Plugins.Demo | CRS.Plugin.Wpf | 桌面页面验证插件 |
@@ -100,7 +102,7 @@
 | CRS.Tests.SectorUi | 行业研究界面、分类导航与查询取消 |
 | CRS.Tests.Background | Worker、管道、权限和调度 |
 | CRS.Tests.WorkerEtf | ETF 双入口及后台存储 |
-| CRS.Tests.AiQuery | AI 双入口工具一致性、参数与权限、只读质量、共享审计以及本机 Gateway 授权与撤销验收 |
+| CRS.Tests.AiQuery | AI 工具一致性、参数与权限、只读质量、共享审计、本机 Gateway 授权与撤销、MCP 握手与 Responses 回传验收 |
 | CRS.Worker.FixturePlugin | 后台故障与慢查询夹具，不进入发行包 |
 | CRS.Worker.EtfFixture | 隔离 ETF 服务夹具 |
 

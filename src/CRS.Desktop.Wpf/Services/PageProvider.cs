@@ -1,5 +1,6 @@
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views.Pages;
+using CRS.DesktopClient.Views.Pages.AI;
 using Wpf.Ui.Abstractions;
 namespace CRS.DesktopClient.Services;
 /// <summary>为导航提供有状态页面缓存，不构造业务基础设施。</summary>
@@ -18,7 +19,8 @@ internal sealed class PageProvider(ShellViewModel shell) : INavigationViewPagePr
             : pageType == typeof(ReconciliationPage) ? new ReconciliationPage(shell)
             : pageType == typeof(ReportsPage) ? new ReportsPage(shell)
             : pageType == typeof(HistoryPage) ? new HistoryPage(shell)
-            : pageType == typeof(PerformancePage) ? new PerformancePage(shell) : null;
+            : pageType == typeof(PerformancePage) ? new PerformancePage(shell)
+            : pageType == typeof(AiAssistantPage) ? new AiAssistantPage(shell) : null;
         if (page is not null) pages[pageType] = page;
         return page;
     }

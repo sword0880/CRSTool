@@ -43,16 +43,16 @@ jobs:
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --plugin-header-native "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugin-header-native"
       - name: Verify NationalTeam lazy navigation and header handoff
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.SectorUi -c Release --no-build -- --navigation
+        run: dotnet run --project tests/Plugin/CRS.Tests.SectorUi -c Release --no-build -- --navigation
       - name: Verify direct equity period, direction evidence and sample denominators
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --equity-direction "$env:GITHUB_WORKSPACE/artifacts/equity-direction"
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --equity-direction "$env:GITHUB_WORKSPACE/artifacts/equity-direction"
       - name: Verify market activity knowledge cutoff, review journal and migration
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --activity-knowledge "$env:GITHUB_WORKSPACE/artifacts/activity-knowledge"
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --activity-knowledge "$env:GITHUB_WORKSPACE/artifacts/activity-knowledge"
       - name: Verify cycle query integration, breadth originals and fail-closed inputs
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-cycle-study "$env:GITHUB_WORKSPACE/artifacts/market-cycle-study"
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-cycle-study "$env:GITHUB_WORKSPACE/artifacts/market-cycle-study"
       - name: Verify bounded document staging and breadth review history
         shell: pwsh
         run: |
@@ -60,47 +60,47 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --document-ingress-boundaries "$env:GITHUB_WORKSPACE/artifacts/document-ingress-boundaries"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --breadth-workflow "$env:GITHUB_WORKSPACE/artifacts/breadth-workflow"
+          dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --breadth-workflow "$env:GITHUB_WORKSPACE/artifacts/breadth-workflow"
       - name: Render breadth workflow (synthetic)
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --breadth-visual-preview "$env:GITHUB_WORKSPACE/artifacts/breadth-workflow" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/breadth-workflow"
+        run: dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --breadth-visual-preview "$env:GITHUB_WORKSPACE/artifacts/breadth-workflow" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/breadth-workflow"
       - name: Verify joint exit snapshot (synthetic normalized inputs)
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --joint-exit-study "$env:GITHUB_WORKSPACE/artifacts/joint-exit-study"
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --joint-exit-study "$env:GITHUB_WORKSPACE/artifacts/joint-exit-study"
       - name: Verify named ETF multi-period history (synthetic)
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --named-etf-history "$env:GITHUB_WORKSPACE/artifacts/named-etf-history"
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --named-etf-history "$env:GITHUB_WORKSPACE/artifacts/named-etf-history"
       - name: Render joint exit snapshot (synthetic)
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --joint-exit-visual-preview "$env:GITHUB_WORKSPACE/artifacts/joint-exit-study" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/joint-exit-study"
+        run: dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --joint-exit-visual-preview "$env:GITHUB_WORKSPACE/artifacts/joint-exit-study" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/joint-exit-study"
       - name: Render compact cycle study (synthetic, no production predictions)
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --market-cycle-visual-preview "$env:GITHUB_WORKSPACE/artifacts/market-cycle-study" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/market-cycle"
+        run: dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --market-cycle-visual-preview "$env:GITHUB_WORKSPACE/artifacts/market-cycle-study" "$env:GITHUB_WORKSPACE/artifacts/ui-preview/market-cycle"
       - name: Verify cleanup preview, option invalidation and unknown result recovery
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --data-cleanup-model
       - name: Verify shared Beijing formatter ownership
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time
       - name: Verify ETF report protocols, captured official responses, atomic storage and UI boundaries
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-report-index
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-report-index
       - name: Verify independent market query snapshots and writer isolation
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --read-isolation
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --read-isolation
       # 仓储必需能力与北京时间边界必须随源码改动回归，不能只验证接口能够编译。
       - name: Verify market repository contracts before job admission
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --repository-contracts
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --repository-contracts
       - name: Verify NAV storage evidence, revisions, schema and rollback
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-storage-checks
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-storage-checks
       - name: Verify exit alert outbox restart, evidence and delivery safeguards
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alerts
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --exit-alerts
       - name: Verify equity comparison baselines and ETF collection receipts
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --evidence-adversarial
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --evidence-adversarial
       - name: Verify storage provider capabilities in the formal plugin startup path
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --storage-providers
@@ -122,7 +122,7 @@ jobs:
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --runner-failures "$env:GITHUB_WORKSPACE/artifacts/runner-admission-ci"
       - name: Verify prepared alert evaluation, file stability and atomic commit
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --prepared-alert-evaluation "$env:GITHUB_WORKSPACE/artifacts/prepared-alert-ci"
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --prepared-alert-evaluation "$env:GITHUB_WORKSPACE/artifacts/prepared-alert-ci"
       - name: Verify Worker abnormal execution filter before SQL pagination and via read-only IPC
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --history-result-filter
@@ -134,32 +134,32 @@ jobs:
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --manual-immediate
       - name: Verify ETF market sync cooldown, empty downloads and job diagnostics
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-sync-diagnostics
       - name: Verify deterministic market cycle research and point-in-time gates
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-cycle-checks
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --market-cycle-checks
       - name: Verify dashboard evidence scope and orphan fetch isolation
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --scoped-evidence
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --scoped-evidence
       # 只用隔离资料验证分页/取消，不在CI访问正式Worker或下载公开原件。
       - name: Verify adaptive ETF pages preserve complete snapshots and legacy clients
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --adaptive-query-pages
       - name: Verify common Beijing time semantics
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --common-time
       - name: Verify shared bounded HTTP body reads and cancellation
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --bounded-content
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --bounded-content
       - name: Verify ETF holder candidates preserve review and UI request boundaries
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-holder-candidates
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-holder-candidates
       - name: Verify ETF disclosure integrity, notification freeze and shared source gates
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-document-boundaries
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-document-boundaries
       - name: Verify shared plugin read admissions and cancellation
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission
       - name: Verify bounded evidence verification cancellation and new corruption
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --raw-batch
@@ -171,43 +171,43 @@ jobs:
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --query-cancellation
       - name: Verify ETF dashboard parity and late selection isolation
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-loading
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --etf-loading
       # 只使用隔离控制器核验原请求与双回执，不下载公开原件或操作正式服务。
       - name: Verify historical disclosure request identity and receipts
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.WorkerEtf -c Release --no-build -- --historical-command-checks
       - name: Verify dashboard profiling preserves integrity and cancellation
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --dashboard-profile-checks
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --dashboard-profile-checks
       - name: Verify batched dashboard matches per-security financial queries
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --dashboard-batch-checks
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --dashboard-batch-checks
       - name: Verify acceptance batching preserves receipt timing and evidence integrity
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --acceptance-batch-checks
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --acceptance-batch-checks
       - name: Verify registered modules, batch and async research clients and per-snapshot integrity
         shell: pwsh
         run: |
-          dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --business-contracts
+          dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --business-contracts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission
+          dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --shared-read-admission
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --snapshot-verification "$env:GITHUB_WORKSPACE/artifacts/snapshot-verification"
+          dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --snapshot-verification "$env:GITHUB_WORKSPACE/artifacts/snapshot-verification"
       - name: Verify public research SQLite ownership and preservation of encrypted legacy files
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --public-storage
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --public-storage
       - name: Verify resumable dual database plaintext migration with preserved originals
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --national-team-migration "$env:GITHUB_WORKSPACE/artifacts/national-team-migration"
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --national-team-migration "$env:GITHUB_WORKSPACE/artifacts/national-team-migration"
       - name: Verify backend use cases and mandatory client workspace contracts
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --application-boundaries
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --application-boundaries
       - name: Verify NAV share study snapshots and complete bounded JSON transport
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-workspace
+        run: dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-build -- --nav-workspace
       - name: Verify plugin shared assembly same-version ABI mismatch is rejected before loading
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.PluginHost -c Release --no-build
+        run: dotnet run --project tests/Plugin/CRS.Tests.PluginHost -c Release --no-build
       - name: Verify settings UI and synthetic credential lifecycle
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui "$env:GITHUB_WORKSPACE/artifacts/ui-preview/settings"
@@ -231,10 +231,10 @@ jobs:
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --plugin-management-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugin-management"
       - name: Render national-team plugin previews (synthetic)
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --ui-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugins"
+        run: dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --ui-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/plugins"
       - name: Render compact ETF workspace (synthetic)
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.PluginRecovery -c Release --no-build -- --workspace-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/compact-workspace"
+        run: dotnet run --project tests/Plugin/CRS.Tests.PluginRecovery -c Release --no-build -- --workspace-visual-preview "$env:GITHUB_WORKSPACE/artifacts/ui-preview/compact-workspace"
       - name: Upload screenshots for review
         if: always()
         uses: actions/upload-artifact@v4

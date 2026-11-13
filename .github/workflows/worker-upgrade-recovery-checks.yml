@@ -14,7 +14,7 @@ on:
       - 'src/CRS.Notifications/**'
       - 'tools/background/**'
       - 'tests/CRS.Tests.Background/**'
-      - 'tests/fixtures/CRS.Worker.FixturePlugin/**'
+      - 'tests/Plugin/Fixtures/CRS.Worker.FixturePlugin/**'
       - 'tests/Prepare-WorkerUpgradeFixture.ps1'
       - 'tests/Test-WorkerMaintenance.ps1'
       - 'tests/Test-WorkerUpgradeTransactions.ps1'

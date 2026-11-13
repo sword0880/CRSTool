@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CRS.Application.Abstractions;
+using CRS.AI.Models;
+using CRS.DesktopClient.ViewModels.AI;
 
 namespace CRS.DesktopClient.ViewModels;
 
@@ -11,6 +13,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IVaultService? vault;
     public WorkspaceState State { get; }
     public DataCleanupViewModel Cleanup{get;}
+    public AiModelSettingsViewModel AiModels { get; }
     [ObservableProperty] private string databaseDirectory = "";
     [ObservableProperty] private string logDirectory = "";
     [ObservableProperty] private bool loggingEnabled;
@@ -63,15 +66,19 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string message = "桌面日志保存后立即生效；数据库目录下次启动生效，原数据库不会移动。";
     public string[] LogLevels { get; } = ["Debug", "Info", "Warn", "Error"];
 
-    public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null,IDataCleanupGateway? cleanup=null)
+    public SettingsViewModel(WorkspaceState state, IDesktopSettingsService service,IVaultService? vault=null,IDataCleanupGateway? cleanup=null,
+        IAiModelService? aiModels=null)
     {
         State = state; this.service = service; this.vault=vault;Cleanup=new(cleanup);
+        AiModels = new(aiModels);
         workerLogSettingsGateway=cleanup as IWorkerLogSettingsGateway;
         InitializeWebhooks(); Reload(); InitializeNavigation();
         state.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(state.IsBusy)) {SaveCommand.NotifyCanExecuteChanged(); SavePhoneVerificationCommand.NotifyCanExecuteChanged();SaveDocumentPasswordCommand.NotifyCanExecuteChanged();SelectPhoneVerificationCommand.NotifyCanExecuteChanged();SelectWindowsHelloCommand.NotifyCanExecuteChanged();NotifyEmailCommands();} };
     }
     public void Reload()
     {
+        // 模型配置独立加载，普通设置读取失败不会将密钥带入设置对象。
+        AiModels.Reload();
         var settings = service.Load();
         DatabaseDirectory = settings.DatabaseDirectory; LogDirectory = settings.LogDirectory;
         LoggingEnabled = settings.LoggingEnabled; LogLevel = settings.LogLevel;

@@ -1,16 +1,16 @@
 # AI 双入口只读查询 POC（MCP / OpenAI Function Calling）
 
-> PR #31 至 #33 已合并 main，涵盖公开 ETF 双入口、共享审计门禁和本地审计落盘。候选源码已加入 Worker 服务身份隔离、Gateway 本机服务、Windows 用户授权和撤销。网络接入与正式部署待实施。架构见 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 和 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)。
+> PR #31 至 #33 已合并 main，涵盖公开 ETF 双入口、共享审计门禁和本地审计落盘。当前源码已加入 Worker 服务身份隔离、Gateway 本机服务、Windows 用户授权和撤销，以及独立的本机 MCP 和 OpenAI Responses 命令行入口。真实模型和正式部署状态见本文末尾。架构见 [统一 AI Gateway 架构](../architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 和 [MCP 只读方案](../architecture/AI_MCP_INTEGRATION.md)。
 
 ## 实际工作范围
 
-本期新增三个 .NET 项目：
+初期新增三个 .NET 项目：
 
 - `CRS.AI.Contracts`：BCL-only 工具契约、授权调用者标记、结果、数据模型。
 - `CRS.AI.Query`：只通过 `CRS.Worker.Ipc` 连接 Worker 的窄只读桥接；固定操作、数据脱敏、限制分页/时间和字节。
 - `CRS.AI.Adapters`：提供 `McpReadToolAdapter` 和 `OpenAiFunctionReadAdapter`，共享同一 `IAiReadGateway`，同一份工具 Schema 与业务响应。
 
-**没有增加 HTTP 监听、MCP SDK、OpenAI API 访问、密钥、个人保险库访问、SQLite 连接、Quartz 或业务数据副本。** 两个适配器目前是可测试的协议描述/函数分发层，不是已经连接云端的网络入口。
+两个协议适配器共用工具契约与分发接口。独立的 `CRS.AI.Client` 负责传输，业务查询、授权及审计仍由 Gateway 和 Worker 执行。
 
 ## 已确认 Worker 工具映射
 
@@ -62,7 +62,7 @@ Worker 侧的专用管道与操作白名单见下方本地身份隔离记录。G
 1. 使用可信 Windows 服务安装流程预创建专用审计目录和空 JSONL 文件，不使用用户临时目录、共享盘或代码仓库路径。
 2. 只授予实际 Gateway 服务 SID 所需的读/追加权限，并限定管理员与独立审计/备份角色；验证一般交互式用户不能写入或删除。当前代码为 `ReadWrite` 打开方式，服务 SID ACL 必须匹配实际读写行为；**它不是操作系统级 WORM 防篡改存储**。
 3. 设计容量预警、日志完整性验证、受控归档与不可变远端备份，再在安装阶段验证 ACL 和模拟磁盘满/权限丢失/文件缺失/重启恢复。
-4. 先完成独立 Gateway SID、Worker Pipe ACL、二次业务权限和外部调用者鉴权，再接入 MCP HTTP、OpenAI API 和 Tunnel。
+4. 对外发布前验收独立 Gateway SID、Worker Pipe ACL、二次业务权限和远程调用者鉴权。
 
 ### 本次补充离线验收
 
@@ -179,8 +179,70 @@ dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --ai-re
 
 正式服务保持现有版本。生产真实峰值下的磁盘与 CPU 延迟及长期审计留存仍待验收。
 
-## 下一阶段实施次序
+## 本机 MCP 与 OpenAI Responses API
 
-1. 修正任何 PR CI 编译、lockfile、架构门禁失败并记录回执；
-2. 在隔离发行环境联合验收候选 Gateway、Worker 与审计归档；
-3. 接入 OpenAI Responses API 与 MCP Streamable HTTP，随后完成远程授权、Tunnel、费用审计、WPF UI 与正式安装及安全验收。
+Visual Studio 在 `src / AI` 下显示 `CRS.AI.Client` 和 `CRS.AI.Models`。前者提供 MCP 与 OpenAI 命令行入口，后者负责供应商适配、模型配置和工具分发。两条入口与桌面共用已安装 Gateway 的 Windows 命名管道，Gateway 依据客户端进程的用户令牌准入并审计。实际查询需配套部署支持 `.ai-public.v2` 的 Worker 和 NationalTeam 插件，并为运行客户端的 Windows 账户授予查询权限。
+
+### 本机 MCP
+
+以下命令在 PowerShell 7 中运行。使用本次启动生成的密钥，在同机 MCP 客户端中配置 Streamable HTTP 地址及 `Authorization: Bearer <CRS_MCP_TOKEN>`。访问 `/health` 需要同一凭证，返回监听状态。
+
+```powershell
+$env:CRS_MCP_TOKEN = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+dotnet run --project src/CRS.AI.Client -c Release --no-build -- --mcp 8765
+```
+
+MCP 端点为 `http://127.0.0.1:8765/mcp`，仅监听回环地址，检查 Host、Origin 与 Bearer 凭证。运行时的 Windows 身份属于启动该进程的账户，持有本机令牌的应用可以通过它调用该账户获准使用的两个公开 ETF 工具。请仅将令牌提供给信任的同机客户端。
+
+### OpenAI Responses API
+
+在受支持地区的联调主机上，为当前进程配置 `OPENAI_API_KEY` 和支持 Responses Function Calling 的 `OPENAI_MODEL`，然后在 PowerShell 7 中运行公开 ETF 样例。该命令向 OpenAI 发送标准输入中的问题及模型请求的公开 ETF 工具结果。
+
+```powershell
+'调用 CRS 公开 ETF 概览工具，列出返回条数、数据版本和限制。' |
+    dotnet run --project src/CRS.AI.Client -c Release --no-build -- --ask
+```
+
+请求使用 `store=false`，每轮最多一次工具调用，每条问题最多四轮模型请求、三次工具调用及 90 秒。程序按实际回执显示模型请求次数、工具调用次数及 token 用量。开发命令依赖项目本身的账户计费及限额。 [OpenAI 函数调用](https://developers.openai.com/api/docs/guides/function-calling) · [OpenAI API 支持地区](https://developers.openai.com/api/docs/supported-countries)
+
+### 验收与部署状态
+
+```powershell
+dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build
+# 管理员终端，使用临时命名管道、回环端口与合成 Worker 数据
+dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build -- --client-integration
+```
+
+官方 MCP 客户端在本机完成握手、工具列表及查询。Responses 请求、工具回传、预算保护与错误处理通过模拟响应验收。两条入口均经真实 Windows 命名管道验证授权和撤销。真实 OpenAI 调用、新版 Worker 正式联查及 ChatGPT 远程入口尚待验收。远程 OAuth 和 Tunnel 仍在后续交付范围。
+
+## 桌面 AI 模型设置
+
+在「设置 → AI 模型」选择 DeepSeek、OpenAI、小米 MiMo 或 Claude（Anthropic），再选择模型并填入 API Key，点击「测试并设为默认」。模型连接测试发送一条固定短提示。本机工具测试独立查询 Gateway，诊断结果不会发送到供应商。模型连接通过即可保存默认模型。密钥按供应商分别保存，Windows DPAPI 使用当前账户加密。切换回已配置的供应商时，密码框留空可继续使用原密钥。清除密钥会同时清除该供应商的本机模型设置。
+
+从主窗口打开「AI 研究助手」即可输入公开 ETF 问题。界面显示默认模型、回答和本次用量。问题和所需的公开工具结果发往页面所示的供应商，工具查询继续使用 Gateway 的授权、预算和审计。窗口锁定时取消在途请求并清除当前问答。
+
+DeepSeek 使用官方 Responses API 的非思考模式。其同轮返回的函数调用按顺序执行，整条问题最多执行三次工具。OpenAI 继续保留原有的单轮单工具约束与加密推理项回传。 [DeepSeek Responses 兼容性说明](https://api-docs.deepseek.com/zh-cn/guides/responses_api/)
+
+小米 MiMo 使用官方 Responses API，提供 V2.6 Flash 和 Pro。工具预算耗尽后省略工具定义。Claude 使用 Anthropic Messages API，提供 Haiku 5.5 和 Sonnet 5.5，按调用标识成组回传工具结果。MiMo Code 与 Claude Code 的 MCP 客户端可单独配置，桌面助手使用上述模型 API 与本机 Gateway。 [MiMo Responses](https://mimo.mi.com/docs/en-US/api/chat/responses-post) · [MiMo Code MCP](https://github.com/XiaomiMiMo/MiMo-Code) · [Claude 工具调用](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works)
+
+如需让同机的 MiMo Code 使用小财牛工具，先按上文启动本机 MCP，将以下项目合并到个人的 MiMo Code 配置。启动 MiMo Code 的终端须能读取同一个 `CRS_MCP_TOKEN`，用 `mimo mcp` 查看连接状态。该令牌只用于本机 MCP 访问。
+
+```json
+{
+  "mcp": {
+    "xiaocainiu": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8765/mcp",
+      "oauth": false,
+      "headers": { "Authorization": "Bearer {env:CRS_MCP_TOKEN}" }
+    }
+  }
+}
+```
+
+```powershell
+dotnet run --project tests/CRS.Tests.AiQuery -c Release --no-build -- --model-settings
+dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --settings-ui artifacts/settings-ai
+```
+
+上述验收使用合成模型响应、临时配置目录和测试凭证。真实供应商联调需在桌面填写已开通的 API Key。

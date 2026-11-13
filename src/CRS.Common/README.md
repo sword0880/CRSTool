@@ -51,8 +51,8 @@ var reportDay = BeijingClock.Normalize(now).Date;
 ### 合成验证
 
 ```powershell
-dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release -- --shared-read-admission
-dotnet run --project tests/CRS.Tests.NationalTeamWatch -c Release -- --common-time
+dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release -- --shared-read-admission
+dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release -- --common-time
 ```
 
 生产环境打包依旧由 `tests/Publish-NationalTeamPackage.ps1` 的 dotnet publish 收集依赖，发行索引必须对新增DLL逐字节哈希。不能将 `CRS.Common.dll` 手工放进未核验的全局插件目录或通过默认上下文覆盖已加载的不同版本。此仓库更新不代表安装的Worker已升级。

@@ -3,6 +3,7 @@ using CRS.DesktopClient.Services;
 using CRS.Plugin.Wpf;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views.Pages;
+using CRS.DesktopClient.Views.Pages.AI;
 using Wpf.Ui.Controls;
 namespace CRS.DesktopClient.Views;
 /// <summary>导航壳只管理页面缓存和窗口生命周期。</summary>
@@ -36,6 +37,7 @@ public partial class MainWindow : FluentWindow
         shell.Reports.ClearSensitiveInputs(); // 锁定也清空导出密码，不能随页面缓存继续保留。
         shell.Performance.ClearForLock(); // 绩效与税务同样属于敏感会话，锁定时取消并清理。
         shell.Dashboard.ClearForLock();
+        shell.AiAssistant.ClearForLock(); // 取消模型请求，清除当前问题与回答。
         shell.State.UseCases.EndSession(); shell.Import.CancelCommand.Execute(null); shell.History.CancelOperationCommand.Execute(null);
         shell.Import.Token=""; shell.State.Clear(); DataContext=null;
     }
@@ -43,7 +45,8 @@ public partial class MainWindow : FluentWindow
     {
         ["dashboard"] = typeof(DashboardPage), ["import"] = typeof(ImportPage), ["trades"] = typeof(TradesPage),
         ["fifo"] = typeof(FifoPage), ["rates"] = typeof(ExchangeRatesPage), ["tax"] = typeof(TaxCalculationPage),
-        ["review"] = typeof(ReconciliationPage), ["reports"] = typeof(ReportsPage), ["history"] = typeof(HistoryPage), ["performance"] = typeof(PerformancePage)
+        ["review"] = typeof(ReconciliationPage), ["reports"] = typeof(ReportsPage), ["history"] = typeof(HistoryPage),
+        ["performance"] = typeof(PerformancePage), ["ai-assistant"] = typeof(AiAssistantPage)
     };
     public MainWindow(ShellViewModel shell,bool startWorkspace=true)
     {
@@ -229,7 +232,7 @@ public partial class MainWindow : FluentWindow
         CloseCompactNavigation();
         var shell = (ShellViewModel)DataContext;
         if (!shell.State.IsIdle || shell.Settings is null) return;
-        try { shell.Settings.Reload(); var dialog=new SettingsWindow(shell.Settings) { Owner = this };dialog.ShowDialog();if(dialog.RequiresPhoneEnrollment) LockRequested?.Invoke();else if(dialog.OpenDatabaseManagement) DatabaseManagementRequested?.Invoke(); }
+        try { shell.Settings.Reload(); var dialog=new SettingsWindow(shell.Settings) { Owner = this };dialog.ShowDialog();shell.AiAssistant.RefreshModel();if(dialog.RequiresPhoneEnrollment) LockRequested?.Invoke();else if(dialog.OpenDatabaseManagement) DatabaseManagementRequested?.Invoke(); }
         catch (Exception error) { shell.State.UseCases.LogFailure(error.GetType().Name); shell.State.Interaction.ShowError("无法读取设置，请检查本机设置文件和目录权限。"); }
     }
     private void OnClosing(object? sender, CancelEventArgs e)
@@ -238,6 +241,6 @@ public partial class MainWindow : FluentWindow
         var shell = (ShellViewModel)DataContext;
         if (Environment.GetCommandLineArgs().Contains("--smoke-test")) { shell.Import.Token = ""; return; }
         if (shell.State.IsBusy) { e.Cancel = true; System.Windows.MessageBox.Show(this, "请等待当前前台操作结束，或返回执行该操作的页面进行取消。", "操作正在进行"); }
-        else shell.Import.Token = "";
+        else { shell.Import.Token = ""; shell.AiAssistant.ClearForLock(); }
     }
 }

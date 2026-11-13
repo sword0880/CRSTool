@@ -1,0 +1,33 @@
+<Page x:Class="CRS.DesktopClient.Views.Pages.AI.AiAssistantPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+ <Grid Margin="24,26,32,24">
+  <Grid.RowDefinitions>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/>
+  </Grid.RowDefinitions>
+  <StackPanel>
+   <TextBlock Text="AI 研究助手" Style="{StaticResource PageTitle}"/>
+   <TextBlock Text="{Binding DefaultModelLabel, StringFormat=当前模型　{0}}" Style="{StaticResource Subtitle}"/>
+   <TextBlock Text="问题与所需的公开 ETF 工具结果会发送到当前模型供应商。请输入公开研究问题。"
+              Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"/>
+  </StackPanel>
+  <StackPanel Grid.Row="1">
+   <TextBlock Text="研究问题" Style="{StaticResource InputLabel}"/>
+   <TextBox x:Name="PromptInput" Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="研究问题"
+            AcceptsReturn="True" TextWrapping="Wrap" MaxLength="4000" MinHeight="84" MaxHeight="130"
+            VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+   <WrapPanel Margin="0,12,0,12">
+    <ui:Button x:Name="AskButton" Content="发送" Appearance="Primary" Command="{Binding AskCommand}" Margin="0,0,8,0"/>
+    <ui:Button Content="取消" Command="{Binding CancelCommand}"/>
+   </WrapPanel>
+  </StackPanel>
+  <StackPanel Grid.Row="2" Margin="0,0,0,10">
+   <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+   <TextBlock Text="{Binding Usage}" Foreground="{DynamicResource BrandTextHintBrush}" TextWrapping="Wrap"/>
+  </StackPanel>
+  <!-- 用只读文本呈现模型输出，支持选中复制。 -->
+  <TextBox x:Name="AnswerOutput" Grid.Row="3" Text="{Binding Answer, Mode=OneWay}" AutomationProperties.Name="模型回答" IsReadOnly="True"
+           AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+ </Grid>
+</Page>

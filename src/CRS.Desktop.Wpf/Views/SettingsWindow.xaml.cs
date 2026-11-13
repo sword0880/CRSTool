@@ -43,7 +43,7 @@ public partial class SettingsWindow : FluentWindow
         }
     }
     // 子视图各自保管 PasswordBox，窗口仍是敏感输入清理的唯一调度入口。
-    private void ClearSecurityInputs() {SecuritySection.ClearInputs();DocumentsSection.ClearInputs();}
+    private void ClearSecurityInputs() {SecuritySection.ClearInputs();DocumentsSection.ClearInputs();AiModelSection.ClearInputs();}
     private void ClearDocumentInputs()=>DocumentsSection.ClearInputs();
     private void ClearEmailInput()=>NotificationsSection.ClearInputs();
     private void ClearDingTalkInputs()=>DingTalkSection.ClearInputs();
@@ -54,6 +54,8 @@ public partial class SettingsWindow : FluentWindow
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         var model=(SettingsViewModel)DataContext;e.Cancel=!locking&&(model.State.IsBusy||model.DingTalk.Busy||model.WeChat.Busy||model.WorkerLogSettingsBusy);
+        // 关闭设置或锁定工作区时，取消模型测试并清空尚未保存的密钥。
+        if (!e.Cancel) { model.AiModels.CancelPending(); AiModelSection.ClearInputs(); }
         if(!e.Cancel){model.Cleanup.StopWaiting();model.DingTalk.InputsCleared-=ClearDingTalkInputs;model.WeChat.InputsCleared-=ClearWeChatInputs;ClearDingTalkInputs();ClearWeChatInputs();}
     }
 }
