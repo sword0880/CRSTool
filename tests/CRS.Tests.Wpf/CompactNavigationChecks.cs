@@ -48,7 +48,7 @@ internal static class CompactNavigationChecks
                     var pluginSurface=(FrameworkElement)shell.FindName("PluginSurface");
                     var navigation=(NavigationView)shell.FindName("Navigation");
                     Check(navigation.MenuItems.OfType<NavigationViewItem>().Where(x=>x.Visibility==Visibility.Visible)
-                        .Select(x=>x.Content).SequenceEqual(new[]{"概览","投资绩效","AI 研究助手","导入与记录","税务与报表","系统管理"}),"常用一级入口与分类顺序");
+                        .Select(x=>x.Content).SequenceEqual(new[]{"概览","投资绩效","AI 聊天历史","导入与记录","税务与报表","系统管理"}),"常用一级入口与分类顺序");
                     Check(records.MenuItems.OfType<NavigationViewItem>().Select(x=>x.Content)
                         .SequenceEqual(new[]{"数据导入","导入历史","交易记录"}),"导入历史与数据导入同组");
                     Check(tasks.MenuItems.OfType<NavigationViewItem>().Select(x=>x.Content)

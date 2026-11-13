@@ -9,4 +9,5 @@ public interface IAiModelService
     Task TestModelAsync(string provider, string model, string? newKey, CancellationToken token);
     Task TestGatewayAsync(CancellationToken token);
     Task<AiModelAnswer> AskDefaultAsync(string expectedProvider, string expectedModel, string prompt, CancellationToken token);
+    Task<AiModelAnswer> AskChatAsync(string expectedProvider, string expectedModel, AiChatRequest request, CancellationToken token);
 }

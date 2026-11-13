@@ -12,10 +12,11 @@ internal static class AiModelHttp
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public static async Task<JsonDocument> PostAsync(HttpClient http, Uri endpoint, string apiKey,
-        object payload, CancellationToken token, bool anthropic = false)
+        object payload, CancellationToken token, bool anthropic = false, bool includesScreenshot = false)
     {
         var body = JsonSerializer.SerializeToUtf8Bytes(payload, Json);
-        if (body.Length > MaxPayloadBytes) throw new AiModelException("TurnBudgetExceeded");
+        var requestLimit = includesScreenshot ? 2 * 1024 * 1024 : MaxPayloadBytes;
+        if (body.Length > requestLimit) throw new AiModelException("TurnBudgetExceeded");
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = new ByteArrayContent(body) };
         if (anthropic)
         {

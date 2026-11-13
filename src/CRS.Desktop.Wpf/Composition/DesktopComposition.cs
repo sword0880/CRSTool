@@ -31,7 +31,8 @@ internal static class DesktopComposition
         var officialRates = smoke ? null : new OfficialAnnualExchangeRates(CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ReadAsync);
         var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager,officialRates,Logging.Factory);
         // 冒烟使用临时配置目录，不读取真实 Windows 用户的模型密钥。
-        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke),new AiModelService(directory));
+        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke),new AiModelService(directory),
+            (repository as LocalStore)?.CreateAiChatHistory());
     }
     public static void LogStartupFailure(Exception error) => Logging.Factory.CreateLogger(typeof(DesktopComposition).FullName!)
         .LogError("程序启动失败；类别={Category:l}", SensitiveDiagnostics.FailureCategory(error.GetType().Name));
@@ -39,4 +40,4 @@ internal static class DesktopComposition
 }
 internal sealed record DesktopRuntime(IDesktopUseCases UseCases, IDesktopOperations Operations, string DirectoryPath,
     IDesktopSettingsService Settings,IVaultService Vault,CRS.Application.Performance.IPerformanceUseCases Performance,
-    IAiModelService AiModels);
+    IAiModelService AiModels, IAiChatHistory? AiHistory);

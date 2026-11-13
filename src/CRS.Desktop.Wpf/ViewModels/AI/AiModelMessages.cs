@@ -25,6 +25,8 @@ internal static class AiModelMessages
         "AuditUnavailable" => "Gateway 审计暂时不可用，请检查服务。",
         "BudgetExceeded" => "本机查询暂时繁忙，请稍后重试。",
         "InvalidPrompt" => "请输入 1 至 4000 个字符的公开 ETF 问题。",
+        "ImageUnsupported" => "当前模型不支持截图，请移除截图或更换模型。",
+        "InvalidScreenshot" => "截图格式无效或过大，请重新选择截图。",
         "IncompleteResponse" or "TurnBudgetExceeded" => "请求达到处理限制，请缩短问题或拆开查询。",
         _ => "操作未完成，收到无法处理的结果。"
     };

@@ -5,23 +5,39 @@ using CRS.AI.Models.Tools;
 namespace CRS.AI.Models.Providers.Anthropic;
 
 /// <summary>通过 Anthropic 官方 Messages API 调用 Claude，工具仍由本机 Gateway 执行。</summary>
-internal sealed class AnthropicMessagesClient(HttpClient http, string key, string model, AiToolDispatch dispatch)
+internal sealed class AnthropicMessagesClient(HttpClient http, string key, string model, AiToolDispatch dispatch, bool mimo = false)
     : IAiModelProvider
 {
     private static readonly Uri Endpoint = new("https://api.anthropic.com/v1/messages");
+    private static readonly Uri MiMoEndpoint = new("https://api.xiaomimimo.com/anthropic/v1/messages");
     private static readonly object[] Tools = AiCatalog.Tools.Select(tool =>
         new { name = tool.Name, description = tool.Description, input_schema = tool.Schema }).ToArray();
 
-    public async Task<AiModelAnswer> AskAsync(string prompt, CancellationToken token)
+    public Task<AiModelAnswer> AskAsync(string prompt, CancellationToken token) =>
+        AskChatAsync(new(prompt, []), token);
+
+    public async Task<AiModelAnswer> AskChatAsync(AiChatRequest request, CancellationToken token)
     {
-        AiModelTurn.ValidatePrompt(prompt);
+        AiModelTurn.Validate(request);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(90));
-        var messages = new List<object> { new { role = "user", content = prompt } };
+        var messages = new List<object>();
+        foreach (var entry in request.History)
+        {
+            messages.Add(new { role = "user", content = entry.Question });
+            messages.Add(new { role = "assistant", content = entry.Answer });
+        }
+        object content = request.Screenshot is { } image ? new object[]
+        {
+            new { type = "text", text = request.Prompt },
+            new { type = "image", source = new { type = "base64", media_type = "image/jpeg", data = Convert.ToBase64String(image) } }
+        } : request.Prompt;
+        messages.Add(new { role = "user", content });
         var turn = new AiModelTurn();
         for (var round = 1; round <= AiModelTurn.MaxRequests; round++)
         {
-            using var response = await SendAsync(messages, turn.CanUseTools(round), probe: false, deadline.Token)
+            using var response = await SendAsync(messages, turn.CanUseTools(round), probe: false, deadline.Token,
+                includesScreenshot: request.Screenshot is not null)
                 .ConfigureAwait(false);
             var message = AnthropicMessage.Read(response.RootElement);
             turn.AddUsage(message.Usage);
@@ -59,22 +75,25 @@ internal sealed class AnthropicMessagesClient(HttpClient http, string key, strin
             throw new AiModelException("InvalidProbe");
     }
 
-    private Task<JsonDocument> SendAsync(List<object> messages, bool allowTools, bool probe, CancellationToken token)
+    private Task<JsonDocument> SendAsync(List<object> messages, bool allowTools, bool probe, CancellationToken token,
+        bool includesScreenshot = false)
     {
         var payload = new Dictionary<string, object>
         {
             ["model"] = model,
             ["messages"] = messages,
-            ["max_tokens"] = probe ? 128 : 1024,
-            ["output_config"] = new { effort = "low" }
+            ["max_tokens"] = probe ? 128 : 1024
         };
+        if (mimo) payload["thinking"] = new { type = "disabled" };
+        else payload["output_config"] = new { effort = "low" };
         if (!probe)
         {
             payload["system"] = AiModelTurn.Instructions;
-            payload["tools"] = Tools;
+            if (!mimo || allowTools) payload["tools"] = Tools;
             // 保留工具结构，使 Claude 能解释前轮结果，同时关闭后续工具选择。
-            payload["tool_choice"] = new { type = allowTools ? "auto" : "none" };
+            if (!mimo) payload["tool_choice"] = new { type = allowTools ? "auto" : "none" };
         }
-        return AiModelHttp.PostAsync(http, Endpoint, key, payload, token, anthropic: true);
+        return AiModelHttp.PostAsync(http, mimo ? MiMoEndpoint : Endpoint, key, payload, token,
+            anthropic: !mimo, includesScreenshot: includesScreenshot);
     }
 }

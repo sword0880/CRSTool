@@ -25,10 +25,16 @@ internal sealed class AiModelTurn
             if (!callIds.Add(id)) throw new AiModelException("RepeatedToolCall");
     }
 
-    public static void ValidatePrompt(string prompt)
+    public static void Validate(AiChatRequest request)
     {
-        if (string.IsNullOrWhiteSpace(prompt) || prompt.Length > AiModelSettings.MaxPromptLength)
+        if (string.IsNullOrWhiteSpace(request.Prompt) || request.Prompt.Length > AiModelSettings.MaxPromptLength)
             throw new AiModelException("InvalidPrompt");
+        if (request.History.Count > 8 || request.History.Sum(item => (long)item.Question.Length + item.Answer.Length) > 16000)
+            throw new AiModelException("TurnBudgetExceeded");
+        if (request.Screenshot is { } image &&
+            (image.Length is < 4 or > AiChatRequest.MaxScreenshotBytes ||
+             image[0] != 0xff || image[1] != 0xd8 || image[^2] != 0xff || image[^1] != 0xd9))
+            throw new AiModelException("InvalidScreenshot");
     }
 
     public static bool IsCallIdValid(string? id) =>

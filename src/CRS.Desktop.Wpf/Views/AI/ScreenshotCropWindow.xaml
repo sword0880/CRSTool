@@ -1,0 +1,27 @@
+<ui:FluentWindow x:Class="CRS.DesktopClient.Views.AI.ScreenshotCropWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+ Title="选择截图区域" Width="980" Height="700" MinWidth="420" MinHeight="320" ShowInTaskbar="False"
+ WindowStartupLocation="CenterOwner" Background="{DynamicResource BrandCanvasBrush}">
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <ui:TitleBar Title="选择截图区域" ShowClose="True" ShowMaximize="False" ShowMinimize="False" ForceShutdown="False"/>
+  <!-- 选区只基于已捕获的应用像素，未确认前不进入待发送附件。 -->
+  <Grid x:Name="CropSurface" Grid.Row="1" Margin="16,8" Background="{DynamicResource BrandSurfaceAltBrush}"
+        ClipToBounds="True" Cursor="Cross" MouseLeftButtonDown="OnStart" MouseMove="OnDrag" MouseLeftButtonUp="OnFinish"
+        LostMouseCapture="OnCaptureLost" SizeChanged="OnSurfaceSizeChanged" AutomationProperties.Name="拖动选择截图范围">
+   <Image x:Name="Preview" Stretch="Uniform" IsHitTestVisible="False"/>
+   <Canvas IsHitTestVisible="False">
+    <Rectangle x:Name="SelectionBorder" Stroke="{DynamicResource BrandAccentBrush}" StrokeThickness="2" Visibility="Collapsed"/>
+   </Canvas>
+  </Grid>
+  <DockPanel Grid.Row="2" Margin="16,8,16,14">
+   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+    <ui:Button Content="取消" IsCancel="True" Margin="0,0,8,0"/>
+    <ui:Button x:Name="UseSelection" Content="使用选区" Appearance="Primary" IsEnabled="False" Click="OnConfirm"/>
+   </StackPanel>
+   <TextBlock Text="拖动鼠标选择要分享的区域" VerticalAlignment="Center" TextWrapping="Wrap"/>
+  </DockPanel>
+ </Grid>
+</ui:FluentWindow>

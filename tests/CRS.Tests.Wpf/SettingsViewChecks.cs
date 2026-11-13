@@ -7,6 +7,7 @@ using CRS.AI.Models;
 using CRS.Application.Abstractions;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views;
+using CRS.DesktopClient.Views.AI;
 using CRS.DesktopClient.Views.Pages.AI;
 using CRS.DesktopClient.Views.Settings;
 using CRS.DesktopClient.Views.Settings.AI;
@@ -193,6 +194,14 @@ internal static class SettingsViewChecks
             return Task.FromResult(new AiModelAnswer("合成 ETF 研究结果", false, new(12, 4, 16), 2, 1));
         }
 
+        public AiChatRequest? LastChat { get; private set; }
+
+        public Task<AiModelAnswer> AskChatAsync(string expectedProvider, string expectedModel, AiChatRequest request, CancellationToken token)
+        {
+            LastChat = request;
+            return AskDefaultAsync(expectedProvider, expectedModel, request.Prompt, token);
+        }
+
         private static async Task<AiModelAnswer> WaitForCancellationAsync(CancellationToken token)
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
@@ -205,18 +214,68 @@ internal static class SettingsViewChecks
     {
         var service = new ModelService();
         await service.SaveDefaultAsync("deepseek", "deepseek-flash", "synthetic", default);
-        var shell = new ShellViewModel(new SettingsUseCases(), new SilentInteraction(), new Settings(), aiModels: service);
+        var history = new ChatHistory();
+        var shell = new ShellViewModel(new SettingsUseCases(), new SilentInteraction(), new Settings(), aiModels: service, aiHistory: history);
         var window = new MainWindow(shell, startWorkspace: false);
         window.Show();
         try
         {
-            window.Navigate("ai-assistant");
+            if (!window.Navigate("dashboard")) throw new Exception("无法打开概览。");
+            var launcher = (Wpf.Ui.Controls.Button)window.FindName("AiAssistantLauncher");
+            launcher.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            var dock = (Border)window.FindName("AiAssistantDock");
+            var surface = (Border)window.FindName("PluginSurface");
+            if (dock.Visibility != Visibility.Visible || Panel.GetZIndex(dock) <= Panel.GetZIndex(surface))
+                throw new Exception("助手没有显示在业务页面上层。");
+            var panel = (AiAssistantPanel)((ContentControl)window.FindName("AiAssistantDockContent")).Content;
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            window.UpdateLayout();
+            // 触发真实页面捕获并在模态窗口打开后取消，验证边界与取消结果。
+            var capture = (Wpf.Ui.Controls.Button)panel.FindName("CaptureButton");
+            var cropOpened = false;
+            _ = window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+            {
+                if (window.OwnedWindows.Cast<Window>().OfType<ScreenshotCropWindow>().SingleOrDefault() is not { } crop) return;
+                cropOpened = true;
+                crop.Close();
+            });
+            capture.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            if (!cropOpened || shell.AiAssistant.HasScreenshot)
+                throw new Exception("页面截图未进入选区，或取消后留下附件。" + shell.AiAssistant.Status);
+            // 使用真正编码的合成图验证预览与保留策略，不发送到供应商。
+            var preview = new RenderTargetBitmap(64, 32, 96, 96, PixelFormats.Pbgra32);
+            var region = new ScreenshotCropWindow(preview);
+            var selected = region.Crop(new Rect(30, 30, 50, 25), new Rect(10, 20, 100, 50));
+            if (selected.PixelWidth != 33 || selected.PixelHeight != 17) throw new Exception("截图选区像素换算失败。");
+            region.Close();
+            var jpeg = new JpegBitmapEncoder();
+            jpeg.Frames.Add(BitmapFrame.Create(preview));
+            using var screenshot = new MemoryStream();
+            jpeg.Save(screenshot);
+            shell.AiAssistant.AttachScreenshot(screenshot.ToArray());
+            shell.AiAssistant.Prompt = "公开 ETF 概览";
+            await shell.AiAssistant.AskCommand.ExecuteAsync(null);
+            if (service.LastChat?.Screenshot is null || history.Current?.Entries.Single().Screenshot is not null ||
+                shell.AiAssistant.HasScreenshot)
+                throw new Exception("截图未随本条发送，或默认保留了截图。");
+            var detach = (Wpf.Ui.Controls.Button)panel.FindName("DetachButton");
+            detach.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            if (!window.OwnedWindows.Cast<Window>().Any(item => item.Topmost && ReferenceEquals(item.Content, panel)))
+                throw new Exception("弹出后没有置顶或未复用助手内容。");
+            detach.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            if (!window.Navigate("ai-history")) throw new Exception("无法打开 AI 聊天历史。");
             await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             var navigation = (Wpf.Ui.Controls.NavigationView)window.FindName("Navigation");
             if (navigation.SelectedItem is not Wpf.Ui.Controls.NavigationViewItem { TargetPageType: var page } ||
-                page != typeof(AiAssistantPage)) throw new Exception("AI 研究助手未接入主窗口导航。");
-            shell.AiAssistant.Prompt = "公开 ETF 概览";
+                page != typeof(AiChatHistoryPage) || !dock.IsVisible || shell.AiAssistant.Entries.Count != 1 ||
+                shell.AiHistory.Items.Count != 1)
+                throw new Exception("切页丢失助手或聊天历史未接入菜单。");
+            shell.AiAssistant.AttachScreenshot(screenshot.ToArray());
+            shell.AiAssistant.KeepScreenshot = true;
+            shell.AiAssistant.Prompt = "继续问";
             await shell.AiAssistant.AskCommand.ExecuteAsync(null);
+            if (service.LastChat?.History.Count != 1 || history.Current?.Entries.Last().Screenshot is null)
+                throw new Exception("继续聊天丢失文字上下文，或未保存明确勾选的截图。");
             if (shell.AiAssistant.DefaultModelLabel != "DeepSeek · deepseek-flash" ||
                 shell.AiAssistant.Answer != "合成 ETF 研究结果" || !shell.AiAssistant.Usage.Contains("工具调用 1 次"))
                 throw new Exception("研究助手未使用当前模型或没有显示回答。");
@@ -228,9 +287,28 @@ internal static class SettingsViewChecks
             if (shell.AiAssistant.Prompt.Length != 0 || shell.AiAssistant.Answer.Length != 0 ||
                 shell.AiAssistant.Status.Length != 0 || shell.AiAssistant.Busy)
                 throw new Exception("锁定未取消并清理 AI 问答。");
-            Console.WriteLine("PASS AI 研究助手真实导航、默认模型、问答展示和锁定取消。");
+            Console.WriteLine("PASS AI 助手跨页悬浮、独立置顶、截图保留、聊天历史和锁定取消。");
         }
         finally { window.Close(); }
+    }
+
+    private sealed class ChatHistory : IAiChatHistory
+    {
+        public AiChatConversation? Current { get; private set; }
+
+        public Task<IReadOnlyList<AiChatSummary>> SearchAsync(string query, CancellationToken token) =>
+            Task.FromResult<IReadOnlyList<AiChatSummary>>(Current is { } chat
+                ? [new(chat.Id, chat.Entries[0].Question, DateTimeOffset.UtcNow, chat.Model)] : []);
+
+        public Task<AiChatConversation?> ReadAsync(Guid id, CancellationToken token) => Task.FromResult(Current);
+
+        public Task<long> AppendAsync(Guid id, string provider, string model, long revision, AiChatEntry entry, CancellationToken token)
+        {
+            Current = new(id, provider, model, revision + 1, [.. Current?.Entries ?? [], entry]);
+            return Task.FromResult(revision + 1);
+        }
+
+        public Task DeleteAsync(Guid id, CancellationToken token) { Current = null; return Task.CompletedTask; }
     }
     private static async Task VerifyLoginSelectionAsync(SettingsWindow window,SettingsViewModel model,VaultInteractionChecks.FakeVault vault)
     {

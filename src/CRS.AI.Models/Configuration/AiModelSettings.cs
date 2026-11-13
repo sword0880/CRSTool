@@ -26,6 +26,11 @@ public sealed record AiModelSettings(string? DefaultProvider, IReadOnlyDictionar
             throw new AiModelException("InvalidModel");
     }
 
+    /// <summary>依据已适配端点的图像能力决定是否可发送截图。</summary>
+    public static bool SupportsScreenshots(string provider, string model) =>
+        Presets.Any(item => item.Id == provider && item.Models.Contains(model)) &&
+        (provider != "deepseek" || model == "deepseek-flash");
+
     internal static void ValidateKey(string value)
     {
         // 请求凭证只接受可打印 ASCII，拒绝空白、换行及其他无效请求头字符。

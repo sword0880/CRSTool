@@ -1,0 +1,87 @@
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media.Imaging;
+using CRS.DesktopClient.ViewModels.AI;
+
+namespace CRS.DesktopClient.Views.AI;
+
+/// <summary>主窗口和置顶窗口移动同一面板实例，输入和附件随对话保留。</summary>
+public partial class AiAssistantPanel : UserControl
+{
+    private ScreenshotCropWindow? crop;
+    public event EventHandler? CollapseRequested;
+    public event EventHandler? DetachRequested;
+    public event EventHandler? CaptureRequested;
+
+    public AiAssistantPanel() => InitializeComponent();
+
+    public void FocusPrompt() => Dispatcher.BeginInvoke(() => PromptInput.Focus());
+    public void SetDetached(bool detached)
+    {
+        // 同一按钮在置顶窗口中表示停靠，同步更新图标、提示和朗读名称。
+        var action = detached ? "停靠回主窗口" : "弹出置顶窗口";
+        DetachButton.Icon = new Wpf.Ui.Controls.SymbolIcon
+        {
+            Symbol = detached ? Wpf.Ui.Controls.SymbolRegular.PanelRight20 : Wpf.Ui.Controls.SymbolRegular.WindowNew20
+        };
+        DetachButton.ToolTip = action;
+        AutomationProperties.SetName(DetachButton, action);
+    }
+    public void CloseCrop() => crop?.Close();
+
+    private void OnCollapse(object sender, RoutedEventArgs e) => CollapseRequested?.Invoke(this, EventArgs.Empty);
+    private void OnDetach(object sender, RoutedEventArgs e) => DetachRequested?.Invoke(this, EventArgs.Empty);
+    private void OnCapture(object sender, RoutedEventArgs e) => CaptureRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnPaste(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not AiAssistantViewModel model || model.Busy) return;
+        try
+        {
+            if (Clipboard.GetImage() is { } image) Attach(model, image);
+            else model.Status = "剪贴板中没有截图。";
+        }
+        catch (ExternalException) { model.Status = "暂时无法读取剪贴板，请重试。"; }
+    }
+
+    private void OnCrop(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not AiAssistantViewModel { Busy: false, Screenshot: { } bytes } model) return;
+        var image = (BitmapSource?)new ScreenshotPreviewConverter().Convert(bytes, typeof(BitmapSource),
+            null!, System.Globalization.CultureInfo.InvariantCulture);
+        if (image is null) return;
+        SelectScreenshot(image);
+    }
+
+    public void SelectScreenshot(BitmapSource image)
+    {
+        if (DataContext is not AiAssistantViewModel model || crop is not null) return;
+        var owner = Window.GetWindow(this);
+        var dialog = new ScreenshotCropWindow(image) { Owner = owner, Topmost = owner?.Topmost == true };
+        crop = dialog;
+        try
+        {
+            if (dialog.ShowDialog() == true && dialog.Selection is { } selection) Attach(model, selection);
+        }
+        finally { crop = null; }
+    }
+
+    private void OnPromptKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control && DataContext is AiAssistantViewModel model)
+        {
+            e.Handled = true;
+            if (model.AskCommand.CanExecute(null)) model.AskCommand.Execute(null);
+        }
+    }
+
+    private static void Attach(AiAssistantViewModel model, BitmapSource image)
+    {
+        var bytes = AiScreenshotCapture.Encode(image);
+        if (bytes is null) model.Status = "截图过大，请裁剪后再试。";
+        else model.AttachScreenshot(bytes);
+    }
+}

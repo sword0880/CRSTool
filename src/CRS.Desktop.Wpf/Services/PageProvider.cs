@@ -1,3 +1,4 @@
+using System.Windows;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views.Pages;
 using CRS.DesktopClient.Views.Pages.AI;
@@ -7,6 +8,8 @@ namespace CRS.DesktopClient.Services;
 internal sealed class PageProvider(ShellViewModel shell) : INavigationViewPageProvider
 {
     private readonly Dictionary<Type, object> pages = [];
+    // 截图只使用已导航且实际显示的页面，不为截图构建页面或访问隐藏数据。
+    public FrameworkElement? FindCreatedPage(Type pageType) => pages.GetValueOrDefault(pageType) as FrameworkElement;
     public object? GetPage(Type pageType)
     {
         if (pages.TryGetValue(pageType, out var page)) return page;
@@ -20,7 +23,7 @@ internal sealed class PageProvider(ShellViewModel shell) : INavigationViewPagePr
             : pageType == typeof(ReportsPage) ? new ReportsPage(shell)
             : pageType == typeof(HistoryPage) ? new HistoryPage(shell)
             : pageType == typeof(PerformancePage) ? new PerformancePage(shell)
-            : pageType == typeof(AiAssistantPage) ? new AiAssistantPage(shell) : null;
+            : pageType == typeof(AiChatHistoryPage) ? new AiChatHistoryPage(shell) : null;
         if (page is not null) pages[pageType] = page;
         return page;
     }

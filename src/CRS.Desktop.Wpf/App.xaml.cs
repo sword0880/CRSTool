@@ -60,7 +60,7 @@ public partial class App : System.Windows.Application
             }
             var runtime = DesktopComposition.Create(true);
             vault=runtime.Vault;
-            var viewModel = new ShellViewModel(runtime.UseCases, smoke ? new SmokeInteraction() : new UserInteraction(), runtime.Settings,runtime.Vault,runtime.Performance,cleanup:smoke?null:new WorkerDataCleanupGateway(),aiModels:runtime.AiModels);
+            var viewModel = new ShellViewModel(runtime.UseCases, smoke ? new SmokeInteraction() : new UserInteraction(), runtime.Settings,runtime.Vault,runtime.Performance,cleanup:smoke?null:new WorkerDataCleanupGateway(),aiModels:runtime.AiModels,aiHistory:runtime.AiHistory);
             if (smoke) Console.Error.WriteLine("smoke: create navigation shell");
             var window = new MainWindow(viewModel); MainWindow = window;
             if (smoke)
@@ -98,7 +98,7 @@ public partial class App : System.Windows.Application
     {
         var runtime=DesktopComposition.Create(false,vault,vaultSettings);
         // 解锁后重新装配桌面会话，恢复该 Windows 用户已保存的模型选择。
-        var shell=new ShellViewModel(runtime.UseCases,new UserInteraction(),runtime.Settings,runtime.Vault,runtime.Performance,cleanup:new WorkerDataCleanupGateway(),aiModels:runtime.AiModels);
+        var shell=new ShellViewModel(runtime.UseCases,new UserInteraction(),runtime.Settings,runtime.Vault,runtime.Performance,cleanup:new WorkerDataCleanupGateway(),aiModels:runtime.AiModels,aiHistory:runtime.AiHistory);
         workspace=new MainWindow(shell); MainWindow=workspace;
         workspace.DatabaseManagementRequested+=()=>OpenDatabaseManagement(runtime.DirectoryPath);
         workspace.LockRequested+=LockWorkspace;

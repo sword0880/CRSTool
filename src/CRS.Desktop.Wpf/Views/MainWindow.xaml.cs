@@ -18,6 +18,7 @@ public partial class MainWindow : FluentWindow
     private Task? pluginStartup;
     private System.Windows.UIElement? builtInContent;
     private readonly List<NavigationViewItem> pluginItems = [];
+    private readonly PageProvider pageProvider;
     private static readonly Dictionary<string,IReadOnlySet<string>> startupEnablement=[];
     public event Action? DatabaseManagementRequested;
     public event Action? LockRequested;
@@ -37,7 +38,7 @@ public partial class MainWindow : FluentWindow
         shell.Reports.ClearSensitiveInputs(); // 锁定也清空导出密码，不能随页面缓存继续保留。
         shell.Performance.ClearForLock(); // 绩效与税务同样属于敏感会话，锁定时取消并清理。
         shell.Dashboard.ClearForLock();
-        shell.AiAssistant.ClearForLock(); // 取消模型请求，清除当前问题与回答。
+        CloseAiForLock(shell);
         shell.State.UseCases.EndSession(); shell.Import.CancelCommand.Execute(null); shell.History.CancelOperationCommand.Execute(null);
         shell.Import.Token=""; shell.State.Clear(); DataContext=null;
     }
@@ -46,11 +47,14 @@ public partial class MainWindow : FluentWindow
         ["dashboard"] = typeof(DashboardPage), ["import"] = typeof(ImportPage), ["trades"] = typeof(TradesPage),
         ["fifo"] = typeof(FifoPage), ["rates"] = typeof(ExchangeRatesPage), ["tax"] = typeof(TaxCalculationPage),
         ["review"] = typeof(ReconciliationPage), ["reports"] = typeof(ReportsPage), ["history"] = typeof(HistoryPage),
-        ["performance"] = typeof(PerformancePage), ["ai-assistant"] = typeof(AiAssistantPage)
+        ["performance"] = typeof(PerformancePage), ["ai-history"] = typeof(AiChatHistoryPage)
     };
     public MainWindow(ShellViewModel shell,bool startWorkspace=true)
     {
-        InitializeComponent(); StartupWindowSizing.Attach(this); DataContext = shell; Navigation.SetPageProviderService(new PageProvider(shell));
+        InitializeComponent(); StartupWindowSizing.Attach(this); DataContext = shell;
+        pageProvider = new(shell);
+        Navigation.SetPageProviderService(pageProvider);
+        InitializeAiAssistant(shell);
         shell.NavigateRequested += page => Navigate(page);
         if(startWorkspace)Loaded += (_, _) => Navigate("dashboard"); Closing += OnClosing;
         // 子菜单也要接回普通页面，避免插件遮罩挡住切换后的业务内容。
@@ -241,6 +245,6 @@ public partial class MainWindow : FluentWindow
         var shell = (ShellViewModel)DataContext;
         if (Environment.GetCommandLineArgs().Contains("--smoke-test")) { shell.Import.Token = ""; return; }
         if (shell.State.IsBusy) { e.Cancel = true; System.Windows.MessageBox.Show(this, "请等待当前前台操作结束，或返回执行该操作的页面进行取消。", "操作正在进行"); }
-        else { shell.Import.Token = ""; shell.AiAssistant.ClearForLock(); }
+        else { shell.Import.Token = ""; CloseAiForLock(shell); }
     }
 }

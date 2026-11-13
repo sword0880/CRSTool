@@ -14,17 +14,33 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
         OpenAiFunctionReadAdapter.DescribeTools(AiCatalog.Tools);
 
     /// <summary>在统一时限内完成一条问题，汇总每轮用量并返回最终答案。</summary>
-    public async Task<AiModelAnswer> AskAsync(string prompt, CancellationToken token)
+    public Task<AiModelAnswer> AskAsync(string prompt, CancellationToken token) =>
+        AskChatAsync(new(prompt, []), token);
+
+    public async Task<AiModelAnswer> AskChatAsync(AiChatRequest request, CancellationToken token)
     {
-        AiModelTurn.ValidatePrompt(prompt);
+        AiModelTurn.Validate(request);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(90));
-        var input = new List<object> { new { role = "user", content = prompt } };
+        var input = new List<object>();
+        foreach (var entry in request.History)
+        {
+            input.Add(new { role = "user", content = entry.Question });
+            input.Add(new { role = "assistant", content = entry.Answer });
+        }
+        // 图片只附在当前用户消息，使用内嵌 JPEG，不创建外部文件地址。
+        object content = request.Screenshot is { } image ? new object[]
+        {
+            new { type = "input_text", text = request.Prompt },
+            new { type = "input_image", image_url = "data:image/jpeg;base64," + Convert.ToBase64String(image) }
+        } : request.Prompt;
+        input.Add(new { role = "user", content });
         var turn = new AiModelTurn();
         for (var round = 1; round <= AiModelTurn.MaxRequests; round++)
         {
             var allowTool = turn.CanUseTools(round);
-            using var response = await SendAsync(input, allowTool, probe: false, deadline.Token);
+            using var response = await SendAsync(input, allowTool, probe: false, deadline.Token,
+                includesScreenshot: request.Screenshot is not null);
             var root = response.RootElement;
             var output = ResponsesProtocol.ReadOutput(root);
             turn.AddUsage(ResponsesProtocol.ReadUsage(root));
@@ -61,7 +77,8 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
     }
 
     /// <summary>发送单轮请求，限制双向报文大小，并将上游失败转换为固定错误码。</summary>
-    private Task<JsonDocument> SendAsync(List<object> input, bool allowTool, bool probe, CancellationToken token)
+    private Task<JsonDocument> SendAsync(List<object> input, bool allowTool, bool probe, CancellationToken token,
+        bool includesScreenshot = false)
     {
         var payload = new Dictionary<string, object>
         {
@@ -76,6 +93,6 @@ internal sealed class ResponsesApiClient(HttpClient http, string apiKey, string 
             payload["tool_choice"] = allowTool ? "auto" : "none";
         }
         provider.Configure(payload, model, probe);
-        return AiModelHttp.PostAsync(http, provider.Endpoint, apiKey, payload, token);
+        return AiModelHttp.PostAsync(http, provider.Endpoint, apiKey, payload, token, includesScreenshot: includesScreenshot);
     }
 }

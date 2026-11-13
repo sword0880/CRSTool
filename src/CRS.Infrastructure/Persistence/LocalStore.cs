@@ -6,7 +6,7 @@ using CRS.Application.Abstractions;
 
 namespace CRS.Infrastructure;
 
-public sealed class LocalStore : ICalculationRepository
+public sealed partial class LocalStore : ICalculationRepository
 {
     public string DirectoryPath { get; }
     private readonly VaultSession session;

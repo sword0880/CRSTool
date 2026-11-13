@@ -19,6 +19,8 @@ if(args is ["--compare-ibkr-before",var baselineAssembly]){BrokerSourceFactsChec
 if(args is ["--settings-only"]) {await SettingsChecks.RunAsync(Path.Combine(Path.GetTempPath(),"CRS-Settings-"+Guid.NewGuid().ToString("N")));return;}
 if(args is ["--capture-performance-imports"]) {PerformanceImportRegression.Run(true);return;}
 var root=Path.Combine(Path.GetTempPath(),"CRS-Layers-"+Guid.NewGuid().ToString("N"));
+// 聊天历史只访问本次创建的隔离保险库。
+if(args is ["--ai-chat-history"]) {await AiChatHistoryChecks.RunAsync(root);return;}
 // 绩效资料和税务相互独立，专项验收使用新的合成加密库。
 if(args is ["--performance-only"]) {await PerformanceChecks.RunAsync(root);return;}
 if(args is ["--performance-real-only"]) {await PerformanceChecks.RunAsync(root,true);return;}

@@ -64,13 +64,22 @@ public sealed class AiModelService : IAiModelService
     }
 
     public Task<AiModelAnswer> AskDefaultAsync(string expectedProvider, string expectedModel, string prompt, CancellationToken token) =>
+        AskChatAsync(expectedProvider, expectedModel, new(prompt, []), token);
+
+    public Task<AiModelAnswer> AskChatAsync(string expectedProvider, string expectedModel, AiChatRequest request, CancellationToken token) =>
         RunModelAsync(() =>
         {
             var (provider, model, key) = store.ReadDefault();
             // 如果另一窗口修改了默认模型，先更新界面再允许发送，避免问题发往不同供应商。
             if (provider != expectedProvider || model != expectedModel)
                 throw new AiModelException("DefaultModelChanged");
-            return CreateProvider(provider, model, key).AskAsync(prompt, token);
+            if (request.Screenshot is not null && !AiModelSettings.SupportsScreenshots(provider, model))
+                throw new AiModelException("ImageUnsupported");
+            // 小米的 Messages 兼容接口有明确的 Base64 图片契约。
+            var client = provider == "mimo" && request.Screenshot is not null
+                ? new AnthropicMessagesClient(http, key, model, dispatch, mimo: true)
+                : CreateProvider(provider, model, key);
+            return client.AskChatAsync(request, token);
         }, token);
 
     // 供应商与固定官方地址绑定，用户无需填写协议或服务器地址。

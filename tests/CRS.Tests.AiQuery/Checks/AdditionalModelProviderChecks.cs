@@ -38,6 +38,44 @@ internal static class AdditionalModelProviderChecks
         Check(claudeAnswer is { Text: "Claude 样本", ToolCalls: 2, Requests: 2 } &&
               claudeAnswer.Usage == new AiTokenUsage(52, 12, 64) && calls.SequenceEqual([AiCatalog.Overview]),
             "Claude 归集缓存用量并拦截目录外工具");
+        await CheckScreenshotAsync(dispatch, useMessages: false);
+        await CheckScreenshotAsync(dispatch, useMessages: true);
+    }
+
+    private static async Task CheckScreenshotAsync(AiToolDispatch dispatch, bool useMessages)
+    {
+        // 图片只应出现在当前用户消息，历史只传回文字。
+        using var http = new HttpClient(new ScriptedHandler((_, request, payload) =>
+        {
+            var messages = payload.GetProperty(useMessages ? "messages" : "input");
+            var current = messages[2].GetProperty("content");
+            Check(messages.GetArrayLength() == 3 && messages[0].GetProperty("content").GetString() == "上一条问题" &&
+                  messages[1].GetProperty("content").GetString() == "上一条回答", "图片请求保留近期文字上下文");
+            if (useMessages)
+            {
+                Check(request.RequestUri == new Uri("https://api.xiaomimimo.com/anthropic/v1/messages") &&
+                      request.Headers.Authorization?.Parameter == "synthetic" &&
+                      current[1].GetProperty("source").GetProperty("media_type").GetString() == "image/jpeg",
+                    "MiMo 截图使用官方 Messages 端点和内嵌 Base64");
+                return """
+                    {"type":"message","role":"assistant","stop_reason":"end_turn",
+                    "content":[{"type":"text","text":"截图样本"}],"usage":{"input_tokens":20,"output_tokens":4}}
+                    """;
+            }
+            Check(current[1].GetProperty("type").GetString() == "input_image" &&
+                  current[1].GetProperty("image_url").GetString()!.StartsWith("data:image/jpeg;base64,"),
+                "Responses 截图仅包含当前选择的内嵌图像");
+            return """
+                {"status":"completed","output":[{"type":"message","role":"assistant",
+                "content":[{"type":"output_text","text":"截图样本"}]}],
+                "usage":{"input_tokens":20,"output_tokens":4,"total_tokens":24}}
+                """;
+        }));
+        var input = new AiChatRequest("看截图", [new("上一条问题", "上一条回答")], [0xff, 0xd8, 0xff, 0xd9]);
+        var result = useMessages
+            ? await new AnthropicMessagesClient(http, "synthetic", "mimo-v2.6-flash", dispatch, mimo: true).AskChatAsync(input, default)
+            : await new ResponsesApiClient(http, "synthetic", "gpt-5.4-mini", dispatch).AskChatAsync(input, default);
+        Check(result.Text == "截图样本", "截图请求的回答正常返回");
     }
 
     private static string CheckMiMo(int round, HttpRequestMessage request, JsonElement payload)
