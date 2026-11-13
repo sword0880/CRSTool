@@ -6,6 +6,15 @@
 >
 > 权威现状先读：[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)、[ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md)、[AI 双入口 POC](../implementation/AI_DUAL_ENTRY_POC.md)和[AI 附件处理](../implementation/AI_ATTACHMENTS.md)。本文保留目标架构与安全约束；当前实际项目、部署范围和验证状态以实施文档及源码为准。后续目标设计不能覆盖当前尚未实现的远程服务、OAuth、Tunnel 和生产部署边界。
 
+## 0. 决策摘要（ADR-AI-001）
+
+1. **统一业务边界，双入口**：WPF 内置助手通过独立的 `CRS.AI.Gateway` 发起 Responses API 分析；ChatGPT 经自定义 MCP / Secure MCP Tunnel 调用 Gateway 的同一套受控业务查询。两条路径共享工具契约、授权、脱敏、审计；不是让 Gateway 重复代 ChatGPT 调用模型。
+2. **Phase 1 仅在合法受支持地区使用 OpenAI API**。Plus 可用于 WPF 内部 API 分析，但 API 独立计费。依 OpenAI 当前官方说明，自建 MCP 直接连接 ChatGPT 需具备支持套餐：Pro 可接只读 read/fetch，Business/Enterprise/Edu 可接完整 MCP；Plus 不作为此能力的交付前提。不得以个人新建 GPT Actions 作为兜底：2026-10-26 后个人套餐停止新建 GPT。最终以实际账号权限和官方最新政策为准。
+3. **公网固定 IP 不是必要条件**：内网 Gateway 和 MCP Server 无公网入站端口；符合条件时 tunnel-client 从受支持地区向 `api.openai.com:443` 主动 HTTPS 连接 OpenAI。若企业出口 IP 白名单、代理或其他安全制度要求，出口地址另行验证。
+4. **最高安全边界**：后台 Worker 既有服务权限仅访问公开市场研究数据，**绝不为了 AI 入口而开放个人 SQLCipher 税务库、TOTP 密钥或 WPF 登录会话**。个人数据仅由处于用户登录、明确解锁状态的交互式桌面进程发布最小范围、短时、只读的数据快照。
+5. **AI 一律不掌握最终裁决权**：金额/税费/收益率/历史事实与证据由现有确定性计算引擎产生；AI 只能解释、比较、给出分析，不能修改账本、执行交易、申报税务或静默改动作业。
+6. **强制 P0 门槛**：部署地、API 使用地区、支付资格和跨境数据授权未验证前，不启用外部 OpenAI 连接；离线工作流保持完整可用。
+
 ## 0.1 当前实现基线（2026-11-13）
 
 本节描述当前 `main` 源码和已取得的自动化证据；后续架构图与分阶段表仍保留目标设计，不能反向解释为当前部署拓扑。
@@ -20,15 +29,6 @@
 附件规则、MCP 会话 TTL、清理、隐私边界和测试命令见[AI 附件处理](../implementation/AI_ATTACHMENTS.md)。PR [#35](https://github.com/sword0880/CRSTool/pull/35) 已合并 main。其 Windows CI [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 中 Release Build、AI 工具一致性、附件集成和架构依赖检查通过；整个工作流因独立 Worker 插件监督测试的 `TaskCanceledException` 失败，不能标记为全绿。
 
 **重要边界：** MCP 文件参数元数据和假下载器集成测试只证明本机协议实现与会话生命周期，不证明 ChatGPT 已经能通过远程网络访问本机 CRS。当前 MCP 仅监听 loopback。
-
-## 0. 决策摘要（ADR-AI-001）
-
-1. **统一业务边界，双入口**：WPF 内置助手通过独立的 `CRS.AI.Gateway` 发起 Responses API 分析；ChatGPT 经自定义 MCP / Secure MCP Tunnel 调用 Gateway 的同一套受控业务查询。两条路径共享工具契约、授权、脱敏、审计；不是让 Gateway 重复代 ChatGPT 调用模型。
-2. **Phase 1 仅在合法受支持地区使用 OpenAI API**。Plus 可用于 WPF 内部 API 分析，但 API 独立计费。依 OpenAI 当前官方说明，自建 MCP 直接连接 ChatGPT 需具备支持套餐：Pro 可接只读 read/fetch，Business/Enterprise/Edu 可接完整 MCP；Plus 不作为此能力的交付前提。不得以个人新建 GPT Actions 作为兜底：2026-10-26 后个人套餐停止新建 GPT。最终以实际账号权限和官方最新政策为准。
-3. **公网固定 IP 不是必要条件**：内网 Gateway 和 MCP Server 无公网入站端口；符合条件时 tunnel-client 从受支持地区向 `api.openai.com:443` 主动 HTTPS 连接 OpenAI。若企业出口 IP 白名单、代理或其他安全制度要求，出口地址另行验证。
-4. **最高安全边界**：后台 Worker 既有服务权限仅访问公开市场研究数据，**绝不为了 AI 入口而开放个人 SQLCipher 税务库、TOTP 密钥或 WPF 登录会话**。个人数据仅由处于用户登录、明确解锁状态的交互式桌面进程发布最小范围、短时、只读的数据快照。
-5. **AI 一律不掌握最终裁决权**：金额/税费/收益率/历史事实与证据由现有确定性计算引擎产生；AI 只能解释、比较、给出分析，不能修改账本、执行交易、申报税务或静默改动作业。
-6. **强制 P0 门槛**：部署地、API 使用地区、支付资格和跨境数据授权未验证前，不启用外部 OpenAI 连接；离线工作流保持完整可用。
 
 ## 1. 业务需求与边界
 
