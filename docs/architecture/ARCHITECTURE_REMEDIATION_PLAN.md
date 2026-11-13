@@ -38,7 +38,7 @@
 
 ARCH-206（P1-06）已新增插件独立V1契约、未知版本拒绝和旧请求/响应兼容检查；版本矩阵见[业务契约规范](NATIONALTEAM_BUSINESS_CONTRACT.md)。代码及隔离测试已实施，完整历史发行/实际升级兼容仍保留为未关闭项，详见续记。
 
-ARCH-207（P1-07）已将每插件 `IsolatedPluginSession` 接入 Worker Service 组合根，使用独立 Runner 进程、私有 stdio V2 协议、包摘要/随机挑战/PID 握手及 Job Object 监督。2026-11-13 的 [Windows UI 工作流](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 中，启动卡死隔离和 PID 分离检查通过，但模拟 Runner 崩溃后的持久命令终态轮询触发 `TaskCanceledException`，完整监督/持久执行矩阵未通过。当前 Runner 与 Worker 继承同一服务身份，不构成 OS 权限沙箱；正式服务安装、SCM 生命周期和 OS 权限隔离仍开放，ARCH-207 保持 In Progress。
+ARCH-207（P1-07）已将每插件 `IsolatedPluginSession` 接入 Worker Service 组合根，使用独立 Runner 进程、私有 stdio V2 协议、包摘要/随机挑战/PID 握手及 Job Object 监督。2026-11-13 的最新 [Windows UI 工作流](https://github.com/sword0880/CRSTool/actions/runs/43397935610) 中，项目图/架构检查、启动卡死隔离和 PID 分离检查通过，但模拟 Runner 崩溃后的持久命令终态轮询触发 `TaskCanceledException`；PR #36 的 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 出现相同问题，完整监督/持久执行矩阵未通过。当前 Runner 与 Worker 继承同一服务身份，不构成 OS 权限沙箱；正式服务安装、SCM 生命周期和 OS 权限隔离仍开放，ARCH-207 保持 In Progress。
 
 ARCH-208（P1-08）In Progress：IBKR原件结构读取已统一为不可变来源事实，税务/绩效及账号投影已接入，同步绩效不再重读XML。绩效新导入/新历史已保存实际读取与投影版本并兼容旧记录；IBKR及Futu税务新历史均已接入显式版本审计（含富途交易/收入Excel/PDF）；完整类型化账本、跨版本投影差异和独立真实Golden仍开放，见[来源事实边界](BROKER_SOURCE_FACTS.md)及续记。
 

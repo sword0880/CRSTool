@@ -25,12 +25,12 @@
 
 ### 最近 CI 证据
 
-PR #36 对应 Windows 工作流 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 是当前已核对的最新一次完整 Windows UI 工作流；PR #35 的 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 出现相同失败：
+PR #36 对应 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 是 main 代码基线的完整 Windows UI 验证；PR #37 文档分支的最新 [run 43397935610](https://github.com/sword0880/CRSTool/actions/runs/43397935610) 在恢复项目清单后再次验证，结果相同。PR #35 的 [run 43366766980](https://github.com/sword0880/CRSTool/actions/runs/43366766980) 也有同类失败：
 
-- Restore、Release Build、AI MCP/OpenAI 工具一致性、MCP 附件 fileParams/内存会话集成、架构依赖检查，以及前序多项专项检查通过。
-- 工作流在 “Verify supervised plugin fault isolation and durable execution” 步骤失败，日志为 TaskCanceledException，位置 SupervisedPluginChecks.cs:93/108。
-- 后续步骤被跳过。因此不能写成完整工作流通过，也不能将插件监督/持久执行验收标记为完成。
-- PR #36 仅修改 Markdown，没有改变生产代码；其工作流重新执行了相同代码基线，并未消除上述失败。
+- PR #37 的 Restore、Release Build、AI MCP/OpenAI 工具一致性、MCP 附件 fileParams/内存会话集成、项目依赖/架构检查及此前多项专项检查均通过。
+- 工作流在 “Verify supervised plugin fault isolation and durable execution” 步骤失败：模拟 Runner 崩溃后已记录 `RunnerOutcomeUnknown`，但等待持久命令最终回执时，10 秒期限到达并抛出 `TaskCanceledException`（`SupervisedPluginChecks.cs:93/108`）。
+- Worker PluginRunner 独立进程/项目图工作流 [run 43397935496](https://github.com/sword0880/CRSTool/actions/runs/43397935496) 通过；它不替代上述集成监督与持久命令验收。
+- 后续步骤被跳过。不能将完整工作流或插件监督/持久执行验收标记为通过。PR #37 仅修改文档，没有修改业务源码。
 
 ## 3. Worker 与 NationalTeam 最近可确认状态
 

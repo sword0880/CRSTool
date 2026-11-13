@@ -141,8 +141,8 @@ flowchart LR
 
 ### 11.2 自动化验证现状
 
-- Worker PluginRunner 独立进程/协议工作流 [run 43386238744](https://github.com/sword0880/CRSTool/actions/runs/43386238744) 通过。该项验证 Runner 构建、项目图及原型协议，不等于完整 Worker 监督生命周期通过。
-- WPF UI 工作流 [run 43386238746](https://github.com/sword0880/CRSTool/actions/runs/43386238746) 中，插件启动卡死隔离、其它插件继续启动、Runner 与 Worker PID 分离等前序检查通过。
+- Worker PluginRunner 独立进程/项目图工作流 [run 43397935496](https://github.com/sword0880/CRSTool/actions/runs/43397935496) 通过。该项验证 Runner 构建、项目图及原型协议，不等于完整 Worker 监督生命周期通过。
+- WPF UI 工作流 [run 43397935610](https://github.com/sword0880/CRSTool/actions/runs/43397935610) 中，项目图/架构检查、插件启动卡死隔离、其它插件继续启动、Runner 与 Worker PID 分离等前序检查通过；PR #36 的 run 43386238746 出现相同集成测试失败。
 - 同一工作流在 `SupervisedPluginChecks` 的持久命令故障恢复阶段失败：模拟 Runner 崩溃后记录 `RunnerOutcomeUnknown`，测试等待持久 `GetCommand` 回执时触发 10 秒截止取消，抛出 `TaskCanceledException`（`SupervisedPluginChecks.cs:93/108`）；后续检查被跳过。不能把该轮标记为全量通过。
 - 当前状态：源码已接线、部分故障隔离检查通过，持久执行结果未知/失败回执闭环仍未通过；P1-01 与 ARCH-207 保持未关闭。
 
