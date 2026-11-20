@@ -4,9 +4,9 @@ $repo=Split-Path $PSScriptRoot -Parent
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 if(Test-Path -LiteralPath $output){throw 'ETF双入口包目录必须不存在。'}
 # 两个宿主使用同一个完整包和同一清单；只执行各自入口，绝不由服务实例化WPF。
-& dotnet publish (Join-Path $repo 'src/Plugins/CRS.Plugins.NationalTeam.Jobs') -c $Configuration --no-self-contained --no-restore -m:1 -o $output
+& dotnet publish (Join-Path $repo 'src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs') -c $Configuration --no-self-contained --no-restore -m:1 -o $output
 if($LASTEXITCODE -ne 0){throw 'ETF后台入口发布失败。'}
-& dotnet publish (Join-Path $repo 'src/Plugins/CRS.Plugins.NationalTeamWatch') -c $Configuration --no-self-contained --no-restore -m:1 -o $output
+& dotnet publish (Join-Path $repo 'src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch') -c $Configuration --no-self-contained --no-restore -m:1 -o $output
 if($LASTEXITCODE -ne 0){throw 'ETF页面入口发布失败。'}
 # 仅保留本次Windows x64验收需要的原生库，再由外层发行脚本对完整包建立可信索引。
 $runtimes=Join-Path $output 'runtimes'

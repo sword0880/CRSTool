@@ -32,13 +32,13 @@
 
 ### P1：周期评估算法存在，但当前源码运行链路没有调用它
 
-[MarketCycleEvaluator.Evaluate](../../src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/MarketCycle/MarketCycleResearch.cs) 已有顶部/底部研究规则和反例测试。当前生产源码搜索该评估器/输入/输出类型，仅命中领域定义文件；应用层、Worker查询/任务与页面没有对应评估调用。现有指数研究入口不能作为该周期模型已接通的证据。
+[MarketCycleEvaluator.Evaluate](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain/MarketCycle/MarketCycleResearch.cs) 已有顶部/底部研究规则和反例测试。当前生产源码搜索该评估器/输入/输出类型，仅命中领域定义文件；应用层、Worker查询/任务与页面没有对应评估调用。现有指数研究入口不能作为该周期模型已接通的证据。
 
 关闭条件：以真实且有来源的价格/广度/成交输入构造冻结评估，接入应用与Worker查询，再验证缺失、修订和知识截止；保留NotProven及模型有效性边界。
 
 ### P1：退出预警已有完整事件机制，输入范围仍是份额规则及具名最低减少证据
 
-[AlertFundInput与ExitAlertEvaluator](../../src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlerts.cs) 及 [AlertStore.Evaluation](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs) 的现行流程负责份额窗口、样本集群、数据质量与具名持仓最低净减少。它没有读取行业研究、周期评估或NAV研究结果。
+[AlertFundInput与ExitAlertEvaluator](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlerts.cs) 及 [AlertStore.Evaluation](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs) 的现行流程负责份额窗口、样本集群、数据质量与具名持仓最低净减少。它没有读取行业研究、周期评估或NAV研究结果。
 
 因此“已有退出预警”成立；“通过全部五项做联合退出判断”还不能从当前调用链证明。现有预览、正式数据门槛和通知结果未知保护应继续保留。
 
@@ -46,13 +46,13 @@
 
 2026-10-27续项已增加[同报告期方向后台投影及核验链](../implementation/NATIONAL_TEAM_EQUITY.md#national-team-equity-direction)，以下为原复核时的证据。源码运行链缺口已推进，真实行业/价格输入和完整组合仍未验收；不改变2026-10-26的现场快照。
 
-[EquityCharts.RebuildEquityOverview](../../src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/Equity/EquityCharts.cs) 当前按市场/证券/名称生成机构矩阵；[EquityStore](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Equity/EquityStore.cs) 返回逐账户快照和可比数量变化。未见将持股映射为同报告期行业/风格、市值权重、覆盖分母及战略/组合性质的独立后台报告。
+[EquityCharts.RebuildEquityOverview](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/Presentation/Equity/EquityCharts.cs) 当前按市场/证券/名称生成机构矩阵；[EquityStore](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Equity/EquityStore.cs) 返回逐账户快照和可比数量变化。未见将持股映射为同报告期行业/风格、市值权重、覆盖分母及战略/组合性质的独立后台报告。
 
 关闭条件：确认用户需要的方向口径，用有有效期和来源的映射、匹配日期市值及覆盖说明形成后台投影；不将股数跨证券加总当权重。
 
 ### P1：总览实际超时，健康正常，仍需分阶段定位
 
-真实只读审查捕获了预警总览超时，前后Worker健康/进程一致。[AlertOverview](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs) 依赖全池Acceptance；[ReadAcceptance](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Etf/EtfStore.Acceptance.cs) 的无证券筛选完整性核验仍会进入较宽的原件读取。
+真实只读审查捕获了预警总览超时，前后Worker健康/进程一致。[AlertOverview](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs) 依赖全池Acceptance；[ReadAcceptance](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Etf/EtfStore.Acceptance.cs) 的无证券筛选完整性核验仍会进入较宽的原件读取。
 
 这是**源码层潜在耗时来源**，本轮没有为该具体现场查询取得分阶段耗时，因此不将其直接宣布为唯一根因。后续代码整改已将份额与采集收据批量读取，并在单次验收内复用原件核验结果；完整性实现提取为`EvidenceIntegrityStore`，全池原件范围和发送前正式门槛保留。新增`acceptance-profile`只读诊断可分别观测SQL、原件核验及投影。新包尚未替换已安装Worker，因此原现场超时保持开放。优化不能取消金融证据核验、放大查询超时或把超时改成空成功。
 

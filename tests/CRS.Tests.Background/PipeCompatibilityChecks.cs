@@ -4,7 +4,7 @@ using CRS.Worker.Ipc;
 
 internal static class PipeCompatibilityChecks
 {
-    public static async Task RunAsync(string package,bool includePlugins=false)
+    public static async Task RunAsync(string package,bool includePlugins=false,bool checkXueqiu=false)
     {
         var root=Path.Combine(Path.GetTempPath(),"CRS.PipeCompatibility",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
         var plugins=Path.Combine(root,"empty-plugins");Directory.CreateDirectory(plugins);
@@ -18,7 +18,7 @@ internal static class PipeCompatibilityChecks
         var stdout=process.StandardOutput.ReadToEndAsync();var stderr=process.StandardError.ReadToEndAsync();
         try
         {
-            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(20));var client=new BackgroundPipeClient(pipe);
+            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(checkXueqiu ? 45 : 20));var client=new BackgroundPipeClient(pipe);
             while(true)
             {
                 if(process.HasExited)throw new Exception("隔离宿主退出："+(await stderr));
@@ -32,6 +32,12 @@ internal static class PipeCompatibilityChecks
                         var overview=await client.SendAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"QueryPlugin","crs.national-team",Payload:"{\"Operation\":\"overview\"}"),deadline.Token);
                         if(overview.Code!="Ok"||overview.Payload is null)throw new Exception("隔离概览失败："+overview.Code);
                         Console.WriteLine("PASS 原宿主与新插件包：插件Started并通过真实概览查询；仅隔离新数据库。");
+                        if (checkXueqiu)
+                        {
+                            if (response.Plugins?.Any(x => x.PluginId == "crs.xueqiu-watch" && x.State == "Started") != true)
+                                throw new InvalidOperationException("雪球后台插件未启动。");
+                            await XueqiuPrivateDataChecks.RunAsync(client, Path.Combine(root, "data"), deadline.Token);
+                        }
                     }
                     if(!includePlugins)Console.WriteLine("PASS 旧宿主二进制兼容：替换通信契约及IPC后启动并经真实管道确认Running；未加载业务插件。");
                     Console.WriteLine(JsonSerializer.Serialize(new{ProcessId=process.Id,Data=root,Pipe=pipe,State=response.Health.State}));break;

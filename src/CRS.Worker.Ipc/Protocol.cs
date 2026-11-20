@@ -47,6 +47,7 @@ public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, str
 public static class WorkerProtocol
 {
     public const int Version = 2;
+    public const string PrivatePluginData = "PrivatePluginData";
     public const string GetAnnualExchangeRates = "GetAnnualExchangeRates";
     public const string GetWorkerLogSettings = "GetWorkerLogSettings";
     public const string SaveWorkerLogSettings = "SaveWorkerLogSettings";

@@ -25,6 +25,14 @@ if(-not $HeartbeatOnly){
     foreach($file in Get-ChildItem -LiteralPath $etf -Recurse -File){$relative=[IO.Path]::GetRelativePath($etf,$file.FullName).Replace('\','/');$etfHashes[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
     $index=@(Get-Content (Join-Path $output 'trusted-background-plugins.json') -Raw | ConvertFrom-Json -AsHashtable)
     $index+=@{id='crs.national-team';version='2.0.0';directory='crs.national-team/2.0.0';files=$etfHashes}
+    $xueqiu=Join-Path $output 'Plugins/crs.xueqiu-watch/1.0.0'
+    & (Join-Path $PSScriptRoot 'Publish-XueqiuWatchPackage.ps1') -OutputDirectory $xueqiu -Configuration $Configuration
+    $xueqiuHashes=@{}
+    foreach($file in Get-ChildItem -LiteralPath $xueqiu -Recurse -File){
+        $relative=[IO.Path]::GetRelativePath($xueqiu,$file.FullName).Replace('\','/')
+        $xueqiuHashes[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+    }
+    $index+=@{id='crs.xueqiu-watch';version='1.0.0';directory='crs.xueqiu-watch/1.0.0';files=$xueqiuHashes}
     ConvertTo-Json -InputObject $index -Depth 9 | Set-Content (Join-Path $output 'trusted-background-plugins.json') -Encoding utf8
 }
 # 安装脚本随发行提供；完整索引需在正式发行时由组织证书生成 release.json.p7s。

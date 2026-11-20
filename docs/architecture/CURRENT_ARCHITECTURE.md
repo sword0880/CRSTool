@@ -80,6 +80,9 @@
 | CRS.Plugins.NationalTeam.Core | CRS.Common | ETF 领域与只读契约文件实体归属 Core；无跨项目源码链接 |
 | CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common, CRS.Documents | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
+| CRS.Plugins.XueqiuWatch.Core | 无 | 雪球观点模型、验证、证券候选与数据契约 |
+| CRS.Plugins.XueqiuWatch.Jobs | CRS.Plugins.XueqiuWatch.Core, CRS.Worker.Abstractions | 通过 Worker 管理员管道访问插件 SQLCipher 观点库 |
+| CRS.Plugins.XueqiuWatch.Wpf | CRS.Plugins.XueqiuWatch.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | 观察名单、观点录入、横向股票矩阵与个股明细 |
 
 ## 解决方案测试与夹具项目
 

@@ -316,6 +316,9 @@
           "System.Security.Cryptography.ProtectedData": "[10.0.12, )"
         }
       },
+      "crs.plugins.xueqiuwatch.core": {
+        "type": "Project"
+      },
       "crs.worker.abstractions": {
         "type": "Project",
         "dependencies": {

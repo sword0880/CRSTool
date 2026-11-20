@@ -7,6 +7,7 @@
 | 主题 | 当前权威文档 | 用途 |
 | --- | --- | --- |
 | 模块功能边界 | [功能分类与增长治理](../../architecture/NATIONAL_TEAM_FEATURE_CLASSIFICATION_20261026.md) | 当前模块分类、功能归属和扩展规则 |
+| 源码入口 | [国家队插件目录](../../../src/Plugins/NationalTeam/README.md) | 桌面、后台和 Core 项目分工及验证入口 |
 | 架构与部署状态 | [架构状态](../../architecture/ARCHITECTURE_STATUS.md) | 当前边界、正式部署证据和未关闭风险 |
 | 总体实现 | [国家队模块架构](../../implementation/NATIONAL_TEAM_ARCHITECTURE.md) | Core/Jobs/UI拆分、存储和模块演进 |
 | ETF与披露证据 | [披露证据与通知](../../implementation/NATIONAL_TEAM_EVIDENCE.md) | 原始报告、审核、具名持仓、证据链与预警 |

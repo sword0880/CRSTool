@@ -19,6 +19,8 @@ public sealed partial class BackgroundRuntime
 
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var ai = caller.Sid == AiGatewayWorkerEndpoint.ServiceSid;
+        var privateData = request.Command == WorkerProtocol.PrivatePluginData;
+        if (privateData && (!caller.CanManage || ai)) return Reply("Forbidden");
         bool desktopResearch;
         BoundedWorkAdmission admission;
         await gate.WaitAsync(token);
@@ -29,13 +31,14 @@ public sealed partial class BackgroundRuntime
             if (maintenance) return Reply("Maintenance");
             if (request.PluginId is null || request.Payload is null || request.Payload.Length > 4096)
                 return Reply("InvalidRequest");
-            if (!catalog.SupportsQueries(request.PluginId)) return Reply("UnknownQuery");
+            if (privateData ? !catalog.SupportsPrivateData(request.PluginId) : !catalog.SupportsQueries(request.PluginId))
+                return Reply("UnknownQuery");
 
-            var routing = catalog.QueryRouting(request.PluginId);
+            var routing = privateData ? null : catalog.QueryRouting(request.PluginId);
             BackgroundQueryWorkload kind;
             try
             {
-                if (ai != AiGatewayWorkerRequestPolicy.IsSinglePageRoute(request.PluginId, request.Payload))
+                if (!privateData && ai != AiGatewayWorkerRequestPolicy.IsSinglePageRoute(request.PluginId, request.Payload))
                     return Reply("Forbidden");
                 kind = routing?.Classify(request.Payload) ?? BackgroundQueryWorkload.ResearchRead;
                 if (ai && kind != BackgroundQueryWorkload.ResearchRead) return Reply("Forbidden");
@@ -71,7 +74,9 @@ public sealed partial class BackgroundRuntime
             using var aiDeadline = ai ? CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token) : null;
             aiDeadline?.CancelAfter(TimeSpan.FromSeconds(8));
             var execution = aiDeadline?.Token ?? cancellation.Token;
-            var result = await catalog.QueryAsync(request.PluginId, request.Payload, execution);
+            var result = privateData
+                ? await catalog.AccessPrivateDataAsync(request.PluginId, request.Payload, execution)
+                : await catalog.QueryAsync(request.PluginId, request.Payload, execution);
             execution.ThrowIfCancellationRequested();
             return Reply("Ok", result);
         }
@@ -80,7 +85,7 @@ public sealed partial class BackgroundRuntime
         catch (JsonException) { return Reply("InvalidRequest"); }
         catch (InvalidDataException) { return Reply("InvalidRequest"); }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
-        catch (OperationCanceledException) { return Reply("RequestTimedOut"); }
+        catch (OperationCanceledException) { return Reply(privateData ? "CommandOutcomeUnknown" : "RequestTimedOut"); }
         catch (PluginLifecycleTimeoutException) { throw; } // 保留宿主对不合作插件的终止策略。
         catch (Exception error)
         {

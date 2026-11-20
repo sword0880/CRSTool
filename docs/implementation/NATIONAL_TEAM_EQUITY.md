@@ -60,7 +60,7 @@
 
 特别口径包括：建行汇金A股不混H股；工行社保A股不计H股脚注；华鲁恒升转增不当买入；三元注销与最新未列示分别保留；建发未列示社保组合不当清仓；中微大基金复合账户不重复计受托管理人。新登记性质Unknown、Comparable=false、Delta=null。
 
-固定来源定义见[Core来源资源](../../src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/Equity/ReviewedEquitySources.json)及[Jobs摘录资源](../../src/Plugins/CRS.Plugins.NationalTeam.Jobs/Resources/equity-reviewed-subsets-20261104.json)。现场凭据为`artifacts/equity-remediation-20261104/final-acceptance.json`及其中的原文、逐份回执和保全比较。固定原文登记不证明全市场自动发现、通用PDF自动审核、完整组合或模型有效性已验收。
+固定来源定义见[Core来源资源](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain/Equity/ReviewedEquitySources.json)及[Jobs摘录资源](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Resources/equity-reviewed-subsets-20261104.json)。现场凭据为`artifacts/equity-remediation-20261104/final-acceptance.json`及其中的原文、逐份回执和保全比较。固定原文登记不证明全市场自动发现、通用PDF自动审核、完整组合或模型有效性已验收。
 
 ## 验证入口
 

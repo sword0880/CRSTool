@@ -104,6 +104,7 @@ if(args is ["--notifications"]){await NotificationChecks.Run();await WebhookNoti
 if(args is ["--ipc-boundaries"]){await PipeBoundaryChecks.RunAsync();return;}
 if(args is ["--ipc-compatibility",var ipcPackage]){await PipeCompatibilityChecks.RunAsync(ipcPackage);return;}
 if(args is ["--plugin-package-compatibility",var pluginPackage]){await PipeCompatibilityChecks.RunAsync(pluginPackage,true);return;}
+if(args is ["--xueqiu-private-data",var xueqiuPackage]){await PipeCompatibilityChecks.RunAsync(xueqiuPackage,true,true);return;}
 if(args is ["--lifecycle-only"]){await LifecycleBoundaryChecks.Run(Path.Combine(Path.GetTempPath(),"CRS.Lifecycle",Guid.NewGuid().ToString("N")));return;}
 if(args is ["--lifecycle-exit-child",var lifecycleRoot,var lifecyclePhase]){await LifecycleBoundaryChecks.ExitChild(lifecycleRoot,lifecyclePhase);return;}
 

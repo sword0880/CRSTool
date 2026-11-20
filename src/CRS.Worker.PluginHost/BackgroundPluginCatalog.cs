@@ -38,6 +38,8 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
     private readonly List<HostedBackgroundJob> jobs = [];
     // 查询能力独立于任务描述列表，支持零 Job 插件。
     private readonly Dictionary<string,IBackgroundQuerySession> querySessions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string,IBackgroundPrivateDataSession> privateSessions = new(StringComparer.Ordinal);
+    public bool SupportsPrivateData(string plugin) => privateSessions.ContainsKey(plugin);
     private readonly Dictionary<string,BackgroundQueryRouting> queryRouting=new(StringComparer.Ordinal);
     public bool SupportsQueries(string plugin)=>querySessions.ContainsKey(plugin);
     public BackgroundQueryRouting? QueryRouting(string plugin)=>queryRouting.GetValueOrDefault(plugin);
@@ -74,11 +76,23 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
         if(System.Text.Encoding.UTF8.GetByteCount(result)>48000)throw new InvalidDataException("业务查询响应超限。");
         return result;
     }
+    public async Task<string> AccessPrivateDataAsync(string plugin, string payload, CancellationToken token)
+    {
+        EnsureResponsive();
+        if (!privateSessions.TryGetValue(plugin, out var session)) throw new ArgumentException("插件不支持私有资料访问。");
+        var result = "";
+        await InvokeAsync(plugin, "PrivateData", async cancellation =>
+            result = await session.AccessPrivateDataAsync(payload, cancellation), token);
+        if (System.Text.Encoding.UTF8.GetByteCount(result) > 48000)
+            throw new InvalidDataException("私有资料响应超限。");
+        return result;
+    }
     /// <summary>宿主校验调度声明失败时隔离整个插件，避免其它插件随之退出。</summary>
     public void Quarantine(string pluginId, string errorCode)
     {
         jobs.RemoveAll(x => x.PluginId == pluginId);
         querySessions.Remove(pluginId);
+        privateSessions.Remove(pluginId);
         queryRouting.Remove(pluginId);
         statuses.RemoveAll(x => x.PluginId == pluginId);
         statuses.Add(new(pluginId, "Failed", errorCode));
@@ -152,6 +166,9 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
                 }
                 querySessions.Add(package.Id,querySession);
             }
+            if (session is IBackgroundPrivateDataSession privateSession &&
+                (session is not IsolatedPluginSession isolated || isolated.SupportsPrivateData))
+                privateSessions.Add(package.Id, privateSession);
             statuses.Add(new(package.Id, "Started"));
             }
             catch (PluginLifecycleTimeoutException) { throw; }
@@ -161,6 +178,7 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
                 // 单个包损坏或初始化失败只隔离该插件，保持其它可信任务可用。
                 jobs.RemoveAll(x => x.PluginId == package.Id);
                 querySessions.Remove(package.Id);
+                privateSessions.Remove(package.Id);
                 queryRouting.Remove(package.Id);
                 if (session is not null)
                 {
@@ -279,7 +297,7 @@ public sealed partial class BackgroundPluginCatalog(TimeSpan? lifecycleTimeout =
             catch (PluginLifecycleTimeoutException) { throw; }
             catch (Exception error) { failures.Add(error); }
         }
-        sessions.Clear(); jobs.Clear();querySessions.Clear();queryRouting.Clear();
+        sessions.Clear(); jobs.Clear();querySessions.Clear();queryRouting.Clear();privateSessions.Clear();
         foreach (var context in contexts) context.Unload();
         contexts.Clear();
         if (failures.Count != 0) throw new AggregateException("后台插件释放存在异常。", failures);

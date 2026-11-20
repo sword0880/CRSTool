@@ -5,10 +5,10 @@
     <EmbeddedResource Include="Resources/cnd-2025-annual.json" />
     <EmbeddedResource Include="Resources/equity-reviewed-subsets-20261104.json" LogicalName="CRS.NationalTeam.ReviewedEquitySubsets.json" />
     <ProjectReference Include="../CRS.Plugins.NationalTeam.Core/CRS.Plugins.NationalTeam.Core.csproj" />
-    <ProjectReference Include="../../CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" />
-    <ProjectReference Include="../../CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj" />
-    <ProjectReference Include="../../CRS.Common/CRS.Common.csproj" />
-    <ProjectReference Include="../../CRS.Documents/CRS.Documents.csproj" />
+    <ProjectReference Include="../../../CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" />
+    <ProjectReference Include="../../../CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="../../../CRS.Common/CRS.Common.csproj" />
+    <ProjectReference Include="../../../CRS.Documents/CRS.Documents.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" /><PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
   </ItemGroup>
 </Project>

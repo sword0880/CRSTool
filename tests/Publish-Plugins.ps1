@@ -5,16 +5,19 @@ $destination = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
 dotnet publish "$repo/src/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj" -c $Configuration --no-restore -m:1 -p:SyncDevelopmentPlugins=false -o $destination
 if ($LASTEXITCODE -ne 0) { throw 'Host publish failed' }
-$definitions = @(@{Id='crs.national-team';Project='CRS.Plugins.NationalTeamWatch'})
-if ($IncludeDemo) { $definitions += @{Id='crs.demo';Project='CRS.Plugins.Demo'} }
+$definitions = @(
+    @{Id='crs.national-team';Version='2.0.0';PublishScript='Publish-NationalTeamPackage.ps1'}
+    @{Id='crs.xueqiu-watch';Version='1.0.0';PublishScript='Publish-XueqiuWatchPackage.ps1'}
+)
+if ($IncludeDemo) { $definitions += @{Id='crs.demo';Version='1.0.0';Project='CRS.Plugins.Demo'} }
 $index = @()
 foreach ($definition in $definitions) {
-    $version=if($definition.Id -eq 'crs.national-team'){'2.0.0'}else{'1.0.0'}
+    $version=$definition.Version
     $relative = "$($definition.Id)/$version"
     $package = Join-Path $destination "Plugins/$relative"
     if (Test-Path -LiteralPath $package) { throw "Use a new output directory; immutable package already exists: $package" }
-    if($definition.Id -eq 'crs.national-team'){
-        & (Join-Path $PSScriptRoot 'Publish-NationalTeamPackage.ps1') -OutputDirectory $package -Configuration $Configuration
+    if($definition.PublishScript){
+        & (Join-Path $PSScriptRoot $definition.PublishScript) -OutputDirectory $package -Configuration $Configuration
     }else{
         dotnet publish "$repo/src/Plugins/$($definition.Project)/$($definition.Project).csproj" -c $Configuration --no-restore -m:1 -o $package
     }

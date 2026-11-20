@@ -120,6 +120,12 @@ public interface IBackgroundQuerySession
 {
     Task<string> QueryAsync(string payload,CancellationToken token);
 }
+
+/// <summary>私有研究资料经管理员管道访问，业务输入由插件自行持久化。</summary>
+public interface IBackgroundPrivateDataSession
+{
+    Task<string> AccessPrivateDataAsync(string payload, CancellationToken token);
+}
 /// <summary>可选的有限查询操作名称；不输出参数、证券代码、URL或任意异常消息。</summary>
 public interface IBackgroundQueryDiagnosticsSession
 {

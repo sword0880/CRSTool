@@ -164,7 +164,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             return annualRates?.Query(request, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
         if (request.Command is WorkerProtocol.GetWorkerLogSettings or WorkerProtocol.SaveWorkerLogSettings)
             return await HandleLogSettingsAsync(request, caller, token);
-        if (request.Command == "QueryPlugin") return await QueryPluginAsync(request, caller, token);
+        if (request.Command is "QueryPlugin" or WorkerProtocol.PrivatePluginData)
+            return await QueryPluginAsync(request, caller, token);
         if(request.Command is "PutPluginDocument" or "GetPluginDocument" or "ListPluginDocuments")return await HandleDocumentsAsync(request,caller,token);
         if(request.Command is "BeginDataCleanupPreview" or "GetDataCleanupStatus" or "ExecuteDataCleanup" or "PauseAutoCleanup" or "SubmitDataCleanupTask" or "GetDataCleanupTasks" or "AcknowledgeDataCleanupTask" or CRS.Maintenance.DataCleanupTask.HistoryCommand)return await HandleCleanupAsync(request,caller,token);
         if(request.Command is "GetEmailSettings" or "SaveEmailSettings" or "TestEmailSettings" or "GetWebhookSettings" or "SaveWebhookSettings" or "TestWebhookSettings")return await HandleEmailAsync(request,caller,token);

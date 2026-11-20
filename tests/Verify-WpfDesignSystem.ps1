@@ -34,7 +34,7 @@ foreach($file in $files) {
         $failures.Add("新增硬编码颜色：$relative，现有 $hardcoded / 基线 $legacyAllowance")
     }
     # 表格工具区的窄日期选择器必须显示可读的年月日，禁止退回默认长日期格式。
-    if($relative.StartsWith('src/Plugins/CRS.Plugins.NationalTeamWatch/Presentation/',[StringComparison]::OrdinalIgnoreCase) -and $relative.EndsWith('.xaml',[StringComparison]::OrdinalIgnoreCase)) {
+    if($relative.StartsWith('src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/Presentation/',[StringComparison]::OrdinalIgnoreCase) -and $relative.EndsWith('.xaml',[StringComparison]::OrdinalIgnoreCase)) {
         foreach($datePicker in [regex]::Matches($source,'<DatePicker\b[^>]*>')) {
             if($datePicker.Value -notmatch 'SelectedDateFormat="Short"') {
                 $failures.Add("插件日期控件未指定短日期格式：$relative")
@@ -47,7 +47,7 @@ foreach($file in $files) {
     }
 }
 # 插件视觉契约只能消费宿主动态资源，不能依赖桌面实现程序集。
-foreach($name in @('src/CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj','src/Plugins/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj')) {
+foreach($name in @('src/CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj','src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj')) {
     $projectText = Get-Content -Raw -LiteralPath (Join-Path $RepositoryRoot $name)
     if($projectText -match 'ProjectReference[^>]+CRS\.Desktop\.Wpf') {
         $failures.Add("插件反向引用桌面程序：$name")
