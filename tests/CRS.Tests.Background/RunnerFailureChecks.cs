@@ -67,9 +67,15 @@ internal static class RunnerFailureChecks
                 if(isolated)
                 {
                     var failed=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.admission","one",Payload:"io");await runtime.HandleAsync(failed,caller,default);
-                    await Until(()=>repository.FindCommand(failed.RequestId,caller.Sid)?.State=="Completed");
-                    var failure=repository.FindCommand(failed.RequestId,caller.Sid)!;var record=repository.FindExecution(failure.ExecutionId!);
-                    Check(failure.Code=="Failed"&&record?.Checkpoint=="runner=IOException"&&!JsonSerializer.Serialize(record).Contains("synthetic-private"),"正式仓储式回执保留远端I/O类别而不泄露异常消息");
+                    await Until(()=>repository.FindCommand(failed.RequestId,caller.Sid)?.Code=="RetryDeferred");
+                    var failure=repository.FindCommand(failed.RequestId,caller.Sid)!;
+                    var record=repository.History().Single(x=>x.Checkpoint=="runner=IOException");
+                    Check(failure is {State:"Pending",Code:"RetryDeferred"}&&record.Result=="Failed"
+                        &&!JsonSerializer.Serialize(record).Contains("synthetic-private"),
+                        "已知远端I/O失败保留错误分类并按原策略退避，不泄露异常消息");
+                    var cancelled=await runtime.HandleAsync(new(WorkerProtocol.Version,Guid.NewGuid(),"CancelRun","crs.admission","one"),caller,default);
+                    Check(cancelled.Code=="Accepted"&&repository.FindCommand(failed.RequestId,caller.Sid) is {State:"Completed",Code:"Cancelled"},
+                        "显式取消可终止已知I/O失败的持久重试");
                     var conflict=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","crs.admission","one",Payload:"inputs-changed");await runtime.HandleAsync(conflict,caller,default);
                     await Until(()=>repository.FindCommand(conflict.RequestId,caller.Sid)?.Code=="RetryDeferred");
                     Check(repository.FindCommand(conflict.RequestId,caller.Sid)?.State=="Pending"&&repository.History().Any(x=>x is{Result:"RetryDeferred",Checkpoint:"admission=InputsChanged"}),"真实Worker将准备期间资料变化保存为原命令退避，不能标成功");

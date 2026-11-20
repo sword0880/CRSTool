@@ -39,6 +39,23 @@ internal static class TaskFailurePolicyChecks
                     &&repository.NextFailureNotice()?.Id==execution,"第四次失败停止补跑并持久化通知");
             }
 
+            // 结果未知不是普通可重试失败；即使尚有重试额度，也必须终止原命令以避免重复副作用。
+            var unknownPath=Path.Combine(root,"runner-outcome-unknown.db");
+            using(var unknownRepository=new EncryptedTaskRepository(unknownPath,key))
+            {
+                unknownRepository.RegisterDefault("test",new("unknown","结果未知任务","0 0 0 * * ?","China Standard Time",true));
+                var unknownPlan=unknownRepository.Plans().Single();
+                var unknownRequest=new BackgroundRequest(WorkerProtocol.Version,Guid.NewGuid(),"RunNow","test","unknown",Payload:"synthetic");
+                unknownRepository.AcceptCommand(unknownRequest,"admin");
+                var unknownExecution=unknownRepository.Begin(unknownPlan,DateTimeOffset.UtcNow,unknownRequest.RequestId);
+                unknownRepository.End(unknownExecution,unknownPlan,new("Failed","RunnerOutcomeUnknown"),unknownRequest.RequestId);
+                Check(unknownRepository.FindCommand(unknownRequest.RequestId,"admin") is {State:"Completed",Code:"Failed",ExecutionId:not null}
+                    &&unknownRepository.PendingRuns().Count==0
+                    &&unknownRepository.FindExecution(unknownExecution) is {Result:"Failed",Checkpoint:"RunnerOutcomeUnknown"}
+                    &&unknownRepository.NextFailureNotice()?.Id==unknownExecution,
+                    "Runner结果未知立即终结原命令、保留执行证据并发出失败通知，不自动重放");
+            }
+
             using var reopened=new EncryptedTaskRepository(path,key);
             var email=new Channel("email",true);var ding=new Channel("dingtalk",true);var wechat=new Channel("pushplus",false);
             var notifications=new WorkerNotificationGateway(new EmailNotificationService(root),new NotificationDispatcher([email,ding,wechat]));

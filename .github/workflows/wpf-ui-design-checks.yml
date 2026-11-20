@@ -132,6 +132,9 @@ jobs:
       - name: Verify notification audit storage faults fail closed
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --task-storage-boundary
+      - name: Verify retry policy and unknown Runner outcome terminality
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --task-failure-policy
       - name: Verify abandoned task-activity snapshot fairness and manual dispatch
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --manual-immediate

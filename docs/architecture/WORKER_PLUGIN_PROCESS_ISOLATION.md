@@ -1,6 +1,6 @@
 # Worker 后台插件进程隔离设计
 
-状态：**第一方进程故障隔离已接入正式源码组合根，工作区验证中；未替换已安装服务，不构成OS权限沙箱**（2026-10-23）。本轮采用父子进程私有继承stdio及独立V2双向协议，实现上下文/进度/通知/来源代理和Job Object监督；旧V1原型保留测试入口。下文保留分阶段目标及OS安全隔离门槛，实际接线与证据以[四项整改记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-optimization)为准。
+状态（2026-11-13）：**main 已将第一方每插件 Runner 接入 Worker Service 组合根；完整监督/持久执行回归尚未通过，最后已知正式安装服务尚未更新，且该机制不构成 OS 权限沙箱。** `Program.cs` 通过 `processSessions` 创建 `IsolatedPluginSession`；Runner 使用独立进程、私有 stdio V2 协议、包摘要/随机挑战/PID 握手和 Job Object 监督。当前源码事实与 CI 边界见第 11 节及[当前架构状态](ARCHITECTURE_STATUS.md)。
 
 范围：CRSTool 的 Windows Service、后台插件加载/执行、内部 IPC、插件私有数据、通知和来源预算。此文档是 P1-07 的设计入口，不授权立即改变正式服务、数据目录、密钥、插件 ID/Job ID、持久化 Schema 或现有桌面 Worker IPC。
 
@@ -130,6 +130,24 @@ flowchart LR
 - 不把 NationalTeam 业务 Schema、来源白名单、股票/ETF阈值或金融告警规则放进公共 Runner 协议。
 - 不因 Runner 方案而宣称跨机器 ServiceKey 灾备已完成；Worker 升级/恢复 P0 仍按独立文档验收。
 
-## 11. 当前结论
+## 11. 当前实现与验收结论
 
-本设计明确了迁移顺序与安全边界。新增的 stdio PluginRunner 仅验证受信夹具在独立进程中的加载、Describe/Execute/Query、帧长度、协议版本拒绝和正常退出；**Worker Service 尚未启动它，生产插件仍在 Worker 进程内加载**。该原型没有生产 Named Pipe、取消多路复用、能力 Broker、Job Object、独立 Windows 身份、目录 ACL 或网络隔离。P1-07 保持 Open；不得将此原型写成已交付的故障隔离或安全沙箱。
+### 11.1 当前源码接线
+
+- `src/CRS.Worker.Service/Program.cs` 在构造 `BackgroundPluginCatalog` 时传入 `processSessions`，每个受信插件由 `IsolatedPluginSession` 启动独立 `CRS.Worker.PluginRunner.exe`；不是仅供测试的孤立原型。
+- `IsolatedPluginSession` 负责创建子进程及 Job Object，使用私有标准输入/输出通道；启动握手绑定插件包 SHA-256、随机挑战、父进程 PID 与 Runner PID，并校验插件调度契约。
+- Runner 通过宿主代理取得该插件对应的上下文、进度、通知和来源预算能力；结果未知时不以新命令 ID 自动重放，重启预算按插件隔离。
+- **边界：**当前子进程由 Worker Service 直接启动，未切换为独立 Windows 身份/受限 Token，也未建立每插件独立 ACL、网络策略或独立密钥安全域。因此这是进程故障隔离，不是 OS 权限沙箱；不允许据此开放不受信任的第三方插件。
+
+### 11.2 自动化验证现状
+
+- Worker PluginRunner 独立进程/项目图工作流 [run 43398848047](https://github.com/sword0880/CRSTool/actions/runs/43398848047) 通过。该项验证 Runner 构建、项目图及原型协议，不等于完整 Worker 监督生命周期通过。
+- WPF UI 工作流 [run 43398848042](https://github.com/sword0880/CRSTool/actions/runs/43398848042) 中，项目图/架构检查、插件启动卡死隔离、其它插件继续启动、Runner 与 Worker PID 分离等前序检查通过；PR #36 的 run 43386238746 出现相同集成测试失败。
+- 同一工作流在 `SupervisedPluginChecks` 的持久命令故障恢复阶段失败：模拟 Runner 崩溃后记录 `RunnerOutcomeUnknown`，测试等待持久 `GetCommand` 回执时触发 10 秒截止取消，抛出 `TaskCanceledException`（`SupervisedPluginChecks.cs:93/108`）；后续检查被跳过。不能把该轮标记为全量通过。
+- 当前状态：源码已接线、部分故障隔离检查通过，持久执行结果未知/失败回执闭环仍未通过；P1-01 与 ARCH-207 保持未关闭。
+
+### 11.3 部署与后续安全门槛
+
+- main 中存在 Runner 接线不代表正式 Worker 已更新。最后可确认的正式安装基线仍见[当前架构状态](ARCHITECTURE_STATUS.md)（2026-10-31）；需要取得新发行包安装回执后，才能声明生产环境启用。
+- 仍需完成真实 Windows SCM 生命周期、启动/查询/执行/取消/Dispose 失控/崩溃/重启/排空、持久命令终态和维护恢复矩阵。
+- 如未来开放不受信任插件，必须另行完成独立服务身份、最小权限 Token、数据目录 ACL、密钥传递、网络隔离及安装/升级/恢复安全评审；Job Object 和独立 PID 本身不构成安全边界。

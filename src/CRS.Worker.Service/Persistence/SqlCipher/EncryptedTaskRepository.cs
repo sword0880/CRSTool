@@ -194,7 +194,7 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
                     result=new("Cancelled");
                 Execute("UPDATE execution SET ended=$now,result=$result,checkpoint=$checkpoint WHERE id=$id", ("$now", Now), ("$result", result.Status), ("$checkpoint", result.Checkpoint), ("$id", id));
                 var failed = TaskRetryPolicy.IsFailure(result.Status);
-                var retryFailure = failed && !cancellationRequested && plan.Failures < TaskRetryPolicy.MaximumRetries;
+                var retryFailure = TaskRetryPolicy.ShouldRetry(result, plan.Failures, cancellationRequested);
                 var deferred = retryFailure || result.Status is "NotPublished" or "RetryDeferred";
                 var seconds = Math.Min(21600, 60 * Math.Pow(2, Math.Min(plan.Failures, 8)));
                 // 权限/结构变化需要长时间冷却，绝不立即反复重试受限站点。
