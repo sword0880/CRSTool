@@ -41,8 +41,9 @@ internal static class ScheduleEditChecks
             Check(control.Requests.Last().RequestId==id&&reopened.Enabled&&control.Plan.Revision==6,"重新确认复用原请求，重新打开显示真实启用状态且不重复增加修订");
 
             var options = await parent.ReadPluginPlanOptionsAsync();
-            Check(options is [{ Revision: 0 }, { Revision: 6 }], "创建清单先展示可添加任务并保留已有计划");
-            var create = new ScheduleEditViewModel(parent, options![0]);
+            Check(options is [{ Name: "同步雪球发言", Status: "待接入数据源", Plan: null },
+                { Plan.Revision: 0 }, { Plan.Revision: 6 }], "创建清单显示雪球数据源状态，保留可添加任务和已有计划");
+            var create = new ScheduleEditViewModel(parent, options![1].Plan!);
             var priorRequests = control.Requests.Count;
             await create.EnableTaskCommand.ExecuteAsync(null);
             Check(create.IsNewPlan && create.Enabled && control.Requests.Count == priorRequests, "创建时切换启用只修改草稿");
@@ -73,7 +74,8 @@ internal static class ScheduleEditChecks
         {
             var now=CRS.Timing.BeijingClock.Now;
             BackgroundResponse Reply(string code)=>new(WorkerProtocol.Version,request.RequestId,code);
-            if(request.Command=="GetHealth")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",now,now,1)));
+            if(request.Command=="GetHealth")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",
+                Health:new("Running",now,now,1), Plugins: [new("crs.xueqiu-watch", "Started")]));
             if(request.Command=="GetTaskActivity")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",TaskActivity:new(now,[],0,0,0)));
             if(request.Command=="GetJobs")return Task.FromResult(new BackgroundResponse(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[Plan,Other]));
             if (request.Command == WorkerProtocol.GetPluginPlanOptions)

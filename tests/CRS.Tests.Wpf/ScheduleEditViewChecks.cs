@@ -40,15 +40,23 @@ internal static class ScheduleEditViewChecks
                 var existing = new TaskDefinition("crs.fixture", "installed", "已添加的任务", "0 0 23 * * ?",
                     "China Standard Time", true, 1, false);
                 var template = existing with { JobId = "optional", Name = "待添加的任务", Revision = 0, Enabled = false };
-                var picker = new PluginPlanPickerWindow([template, existing], CancellationToken.None);
+                var readyOption = new PluginPlanOption(template);
+                var savedOption = new PluginPlanOption(existing);
+                var waitingOption = new PluginPlanOption("同步雪球发言", "雪球观点追踪", "待接入数据源", null, "自动同步需要授权数据源。");
+                var picker = new PluginPlanPickerWindow([waitingOption, readyOption, savedOption], CancellationToken.None);
                 try
                 {
                     picker.Show(); picker.UpdateLayout();
                     var button = (Button)picker.FindName("ContinueButton");
                     if (picker.SelectedPlan != template || !button.IsEnabled || !Equals(button.Content, "设置计划"))
                         throw new Exception("添加计划窗口应选中可添加的插件任务。");
-                    ((DataGrid)picker.FindName("PluginTasks")).SelectedItem = existing;
+                    var grid = (DataGrid)picker.FindName("PluginTasks");
+                    grid.SelectedItem = savedOption;
                     if (!Equals(button.Content, "编辑计划")) throw new Exception("已有计划应进入编辑。");
+                    grid.SelectedItem = waitingOption;
+                    if (button.IsEnabled || picker.SelectedPlan is not null ||
+                        ((TextBlock)picker.FindName("SelectionDetail")).Text != waitingOption.Detail)
+                        throw new Exception("待接入任务应显示原因，不能打开计划编辑。");
                 }
                 finally { picker.Close(); }
                 var draft = new ScheduleEditWindow(new(new(CancellationToken.None), template));

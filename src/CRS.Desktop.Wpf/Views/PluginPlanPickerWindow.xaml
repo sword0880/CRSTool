@@ -16,29 +16,18 @@
             AutomationProperties.Name="插件任务" Style="{DynamicResource UiDenseDataGrid}">
    <DataGrid.Columns>
     <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="*"/>
-    <DataGridTextColumn Header="插件" Binding="{Binding PluginId}" Width="165"/>
-    <DataGridTemplateColumn Header="状态" Width="90">
-     <DataGridTemplateColumn.CellTemplate>
-      <DataTemplate>
-       <TextBlock Margin="6,4">
-        <TextBlock.Style>
-         <Style TargetType="TextBlock">
-          <Setter Property="Text" Value="已添加"/>
-          <Style.Triggers>
-           <DataTrigger Binding="{Binding Revision}" Value="0"><Setter Property="Text" Value="可添加"/></DataTrigger>
-          </Style.Triggers>
-         </Style>
-        </TextBlock.Style>
-       </TextBlock>
-      </DataTemplate>
-     </DataGridTemplateColumn.CellTemplate>
-    </DataGridTemplateColumn>
+    <DataGridTextColumn Header="插件" Binding="{Binding Plugin}" Width="165"/>
+    <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="115"/>
    </DataGrid.Columns>
   </DataGrid>
-  <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,14,20,18">
-   <Button Content="关闭" IsCancel="True" Padding="16,7" Margin="0,0,8,0"/>
-   <Button x:Name="ContinueButton" Content="设置计划" IsDefault="True" Click="OnContinue" IsEnabled="False"
-           Padding="16,7" Background="{DynamicResource BrandAccentBrush}" Foreground="White"/>
-  </StackPanel>
+  <DockPanel Grid.Row="3" Margin="20,14,20,18">
+   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+    <Button Content="关闭" IsCancel="True" Padding="16,7" Margin="0,0,8,0"/>
+    <Button x:Name="ContinueButton" Content="设置计划" IsDefault="True" Click="OnContinue" IsEnabled="False"
+            Padding="16,7" Background="{DynamicResource BrandAccentBrush}" Foreground="White"/>
+   </StackPanel>
+   <TextBlock x:Name="SelectionDetail" VerticalAlignment="Center" TextWrapping="Wrap"
+              Style="{StaticResource TaskPlanCaption}" AutomationProperties.LiveSetting="Polite"/>
+  </DockPanel>
  </Grid>
 </ui:FluentWindow>

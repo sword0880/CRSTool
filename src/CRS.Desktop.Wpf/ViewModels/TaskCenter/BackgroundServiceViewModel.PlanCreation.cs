@@ -7,9 +7,9 @@ public partial class BackgroundServiceViewModel
 {
     public bool CanAddPluginPlan => !Busy && UncertainRequest is null && !lifetime.IsCancellationRequested;
 
-    internal async Task<IReadOnlyList<TaskDefinition>?> ReadPluginPlanOptionsAsync()
+    internal async Task<IReadOnlyList<PluginPlanOption>?> ReadPluginPlanOptionsAsync()
     {
-        List<TaskDefinition>? options = null;
+        List<PluginPlanOption>? options = null;
         await WithStatusAsync(async () =>
         {
             if (UncertainRequest is not null)
@@ -34,7 +34,18 @@ public partial class BackgroundServiceViewModel
                 rows.AddRange(response.Jobs);
                 cursor = response.NextCursor;
             } while (cursor is not null);
-            options = rows.OrderBy(x => x.Revision != 0).ThenBy(x => x.Name, StringComparer.CurrentCulture).ToList();
+            options = rows.OrderBy(x => x.Revision != 0).ThenBy(x => x.Name, StringComparer.CurrentCulture)
+                .Select(plan => new PluginPlanOption(plan)).ToList();
+            const string xueqiuPluginId = "crs.xueqiu-watch";
+            if (rows.Any(plan => plan.PluginId == xueqiuPluginId)) return;
+
+            var health = await ReadServiceHealthAsync();
+            if (health is { Code: "Ok", Plugins: { } plugins } &&
+                plugins.Any(plugin => plugin is { PluginId: xueqiuPluginId, State: "Started" }))
+            {
+                options.Insert(0, new("同步雪球发言", "雪球观点追踪", "待接入数据源", null,
+                    "自动同步需要接入覆盖观察名单的授权数据源。"));
+            }
         });
         return options;
     }
@@ -57,4 +68,10 @@ public partial class BackgroundServiceViewModel
         Selected = existing ?? plan;
         UpdateHistorySuggestions();
     }
+}
+
+internal sealed record PluginPlanOption(string Name, string Plugin, string Status, TaskDefinition? Plan, string? Detail = null)
+{
+    internal PluginPlanOption(TaskDefinition plan)
+        : this(plan.Name, plan.PluginId, plan.Revision == 0 ? "可添加" : "已添加", plan) { }
 }
