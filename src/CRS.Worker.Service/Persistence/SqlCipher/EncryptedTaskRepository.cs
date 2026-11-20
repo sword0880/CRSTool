@@ -125,6 +125,25 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
                 ("$p", plugin), ("$j", descriptor.JobId), ("$n", descriptor.Name), ("$c", descriptor.DefaultCron), ("$z", CRS.Timing.BeijingClock.ZoneId), ("$e", descriptor.EnabledByDefault));
         });
     }
+    public string AddPlan(TaskDefinition plan, Guid requestId)
+    {
+        return Persist(() =>
+        {
+            lock (gate)
+            {
+                using var tx = db.BeginTransaction();
+                using var insert = Command("""
+                    INSERT INTO task VALUES($p,$j,$n,$c,$z,$e,1,1,NULL,0)
+                    ON CONFLICT(plugin,job) DO NOTHING
+                    """, ("$p", plan.PluginId), ("$j", plan.JobId), ("$n", plan.Name), ("$c", plan.Cron),
+                    ("$z", CRS.Timing.BeijingClock.ZoneId), ("$e", plan.Enabled));
+                var code = insert.ExecuteNonQuery() == 1 ? "Ok" : "PlanAlreadyExists";
+                CompleteCommand(requestId, code);
+                tx.Commit();
+                return code;
+            }
+        });
+    }
     public List<TaskDefinition> Plans()
     {
         return Persist<List<TaskDefinition>>(() =>

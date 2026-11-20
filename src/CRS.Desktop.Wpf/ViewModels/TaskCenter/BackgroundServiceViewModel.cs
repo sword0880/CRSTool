@@ -99,7 +99,7 @@ public partial class BackgroundServiceViewModel : ObservableObject
 
     public bool CanChangeHistory=>!Busy;
     partial void OnBusyChanged(bool value)
-    {OnPropertyChanged(nameof(CanChangeHistory));OnPropertyChanged(nameof(HasUnconfirmedRequest));NotifyPlanCommands();}
+    {OnPropertyChanged(nameof(CanChangeHistory));OnPropertyChanged(nameof(HasUnconfirmedRequest));OnPropertyChanged(nameof(CanAddPluginPlan));NotifyPlanCommands();}
     partial void OnSelectedChanged(TaskDefinition? value)
     {
         if (value is not null) { Cron = value.Cron; TimeZoneId = value.TimeZoneId;SelectedPlan=PlanRows.FirstOrDefault(x=>x.Job==value); }
@@ -170,6 +170,13 @@ public partial class BackgroundServiceViewModel : ObservableObject
         UncertainRequest = null;
         onResponse?.Invoke(response);
         scheduleSaved=command=="ChangeSchedule" && response.Code is "Ok" or "AcceptedNeedsReconcile";
+        if (command == WorkerProtocol.AddPluginPlan && response.Code is "Ok" or "AcceptedNeedsReconcile")
+        {
+            // 创建回执已包含权威计划，立即选中该行，无需等待通用分页刷新。
+            SelectCreatedPlan(response);
+            Status = response.Code == "Ok" ? "计划已添加。" : "计划已添加，等待后台应用。";
+            return;
+        }
         await LoadAsync();
         Status = response.Code switch
         {
@@ -177,6 +184,8 @@ public partial class BackgroundServiceViewModel : ObservableObject
             "Forbidden" => "当前 Windows 身份没有管理权限，请使用管理员身份运行管理端。",
             "RetryDeferred" => "任务处于退避期，暂缓执行。", "AlreadyRunning" => "该任务正在运行或等待执行。",
             "InvalidOrStaleRequest" => "计划输入无效或已被更改，请核对后重试。",
+            "PlanAlreadyExists" => "此任务已添加，请刷新计划并直接编辑。",
+            "JobUnavailable" => "插件任务当前不可用，请检查后台服务和插件状态。",
             "AcceptedNeedsReconcile" => "计划已保存，等待后台应用；后台会自动重试，生效后自动清除“计划待生效”标记。", _ => "服务返回：" + response.Code
         };
     });
@@ -185,7 +194,10 @@ public partial class BackgroundServiceViewModel : ObservableObject
     {
         if (UncertainRequest is null) { Status = "没有待确认请求。"; return; }
         var response = await client.SendAsync(UncertainRequest, lifetime);
-        UncertainRequest = null; await LoadAsync(); Status = "上次请求已确认：" + response.Code;
+        var confirmedCommand = UncertainRequest.Command;
+        UncertainRequest = null; await LoadAsync();
+        if (confirmedCommand == WorkerProtocol.AddPluginPlan) SelectCreatedPlan(response);
+        Status = "上次请求已确认：" + response.Code;
     });
     private async Task WithStatusAsync(Func<Task> action, bool reportHistoryFailure = false)
     {

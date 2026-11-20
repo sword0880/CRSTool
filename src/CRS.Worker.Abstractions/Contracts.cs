@@ -33,6 +33,8 @@ public sealed record BackgroundJobDescriptor(string JobId, string Name, string D
     string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false,bool ManualOnly=false)
 {
     public bool Diagnostic{get;init;}
+    /// <summary>普通插件任务可等待管理员创建计划；既有任务仍按原规则注册。</summary>
+    public bool RequiresPlanCreation { get; init; }
 }
 
 /// <summary>可预期的数据源结果使用分类返回，服务据此执行退避。</summary>

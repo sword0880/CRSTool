@@ -361,6 +361,7 @@ internal static class WorkerRemediationChecks
                 throw ProviderFailure?new AlternateProviderException():new IOException("隔离持久化边界故障");
         }
         public void RegisterDefault(string p, BackgroundJobDescriptor d) => inner.RegisterDefault(p, d);
+        public string AddPlan(TaskDefinition plan, Guid requestId) => inner.AddPlan(plan, requestId);
         public List<TaskDefinition> Plans() => inner.Plans();
         public void Save(TaskDefinition p, long r, Guid? id = null) => inner.Save(p, r, id);
         public void Reconciled(TaskDefinition p) => inner.Reconciled(p);

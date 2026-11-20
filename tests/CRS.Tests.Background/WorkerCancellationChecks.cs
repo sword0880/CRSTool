@@ -279,6 +279,7 @@ internal static class WorkerCancellationChecks
         public List<TaskDefinition> Plans() => Failure == "Plans" ? throw new IOException("synthetic storage") : inner.Plans();
         public List<(Guid RequestId, string PluginId, string JobId)> PendingRuns() => Failure == "PendingRuns" ? throw new IOException("synthetic storage") : inner.PendingRuns();
         public void RegisterDefault(string p, BackgroundJobDescriptor d) => inner.RegisterDefault(p, d);
+        public string AddPlan(TaskDefinition plan, Guid requestId) => inner.AddPlan(plan, requestId);
         public void Save(TaskDefinition p, long r, Guid? q = null) => inner.Save(p, r, q);
         public void Reconciled(TaskDefinition p) => inner.Reconciled(p);
         public string Begin(TaskDefinition p, DateTimeOffset s, Guid? q = null) => inner.Begin(p, s, q);

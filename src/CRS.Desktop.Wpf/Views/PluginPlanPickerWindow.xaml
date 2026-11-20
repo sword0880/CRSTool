@@ -1,0 +1,44 @@
+<ui:FluentWindow x:Class="CRS.DesktopClient.Views.PluginPlanPickerWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+ Title="添加计划" Width="720" Height="490" MinWidth="530" MinHeight="360"
+ WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource BrandCanvasBrush}">
+ <Grid>
+  <Grid.RowDefinitions>
+   <RowDefinition Height="46"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+  </Grid.RowDefinitions>
+  <ui:TitleBar Title="添加计划" ShowClose="True" ShowMinimize="False" ShowMaximize="False" ForceShutdown="False"/>
+  <TextBlock x:Name="PickerHint" Grid.Row="1" Margin="20,10,20,12" TextWrapping="Wrap"
+             Text="选择一个插件任务，然后设置执行时间。" Style="{StaticResource TaskPlanCaption}"/>
+  <DataGrid x:Name="PluginTasks" Grid.Row="2" Margin="20,0" AutoGenerateColumns="False" CanUserAddRows="False"
+            IsReadOnly="True" SelectionMode="Single"
+            AutomationProperties.Name="插件任务" Style="{DynamicResource UiDenseDataGrid}">
+   <DataGrid.Columns>
+    <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="*"/>
+    <DataGridTextColumn Header="插件" Binding="{Binding PluginId}" Width="165"/>
+    <DataGridTemplateColumn Header="状态" Width="90">
+     <DataGridTemplateColumn.CellTemplate>
+      <DataTemplate>
+       <TextBlock Margin="6,4">
+        <TextBlock.Style>
+         <Style TargetType="TextBlock">
+          <Setter Property="Text" Value="已添加"/>
+          <Style.Triggers>
+           <DataTrigger Binding="{Binding Revision}" Value="0"><Setter Property="Text" Value="可添加"/></DataTrigger>
+          </Style.Triggers>
+         </Style>
+        </TextBlock.Style>
+       </TextBlock>
+      </DataTemplate>
+     </DataGridTemplateColumn.CellTemplate>
+    </DataGridTemplateColumn>
+   </DataGrid.Columns>
+  </DataGrid>
+  <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,14,20,18">
+   <Button Content="关闭" IsCancel="True" Padding="16,7" Margin="0,0,8,0"/>
+   <Button x:Name="ContinueButton" Content="设置计划" IsDefault="True" Click="OnContinue" IsEnabled="False"
+           Padding="16,7" Background="{DynamicResource BrandAccentBrush}" Foreground="White"/>
+  </StackPanel>
+ </Grid>
+</ui:FluentWindow>

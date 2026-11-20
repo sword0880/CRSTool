@@ -24,6 +24,7 @@ if (args is ["--ai-gateway-worker-scm-probe", var gatewayProbePipe])
     return;
 }
 if(args is ["--diagnostic-jobs"]){await DiagnosticJobChecks.RunAsync();return;}
+if(args is ["--plugin-plan-creation"]){await PluginPlanCreationChecks.RunAsync();return;}
 if(args is ["--task-failure-policy"]){await TaskFailurePolicyChecks.RunAsync();return;}
 if(args is ["--command-tracker"]){BackgroundCommandTrackerChecks.Run();return;}
 if(args is ["--staged-documents",var stagedRoot]){StagedDocumentChecks.Run(stagedRoot);return;}

@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
 using CRS.DesktopClient.Composition;
 using CRS.DesktopClient.Services;
 using CRS.DesktopClient.ViewModels;
@@ -17,6 +19,13 @@ public partial class App : System.Windows.Application
     private bool awaitingUnlock;
     private VaultWindow? securityDialog;
     private DatabaseBackupWindow? databaseDialog;
+
+    public App()
+    {
+        // 在加载应用资源和创建首个窗口前选择软件渲染，规避本机图形加速路径的原生崩溃。
+        RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
+    }
+
     /// <summary>组合根连接后台和前台，界面不直接构造解析器或数据库。</summary>
     protected override void OnStartup(StartupEventArgs e)
     {

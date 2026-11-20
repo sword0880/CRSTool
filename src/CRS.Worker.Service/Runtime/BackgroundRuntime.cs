@@ -62,7 +62,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             { catalog.Quarantine(group[0].PluginId, "InvalidSchedule"); continue; }
             foreach (var job in group)
             {
-            repository.RegisterDefault(job.PluginId, job.Descriptor);
+            if (!WaitsForPlanCreation(job)) repository.RegisterDefault(job.PluginId, job.Descriptor);
             if(job.Descriptor.Diagnostic)
             {
                 var diagnosticPlan=repository.Plans().Single(x=>x.PluginId==job.PluginId&&x.JobId==job.Descriptor.JobId);
@@ -173,7 +173,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         try
         {
             var response = await HandleCoreAsync(request, caller, token);
-            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetDiagnosticJobs" or "GetHistoryJobs" or "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin"))
+            if (fault is null && request.Command is not ("GetHealth" or "GetJobs" or "GetDiagnosticJobs" or "GetHistoryJobs" or "GetHistory" or "GetFilteredHistory" or "GetHistoryByDate" or "GetTaskActivity" or "GetExecution" or "GetCommand" or "QueryPlugin" or WorkerProtocol.GetPluginPlanOptions))
                 repository.Audit(caller.Sid, request.RequestId, request.Command, response.Code);
             return response;
         }
@@ -219,6 +219,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         if (fault is not null) return Reply(fault);
         if (catalog.RequiresProcessRestart) return Reply("PluginUnresponsive");
         if (request.PageSize < 1 || request.PageSize > (request.Command=="GetHistoryByDate"?50:10)) return Reply("InvalidRequest");
+        if (request.Command == WorkerProtocol.GetPluginPlanOptions) return ReadPluginPlanOptions(request);
         if (request.Command is "GetJobs" or "GetDiagnosticJobs" or "GetHistoryJobs")
         {
             var matching = repository.Plans().Where(x => request.Command switch
@@ -277,6 +278,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         }
         if (request.Command == "AuditDenied" || !caller.CanManage) return Reply("Forbidden");
         if (maintenance) return Reply("Maintenance");
+        if (request.Command == WorkerProtocol.AddPluginPlan) return await AddPluginPlanAsync(request, caller, token);
         if (request.Command is not ("RunNow" or "Pause" or "Resume" or "ChangeSchedule" or "CancelRun")) return Reply("UnknownCommand");
         var plan = repository.Plans().SingleOrDefault(x => x.PluginId == request.PluginId && x.JobId == request.JobId);
         if (plan is null || !HasHandler(plan)) return Reply("JobUnavailable");
