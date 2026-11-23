@@ -31,7 +31,7 @@ internal sealed class AuthorEditor : WatchEditor
         Field("Google Alerts RSS 地址（每位作者独立配置）", feedUrl);
         Fields.Children.Add(new TextBlock
         {
-            Text = "低成本订阅方式：点击「打开 Google Alerts」，按下方生成的搜索条件创建一个提醒；在投递方式中选择 RSS，再把 Google 生成的 RSS 地址粘贴到上方。每位作者单独创建一个提醒。Google Alerts 免费，但搜索收录和更新时效不保证完整。",
+            Text = "低成本订阅方式：点击「打开 Google Alerts」，按下方生成的搜索条件创建一个提醒；建议来源保持自动、语言选择中文、结果数量选择「所有结果」，投递方式选择 RSS，再把 Google 生成的 RSS 地址粘贴到上方。每位作者单独创建一个提醒。Google Alerts 免费，但搜索收录和更新时效不保证完整。",
             TextWrapping = TextWrapping.Wrap, Margin = new(0, 2, 0, 6)
         });
         Fields.Children.Add(new TextBlock
