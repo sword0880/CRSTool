@@ -34,7 +34,20 @@ public sealed partial class XueqiuBackgroundEntry
                 try
                 {
                     var validators = new FeedValidators(subscription.Coverage?.ETag, subscription.Coverage?.LastModified);
-                    var result = await feed.FetchAsync(new Uri(subscription.Author.FeedUrl), validators, token);
+                    FeedFetchResult result;
+                    try
+                    {
+                        result = await feed.FetchAsync(new Uri(subscription.Author.FeedUrl), validators, token);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception)
+                    {
+                        // 单个来源出现意外异常时记录为不可用，继续处理其他作者。
+                        result = new FeedFetchResult(FeedFetchStatus.Unavailable);
+                    }
                     return new AuthorFeedScan(subscription.Author.Account, subscription.Author.FeedUrl, result);
                 }
                 finally { admission.Release(); }

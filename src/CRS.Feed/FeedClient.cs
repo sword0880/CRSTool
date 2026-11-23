@@ -123,6 +123,10 @@ public sealed class FeedClient : IDisposable
         {
             return new(FeedFetchStatus.Unavailable);
         }
+        catch (IOException)
+        {
+            return new(FeedFetchStatus.Unavailable);
+        }
     }
 
     private static bool IsRedirect(HttpStatusCode status) =>

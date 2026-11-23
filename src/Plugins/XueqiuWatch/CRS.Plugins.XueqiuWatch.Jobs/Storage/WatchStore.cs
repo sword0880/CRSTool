@@ -135,11 +135,12 @@ internal sealed partial class WatchStore : IDisposable
         if (!string.Equals(previousFeedUrl, feedUrl, StringComparison.Ordinal))
         {
             // 修改来源后清除旧验证器和覆盖状态，但保留已发现的历史线索。
+            var resetState = string.IsNullOrWhiteSpace(feedUrl) ? "NotConfigured" : "NeverChecked";
             Execute("""
                 UPDATE lead_coverage
-                SET state='NeverChecked', observed=0, matches=-1, etag=NULL, last_modified=NULL
+                SET state=$state, observed=0, matches=-1, etag=NULL, last_modified=NULL
                 WHERE account=$account
-                """, transaction, ("$account", account));
+                """, transaction, ("$state", resetState), ("$account", account));
         }
     }
 

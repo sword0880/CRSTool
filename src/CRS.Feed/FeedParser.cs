@@ -34,7 +34,7 @@ public static class FeedParser
         {
             throw;
         }
-        catch (Exception error) when (error is XmlException or JsonException or FormatException)
+        catch (Exception error) when (error is XmlException or JsonException or FormatException or InvalidOperationException)
         {
             throw new InvalidDataException("Feed 文档格式无效。", error);
         }

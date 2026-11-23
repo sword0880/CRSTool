@@ -58,7 +58,7 @@ internal sealed partial class WatchStore
         var matches = row.GetInt32(2);
         DateTimeOffset? lastModified = null;
         if (!row.IsDBNull(4) && DateTimeOffset.TryParse(row.GetString(4), CultureInfo.InvariantCulture,
-            DateTimeStyles.RoundtripKind, out var parsed))
+            DateTimeStyles.AllowWhiteSpaces, out var parsed))
             lastModified = parsed;
         return new(account, row.GetString(0), observed > 0 ? BeijingTime(observed) : null,
             matches < 0 ? null : matches, row.IsDBNull(3) ? null : row.GetString(3), lastModified);
@@ -160,7 +160,7 @@ internal sealed partial class WatchStore
                 var count = reader.GetInt32(3);
                 DateTimeOffset? modified = null;
                 if (!reader.IsDBNull(5) && DateTimeOffset.TryParse(reader.GetString(5), CultureInfo.InvariantCulture,
-                    DateTimeStyles.RoundtripKind, out var parsed))
+                    DateTimeStyles.AllowWhiteSpaces, out var parsed))
                     modified = parsed;
                 coverage.Add(account, new(account, reader.GetString(1),
                     observed > 0 ? BeijingTime(observed) : null, count < 0 ? null : count,
