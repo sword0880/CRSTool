@@ -78,7 +78,7 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
                 $reference.GetAttribute('DevelopmentPlugin') -eq 'true'
             Assert-Boundary ($reference.Include -notmatch 'Plugins|CRS\.Plugins\.' -or $developmentBuildOnly) "宿主/税务静态引用业务插件：$($projectFile.Name)"
         } else {
-            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.(Common|Documents)/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.(NationalTeam|XueqiuWatch)\.Core/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
+            Assert-Boundary ($reference.Include -match 'CRS\.Plugin\.(Wpf|Abstractions)/|CRS\.(Common|Documents)/|CRS\.Feed/|CRS\.Worker\.(Abstractions|Ipc)/|CRS\.Plugins\.(NationalTeam|XueqiuWatch)\.Core/') "业务插件反向依赖宿主或税务：$($projectFile.Name)"
         }
     }
 }
