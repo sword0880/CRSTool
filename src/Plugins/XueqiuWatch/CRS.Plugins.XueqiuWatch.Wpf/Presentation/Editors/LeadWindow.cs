@@ -41,7 +41,8 @@ internal sealed class LeadWindow : WatchEditor
         Field("筛选作者", filter);
         filter.SelectionChanged += async (_, _) => await BrowseAsync(0);
 
-        SetColumns(links, ("作者", nameof(LeadRow.Author)), ("首次发现（北京时间）", nameof(LeadRow.Found)),
+        SetColumns(links, ("作者", nameof(LeadRow.Author)), ("原帖发布时间", nameof(LeadRow.Published)),
+            ("文章标题", nameof(LeadRow.Title)), ("RSS 摘要", nameof(LeadRow.Summary)),
             ("雪球原链接（待核验）", nameof(LeadRow.Url)));
         Field("发言线索", links);
         var pagination = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new(0, 6, 0, 0) };
@@ -92,8 +93,7 @@ internal sealed class LeadWindow : WatchEditor
             return new AuthorCoverage(author.Name, item.CheckedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—",
                 CoverageText(author, item));
         }).ToArray();
-        links.ItemsSource = result.Rows.Select(item => new LeadRow(byAccount[item.Account].Name,
-            item.FirstSeen.ToString("yyyy-MM-dd HH:mm"), item)).ToArray();
+        links.ItemsSource = result.Rows.Select(item => new LeadRow(byAccount[item.Account].Name, item)).ToArray();
         page.Text = result.Total == 0 ? "暂无已保存线索" : $"第 {offset + 1}–{offset + result.Rows.Length} 条，共 {result.Total} 条";
         prior.IsEnabled = offset > 0;
         next.IsEnabled = offset + result.Rows.Length < result.Total;
@@ -155,8 +155,12 @@ internal sealed class LeadWindow : WatchEditor
     }
 
     private sealed record AuthorCoverage(string Author, string Checked, string Status);
-    private sealed record LeadRow(string Author, string Found, PostLead Lead)
+    private sealed record LeadRow(string Author, PostLead Lead)
     {
+        public string Published => Lead.PublishedAt?.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
+            ?? "RSS 未提供";
+        public string Title => Lead.Title;
+        public string Summary => Lead.Summary;
         public string Url => Lead.Url;
     }
 }
