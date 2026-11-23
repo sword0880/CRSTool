@@ -43,9 +43,9 @@ public sealed partial class XueqiuBackgroundEntry
                     {
                         throw;
                     }
-                    catch (Exception)
+                    catch (Exception error) when (error is HttpRequestException or IOException or ArgumentException or UriFormatException or InvalidOperationException)
                     {
-                        // 单个来源出现意外异常时记录为不可用，继续处理其他作者。
+                        // 单个来源出现网络、地址或解析异常时记录为不可用，继续处理其他作者。
                         result = new FeedFetchResult(FeedFetchStatus.Unavailable);
                     }
                     return new AuthorFeedScan(subscription.Author.Account, subscription.Author.FeedUrl, result);

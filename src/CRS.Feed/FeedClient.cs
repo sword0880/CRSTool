@@ -79,7 +79,7 @@ public sealed class FeedClient : IDisposable
                 }
 
                 var responseEtag = response.Headers.ETag?.ToString() ?? validators?.ETag;
-                var responseModified = response.Content.Headers.LastModified ?? validators?.LastModified;
+                var responseModified = response.Content?.Headers.LastModified ?? validators?.LastModified;
 
                 if (response.StatusCode == HttpStatusCode.NotModified)
                     return new(FeedFetchStatus.NotModified, ETag: responseEtag, LastModified: responseModified);
@@ -92,6 +92,9 @@ public sealed class FeedClient : IDisposable
                     return new(FeedFetchStatus.NotFound, ETag: responseEtag, LastModified: responseModified);
                 if (!response.IsSuccessStatusCode)
                     return new(FeedFetchStatus.Unavailable, ETag: responseEtag, LastModified: responseModified);
+
+                if (response.Content is null)
+                    return new(FeedFetchStatus.InvalidFeed, ETag: responseEtag, LastModified: responseModified);
 
                 byte[] body;
                 try
