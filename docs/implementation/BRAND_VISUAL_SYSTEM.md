@@ -2,7 +2,7 @@
 
 ## 单一来源
 - 认证窗口现有暖白底与橘红色是品牌基线，强调色 #C13D24；其他功能页和插件不自行定义蓝色主色。
-- 品牌色值只允许在 `src/CRS.Desktop.Wpf/Styles/BrandPalette.xaml` 中定义，使用 `{DynamicResource BrandAccentBrush}` 等语义资源。
+- 品牌色值只允许在 `src/Desktop/CRS.Desktop.Wpf/Styles/BrandPalette.xaml` 中定义，使用 `{DynamicResource BrandAccentBrush}` 等语义资源。
 - `SharedStyles.xaml` 是公共按钮、卡片、页面标题、指标卡和表格的唯一默认样式来源。局部 XAML 可以调整布局、尺寸、业务状态，但不得复制整套按钮模板或单独配置另一套主色。
 - `App.xaml` 按顺序加载 WPF-UI Light、Controls、BrandPalette、SharedStyles。启动时使用 BrandAccentBrush 初始化 WPF-UI 全局强调色；导航、主按钮等第三方控件因此继承统一强调色。
 - 插件通过 Application.Resources 使用相同资源；不要在插件程序集放另一份品牌调色板。

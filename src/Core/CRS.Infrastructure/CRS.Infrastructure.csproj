@@ -3,8 +3,8 @@
     <ProjectReference Include="../CRS.Domain/CRS.Domain.csproj" />
     <ProjectReference Include="../CRS.Application/CRS.Application.csproj" />
     <!-- 安全核心不认识文件和业务模型，所有持久化仍由基础设施协调。 -->
-    <ProjectReference Include="../CRS.Security/CRS.Security.csproj" />
-    <ProjectReference Include="../CRS.Documents/CRS.Documents.csproj" />
+    <ProjectReference Include="../../Shared/CRS.Security/CRS.Security.csproj" />
+    <ProjectReference Include="../../Shared/CRS.Documents/CRS.Documents.csproj" />
     <Using Include="CRS.Domain" />
     <Using Include="CRS.Application" />
     <PackageReference Include="Serilog" />

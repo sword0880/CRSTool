@@ -4,11 +4,11 @@ $ErrorActionPreference = 'Stop'
 & (Join-Path $PSScriptRoot 'Verify-ProjectGraph.ps1') -RepositoryRoot $RepositoryRoot
 # 用编译项目和源码验证依赖方向；只检查业务源码，忽略构建缓存。
 function Assert-Boundary([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
-$domain = Join-Path $RepositoryRoot 'src/CRS.Domain'
-$app = Join-Path $RepositoryRoot 'src/CRS.Application'
-$infra = Join-Path $RepositoryRoot 'src/CRS.Infrastructure'
-$wpf = Join-Path $RepositoryRoot 'src/CRS.Desktop.Wpf'
-$security = Join-Path $RepositoryRoot 'src/CRS.Security'
+$domain = Join-Path $RepositoryRoot 'src/Core/CRS.Domain'
+$app = Join-Path $RepositoryRoot 'src/Core/CRS.Application'
+$infra = Join-Path $RepositoryRoot 'src/Core/CRS.Infrastructure'
+$wpf = Join-Path $RepositoryRoot 'src/Desktop/CRS.Desktop.Wpf'
+$security = Join-Path $RepositoryRoot 'src/Shared/CRS.Security'
 [xml]$securityProject=Get-Content -Raw (Join-Path $security 'CRS.Security.csproj')
 Assert-Boundary ($securityProject.SelectNodes('//ProjectReference').Count -eq 0) 'Security 不得引用其他生产项目。'
 foreach($file in Get-ChildItem $security -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]') {
@@ -19,7 +19,9 @@ foreach($file in Get-ChildItem $security -Filter '*.cs' -Recurse | Where-Object 
 Assert-Boundary ($domainProject.SelectNodes('//ProjectReference | //PackageReference').Count -eq 0) 'Domain 不得引用外层或 UI 包。'
 [xml]$appProject = Get-Content -Raw (Join-Path $app 'CRS.Application.csproj')
 $appReferences = @($appProject.SelectNodes('//ProjectReference'))
-Assert-Boundary ($appReferences.Count -eq 2 -and @($appReferences | Where-Object {$_.Include -notmatch '^../CRS\.(Domain|Common)/CRS\.(Domain|Common)\.csproj$'}).Count -eq 0) 'Application 只能引用 Domain 与纯BCL时间策略。'
+Assert-Boundary ($appReferences.Count -eq 2 -and @($appReferences | Where-Object {
+    $_.Include -notin '../CRS.Domain/CRS.Domain.csproj','../../Shared/CRS.Common/CRS.Common.csproj'
+}).Count -eq 0) 'Application 只能引用 Domain 与纯BCL时间策略。'
 [xml]$infraProject = Get-Content -Raw (Join-Path $infra 'CRS.Infrastructure.csproj')
 foreach ($reference in $infraProject.SelectNodes('//ProjectReference')) {
     Assert-Boundary ($reference.Include -match 'CRS\.(Domain|Application|Security|Documents)/CRS\.(Domain|Application|Security|Documents)\.csproj$') 'Infrastructure 反向引用前台。'
@@ -60,6 +62,7 @@ Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'CRS.Python'))) 'Pyt
 Assert-Boundary (Test-Path (Join-Path $RepositoryRoot 'CRS.sln')) '缺少统一解决方案。'
 $solution = Get-Content -Raw (Join-Path $RepositoryRoot 'CRS.sln')
 Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.Desktop.WinForms'))) 'WinForms 项目仍存在。'
+Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/Desktop/CRS.Desktop.WinForms'))) 'WinForms 项目仍存在。'
 Assert-Boundary (-not ($solution -match 'CRS\.Desktop\.WinForms')) '解决方案仍引用 WinForms 项目。'
 Write-Output 'Domain / Application / Infrastructure / 前台边界、页面、项目引用和包版本检查通过。'
 foreach($projection in @('Brokers/IBKR/IbkrXmlParser.cs','Brokers/IBKR/CashBalanceChecker.cs','Performance/IbkrPerformanceAdapter.cs','Performance/PerformanceAccountIdentityReader.cs')) {
@@ -82,8 +85,8 @@ foreach ($projectFile in Get-ChildItem (Join-Path $RepositoryRoot 'src') -Filter
         }
     }
 }
-[xml]$contract = Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj')
-Assert-Boundary ($contract.SelectNodes('//PackageReference').Count -eq 0 -and @($contract.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../CRS.Common/CRS.Common.csproj'}).Count -eq 0) 'BCL插件契约只能依赖纯BCL时间策略。'
+[xml]$contract = Get-Content -Raw (Join-Path $RepositoryRoot 'src/PluginHost/CRS.Plugin.Abstractions/CRS.Plugin.Abstractions.csproj')
+Assert-Boundary ($contract.SelectNodes('//PackageReference').Count -eq 0 -and @($contract.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../../Shared/CRS.Common/CRS.Common.csproj'}).Count -eq 0) 'BCL插件契约只能依赖纯BCL时间策略。'
 foreach($sourceDir in @('src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/Presentation','src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain')) {
     foreach($file in Get-ChildItem (Join-Path $RepositoryRoot $sourceDir) -Filter '*.cs' -Recurse) {
         $source=Get-Content -Raw $file.FullName
@@ -93,32 +96,32 @@ foreach($sourceDir in @('src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/
 Write-Output '插件契约、宿主与业务插件依赖门禁通过。'
 # 后台链路必须可以脱离 WindowsDesktop/WPF 和个人税务程序集发布。
 foreach($name in @('Abstractions','PluginHost','Ipc','Service','PluginRunner')){
-    $path=Join-Path $RepositoryRoot "src/CRS.Worker.$name/CRS.Worker.$name.csproj"
+    $path=Join-Path $RepositoryRoot "src/Worker/CRS.Worker.$name/CRS.Worker.$name.csproj"
     [xml]$project=Get-Content -Raw $path
     Assert-Boundary ($null -eq $project.SelectSingleNode('//UseWPF | //UseWindowsForms')) "后台项目引用桌面框架：$name"
     foreach($reference in $project.SelectNodes('//ProjectReference')){
         # 公共通知只在服务组合根装配；其它后台层不能反向依赖通知实现。
-        $sharedNotification=$name -eq 'Service' -and $reference.Include -eq '../CRS.Notifications/CRS.Notifications.csproj'
-        $sharedTime=$name -eq 'Abstractions' -and $reference.Include -eq '../CRS.Common/CRS.Common.csproj'
+        $sharedNotification=$name -eq 'Service' -and $reference.Include -eq '../../Shared/CRS.Notifications/CRS.Notifications.csproj'
+        $sharedTime=$name -eq 'Abstractions' -and $reference.Include -eq '../../Shared/CRS.Common/CRS.Common.csproj'
         Assert-Boundary ($reference.Include -match 'CRS\.Worker\.' -or $sharedNotification -or $sharedTime) "后台项目越过服务边界：$name"
     }
 }
-[xml]$backgroundContract=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj')
-Assert-Boundary ($backgroundContract.SelectNodes('//PackageReference').Count -eq 0 -and @($backgroundContract.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../CRS.Common/CRS.Common.csproj'}).Count -eq 0) '后台契约只能依赖纯BCL时间策略。'
+[xml]$backgroundContract=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Worker/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj')
+Assert-Boundary ($backgroundContract.SelectNodes('//PackageReference').Count -eq 0 -and @($backgroundContract.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../../Shared/CRS.Common/CRS.Common.csproj'}).Count -eq 0) '后台契约只能依赖纯BCL时间策略。'
 # 通知组件保持独立，SMTP依赖只能在这里出现，宿主仅保留契约适配。
-[xml]$notificationProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Notifications/CRS.Notifications.csproj')
+[xml]$notificationProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Shared/CRS.Notifications/CRS.Notifications.csproj')
 Assert-Boundary ($notificationProject.SelectNodes('//UseWPF | //UseWindowsForms').Count -eq 0 -and @($notificationProject.SelectNodes('//ProjectReference') | Where-Object {$_.Include -ne '../CRS.Common/CRS.Common.csproj'}).Count -eq 0) '公共通知组件不得依赖宿主、业务或UI。'
-foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Notifications') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Shared/CRS.Notifications') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
     Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using CRS\.(Worker|Plugins|Infrastructure|Application)|using System\.Windows')) '公共通知组件反向依赖业务或宿主。'
 }
-foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Worker.Service') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Worker/CRS.Worker.Service') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
     Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using (MailKit|MimeKit|System\.Net\.Mail)')) 'SMTP实现必须归属公共通知组件。'
 }
 # Cross-plugin implementation must be BCL-only. Worker and each feature plugin remain downstream dependants.
-Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.Time/CRS.Time.csproj'))) '未上线工程不保留旧时间兼容壳。'
-$workerServiceProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/CRS.Worker.Service.csproj')
+Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/Shared/CRS.Time/CRS.Time.csproj'))) '未上线工程不保留旧时间兼容壳。'
+$workerServiceProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Worker/CRS.Worker.Service/CRS.Worker.Service.csproj')
 Assert-Boundary ($workerServiceProject -notmatch 'CRS.Time.dll' -and $workerServiceProject -match 'CRS.Common.dll') 'Worker Runner只打包当前公共实现。'
-$pluginCommon=Join-Path $RepositoryRoot 'src/CRS.Common'
+$pluginCommon=Join-Path $RepositoryRoot 'src/Shared/CRS.Common'
 [xml]$pluginCommonProject=Get-Content -Raw (Join-Path $pluginCommon 'CRS.Common.csproj')
 Assert-Boundary ($pluginCommonProject.SelectNodes('//ProjectReference | //PackageReference | //UseWPF | //UseWindowsForms').Count -eq 0) '公共基础组件不得引入宿主、业务或UI依赖。'
 foreach($file in Get-ChildItem $pluginCommon -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
@@ -127,11 +130,11 @@ foreach($file in Get-ChildItem $pluginCommon -Filter '*.cs' -Recurse | Where-Obj
 }
 Write-Output '后台服务无 WPF/私人税务依赖门禁通过。'
 # 有第三方解析依赖的文档机制独立于纯BCL Common及税务基础设施。
-[xml]$documentsProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Documents/CRS.Documents.csproj')
+[xml]$documentsProject=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Shared/CRS.Documents/CRS.Documents.csproj')
 $documentPackages=@($documentsProject.SelectNodes('//PackageReference') | ForEach-Object Include | Sort-Object)
 # PDFsharp 仅在公共文档层实现 PDF 文件打开密码，业务层继续只调用 CRS.Documents。
 Assert-Boundary ($documentsProject.SelectNodes('//ProjectReference | //UseWPF | //UseWindowsForms').Count -eq 0 -and ($documentPackages -join ',') -eq 'NPOI,PdfPig,PDFsharp,SkiaSharp,System.Security.Cryptography.Xml') '文档机制只可依赖明确登记的文档解析库及其运行依赖，不得依赖宿主、业务或数据库。'
-foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Documents') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Shared/CRS.Documents') -Filter '*.cs' -Recurse | Where-Object FullName -NotMatch '[\\/](bin|obj)[\\/]'){
     Assert-Boundary (-not ((Get-Content -Raw $file.FullName) -match 'using CRS\.(Domain|Application|Infrastructure|Plugins|Desktop)|Microsoft\.Data\.Sqlite|System\.Windows')) "文档机制出现业务依赖：$($file.Name)"
 }
 # ETF桌面入口必须只使用管道，后台入口必须保持无界面，主程序会话不能再实例化调度器。
@@ -144,10 +147,10 @@ Assert-Boundary (-not (($etfJobs.SelectNodes('//ProjectReference').Include -join
 Assert-Boundary ($etfJobs.SelectNodes('//Compile[@Include]').Count -eq 0 -and $etfUi.SelectNodes('//Compile[@Remove]').Count -eq 0) '国家队 Core/Jobs/UI 必须实体拥有源码，不得通过链接/排除维持虚假模块边界。'
 [xml]$etfCore=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/CRS.Plugins.NationalTeam.Core.csproj')
 Assert-Boundary ($etfCore.SelectNodes('//Compile[@Include]').Count -eq 0) 'ETF Core 不允许跨目录源码链接。'
-Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/CRS.PluginHost/QuartzTaskScheduler.cs'))) '桌面宿主仍保留第二套 Quartz 执行实现。'
+Assert-Boundary (-not (Test-Path (Join-Path $RepositoryRoot 'src/PluginHost/CRS.PluginHost/QuartzTaskScheduler.cs'))) '桌面宿主仍保留第二套 Quartz 执行实现。'
 $uiEntry=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/NationalTeamPluginEntry.cs')
 Assert-Boundary (-not ($uiEntry -match 'new\s+(MarketRepository|OfficialShareSources|NationalTeamApplication)|RegisterAsync|\bEtfWorkspace\(')) 'ETF桌面入口仍有本地采集/写入路径。'
-$uiHost=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.PluginHost/PluginRuntime.cs')
+$uiHost=Get-Content -Raw (Join-Path $RepositoryRoot 'src/PluginHost/CRS.PluginHost/PluginRuntime.cs')
 Assert-Boundary (-not ($uiHost -match 'new\s+QuartzTaskScheduler|scheduler\.Scope')) '桌面插件宿主仍创建第二个调度器。'
 Write-Output 'ETF双入口、唯一任务执行者与桌面无写库依赖门禁通过。'
 foreach($sourceDir in @('src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Application','src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Application')) {
@@ -161,23 +164,23 @@ foreach($file in Get-ChildItem (Join-Path $RepositoryRoot $sourceDir) -Filter '*
 Assert-Boundary ($LASTEXITCODE -eq 0) '绩效复杂度/方法规模门禁失败（请先构建当前源码）。'
 
 # 共享来源规则只能依赖存储端口；数据库装配与方言留在适配器/启动入口。
-$budgetPolicy=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/Sources/SourceBudgetRegistry.cs')
+$budgetPolicy=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Worker/CRS.Worker.Service/Sources/SourceBudgetRegistry.cs')
 Assert-Boundary ($budgetPolicy -match 'readonly ISourceBudgetStore store' -and $budgetPolicy -notmatch 'Sqlite|SqlConnection|DbConnection|Dapper|PRAGMA|new\s+\w*SourceBudgetStore') '来源预算规则重新耦合数据库实现。'
-$budgetPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/Persistence/ISourceBudgetStore.cs')
+$budgetPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Worker/CRS.Worker.Service/Persistence/ISourceBudgetStore.cs')
 Assert-Boundary ($budgetPort -notmatch 'Microsoft\.Data|System\.Data|DbConnection|DbTransaction|IQueryable') '来源预算端口暴露数据库实现类型。'
 Write-Output '来源预算数据库端口边界检查通过。'
 
-foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/Runtime') -Filter 'BackgroundRuntime*.cs') {
+foreach($file in Get-ChildItem (Join-Path $RepositoryRoot 'src/Worker/CRS.Worker.Service/Runtime') -Filter 'BackgroundRuntime*.cs') {
     $source=Get-Content -Raw $file.FullName
     Assert-Boundary ($source -notmatch 'Microsoft\.Data\.Sqlite|SqliteException|SqliteConnection|new\s+EncryptedTaskRepository') "后台运行规则耦合SQLite提供方：$($file.Name)"
 }
-$taskPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Worker.Service/Persistence/ITaskRepository.cs')
+$taskPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Worker/CRS.Worker.Service/Persistence/ITaskRepository.cs')
 Assert-Boundary ($taskPort -notmatch 'Microsoft\.Data|System\.Data|DbConnection|DbTransaction|IQueryable') '任务仓储端口暴露数据库实现类型。'
 Write-Output '后台运行规则与任务仓储提供方边界检查通过。'
 
-$vaultFacade=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Infrastructure/Security/VaultManager.cs')
+$vaultFacade=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Core/CRS.Infrastructure/Security/VaultManager.cs')
 Assert-Boundary ($vaultFacade -match 'IVaultStorageBackend backend' -and $vaultFacade -notmatch 'Sqlite|Dapper|PRAGMA|new\s+(LocalStore|PerformanceStore|VaultSession)') '保险库入口重新耦合具体数据库。'
-$vaultPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/CRS.Infrastructure/Storage/IVaultStorageBackend.cs')
+$vaultPort=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Core/CRS.Infrastructure/Storage/IVaultStorageBackend.cs')
 Assert-Boundary ($vaultPort -notmatch 'Microsoft\.Data|System\.Data|Sqlite|DbConnection|DbTransaction') '保险库存储端口泄漏数据库实现。'
 $jobsEntry=Get-Content -Raw (Join-Path $RepositoryRoot 'src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Background/NationalTeamBackgroundEntry.cs')
 Assert-Boundary ($jobsEntry -match 'storage.OpenMarket' -and $jobsEntry -notmatch 'new\s+(MarketRepository|SourceRequestPolicy)') '插件入口绕过存储工厂。'

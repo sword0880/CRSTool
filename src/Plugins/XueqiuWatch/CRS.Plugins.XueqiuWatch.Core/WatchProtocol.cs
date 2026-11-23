@@ -8,7 +8,7 @@ public enum Stance { Pending, Bullish, Bearish, Neutral }
 public enum Attribution { Author, Mention, Repost }
 
 public sealed record Author(string Account, string Name, string Note = "", bool Active = true,
-    bool Archived = false, long Revision = 0, string FeedUrl = "");
+    bool Archived = false, long Revision = 0, string FeedUrl = "", GoogleAlertState AlertState = GoogleAlertState.None);
 
 public sealed record Security(string Market, string Code, string Name, string Industry)
 {
@@ -28,13 +28,15 @@ public sealed record WatchOverview(StockSummary[] Stocks, string[] Industries, i
     int Unmatched, DateTimeOffset? Earliest, DateTimeOffset? Latest, DateTimeOffset? LastRecorded);
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
-    Opinion? Opinion = null, Guid ChangeId = default);
+    Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null);
 
 public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? Detail = null,
     Author[]? Authors = null, Security[]? Securities = null, string? Error = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LeadPage? Leads { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GoogleAlertSubscription? Alert { get; init; }
 }
 
 public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",

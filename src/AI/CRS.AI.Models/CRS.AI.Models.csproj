@@ -7,6 +7,6 @@
     <ProjectReference Include="../CRS.AI.Adapters/CRS.AI.Adapters.csproj" />
     <ProjectReference Include="../CRS.AI.Contracts/CRS.AI.Contracts.csproj" />
     <ProjectReference Include="../CRS.AI.Gateway/CRS.AI.Gateway.csproj" />
-    <ProjectReference Include="../CRS.Common/CRS.Common.csproj" />
+    <ProjectReference Include="../../Shared/CRS.Common/CRS.Common.csproj" />
   </ItemGroup>
 </Project>

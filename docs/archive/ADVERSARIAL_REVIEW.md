@@ -23,12 +23,12 @@ P0 表示优先补齐自用可靠性，P1 表示完整业务能力或公开发�
 
 ## 可核对的代码依据
 
-- `src/CRS.Application/Imports/AnnualInputPreparation.cs`：以 1 月 1 日为目标年度起点，缺口产生 `INCOMPLETE_PERIOD`，未接入账户生命周期证据。
-- `src/CRS.Infrastructure/Security/VaultBackupFiles.cs`：在线快照关闭后检查 128 MiB 上限，再整库读取、JSON 编码及认证加密；不是流式备份。
-- `src/CRS.Infrastructure/Persistence/LocalStore.cs`：查询完整 result_json 后反序列化，无 SQL 长度前置门槛；分页并不约束单条记录体积。
-- `src/CRS.Infrastructure/Persistence/CarryFiles.cs`：2 MB 路径大小检查与 `ReadAllBytes` 不是同一文件句柄；`SourceSnapshotId` 仅要求非空，摘要不是来源真实性认证。
-- `src/CRS.Infrastructure/Security/VaultManager.cs`、`VaultSession.cs`：备份与 Lock 共享门闩；`App.xaml.cs` 在工作区锁定时先隐藏并发出取消，再关闭保险库，但启动向导路径仍应单独演练。
-- `src/CRS.Application/TaxCalculation/ForeignCreditReview.cs`：登记抵免证据后强制 Partial、预计补税为空；税务复核能力仍未闭环。
+- `src/Core/CRS.Application/Imports/AnnualInputPreparation.cs`：以 1 月 1 日为目标年度起点，缺口产生 `INCOMPLETE_PERIOD`，未接入账户生命周期证据。
+- `src/Core/CRS.Infrastructure/Security/VaultBackupFiles.cs`：在线快照关闭后检查 128 MiB 上限，再整库读取、JSON 编码及认证加密；不是流式备份。
+- `src/Core/CRS.Infrastructure/Persistence/LocalStore.cs`：查询完整 result_json 后反序列化，无 SQL 长度前置门槛；分页并不约束单条记录体积。
+- `src/Core/CRS.Infrastructure/Persistence/CarryFiles.cs`：2 MB 路径大小检查与 `ReadAllBytes` 不是同一文件句柄；`SourceSnapshotId` 仅要求非空，摘要不是来源真实性认证。
+- `src/Core/CRS.Infrastructure/Security/VaultManager.cs`、`VaultSession.cs`：备份与 Lock 共享门闩；`App.xaml.cs` 在工作区锁定时先隐藏并发出取消，再关闭保险库，但启动向导路径仍应单独演练。
+- `src/Core/CRS.Application/TaxCalculation/ForeignCreditReview.cs`：登记抵免证据后强制 Partial、预计补税为空；税务复核能力仍未闭环。
 - `docs/implementation/FROZEN_EVIDENCE.md`、`docs/validation/REAL_SAMPLE_PROGRESS.md`：完整环境及跨版本复现限制、真实样本的技术验收边界。
 
 ## 不应误判为待修漏洞的边界

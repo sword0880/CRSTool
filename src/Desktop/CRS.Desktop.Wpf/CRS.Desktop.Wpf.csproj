@@ -20,11 +20,11 @@
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="DataGridExtensions" />
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" />
-    <ProjectReference Include="../CRS.Application/CRS.Application.csproj" />
-    <ProjectReference Include="../CRS.Infrastructure/CRS.Infrastructure.csproj" />
-    <ProjectReference Include="../CRS.PluginHost/CRS.PluginHost.csproj" />
-    <ProjectReference Include="../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
-    <ProjectReference Include="../CRS.AI.Models/CRS.AI.Models.csproj" />
+    <ProjectReference Include="../../Core/CRS.Application/CRS.Application.csproj" />
+    <ProjectReference Include="../../Core/CRS.Infrastructure/CRS.Infrastructure.csproj" />
+    <ProjectReference Include="../../PluginHost/CRS.PluginHost/CRS.PluginHost.csproj" />
+    <ProjectReference Include="../../Worker/CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
+    <ProjectReference Include="../../AI/CRS.AI.Models/CRS.AI.Models.csproj" />
     <Using Include="CRS.Domain" />
     <Using Include="CRS.Application" />
     <!-- 配置源归属 WPF 项目，构建与发布时都保留运行目录中的 config 子目录。 -->
@@ -32,11 +32,11 @@
   </ItemGroup>
   <!-- 只建立构建顺序，不把业务插件加入宿主编译引用或输出根目录。 -->
   <ItemGroup Condition="'SyncDevelopmentPlugins' != 'false'">
-    <ProjectReference Include="../Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
-    <ProjectReference Include="../Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/CRS.Plugins.NationalTeam.Jobs.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
-    <ProjectReference Include="../Plugins/CRS.Plugins.Demo/CRS.Plugins.Demo.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
-    <ProjectReference Include="../Plugins/XueqiuWatch/CRS.Plugins.XueqiuWatch.Wpf/CRS.Plugins.XueqiuWatch.Wpf.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
-    <ProjectReference Include="../Plugins/XueqiuWatch/CRS.Plugins.XueqiuWatch.Jobs/CRS.Plugins.XueqiuWatch.Jobs.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+    <ProjectReference Include="../../Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/CRS.Plugins.NationalTeamWatch.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+    <ProjectReference Include="../../Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/CRS.Plugins.NationalTeam.Jobs.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+    <ProjectReference Include="../../Plugins/CRS.Plugins.Demo/CRS.Plugins.Demo.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+    <ProjectReference Include="../../Plugins/XueqiuWatch/CRS.Plugins.XueqiuWatch.Wpf/CRS.Plugins.XueqiuWatch.Wpf.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
+    <ProjectReference Include="../../Plugins/XueqiuWatch/CRS.Plugins.XueqiuWatch.Jobs/CRS.Plugins.XueqiuWatch.Jobs.csproj" ReferenceOutputAssembly="false" Private="false" DevelopmentPlugin="true" />
   </ItemGroup>
   <!-- 指纹编译进主程序，不信任可与 DLL 一起替换的旁置清单；必须来自可信构建。 -->
   <Target Name="GenerateTrustedDocumentFingerprint" Condition="'$(DesignTimeBuild)' != 'true'" DependsOnTargets="ResolveReferences">
@@ -71,6 +71,6 @@
     </MSBuild>
     <WriteLinesToFile File="$(IntermediateOutputPath)development-plugin-outputs.txt"
                       Lines="@(_DevelopmentPluginAssembly->'%(FullPath)')" Overwrite="true" WriteOnlyWhenDifferent="true" />
-    <Exec Command="&quot;$(SystemRoot)/System32/WindowsPowerShell/v1.0/powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../tests/Build-DevelopmentPlugins.ps1&quot; -AssemblyList &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)development-plugin-outputs.txt&quot; -OutputDirectory &quot;$(TargetDir)Plugins&quot;" />
+    <Exec Command="&quot;$(SystemRoot)/System32/WindowsPowerShell/v1.0/powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../../tests/Build-DevelopmentPlugins.ps1&quot; -AssemblyList &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)development-plugin-outputs.txt&quot; -OutputDirectory &quot;$(TargetDir)Plugins&quot;" />
   </Target>
 </Project>

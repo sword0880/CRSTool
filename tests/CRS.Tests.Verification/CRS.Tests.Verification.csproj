@@ -4,6 +4,6 @@
     <Using Include="CRS.Application" />
     <Using Include="CRS.Domain" />
     <!-- 基础库固定为单目标框架，跳过跨目标框架探测以便离线构建。 -->
-    <ProjectReference Include="../../src/CRS.Infrastructure/CRS.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Core/CRS.Infrastructure/CRS.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

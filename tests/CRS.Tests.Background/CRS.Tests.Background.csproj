@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- 独立进程、加密库及真实 Windows 管道验证不依赖桌面框架。 -->
   <PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../../src/CRS.Worker.Service/CRS.Worker.Service.csproj" /><ProjectReference Include="../Plugin/Fixtures/CRS.Worker.FixturePlugin/CRS.Worker.FixturePlugin.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../src/Worker/CRS.Worker.Service/CRS.Worker.Service.csproj" /><ProjectReference Include="../Plugin/Fixtures/CRS.Worker.FixturePlugin/CRS.Worker.FixturePlugin.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../src/Plugins/XueqiuWatch/CRS.Plugins.XueqiuWatch.Core/CRS.Plugins.XueqiuWatch.Core.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../src/Plugins/XueqiuWatch/CRS.Plugins.XueqiuWatch.Jobs/CRS.Plugins.XueqiuWatch.Jobs.csproj" /><ProjectReference Include="../../src/CRS.Feed/CRS.Feed.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../src/Plugins/XueqiuWatch/CRS.Plugins.XueqiuWatch.Jobs/CRS.Plugins.XueqiuWatch.Jobs.csproj" /><ProjectReference Include="../../src/Shared/CRS.Feed/CRS.Feed.csproj" /></ItemGroup>
 </Project>

@@ -1,6 +1,6 @@
 # 公共文档读取与生成
 
-`CRS.Documents`拥有通用PDF、Excel和密码文档机制，不引用业务、数据库、安全会话或WPF。公共类型、资源上限及第三方库限制以[模块说明](../../src/CRS.Documents/README.md)为准；业务解析器只消费文档结构，保留各自的字段、金额和证据规则。
+`CRS.Documents`拥有通用PDF、Excel和密码文档机制，不引用业务、数据库、安全会话或WPF。公共类型、资源上限及第三方库限制以[模块说明](../../src/Shared/CRS.Documents/README.md)为准；业务解析器只消费文档结构，保留各自的字段、金额和证据规则。
 
 ## PDF与Excel边界
 

@@ -10,9 +10,9 @@
 
 触发时序：插件已返回 RetryDeferred，执行器等待全局门闩提交结果；CancelRun 先取得门闩并返回 Accepted；随后执行器提交 RetryDeferred。
 
-- `src/CRS.Worker.Service/Runtime/BackgroundRuntime.cs:311` 的 CancelAsync 取消待执行命令并向运行任务发送取消信号，但没有持久记录运行中命令的取消意图。
-- `src/CRS.Worker.Service/Persistence/SqlCipher/EncryptedTaskRepository.cs:340` 的 CancelPending 只处理 Pending，运行中的原命令仍为 Running。
-- `src/CRS.Worker.Service/Persistence/SqlCipher/EncryptedTaskRepository.cs:187` 无条件将 RetryDeferred 的原命令重新置为 Pending；`BackgroundRuntime.cs:386` 随即协调恢复。
+- `src/Worker/CRS.Worker.Service/Runtime/BackgroundRuntime.cs:311` 的 CancelAsync 取消待执行命令并向运行任务发送取消信号，但没有持久记录运行中命令的取消意图。
+- `src/Worker/CRS.Worker.Service/Persistence/SqlCipher/EncryptedTaskRepository.cs:340` 的 CancelPending 只处理 Pending，运行中的原命令仍为 Running。
+- `src/Worker/CRS.Worker.Service/Persistence/SqlCipher/EncryptedTaskRepository.cs:187` 无条件将 RetryDeferred 的原命令重新置为 Pending；`BackgroundRuntime.cs:386` 随即协调恢复。
 
 隔离结果：取消响应为 Accepted，原请求最后为 `State=Pending, Code=RetryDeferred`，待执行数为 1。夹具任务处于禁用计划，仍会经手动命令恢复路径重新调度。
 
@@ -38,7 +38,7 @@
 
 `BackgroundRuntime.cs:204` 在非故障分支读取 Plans；即使 fault 已置位，`BackgroundRuntime.Scheduling.cs:18` 的 SchedulingSnapshot 仍必读 PendingRuns。若任务仓储持续不可读，GetHealth 会再次抛存储异常，并由 HandleAsync 返回只有 `Code=StorageFault`、`Health=null` 的响应。
 
-隔离结果与上述一致。桌面的 `src/CRS.Desktop.Wpf/ViewModels/BackgroundServiceViewModel.cs:107` 只从 Health.State 取状态，此时会得到 Unknown，失去 StorageFault 对应的明确恢复提示。既有文档所述“健康查询不再依赖故障仓储”在当前实现中不完全成立。
+隔离结果与上述一致。桌面的 `src/Desktop/CRS.Desktop.Wpf/ViewModels/BackgroundServiceViewModel.cs:107` 只从 Health.State 取状态，此时会得到 Unknown，失去 StorageFault 对应的明确恢复提示。既有文档所述“健康查询不再依赖故障仓储”在当前实现中不完全成立。
 
 应让故障健康响应依赖内存故障状态；不可读取的调度字段表达为未知，不填零。此项与 StorageFault 需要修复后重启的既有策略分开：本轮不建议自动清除存储故障继续写入。
 

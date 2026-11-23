@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
- <ItemGroup><ProjectReference Include="../../src/CRS.Application/CRS.Application.csproj"/></ItemGroup>
+ <ItemGroup><ProjectReference Include="../../src/Core/CRS.Application/CRS.Application.csproj"/></ItemGroup>
 </Project>

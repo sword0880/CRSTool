@@ -17,7 +17,7 @@
 
 ## 2. 整改前事实与风险
 
-源码：`src/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`、`src/CRS.Worker.Service/Program.cs`、`src/CRS.Worker.Service/Hosting/WorkerPluginContext.cs`、`src/CRS.Worker.Abstractions/Contracts.cs`。
+源码：`src/Worker/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`、`src/Worker/CRS.Worker.Service/Program.cs`、`src/Worker/CRS.Worker.Service/Hosting/WorkerPluginContext.cs`、`src/Worker/CRS.Worker.Abstractions/Contracts.cs`。
 
 - Worker 内的 `BackgroundPluginCatalog` 使用可收集的 `AssemblyLoadContext`，验证受信索引、包内哈希、加载契约和依赖；有生命周期超时、异常分类和不合作插件的终止状态。
 - 所有插件代码仍运行在 Worker 进程与服务令牌内。ALC/哈希约束包身份和程序集加载，不限制文件、网络、原生调用、进程内存或 `Environment.Exit`。
@@ -134,7 +134,7 @@ flowchart LR
 
 ### 11.1 当前源码接线
 
-- `src/CRS.Worker.Service/Program.cs` 在构造 `BackgroundPluginCatalog` 时传入 `processSessions`，每个受信插件由 `IsolatedPluginSession` 启动独立 `CRS.Worker.PluginRunner.exe`；不是仅供测试的孤立原型。
+- `src/Worker/CRS.Worker.Service/Program.cs` 在构造 `BackgroundPluginCatalog` 时传入 `processSessions`，每个受信插件由 `IsolatedPluginSession` 启动独立 `CRS.Worker.PluginRunner.exe`；不是仅供测试的孤立原型。
 - `IsolatedPluginSession` 负责创建子进程及 Job Object，使用私有标准输入/输出通道；启动握手绑定插件包 SHA-256、随机挑战、父进程 PID 与 Runner PID，并校验插件调度契约。
 - Runner 通过宿主代理取得该插件对应的上下文、进度、通知和来源预算能力；结果未知时不以新命令 ID 自动重放，重启预算按插件隔离。
 - **边界：**当前子进程由 Worker Service 直接启动，未切换为独立 Windows 身份/受限 Token，也未建立每插件独立 ACL、网络策略或独立密钥安全域。因此这是进程故障隔离，不是 OS 权限沙箱；不允许据此开放不受信任的第三方插件。

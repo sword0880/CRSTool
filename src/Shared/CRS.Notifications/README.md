@@ -19,7 +19,7 @@ Worker组合根注册通道；业务只提交消息与渠道ID。WPF通过应用
 配置由宿主准备的受保护目录保存，Webhook凭据使用LocalMachine DPAPI，ACL由宿主负责。只返回凭据是否存在；空值保留、显式清除才删除，过期Revision拒绝覆盖。旧邮件文件名和格式不变。
 
 设置默认关闭，保存不发送。钉钉填写access_token及SEC加签密钥，不填写完整Webhook URL。个人微信先在PushPlus绑定微信，再填写Token；消息会经过该第三方服务。
-配置和测试入口见[设置指南](../../docs/guides/SETTINGS.md)。订阅还需在业务预警设置中选择渠道。
+配置和测试入口见[设置指南](../../../docs/guides/SETTINGS.md)。订阅还需在业务预警设置中选择渠道。
 
 HTTP目标固定HTTPS且生产传输禁用重定向。每通道串行，单进程提交间隔至少3秒，HTTP 429尊重Retry-After；没有持久提供商配额与送达查询。消息超过保守UTF8字节上限明确拒绝，不截断。
 Accepted只代表受理；提交后的超时、取消、响应错误或5xx保持OutcomeUnknown，不自动重发或换通道。

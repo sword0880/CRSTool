@@ -6,7 +6,7 @@
 
 ## 规则与金额
 
-[TaxEngine](../../src/CRS.Domain/TaxRules/TaxEngine.cs) 的 PolicyVersion 为 V2-2026-10，继续沿用项目辅助口径：
+[TaxEngine](../../src/Core/CRS.Domain/TaxRules/TaxEngine.cs) 的 PolicyVersion 为 V2-2026-10，继续沿用项目辅助口径：
 
 - 股息、利息按原币事实及年度汇率转换为人民币。
 - 股息利息税额按其合计的 20% 计算。

@@ -42,7 +42,7 @@
 
 ```powershell
 dotnet restore CRS.sln --locked-mode
-dotnet publish src/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj `
+dotnet publish src/Desktop/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj `
   -c Release -r win-x64 --self-contained true `
   -p:PublishSingleFile=false `
   -o artifacts/publish/win-x64

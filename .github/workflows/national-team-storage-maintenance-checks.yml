@@ -3,9 +3,9 @@ name: National Team storage maintenance
 on:
   pull_request:
     paths:
-      - 'src/CRS.Common/**'
-      - 'src/CRS.Worker.*/**'
-      - 'src/Plugins/CRS.Plugins.NationalTeam*/**'
+      - 'src/Shared/CRS.Common/**'
+      - 'src/Worker/CRS.Worker.*/**'
+      - 'src/Plugins/NationalTeam/**'
       - 'tools/background/**'
       - 'tests/CRS.Tests.Background/**'
       - 'tests/CRS.Tests.WorkerEtf/**'

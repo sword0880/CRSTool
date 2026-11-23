@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <ItemGroup><ProjectReference Include="../../Shared/CRS.Common/CRS.Common.csproj" /></ItemGroup>
+</Project>

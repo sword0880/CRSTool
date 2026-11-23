@@ -27,7 +27,7 @@
 
 ### F01 / P1：业务调度权威尚未迁移，双宿主发行协议也未统一
 
-证据：`src/CRS.PluginHost/PluginRuntime.cs:29` 仍创建桌面 Quartz；`src/Plugins/CRS.Plugins.NationalTeamWatch/NationalTeamPluginEntry.cs:38` 仍注册 ETF 同步；`Infrastructure/MarketRepository.cs:20` 仍打开桌面明文市场库。新服务只运行心跳，关闭 WPF 后执行 ETF 的目标尚未实现。
+证据：`src/PluginHost/CRS.PluginHost/PluginRuntime.cs:29` 仍创建桌面 Quartz；`src/Plugins/CRS.Plugins.NationalTeamWatch/NationalTeamPluginEntry.cs:38` 仍注册 ETF 同步；`Infrastructure/MarketRepository.cs:20` 仍打开桌面明文市场库。新服务只运行心跳，关闭 WPF 后执行 ETF 的目标尚未实现。
 
 桌面 `PackageVerifier.cs:11` 识别旧的 EntryAssembly/EntryType/ContractApi 清单；后台 `BackgroundPluginCatalog.cs:16` 识别 BackgroundEntry/HostContract。两个宿主未共用同一套清单和兼容性验证器，后台缺少与桌面等价的宿主版本、数据 Schema、运行时和能力校验。
 

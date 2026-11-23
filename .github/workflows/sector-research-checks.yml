@@ -3,7 +3,7 @@ name: Sector research checks
 on:
   pull_request:
     paths:
-      - 'src/CRS.Common/**'
+      - 'src/Shared/CRS.Common/**'
       - 'src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/Presentation/IndustryValuation/**'
       - 'src/Plugins/NationalTeam/CRS.Plugins.NationalTeamWatch/Presentation/Navigation/**'
       - 'tests/Plugin/CRS.Tests.SectorResearch/**'

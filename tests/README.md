@@ -92,7 +92,7 @@ Worker升级专项：先构建当前Release并发布新的HeartbeatOnly测试包
 
 最新整体验收：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -LocalRealDirectory Sample/FUTU -IbkrRealDirectory Sample/IBKR -OutputDirectory artifacts/resource-protection-acceptance`。资源专项单独入口：`dotnet run --project tests/CRS.Tests.Infrastructure -c Release -- --resource-limits-only`。构造超过 128 MiB 的隔离 SQLCipher 库验证分块恢复；不读取或修改用户现有数据库。此前结构升级和金额展示回归继续执行，以下旧产物路径保留。
 
-当前整体验收：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -LocalRealDirectory Sample/FUTU -IbkrRealDirectory Sample/IBKR -OutputDirectory artifacts/schema-protection-acceptance`。`SchemaUpgradeChecks` 覆盖升级前加密备份、失败回滚、恢复与程序集归档；`TaxPresentationChecks`、`TaxAmountViewChecks`、`ExportChecks` 覆盖金额展示。单独运行 IBKR 技术验证：`dotnet run --project tests/CRS.Tests.Verification -c Release -- --verify-ibkr-real Sample/IBKR src/CRS.Desktop.Wpf/config artifacts/ibkr-real-acceptance`。报告仅含期间、计数、问题代码及原件摘要；独立金额签认仍待完成。
+当前整体验收：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -LocalRealDirectory Sample/FUTU -IbkrRealDirectory Sample/IBKR -OutputDirectory artifacts/schema-protection-acceptance`。`SchemaUpgradeChecks` 覆盖升级前加密备份、失败回滚、恢复与程序集归档；`TaxPresentationChecks`、`TaxAmountViewChecks`、`ExportChecks` 覆盖金额展示。单独运行 IBKR 技术验证：`dotnet run --project tests/CRS.Tests.Verification -c Release -- --verify-ibkr-real Sample/IBKR src/Desktop/CRS.Desktop.Wpf/config artifacts/ibkr-real-acceptance`。报告仅含期间、计数、问题代码及原件摘要；独立金额签认仍待完成。
 
 加密底稿与新目录恢复专项：`./tests/Run-ReleaseAcceptance.ps1 -Smoke -LocalRealDirectory sample/FUTU -OutputDirectory artifacts/encrypted-export-acceptance`。独立密码机制、容器与实际锁定检查、前台密码清理分别在 Security／Infrastructure／Wpf 项目；原加密备份用例仍执行以确认用途隔离兼容。
 
@@ -127,8 +127,8 @@ dotnet run --project tests/CRS.Tests.Verification -c Release --no-build
 窗口验证使用隔离的临时数据库，不读取真实账户历史：
 
 ```powershell
-dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --fixture tests/fixtures/ibkr_activity.xml
-dotnet run --project src/CRS.Desktop.Wpf -c Release -- --smoke-test --futu
+dotnet run --project src/Desktop/CRS.Desktop.Wpf -c Release -- --smoke-test --fixture tests/fixtures/ibkr_activity.xml
+dotnet run --project src/Desktop/CRS.Desktop.Wpf -c Release -- --smoke-test --futu
 ```
 
 WPF 窗口检查会导航十个页面、检查绑定错误、历史 / 复核 / Excel 导出、取消不保存及输入清理。窗口检查还验证折叠菜单、设置窗口保存和最小窗口尺寸下的历史分页栏；传入 --image 的绝对 PNG 路径可输出折叠、设置、概览、导入、税务和历史截图。
@@ -240,7 +240,7 @@ dotnet run --project tests/Plugin/CRS.Tests.NationalTeamWatch -c Release --no-bu
 
 `CRS.Tests.Background --lifecycle-only`在隔离目录验证插件四阶段超时、禁止失控后清理、健康与分派拒绝、诊断异常、迟到结果及真实子进程退出。`--lifecycle-exit-child`仅供该夹具创建的测试子进程使用，不操作SCM。该专项已纳入后台默认回归。
 
-品牌仅需预览时，可指定完整项目`src/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj`及参数`--smoke-test --brand-icons --image <绝对PNG路径>`，只用合成隔离保险库输出主窗口与身份验证页。不要用该预览声称全部财务/设置回归通过。
+品牌仅需预览时，可指定完整项目`src/Desktop/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj`及参数`--smoke-test --brand-icons --image <绝对PNG路径>`，只用合成隔离保险库输出主窗口与身份验证页。不要用该预览声称全部财务/设置回归通过。
 
 
 `CRS.Tests.Infrastructure --broker-source-facts`验证共享来源的确定性、实际同步回调、未知字段/位置保留、取消及结构拒绝；也包含在`--performance-only`。`--compare-ibkr-before <工作前受信Infrastructure程序集绝对路径>`用于本次变化前后技术比较，不是独立金额签认，不纳入需要旧二进制的常规CI。既有金融冻结JSON不自动更新。

@@ -107,8 +107,79 @@ internal static class XueqiuRssChecks
             Check(cleared.Error is null && !after.Configured && after.Total == 1 &&
                 after.Coverage.Single(item => item.Account == "9650668145").State == "NotConfigured",
                 "移除作者 RSS 配置后保留历史线索并清除旧覆盖状态");
+
+            await VerifyGoogleAlertLifecycleAsync(Ask, async () =>
+            {
+                await session.StopAsync(token);
+                await session.StartAsync(token);
+            });
         }
         finally { CryptographicOperations.ZeroMemory(key); }
+    }
+
+    private static async Task VerifyGoogleAlertLifecycleAsync(Func<WatchRequest, Task<WatchReply>> ask, Func<Task> restart)
+    {
+        const string account = "1111222233";
+        const string googleAccount = "sample-google-account";
+        const string remote = "sample-alert";
+
+        async Task<Author> AuthorAsync() => (await ask(new("authors"))).Authors!.Single(x => x.Account == account);
+        async Task<GoogleAlertSubscription> SubscriptionAsync() =>
+            (await ask(new("alert-subscription", new(Account: account)))).Alert!;
+        Task<WatchReply> SaveAsync(Author author) => ask(new("author-save", Author: author, ChangeId: Guid.NewGuid()));
+        Task<WatchReply> UpdateAsync(string operation, GoogleAlertUpdate result) =>
+            ask(new(operation, ChangeId: Guid.NewGuid(), Alert: result));
+
+        Check((await SaveAsync(new(account, "同步测试作者"))).Error is null, "添加作者写入订阅同步意图");
+        var pending = await SubscriptionAsync();
+        await restart();
+        Check(pending.State == GoogleAlertState.PendingCreate && pending.OperationId != Guid.Empty &&
+            await SubscriptionAsync() == pending, "重启保留待创建操作及标识");
+
+        var create = new GoogleAlertUpdate(account, pending.OperationId, googleAccount);
+        Check((await UpdateAsync("alert-sync-begin", create)).Error is null &&
+            (await UpdateAsync("alert-sync-begin", create)).Error is null, "相同账号重试同一次创建操作");
+        Check((await UpdateAsync("alert-sync-complete", create with
+        {
+            Outcome = GoogleAlertOutcome.Created, RemoteId = remote, FeedUrl = "https://other.example/alerts/feeds/1/2"
+        })).Error is not null, "拒绝将非 Google 地址作为自动订阅结果");
+
+        var archived = (await AuthorAsync()) with { Archived = true, Active = false };
+        Check((await SaveAsync(archived)).Error is null, "创建过程中允许移除作者");
+        var created = create with { Outcome = GoogleAlertOutcome.Created, RemoteId = remote, FeedUrl = FeedUrl };
+        Check((await UpdateAsync("alert-sync-complete", created)).Error is null &&
+            await SubscriptionAsync() is { State: GoogleAlertState.PendingDelete, RemoteId: remote } &&
+            await AuthorAsync() is { Archived: true, Active: false }, "迟到的创建结果进入待删除且保持停止采集");
+
+        var restored = (await AuthorAsync()) with { Archived = false, Active = true };
+        Check((await SaveAsync(restored)).Error is null && await AuthorAsync() is { AlertState: GoogleAlertState.Managed, FeedUrl: FeedUrl },
+            "删除开始前恢复作者复用托管 RSS");
+        Check((await SaveAsync((await AuthorAsync()) with { Active = false })).Error is null &&
+            await AuthorAsync() is { AlertState: GoogleAlertState.Managed, FeedUrl: FeedUrl, Active: false },
+            "暂停作者保留托管提醒与 RSS");
+        Check((await SaveAsync((await AuthorAsync()) with { Archived = true })).Error is null,
+            "移除已托管作者再次排队删除");
+
+        var deletion = await SubscriptionAsync();
+        var delete = new GoogleAlertUpdate(account, deletion.OperationId, googleAccount, RemoteId: remote);
+        Check((await UpdateAsync("alert-sync-begin", delete with { GoogleAccount = "another-account" })).Error is not null &&
+            (await UpdateAsync("alert-sync-begin", delete)).Error is null, "仅由绑定的 Google 账号启动删除核对");
+        await restart();
+        Check(await SubscriptionAsync() is { State: GoogleAlertState.Deleting } &&
+            (await UpdateAsync("alert-sync-complete", delete with { Outcome = GoogleAlertOutcome.Missing, RemoteId = "other" })).Error is not null,
+            "重启后保留待核对删除并拒绝不匹配的远端标识");
+
+        Check((await SaveAsync((await AuthorAsync()) with { Archived = false, Active = true })).Error is null &&
+            (await AuthorAsync()).FeedUrl.Length == 0 &&
+            (await UpdateAsync("alert-sync-complete", delete with { Outcome = GoogleAlertOutcome.Missing })).Error is null &&
+            await SubscriptionAsync() is { State: GoogleAlertState.PendingCreate },
+            "删除期间重新添加会等待删除确认再创建");
+
+        var external = (await AuthorAsync()) with { FeedUrl = FeedUrl };
+        Check((await SaveAsync(external)).Error is null && await SubscriptionAsync() is { State: GoogleAlertState.External } &&
+            (await SaveAsync((await AuthorAsync()) with { Archived = true })).Error is null &&
+            await SubscriptionAsync() is { State: GoogleAlertState.None } && (await AuthorAsync()).FeedUrl.Length == 0,
+            "移除外部 RSS 只解除本地绑定，不排队删除远端提醒");
     }
 
     private static void SeedVersionOne(string root, byte[] key)
@@ -125,6 +196,9 @@ internal static class XueqiuRssChecks
             DataSource = Path.Combine(root, "opinions.db"), Password = Convert.ToHexString(key), Pooling = false
         }.ToString());
         db.Open();
+        using var clearSubscriptionSchema = db.CreateCommand();
+        clearSubscriptionSchema.CommandText = "DROP TABLE google_alerts";
+        clearSubscriptionSchema.ExecuteNonQuery();
         using var update = db.CreateCommand();
         var oldAuthor = WatchProtocol.InitialAuthors.Single(x => x.Account == "8632046745") with { Name = "逹人知命" };
         update.CommandText = "UPDATE authors SET body=$body WHERE account=$account; DELETE FROM authors WHERE account='8799248060';";

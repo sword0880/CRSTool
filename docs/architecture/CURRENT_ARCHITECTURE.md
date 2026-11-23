@@ -4,6 +4,8 @@
 
 ## 1. 解决方案分层
 
+源码按职责组织在 `src/AI`、`src/Worker`、`src/Desktop`、`src/Core`、`src/Shared`、`src/PluginHost` 和 `src/Plugins`。解决方案的 `src` 节点采用相同分组。
+
 | 领域 | 主要项目 | 职责与边界 |
 | --- | --- | --- |
 | 领域与应用 | CRS.Domain、CRS.Application | 业务规则、用例和应用端口；不依赖 WPF、MCP 或具体数据库 |

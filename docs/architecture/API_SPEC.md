@@ -6,7 +6,7 @@
 
 ## 前台入口
 
-[IDesktopUseCases](../../src/CRS.Application/Abstractions/IDesktopUseCases.cs) 是 WPF 页面使用的接口。
+[IDesktopUseCases](../../src/Core/CRS.Application/Abstractions/IDesktopUseCases.cs) 是 WPF 页面使用的接口。
 
 | 成员 | 行为与边界 |
 | --- | --- |

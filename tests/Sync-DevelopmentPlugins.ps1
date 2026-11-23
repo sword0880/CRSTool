@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
 $source=[IO.Path]::GetFullPath((Join-Path $PackageDirectory 'Plugins'))
 if(-not (Test-Path -LiteralPath (Join-Path $source 'trusted-plugins.json'))){throw '必须提供已生成可信索引的桌面开发包。'}
-$boundary=[IO.Path]::GetFullPath((Join-Path $repo 'src/CRS.Desktop.Wpf/bin')).TrimEnd('\')+'\'
+$boundary=[IO.Path]::GetFullPath((Join-Path $repo 'src/Desktop/CRS.Desktop.Wpf/bin')).TrimEnd('\')+'\'
 $target=[IO.Path]::GetFullPath((Join-Path $boundary "$Configuration/net10.0-windows10.0.19041.0/Plugins"))
 # 只替换工作区内已知的开发构建插件目录；不读取或删除用户研究库。
 if(-not $target.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path $target -Leaf) -ne 'Plugins'){throw '开发同步目标越界。'}

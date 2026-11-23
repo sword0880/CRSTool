@@ -126,7 +126,7 @@ dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --ai-ga
 构建候选包后，可在管理员终端执行首次安装。当前候选 Gateway 查询需要支持 `.ai-public.v2` 的 Worker。服务状态只确认本机 Gateway 入口就绪。
 
 ```powershell
-dotnet publish src/CRS.AI.Gateway -c Release -o artifacts/ai-gateway
+dotnet publish src/AI/CRS.AI.Gateway -c Release -o artifacts/ai-gateway
 pwsh -File tools/ai/Install-AiGateway.ps1 -PackageDirectory artifacts/ai-gateway
 $gateway = Join-Path $env:ProgramFiles 'CRSAiGateway/CRS.AI.Gateway.exe'
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -189,7 +189,7 @@ Visual Studio 在 `src / AI` 下显示 `CRS.AI.Client` 和 `CRS.AI.Models`。前
 
 ```powershell
 $env:CRS_MCP_TOKEN = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-dotnet run --project src/CRS.AI.Client -c Release --no-build -- --mcp 8765
+dotnet run --project src/AI/CRS.AI.Client -c Release --no-build -- --mcp 8765
 ```
 
 MCP 端点为 `http://127.0.0.1:8765/mcp`，仅监听回环地址，检查 Host、Origin 与 Bearer 凭证。运行时的 Windows 身份属于启动该进程的账户，持有本机令牌的应用可以通过它调用该账户获准使用的两个公开 ETF 工具。请仅将令牌提供给信任的同机客户端。
@@ -200,7 +200,7 @@ MCP 端点为 `http://127.0.0.1:8765/mcp`，仅监听回环地址，检查 Host�
 
 ```powershell
 '调用 CRS 公开 ETF 概览工具，列出返回条数、数据版本和限制。' |
-    dotnet run --project src/CRS.AI.Client -c Release --no-build -- --ask
+    dotnet run --project src/AI/CRS.AI.Client -c Release --no-build -- --ask
 ```
 
 请求使用 `store=false`，每轮最多一次工具调用，每条问题最多四轮模型请求、三次工具调用及 90 秒。程序按实际回执显示模型请求次数、工具调用次数及 token 用量。开发命令依赖项目本身的账户计费及限额。 [OpenAI 函数调用](https://developers.openai.com/api/docs/guides/function-calling) · [OpenAI API 支持地区](https://developers.openai.com/api/docs/supported-countries)

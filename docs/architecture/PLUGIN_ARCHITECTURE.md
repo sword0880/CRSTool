@@ -302,7 +302,7 @@ Started             --退出/禁用要求---->  Stopping -> Stopped -> Disposed
 - [CRS仓库 README](https://raw.githubusercontent.com/sword0880/CRSTool/main/README.md)
 - [CRS.sln 当前项目清单](https://raw.githubusercontent.com/sword0880/CRSTool/main/CRS.sln)
 - [CRS项目结构](https://raw.githubusercontent.com/sword0880/CRSTool/main/docs/architecture/PROJECT_STRUCTURE.md)
-- [CRS WPF项目文件](https://raw.githubusercontent.com/sword0880/CRSTool/main/src/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj)
+- [CRS WPF项目文件](https://raw.githubusercontent.com/sword0880/CRSTool/main/src/Desktop/CRS.Desktop.Wpf/CRS.Desktop.Wpf.csproj)
 - [.NET插件加载文档](https://learn.microsoft.com/en-us/dotnet/core/tutorials/creating-app-with-plugin-support)
 - [WPF XAML与ALC兼容性问题](https://github.com/dotnet/wpf/issues/1700)
 - [SQLite Online Backup API](https://www.sqlite.org/backup.html)

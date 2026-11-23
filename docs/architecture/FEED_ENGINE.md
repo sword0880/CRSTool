@@ -45,9 +45,9 @@ CRS.Worker.Service（唯一调度宿主）
 
 ## 5. Google Alerts 与雪球插件接入约定
 
-第一阶段以免费 Google Alerts 作为外部文章发现服务，不自建搜索引擎，不采购舆情 API，也不依赖 RSSHub。用户在 Google Alerts 中为每位作者单独创建提醒，默认搜索条件由雪球插件按数字账号 ID 生成：`site:xueqiu.com/{账号ID}`。用户在 Google Alerts 中选择 RSS 投递后，将生成的 Feed URL 保存到对应作者配置。
+雪球插件使用 Google Alerts 发现文章，每位作者对应独立 RSS。当前版本由用户创建提醒并粘贴 RSS 地址。后续由 CRS 观察名单自动增删提醒，接入方式和实测要求见[雪球观点追踪方案](../modules/XUEQIU_OPINION_TRACKING_DESIGN.md)。Feed Engine 接收已有的 Feed 地址。
 
-- CRS 不自动登录 Google，不使用 Playwright，也不保存 Google 登录凭据。
+- Google 账号连接和提醒管理由桌面雪球插件负责。用户在 Google 页面登录，浏览器保持登录状态。
 - Google Alerts RSS URL 含唯一订阅标识，按凭据处理；保存在 XueqiuWatch 的 SQLCipher 加密库中，不记录到日志。
 - Google Alerts 只是搜索索引发现，不是雪球官方全量动态接口；收录范围和更新时间不保证完整。
 - CRS.Feed 只负责通用 Feed 抓取与解析。雪球 Jobs 负责从 Google `/url` 跳转链接中安全提取原文 URL，并再次验证目标主机为雪球、路径作者 ID 与当前订阅作者一致。
@@ -57,7 +57,7 @@ CRS.Worker.Service（唯一调度宿主）
 
 RSSHub 及第三方爬虫不属于第一阶段方案。若 Google Alerts 试运行无法达到所需收录率，再基于实测数据评估其他数据源，不提前增加复杂依赖。
 
-旧版单一 Google Alerts Feed 状态不会直接迁移为某个作者的订阅，因为它缺少可靠的作者隔离。升级保留已经发现的历史线索；用户为每位作者粘贴独立 RSS URL 后，恢复自动采集。
+旧版单一 Google Alerts Feed 状态不会直接迁移为某个作者的订阅，因为它缺少可靠的作者隔离。升级保留已经发现的历史线索。为每位作者重新绑定独立 RSS 后恢复采集。
 
 
 ## 6. 反方审查与验收

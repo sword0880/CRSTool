@@ -8,7 +8,7 @@
 
 ## 自动清理为何没有列入服务计划
 
-服务端GetJobs只枚举repository.Plans()中的插件计划，并过滤ManualOnly操作，见src/CRS.Worker.Service/Runtime/BackgroundRuntime.cs的GetJobs分支。自动清理由Program.cs启动WorkerDataCleanup.RunAutomaticAsync，独立于Quartz：默认启动5分钟后检查，每30秒查看是否到期，成功后间隔24小时、失败后间隔1小时；维护暂停、在途任务、手动预览和升级状态可以阻止本轮启动。具体以维护状态文件为准，不能仅由当前时间推算下一次触发。
+服务端GetJobs只枚举repository.Plans()中的插件计划，并过滤ManualOnly操作，见src/Worker/CRS.Worker.Service/Runtime/BackgroundRuntime.cs的GetJobs分支。自动清理由Program.cs启动WorkerDataCleanup.RunAutomaticAsync，独立于Quartz：默认启动5分钟后检查，每30秒查看是否到期，成功后间隔24小时、失败后间隔1小时；维护暂停、在途任务、手动预览和升级状态可以阻止本轮启动。具体以维护状态文件为准，不能仅由当前时间推算下一次触发。
 
 当前运行的清理是12:24:17提交的Manual任务6c67d94d-751b-41b8-8d3f-c4f0ef34742b，和每日自动保留共用同一执行通道。13:49:29只读摘要仍为ScanningBackups，已扫描83844个文件、4892262986字节，删除0个文件；扫描量不能解释为释放空间。
 

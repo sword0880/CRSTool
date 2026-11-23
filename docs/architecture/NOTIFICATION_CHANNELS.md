@@ -39,6 +39,6 @@
 
 钉钉已实现自定义机器人文本消息及加签，ID为dingtalk；个人微信先使用PushPlus服务，ID为wechat，不是企业微信群机器人。两个通道均只支持default配置，Worker组合根注册，系统设置增加独立页面。配置经管理员IPC传递，不进入持久任务命令；DPAPI保护Token及钉钉加签密钥，快照只显示是否已设置，修订号防旧窗口覆盖。需要在业务订阅中明确选择新渠道，保存系统配置不会切换现有订阅或补发历史。
 
-目录按Contracts、Dispatching、Configuration、Transport及Channels/Email、DingTalk、WeChat划分，见[组件目录说明](../../src/CRS.Notifications/README.md)。HTTP地址固定HTTPS，生产传输禁用重定向与自动重试，正文有UTF8字节限制，通道串行并有3秒本地间隔，HTTP429尊重Retry-After。该限流不是跨重启的持久提供商配额。
+目录按Contracts、Dispatching、Configuration、Transport及Channels/Email、DingTalk、WeChat划分，见[组件目录说明](../../src/Shared/CRS.Notifications/README.md)。HTTP地址固定HTTPS，生产传输禁用重定向与自动重试，正文有UTF8字节限制，通道串行并有3秒本地间隔，HTTP429尊重Retry-After。该限流不是跨重启的持久提供商配额。
 
 PushPlus返回真实流水号时保留ProviderReceipt；尚未实现回执查询或提供商幂等。提交后取消、超时、5xx或无法解析响应保留OutcomeUnknown。隔离HTTP与SMTP测试不代表真实微信/钉钉送达，未使用真实Token、未部署已安装服务。

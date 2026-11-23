@@ -12,7 +12,7 @@ internal static class PerformanceArchitectureChecks
         var budgetsPath=Path.Combine(root,"tests/fixtures/performance-complexity.json");
         var budgets=File.Exists(budgetsPath)?JsonSerializer.Deserialize<Dictionary<string,Budget>>(File.ReadAllText(budgetsPath))!:[];
         var reviewed=new Dictionary<string,Budget>();var failures=new List<string>();
-        foreach(var folder in new[]{"CRS.Domain/Performance","CRS.Application/Performance","CRS.Infrastructure/Performance","CRS.Desktop.Wpf/ViewModels"})
+        foreach(var folder in new[]{"Core/CRS.Domain/Performance","Core/CRS.Application/Performance","Core/CRS.Infrastructure/Performance","Desktop/CRS.Desktop.Wpf/ViewModels"})
         foreach(var file in Directory.EnumerateFiles(Path.Combine(root,"src",folder),"*.cs",SearchOption.AllDirectories))
         {
             if(folder.EndsWith("ViewModels",StringComparison.Ordinal) && Path.GetFileName(file)!="PerformanceViewModel.cs")continue;

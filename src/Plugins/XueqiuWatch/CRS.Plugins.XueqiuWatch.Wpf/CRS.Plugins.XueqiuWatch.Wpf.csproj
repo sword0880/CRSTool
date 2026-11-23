@@ -7,8 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../CRS.Plugins.XueqiuWatch.Core/CRS.Plugins.XueqiuWatch.Core.csproj" />
-    <ProjectReference Include="../../../CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj" />
-    <ProjectReference Include="../../../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
+    <ProjectReference Include="../../../PluginHost/CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj" />
+    <ProjectReference Include="../../../Worker/CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
     <Content Include="../plugin.json" Link="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

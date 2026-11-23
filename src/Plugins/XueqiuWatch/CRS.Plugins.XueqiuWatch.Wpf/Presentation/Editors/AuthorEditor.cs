@@ -28,10 +28,10 @@ internal sealed class AuthorEditor : WatchEditor
         Field("雪球账号 ID 或主页链接", account);
         Field("显示名称", name);
         Field("备注", note);
-        Field("Google Alerts RSS 地址（每位作者独立配置）", feedUrl);
+        Field("Google Alerts RSS 地址", feedUrl);
         Fields.Children.Add(new TextBlock
         {
-            Text = "低成本订阅方式：点击「打开 Google Alerts」，按下方生成的搜索条件创建一个提醒；建议来源保持自动、语言选择中文、结果数量选择「所有结果」，投递方式选择 RSS，再把 Google 生成的 RSS 地址粘贴到上方。每位作者单独创建一个提醒。Google Alerts 免费，但搜索收录和更新时效不保证完整。",
+            Text = "可使用已有 RSS 地址。手动订阅时，复制作者的搜索条件，在 Google Alerts 创建提醒并选择 RSS 投递，再粘贴生成的地址。",
             TextWrapping = TextWrapping.Wrap, Margin = new(0, 2, 0, 6)
         });
         Fields.Children.Add(new TextBlock
@@ -70,8 +70,19 @@ internal sealed class AuthorEditor : WatchEditor
         name.Text = author?.Name ?? "";
         note.Text = author?.Note ?? "";
         feedUrl.Text = author?.FeedUrl ?? "";
+        feedUrl.IsReadOnly = author?.AlertState is GoogleAlertState.Creating or GoogleAlertState.Managed or
+            GoogleAlertState.PendingDelete or GoogleAlertState.Deleting;
         active.IsChecked = author is null || author.Archived || author.Active;
         remove.IsEnabled = author is { Archived: false };
+        subscription.Text = author?.AlertState switch
+        {
+            GoogleAlertState.PendingCreate => "等待创建提醒。Google 网页自动同步尚未接入，可先配置已有 RSS。",
+            GoogleAlertState.Creating => "等待核对 Google Alerts 创建结果。",
+            GoogleAlertState.Managed => "已绑定 CRS 托管提醒。",
+            GoogleAlertState.External => "已绑定外部 RSS。移除作者只停止本地采集。",
+            GoogleAlertState.PendingDelete or GoogleAlertState.Deleting => "已停止本地采集，等待核对远端删除结果。",
+            _ => ""
+        };
     }
 
     private async Task RefreshAsync(string? selection)
@@ -103,10 +114,9 @@ internal sealed class AuthorEditor : WatchEditor
             : new Author(id, WatchInput.Text(name.Text, 40, true), note.Text, active.IsChecked == true,
                 Revision: selected?.Revision ?? 0, FeedUrl: feedUrl.Text.Trim());
         await client.SaveAsync(new("author-save", Author: draft), lifetime);
-        await RefreshAsync(archive ? null : id);
-        subscription.Text = string.IsNullOrWhiteSpace(draft.FeedUrl)
-            ? "作者已保存。当前未配置 Google Alerts RSS，后台不会采集该作者。"
-            : "作者及 Google Alerts RSS 地址已保存。Worker 将按作者独立采集；搜索引擎未收录的文章不会出现在订阅中。";
+        await RefreshAsync(id);
+        if (string.IsNullOrEmpty(subscription.Text))
+            subscription.Text = archive ? "已移除作者，历史记录仍可查询。" : "作者已保存。";
     }, lifetime);
 
     private sealed record AuthorChoice(string Label, Author? Author);

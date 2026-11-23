@@ -20,13 +20,17 @@ internal static class XueqiuPrivateDataChecks
         var options = await client.QueryAsync(WorkerProtocol.GetPluginPlanOptions, token);
         Require(options.Jobs?.Any(plan => plan.PluginId == WatchProtocol.PluginId &&
             plan.JobId == WatchProtocol.LeadJobId && plan.Revision == 0 && !plan.Enabled) == true, "RSS plan available and unscheduled");
-        Require((await Send(new("leads"))).Leads is { Configured: false, Total: 0, Authors.Length: 8 },
+        Require((await Send(new("leads"))).Leads is { Configured: false, Total: 0 } initialLeads &&
+            initialLeads.Authors.Length == WatchProtocol.InitialAuthors.Count,
             "RSS panel loads over the private pipe without exposing a subscription");
 
         var authors = (await Send(new("authors"))).Authors!;
-        Require(authors.Length == 8 && authors.Any(x => x.Name == "逹人知命"), "seeded authors");
+        Require(authors.Length == WatchProtocol.InitialAuthors.Count && authors.Any(x => x.Name == "达人知命"),
+            "seeded authors");
         var first = authors[0];
         var second = authors[1];
+        Require((await Send(new("alert-subscription", new(Account: first.Account)))).Alert is
+            { State: GoogleAlertState.PendingCreate }, "initial alert intent is readable over the private pipe");
         var archive = new WatchRequest("author-save", Author: authors[7] with { Archived = true }, ChangeId: Guid.NewGuid());
         Require((await Send(archive)).Error is null && (await Send(archive)).Error is null, "author removal and exact replay");
         Require((await Send(new("authors"))).Authors!.Single(x => x.Account == authors[7].Account).Archived, "removed author state");
@@ -37,10 +41,13 @@ internal static class XueqiuPrivateDataChecks
         Require((await Send(feedSave)).Error is null && (await Send(feedSave)).Error is null,
             "per-author RSS write and exact replay");
         var feedPage = (await Send(new("leads"))).Leads!;
-        Require(feedPage is { Configured: true, ConfiguredFeeds: 1, UnconfiguredFeeds: 6 } &&
+        Require(feedPage is { Configured: true, ConfiguredFeeds: 1 } &&
+            feedPage.UnconfiguredFeeds == authors.Length - 2 &&
             feedPage.Authors.Single(x => x.Account == first.Account).FeedUrl == testFeed,
             "per-author RSS read-back and archived author exclusion");
         Console.WriteLine("PASS 作者独立 RSS 配置通过私有管道保存、读回并去重。");
+        Require((await Send(new("alert-subscription", new(Account: first.Account)))).Alert is
+            { State: GoogleAlertState.External }, "manual RSS replaces the pending create intent");
 
         var stock = new Security("沪市", "600001", "合成样本", "样例行业");
         var candidate = WatchInput.Candidates("$合成样本(SH600001)$ 以及 HK00700", [stock]);

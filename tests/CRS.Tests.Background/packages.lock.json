@@ -308,6 +308,12 @@
       "crs.common": {
         "type": "Project"
       },
+      "crs.feed": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Common": "[1.0.0, )"
+        }
+      },
       "crs.notifications": {
         "type": "Project",
         "dependencies": {
@@ -322,6 +328,7 @@
       "crs.plugins.xueqiuwatch.jobs": {
         "type": "Project",
         "dependencies": {
+          "CRS.Feed": "[1.0.0, )",
           "CRS.Plugins.XueqiuWatch.Core": "[1.0.0, )",
           "CRS.Worker.Abstractions": "[2.0.0, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
@@ -485,12 +492,6 @@
         "contentHash": "jtYVG3bpw2n/NvNnP2g/JLri0D4UtfusTvLeH6cZPNAEjJXJVGspS3wLgVvjNbm+wjaYkFgsXejMTocV1T5DIQ==",
         "dependencies": {
           "System.Diagnostics.EventLog": "8.0.0"
-        }
-      },
-      "crs.feed": {
-        "type": "Project",
-        "dependencies": {
-          "CRS.Common": "[1.0.0, )"
         }
       }
     }

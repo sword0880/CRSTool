@@ -2,7 +2,7 @@
 # 静态视觉防回退：扫描桌面和插件 XAML，阻止重新散落旧蓝色强调色。
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
-$palettePath = Join-Path $root "src/CRS.Desktop.Wpf/Styles/BrandPalette.xaml"
+$palettePath = Join-Path $root "src/Desktop/CRS.Desktop.Wpf/Styles/BrandPalette.xaml"
 [xml]$palette = Get-Content -LiteralPath $palettePath -Raw -Encoding UTF8
 $xamlNs = "http://schemas.microsoft.com/winfx/2006/xaml"
 $keys = [System.Collections.Generic.HashSet[string]]::new()

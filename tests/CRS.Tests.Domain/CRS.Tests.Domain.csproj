@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
- <ItemGroup><ProjectReference Include="../../src/CRS.Domain/CRS.Domain.csproj"/></ItemGroup>
+ <ItemGroup><ProjectReference Include="../../src/Core/CRS.Domain/CRS.Domain.csproj"/></ItemGroup>
  <ItemGroup><Content Include="Fixtures/performance-v1.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Fixtures/performance-v1.json')"/></ItemGroup>
  <ItemGroup>
   <!-- VS 的 MSBuildSDKsPath 指向 VS 自身目录；按所选 .NET SDK 定位供 net10.0 测试运行的 Roslyn。 -->

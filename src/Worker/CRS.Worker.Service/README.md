@@ -18,4 +18,4 @@ CRS.Worker.Service/
 
 数据库替换先保持Persistence接口，再增加提供方实现；Sources和Runtime不引用具体数据库类型。新增服务生命周期装配放Hosting，业务预算放Sources，不能再次堆回根目录。bin/obj由构建管理，不属于源代码目录。
 
-架构说明见 ../../docs/architecture/CURRENT_ARCHITECTURE.md，门禁入口为 ../../tests/Verify-Architecture.ps1。
+架构说明见 ../../../docs/architecture/CURRENT_ARCHITECTURE.md，门禁入口为 ../../../tests/Verify-Architecture.ps1。

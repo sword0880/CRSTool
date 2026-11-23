@@ -7,7 +7,7 @@
 验证入口：
 
 ```powershell
-dotnet run --project tests/CRS.Tests.Verification -c Release -- --verify-local-real sample/FUTU src/CRS.Desktop.Wpf/config artifacts/real-futu-acceptance
+dotnet run --project tests/CRS.Tests.Verification -c Release -- --verify-local-real sample/FUTU src/Desktop/CRS.Desktop.Wpf/config artifacts/real-futu-acceptance
 ```
 
 五年度均通过解析、规范化快照、SQLCipher 保存／读取、冻结结果恢复及同构建复算金额和 FIFO 匹配一致性检查。共读取 698 笔交易，原件验收前后 SHA256 一致。报告 `artifacts/real-futu-acceptance/local-real-samples.json` 只含年度、笔数、问题代码、状态、耗时和匿名原件索引／摘要，不含账户、原文件名或真实交易金额。数据存储验证使用独立临时加密保险库，不接触用户现有数据库。
@@ -25,7 +25,7 @@ dotnet run --project tests/CRS.Tests.Verification -c Release -- --verify-local-r
 用户随后补充的 `IBKR_2026.xml` 为主要 2026 验证原件，正文期间为 2026-01-01 至 2026-10-09，共 100 条成交（24 条股票、76 条外汇）及 30 条现金明细。单独导入有 `MISSING_COST`，券商收益核对为 3／4 一致；联合 2025 历史后该成本提示消失，券商收益 4／4 一致、现金 2／2 一致，FIFO 匹配为 9 条。该核对依据券商原始记录，不等于独立税额签认。
 
 ```powershell
-dotnet run --project tests/CRS.Tests.Verification -c Release -- --verify-ibkr-real Sample/IBKR src/CRS.Desktop.Wpf/config artifacts/ibkr-real-acceptance
+dotnet run --project tests/CRS.Tests.Verification -c Release -- --verify-ibkr-real Sample/IBKR src/Desktop/CRS.Desktop.Wpf/config artifacts/ibkr-real-acceptance
 ```
 
 五种组合（2025、2026 年初至今、年初至今加 2025 历史、单日、单日加 2025 历史）均通过解析、SQLCipher 保存／读取、冻结快照复算与 FIFO／收益／现金核对一致性验证，原件摘要不变。2025 得到 16 条匹配，券商收益 10／10、现金 2／2 一致；2026 单日两种组合均没有当年成交及匹配。2026 四种组合保留临时测算标志。五种组合均为 Partial，预计补税为空，保留 `INCOMPLETE_PERIOD`，未将技术通过当作金额正确。报告 `artifacts/ibkr-real-acceptance/ibkr-real-samples.json` 只记录摘要、期间、计数与状态，不含身份、原件文件名或金额。

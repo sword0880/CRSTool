@@ -39,13 +39,14 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 6)
+            else if (application != ApplicationId || version is < 1 or > 7)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
             if (version < 4) InitializeAuthorFeeds();
             if (version < 5) InitializeLeadArticleMetadata();
             if (version < 6) InitializeTrackedAuthors();
+            if (version < 7) InitializeGoogleAlerts();
         }
         catch
         {
@@ -81,12 +82,13 @@ internal sealed partial class WatchStore : IDisposable
         token.ThrowIfCancellationRequested();
         return request.Operation switch
         {
-            "authors" => new(Authors: Authors()),
+            "authors" => new(Authors: Authors().Select(author => author with { AlertState = ReadGoogleAlert(author).State }).ToArray()),
             "catalog" => new(Securities: Catalog(request.Filter?.Search)),
             "overview" => new(Overview: Overview(ValidateFilter(request.Filter), token)),
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
-            "author-save" or "opinion-save" => Save(request, payload, token),
+            "alert-subscription" => new() { Alert = ReadGoogleAlert(RequireAuthor(request.Filter?.Account)) },
+            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" => Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
     }
@@ -106,6 +108,8 @@ internal sealed partial class WatchStore : IDisposable
         {
             case "author-save": SaveAuthor(request.Author, transaction); break;
             case "opinion-save": SaveOpinion(request.Opinion, transaction); break;
+            case "alert-sync-begin": BeginGoogleAlert(request.Alert, transaction); break;
+            case "alert-sync-complete": CompleteGoogleAlert(request.Alert, transaction); break;
         }
         Execute("INSERT INTO changes VALUES($id,$hash)", transaction, ("$id", id), ("$hash", hash));
         token.ThrowIfCancellationRequested();
@@ -127,22 +131,31 @@ internal sealed partial class WatchStore : IDisposable
         var name = WatchInput.Text(input.Name, 40, true);
         var note = WatchInput.Text(input.Note, 80);
         var feedUrl = string.IsNullOrWhiteSpace(input.FeedUrl) ? string.Empty : FeedAddress.Normalize(input.FeedUrl);
-        var previousFeedUrl = old?.FeedUrl ?? string.Empty;
         var saved = new Author(account, name, note, input.Active && !input.Archived,
             input.Archived, input.Revision + 1, feedUrl);
+        var alert = ReadStoredGoogleAlert(account, transaction);
+        if (alert?.ControlsFeed == true && saved.FeedUrl != old?.FeedUrl)
+            throw new ArgumentException("此 RSS 地址由订阅同步管理，请刷新观察名单。");
+        if (saved.Archived && alert?.ControlsFeed != true) saved = saved with { FeedUrl = "" };
+        WriteAuthor(saved, old?.FeedUrl ?? "", transaction);
+        ReconcileGoogleAlert(saved, alert, transaction);
+    }
+
+    private void WriteAuthor(Author saved, string previousFeedUrl, SqliteTransaction transaction)
+    {
         Execute("""
             INSERT INTO authors VALUES($account,$body)
             ON CONFLICT(account) DO UPDATE SET body=excluded.body
-            """, transaction, ("$account", account), ("$body", WatchProtocol.Encode(saved)));
-        if (!string.Equals(previousFeedUrl, feedUrl, StringComparison.Ordinal))
+            """, transaction, ("$account", saved.Account), ("$body", WatchProtocol.Encode(saved)));
+        if (!string.Equals(previousFeedUrl, saved.FeedUrl, StringComparison.Ordinal))
         {
             // 修改来源后清除旧验证器和覆盖状态，但保留已发现的历史线索。
-            var resetState = string.IsNullOrWhiteSpace(feedUrl) ? "NotConfigured" : "NeverChecked";
+            var resetState = saved.FeedUrl.Length == 0 ? "NotConfigured" : "NeverChecked";
             Execute("""
                 UPDATE lead_coverage
                 SET state=$state, observed=0, matches=-1, etag=NULL, last_modified=NULL
                 WHERE account=$account
-                """, transaction, ("$state", resetState), ("$account", account));
+                """, transaction, ("$state", resetState), ("$account", saved.Account));
         }
     }
 

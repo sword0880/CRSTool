@@ -1,6 +1,6 @@
 # FIFO 计算实现约定
 
-描述 [FifoEngine](../../src/CRS.Domain/FIFO/FifoEngine.cs) 当前行为及 [尚待验收的问题](../KNOWN_ISSUES.md)。
+描述 [FifoEngine](../../src/Core/CRS.Domain/FIFO/FifoEngine.cs) 当前行为及 [尚待验收的问题](../KNOWN_ISSUES.md)。
 
 ## 身份、排序与范围
 

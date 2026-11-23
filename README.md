@@ -16,7 +16,7 @@
 环境：Windows 10（build 19041）或更新版本、.NET 10 SDK。打开 CRS.sln，选择 CRS.Desktop.Wpf，或在仓库根目录执行：
 
 ```powershell
-dotnet run --project src/CRS.Desktop.Wpf
+dotnet run --project src/Desktop/CRS.Desktop.Wpf
 ```
 
 首次使用需创建加密保险库并配置登录验证；已有数据库仅支持受支持的加密格式，旧明文 SQLite 不会自动迁移。认证、恢复与数据保护要求见[保险库与登录指南](docs/guides/VAULT_GUIDE.md)。

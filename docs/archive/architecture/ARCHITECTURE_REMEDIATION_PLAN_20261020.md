@@ -102,14 +102,14 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P1-02：桌面插件宿主仍保留旧 Quartz/任务存储实现
 
-- 证据：S。文件：`src/CRS.PluginHost/QuartzTaskScheduler.cs`、`src/CRS.PluginHost/TaskPlanStore.cs`、`src/CRS.PluginHost/PluginRuntime.cs`。当前桌面运行时已采用 Worker 拥有调度的方向。
+- 证据：S。文件：`src/PluginHost/CRS.PluginHost/QuartzTaskScheduler.cs`、`src/PluginHost/CRS.PluginHost/TaskPlanStore.cs`、`src/PluginHost/CRS.PluginHost/PluginRuntime.cs`。当前桌面运行时已采用 Worker 拥有调度的方向。
 - 风险：当前不等于两套调度器正在同时运行；真正的问题是旧实现和旧契约仍可被后续代码误用，造成任务所有权倒退。
 - 整改：先用代码搜索确认全部生产调用方已迁出，再删除无调用方的旧调度实现/契约。仍有价值的 Cron 编辑或纯模型能力可迁移为不持有执行权的纯工具。
 - 验收：生产桌面插件无法创建或执行正式后台计划；所有持久计划和执行历史均由 Worker 管理；旧契约的残留仅允许出现在明确标记的迁移文档或测试夹具中。
 
 #### P1-03：后台查询会话注册依赖任务列表
 
-- 证据：S。文件：`src/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`，方法 `QueryAsync`（评审基线约第 28–35 行）。
+- 证据：S。文件：`src/Worker/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`，方法 `QueryAsync`（评审基线约第 28–35 行）。
 - 观察：查询会话通过已注册的 jobs 列表反向查找，取首个匹配插件的 Session；一个实现查询接口但不声明 Job 的插件可能无法被查询路由找到。
 - 风险：插件能力模型被任务清单意外绑架，纯查询、只读研究或不需要定时任务的插件无法自然接入。
 - 整改：在 Catalog 中分别注册插件会话、Job、Query 和其他能力；查询路由不得依赖 Job 是否存在。能力注册必须检查重复 ID、缺失实现、生命周期和错误状态。
@@ -127,7 +127,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 2026-10-23 后续核查：查询时持久化状态的问题已按既有实现拆分为只读校验与后台完整性作业；仍发现多个查询使用全局无参数核验，扫描未被业务事实引用的孤立抓取。当前 PR 进一步将 ETF 只读查询收敛到份额/日历/市场成交等业务事实范围，并新增真实独占文件锁回归。Q15 后台巡检仍全量核验。只有 Windows CI 通过后才能确认自动化门禁；真实数据集 P95/P99 仍未验收。
 #### P1-05：业务对象构造与部分业务决策落在 WPF ViewModel
 
-- 证据：S。文件：`src/CRS.Desktop.Wpf/ViewModels/PerformanceViewModel.cs`，例如 `AddValuation`/估值提交附近（评审基线约第 254–281 行）。
+- 证据：S。文件：`src/Desktop/CRS.Desktop.Wpf/ViewModels/PerformanceViewModel.cs`，例如 `AddValuation`/估值提交附近（评审基线约第 254–281 行）。
 - 观察：ViewModel 直接构造多个绩效领域/应用模型，并决定部分金额、日期、组成项和序列化输入。
 - 风险：未来批量导入、自动化任务或其他 UI 入口可能重复实现相同规则。
 - 整改：按用例迁移有业务意义的构造和校验至 Application；ViewModel 仅处理表单状态、格式转换和展示错误。不要为了“纯化 UI”重写全部页面。
@@ -135,7 +135,7 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P1-06：双宿主契约和插件业务查询协议的版本边界不清晰
 
-- 证据：S/H。文件：`src/CRS.PluginHost/PackageVerifier.cs`、`src/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`、`src/CRS.Worker.Abstractions/Contracts.cs`、`src/CRS.Worker.Ipc/Protocol.cs` 及国家队插件 `plugin.json`。
+- 证据：S/H。文件：`src/PluginHost/CRS.PluginHost/PackageVerifier.cs`、`src/Worker/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`、`src/Worker/CRS.Worker.Abstractions/Contracts.cs`、`src/Worker/CRS.Worker.Ipc/Protocol.cs` 及国家队插件 `plugin.json`。
 - 观察：桌面契约与后台 HostContract 分别验证；后台查询采用字符串 payload/JSON 并在插件入口通过 Operation 分发。该方式当前可工作，但业务查询 Schema 的独立版本治理需要明确。
 - 风险：宿主协议、插件加载契约和 ETF 业务 DTO 演进时容易相互牵制；这属于兼容性设计风险，不是已确认的当前协议故障。
 - 整改：宿主 IPC 协议只负责身份、帧、请求 ID、错误与基本兼容；插件业务请求/响应使用各插件自有的版本化 DTO/Schema。明确兼容窗口、拒绝策略和错误码。公共 Abstractions 保持小而稳定。
@@ -143,14 +143,14 @@ ARCH-209（P1-09）In Progress：宿主共享来源预算已接入正式网关�
 
 #### P1-07：同进程插件故障会扩大为整个 Worker 的故障域
 
-- 证据：S。文件：`src/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`、`src/CRS.Worker.Service/Program.cs`。不响应生命周期取消的插件最终可能触发宿主进程终止。
+- 证据：S。文件：`src/Worker/CRS.Worker.PluginHost/BackgroundPluginCatalog.cs`、`src/Worker/CRS.Worker.Service/Program.cs`。不响应生命周期取消的插件最终可能触发宿主进程终止。
 - 风险：一个失控插件可能导致其他插件任务同时中断。当前策略在同进程模型下可以保护宿主存储不被不受控清理破坏，但它不是插件隔离沙箱。
 - 整改：保留可信第一方低风险插件同进程运行；先完善超时、诊断和故障状态。只有对高风险/高资源插件确有需求时，另行设计低权限独立 PluginRunner；不得仅靠 AssemblyLoadContext 宣称安全隔离。
 - 验收：一个插件初始化/查询/停止失败不污染其他插件的状态；不合作插件触发可诊断的受控退出；独立进程模式如实施，需验证 IPC、身份、数据权限和重启策略。
 
 #### P1-08：投资绩效与税务共享券商事实尚未完全统一
 
-- 证据：S/D。文件：`src/CRS.Application/Imports/BrokerActivityFacts.cs`、`src/CRS.Infrastructure/Performance/IbkrPerformanceAdapter.cs`、`docs/implementation/PERFORMANCE_ANALYTICS.md`。
+- 证据：S/D。文件：`src/Core/CRS.Application/Imports/BrokerActivityFacts.cs`、`src/Core/CRS.Infrastructure/Performance/IbkrPerformanceAdapter.cs`、`docs/implementation/PERFORMANCE_ANALYTICS.md`。
 - 观察：富途路径已使用共享券商事实模型；IBKR 绩效仍有独立适配路径，相关文档将统一工作列为未完成。
 - 风险：同一原始券商活动在税务与绩效模块被不同解析器解释，产生事件分类或来源证据不一致。
 - 整改：建立小而稳定的不可变 Broker/Investment Facts；税务与绩效消费同一原始事实，但保留各自投影、成本算法和业务规则。逐步迁移 IBKR，不得一次性重写税务算法。

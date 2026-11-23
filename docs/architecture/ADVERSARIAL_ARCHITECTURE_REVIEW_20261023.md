@@ -25,11 +25,11 @@
 
 证据：
 
-- `src/CRS.Application/Workflows/DesktopWorkflow.cs:84` 开始税务计算，`:88` 才保存税务结果。
-- `src/CRS.Infrastructure/Composition/DesktopOperations.cs:20` 在创建计算器时注入同步绩效回调，`:24` 调用 `ImportSharedPerformance`。
-- `src/CRS.Infrastructure/Brokers/Futu/FutuImporter.cs:37` 在逐份交易文件读取过程中调用回调；后面才检查收入主表是否存在及有效。
-- `src/CRS.Infrastructure/Brokers/IBKR/IbkrXmlParser.cs:71` 同样逐份原件触发回调。
-- `src/CRS.Infrastructure/Storage/SqlCipher/SqlCipherVaultBackend.Performance.cs:7` 打开绩效导入路径；`src/CRS.Infrastructure/Performance/PerformanceStore.cs:126` 与 `:148` 建立并提交独立事务。
+- `src/Core/CRS.Application/Workflows/DesktopWorkflow.cs:84` 开始税务计算，`:88` 才保存税务结果。
+- `src/Core/CRS.Infrastructure/Composition/DesktopOperations.cs:20` 在创建计算器时注入同步绩效回调，`:24` 调用 `ImportSharedPerformance`。
+- `src/Core/CRS.Infrastructure/Brokers/Futu/FutuImporter.cs:37` 在逐份交易文件读取过程中调用回调；后面才检查收入主表是否存在及有效。
+- `src/Core/CRS.Infrastructure/Brokers/IBKR/IbkrXmlParser.cs:71` 同样逐份原件触发回调。
+- `src/Core/CRS.Infrastructure/Storage/SqlCipher/SqlCipherVaultBackend.Performance.cs:7` 打开绩效导入路径；`src/Core/CRS.Infrastructure/Performance/PerformanceStore.cs:126` 与 `:148` 建立并提交独立事务。
 
 具体场景：选择一份可成功导入绩效的富途交易工作簿，但没有收入主表。交易文件的绩效写入可能已经提交，随后税务解析抛错，税务历史不保存。多文件后续解析失败、后续计算失败或取消也有类似边界。这里没有证据表明金融金额计算错误；问题是用户操作的失败语义与实际写入范围不一致，Application 也不能从解析器接口看到这个副作用。
 
@@ -54,7 +54,7 @@
 
 ## R03：插件是扩展边界，还不是独立故障域
 
-证据：`src/CRS.Worker.Service/Program.cs:83` 创建进程内 `BackgroundPluginCatalog`，`:85` 的不合作回调直接 `Environment.Exit(2)`；`:125` 停止超时也终止进程。该启动入口没有启动 PluginRunner。
+证据：`src/Worker/CRS.Worker.Service/Program.cs:83` 创建进程内 `BackgroundPluginCatalog`，`:85` 的不合作回调直接 `Environment.Exit(2)`；`:125` 停止超时也终止进程。该启动入口没有启动 PluginRunner。
 
 影响：一个可信插件的死锁、失控取消或原生崩溃仍可中断其他插件、查询和通知。ALC、哈希、派生密钥解决不同问题，不能据此承诺故障隔离或第三方安全沙箱。现在的终止策略有保护存储生命周期的合理性，不应简单删掉。
 
@@ -66,8 +66,8 @@
 
 证据：
 
-- `src/CRS.Worker.Service/Program.cs:101`、`:105` 每 30 秒同步检查完整数据树，之后才执行协调循环。
-- `src/CRS.Worker.Service/Security/StorageSecurity.cs:8` 将目录项上限固定为 100000，`:54` 超过即抛出安全异常。
+- `src/Worker/CRS.Worker.Service/Program.cs:101`、`:105` 每 30 秒同步检查完整数据树，之后才执行协调循环。
+- `src/Worker/CRS.Worker.Service/Security/StorageSecurity.cs:8` 将目录项上限固定为 100000，`:54` 超过即抛出安全异常。
 - `tools/background/WorkerMaintenance.psm1:110` 将升级快照保存在同一数据根的 `maintenance/<id>/snapshot`，原件存证则按内容哈希形成独立 `.raw` 文件。
 
 影响：扫描成本随整树增长，历史快照也在范围内；即便每个文件 ACL 正确，正常增长到上限仍会进入停止路径。服务重启后启动检查再次失败，无法通过重启自行恢复。这是确定的容量边界，不代表当前已安装目录已接近该数量；本轮未统计真实私有数据。
@@ -95,7 +95,7 @@
 续项：市场仓储默认实现已移除，按用例拆分端口并在正式启动核验必需能力；R07 年度边界已修正。
 R08 仅推进内部持久授权，发布门槛仍 Open。当前状态及验收见[续项记录](../implementation/ARCHITECTURE_IMPLEMENTATION.md#arch-followup)，下文保留评审时证据。
 
-证据：`src/Plugins/CRS.Plugins.NationalTeam.Core/Application/Ports.cs:11` 的 `IMarketRepository` 同时包含采集、日历、股票报告、预警、通知 Outbox 和配置；大量方法默认抛 `NotSupportedException`，部分方法默认返回空集合或 null。`src/CRS.Infrastructure/Storage/IVaultStorageBackend.cs` 同时提供仓储、绩效用例工厂、会话保护委托和跨模块导入。
+证据：`src/Plugins/CRS.Plugins.NationalTeam.Core/Application/Ports.cs:11` 的 `IMarketRepository` 同时包含采集、日历、股票报告、预警、通知 Outbox 和配置；大量方法默认抛 `NotSupportedException`，部分方法默认返回空集合或 null。`src/Core/CRS.Infrastructure/Storage/IVaultStorageBackend.cs` 同时提供仓储、绩效用例工厂、会话保护委托和跨模块导入。
 
 影响：新增适配器可以编译通过，直到业务运行时才发现能力缺失；默认空集合还需要调用方额外区分“没有数据”和“不支持查询”。备份、会话和事务一致性也不能仅靠一个提供方名称得到证明。当前没有证据表明内置 SQLCipher 适配器正走默认空实现，不将它描述为当前数据被漏读。
 
@@ -103,7 +103,7 @@ R08 仅推进内部持久授权，发布门槛仍 Open。当前状态及验收�
 
 ## R07：北京时间策略尚未覆盖业务年度边界
 
-证据：`src/CRS.Application/TaxCalculation/CalculationService.cs:81` 使用 `clock.GetLocalNow().Year` 判断是否为临时年度；`src/CRS.Time/BeijingClock.cs` 已提供 `Read(TimeProvider)`，Application 也已引用 CRS.Time。
+证据：`src/Core/CRS.Application/TaxCalculation/CalculationService.cs:81` 使用 `clock.GetLocalNow().Year` 判断是否为临时年度；`src/Shared/CRS.Time/BeijingClock.cs` 已提供 `Read(TimeProvider)`，Application 也已引用 CRS.Time。
 
 影响：北京已跨年而主机时区尚未跨年时，同一年份可能得到不同的 Provisional 判定，影响结果状态。结果重放保存该标记有助于稳定历史，但新计算仍受机器配置影响。这是业务时钟边界问题，不是界面日期格式问题。
 
@@ -111,7 +111,7 @@ R08 仅推进内部持久授权，发布门槛仍 Open。当前状态及验收�
 
 ## R08：跨机恢复仍是发布阻断，不能由加密备份替代
 
-证据：`src/CRS.Worker.Service/Security/ServiceKey.cs` 生产路径仍校验 SID 并调用 LocalMachine DPAPI；`RecoveryExportSession.cs:6` 明确仍为阶段 2a，未注册生产 IPC/CLI。Program、运行时及协议入口没有完整恢复导出与目标激活链路。
+证据：`src/Worker/CRS.Worker.Service/Security/ServiceKey.cs` 生产路径仍校验 SID 并调用 LocalMachine DPAPI；`RecoveryExportSession.cs:6` 明确仍为阶段 2a，未注册生产 IPC/CLI。Program、运行时及协议入口没有完整恢复导出与目标激活链路。
 
 影响：机器丢失或无法访问原 DPAPI 环境时，单独拷贝任务库、市场库与 DPAPI 文件不足以保证恢复。内部恢复封装和授权状态机是进展，但不是操作人员可执行的灾备方案。
 

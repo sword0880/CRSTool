@@ -10,10 +10,15 @@ CRS/
 ├─ Directory.Build.props
 ├─ Directory.Packages.props
 ├─ src/
-│  ├─ CRS.Plugin.Abstractions/     # 纯BCL插件能力与Session契约
-│  ├─ CRS.Plugin.Wpf/              # 可选WPF页面贡献契约
-│  ├─ CRS.PluginHost/              # 桌面可信加载、页面和生命周期；唯一Quartz在Worker
-│  ├─ CRS.Feed/                   # 公共 RSS / Atom / JSON Feed 采集与标准化
+│  ├─ AI/                         # AI 查询、协议适配、模型和网关
+│  ├─ Worker/                     # 后台服务、IPC、插件执行和调度
+│  ├─ PluginHost/
+│  │  ├─ CRS.Plugin.Abstractions/  # 插件能力和会话契约
+│  │  ├─ CRS.Plugin.Wpf/           # WPF 页面贡献契约
+│  │  └─ CRS.PluginHost/           # 桌面可信加载、页面和生命周期
+│  ├─ Shared/
+│  │  ├─ CRS.Feed/                 # 公共 RSS / Atom / JSON Feed 抓取和解析
+│  │  └─ CRS.Security/             # 加密、保险库、恢复和认证
 │  ├─ Plugins/                    # 业务插件不被宿主静态引用
 │  │  ├─ NationalTeam/            # 国家队与市场研究插件
 │  │  │  ├─ CRS.Plugins.NationalTeam.Core/ # 规则、模型与业务契约
@@ -21,46 +26,47 @@ CRS/
 │  │  │  └─ CRS.Plugins.NationalTeamWatch/  # WPF 页面与查询客户端
 │  │  ├─ XueqiuWatch/             # 雪球观点追踪，Core / Jobs / Wpf
 │  │  └─ CRS.Plugins.Demo/          # 双插件真实WPF资源POC
-│  ├─ CRS.Domain/
-│  │  ├─ Trades/
-│  │  ├─ FIFO/
-│  │  ├─ ExchangeRates/
-│  │  └─ TaxRules/
-│  ├─ CRS.Application/
-│  │  ├─ Abstractions/
-│  │  ├─ Imports/
-│  │  ├─ TaxCalculation/
-│  │  ├─ Reconciliation/
-│  │  ├─ Reporting/
-│  │  └─ Workflows/
-│  ├─ CRS.Security/                # Cryptography、Vault、Recovery、Authentication
-│  ├─ CRS.Infrastructure/
-│  │  ├─ Persistence/
-│  │  ├─ Brokers/IBKR, FUTU/Pdf
-│  │  ├─ Imports/                  # 原件单次读取、只读内存副本与同源摘要
-│  │  ├─ ExchangeRateProviders/
-│  │  ├─ Exports/
-│  │  ├─ Configuration/
-│  │  ├─ Security/
-│  │  └─ Composition/
-│  └─ CRS.Desktop.Wpf/
-│     ├─ config/
-│     ├─ Views/Pages/
-│     ├─ ViewModels/
-│     │  ├─ AI/          # 小财牛、聊天历史和模型设置
-│     │  ├─ Dashboard/   # 总览
-│     │  ├─ Imports/     # 导入与导入记录
-│     │  ├─ Performance/ # 绩效分析
-│     │  ├─ Settings/    # 系统设置与数据清理
-│     │  ├─ Shell/       # 主窗口、状态栏和共享工作区
-│     │  ├─ TaskCenter/  # 任务中心、计划编辑和执行日志
-│     │  ├─ Tax/         # 税务计算、复核、汇率和报表
-│     │  └─ Vault/       # 安全存储与数据库备份
-│     ├─ Controls/
-│     ├─ Styles/
-│     ├─ Converters/
-│     ├─ Services/
-│     └─ Composition/
+│  ├─ Core/
+│  │  ├─ CRS.Domain/
+│  │  │  ├─ Trades/
+│  │  │  ├─ FIFO/
+│  │  │  ├─ ExchangeRates/
+│  │  │  └─ TaxRules/
+│  │  ├─ CRS.Application/
+│  │  │  ├─ Abstractions/
+│  │  │  ├─ Imports/
+│  │  │  ├─ TaxCalculation/
+│  │  │  ├─ Reconciliation/
+│  │  │  ├─ Reporting/
+│  │  │  └─ Workflows/
+│  │  └─ CRS.Infrastructure/
+│  │     ├─ Persistence/
+│  │     ├─ Brokers/IBKR, FUTU/Pdf
+│  │     ├─ Imports/
+│  │     ├─ ExchangeRateProviders/
+│  │     ├─ Exports/
+│  │     ├─ Configuration/
+│  │     ├─ Security/
+│  │     └─ Composition/
+│  └─ Desktop/
+│     └─ CRS.Desktop.Wpf/
+│        ├─ config/
+│        ├─ Views/Pages/
+│        ├─ ViewModels/
+│        │  ├─ AI/          # 小财牛、聊天历史和模型设置
+│        │  ├─ Dashboard/   # 总览
+│        │  ├─ Imports/     # 导入与导入记录
+│        │  ├─ Performance/ # 绩效分析
+│        │  ├─ Settings/    # 系统设置与数据清理
+│        │  ├─ Shell/       # 主窗口、状态栏和共享工作区
+│        │  ├─ TaskCenter/  # 任务中心、计划编辑和执行日志
+│        │  ├─ Tax/         # 税务计算、复核、汇率和报表
+│        │  └─ Vault/       # 安全存储与数据库备份
+│        ├─ Controls/
+│        ├─ Styles/
+│        ├─ Converters/
+│        ├─ Services/
+│        └─ Composition/
 ├─ tests/
 │  ├─ CRS.Tests.Domain/
 │  ├─ CRS.Tests.Application/
@@ -158,5 +164,5 @@ Domain/Performance 存放独立净值、流量、TWR/XIRR 与区间市场成本�
 
 ## Worker服务目录
 
-Worker服务按Hosting、Runtime、Sources、Persistence/SqlCipher、Security、Notifications、Diagnostics、Deployment分组，根目录保留Program.cs启动入口。仓储端口位于Persistence，数据库实现位于其SqlCipher子目录；命名空间、程序集、服务身份和数据路径不变。完整目录职责见 [Worker目录说明](../../src/CRS.Worker.Service/README.md)。架构门禁路径已同步，不因移动文件漏检Runtime。
-`CRS.Notifications` 按 Contracts、Dispatching、Configuration、Transport、Channels/Email、Channels/DingTalk、Channels/WeChat 分目录，入口与边界见 [组件目录](../../src/CRS.Notifications/README.md)。
+Worker服务按Hosting、Runtime、Sources、Persistence/SqlCipher、Security、Notifications、Diagnostics、Deployment分组，根目录保留Program.cs启动入口。仓储端口位于Persistence，数据库实现位于其SqlCipher子目录；命名空间、程序集、服务身份和数据路径不变。完整目录职责见 [Worker目录说明](../../src/Worker/CRS.Worker.Service/README.md)。架构门禁路径已同步，不因移动文件漏检Runtime。
+`CRS.Notifications` 按 Contracts、Dispatching、Configuration、Transport、Channels/Email、Channels/DingTalk、Channels/WeChat 分目录，入口与边界见 [组件目录](../../src/Shared/CRS.Notifications/README.md)。
