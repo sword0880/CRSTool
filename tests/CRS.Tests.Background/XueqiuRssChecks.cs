@@ -58,7 +58,7 @@ internal static class XueqiuRssChecks
 
             var limited = await Run();
             Check(limited is { Status: "RetryDeferred" } &&
-                limited.RetryAfter >= TimeSpan.FromMinutes(3) &&
+                limited.RetryAfter is { } retryAfter && retryAfter >= TimeSpan.FromMinutes(3) &&
                 (await Ask(new("leads"))).Leads!.Coverage.Single(item => item.Account == initial[0].Account).State == "RateLimited",
                 "限流保留历史线索并记录来源状态");
 

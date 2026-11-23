@@ -28,7 +28,7 @@ internal sealed class LeadWindow : WatchEditor
         this.client = client;
         this.lifetime = lifetime;
         Fields.Children.Add(source);
-        Fields.Children.Add(Action("配置作者 RSS", Configure));
+        Fields.Children.Add(AsyncAction("配置作者 RSS", ConfigureAsync));
         Fields.Children.Add(new TextBlock
         {
             Text = "到「任务中心 → 服务计划 → 添加计划」设置“发现雪球发言线索”的执行时间。每位作者独立抓取，单个来源失败不会阻断其他作者。",
@@ -57,12 +57,12 @@ internal sealed class LeadWindow : WatchEditor
         Loaded += async (_, _) => await BrowseAsync(0);
     }
 
-    private async void Configure()
+    private Task ConfigureAsync() => WithFeedbackAsync(async () =>
     {
         var data = await client.AskAsync(new("authors"), lifetime);
         new AuthorEditor(this, data.Authors ?? [], client, lifetime).ShowDialog();
         await BrowseAsync(0);
-    }
+    }, lifetime);
 
     private Task BrowseAsync(int requestedOffset) => WithFeedbackAsync(async () =>
     {
@@ -105,7 +105,7 @@ internal sealed class LeadWindow : WatchEditor
         return item.State switch
         {
             "NotConfigured" => "未配置 RSS 源",
-            "Read" when item.Matches > 0 => $"RSS 命中 {item.Matches} 条 · 待核验",
+            "Read" when item.Matches is > 0 => $"RSS 命中 {item.Matches} 条 · 待核验",
             "Read" => "RSS 未命中 · 发言覆盖未知",
             "NotModified" => "Feed 未变化（条件请求）",
             "RateLimited" => "来源限流 · 待补查",
