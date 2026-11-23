@@ -3,6 +3,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="CRS.Tests.Background" />
     <ProjectReference Include="../CRS.Plugins.XueqiuWatch.Core/CRS.Plugins.XueqiuWatch.Core.csproj" />
+    <ProjectReference Include="../../../CRS.Feed/CRS.Feed.csproj" />
     <ProjectReference Include="../../../CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />

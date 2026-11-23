@@ -8,7 +8,7 @@ public enum Stance { Pending, Bullish, Bearish, Neutral }
 public enum Attribution { Author, Mention, Repost }
 
 public sealed record Author(string Account, string Name, string Note = "", bool Active = true,
-    bool Archived = false, long Revision = 0);
+    bool Archived = false, long Revision = 0, string FeedUrl = "");
 
 public sealed record Security(string Market, string Code, string Name, string Industry)
 {
@@ -28,39 +28,20 @@ public sealed record WatchOverview(StockSummary[] Stocks, string[] Industries, i
     int Unmatched, DateTimeOffset? Earliest, DateTimeOffset? Latest, DateTimeOffset? LastRecorded);
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
-    Opinion? Opinion = null, Guid ChangeId = default)
-{
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? FeedUrl { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? FeedScope { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? PreviousFeedFingerprint { get; init; }
-}
+    Opinion? Opinion = null, Guid ChangeId = default);
+
 public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? Detail = null,
     Author[]? Authors = null, Security[]? Securities = null, string? Error = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LeadPage? Leads { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public LeadSubscription? Subscription { get; init; }
 }
 
 public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen);
-public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches);
+public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
+    string? ETag = null, DateTimeOffset? LastModified = null);
 public sealed record LeadPage(bool Configured, Author[] Authors, FeedCoverage[] Coverage, PostLead[] Rows, int Total,
-    bool SubscriptionPending = false);
-public sealed record LeadSubscription(string Scope, string? AppliedScope, string? FeedFingerprint, string? OwnerFingerprint)
-{
-    public bool Pending => Scope.Length > 0 && (Scope != AppliedScope || FeedFingerprint is null);
-    public string Query => string.Join(" OR ", Scope.Split(',', StringSplitOptions.RemoveEmptyEntries)
-        .Select(account => $"site:xueqiu.com/{account}/"));
-
-    public static string Fingerprint(string url) => Convert.ToHexString(
-        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(url)));
-
-    public static string OwnerOf(string url) => Fingerprint(new Uri(url).AbsolutePath.Split('/')[3]);
-}
+    int ConfiguredFeeds = 0, int UnconfiguredFeeds = 0);
 
 public static class WatchProtocol
 {
