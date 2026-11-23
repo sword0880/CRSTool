@@ -62,8 +62,17 @@ public sealed class FeedClient : IDisposable
                     if (redirect >= options.MaximumRedirects || response.Headers.Location is null)
                         return new(FeedFetchStatus.RedirectRejected);
 
-                    var next = FeedAddress.Validate(new Uri(current, response.Headers.Location), options.AllowHttp);
-                    if (!StringComparer.OrdinalIgnoreCase.Equals(current.IdnHost, next.IdnHost))
+                    Uri next;
+                    try
+                    {
+                        next = FeedAddress.Validate(new Uri(current, response.Headers.Location), options.AllowHttp);
+                    }
+                    catch (Exception error) when (error is ArgumentException or UriFormatException)
+                    {
+                        return new(FeedFetchStatus.RedirectRejected);
+                    }
+                    if (!StringComparer.OrdinalIgnoreCase.Equals(current.IdnHost, next.IdnHost) ||
+                        (current.Scheme == Uri.UriSchemeHttps && next.Scheme != Uri.UriSchemeHttps))
                         return new(FeedFetchStatus.RedirectRejected);
                     current = next;
                     continue;

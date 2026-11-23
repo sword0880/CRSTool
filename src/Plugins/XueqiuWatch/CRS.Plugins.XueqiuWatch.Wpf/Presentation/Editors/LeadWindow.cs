@@ -28,10 +28,10 @@ internal sealed class LeadWindow : WatchEditor
         this.client = client;
         this.lifetime = lifetime;
         Fields.Children.Add(source);
-        Fields.Children.Add(Action("连接 Google", Configure));
+        Fields.Children.Add(Action("配置作者 RSS", Configure));
         Fields.Children.Add(new TextBlock
         {
-            Text = "到「任务中心 → 服务计划 → 添加计划」设置“发现雪球发言线索”的执行时间。",
+            Text = "到「任务中心 → 服务计划 → 添加计划」设置“发现雪球发言线索”的执行时间。每位作者独立抓取，单个来源失败不会阻断其他作者。",
             TextWrapping = TextWrapping.Wrap, Margin = new(0, 3, 0, 10)
         });
 
@@ -53,14 +53,14 @@ internal sealed class LeadWindow : WatchEditor
         Fields.Children.Add(pagination);
 
         Finish(AsyncAction("刷新", () => BrowseAsync(offset)), AsyncAction("打开选中链接", OpenLeadAsync),
-            AsyncAction("从选中线索录入观点", RecordOpinionAsync),
-            Action("关闭", Close));
+            AsyncAction("从选中线索录入观点", RecordOpinionAsync), Action("关闭", Close));
         Loaded += async (_, _) => await BrowseAsync(0);
     }
 
     private async void Configure()
     {
-        new SubscriptionEditor(this, client, lifetime).ShowDialog();
+        var data = await client.AskAsync(new("authors"), lifetime);
+        new AuthorEditor(this, data.Authors ?? [], client, lifetime).ShowDialog();
         await BrowseAsync(0);
     }
 
@@ -76,11 +76,11 @@ internal sealed class LeadWindow : WatchEditor
             result = (await client.AskAsync(new("leads", new(Account: account)), lifetime)).Leads
                 ?? throw new InvalidDataException("缺少发言线索。");
         }
-        source.Text = result.SubscriptionPending
-            ? "观察名单的 RSS 订阅待同步。可在「连接 Google」中查看或重试。"
-            : result.Configured
-            ? "已配置订阅。这里显示索引线索，作者的完整发言范围仍待核验。"
-            : "当前没有 RSS 订阅。已有线索可继续查看。";
+
+        source.Text = result.ConfiguredFeeds == 0
+            ? "当前没有配置作者 RSS 地址。请在观察名单中为每位作者配置；未配置作者不会采集。"
+            : $"已配置 {result.ConfiguredFeeds} 位作者 RSS，未配置 {result.UnconfiguredFeeds} 位。线索只表示来源返回的原帖，不代表作者全部发言覆盖。";
+
         authors = result.Authors;
         var byAccount = authors.ToDictionary(item => item.Account);
         var options = new[] { new Author("", "全部作者") }.Concat(result.Authors).ToArray();
@@ -104,13 +104,17 @@ internal sealed class LeadWindow : WatchEditor
         if (!author.Active || author.Archived) return "已暂停";
         return item.State switch
         {
-            "Read" when item.Matches > 0 => $"订阅命中 {item.Matches} 条 · 待核验",
-            "Read" => "订阅未命中 · 发言覆盖未知",
+            "NotConfigured" => "未配置 RSS 源",
+            "Read" when item.Matches > 0 => $"RSS 命中 {item.Matches} 条 · 待核验",
+            "Read" => "RSS 未命中 · 发言覆盖未知",
+            "NotModified" => "Feed 未变化（条件请求）",
             "RateLimited" => "来源限流 · 待补查",
-            "AccessRequired" => "订阅访问受限",
-            "InvalidFeed" => "订阅格式异常",
-            "TimedOut" => "订阅读取超时",
-            "FeedUnavailable" => "订阅暂不可用",
+            "AccessRequired" => "来源访问受限",
+            "RedirectRejected" => "跨站重定向被拒绝",
+            "TooLarge" => "Feed 超过大小上限",
+            "InvalidFeed" => "Feed 格式异常",
+            "TimedOut" => "Feed 读取超时",
+            "FeedUnavailable" => "Feed 暂不可用",
             _ => "尚未检查"
         };
     }
