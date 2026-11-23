@@ -160,7 +160,7 @@ internal static class XueqiuRssChecks
             var attempt = Interlocked.Increment(ref attempts);
             if (attempt == 2)
             {
-                Check(request.Headers.IfNoneMatch.Any(tag => tag.Tag == "\\"v1\\""), "Worker 使用 ETag 条件请求");
+                Check(request.Headers.IfNoneMatch.Any(tag => tag.Tag == "\"v1\""), "Worker 使用 ETag 条件请求");
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified));
             }
             if (attempt == 3)
@@ -170,7 +170,7 @@ internal static class XueqiuRssChecks
                 return Task.FromResult(limited);
             }
             var body = attempt == 4
-                ? "<!DOCTYPE rss SYSTEM \\"file:///unused\\"><rss version=\\"2.0\\"><channel/></rss>"
+                ? "<!DOCTYPE rss SYSTEM \"file:///unused\"><rss version=\"2.0\"><channel/></rss>"
                 : """
                   <feed xmlns="http://www.w3.org/2005/Atom">
                     <title>Google Alerts - 管我财</title>
