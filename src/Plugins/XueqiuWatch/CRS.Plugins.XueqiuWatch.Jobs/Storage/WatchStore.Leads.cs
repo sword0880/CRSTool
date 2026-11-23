@@ -153,6 +153,8 @@ internal sealed partial class WatchStore
                 var feedAuthor = PlainText(item.Author, 80);
                 var itemId = PlainText(item.Id, 300);
                 var published = item.PublishedAt?.ToUnixTimeSeconds();
+                var existed = Scalar("SELECT 1 FROM post_leads WHERE account=$account AND url=$url",
+                    transaction, ("$account", scan.Account), ("$url", url)) is not null;
                 using var insert = Command("""
                     INSERT INTO post_leads(account,url,first_seen,title,summary,content,published,feed_author,feed_item_id)
                     VALUES($account,$url,$observed,$title,$summary,$content,$published,$author,$itemId)
@@ -169,12 +171,10 @@ internal sealed partial class WatchStore
                     ("$account", scan.Account), ("$url", url), ("$observed", at),
                     ("$title", title), ("$summary", summary), ("$content", body),
                     ("$published", (object?)published ?? DBNull.Value),
-                    ("$author", (object?)feedAuthor is { Length: > 0 } ? feedAuthor : DBNull.Value),
+                    ("$author", feedAuthor.Length > 0 ? feedAuthor : DBNull.Value),
                     ("$itemId", itemId));
-                var changed = insert.ExecuteNonQuery();
-                if (changed > 0 && Scalar("SELECT first_seen FROM post_leads WHERE account=$account AND url=$url",
-                    transaction, ("$account", scan.Account), ("$url", url)) is long firstSeen && firstSeen == at)
-                    added++;
+                insert.ExecuteNonQuery();
+                if (!existed) added++;
             }
 
             var previous = ReadLeadCoverage(scan.Account, transaction);
