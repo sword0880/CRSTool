@@ -58,7 +58,7 @@ internal sealed class OpinionEditor : WatchEditor
         stance.SelectedIndex = (int)(original?.Stance ?? Stance.Pending);
         attribution.ItemsSource = new[] { "作者本人发言", "顺带提及", "转发或转述" };
         attribution.SelectedIndex = lead is null ? (int)(original?.Attribution ?? Attribution.Author) : -1;
-        content.Text = original?.Content ?? LeadText(lead is null ? null : $"{lead.Title}\\n{lead.Content ?? lead.Summary}", 700);
+        content.Text = original?.Content ?? LeadText(lead is null ? null : $"{lead.Title}\n{lead.Content ?? lead.Summary}", 700);
         evidence.Text = original?.Evidence ?? LeadText(lead?.Summary ?? lead?.Content, 700);
         source.Text = original?.Url ?? lead?.Url ?? "";
         question.Text = original?.Question ?? "";
