@@ -31,15 +31,16 @@ internal static class XueqiuPrivateDataChecks
         Require((await Send(archive)).Error is null && (await Send(archive)).Error is null, "author removal and exact replay");
         Require((await Send(new("authors"))).Authors!.Single(x => x.Account == authors[7].Account).Archived, "removed author state");
 
-        var subscription = (await Send(new("lead-subscription"))).Subscription;
-        Require(subscription is { Pending: true, FeedFingerprint: null } &&
-            !subscription.Scope.Split(',').Contains(authors[7].Account), "private subscription scope");
-        const string testFeed = "https://www.google.com/alerts/feeds/isolated-owner/isolated-feed";
-        var sync = new WatchRequest("lead-feed-sync", ChangeId: Guid.NewGuid())
-        { FeedScope = subscription!.Scope, FeedUrl = testFeed };
-        Require((await Send(sync)).Error is null && (await Send(sync)).Error is null, "private RSS write and exact replay");
-        Require((await Send(new("leads"))).Leads is { Configured: true, SubscriptionPending: false }, "RSS write read-back");
-        Console.WriteLine("PASS 自动订阅配置通过私有管道保存、读回并去重。");
+        const string testFeed = "https://feeds.example.com/xueqiu/user/1556808774";
+        var configuredAuthor = first with { FeedUrl = testFeed };
+        var feedSave = new WatchRequest("author-save", Author: configuredAuthor, ChangeId: Guid.NewGuid());
+        Require((await Send(feedSave)).Error is null && (await Send(feedSave)).Error is null,
+            "per-author RSS write and exact replay");
+        var feedPage = (await Send(new("leads"))).Leads!;
+        Require(feedPage is { Configured: true, ConfiguredFeeds: 1, UnconfiguredFeeds: 6 } &&
+            feedPage.Authors.Single(x => x.Account == first.Account).FeedUrl == testFeed,
+            "per-author RSS read-back and archived author exclusion");
+        Console.WriteLine("PASS 作者独立 RSS 配置通过私有管道保存、读回并去重。");
 
         var stock = new Security("沪市", "600001", "合成样本", "样例行业");
         var candidate = WatchInput.Candidates("$合成样本(SH600001)$ 以及 HK00700", [stock]);
