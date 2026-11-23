@@ -13,7 +13,7 @@
 第一阶段采用免费 Google Alerts 做文章发现，不自建搜索引擎、不使用 RSSHub，也不让 CRS 自动登录 Google。每位作者单独创建一个 Google Alert：
 
 1. 在「观察名单」中选择作者，点击「复制搜索条件」。默认条件为 `site:xueqiu.com/{账号ID}`，可按实际收录情况调整。
-2. 点击「打开 Google Alerts」，登录自己的 Google 账号并创建提醒。
+2. 点击「打开 Google Alerts」，登录自己的 Google 账号并创建提醒；建议来源保持自动、语言选择中文、结果数量选择「所有结果」。
 3. 在提醒的投递方式中选择 RSS，复制 Google 生成的 RSS Feed 地址。
 4. 将该地址粘贴到当前作者的「Google Alerts RSS 地址」并保存。
 
