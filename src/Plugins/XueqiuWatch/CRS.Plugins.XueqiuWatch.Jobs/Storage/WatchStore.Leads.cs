@@ -250,12 +250,11 @@ internal sealed partial class WatchStore
 
         const string condition = "WHERE $a='' OR account=$a";
         var total = Convert.ToInt32(Scalar("SELECT count(*) FROM post_leads " + condition, null, ("$a", filter.Account!)));
-        using var leads = Command("""
-            SELECT account,url,first_seen,title,summary,content,published,feed_author,feed_item_id
-            FROM post_leads
-            """ + condition + """
-            ORDER BY first_seen DESC,account,url LIMIT $limit OFFSET $offset
-            """, null, ("$a", filter.Account!), ("$limit", WatchProtocol.LeadsPerPage), ("$offset", filter.Offset));
+        var query = "SELECT account,url,first_seen,title,summary,content,published,feed_author,feed_item_id " +
+            "FROM post_leads " + condition +
+            " ORDER BY first_seen DESC,account,url LIMIT $limit OFFSET $offset";
+        using var leads = Command(query, null, ("$a", filter.Account!),
+            ("$limit", WatchProtocol.LeadsPerPage), ("$offset", filter.Offset));
         using var rows = leads.ExecuteReader();
         var items = new List<PostLead>();
         while (rows.Read())
