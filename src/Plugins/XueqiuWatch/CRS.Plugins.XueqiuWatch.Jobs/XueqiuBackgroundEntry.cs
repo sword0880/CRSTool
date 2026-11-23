@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Worker.Abstractions;
+using CRS.Feed;
 
 namespace CRS.Plugins.XueqiuWatch.Jobs;
 
@@ -10,9 +11,9 @@ public sealed partial class XueqiuBackgroundEntry : IContextualBackgroundPluginE
     public IBackgroundPluginSession CreateSession() => throw new InvalidOperationException("观点追踪需要独立存储上下文。");
     public IBackgroundPluginSession CreateSession(IBackgroundHostContext context) => new Session(context, new());
     internal IBackgroundPluginSession CreateSession(IBackgroundHostContext context, HttpMessageHandler transport) =>
-        new Session(context, new(transport));
+        new Session(context, new FeedClient(transport));
 
-    private sealed partial class Session(IBackgroundHostContext context, AlertsLeadFeed feed) : IBackgroundPluginSession, IBackgroundPrivateDataSession
+    private sealed partial class Session(IBackgroundHostContext context, FeedClient feed) : IBackgroundPluginSession, IBackgroundPrivateDataSession
     {
         private readonly SemaphoreSlim gate = new(1);
         private WatchStore? store;

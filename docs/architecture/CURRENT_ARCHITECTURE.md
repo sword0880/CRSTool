@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 领域与应用 | CRS.Domain、CRS.Application | 业务规则、用例和应用端口；不依赖 WPF、MCP 或具体数据库 |
 | 基础设施与安全 | CRS.Infrastructure、CRS.Security | 数据访问、加密、安全机制和外部基础设施适配 |
-| 通用能力 | CRS.Common、CRS.Documents | Common 提供跨模块纯通用能力；Documents 提供通用 PDF/Excel 文档处理，不承载业务模板或金融计算 |
+| 通用能力 | CRS.Common、CRS.Documents、CRS.Feed | Common 提供跨模块纯通用能力；Documents 提供通用 PDF/Excel 文档处理，不承载业务模板或金融计算 |
 | WPF 桌面 | CRS.Desktop.Wpf、CRS.Plugin.Abstractions、CRS.Plugin.Wpf、CRS.PluginHost、src/Plugins | 主窗口、导航、设置、插件 UI 和用户交互 |
 | Worker 后台 | CRS.Worker.Abstractions、CRS.Worker.Ipc、CRS.Worker.PluginHost、CRS.Worker.PluginRunner、CRS.Worker.Service | 后台契约、授权 IPC、插件执行、Quartz 调度、持久任务、健康和维护 |
 | AI | CRS.AI.Contracts、CRS.AI.Query、CRS.AI.Adapters、CRS.AI.Infrastructure、CRS.AI.Gateway、CRS.AI.Client、CRS.AI.Models | 统一只读工具契约、查询、协议适配、审计、Gateway、MCP/Responses 入口和模型供应商适配 |
@@ -77,6 +77,7 @@ Worker Service 是唯一 Quartz 调度宿主。WPF 与 Worker 通过版本化 IP
 | CRS.Desktop.Wpf | CRS.Application, CRS.Infrastructure, CRS.PluginHost, CRS.Worker.Ipc, CRS.AI.Models | 桌面进程，具体基础设施仅由 Composition 装配 |
 | CRS.Plugin.Abstractions | CRS.Common | 桌面插件的 BCL 契约 |
 | CRS.Common | 无 | 全CRS可复用的纯BCL能力：北京时间+08:00、JSON时间转换、读取公平租约、SHA256内容指纹、有界HTTP正文读取；不依赖业务或宿主 |
+| CRS.Feed | CRS.Common | 公共 Feed 抓取与标准化；不负责调度、持久化和来源业务规则 |
 | CRS.Documents | 无 | 公共PDF文字/坐标读取、Excel工作表读取及工作簿生成；文件/行列限额、原始值与显示值分离；依赖PdfPig、NPOI及其运行库，不含券商、税务或持仓规则 |
 | CRS.Plugin.Wpf | CRS.Plugin.Abstractions, CRS.Common | WPF页面贡献、通用分类菜单与宿主顶栏移交契约；时间转换器只适配绑定 |
 | CRS.PluginHost | CRS.Plugin.Wpf | 桌面可信包、页面及生命周期 |
@@ -99,7 +100,7 @@ Worker Service 是唯一 Quartz 调度宿主。WPF 与 Worker 通过版本化 IP
 | CRS.Plugins.NationalTeam.Jobs | CRS.Plugins.NationalTeam.Core, CRS.Worker.Abstractions, CRS.Plugin.Abstractions, CRS.Common, CRS.Documents | 后台采集、市场库、来源策略及查询 |
 | CRS.Plugins.NationalTeamWatch | CRS.Plugins.NationalTeam.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | ETF 桌面展示，经 IPC 读取及提交管理命令 |
 | CRS.Plugins.XueqiuWatch.Core | 无 | 雪球观点模型、验证、证券候选与数据契约 |
-| CRS.Plugins.XueqiuWatch.Jobs | CRS.Plugins.XueqiuWatch.Core, CRS.Worker.Abstractions | 通过 Worker 管理员管道访问插件 SQLCipher 观点库 |
+| CRS.Plugins.XueqiuWatch.Jobs | CRS.Plugins.XueqiuWatch.Core, CRS.Worker.Abstractions, CRS.Feed | 通过 Worker 管理员管道访问插件 SQLCipher 观点库 |
 | CRS.Plugins.XueqiuWatch.Wpf | CRS.Plugins.XueqiuWatch.Core, CRS.Worker.Ipc, CRS.Plugin.Wpf | 观察名单、观点录入、横向股票矩阵与个股明细 |
 | CRS.Tests.Domain | 领域和复杂度门禁 |
 | CRS.Tests.Application | 用例和历史复算 |

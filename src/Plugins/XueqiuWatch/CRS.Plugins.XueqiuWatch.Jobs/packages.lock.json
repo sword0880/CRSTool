@@ -50,6 +50,12 @@
         "dependencies": {
           "CRS.Common": "[1.0.0, )"
         }
+      },
+      "crs.feed": {
+        "type": "Project",
+        "dependencies": {
+          "CRS.Common": "[1.0.0, )"
+        }
       }
     }
   }

@@ -26,23 +26,6 @@ public static partial class WatchInput
         return $"https://xueqiu.com/{parts[0]}/{parts[1]}";
     }
 
-    public static string GoogleAlertFeed(string? input)
-    {
-        var value = (input ?? "").Trim();
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != "https" ||
-            uri.Host != "www.google.com" || !uri.IsDefaultPort || uri.UserInfo.Length != 0 ||
-            uri.Query.Length != 0 || uri.Fragment.Length != 0)
-            throw new ArgumentException("请粘贴 Google Alerts 提供的 RSS 订阅链接。");
-        var parts = uri.AbsolutePath.Split('/');
-        if (parts.Length != 5 || parts[1] != "alerts" || parts[2] != "feeds" ||
-            !IsFeedPart(parts[3]) || !IsFeedPart(parts[4]))
-            throw new ArgumentException("请粘贴 Google Alerts 提供的 RSS 订阅链接。");
-        return uri.AbsoluteUri;
-    }
-
-    private static bool IsFeedPart(string value) => value.Length is >= 1 and <= 100 &&
-        value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
-
     private static Uri XueqiuUri(string value)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != "https" ||

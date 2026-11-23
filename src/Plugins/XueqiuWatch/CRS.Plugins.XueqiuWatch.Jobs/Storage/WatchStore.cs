@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using CRS.Plugins.XueqiuWatch.Core;
+using CRS.Feed;
 using Microsoft.Data.Sqlite;
 
 namespace CRS.Plugins.XueqiuWatch.Jobs;
@@ -38,10 +39,11 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is not (1 or 2 or 3))
+            else if (application != ApplicationId || version is not (1 or 2 or 3 or 4))
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
+            if (version < 4) InitializeAuthorFeeds();
         }
         catch
         {
@@ -82,8 +84,7 @@ internal sealed partial class WatchStore : IDisposable
             "overview" => new(Overview: Overview(ValidateFilter(request.Filter), token)),
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
-            "lead-subscription" => new() { Subscription = ReadSubscription() },
-            "author-save" or "opinion-save" or "lead-feed-save" or "lead-feed-sync" => Save(request, payload, token),
+            "author-save" or "opinion-save" => Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
     }
@@ -103,8 +104,6 @@ internal sealed partial class WatchStore : IDisposable
         {
             case "author-save": SaveAuthor(request.Author, transaction); break;
             case "opinion-save": SaveOpinion(request.Opinion, transaction); break;
-            case "lead-feed-save": SaveFeed(request.FeedUrl, transaction); break;
-            case "lead-feed-sync": SyncFeed(request, transaction); break;
         }
         Execute("INSERT INTO changes VALUES($id,$hash)", transaction, ("$id", id), ("$hash", hash));
         token.ThrowIfCancellationRequested();
@@ -125,12 +124,24 @@ internal sealed partial class WatchStore : IDisposable
 
         var name = WatchInput.Text(input.Name, 40, true);
         var note = WatchInput.Text(input.Note, 80);
+        var feedUrl = string.IsNullOrWhiteSpace(input.FeedUrl) ? string.Empty : FeedAddress.Normalize(input.FeedUrl);
+        var previousFeedUrl = old?.FeedUrl ?? string.Empty;
         var saved = new Author(account, name, note, input.Active && !input.Archived,
-            input.Archived, input.Revision + 1);
+            input.Archived, input.Revision + 1, feedUrl);
         Execute("""
             INSERT INTO authors VALUES($account,$body)
             ON CONFLICT(account) DO UPDATE SET body=excluded.body
             """, transaction, ("$account", account), ("$body", WatchProtocol.Encode(saved)));
+        if (!string.Equals(previousFeedUrl, feedUrl, StringComparison.Ordinal))
+        {
+            // 修改来源后清除旧验证器和覆盖状态，但保留已发现的历史线索。
+            var resetState = string.IsNullOrWhiteSpace(feedUrl) ? "NotConfigured" : "NeverChecked";
+            Execute("""
+                UPDATE lead_coverage
+                SET state=$state, observed=0, matches=-1, etag=NULL, last_modified=NULL
+                WHERE account=$account
+                """, transaction, ("$state", resetState), ("$account", account));
+        }
     }
 
     private void SaveOpinion(Opinion? input, SqliteTransaction transaction)
