@@ -37,7 +37,8 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
     public LeadPage? Leads { get; init; }
 }
 
-public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen);
+public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",
+    string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null, string FeedItemId = "");
 public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
     string? ETag = null, DateTimeOffset? LastModified = null);
 public sealed record LeadPage(bool Configured, Author[] Authors, FeedCoverage[] Coverage, PostLead[] Rows, int Total,
@@ -71,6 +72,7 @@ public static class WatchProtocol
         new("1556808774", "宁静的冬日M"), new("8790885129", "超级鹿鼎公"),
         new("9650668145", "管我财"), new("2681290304", "学知利行"),
         new("1760673340", "HIS1963"), new("6451611049", "润哥"),
-        new("3045778209", "大黄蚬子hgx"), new("8632046745", "逹人知命", "雪球昵称为達人知命")
+        new("3045778209", "大黄蚬子hgx"), new("8632046745", "达人知命", "雪球昵称为達人知命"),
+        new("8799248060", "股市小民a")
     ]);
 }

@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Net;
+using System.Text.RegularExpressions;
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Feed;
 using Microsoft.Data.Sqlite;
@@ -43,6 +45,47 @@ internal sealed partial class WatchStore
         transaction.Commit();
     }
 
+    private void InitializeLeadArticleMetadata()
+    {
+        using var transaction = db.BeginTransaction();
+        Execute("""
+            ALTER TABLE post_leads ADD COLUMN title TEXT NOT NULL DEFAULT '';
+            ALTER TABLE post_leads ADD COLUMN summary TEXT NOT NULL DEFAULT '';
+            ALTER TABLE post_leads ADD COLUMN content TEXT NOT NULL DEFAULT '';
+            ALTER TABLE post_leads ADD COLUMN published INTEGER;
+            ALTER TABLE post_leads ADD COLUMN feed_author TEXT;
+            ALTER TABLE post_leads ADD COLUMN feed_item_id TEXT NOT NULL DEFAULT '';
+            PRAGMA user_version=5;
+            """, transaction);
+        transaction.Commit();
+    }
+
+    private void InitializeTrackedAuthors()
+    {
+        using var transaction = db.BeginTransaction();
+        // 补齐新增的固定观察作者；已存在的用户配置和暂停状态不覆盖。
+        var newAuthor = WatchProtocol.InitialAuthors.Single(author => author.Account == "8799248060");
+        if (Scalar("SELECT body FROM authors WHERE account=$account", transaction,
+            ("$account", newAuthor.Account)) is null)
+            Execute("INSERT INTO authors(account,body) VALUES($account,$body)", transaction,
+                ("$account", newAuthor.Account),
+                ("$body", WatchProtocol.Encode(newAuthor with { Revision = 1 })));
+
+        // 仅修正旧版本预置昵称的已知错字，不覆盖用户自定义名称。
+        if (Scalar("SELECT body FROM authors WHERE account=$account", transaction,
+            ("$account", "8632046745")) is string oldBody)
+        {
+            var old = WatchProtocol.Decode<Author>(oldBody);
+            if (old.Name == "逹人知命")
+                Execute("UPDATE authors SET body=$body WHERE account=$account", transaction,
+                    ("$account", old.Account),
+                    ("$body", WatchProtocol.Encode(old with { Name = "达人知命", Revision = old.Revision + 1 })));
+        }
+
+        Execute("PRAGMA user_version=6;", transaction);
+        transaction.Commit();
+    }
+
     internal Author[] LeadAuthors() => Authors().Where(author => author.Active && !author.Archived).ToArray();
     internal FeedCoverage? LeadCoverage(string account) => ReadLeadCoverage(account);
 
@@ -82,7 +125,7 @@ internal sealed partial class WatchStore
                 continue;
 
             scanned++;
-            var links = new HashSet<string>(StringComparer.Ordinal);
+            var links = new Dictionary<string, FeedItem>(StringComparer.Ordinal);
             if (scan.Result.Status == FeedFetchStatus.Updated && scan.Result.Feed is { } feed)
             {
                 foreach (var item in feed.Items)
@@ -91,22 +134,47 @@ internal sealed partial class WatchStore
                     if (item.Url is null) continue;
                     try
                     {
-                        var url = WatchInput.SourceLink(item.Url.AbsoluteUri);
-                        if (url.StartsWith($"https://xueqiu.com/{scan.Account}/", StringComparison.Ordinal))
-                            links.Add(url);
+                        // Google Alerts 可能把原帖包在 google.com/url 跳转地址中；只接受还原后属于当前作者的雪球原帖。
+                        var url = WatchInput.AlertSourceLink(item.Url.AbsoluteUri, scan.Account);
+                        links.TryAdd(url, item);
                     }
-                    catch (ArgumentException)
+                    catch (Exception error) when (error is ArgumentException or FormatException)
                     {
-                        // 忽略非雪球原帖、主页链接和格式不完整的条目。
+                        // 忽略非雪球原帖、其他作者的文章和格式不完整的条目。
                     }
                 }
             }
 
-            foreach (var url in links)
+            foreach (var (url, item) in links)
             {
-                using var insert = Command("INSERT OR IGNORE INTO post_leads VALUES($account,$url,$observed)",
-                    transaction, ("$account", scan.Account), ("$url", url), ("$observed", at));
-                added += insert.ExecuteNonQuery();
+                var title = PlainText(item.Title, 240);
+                var summary = PlainText(item.Summary, 1200);
+                var body = PlainText(item.Content, 3000);
+                var feedAuthor = PlainText(item.Author, 80);
+                var itemId = PlainText(item.Id, 300);
+                var published = item.PublishedAt?.ToUnixTimeSeconds();
+                var existed = Scalar("SELECT 1 FROM post_leads WHERE account=$account AND url=$url",
+                    transaction, ("$account", scan.Account), ("$url", url)) is not null;
+                using var insert = Command("""
+                    INSERT INTO post_leads(account,url,first_seen,title,summary,content,published,feed_author,feed_item_id)
+                    VALUES($account,$url,$observed,$title,$summary,$content,$published,$author,$itemId)
+                    ON CONFLICT(account,url) DO UPDATE SET
+                        title=CASE WHEN excluded.title<>'' THEN excluded.title ELSE post_leads.title END,
+                        summary=CASE WHEN length(excluded.summary)>length(post_leads.summary)
+                            THEN excluded.summary ELSE post_leads.summary END,
+                        content=CASE WHEN length(excluded.content)>length(post_leads.content)
+                            THEN excluded.content ELSE post_leads.content END,
+                        published=COALESCE(excluded.published,post_leads.published),
+                        feed_author=COALESCE(NULLIF(excluded.feed_author,''),post_leads.feed_author),
+                        feed_item_id=CASE WHEN excluded.feed_item_id<>'' THEN excluded.feed_item_id ELSE post_leads.feed_item_id END
+                    """, transaction,
+                    ("$account", scan.Account), ("$url", url), ("$observed", at),
+                    ("$title", title), ("$summary", summary), ("$content", body),
+                    ("$published", (object?)published ?? DBNull.Value),
+                    ("$author", feedAuthor.Length > 0 ? (object)feedAuthor : DBNull.Value),
+                    ("$itemId", itemId));
+                insert.ExecuteNonQuery();
+                if (!existed) added++;
             }
 
             var previous = ReadLeadCoverage(scan.Account, transaction);
@@ -129,6 +197,18 @@ internal sealed partial class WatchStore
         token.ThrowIfCancellationRequested();
         transaction.Commit();
         return (scanned, added, failed);
+    }
+
+    private static string PlainText(string? value, int maximum)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var withoutActiveContent = Regex.Replace(value, @"<(script|style)\b[^>]*>.*?</\1>", " ",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        var withoutTags = Regex.Replace(withoutActiveContent, "<[^>]+>", " ",
+            RegexOptions.CultureInvariant);
+        var decoded = WebUtility.HtmlDecode(withoutTags);
+        var normalized = Regex.Replace(decoded, @"\s+", " ").Trim();
+        return normalized.Length <= maximum ? normalized : normalized[..maximum];
     }
 
     private static string CoverageState(FeedFetchStatus status) => status switch
@@ -170,12 +250,20 @@ internal sealed partial class WatchStore
 
         const string condition = "WHERE $a='' OR account=$a";
         var total = Convert.ToInt32(Scalar("SELECT count(*) FROM post_leads " + condition, null, ("$a", filter.Account!)));
-        using var leads = Command("SELECT account,url,first_seen FROM post_leads " + condition +
-            " ORDER BY first_seen DESC,account,url LIMIT $limit OFFSET $offset", null,
-            ("$a", filter.Account!), ("$limit", WatchProtocol.LeadsPerPage), ("$offset", filter.Offset));
+        var query = "SELECT account,url,first_seen,title,summary,content,published,feed_author,feed_item_id " +
+            "FROM post_leads " + condition +
+            " ORDER BY first_seen DESC,account,url LIMIT $limit OFFSET $offset";
+        using var leads = Command(query, null, ("$a", filter.Account!),
+            ("$limit", WatchProtocol.LeadsPerPage), ("$offset", filter.Offset));
         using var rows = leads.ExecuteReader();
         var items = new List<PostLead>();
-        while (rows.Read()) items.Add(new(rows.GetString(0), rows.GetString(1), BeijingTime(rows.GetInt64(2))));
+        while (rows.Read())
+        {
+            DateTimeOffset? published = rows.IsDBNull(6) ? null : BeijingTime(rows.GetInt64(6));
+            items.Add(new(rows.GetString(0), rows.GetString(1), BeijingTime(rows.GetInt64(2)),
+                rows.GetString(3), rows.GetString(4), rows.GetString(5), published,
+                rows.IsDBNull(7) ? null : rows.GetString(7), rows.GetString(8)));
+        }
         rows.Close();
 
         var active = authors.Where(author => author.Active && !author.Archived).ToArray();

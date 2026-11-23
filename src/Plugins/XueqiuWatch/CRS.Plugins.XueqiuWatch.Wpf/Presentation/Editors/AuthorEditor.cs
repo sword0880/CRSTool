@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using CRS.Plugins.XueqiuWatch.Core;
@@ -19,7 +20,7 @@ internal sealed class AuthorEditor : WatchEditor
     private readonly Button remove;
 
     public AuthorEditor(Window? owner, Author[] authors, WorkerWatchClient client, CancellationToken lifetime)
-        : base(owner, "雪球观察名单", 620)
+        : base(owner, "雪球观察名单", 650)
     {
         this.client = client;
         this.lifetime = lifetime;
@@ -27,17 +28,23 @@ internal sealed class AuthorEditor : WatchEditor
         Field("雪球账号 ID 或主页链接", account);
         Field("显示名称", name);
         Field("备注", note);
-        Field("RSS 地址（每位作者独立配置）", feedUrl);
+        Field("Google Alerts RSS 地址（每位作者独立配置）", feedUrl);
         Fields.Children.Add(new TextBlock
         {
-            Text = "可粘贴有权使用的 RSS / Atom / JSON Feed 地址。RSSHub 示例路由为 https://rsshub.app/xueqiu/user/{账号ID}；公共实例属于第三方服务，可替换为自建 RSSHub 或其他来源。",
+            Text = "低成本订阅方式：点击「打开 Google Alerts」，按下方生成的搜索条件创建一个提醒；建议来源保持自动、语言选择中文、结果数量选择「所有结果」，投递方式选择 RSS，再把 Google 生成的 RSS 地址粘贴到上方。每位作者单独创建一个提醒。Google Alerts 免费，但搜索收录和更新时效不保证完整。",
             TextWrapping = TextWrapping.Wrap, Margin = new(0, 2, 0, 6)
+        });
+        Fields.Children.Add(new TextBlock
+        {
+            Text = "搜索条件按雪球数字账号 ID 生成，可根据实际收录情况在 Google Alerts 中调整。RSS 地址包含订阅标识，请勿公开；CRS 将其保存在加密的观点数据库中。",
+            TextWrapping = TextWrapping.Wrap, Margin = new(0, 0, 0, 6)
         });
         Fields.Children.Add(active);
         Fields.Children.Add(subscription);
         remove = AsyncAction("移除", () => SaveAsync(true));
         Finish(
-            AsyncAction("填入 RSSHub 示例", FillRssHubExampleAsync),
+            AsyncAction("打开 Google Alerts", OpenGoogleAlertsAsync),
+            AsyncAction("复制搜索条件", CopySearchQueryAsync),
             AsyncAction("刷新", () => WithFeedbackAsync(async () => await RefreshAsync(null), lifetime)),
             remove,
             AsyncAction("保存", () => SaveAsync(false)),
@@ -73,11 +80,18 @@ internal sealed class AuthorEditor : WatchEditor
         SetAuthors(data.Authors ?? [], selection);
     }
 
-    private Task FillRssHubExampleAsync() => WithFeedbackAsync(() =>
+    private Task OpenGoogleAlertsAsync() => WithFeedbackAsync(() =>
     {
-        var id = WatchInput.AccountId(account.Text);
-        feedUrl.Text = $"https://rsshub.app/xueqiu/user/{id}";
-        subscription.Text = "已填入公共 RSSHub 示例地址。请确认来源可用及内容使用权限；生产环境优先使用自建实例或授权来源。";
+        Process.Start(new ProcessStartInfo("https://www.google.com/alerts") { UseShellExecute = true });
+        subscription.Text = "已打开 Google Alerts。请为当前作者创建提醒，并将投递方式设置为 RSS。";
+        return Task.CompletedTask;
+    }, lifetime);
+
+    private Task CopySearchQueryAsync() => WithFeedbackAsync(() =>
+    {
+        var query = WatchInput.GoogleAlertQuery(account.Text);
+        Clipboard.SetText(query);
+        subscription.Text = $"已复制搜索条件：{query}。请在 Google Alerts 中创建提醒，再复制其 RSS 地址。";
         return Task.CompletedTask;
     }, lifetime);
 
@@ -91,8 +105,8 @@ internal sealed class AuthorEditor : WatchEditor
         await client.SaveAsync(new("author-save", Author: draft), lifetime);
         await RefreshAsync(archive ? null : id);
         subscription.Text = string.IsNullOrWhiteSpace(draft.FeedUrl)
-            ? "作者已保存。当前未配置 RSS，后台不会采集该作者。"
-            : "作者及 RSS 地址已保存。Worker 将按作者独立采集；来源返回空列表不代表完整覆盖。";
+            ? "作者已保存。当前未配置 Google Alerts RSS，后台不会采集该作者。"
+            : "作者及 Google Alerts RSS 地址已保存。Worker 将按作者独立采集；搜索引擎未收录的文章不会出现在订阅中。";
     }, lifetime);
 
     private sealed record AuthorChoice(string Label, Author? Author);
