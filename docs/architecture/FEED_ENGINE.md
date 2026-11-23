@@ -40,14 +40,25 @@ CRS.Worker.Service（唯一调度宿主）
 
 - 定时调度、任务状态、重试队列和来源预算。
 - 业务数据存储、去重主键和历史文章清理。
-- 雪球账号查询、RSSHub 路由、Google News 查询或其他来源专属逻辑。
+- 雪球账号查询、Google Alerts 查询规则、Google 跳转链接还原或其他来源专属逻辑。
 - HTML 渲染、AI 摘要、情绪/观点分析和证券归属。
 
-## 5. 雪球插件接入约定
+## 5. Google Alerts 与雪球插件接入约定
 
-雪球插件为每位作者配置独立 Feed 地址，Worker 并发采集后只接受路径归属与作者账号一致的雪球原帖链接。公共 RSSHub 实例仅是可选的路由来源；优先使用自建或有权使用的数据源。RSSHub 路由可参考 [雪球用户动态](https://github.com/DIYgod/RSSHub/blob/master/lib/routes/xueqiu/user.ts)，但第三方路由可用性和雪球内容使用授权需要独立核实。
+第一阶段以免费 Google Alerts 作为外部文章发现服务，不自建搜索引擎，不采购舆情 API，也不依赖 RSSHub。用户在 Google Alerts 中为每位作者单独创建提醒，默认搜索条件由雪球插件按数字账号 ID 生成：`site:xueqiu.com/{账号ID}`。用户在 Google Alerts 中选择 RSS 投递后，将生成的 Feed URL 保存到对应作者配置。
 
-旧 Google Alerts Feed 地址不迁移到新字段：它是查询聚合结果，不等价于某个作者的独立动态源。数据库升级保留已经发现的历史线索，但清空旧 Feed 覆盖状态，要求用户为作者配置新的来源。
+- CRS 不自动登录 Google，不使用 Playwright，也不保存 Google 登录凭据。
+- Google Alerts RSS URL 含唯一订阅标识，按凭据处理；保存在 XueqiuWatch 的 SQLCipher 加密库中，不记录到日志。
+- Google Alerts 只是搜索索引发现，不是雪球官方全量动态接口；收录范围和更新时间不保证完整。
+- CRS.Feed 只负责通用 Feed 抓取与解析。雪球 Jobs 负责从 Google `/url` 跳转链接中安全提取原文 URL，并再次验证目标主机为雪球、路径作者 ID 与当前订阅作者一致。
+- 只接受规范的 `https://xueqiu.com/{authorId}/{postId}` 原帖链接。非雪球链接、主页、其他作者文章和不完整路径均忽略。
+- 采集保存标题、摘要、正文片段、Feed 作者、发布时间、原帖 URL 和首次发现时间；保留 ETag / Last-Modified 条件请求。
+- 文章正文只使用 Feed 返回的内容，不自动抓取雪球页面。后续是否使用 AI 分析需要单独核对内容使用范围与模型调用成本。
+
+RSSHub 及第三方爬虫不属于第一阶段方案。若 Google Alerts 试运行无法达到所需收录率，再基于实测数据评估其他数据源，不提前增加复杂依赖。
+
+旧版单一 Google Alerts Feed 状态不会直接迁移为某个作者的订阅，因为它缺少可靠的作者隔离。升级保留已经发现的历史线索；用户为每位作者粘贴独立 RSS URL 后，恢复自动采集。
+
 
 ## 6. 反方审查与验收
 
