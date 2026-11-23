@@ -19,9 +19,9 @@ internal sealed partial class WatchStore
         };
     }
 
-    private Author[] Authors()
+    private Author[] Authors(Microsoft.Data.Sqlite.SqliteTransaction? transaction = null)
     {
-        using var command = Command("SELECT body FROM authors ORDER BY rowid", null);
+        using var command = Command("SELECT body FROM authors ORDER BY rowid", transaction);
         using var reader = command.ExecuteReader();
         var rows = new List<Author>();
         while (reader.Read()) rows.Add(WatchProtocol.Decode<Author>(reader.GetString(0)));

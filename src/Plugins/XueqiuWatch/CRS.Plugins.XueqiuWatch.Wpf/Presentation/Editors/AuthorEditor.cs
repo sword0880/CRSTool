@@ -13,6 +13,7 @@ internal sealed class AuthorEditor : WatchEditor
     private readonly TextBox name = new() { MaxLength = 40 };
     private readonly TextBox note = new() { MaxLength = 80 };
     private readonly CheckBox active = new() { Content = "启用跟踪", IsChecked = true, Margin = new(0, 8, 0, 3) };
+    private readonly TextBlock subscription = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 4) };
     private Author? selected;
     private readonly Button remove;
 
@@ -26,8 +27,10 @@ internal sealed class AuthorEditor : WatchEditor
         Field("显示名称", name);
         Field("备注", note);
         Fields.Children.Add(active);
+        Fields.Children.Add(subscription);
         remove = AsyncAction("移除", () => SaveAsync(true));
-        Finish(AsyncAction("刷新", () => WithFeedbackAsync(async () => await RefreshAsync(null), lifetime)),
+        Finish(Action("连接 Google", ShowSubscription),
+            AsyncAction("刷新", () => WithFeedbackAsync(async () => await RefreshAsync(null), lifetime)),
             remove, AsyncAction("保存", () => SaveAsync(false)), Action("关闭", Close));
         options.SelectionChanged += (_, _) => SelectAuthor((options.SelectedItem as AuthorChoice)?.Author);
         SetAuthors(authors, null);
@@ -68,7 +71,16 @@ internal sealed class AuthorEditor : WatchEditor
                 Revision: selected?.Revision ?? 0);
         await client.SaveAsync(new("author-save", Author: draft), lifetime);
         await RefreshAsync(archive ? null : id);
+        subscription.Text = "作者已保存，正在核对 Google RSS 订阅…";
+        subscription.Text = "作者已保存。" + await new GoogleAlertsSync(client).SyncAsync(lifetime);
     }, lifetime);
+
+    private void ShowSubscription()
+    {
+        var editor = new SubscriptionEditor(this, client, lifetime);
+        editor.ShowDialog();
+        if (editor.SyncStatus is { } result) subscription.Text = result;
+    }
 
     private sealed record AuthorChoice(string Label, Author? Author);
 }

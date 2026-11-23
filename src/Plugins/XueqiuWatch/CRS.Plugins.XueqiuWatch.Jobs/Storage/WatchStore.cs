@@ -34,9 +34,14 @@ internal sealed partial class WatchStore : IDisposable
             var version = Convert.ToInt32(Scalar("PRAGMA user_version"));
             // SQLite 首次建库事务在提交前中断时，可安全恢复空库。
             if (application == 0 && version == 0 && Convert.ToInt32(Scalar("SELECT count(*) FROM sqlite_schema")) == 0)
+            {
                 Initialize();
-            else if (application != ApplicationId || version != 1)
+                version = 1;
+            }
+            else if (application != ApplicationId || version is not (1 or 2 or 3))
                 throw new InvalidDataException("观点库存储格式不兼容。");
+            if (version == 1) InitializeLeads();
+            if (version < 3) InitializeLeadScope();
         }
         catch
         {
@@ -76,7 +81,9 @@ internal sealed partial class WatchStore : IDisposable
             "catalog" => new(Securities: Catalog(request.Filter?.Search)),
             "overview" => new(Overview: Overview(ValidateFilter(request.Filter), token)),
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
-            "author-save" or "opinion-save" => Save(request, payload, token),
+            "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
+            "lead-subscription" => new() { Subscription = ReadSubscription() },
+            "author-save" or "opinion-save" or "lead-feed-save" or "lead-feed-sync" => Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
     }
@@ -92,8 +99,13 @@ internal sealed partial class WatchStore : IDisposable
             if (prior != hash) throw new ArgumentException("保存参数已改变，请重新提交。");
             return new();
         }
-        if (request.Operation == "author-save") SaveAuthor(request.Author, transaction);
-        else SaveOpinion(request.Opinion, transaction);
+        switch (request.Operation)
+        {
+            case "author-save": SaveAuthor(request.Author, transaction); break;
+            case "opinion-save": SaveOpinion(request.Opinion, transaction); break;
+            case "lead-feed-save": SaveFeed(request.FeedUrl, transaction); break;
+            case "lead-feed-sync": SyncFeed(request, transaction); break;
+        }
         Execute("INSERT INTO changes VALUES($id,$hash)", transaction, ("$id", id), ("$hash", hash));
         token.ThrowIfCancellationRequested();
         transaction.Commit();

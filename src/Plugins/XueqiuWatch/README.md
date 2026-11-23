@@ -8,6 +8,8 @@
 
 插件 ID 为 `crs.xueqiu-watch`。Core 定义观点模型与验证，Wpf 负责交互，Jobs 管理专属 SQLCipher 数据库 `opinions.db`。私人资料经 Windows 管理员管道访问，保存时由插件确认修订号并按请求标识去重。正文与证据保存在插件库内，主调度库无需登记这些操作。
 
-自动同步需要授权数据源，AI 拆解属于后续可选能力。方案与使用边界见[雪球观点追踪方案](../../../docs/modules/XUEQIU_OPINION_TRACKING_DESIGN.md)。
+首次使用时，在「发言线索 → 连接 Google」登录 Google，关闭为小财牛打开的 Edge 窗口，再点击「立即同步」。已有订阅时请使用建立该订阅的账号。此后保存观察名单会自动在 [Google Alerts](https://www.google.com/alerts) 创建或更新启用账号的查询，并把 Google 确认的 RSS 地址写回插件加密库。地址无需复制。同步失败时保留原订阅和历史线索，登录失效后可重新连接并重试。Worker 按原计划读取已保存的订阅，收集线索无需打开桌面端、使用搜索 API Key 或启动 Codex。
+
+在「任务中心 → 服务计划 → 添加计划」选择「发现雪球发言线索」。建议时间为北京时间 09:15，启用前可以先保存并手动试跑。插件只从订阅保存可归属到启用作者的规范雪球链接，按账号与链接去重。首次发现时间为 CRS 的记录时间，命中或空订阅都不能确认作者发言覆盖。线索与原帖观点分开存储，失败、限流和访问受限可在任务记录和作者状态中查看。自动同步原帖需要覆盖作者动态的数据源。方案与使用边界见[雪球观点追踪方案](../../../docs/modules/XUEQIU_OPINION_TRACKING_DESIGN.md)。
 
 本地验证使用 [Worker 开发打包脚本](../../../tests/Publish-BackgroundService.ps1) 生成候选，再用 `CRS.Tests.Background --xueqiu-private-data <候选包目录>` 检查真实管道、加密数据库、作者配置和观点统计。桌面加载使用 `CRS.Tests.PluginHost --load-probe`。

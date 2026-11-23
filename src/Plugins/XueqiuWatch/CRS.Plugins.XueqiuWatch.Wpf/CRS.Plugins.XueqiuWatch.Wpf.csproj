@@ -3,9 +3,11 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <EnableDynamicLoading>true</EnableDynamicLoading>
+    <PlaywrightPlatform>win-x64</PlaywrightPlatform>
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
     <ProjectReference Include="../CRS.Plugins.XueqiuWatch.Core/CRS.Plugins.XueqiuWatch.Core.csproj" />
     <ProjectReference Include="../../../CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj" />
     <ProjectReference Include="../../../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />

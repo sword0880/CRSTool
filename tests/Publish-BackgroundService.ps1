@@ -26,7 +26,7 @@ if(-not $HeartbeatOnly){
     $index=@(Get-Content (Join-Path $output 'trusted-background-plugins.json') -Raw | ConvertFrom-Json -AsHashtable)
     $index+=@{id='crs.national-team';version='2.0.0';directory='crs.national-team/2.0.0';files=$etfHashes}
     $xueqiu=Join-Path $output 'Plugins/crs.xueqiu-watch/1.0.0'
-    & (Join-Path $PSScriptRoot 'Publish-XueqiuWatchPackage.ps1') -OutputDirectory $xueqiu -Configuration $Configuration
+    & (Join-Path $PSScriptRoot 'Publish-XueqiuWatchPackage.ps1') -OutputDirectory $xueqiu -Configuration $Configuration -BackgroundOnly
     $xueqiuHashes=@{}
     foreach($file in Get-ChildItem -LiteralPath $xueqiu -Recurse -File){
         $relative=[IO.Path]::GetRelativePath($xueqiu,$file.FullName).Replace('\','/')

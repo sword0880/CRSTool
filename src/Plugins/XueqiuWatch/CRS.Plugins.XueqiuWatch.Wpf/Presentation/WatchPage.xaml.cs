@@ -46,6 +46,9 @@ public partial class WatchPage : UserControl
         await RunAsync(RefreshAsync);
     }
 
+    private void ShowLeads(object sender, RoutedEventArgs e) =>
+        new LeadWindow(Window.GetWindow(this), client, lifetime).ShowDialog();
+
     private ReviewFilter Filters() => new(PeriodFilter.SelectedIndex == 1 ? 7 : 30,
         (AuthorFilter.SelectedItem as Author)?.Account is { Length: > 0 } account ? account : null,
         MarketFilter.SelectedIndex > 0 ? MarketFilter.SelectedItem as string : null,

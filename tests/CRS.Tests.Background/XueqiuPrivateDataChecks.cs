@@ -17,6 +17,12 @@ internal static class XueqiuPrivateDataChecks
             WatchProtocol.PluginId, Payload: WatchProtocol.Encode(new WatchRequest("authors"))), token);
         Require(publicReply.Code != "Ok" && publicReply.Payload is null, "private records cannot be read through public query");
 
+        var options = await client.QueryAsync(WorkerProtocol.GetPluginPlanOptions, token);
+        Require(options.Jobs?.Any(plan => plan.PluginId == WatchProtocol.PluginId &&
+            plan.JobId == WatchProtocol.LeadJobId && plan.Revision == 0 && !plan.Enabled) == true, "RSS plan available and unscheduled");
+        Require((await Send(new("leads"))).Leads is { Configured: false, Total: 0, Authors.Length: 8 },
+            "RSS panel loads over the private pipe without exposing a subscription");
+
         var authors = (await Send(new("authors"))).Authors!;
         Require(authors.Length == 8 && authors.Any(x => x.Name == "逹人知命"), "seeded authors");
         var first = authors[0];
@@ -24,6 +30,16 @@ internal static class XueqiuPrivateDataChecks
         var archive = new WatchRequest("author-save", Author: authors[7] with { Archived = true }, ChangeId: Guid.NewGuid());
         Require((await Send(archive)).Error is null && (await Send(archive)).Error is null, "author removal and exact replay");
         Require((await Send(new("authors"))).Authors!.Single(x => x.Account == authors[7].Account).Archived, "removed author state");
+
+        var subscription = (await Send(new("lead-subscription"))).Subscription;
+        Require(subscription is { Pending: true, FeedFingerprint: null } &&
+            !subscription.Scope.Split(',').Contains(authors[7].Account), "private subscription scope");
+        const string testFeed = "https://www.google.com/alerts/feeds/isolated-owner/isolated-feed";
+        var sync = new WatchRequest("lead-feed-sync", ChangeId: Guid.NewGuid())
+        { FeedScope = subscription!.Scope, FeedUrl = testFeed };
+        Require((await Send(sync)).Error is null && (await Send(sync)).Error is null, "private RSS write and exact replay");
+        Require((await Send(new("leads"))).Leads is { Configured: true, SubscriptionPending: false }, "RSS write read-back");
+        Console.WriteLine("PASS 自动订阅配置通过私有管道保存、读回并去重。");
 
         var stock = new Security("沪市", "600001", "合成样本", "样例行业");
         var candidate = WatchInput.Candidates("$合成样本(SH600001)$ 以及 HK00700", [stock]);

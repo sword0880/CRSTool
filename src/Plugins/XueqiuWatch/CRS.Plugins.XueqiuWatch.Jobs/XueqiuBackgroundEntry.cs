@@ -5,19 +5,21 @@ using CRS.Worker.Abstractions;
 
 namespace CRS.Plugins.XueqiuWatch.Jobs;
 
-public sealed class XueqiuBackgroundEntry : IContextualBackgroundPluginEntry
+public sealed partial class XueqiuBackgroundEntry : IContextualBackgroundPluginEntry
 {
     public IBackgroundPluginSession CreateSession() => throw new InvalidOperationException("观点追踪需要独立存储上下文。");
-    public IBackgroundPluginSession CreateSession(IBackgroundHostContext context) => new Session(context);
+    public IBackgroundPluginSession CreateSession(IBackgroundHostContext context) => new Session(context, new());
+    internal IBackgroundPluginSession CreateSession(IBackgroundHostContext context, HttpMessageHandler transport) =>
+        new Session(context, new(transport));
 
-    private sealed class Session(IBackgroundHostContext context) : IBackgroundPluginSession, IBackgroundPrivateDataSession
+    private sealed partial class Session(IBackgroundHostContext context, AlertsLeadFeed feed) : IBackgroundPluginSession, IBackgroundPrivateDataSession
     {
         private readonly SemaphoreSlim gate = new(1);
         private WatchStore? store;
 
-        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() => [];
-        public Task<BackgroundJobResult> ExecuteAsync(string jobId, CancellationToken cancellationToken)
-            => Task.FromResult(new BackgroundJobResult("Rejected"));
+        public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() =>
+            [new(WatchProtocol.LeadJobId, "发现雪球发言线索", "0 15 9 * * ?", "China Standard Time", false)
+                { RequiresPlanCreation = true }];
 
         public ValueTask StartAsync(CancellationToken cancellationToken)
         {
@@ -54,6 +56,7 @@ public sealed class XueqiuBackgroundEntry : IContextualBackgroundPluginEntry
         public async ValueTask DisposeAsync()
         {
             await StopAsync(CancellationToken.None);
+            feed.Dispose();
             gate.Dispose();
         }
     }
