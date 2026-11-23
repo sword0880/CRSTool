@@ -20,6 +20,7 @@ internal sealed class LeadWindow : WatchEditor
     private readonly Button next;
     private Author[] authors = [];
     private int offset;
+    internal Opinion? SavedOpinion { get; private set; }
 
     internal LeadWindow(Window? owner, WorkerWatchClient client, CancellationToken lifetime)
         : base(owner, "雪球发言线索", 890)
@@ -52,6 +53,7 @@ internal sealed class LeadWindow : WatchEditor
         Fields.Children.Add(pagination);
 
         Finish(AsyncAction("刷新", () => BrowseAsync(offset)), AsyncAction("打开选中链接", OpenLeadAsync),
+            AsyncAction("从选中线索录入观点", RecordOpinionAsync),
             Action("关闭", Close));
         Loaded += async (_, _) => await BrowseAsync(0);
     }
@@ -91,7 +93,7 @@ internal sealed class LeadWindow : WatchEditor
                 CoverageText(author, item));
         }).ToArray();
         links.ItemsSource = result.Rows.Select(item => new LeadRow(byAccount[item.Account].Name,
-            item.FirstSeen.ToString("yyyy-MM-dd HH:mm"), item.Url)).ToArray();
+            item.FirstSeen.ToString("yyyy-MM-dd HH:mm"), item)).ToArray();
         page.Text = result.Total == 0 ? "暂无已保存线索" : $"第 {offset + 1}–{offset + result.Rows.Length} 条，共 {result.Total} 条";
         prior.IsEnabled = offset > 0;
         next.IsEnabled = offset + result.Rows.Length < result.Total;
@@ -121,6 +123,16 @@ internal sealed class LeadWindow : WatchEditor
         return Task.CompletedTask;
     }, lifetime);
 
+    private Task RecordOpinionAsync() => WithFeedbackAsync(async () =>
+    {
+        if (links.SelectedItem is not LeadRow row) throw new ArgumentException("请先选择一条线索。");
+        var directory = (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
+        var editor = new OpinionEditor(this, authors, directory, null, null, client, lifetime, row.Lead);
+        if (editor.ShowDialog() != true) return;
+        SavedOpinion = editor.SavedOpinion;
+        CloseAfterSave();
+    }, lifetime);
+
     private static DataGrid Grid(int height)
     {
         var table = new DataGrid
@@ -139,5 +151,8 @@ internal sealed class LeadWindow : WatchEditor
     }
 
     private sealed record AuthorCoverage(string Author, string Checked, string Status);
-    private sealed record LeadRow(string Author, string Found, string Url);
+    private sealed record LeadRow(string Author, string Found, PostLead Lead)
+    {
+        public string Url => Lead.Url;
+    }
 }

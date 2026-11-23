@@ -46,8 +46,22 @@ public partial class WatchPage : UserControl
         await RunAsync(RefreshAsync);
     }
 
-    private void ShowLeads(object sender, RoutedEventArgs e) =>
-        new LeadWindow(Window.GetWindow(this), client, lifetime).ShowDialog();
+    private async void ShowLeads(object sender, RoutedEventArgs e)
+    {
+        var dialog = new LeadWindow(Window.GetWindow(this), client, lifetime);
+        dialog.ShowDialog();
+        await RunAsync(async () =>
+        {
+            if (dialog.SavedOpinion is { } saved)
+            {
+                await RefreshStocksAsync(saved);
+                var message = saved.Security is null || selected?.Security.Key == saved.Security.Key
+                    ? "线索已录入为观点。" : "线索已录入为观点。当前股票页未显示对应股票，请核对筛选范围。";
+                Status.Text = $"{message} {Status.Text}";
+            }
+            await RefreshLeadCountAsync();
+        });
+    }
 
     private ReviewFilter Filters() => new(PeriodFilter.SelectedIndex == 1 ? 7 : 30,
         (AuthorFilter.SelectedItem as Author)?.Account is { Length: > 0 } account ? account : null,
@@ -87,9 +101,24 @@ public partial class WatchPage : UserControl
         AuthorFilter.ItemsSource = authorOptions;
         AuthorFilter.SelectedItem = authorOptions.FirstOrDefault(x => x.Account == account) ?? authorOptions[0];
         await RefreshStocksAsync();
+        await RefreshLeadCountAsync();
     }
 
-    private async Task RefreshStocksAsync()
+    private async Task RefreshLeadCountAsync()
+    {
+        try
+        {
+            var leads = (await client.AskAsync(new("leads"), lifetime)).Leads;
+            LeadsButton.Content = leads is { Total: > 0 } ? $"发言线索（{leads.Total}）" : "发言线索";
+        }
+        catch (ArgumentException error) when (error.Message == "未知的观点追踪操作。")
+        {
+            // 旧版 Worker 未提供线索查询时，股票观点仍可刷新。
+            LeadsButton.Content = "发言线索";
+        }
+    }
+
+    private async Task RefreshStocksAsync(Opinion? recordedFromLead = null)
     {
         var filter = Filters();
         overview = (await client.AskAsync(new("overview", filter with { Offset = stockOffset }), lifetime)).Overview
@@ -104,12 +133,19 @@ public partial class WatchPage : UserControl
         IndustryFilter.ItemsSource = industries;
         IndustryFilter.SelectedItem = industries.Contains(filter.Industry) ? filter.Industry : industries[0];
         var previous = selected?.Security.Key;
-        selected = overview.Stocks.FirstOrDefault(x => x.Security.Key == previous) ?? overview.Stocks.FirstOrDefault();
+        var preferred = recordedFromLead?.Security?.Key ?? previous;
+        selected = overview.Stocks.FirstOrDefault(x => x.Security.Key == preferred) ?? overview.Stocks.FirstOrDefault();
         if (selected?.Security.Key != previous)
         {
             mode = "latest";
             detailOffset = 0;
             MatrixScroll.ScrollToHorizontalOffset(0);
+        }
+        if (recordedFromLead is not null)
+        {
+            if (recordedFromLead.Security is null) mode = "pending";
+            else if (selected?.Security.Key == preferred) mode = "timeline";
+            detailOffset = 0;
         }
 
         RenderMatrix();
@@ -119,7 +155,7 @@ public partial class WatchPage : UserControl
             $"{stockOffset + 1}–{stockOffset + overview.Stocks.Length} / {overview.StockCount} 只股票";
         var coverage = overview.Earliest is { } from && overview.Latest is { } to
             ? $"资料覆盖 {from:yyyy-MM-dd} 至 {to:yyyy-MM-dd} · 最近录入 {overview.LastRecorded:MM-dd HH:mm}"
-            : "当前范围内没有已录入资料。可录入研究笔记，或导入有权保存的文本。";
+            : "当前范围内没有已录入的观点。可打开「发言线索」核对原帖后录入，或导入有权保存的文本。";
         Status.Text = coverage;
         PendingStocks.Content = overview.Unmatched > 0 ? $"待认领股票（{overview.Unmatched}）" : "待认领股票";
         await RefreshDetailsAsync();

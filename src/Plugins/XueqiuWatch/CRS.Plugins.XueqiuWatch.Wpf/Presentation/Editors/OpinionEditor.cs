@@ -30,9 +30,10 @@ internal sealed class OpinionEditor : WatchEditor
     private readonly TextBox finding = new() { MaxLength = 180 };
     private readonly ComboBox candidates = new();
     private readonly TextBlock inputStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 0) };
+    internal Opinion? SavedOpinion { get; private set; }
 
     public OpinionEditor(Window? owner, Author[] authors, Security[] directory, Opinion? original,
-        Security? selectedStock, WorkerWatchClient client, CancellationToken lifetime)
+        Security? selectedStock, WorkerWatchClient client, CancellationToken lifetime, PostLead? lead = null)
         : base(owner, original is null ? "录入雪球观点" : "编辑雪球观点", 690)
     {
         this.original = original;
@@ -40,22 +41,27 @@ internal sealed class OpinionEditor : WatchEditor
         this.client = client;
         this.lifetime = lifetime;
         id = original?.Id ?? Guid.NewGuid();
-        var usableAuthors = authors.Where(x => !x.Archived || x.Account == original?.Account).ToArray();
+        var selectedAccount = original?.Account ?? lead?.Account;
+        var usableAuthors = authors.Where(x => !x.Archived || x.Account == selectedAccount).ToArray();
         author.ItemsSource = usableAuthors;
-        author.SelectedItem = usableAuthors.FirstOrDefault(x => x.Account == original?.Account);
-        if (original is null && usableAuthors.Length > 0) author.SelectedIndex = 0;
-        time.Text = (original?.PublishedAt ?? WatchProtocol.BeijingNow).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        author.SelectedItem = usableAuthors.FirstOrDefault(x => x.Account == selectedAccount);
+        if (selectedAccount is null && usableAuthors.Length > 0) author.SelectedIndex = 0;
+        // 首次发现时间不能作为原帖发布时间。
+        time.Text = lead is null
+            ? (original?.PublishedAt ?? WatchProtocol.BeijingNow).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+            : "";
         market.ItemsSource = WatchProtocol.Markets;
         SetStock(original?.Security ?? (original is null ? selectedStock : null));
         stance.ItemsSource = new[] { "待确认", "看多", "看空", "中性" };
         stance.SelectedIndex = (int)(original?.Stance ?? Stance.Pending);
         attribution.ItemsSource = new[] { "作者本人发言", "顺带提及", "转发或转述" };
-        attribution.SelectedIndex = (int)(original?.Attribution ?? Attribution.Author);
+        attribution.SelectedIndex = lead is null ? (int)(original?.Attribution ?? Attribution.Author) : -1;
         content.Text = original?.Content ?? "";
         evidence.Text = original?.Evidence ?? "";
-        source.Text = original?.Url ?? "";
+        source.Text = original?.Url ?? lead?.Url ?? "";
         question.Text = original?.Question ?? "";
         finding.Text = original?.Finding ?? "";
+        if (lead is not null) inputStatus.Text = "已带入线索的作者和链接。请核对原帖，填写发言时间、归属及观点内容。";
 
         var columns = new Grid();
         columns.ColumnDefinitions.Add(new());
@@ -151,6 +157,7 @@ internal sealed class OpinionEditor : WatchEditor
         if (author.SelectedItem is not Author selectedAuthor) throw new ArgumentException("请选择作者。");
         if (!DateTime.TryParseExact(time.Text.Trim(), "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture,
             DateTimeStyles.None, out var parsed)) throw new ArgumentException("发言时间格式为 yyyy-MM-dd HH:mm。");
+        if (attribution.SelectedIndex < 0) throw new ArgumentException("请核对原帖并选择发言归属。");
         Security? security = null;
         if (market.SelectedItem is string || code.Text.Length != 0 || name.Text.Length != 0)
             security = WatchInput.CheckSecurity(new(market.SelectedItem as string ?? "", code.Text, name.Text, industry.Text));
@@ -159,6 +166,7 @@ internal sealed class OpinionEditor : WatchEditor
             WatchInput.Text(evidence.Text, 700), WatchInput.SourceLink(source.Text), question.Text, finding.Text, original?.Revision ?? 0);
         WatchInput.CheckOpinion(draft);
         await client.SaveAsync(new("opinion-save", Opinion: draft), lifetime);
+        SavedOpinion = draft;
         CloseAfterSave();
     }, lifetime);
 
