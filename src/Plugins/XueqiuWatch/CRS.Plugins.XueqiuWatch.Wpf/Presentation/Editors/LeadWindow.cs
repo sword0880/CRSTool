@@ -43,7 +43,7 @@ internal sealed class LeadWindow : WatchEditor
 
         SetColumns(links, ("作者", nameof(LeadRow.Author)), ("原帖发布时间", nameof(LeadRow.Published)),
             ("文章标题", nameof(LeadRow.Title)), ("RSS 摘要", nameof(LeadRow.Summary)),
-            ("雪球原链接（待核验）", nameof(LeadRow.Url)));
+            ("解析线索（规则候选）", nameof(LeadRow.Hints)), ("雪球原链接（待核验）", nameof(LeadRow.Url)));
         Field("发言线索", links);
         var pagination = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new(0, 6, 0, 0) };
         pagination.Children.Add(page);
@@ -93,7 +93,22 @@ internal sealed class LeadWindow : WatchEditor
             return new AuthorCoverage(author.Name, item.CheckedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—",
                 CoverageText(author, item));
         }).ToArray();
-        links.ItemsSource = result.Rows.Select(item => new LeadRow(byAccount[item.Account].Name, item)).ToArray();
+        var securities = result.Rows.Length == 0
+            ? []
+            : (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
+        links.ItemsSource = result.Rows.Select(item =>
+        {
+            var articleText = $"{item.Title}\\n{item.Summary}\\n{item.Content}";
+            var stocks = WatchInput.Candidates(articleText, securities);
+            var directions = WatchInput.DirectionPhrases(articleText);
+            var hints = new List<string>();
+            if (stocks.Count > 0)
+                hints.Add("股票候选：" + string.Join("、", stocks.Select(stock => $"{stock.Name}（{stock.Market} {stock.Code}）")));
+            if (directions.Length > 0)
+                hints.Add("多空措辞：" + string.Join("、", directions));
+            return new LeadRow(byAccount[item.Account].Name, item,
+                hints.Count == 0 ? "暂未识别（需查看原文）" : string.Join("；", hints));
+        }).ToArray();
         page.Text = result.Total == 0 ? "暂无已保存线索" : $"第 {offset + 1}–{offset + result.Rows.Length} 条，共 {result.Total} 条";
         prior.IsEnabled = offset > 0;
         next.IsEnabled = offset + result.Rows.Length < result.Total;
@@ -155,7 +170,7 @@ internal sealed class LeadWindow : WatchEditor
     }
 
     private sealed record AuthorCoverage(string Author, string Checked, string Status);
-    private sealed record LeadRow(string Author, PostLead Lead)
+    private sealed record LeadRow(string Author, PostLead Lead, string Hints)
     {
         public string Published => Lead.PublishedAt?.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
             ?? "RSS 未提供";
