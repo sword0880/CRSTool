@@ -39,6 +39,13 @@ internal static class XueqiuRssChecks
 
             Check(WatchInput.GoogleAlertQuery("9650668145") == "site:xueqiu.com/9650668145",
                 "按作者数字账号生成独立 Google Alerts 搜索条件");
+
+            var mobile = new Security("港股", "00941", "中国移动", "电信");
+            var stockHints = WatchInput.Candidates("看好中国移动，现金流稳定。", [mobile]);
+            var directionHints = WatchInput.DirectionPhrases("看好中国移动，暂时观望其他标的。");
+            Check(stockHints.Any(item => item.Key == mobile.Key) &&
+                directionHints.Contains("看好") && directionHints.Contains("观望"),
+                "本地规则可从 RSS 文章文字识别股票候选和多空措辞");
             Check(WatchInput.AlertSourceLink(
                     "https://www.google.com/url?rct=j&sa=t&url=https%3A%2F%2Fxueqiu.com%2F9650668145%2F111&ct=ga",
                     "9650668145") == "https://xueqiu.com/9650668145/111",
