@@ -62,6 +62,7 @@
      <Button x:Name="PendingStocks" Content="待认领股票" Click="PendingClicked" Margin="0,0,6,3"/>
      <Button Content="待核实问题" Click="QuestionsClicked" Margin="0,0,6,3"/>
      <Button Content="编辑选中观点" Click="EditOpinion" Margin="0,0,6,3"/>
+     <Button Content="原帖正文" Click="ShowPostBody" Margin="0,0,6,3"/>
     </WrapPanel>
     <DataGrid Grid.Row="2" x:Name="Details" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
               SelectionMode="Single" Style="{DynamicResource UiDenseDataGrid}">

@@ -369,13 +369,24 @@ public partial class WatchPage : UserControl
     {
         if (authors.Length == 0) throw new ArgumentException("请先在观察名单添加作者。");
         var directory = (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
-        var dialog = new OpinionEditor(Window.GetWindow(this), authors, directory, existing, selected?.Security, client, lifetime);
+        var body = existing is not null && existing.Url.StartsWith($"https://xueqiu.com/{existing.Account}/", StringComparison.Ordinal)
+            ? await client.ReadPostBodyAsync(new(existing.Account, existing.Url, existing.PostBodyRevision), lifetime) : null;
+        var dialog = new OpinionEditor(Window.GetWindow(this), authors, directory, existing, selected?.Security, client, lifetime,
+            postBody: body);
         if (dialog.ShowDialog() == true)
         {
             await RefreshStocksAsync();
             Status.Text = "观点已保存。  " + Status.Text;
         }
     }
+
+    private async void ShowPostBody(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (Details.SelectedItem is not OpinionRow { HasLink: true } row)
+            throw new ArgumentException("请先选择一条带雪球原帖链接的观点。");
+        await PostBodyEditor.OpenAsync(Window.GetWindow(this), client,
+            new(row.Record.Account, row.Record.Url, row.Record.PostBodyRevision), row.Record.PublishedAt, lifetime);
+    });
 
     private void OpenSource(object sender, RoutedEventArgs e)
     {

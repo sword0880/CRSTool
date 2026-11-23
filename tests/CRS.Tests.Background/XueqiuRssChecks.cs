@@ -118,6 +118,10 @@ internal static class XueqiuRssChecks
             await VerifyGoogleAlertLifecycleAsync(Ask, Restart);
             await VerifyRssProxyAsync(Ask, Restart, Run, token);
             await VerifyNeutralOpinionAsync(Ask);
+            var bodyUrl = "https://xueqiu.com/9650668145/111";
+            await XueqiuPostBodyChecks.RunAsync(Ask, "9650668145", bodyUrl, Restart);
+            Check((await Ask(new("leads"))).Leads!.Rows.Single(x => x.Url == bodyUrl).PostBodyRevision == 2,
+                "线索中的全文状态随手工补录刷新");
         }
         finally { CryptographicOperations.ZeroMemory(key); }
     }
@@ -270,7 +274,7 @@ internal static class XueqiuRssChecks
         }.ToString());
         db.Open();
         using var clearSubscriptionSchema = db.CreateCommand();
-        clearSubscriptionSchema.CommandText = "DROP TABLE google_alerts; DROP TABLE rss_proxy";
+        clearSubscriptionSchema.CommandText = "DROP TABLE google_alerts; DROP TABLE rss_proxy; DROP TABLE post_bodies";
         clearSubscriptionSchema.ExecuteNonQuery();
         using var update = db.CreateCommand();
         var oldAuthor = WatchProtocol.InitialAuthors.Single(x => x.Account == "8632046745") with { Name = "逹人知命" };

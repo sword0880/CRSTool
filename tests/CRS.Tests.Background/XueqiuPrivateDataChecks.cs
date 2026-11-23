@@ -7,8 +7,15 @@ internal static class XueqiuPrivateDataChecks
     {
         async Task<WatchReply> Send(WatchRequest request)
         {
-            var response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(),
-                WorkerProtocol.PrivatePluginData, WatchProtocol.PluginId, Payload: WatchProtocol.Encode(request)), token);
+            var payload = WatchProtocol.Encode(request);
+            BackgroundResponse response;
+            while (true)
+            {
+                response = await client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(),
+                    WorkerProtocol.PrivatePluginData, WatchProtocol.PluginId, Payload: payload), token);
+                if (response.Code is not ("RateLimited" or "Busy" or "PluginBusy")) break;
+                await Task.Delay(250, token);
+            }
             Require(response.Code == "Ok" && response.Payload is not null, $"private endpoint {response.Code}");
             return WatchProtocol.Decode<WatchReply>(response.Payload!);
         }
@@ -89,6 +96,7 @@ internal static class XueqiuPrivateDataChecks
         Require((await Send(new("opinion-save", Opinion: changed, ChangeId: Guid.NewGuid()))).Error is null, "correct saved opinion");
         Require((await Send(new("opinion-save", Opinion: changed, ChangeId: Guid.NewGuid()))).Error is not null, "reject stale revision");
         Require((await Send(new("overview"))).Overview!.Stocks is [{ Bullish: 2, Bearish: 0 }], "corrected matrix");
+        await XueqiuPostBodyChecks.RunAsync(Send, first.Account, $"https://xueqiu.com/{first.Account}/181");
 
         var database = Path.Combine(data, "plugins", WatchProtocol.PluginId, "opinions.db");
         using var stream = new FileStream(database, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);

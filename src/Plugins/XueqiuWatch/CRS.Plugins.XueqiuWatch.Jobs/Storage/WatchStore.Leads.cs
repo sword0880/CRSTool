@@ -249,11 +249,17 @@ internal sealed partial class WatchStore
             }
         }
 
-        const string condition = "WHERE $a='' OR account=$a";
-        var total = Convert.ToInt32(Scalar("SELECT count(*) FROM post_leads " + condition, null, ("$a", filter.Account!)));
-        var query = "SELECT account,url,first_seen,title,summary,content,published,feed_author,feed_item_id " +
-            "FROM post_leads " + condition +
-            " ORDER BY first_seen DESC,account,url LIMIT $limit OFFSET $offset";
+        const string condition = "WHERE $a='' OR p.account=$a";
+        var total = Convert.ToInt32(Scalar("SELECT count(*) FROM post_leads p " + condition, null, ("$a", filter.Account!)));
+        var query = """
+            SELECT p.account,p.url,p.first_seen,p.title,p.summary,p.content,COALESCE(b.published,p.published),
+                p.feed_author,p.feed_item_id,COALESCE(b.revision,0)
+            FROM post_leads p
+            LEFT JOIN post_bodies b ON b.account=p.account AND b.url=p.url AND b.revision=(
+                SELECT MAX(latest.revision) FROM post_bodies latest WHERE latest.account=p.account AND latest.url=p.url
+            )
+            """ + " " + condition +
+            " ORDER BY p.first_seen DESC,p.account,p.url LIMIT $limit OFFSET $offset";
         using var leads = Command(query, null, ("$a", filter.Account!),
             ("$limit", WatchProtocol.LeadsPerPage), ("$offset", filter.Offset));
         using var rows = leads.ExecuteReader();
@@ -263,7 +269,7 @@ internal sealed partial class WatchStore
             DateTimeOffset? published = rows.IsDBNull(6) ? null : BeijingTime(rows.GetInt64(6));
             items.Add(new(rows.GetString(0), rows.GetString(1), BeijingTime(rows.GetInt64(2)),
                 rows.GetString(3), rows.GetString(4), rows.GetString(5), published,
-                rows.IsDBNull(7) ? null : rows.GetString(7), rows.GetString(8)));
+                rows.IsDBNull(7) ? null : rows.GetString(7), rows.GetString(8), rows.GetInt64(9)));
         }
         rows.Close();
 

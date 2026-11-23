@@ -17,7 +17,8 @@ public sealed record Security(string Market, string Code, string Name, string In
 
 public sealed record Opinion(Guid Id, string Account, Security? Security, DateTimeOffset PublishedAt,
     Stance Stance, Attribution Attribution, string Content, string Evidence, string Url,
-    string Question = "", string Finding = "", long Revision = 0, DateTimeOffset RecordedAt = default);
+    string Question = "", string Finding = "", long Revision = 0, DateTimeOffset RecordedAt = default,
+    long PostBodyRevision = 0);
 
 public sealed record ReviewFilter(int Days = 30, string? Account = null, string? Market = null,
     string? Industry = null, string? Search = null, Security? Security = null, string Mode = "latest", int Offset = 0);
@@ -28,7 +29,8 @@ public sealed record WatchOverview(StockSummary[] Stocks, string[] Industries, i
     int Unmatched, DateTimeOffset? Earliest, DateTimeOffset? Latest, DateTimeOffset? LastRecorded);
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
-    Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null);
+    Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null,
+    PostBodyRequest? Body = null);
 
 public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? Detail = null,
     Author[]? Authors = null, Security[]? Securities = null, string? Error = null)
@@ -39,10 +41,15 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
     public GoogleAlertSubscription? Alert { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RssProxy { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PostBodyInfo? Body { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? BodyBytes { get; init; }
 }
 
 public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",
-    string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null, string FeedItemId = "");
+    string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null,
+    string FeedItemId = "", long PostBodyRevision = 0);
 public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
     string? ETag = null, DateTimeOffset? LastModified = null);
 public sealed record LeadPage(bool Configured, Author[] Authors, FeedCoverage[] Coverage, PostLead[] Rows, int Total,

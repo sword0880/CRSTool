@@ -4,7 +4,7 @@ using CRS.Worker.Ipc;
 
 namespace CRS.Plugins.XueqiuWatch.Wpf;
 
-internal sealed class WorkerWatchClient
+internal sealed partial class WorkerWatchClient
 {
     private readonly BackgroundPipeClient pipe = new();
     private WatchRequest? pending;
@@ -15,14 +15,34 @@ internal sealed class WorkerWatchClient
         var payload = WatchProtocol.Encode(request);
         if (payload.Length > WatchProtocol.MaximumPayload)
             throw new ArgumentException("本次资料过长，请缩短内容或证据摘录。");
-        var response = await pipe.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(),
-            WorkerProtocol.PrivatePluginData, WatchProtocol.PluginId, Payload: payload), token);
+        var message = new BackgroundRequest(WorkerProtocol.Version, Guid.NewGuid(),
+            WorkerProtocol.PrivatePluginData, WatchProtocol.PluginId, Payload: payload);
+        var response = await pipe.SendAsync(message, token);
+        if (IsBusy(response.Code))
+        {
+            using var retry = CancellationTokenSource.CreateLinkedTokenSource(token);
+            retry.CancelAfter(TimeSpan.FromSeconds(25));
+            try
+            {
+                do
+                {
+                    await Task.Delay(250, retry.Token);
+                    response = await pipe.SendAsync(message, retry.Token);
+                } while (IsBusy(response.Code));
+            }
+            catch (OperationCanceledException) when (retry.IsCancellationRequested && !token.IsCancellationRequested)
+            {
+                throw new WatchAccessException(response.Code);
+            }
+        }
         if (response.Code != "Ok" || response.Payload is null)
             throw new WatchAccessException(response.Code);
         var reply = WatchProtocol.Decode<WatchReply>(response.Payload);
         if (reply.Error is { } error) throw new ArgumentException(error);
         return reply;
     }
+
+    private static bool IsBusy(string code) => code is "RateLimited" or "Busy" or "PluginBusy";
 
     public async Task SaveAsync(WatchRequest request, CancellationToken token)
     {

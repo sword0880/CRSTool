@@ -39,7 +39,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 8)
+            else if (application != ApplicationId || version is < 1 or > 9)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -48,6 +48,7 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 6) InitializeTrackedAuthors();
             if (version < 7) InitializeGoogleAlerts();
             if (version < 8) InitializeRssProxy();
+            if (version < 9) InitializePostBodies();
         }
         catch
         {
@@ -90,7 +91,12 @@ internal sealed partial class WatchStore : IDisposable
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
             "alert-subscription" => new() { Alert = ReadGoogleAlert(RequireAuthor(request.Filter?.Account)) },
             "rss-proxy" => new() { RssProxy = ReadRssProxy() },
-            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "rss-proxy-save" =>
+            "post-body-info" => new() { Body = ReadPostBodyInfo(request.Body) },
+            "post-body-read" => ReadPostBodyChunk(request.Body),
+            "post-body-begin" => BeginPostBody(request.Body),
+            "post-body-append" => AppendPostBody(request.Body),
+            "post-body-cancel" => CancelPostBody(request.Body),
+            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "rss-proxy-save" or "post-body-commit" =>
                 Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
@@ -114,10 +120,12 @@ internal sealed partial class WatchStore : IDisposable
             case "alert-sync-begin": BeginGoogleAlert(request.Alert, transaction); break;
             case "alert-sync-complete": CompleteGoogleAlert(request.Alert, transaction); break;
             case "rss-proxy-save": SaveRssProxy(request.RssProxy, transaction); break;
+            case "post-body-commit": CommitPostBody(request.Body, transaction); break;
         }
         Execute("INSERT INTO changes VALUES($id,$hash)", transaction, ("$id", id), ("$hash", hash));
         token.ThrowIfCancellationRequested();
         transaction.Commit();
+        if (request.Operation == "post-body-commit") CancelPostBody(request.Body);
         return new();
     }
 
@@ -182,11 +190,15 @@ internal sealed partial class WatchStore : IDisposable
         if (input.Attribution == Attribution.Author && url.Length > 0 &&
             !url.StartsWith($"https://xueqiu.com/{account}/", StringComparison.Ordinal))
             throw new ArgumentException("原帖链接的作者 ID 与选定作者不同，请核对归属。");
+        if (input.PostBodyRevision != 0 && ReadPostBodyInfo(
+            new(Account: account, Url: url, Revision: input.PostBodyRevision), transaction) is null)
+            throw new ArgumentException("当前原帖的正文版本不存在。");
         var content = WatchInput.Text(input.Content, 700, true);
         var evidence = WatchInput.Text(input.Evidence, 700);
         var saved = new Opinion(input.Id, account, security, published, input.Stance,
             input.Attribution, content, evidence, url, WatchInput.Text(input.Question, 180),
-            WatchInput.Text(input.Finding, 180), input.Revision + 1, old?.RecordedAt ?? WatchProtocol.BeijingNow);
+            WatchInput.Text(input.Finding, 180), input.Revision + 1, old?.RecordedAt ?? WatchProtocol.BeijingNow,
+            input.PostBodyRevision);
         // 对未附原帖的笔记，后续编辑正文或摘录时继续使用首次录入的指纹。
         var source = old is { Url.Length: 0 } && url.Length == 0
             ? (string)Scalar("SELECT source FROM opinions WHERE id=$id", transaction, ("$id", id))!

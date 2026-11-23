@@ -42,7 +42,7 @@ internal sealed class LeadWindow : WatchEditor
         filter.SelectionChanged += async (_, _) => await BrowseAsync(0);
 
         SetColumns(links, ("作者", nameof(LeadRow.Author)), ("原帖发布时间", nameof(LeadRow.Published)),
-            ("文章标题", nameof(LeadRow.Title)), ("RSS 内容", nameof(LeadRow.RssContent)),
+            ("文章标题", nameof(LeadRow.Title)), ("正文状态与片段", nameof(LeadRow.RssContent)),
             ("解析线索（规则候选）", nameof(LeadRow.Hints)), ("雪球原链接（待核验）", nameof(LeadRow.Url)));
         Field("发言线索", links);
         var pagination = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new(0, 6, 0, 0) };
@@ -54,7 +54,8 @@ internal sealed class LeadWindow : WatchEditor
         Fields.Children.Add(pagination);
 
         Finish(AsyncAction("刷新", () => BrowseAsync(offset)), AsyncAction("打开选中链接", OpenLeadAsync),
-            AsyncAction("从选中线索录入观点", RecordOpinionAsync), Action("关闭", Close));
+            AsyncAction("查看 / 补录正文", OpenPostBodyAsync), AsyncAction("从选中线索录入观点", RecordOpinionAsync),
+            Action("关闭", Close));
         Loaded += async (_, _) => await BrowseAsync(0);
     }
 
@@ -150,10 +151,18 @@ internal sealed class LeadWindow : WatchEditor
     {
         if (links.SelectedItem is not LeadRow row) throw new ArgumentException("请先选择一条线索。");
         var directory = (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
-        var editor = new OpinionEditor(this, authors, directory, null, null, client, lifetime, row.Lead);
+        var document = await client.ReadPostBodyAsync(new(row.Lead.Account, row.Url), lifetime);
+        var editor = new OpinionEditor(this, authors, directory, null, null, client, lifetime, row.Lead, document);
         if (editor.ShowDialog() != true) return;
         SavedOpinion = editor.SavedOpinion;
         CloseAfterSave();
+    }, lifetime);
+
+    private Task OpenPostBodyAsync() => WithFeedbackAsync(async () =>
+    {
+        if (links.SelectedItem is not LeadRow row) throw new ArgumentException("请先选择一条线索。");
+        if (await PostBodyEditor.OpenAsync(this, client, new(row.Lead.Account, row.Url), row.Lead.PublishedAt, lifetime))
+            await BrowseCoreAsync(offset);
     }, lifetime);
 
     private static DataGrid Grid(int height)
@@ -176,10 +185,12 @@ internal sealed class LeadWindow : WatchEditor
     private sealed record AuthorCoverage(string Author, string Checked, string Status);
     private sealed record LeadRow(string Author, PostLead Lead, string Hints)
     {
-        public string Published => Lead.PublishedAt?.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
-            ?? "RSS 未提供";
+        public string Published => Lead.PublishedAt is { } time
+            ? (Lead.PostBodyRevision == 0 ? "RSS · " : "") + time.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
+            : "待核对";
         public string Title => Lead.Title;
-        public string RssContent => Lead.Summary.Length > 0 ? $"片段 · {Lead.Summary}" :
+        public string RssContent => Lead.PostBodyRevision > 0 ? "全文 · 手工补录" :
+            Lead.Summary.Length > 0 ? $"片段 · {Lead.Summary}" :
             Lead.Content.Length > 0 ? $"片段 · {Lead.Content}" : "仅链接";
         public string Url => Lead.Url;
     }
