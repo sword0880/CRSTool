@@ -138,7 +138,7 @@ internal sealed partial class WatchStore
                         var url = WatchInput.AlertSourceLink(item.Url.AbsoluteUri, scan.Account);
                         links.TryAdd(url, item);
                     }
-                    catch (ArgumentException)
+                    catch (Exception error) when (error is ArgumentException or FormatException)
                     {
                         // 忽略非雪球原帖、其他作者的文章和格式不完整的条目。
                     }
