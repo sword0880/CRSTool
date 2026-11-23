@@ -47,17 +47,19 @@ internal sealed class OpinionEditor : WatchEditor
         author.SelectedItem = usableAuthors.FirstOrDefault(x => x.Account == selectedAccount);
         if (selectedAccount is null && usableAuthors.Length > 0) author.SelectedIndex = 0;
         // 首次发现时间不能作为原帖发布时间。
-        time.Text = lead is null
-            ? (original?.PublishedAt ?? WatchProtocol.BeijingNow).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
-            : "";
+        time.Text = lead?.PublishedAt is { } feedPublished
+            ? feedPublished.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+            : lead is null
+                ? (original?.PublishedAt ?? WatchProtocol.BeijingNow).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+                : "";
         market.ItemsSource = WatchProtocol.Markets;
         SetStock(original?.Security ?? (original is null ? selectedStock : null));
         stance.ItemsSource = new[] { "待确认", "看多", "看空", "中性" };
         stance.SelectedIndex = (int)(original?.Stance ?? Stance.Pending);
         attribution.ItemsSource = new[] { "作者本人发言", "顺带提及", "转发或转述" };
         attribution.SelectedIndex = lead is null ? (int)(original?.Attribution ?? Attribution.Author) : -1;
-        content.Text = original?.Content ?? "";
-        evidence.Text = original?.Evidence ?? "";
+        content.Text = original?.Content ?? LeadText(lead?.Content ?? lead?.Summary ?? lead?.Title, 700);
+        evidence.Text = original?.Evidence ?? LeadText(lead?.Summary, 700);
         source.Text = original?.Url ?? lead?.Url ?? "";
         question.Text = original?.Question ?? "";
         finding.Text = original?.Finding ?? "";
@@ -103,6 +105,11 @@ internal sealed class OpinionEditor : WatchEditor
         Field("待核实问题（选填）", question);
         Field("核实结果（选填）", finding);
         Finish(Action("取消", Close), AsyncAction("保存观点", SaveAsync));
+        if (lead is not null)
+        {
+            Detect();
+            inputStatus.Text += " 已从 RSS 带入文章内容；股票与多空方向仅为规则候选，保存前必须核对原文。";
+        }
     }
 
     private static void Add(Panel parent, string description, Control control)
@@ -124,6 +131,13 @@ internal sealed class OpinionEditor : WatchEditor
         code.Text = security?.Code ?? "";
         name.Text = security?.Name ?? "";
         industry.Text = security?.Industry ?? "";
+    }
+
+    private static string LeadText(string? value, int maximum)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        var text = value.Trim();
+        return text.Length <= maximum ? text : text[..maximum];
     }
 
     private void Detect()
