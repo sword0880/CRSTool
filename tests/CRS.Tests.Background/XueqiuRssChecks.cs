@@ -8,7 +8,7 @@ using Microsoft.Data.Sqlite;
 
 internal static class XueqiuRssChecks
 {
-    private const string FeedUrl = "https://www.google.com/alerts/feeds/synthetic/test";
+    private const string FeedUrl = "https://rsshub.app/xueqiu/user/1556808774";
 
     internal static async Task RunAsync()
     {
@@ -25,73 +25,60 @@ internal static class XueqiuRssChecks
             async Task<WatchReply> Ask(WatchRequest request) =>
                 WatchProtocol.Decode<WatchReply>(await data.AccessPrivateDataAsync(WatchProtocol.Encode(request), token));
             Task<BackgroundJobResult> Run() => session.ExecuteAsync(WatchProtocol.LeadJobId, token);
-            Task<WatchReply> Configure(string url) => Ask(new("lead-feed-save", ChangeId: Guid.NewGuid()) { FeedUrl = url });
+            Task<WatchReply> SaveAuthor(Author author) =>
+                Ask(new("author-save", Author: author, ChangeId: Guid.NewGuid()));
 
-            var initial = (await Ask(new("leads"))).Leads!;
-            Check(initial is { Configured: false, Authors.Length: 8, Total: 0 } &&
-                initial.Authors[0].Note == "旧库保留" && (await Run()).Status == "Rejected",
-                "旧版资料迁移，缺订阅时直接提示");
-            Check((await Configure("https://www.google.com@localhost/alerts/feeds/1/2")).Error is not null,
-                "拒绝不受支持的订阅 URL");
-            Check((await Configure(FeedUrl)).Error is null && (await Ask(new("leads"))).Leads?.Configured == true,
-                "订阅配置可保存在隔离数据库");
-            var paused = initial.Authors[1];
-            Check((await Ask(new("author-save", Author: paused with { Active = false }, ChangeId: Guid.NewGuid()))).Error is null,
-                "暂停作者");
+            var initial = (await Ask(new("authors"))).Authors!;
+            Check(initial.Length == 8 && initial[0].Note == "旧库保留" && (await Run()).Status == "Rejected",
+                "旧版作者资料迁移，未配置来源时不执行抓取");
+
+            var invalid = await SaveAuthor(initial[0] with { FeedUrl = "https://www.google.com@localhost/alerts/feeds/1/2" });
+            Check(invalid.Error is not null, "拒绝包含凭据和本机地址的 Feed URL");
+
+            Check((await SaveAuthor(initial[0] with { FeedUrl = FeedUrl })).Error is null,
+                "作者可独立配置 RSS 地址");
+            var paused = await SaveAuthor(initial[1] with
+            {
+                Active = false, FeedUrl = "https://rsshub.app/xueqiu/user/8790885129"
+            });
+            Check(paused.Error is null, "暂停作者仍可保留来源配置");
 
             var first = await Run();
             var leads = (await Ask(new("leads"))).Leads!;
-            Check(first.Status == "Succeeded" && leads.Rows is [{ Account: "1556808774", Url: "https://xueqiu.com/1556808774/111" }]
-                && leads.Coverage.Single(item => item.Account == paused.Account).State == "NeverChecked" &&
-                leads.Coverage.Any(item => item is { State: "Read", Matches: 0 }),
-                "解析 Atom 与 Google 包装链接，排除暂停作者、第三方网站，并记录未命中");
-            Check((await Run()).Status == "Succeeded" && (await Ask(new("leads"))).Leads!.Total == 1,
-                "重复订阅读回不重复保存");
-            var limited = await Run();
-            Check(limited is { Status: "RetryDeferred" } && limited.RetryAfter >= TimeSpan.FromMinutes(3) &&
-                (await Ask(new("leads"))).Leads is { Total: 1, Coverage: var coverage } &&
-                coverage.Any(item => item is { State: "RateLimited", Matches: null }),
-                "限流保留既有线索并明确标记覆盖未知");
-            Check((await Run()).Status == "Failed" &&
-                (await Ask(new("leads"))).Leads!.Coverage.Any(item => item.State == "InvalidFeed"),
-                "拒绝可携带外部实体的 XML");
-            Check((await Configure("")).Error is null &&
-                (await Ask(new("leads"))).Leads is { Configured: false, Total: 1, Coverage: var after } &&
-                after.All(item => item.State == "NeverChecked"),
-                "停用保留已有线索并清除过期的订阅覆盖");
+            Check(first.Status == "Succeeded" &&
+                leads.Rows is [{ Account: "1556808774", Url: "https://xueqiu.com/1556808774/111" }] &&
+                leads.Coverage.Single(item => item.Account == initial[0].Account).State == "Read" &&
+                leads.Coverage.Single(item => item.Account == initial[1].Account).State == "NeverChecked",
+                "读取 Atom，只接受作者 ID 匹配的雪球原帖并跳过暂停作者");
 
-            Task<WatchReply> Sync(LeadSubscription state, string url = FeedUrl) =>
-                Ask(new("lead-feed-sync", ChangeId: Guid.NewGuid())
-                {
-                    FeedScope = state.Scope, PreviousFeedFingerprint = state.FeedFingerprint, FeedUrl = url
-                });
-            Check((await Configure(FeedUrl)).Error is null, "装载旧版手工配置的订阅");
-            var legacy = (await Ask(new("lead-subscription"))).Subscription!;
-            Check(legacy.Pending && legacy.AppliedScope is null && legacy.FeedFingerprint == LeadSubscription.Fingerprint(FeedUrl) &&
-                !WatchProtocol.Encode(legacy).Contains(FeedUrl, StringComparison.Ordinal),
-                "待接管的旧订阅只返回指纹");
-            Check((await Sync(legacy)).Error is null && (await Ask(new("lead-subscription"))).Subscription is { Pending: false },
-                "接管相同订阅后记录已同步作者范围");
-            var synchronized = (await Ask(new("lead-subscription"))).Subscription!;
-            var added = new Author("9100000000", "隔离测试作者");
-            Check((await Ask(new("author-save", Author: added, ChangeId: Guid.NewGuid()))).Error is null,
-                "新增作者会产生待同步范围");
-            var pending = (await Ask(new("lead-subscription"))).Subscription!;
-            Check(pending.Pending && pending.Scope.Contains(added.Account, StringComparison.Ordinal) &&
-                (await Sync(synchronized)).Error is not null && (await Sync(pending, "https://www.google.com/alerts/feeds/other/feed")).Error is not null,
-                "拒绝过时的作者范围和不同 Google 账号的订阅");
-            Check((await Run()).Status == "Succeeded" && (await Ask(new("leads"))).Leads is { SubscriptionPending: true } pendingLeads &&
-                pendingLeads.Coverage.Single(item => item.Account == added.Account).State == "NeverChecked",
-                "同步前读取旧订阅时保留记录且不将新增作者标成已检查");
-            Check((await Sync(pending)).Error is null && (await Ask(new("leads"))).Leads is { SubscriptionPending: false, Total: 1 },
-                "相同 RSS 地址可更新查询范围且保留已有线索");
+            Check((await Run()).Status == "Succeeded" &&
+                (await Ask(new("leads"))).Leads is { Total: 1 } &&
+                (await Ask(new("leads"))).Leads!.Coverage.Single(item => item.Account == initial[0].Account).State == "NotModified",
+                "ETag/304 条件请求不重复写入文章");
+
+            var limited = await Run();
+            Check(limited is { Status: "RetryDeferred" } &&
+                limited.RetryAfter >= TimeSpan.FromMinutes(3) &&
+                (await Ask(new("leads"))).Leads!.Coverage.Single(item => item.Account == initial[0].Account).State == "RateLimited",
+                "限流保留历史线索并记录来源状态");
+
+            Check((await Run()).Status == "Failed" &&
+                (await Ask(new("leads"))).Leads!.Coverage.Single(item => item.Account == initial[0].Account).State == "InvalidFeed",
+                "拒绝包含 DTD 的恶意 XML Feed");
+
+            var currentAuthors = (await Ask(new("authors"))).Authors!;
+            var cleared = await SaveAuthor(currentAuthors.Single(item => item.Account == initial[0].Account) with { FeedUrl = "" });
+            var after = (await Ask(new("leads"))).Leads!;
+            Check(cleared.Error is null && !after.Configured && after.Total == 1 &&
+                after.Coverage.Single(item => item.Account == initial[0].Account).State == "NotConfigured",
+                "移除作者 RSS 配置后保留历史线索并清除旧覆盖状态");
         }
         finally { CryptographicOperations.ZeroMemory(key); }
     }
 
     private static void SeedVersionOne(string root, byte[] key)
     {
-        // 初始化独立测试库后移除新版增量表，得到带已有作者资料的 v1 库。
+        // 初始化隔离数据库后回退到 v1 结构，验证升级时保留作者和人工资料。
         using (var store = new WatchStore(root, key))
         {
             var author = WatchProtocol.InitialAuthors[0] with { Revision = 1, Note = "旧库保留" };
@@ -104,7 +91,7 @@ internal static class XueqiuRssChecks
         }.ToString());
         db.Open();
         using var ddl = db.CreateCommand();
-        ddl.CommandText = "DROP TABLE post_leads; DROP TABLE lead_coverage; DROP TABLE lead_feed; PRAGMA user_version=1";
+        ddl.CommandText = "DROP TABLE post_leads; DROP TABLE lead_coverage; PRAGMA user_version=1";
         ddl.ExecuteNonQuery();
     }
 
@@ -127,24 +114,36 @@ internal static class XueqiuRssChecks
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
-            Check(request.Method == HttpMethod.Get && request.RequestUri?.AbsoluteUri == FeedUrl, "只读取配置的订阅入口");
-            if (++attempts == 3)
+            Check(request.Method == HttpMethod.Get && request.RequestUri?.AbsoluteUri == FeedUrl,
+                "Worker 只请求作者配置的 RSS 地址");
+            var attempt = Interlocked.Increment(ref attempts);
+            if (attempt == 2)
+            {
+                Check(request.Headers.IfNoneMatch.Any(tag => tag.Tag == "\"v1\""), "Worker 使用 ETag 条件请求");
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified));
+            }
+            if (attempt == 3)
             {
                 var limited = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
                 limited.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromMinutes(3));
                 return Task.FromResult(limited);
             }
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(attempts == 4 ? """<!DOCTYPE rss SYSTEM "file:///unused"><rss/>""" : """
-                    <feed xmlns="http://www.w3.org/2005/Atom">
-                       <entry><link href="https://www.google.com/url?sa=t&amp;url=https%3A%2F%2Fwww.xueqiu.com%2F1556808774%2F111" /></entry>
-                       <entry><link href="https://xueqiu.com/1556808774/111?tracking=1" /></entry>
-                       <entry><link href="https://xueqiu.com/8790885129/999" /></entry>
-                       <entry><link href="https://example.com/1556808774/112" /></entry>
-                    </feed>
-                    """)
-            });
+            var body = attempt == 4
+                ? "<!DOCTYPE rss SYSTEM \"file:///unused\"><rss version=\"2.0\"><channel/></rss>"
+                : """
+                  <feed xmlns="http://www.w3.org/2005/Atom">
+                    <title>雪球作者动态</title>
+                    <entry><id>post-111</id><title>作者甲的文章</title>
+                      <link rel="alternate" href="https://xueqiu.com/1556808774/111"/></entry>
+                    <entry><id>post-222</id><title>其他作者的文章</title>
+                      <link rel="alternate" href="https://xueqiu.com/8790885129/222"/></entry>
+                    <entry><id>post-333</id><title>第三方链接</title>
+                      <link rel="alternate" href="https://example.com/1556808774/333"/></entry>
+                  </feed>
+                  """;
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
+            response.Headers.ETag = new EntityTagHeaderValue("\"v1\"");
+            return Task.FromResult(response);
         }
     }
 }
