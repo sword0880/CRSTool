@@ -189,7 +189,7 @@ internal static class XueqiuRssChecks
                   </feed>
                   """;
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
-            response.Headers.ETag = new EntityTagHeaderValue("\\"v1\\"");
+            response.Headers.ETag = new EntityTagHeaderValue("\"v1\"");
             return Task.FromResult(response);
         }
     }
