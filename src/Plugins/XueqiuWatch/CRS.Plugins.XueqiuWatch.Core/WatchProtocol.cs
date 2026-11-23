@@ -37,7 +37,8 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
     public LeadPage? Leads { get; init; }
 }
 
-public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",\n    string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null, string FeedItemId = "");
+public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",
+    string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null, string FeedItemId = "");
 public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
     string? ETag = null, DateTimeOffset? LastModified = null);
 public sealed record LeadPage(bool Configured, Author[] Authors, FeedCoverage[] Coverage, PostLead[] Rows, int Total,
