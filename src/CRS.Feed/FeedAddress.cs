@@ -60,7 +60,7 @@ public static class FeedAddress
         }
 
         if (address.AddressFamily == AddressFamily.InterNetworkV6)
-            return address.Equals(IPAddress.IPv6Any) || address.IsIPv6Loopback ||
+            return address.Equals(IPAddress.IPv6Any) || address.Equals(IPAddress.IPv6Loopback) ||
                 address.IsIPv6LinkLocal || address.IsIPv6Multicast ||
                 (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0xc0) ||
                 bytes[0] is 0xfc or 0xfd ||
