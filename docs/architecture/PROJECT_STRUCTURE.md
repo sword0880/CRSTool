@@ -13,6 +13,7 @@ CRS/
 │  ├─ CRS.Plugin.Abstractions/     # 纯BCL插件能力与Session契约
 │  ├─ CRS.Plugin.Wpf/              # 可选WPF页面贡献契约
 │  ├─ CRS.PluginHost/              # 桌面可信加载、页面和生命周期；唯一Quartz在Worker
+│  ├─ CRS.Feed/                   # 公共 RSS / Atom / JSON Feed 采集与标准化
 │  ├─ Plugins/                    # 业务插件不被宿主静态引用
 │  │  ├─ NationalTeam/            # 国家队与市场研究插件
 │  │  │  ├─ CRS.Plugins.NationalTeam.Core/ # 规则、模型与业务契约

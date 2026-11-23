@@ -25,3 +25,5 @@
 PRD 与 SAD 是产品和系统设计背景；整改任务定义以唯一主计划为准，完成状态以问题清单、架构状态和可复核证据为准。安全、税务和计算证据规范见[规范目录](../specifications/README.md)。专项验收见[验证目录](../validation/README.md)。
 
 [返回文档首页](../README.md)
+
+- [CRS.Feed 公共 Feed Engine](FEED_ENGINE.md)
