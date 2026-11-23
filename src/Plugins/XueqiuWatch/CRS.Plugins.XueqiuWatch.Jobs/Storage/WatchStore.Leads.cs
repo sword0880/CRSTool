@@ -171,7 +171,7 @@ internal sealed partial class WatchStore
                     ("$account", scan.Account), ("$url", url), ("$observed", at),
                     ("$title", title), ("$summary", summary), ("$content", body),
                     ("$published", (object?)published ?? DBNull.Value),
-                    ("$author", feedAuthor.Length > 0 ? feedAuthor : DBNull.Value),
+                    ("$author", feedAuthor.Length > 0 ? (object)feedAuthor : DBNull.Value),
                     ("$itemId", itemId));
                 insert.ExecuteNonQuery();
                 if (!existed) added++;
