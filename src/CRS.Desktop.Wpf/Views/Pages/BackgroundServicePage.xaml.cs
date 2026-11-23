@@ -60,6 +60,15 @@ public partial class BackgroundServicePage : UserControl
     {
         if(e.OriginalSource is DependencyObject origin && ItemsControl.ContainerFromElement(PlansGrid,origin) is DataGridRow {Item:ServicePlanItem plan})OpenPlan(plan);
     }
+    private async void OnAddPlan(object sender, RoutedEventArgs e)
+    {
+        var options = await model.ReadPluginPlanOptionsAsync();
+        if (options is null || model.Lifetime.IsCancellationRequested || !IsLoaded) return;
+        var owner = Window.GetWindow(this);
+        var picker = new PluginPlanPickerWindow(options, model.Lifetime) { Owner = owner };
+        if (picker.ShowDialog() == true && picker.SelectedPlan is { } plan && !model.Lifetime.IsCancellationRequested)
+            new ScheduleEditWindow(new(model, plan)) { Owner = owner }.ShowDialog();
+    }
     private void OnPlanKeyDown(object sender,KeyEventArgs e)
     {if(e.Key==Key.Enter && PlansGrid.SelectedItem is ServicePlanItem plan){e.Handled=true;OpenPlan(plan);}}
     private void OpenPlan(ServicePlanItem plan)

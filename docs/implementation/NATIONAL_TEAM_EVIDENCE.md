@@ -46,7 +46,7 @@ PDF文字/坐标/矩形读取属于`CRS.Documents`，证券、模板、页码、
 
 ## 固定原文样本
 
-以下是逐页核对过的历史样本，日期和摘要绑定当时原件，不授权同站其他文件，也不代表最新实时持仓。完整当前来源目录另见[直接持股来源资源](../../src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/Equity/ReviewedEquitySources.json)。
+以下是逐页核对过的历史样本，日期和摘要绑定当时原件，不授权同站其他文件，也不代表最新实时持仓。完整当前来源目录另见[直接持股来源资源](../../src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain/Equity/ReviewedEquitySources.json)。
 
 | 样本 | 固定官方入口 | 页码与关键边界 |
 | --- | --- | --- |

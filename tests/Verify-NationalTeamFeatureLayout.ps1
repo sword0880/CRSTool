@@ -25,9 +25,10 @@ function Assert-OnlyExpectedRootCode([string]$RelativePath, [string[]]$AllowedNa
     }
 }
 
-$core = 'src/Plugins/CRS.Plugins.NationalTeam.Core'
-$jobs = 'src/Plugins/CRS.Plugins.NationalTeam.Jobs'
-$ui = 'src/Plugins/CRS.Plugins.NationalTeamWatch'
+$pluginRoot = 'src/Plugins/NationalTeam'
+$core = "$pluginRoot/CRS.Plugins.NationalTeam.Core"
+$jobs = "$pluginRoot/CRS.Plugins.NationalTeam.Jobs"
+$ui = "$pluginRoot/CRS.Plugins.NationalTeamWatch"
 
 Assert-NoLooseCode "$core/Domain"
 Assert-NoLooseCode "$core/Application"
@@ -47,9 +48,9 @@ foreach ($feature in @('Etf','EtfHoldings','Equity','ExitAlerts','IndustryValuat
     if (-not @($workerFiles | Where-Object { $_.Directory.Name -eq $feature }).Count) { throw "Worker workspace feature is missing: $feature" }
 }
 foreach ($file in $workerFiles) {
-    $relative = $file.FullName.Substring($repoRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
-    if ($relative -notmatch '^src/Plugins/CRS\.Plugins\.NationalTeamWatch/Application/Worker/(Etf|EtfHoldings|Equity|ExitAlerts|IndustryValuation|MarketCycle|Nav|Southbound)/WorkerEtfWorkspace[^/]*\.cs$') {
-        throw ("Worker workspace partial is not grouped by feature: " + $relative)
+    $relative = $file.FullName.Substring($workerRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace([string][IO.Path]::DirectorySeparatorChar, '/')
+    if ($relative -notmatch '^(Etf|EtfHoldings|Equity|ExitAlerts|IndustryValuation|MarketCycle|Nav|Southbound)/WorkerEtfWorkspace[^/]*\.cs$') {
+        throw "Worker workspace partial is not grouped by feature: $($file.FullName)"
     }
 }
 

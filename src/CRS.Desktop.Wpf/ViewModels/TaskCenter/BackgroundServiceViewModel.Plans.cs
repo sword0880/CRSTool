@@ -13,7 +13,11 @@ public partial class BackgroundServiceViewModel
     public ObservableCollection<ServicePlanItem> PlanRows{get;}=[];
     [ObservableProperty]private ServicePlanItem? selectedPlan;
     partial void OnSelectedPlanChanged(ServicePlanItem? value){Selected=value?.Job;NotifyPlanCommands();}
-    partial void OnUncertainRequestChanged(CRS.Worker.Ipc.BackgroundRequest? value)=>NotifyPlanCommands();
+    partial void OnUncertainRequestChanged(CRS.Worker.Ipc.BackgroundRequest? value)
+    {
+        NotifyPlanCommands();
+        OnPropertyChanged(nameof(CanAddPluginPlan));
+    }
     private bool CanUseSelectedPlan()=>!Busy&&!lifetime.IsCancellationRequested&&UncertainRequest is null&&Selected is not null;
     private bool CanRunSelectedPlan()=>SelectedPlan?.IsMaintenance==true
         ?!Busy&&!lifetime.IsCancellationRequested&&UncertainRequest is null&&cleanup?.CurrentTask is null&&cleanup?.SubmitTaskCommand.CanExecute(null)==true

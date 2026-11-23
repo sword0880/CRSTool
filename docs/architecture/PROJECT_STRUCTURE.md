@@ -14,7 +14,11 @@ CRS/
 │  ├─ CRS.Plugin.Wpf/              # 可选WPF页面贡献契约
 │  ├─ CRS.PluginHost/              # 桌面可信加载、页面和生命周期；唯一Quartz在Worker
 │  ├─ Plugins/                    # 业务插件不被宿主静态引用
-│  │  ├─ CRS.Plugins.NationalTeamWatch/ # 两市官方联网份额，独立市场数据
+│  │  ├─ NationalTeam/            # 国家队与市场研究插件
+│  │  │  ├─ CRS.Plugins.NationalTeam.Core/ # 规则、模型与业务契约
+│  │  │  ├─ CRS.Plugins.NationalTeam.Jobs/ # 采集、仓储与后台查询
+│  │  │  └─ CRS.Plugins.NationalTeamWatch/  # WPF 页面与查询客户端
+│  │  ├─ XueqiuWatch/             # 雪球观点追踪，Core / Jobs / Wpf
 │  │  └─ CRS.Plugins.Demo/          # 双插件真实WPF资源POC
 │  ├─ CRS.Domain/
 │  │  ├─ Trades/

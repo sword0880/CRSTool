@@ -14,6 +14,7 @@ public sealed record RunnerDescription(string PluginId,string PackageHash,string
 {
     public BackgroundQueryRouting? QueryRouting {get;init;}
     public bool SupportsQueryLifetime {get;init;}
+    public bool SupportsPrivateData {get;init;}
 }
 public sealed record RunnerExecution(string JobId,string? Payload,Guid? CommandId);
 public sealed record RunnerProgress(Guid ExecutionId,BackgroundProgress Detail);

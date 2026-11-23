@@ -43,13 +43,13 @@
 
 代码依据：
 
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlerts.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlertReplay.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Application/MarketCycle/MarketActivity.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Core/Domain/Equity/DirectEquity.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Shared/MarketRepository.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Equity/OfficialEquitySource.cs`
-- `src/Plugins/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs`
+- `src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlerts.cs`
+- `src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain/ExitAlerts/ExitAlertReplay.cs`
+- `src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Application/MarketCycle/MarketActivity.cs`
+- `src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Core/Domain/Equity/DirectEquity.cs`
+- `src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Shared/MarketRepository.cs`
+- `src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Infrastructure/Equity/OfficialEquitySource.cs`
+- `src/Plugins/NationalTeam/CRS.Plugins.NationalTeam.Jobs/Infrastructure/ExitAlerts/AlertStore.Evaluation.cs`
 
 ## 3. 产品应交付的两条分析链
 

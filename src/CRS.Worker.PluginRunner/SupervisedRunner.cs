@@ -42,12 +42,15 @@ internal static class SupervisedRunner
                         if(catalog.Statuses.SingleOrDefault(x=>x.PluginId==id)?.State!="Started")throw new InvalidDataException("Runner plugin startup failed.");
                         var jobs=catalog.Jobs.Where(x=>x.PluginId==id).ToArray();
                         return new RunnerDescription(id,hash,start.Nonce,Environment.ProcessId,jobs.Select(x=>x.Descriptor).ToArray(),
-                            jobs.FirstOrDefault()?.MaximumConcurrency??1,jobs.Where(x=>x.ExecutionGroup is not null).ToDictionary(x=>x.Descriptor.JobId,x=>x.ExecutionGroup!),catalog.SupportsQueries(id)){QueryRouting=catalog.QueryRouting(id),SupportsQueryLifetime=catalog.SupportsQueryLifetime(id)};
+                            jobs.FirstOrDefault()?.MaximumConcurrency??1,jobs.Where(x=>x.ExecutionGroup is not null).ToDictionary(x=>x.Descriptor.JobId,x=>x.ExecutionGroup!),catalog.SupportsQueries(id))
+                            {QueryRouting=catalog.QueryRouting(id),SupportsQueryLifetime=catalog.SupportsQueryLifetime(id),SupportsPrivateData=catalog.SupportsPrivateData(id)};
                     }
                     finally{if(start.DataKey is not null)CryptographicOperations.ZeroMemory(start.DataKey);}
                 }
                 if(catalog is null)throw new InvalidOperationException("Runner has not started.");
                 if(message.Command=="Query")return await catalog.QueryAsync(id,RunnerChannel.Data<string>(message),token).ConfigureAwait(false);
+                if (message.Command == "PrivateData")
+                    return await catalog.AccessPrivateDataAsync(id, RunnerChannel.Data<string>(message), token).ConfigureAwait(false);
                 if(message.Command=="DrainQueries"){await catalog.DrainQueriesAsync(token).ConfigureAwait(false);return true;}
                 if(message.Command=="Execute")
                 {

@@ -8,7 +8,7 @@ namespace CRS.Worker.PluginHost;
 /// <summary>每插件一个受监督Runner；只转发其专属密钥及窄宿主能力，不在Worker加载业务代码。</summary>
 public sealed class IsolatedPluginSession(string runnerPath,string root,string trustFile,TrustedPackage package,
     IBackgroundHostContext? context=null,Action<string,string,string>? diagnostic=null,TimeProvider? timeProvider=null) : IBackgroundPluginSession,
-    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession
+    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession,IBackgroundPrivateDataSession
 {
     private readonly SemaphoreSlim lifecycle=new(1);
     private readonly ConcurrentDictionary<Guid,IBackgroundSourceLease> leases=[];
@@ -128,6 +128,9 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
         =>InvokeAsync<BackgroundJobResult>("Execute",new RunnerExecution(id,payload,commandId),token,progress);
     public Task<string> QueryAsync(string payload,CancellationToken token)=>description?.SupportsQueries==false
         ?throw new ArgumentException("Plugin has no queries."):InvokeAsync<string>("Query",payload,token);
+    public bool SupportsPrivateData => description?.SupportsPrivateData == true;
+    public Task<string> AccessPrivateDataAsync(string payload, CancellationToken token) => !SupportsPrivateData
+        ? throw new ArgumentException("Plugin has no private data operations.") : InvokeAsync<string>("PrivateData", payload, token);
     public async Task QuiesceQueriesAsync(CancellationToken token)
     {
         RunnerChannel current;

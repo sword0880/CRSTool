@@ -33,6 +33,8 @@ public sealed record BackgroundJobDescriptor(string JobId, string Name, string D
     string TimeZoneId, bool EnabledByDefault, bool RunOnStartup = false,bool ManualOnly=false)
 {
     public bool Diagnostic{get;init;}
+    /// <summary>普通插件任务可等待管理员创建计划；既有任务仍按原规则注册。</summary>
+    public bool RequiresPlanCreation { get; init; }
 }
 
 /// <summary>可预期的数据源结果使用分类返回，服务据此执行退避。</summary>
@@ -119,6 +121,12 @@ public interface IParameterizedBackgroundSession
 public interface IBackgroundQuerySession
 {
     Task<string> QueryAsync(string payload,CancellationToken token);
+}
+
+/// <summary>私有研究资料经管理员管道访问，业务输入由插件自行持久化。</summary>
+public interface IBackgroundPrivateDataSession
+{
+    Task<string> AccessPrivateDataAsync(string payload, CancellationToken token);
 }
 /// <summary>可选的有限查询操作名称；不输出参数、证券代码、URL或任意异常消息。</summary>
 public interface IBackgroundQueryDiagnosticsSession

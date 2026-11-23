@@ -1,0 +1,17 @@
+{
+  "id": "crs.xueqiu-watch",
+  "displayName": "雪球观点追踪",
+  "version": "1.0.0",
+  "contractApi": "1.0",
+  "hostContract": "2.0",
+  "minHostVersion": "1.0.0",
+  "schemaVersion": 1,
+  "entryAssembly": "CRS.Plugins.XueqiuWatch.Wpf.dll",
+  "entryType": "CRS.Plugins.XueqiuWatch.Wpf.XueqiuPluginEntry",
+  "backgroundEntry": {
+    "assembly": "CRS.Plugins.XueqiuWatch.Jobs.dll",
+    "type": "CRS.Plugins.XueqiuWatch.Jobs.XueqiuBackgroundEntry"
+  },
+  "requestedCapabilities": ["navigation"],
+  "files": ["CRS.Plugins.XueqiuWatch.Wpf.dll", "CRS.Plugins.XueqiuWatch.Wpf.deps.json"]
+}
