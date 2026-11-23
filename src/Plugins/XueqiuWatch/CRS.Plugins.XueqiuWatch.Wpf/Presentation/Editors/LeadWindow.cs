@@ -93,12 +93,12 @@ internal sealed class LeadWindow : WatchEditor
             return new AuthorCoverage(author.Name, item.CheckedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—",
                 CoverageText(author, item));
         }).ToArray();
-        var securities = result.Rows.Length == 0
+        Security[] securities = result.Rows.Length == 0
             ? []
             : (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
         links.ItemsSource = result.Rows.Select(item =>
         {
-            var articleText = $"{item.Title}\\n{item.Summary}\\n{item.Content}";
+            var articleText = $"{item.Title}\n{item.Summary}\n{item.Content}";
             var stocks = WatchInput.Candidates(articleText, securities);
             var directions = WatchInput.DirectionPhrases(articleText);
             var hints = new List<string>();
