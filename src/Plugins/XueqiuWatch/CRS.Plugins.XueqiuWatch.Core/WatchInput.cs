@@ -65,6 +65,21 @@ public static partial class WatchInput
     /// <summary>生成按雪球用户主页路径监控的 Google Alerts 搜索条件。</summary>
     public static string GoogleAlertQuery(string account) => $"site:xueqiu.com/{AccountId(account)}";
 
+    public static bool IsGoogleAlertsFeed(Uri address) =>
+        address.Scheme == Uri.UriSchemeHttps && address.Host is ("google.com" or "www.google.com") &&
+        address.AbsolutePath.StartsWith("/alerts/feeds/", StringComparison.Ordinal);
+
+    public static string NormalizeRssProxy(string? input)
+    {
+        var value = Text(input, 200);
+        if (value.Length == 0) return "";
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var proxy) || proxy.Scheme != Uri.UriSchemeHttp ||
+            !proxy.IsLoopback || proxy.Port < 1 || proxy.UserInfo.Length != 0 ||
+            proxy.PathAndQuery != "/" || proxy.Fragment.Length != 0)
+            throw new ArgumentException("请输入 Mihomo 本机 HTTP / Mixed 地址，例如 http://127.0.0.1:7890。");
+        return proxy.AbsoluteUri;
+    }
+
     private static string? QueryValue(Uri uri, string name)
     {
         foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))

@@ -13,6 +13,7 @@ public sealed partial class XueqiuBackgroundEntry
             if (jobId != WatchProtocol.LeadJobId) return new("Rejected");
 
             (Author Author, FeedCoverage? Coverage)[] subscriptions;
+            string proxyAddress;
             await gate.WaitAsync(token);
             try
             {
@@ -23,10 +24,13 @@ public sealed partial class XueqiuBackgroundEntry
                     .Select(author => (author, current.LeadCoverage(author.Account))).ToArray();
                 if (subscriptions.Length == 0)
                     return new("Rejected", "请在「观察名单」中为需要跟踪的作者配置 RSS 地址。");
+                proxyAddress = current.ReadRssProxy();
             }
             finally { gate.Release(); }
 
             // 每位作者独立抓取，单个来源的异常不会阻断其他作者；共享客户端并限制并发数。
+            using var googleFeed = proxyAddress.Length == 0 ? null :
+                new FeedClient(options: new() { ProxyAddress = new Uri(proxyAddress) });
             using var admission = new SemaphoreSlim(3, 3);
             var scans = await Task.WhenAll(subscriptions.Select(async subscription =>
             {
@@ -37,7 +41,9 @@ public sealed partial class XueqiuBackgroundEntry
                     FeedFetchResult result;
                     try
                     {
-                        result = await feed.FetchAsync(new Uri(subscription.Author.FeedUrl), validators, token);
+                        var address = new Uri(subscription.Author.FeedUrl);
+                        var client = googleFeed is not null && WatchInput.IsGoogleAlertsFeed(address) ? googleFeed : feed;
+                        result = await client.FetchAsync(address, validators, token);
                     }
                     catch (OperationCanceledException) when (token.IsCancellationRequested)
                     {
@@ -64,14 +70,16 @@ public sealed partial class XueqiuBackgroundEntry
 
             var limited = scans.Where(scan => scan.Result.Status == FeedFetchStatus.RateLimited)
                 .Select(scan => scan.Result.RetryAfter ?? TimeSpan.FromMinutes(30)).ToArray();
+            var proxyFailures = scans.Count(scan => scan.Result.Status == FeedFetchStatus.ProxyUnavailable);
+            var proxyNote = proxyFailures > 0 ? $" {proxyFailures} 个 Google Alerts 来源无法经本机代理连接。" : "";
             if (limited.Length > 0)
-                return new("RetryDeferred", $"已保存可用来源结果；{limited.Length} 个来源被限流，当前覆盖未知。", limited.Max());
+                return new("RetryDeferred", $"已保存可用来源结果；{limited.Length} 个来源被限流，当前覆盖未知。{proxyNote}", limited.Max());
 
             if (counts.Scanned > 0 && counts.Failed == counts.Scanned)
-                return new("Failed", $"已检查 {counts.Scanned} 个作者来源，但均未能读取；历史线索已保留。");
+                return new("Failed", $"已检查 {counts.Scanned} 个作者来源，但均未能读取；历史线索已保留。{proxyNote}");
 
             return BackgroundJobResult.Success(
-                $"已检查 {counts.Scanned} 个作者来源，新增 {counts.Added} 条待核验线索，失败 {counts.Failed} 个。RSS 返回范围不代表作者全部发言覆盖。");
+                $"已检查 {counts.Scanned} 个作者来源，新增 {counts.Added} 条待核验线索，失败 {counts.Failed} 个。RSS 返回范围不代表作者全部发言覆盖。{proxyNote}");
         }
     }
 }

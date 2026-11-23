@@ -222,12 +222,13 @@ internal sealed partial class WatchStore
         FeedFetchStatus.TooLarge => "TooLarge",
         FeedFetchStatus.InvalidFeed => "InvalidFeed",
         FeedFetchStatus.TimedOut => "TimedOut",
+        FeedFetchStatus.ProxyUnavailable => "ProxyUnavailable",
         _ => "FeedUnavailable"
     };
 
     private LeadPage ReadLeads(ReviewFilter filter)
     {
-        var authors = Authors();
+        var authors = AuthorsForDisplay();
         var coverage = new Dictionary<string, FeedCoverage>(StringComparer.Ordinal);
         using (var command = Command(
             "SELECT account,state,observed,matches,etag,last_modified FROM lead_coverage", null))

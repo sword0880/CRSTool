@@ -80,7 +80,9 @@ Google 官方帮助提供网页管理入口，目前未查到 Google Alerts 的�
 | 用户手动打开 Google Alerts 或雪球原帖 | 由外部浏览器按自身配置联网。 |
 | CRS 其他功能 | 沿用现有网络路径。 |
 
-通过 Worker 运行时的网络配置创建专用 HTTP transport，接入现有 `FeedClient` 注入入口。保留原有 HTTPS 校验、禁用自动重定向及逐跳规则。Mihomo 对必须走代理的域名使用指定节点组，节点组不可用时请求失败，禁止应用或路由策略静默回落直连。通过 Worker 服务账号执行连通性测试，核对实际匹配的规则与出口，并显示代理未启动、节点组不可用或目标请求失败。RSS 订阅地址和代理凭据不写入日志。
+「观察名单 → RSS 代理」保存本机地址。Worker 为 Google Alerts RSS 建立专用 `FeedClient`，使用已保存的地址并保留 HTTPS、重定向和响应大小校验。代理不可达或拒绝建立隧道时，记录失败并保留历史线索，当前请求不会回落到默认网络。
+
+节点和出口由 Mihomo 的配置决定。需要固定出口时，在 Mihomo 中给 Google 域名设置对应节点组。实际节点和出站路径仍需在配置完成后用 Worker 服务账号验证。RSS 订阅地址不写入日志。
 
 ## 5. 股票识别、观点和界面口径
 
@@ -133,7 +135,7 @@ Google 官方帮助提供网页管理入口，目前未查到 Google Alerts 的�
 
 ## 8. 当前实现与参考
 
-现有代码已具备观察名单、Google Alerts RSS 线索发现、按股票查看、规则候选、手工录入和 SQLCipher 存储。已新增本地订阅同步记录、托管归属、创建与删除核对协议及观察名单状态，覆盖服务重启、账号不匹配和旧 RSS 迁移。Google 网页执行端尚未接入，当前可继续手工绑定 RSS。Mihomo 按请求分流、自动全文获取和完整的自动观点处理属于后续落地项。
+现有代码已具备观察名单、Google Alerts RSS 线索发现、按股票查看、规则候选、手工录入和 SQLCipher 存储。已新增本地订阅同步记录、托管归属和创建与删除核对协议。Worker 的 Google Alerts RSS 支持指定本机 Mihomo 代理并记录连接失败。个股汇总和详情使用最新有效本人观点，中性观点会停止沿用较早的看多或看空。Google 网页自动增删、自动全文获取和完整的自动观点处理仍待接入。
 
 - [现有雪球插件与使用方式](../../src/Plugins/XueqiuWatch/README.md)
 - [CRS.Feed 公共 Feed Engine](../architecture/FEED_ENGINE.md)

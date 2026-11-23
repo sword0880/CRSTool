@@ -31,6 +31,12 @@ internal static class XueqiuPrivateDataChecks
         var second = authors[1];
         Require((await Send(new("alert-subscription", new(Account: first.Account)))).Alert is
             { State: GoogleAlertState.PendingCreate }, "initial alert intent is readable over the private pipe");
+        const string loopbackProxy = "http://127.0.0.1:7890/";
+        var proxySave = new WatchRequest("rss-proxy-save", ChangeId: Guid.NewGuid(), RssProxy: loopbackProxy);
+        Require((await Send(new("rss-proxy"))).RssProxy == "" &&
+            (await Send(proxySave)).Error is null && (await Send(proxySave)).Error is null &&
+            (await Send(new("rss-proxy"))).RssProxy == loopbackProxy,
+            "RSS proxy settings round trip over the private pipe");
         var archive = new WatchRequest("author-save", Author: authors[7] with { Archived = true }, ChangeId: Guid.NewGuid());
         Require((await Send(archive)).Error is null && (await Send(archive)).Error is null, "author removal and exact replay");
         Require((await Send(new("authors"))).Authors!.Single(x => x.Account == authors[7].Account).Archived, "removed author state");

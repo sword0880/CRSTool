@@ -42,7 +42,7 @@ internal sealed class LeadWindow : WatchEditor
         filter.SelectionChanged += async (_, _) => await BrowseAsync(0);
 
         SetColumns(links, ("作者", nameof(LeadRow.Author)), ("原帖发布时间", nameof(LeadRow.Published)),
-            ("文章标题", nameof(LeadRow.Title)), ("RSS 摘要", nameof(LeadRow.Summary)),
+            ("文章标题", nameof(LeadRow.Title)), ("RSS 内容", nameof(LeadRow.RssContent)),
             ("解析线索（规则候选）", nameof(LeadRow.Hints)), ("雪球原链接（待核验）", nameof(LeadRow.Url)));
         Field("发言线索", links);
         var pagination = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new(0, 6, 0, 0) };
@@ -62,10 +62,13 @@ internal sealed class LeadWindow : WatchEditor
     {
         var data = await client.AskAsync(new("authors"), lifetime);
         new AuthorEditor(this, data.Authors ?? [], client, lifetime).ShowDialog();
-        await BrowseAsync(0);
+        await BrowseCoreAsync(0);
     }, lifetime);
 
-    private Task BrowseAsync(int requestedOffset) => WithFeedbackAsync(async () =>
+    private Task BrowseAsync(int requestedOffset) =>
+        WithFeedbackAsync(() => BrowseCoreAsync(requestedOffset), lifetime);
+
+    private async Task BrowseCoreAsync(int requestedOffset)
     {
         var account = (filter.SelectedItem as Author)?.Account;
         var current = await client.AskAsync(new("leads", new(Account: account, Offset: requestedOffset)), lifetime);
@@ -112,7 +115,7 @@ internal sealed class LeadWindow : WatchEditor
         page.Text = result.Total == 0 ? "暂无已保存线索" : $"第 {offset + 1}–{offset + result.Rows.Length} 条，共 {result.Total} 条";
         prior.IsEnabled = offset > 0;
         next.IsEnabled = offset + result.Rows.Length < result.Total;
-    }, lifetime);
+    }
 
     private static string CoverageText(Author author, FeedCoverage item)
     {
@@ -129,6 +132,7 @@ internal sealed class LeadWindow : WatchEditor
             "TooLarge" => "Feed 超过大小上限",
             "InvalidFeed" => "Feed 格式异常",
             "TimedOut" => "Feed 读取超时",
+            "ProxyUnavailable" => "无法通过 Mihomo 读取 Google Alerts RSS",
             "FeedUnavailable" => "Feed 暂不可用",
             _ => "尚未检查"
         };
@@ -175,7 +179,8 @@ internal sealed class LeadWindow : WatchEditor
         public string Published => Lead.PublishedAt?.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
             ?? "RSS 未提供";
         public string Title => Lead.Title;
-        public string Summary => Lead.Summary;
+        public string RssContent => Lead.Summary.Length > 0 ? $"片段 · {Lead.Summary}" :
+            Lead.Content.Length > 0 ? $"片段 · {Lead.Content}" : "仅链接";
         public string Url => Lead.Url;
     }
 }

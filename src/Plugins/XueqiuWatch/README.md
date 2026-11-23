@@ -17,6 +17,8 @@
 3. 在提醒的投递方式中选择 RSS，复制 Google 生成的 RSS Feed 地址。
 4. 将该地址粘贴到当前作者的「Google Alerts RSS 地址」并保存。
 
+如需通过 Mihomo 联网，可在「观察名单 → RSS 代理」填写本机 HTTP / Mixed 地址，例如 `http://127.0.0.1:7890`。Worker 从下次任务起仅对 Google Alerts RSS 使用该地址，Mihomo 按自己的规则选择节点。代理连接失败会在线索状态中显示。清空地址可恢复默认网络。
+
 Google Alerts 是免费服务，但搜索索引覆盖和更新时间不保证完整；它不是雪球官方全量动态接口。建议先用四位大 V 进行两周试运行，观察收录率和漏报情况。RSS URL 含订阅标识，按凭据处理；CRS 将它保存在 SQLCipher 加密的观点数据库中，不应写入日志或公开。
 
 CRS.Feed 负责通用抓取、RSS / Atom / JSON Feed 解析、ETag / Last-Modified 和资源限制；雪球 Jobs 负责作者归属校验、线索去重和存储。Google Alerts 文章链接可能经过 `google.com/url` 跳转，插件只还原并接受最终指向当前作者数字账号路径的雪球原帖。非雪球链接、其他作者链接和不符合帖子路径的结果会被忽略。

@@ -45,6 +45,7 @@ internal sealed class AuthorEditor : WatchEditor
         Finish(
             AsyncAction("打开 Google Alerts", OpenGoogleAlertsAsync),
             AsyncAction("复制搜索条件", CopySearchQueryAsync),
+            AsyncAction("RSS 代理", OpenRssProxyAsync),
             AsyncAction("刷新", () => WithFeedbackAsync(async () => await RefreshAsync(null), lifetime)),
             remove,
             AsyncAction("保存", () => SaveAsync(false)),
@@ -106,6 +107,13 @@ internal sealed class AuthorEditor : WatchEditor
         return Task.CompletedTask;
     }, lifetime);
 
+    private Task OpenRssProxyAsync() => WithFeedbackAsync(async () =>
+    {
+        var settings = await client.AskAsync(new("rss-proxy"), lifetime);
+        var address = new TextBox { Text = settings.RssProxy ?? "", MaxLength = 200 };
+        new RssProxyEditor(this, address, client, lifetime).ShowDialog();
+    }, lifetime);
+
     private Task SaveAsync(bool archive) => WithFeedbackAsync(async () =>
     {
         var id = WatchInput.AccountId(account.Text);
@@ -120,4 +128,27 @@ internal sealed class AuthorEditor : WatchEditor
     }, lifetime);
 
     private sealed record AuthorChoice(string Label, Author? Author);
+
+    private sealed class RssProxyEditor : WatchEditor
+    {
+        internal RssProxyEditor(Window owner, TextBox address, WorkerWatchClient client, CancellationToken token)
+            : base(owner, "Google Alerts RSS 代理", 520)
+        {
+            Field("Mihomo 本机 HTTP / Mixed 地址", address);
+            Fields.Children.Add(new TextBlock
+            {
+                Text = "例如 http://127.0.0.1:7890。仅用于 Worker 读取 Google Alerts RSS，下次采集生效。清空地址可恢复默认网络。",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new(0, 6, 0, 6)
+            });
+            Finish(
+                AsyncAction("保存", () => WithFeedbackAsync(async () =>
+                {
+                    var proxy = WatchInput.NormalizeRssProxy(address.Text);
+                    await client.SaveAsync(new("rss-proxy-save", RssProxy: proxy), token);
+                    CloseAfterSave();
+                }, token)),
+                Action("取消", Close));
+        }
+    }
 }

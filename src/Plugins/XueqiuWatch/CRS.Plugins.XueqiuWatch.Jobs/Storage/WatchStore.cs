@@ -39,7 +39,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 7)
+            else if (application != ApplicationId || version is < 1 or > 8)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -47,6 +47,7 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 5) InitializeLeadArticleMetadata();
             if (version < 6) InitializeTrackedAuthors();
             if (version < 7) InitializeGoogleAlerts();
+            if (version < 8) InitializeRssProxy();
         }
         catch
         {
@@ -82,13 +83,15 @@ internal sealed partial class WatchStore : IDisposable
         token.ThrowIfCancellationRequested();
         return request.Operation switch
         {
-            "authors" => new(Authors: Authors().Select(author => author with { AlertState = ReadGoogleAlert(author).State }).ToArray()),
+            "authors" => new(Authors: AuthorsForDisplay()),
             "catalog" => new(Securities: Catalog(request.Filter?.Search)),
             "overview" => new(Overview: Overview(ValidateFilter(request.Filter), token)),
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
             "alert-subscription" => new() { Alert = ReadGoogleAlert(RequireAuthor(request.Filter?.Account)) },
-            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" => Save(request, payload, token),
+            "rss-proxy" => new() { RssProxy = ReadRssProxy() },
+            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "rss-proxy-save" =>
+                Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
     }
@@ -110,6 +113,7 @@ internal sealed partial class WatchStore : IDisposable
             case "opinion-save": SaveOpinion(request.Opinion, transaction); break;
             case "alert-sync-begin": BeginGoogleAlert(request.Alert, transaction); break;
             case "alert-sync-complete": CompleteGoogleAlert(request.Alert, transaction); break;
+            case "rss-proxy-save": SaveRssProxy(request.RssProxy, transaction); break;
         }
         Execute("INSERT INTO changes VALUES($id,$hash)", transaction, ("$id", id), ("$hash", hash));
         token.ThrowIfCancellationRequested();

@@ -28,7 +28,7 @@ public sealed record WatchOverview(StockSummary[] Stocks, string[] Industries, i
     int Unmatched, DateTimeOffset? Earliest, DateTimeOffset? Latest, DateTimeOffset? LastRecorded);
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
-    Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null);
+    Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null);
 
 public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? Detail = null,
     Author[]? Authors = null, Security[]? Securities = null, string? Error = null)
@@ -37,6 +37,8 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
     public LeadPage? Leads { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GoogleAlertSubscription? Alert { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RssProxy { get; init; }
 }
 
 public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",

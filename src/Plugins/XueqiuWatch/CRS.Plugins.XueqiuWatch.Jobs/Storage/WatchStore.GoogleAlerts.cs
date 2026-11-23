@@ -31,6 +31,9 @@ internal sealed partial class WatchStore
         ?? new(author.Account, author.Archived || author.FeedUrl.Length == 0
             ? GoogleAlertState.None : GoogleAlertState.External);
 
+    private Author[] AuthorsForDisplay() =>
+        Authors().Select(author => author with { AlertState = ReadGoogleAlert(author).State }).ToArray();
+
     private GoogleAlertSubscription? ReadStoredGoogleAlert(string account, SqliteTransaction? transaction = null) =>
         Scalar("SELECT body FROM google_alerts WHERE account=$account", transaction, ("$account", account)) is string body
             ? WatchProtocol.Decode<GoogleAlertSubscription>(body) : null;
@@ -141,7 +144,7 @@ internal sealed partial class WatchStore
         var url = FeedAddress.Normalize(value ?? "");
         var uri = new Uri(url);
         var parts = uri.AbsolutePath.Split('/');
-        if (uri.Host is not ("google.com" or "www.google.com") || !uri.IsDefaultPort || uri.Query.Length != 0 ||
+        if (!WatchInput.IsGoogleAlertsFeed(uri) || !uri.IsDefaultPort || uri.Query.Length != 0 ||
             parts is not ["", "alerts", "feeds", var account, var feed] || account.Length == 0 || feed.Length == 0 ||
             account.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_')) ||
             feed.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_')))

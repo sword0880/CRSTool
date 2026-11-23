@@ -14,6 +14,8 @@ public sealed class FeedClient : IDisposable
     {
         this.options = options ?? new FeedClientOptions();
         this.options.Validate();
+        if (handler is not null && this.options.ProxyAddress is not null)
+            throw new ArgumentException("自定义 Feed transport 需自行负责代理。", nameof(handler));
 
         // 默认关闭自动重定向，由本类逐跳校验目标地址。
         var transport = handler ?? new SocketsHttpHandler
@@ -21,7 +23,8 @@ public sealed class FeedClient : IDisposable
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
             ConnectTimeout = TimeSpan.FromSeconds(10),
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10)
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            Proxy = this.options.ProxyAddress is { } address ? new WebProxy(address) : null
         };
         http = new HttpClient(transport, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
     }
@@ -122,9 +125,12 @@ public sealed class FeedClient : IDisposable
         {
             return new(FeedFetchStatus.TimedOut);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException error)
         {
-            return new(FeedFetchStatus.Unavailable);
+            var status = options.ProxyAddress is not null && error.HttpRequestError is
+                HttpRequestError.ConnectionError or HttpRequestError.NameResolutionError or HttpRequestError.ProxyTunnelError
+                ? FeedFetchStatus.ProxyUnavailable : FeedFetchStatus.Unavailable;
+            return new(status);
         }
         catch (IOException)
         {

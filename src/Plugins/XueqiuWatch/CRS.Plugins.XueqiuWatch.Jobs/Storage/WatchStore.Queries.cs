@@ -74,7 +74,8 @@ internal sealed partial class WatchStore
     }
 
     private static IEnumerable<Stored> CurrentStances(IEnumerable<Stored> rows) => rows
-        .Where(x => x.Opinion.Attribution == Attribution.Author && x.Opinion.Stance is Stance.Bullish or Stance.Bearish)
+        .Where(x => x.Opinion.Attribution == Attribution.Author &&
+            x.Opinion.Stance is Stance.Bullish or Stance.Bearish or Stance.Neutral)
         .DistinctBy(x => x.Opinion.Account);
 
     private WatchOverview Overview(ReviewFilter filter, CancellationToken token)

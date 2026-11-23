@@ -4,7 +4,7 @@ namespace CRS.Feed;
 public enum FeedFetchStatus
 {
     Updated, NotModified, RateLimited, AccessDenied, NotFound,
-    RedirectRejected, TooLarge, InvalidFeed, TimedOut, Unavailable
+    RedirectRejected, TooLarge, InvalidFeed, TimedOut, Unavailable, ProxyUnavailable
 }
 
 /// <summary>用于条件请求的缓存验证器。</summary>
@@ -33,6 +33,7 @@ public sealed record FeedClientOptions
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(12);
     public bool AllowHttp { get; init; }
     public string UserAgent { get; init; } = "CRSTool/1.0";
+    public Uri? ProxyAddress { get; init; }
 
     internal void Validate()
     {
@@ -46,5 +47,8 @@ public sealed record FeedClientOptions
             throw new ArgumentOutOfRangeException(nameof(Timeout));
         if (string.IsNullOrWhiteSpace(UserAgent) || UserAgent.Length > 120)
             throw new ArgumentException("Feed User-Agent 配置无效。", nameof(UserAgent));
+        if (ProxyAddress is { } proxy && (!proxy.IsAbsoluteUri || proxy.Scheme is not ("http" or "https") ||
+            proxy.UserInfo.Length != 0 || proxy.PathAndQuery != "/" || proxy.Fragment.Length != 0 || proxy.Port < 1))
+            throw new ArgumentException("请输入有效的 HTTP 代理地址。", nameof(ProxyAddress));
     }
 }

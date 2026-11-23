@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Plugins.XueqiuWatch.Jobs;
@@ -9,10 +10,11 @@ using Microsoft.Data.Sqlite;
 internal static class XueqiuRssChecks
 {
     private const string FeedUrl = "https://www.google.com/alerts/feeds/123456789/987654321";
+    private const string ExternalFeedUrl = "https://feeds.example.invalid/author.xml";
 
     internal static async Task RunAsync()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         var token = deadline.Token;
         var root = Path.Combine(Path.GetTempPath(), "CRS.XueqiuRss", Guid.NewGuid().ToString("N"));
         var key = RandomNumberGenerator.GetBytes(32);
@@ -108,13 +110,84 @@ internal static class XueqiuRssChecks
                 after.Coverage.Single(item => item.Account == "9650668145").State == "NotConfigured",
                 "移除作者 RSS 配置后保留历史线索并清除旧覆盖状态");
 
-            await VerifyGoogleAlertLifecycleAsync(Ask, async () =>
+            async Task Restart()
             {
                 await session.StopAsync(token);
                 await session.StartAsync(token);
-            });
+            }
+            await VerifyGoogleAlertLifecycleAsync(Ask, Restart);
+            await VerifyRssProxyAsync(Ask, Restart, Run, token);
+            await VerifyNeutralOpinionAsync(Ask);
         }
         finally { CryptographicOperations.ZeroMemory(key); }
+    }
+
+    private static async Task VerifyRssProxyAsync(Func<WatchRequest, Task<WatchReply>> ask, Func<Task> restart,
+        Func<Task<BackgroundJobResult>> run, CancellationToken token)
+    {
+        Task<WatchReply> SaveProxy(string address) => ask(new("rss-proxy-save", ChangeId: Guid.NewGuid(), RssProxy: address));
+        Check((await ask(new("rss-proxy"))).RssProxy == "" &&
+            (await SaveProxy("http://proxy.example.invalid:7890")).Error is not null &&
+            (await SaveProxy("socks5://127.0.0.1:7890")).Error is not null,
+            "旧库代理默认关闭，只接收本机 HTTP / Mixed 地址");
+
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var address = $"http://{listener.LocalEndpoint}/";
+        Check((await SaveProxy(address)).Error is null, "保存 Mihomo 本机地址");
+        await restart();
+        Check((await ask(new("rss-proxy"))).RssProxy == address, "服务重启保留代理配置");
+
+        var authors = (await ask(new("authors"))).Authors!;
+        foreach (var (account, feed) in new[] { ("9650668145", FeedUrl), ("8790885129", ExternalFeedUrl) })
+        {
+            var author = authors.Single(x => x.Account == account);
+            Check((await ask(new("author-save", Author: author with { FeedUrl = feed }, ChangeId: Guid.NewGuid()))).Error is null,
+                "配置代理分流样本");
+        }
+
+        var response = RejectGoogleConnectAsync(listener, token);
+        var result = await run();
+        var leads = (await ask(new("leads"))).Leads!;
+        Check(await response == "CONNECT www.google.com:443 HTTP/1.1" &&
+            result.Status == "Succeeded" && leads.Total == 1 &&
+            leads.Coverage.Single(x => x.Account == "9650668145").State == "ProxyUnavailable" &&
+            leads.Coverage.Single(x => x.Account == "8790885129").State == "NotModified",
+            "Google RSS 经本机代理，代理拒绝时保留历史，其他 Feed 仍走原有通道");
+
+        Check((await SaveProxy("")).Error is null && (await ask(new("rss-proxy"))).RssProxy == "",
+            "清空配置恢复默认网络");
+    }
+
+    private static async Task<string?> RejectGoogleConnectAsync(TcpListener listener, CancellationToken token)
+    {
+        using var connection = await listener.AcceptTcpClientAsync(token);
+        await using var stream = connection.GetStream();
+        using var reader = new StreamReader(stream, leaveOpen: true);
+        var request = await reader.ReadLineAsync(token);
+        while (!string.IsNullOrEmpty(await reader.ReadLineAsync(token))) { }
+        await stream.WriteAsync("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"u8.ToArray(), token);
+        return request;
+    }
+
+    private static async Task VerifyNeutralOpinionAsync(Func<WatchRequest, Task<WatchReply>> ask)
+    {
+        const string account = "9650668145";
+        var security = new Security("沪市", "601899", "紫金矿业", "有色金属");
+        var opinion = new Opinion(Guid.NewGuid(), account, security, WatchProtocol.BeijingNow.AddHours(-2),
+            Stance.Bullish, Attribution.Author, "看好", "", $"https://xueqiu.com/{account}/701");
+        var neutral = opinion with { Id = Guid.NewGuid(), PublishedAt = opinion.PublishedAt.AddMinutes(30),
+            Stance = Stance.Neutral, Content = "暂时观望", Url = $"https://xueqiu.com/{account}/702" };
+        var pending = neutral with { Id = Guid.NewGuid(), PublishedAt = neutral.PublishedAt.AddMinutes(30),
+            Stance = Stance.Pending, Content = "待核对", Url = $"https://xueqiu.com/{account}/703" };
+        foreach (var item in new[] { opinion, neutral, pending })
+            Check((await ask(new("opinion-save", Opinion: item, ChangeId: Guid.NewGuid()))).Error is null,
+                "保存观点统计样本");
+        var overview = (await ask(new("overview"))).Overview!;
+        var detail = (await ask(new("detail", new(Security: security)))).Detail!;
+        Check(overview.Stocks is [{ Bullish: 0, Bearish: 0 }] &&
+            detail.Rows.Length == 1 && detail.Rows[0].Id == neutral.Id,
+            "最新中性观点撤销旧看多计数，待确认发言不覆盖中性观点");
     }
 
     private static async Task VerifyGoogleAlertLifecycleAsync(Func<WatchRequest, Task<WatchReply>> ask, Func<Task> restart)
@@ -197,7 +270,7 @@ internal static class XueqiuRssChecks
         }.ToString());
         db.Open();
         using var clearSubscriptionSchema = db.CreateCommand();
-        clearSubscriptionSchema.CommandText = "DROP TABLE google_alerts";
+        clearSubscriptionSchema.CommandText = "DROP TABLE google_alerts; DROP TABLE rss_proxy";
         clearSubscriptionSchema.ExecuteNonQuery();
         using var update = db.CreateCommand();
         var oldAuthor = WatchProtocol.InitialAuthors.Single(x => x.Account == "8632046745") with { Name = "逹人知命" };
@@ -236,6 +309,8 @@ internal static class XueqiuRssChecks
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
+            if (request.RequestUri?.AbsoluteUri == ExternalFeedUrl)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified));
             Check(request.Method == HttpMethod.Get && request.RequestUri?.AbsoluteUri == FeedUrl,
                 "Worker 只请求作者配置的 Google Alerts RSS 地址");
             var attempt = Interlocked.Increment(ref attempts);
