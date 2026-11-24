@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Reflection;
 using System.Text.Json;
 using CRS.Worker.Abstractions;
 using CRS.ExchangeRates;
@@ -24,6 +25,9 @@ public sealed record BackgroundScheduling(int MaxConcurrency, int Running, int W
 public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, DateTimeOffset ObservedUtc, int ProcessId, BackgroundScheduling? Scheduling = null,
     IReadOnlyList<SourceBudgetHealth>? Sources = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? WorkerBuild { get; init; }
+
     public BackgroundHealth(string state,DateTimeOffset startedUtc,DateTimeOffset observedUtc,int processId,BackgroundScheduling? scheduling)
         :this(state,startedUtc,observedUtc,processId,scheduling,null){}
     public void Deconstruct(out string state,out DateTimeOffset startedUtc,out DateTimeOffset observedUtc,out int processId,out BackgroundScheduling? scheduling)
@@ -52,6 +56,18 @@ public sealed record BackgroundResponse(int ProtocolVersion, Guid RequestId, str
 public static class WorkerProtocol
 {
     public const int Version = 2;
+    // 兼容性变化时递增修订号，发布构建还用提交标识区分相同发行版本。
+    private const int PairingRevision = 1;
+    public static string BuildIdentity { get; } = GetBuildIdentity();
+
+    private static string GetBuildIdentity()
+    {
+        var informationalVersion = typeof(WorkerProtocol).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        var revision = informationalVersion?.Split('+', 2).ElementAtOrDefault(1);
+        return string.IsNullOrEmpty(revision) ? $"{Version}.{PairingRevision}" : $"{Version}.{PairingRevision}+{revision}";
+    }
+
     public const string GetPluginPlanOptions = "GetPluginPlanOptions";
     public const string AddPluginPlan = "AddPluginPlan";
     public const string PrivatePluginData = "PrivatePluginData";

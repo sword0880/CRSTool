@@ -31,7 +31,7 @@ internal static class VpnSettingsViewChecks
             {
                 Child = view, Padding = new Thickness(24), Background = (Brush)app.FindResource("BrandSurfaceBrush")
             };
-            var window = new Window { Content = host, Width = 580, Height = 500, Title = "VPN 设置" };
+            var window = new Window { Content = host, Width = 735, Height = 650, Title = "VPN 设置" };
             window.Loaded += async (_, _) =>
             {
                 try
@@ -41,8 +41,11 @@ internal static class VpnSettingsViewChecks
                     var address = (TextBox)view.FindName("SubscriptionInput");
                     var refresh = (Wpf.Ui.Controls.Button)view.FindName("RefreshButton");
                     var status = (TextBlock)view.FindName("Status");
+                    var details = (ItemsControl)view.FindName("SubscriptionDetails");
+                    var regions = (ListBox)view.FindName("Regions");
+                    var count = (TextBlock)view.FindName("NodeCount");
                     if (address.Text != VpnFixture.Address || list.Items.Count != 1 ||
-                        refresh.IsEnabled || !status.Text.Contains("测速"))
+                        details.Items.Count != 1 || refresh.IsEnabled || !status.Text.Contains("测速"))
                         throw new InvalidOperationException("进入 VPN 设置后应先展示已有节点，并自动加载测速。");
 
                     fixture.CompleteRefresh.SetResult();
@@ -53,10 +56,12 @@ internal static class VpnSettingsViewChecks
                     window.UpdateLayout();
                     var expected = new[]
                     {
-                        ("82 ms", "BrandStatusSuccessBrush"), ("206 ms", "BrandStatusWarningBrush"),
+                        ("82 ms", "BrandStatusSuccessBrush"), ("126 ms", "BrandStatusSuccessBrush"),
+                        ("206 ms", "BrandStatusWarningBrush"), ("265 ms", "BrandStatusWarningBrush"),
                         ("354 ms", "BrandStatusErrorBrush"), ("未测得", "BrandStatusInfoBrush")
                     };
-                    if (list.Items.Count != expected.Length || status.Text.Length != 0)
+                    if (list.Items.Count != expected.Length || count.Text != "6 个" || details.Items.Count != 3 ||
+                        status.Text.Length != 0)
                         throw new InvalidOperationException("节点刷新后应显示完整列表并结束加载状态。");
                     for (var i = 0; i < expected.Length; i++)
                     {
@@ -66,6 +71,11 @@ internal static class VpnSettingsViewChecks
                             throw new InvalidOperationException("节点延迟排序或状态配色不正确。");
                     }
 
+                    regions.SelectedItem = "日本";
+                    if (list.Items.Count != 3)
+                        throw new InvalidOperationException("日本标签应只展示日本节点。");
+                    regions.SelectedItem = "全部";
+                    window.UpdateLayout();
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(screenshot))!);
                     var image = new RenderTargetBitmap((int)host.ActualWidth, (int)host.ActualHeight, 96, 96, PixelFormats.Pbgra32);
                     image.Render(host);
@@ -86,7 +96,7 @@ internal static class VpnSettingsViewChecks
         try { server.GetAwaiter().GetResult(); }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
         if (failure is not null) throw failure;
-        Console.WriteLine("PASS VPN 首次进入自动加载测速、已有节点先显示、结果排序与状态配色。");
+        Console.WriteLine("PASS VPN 自动加载测速、旧版套餐分离、节点计数、地区筛选和延迟显示。");
     }
 
     private sealed class VpnFixture : IBackgroundControl
@@ -99,13 +109,18 @@ internal static class VpnSettingsViewChecks
         {
             VpnSettingsStatus result;
             if (request.Command == WorkerProtocol.GetVpnSettings && request.Payload == "ShowSubscription")
-                result = new(true, true, ["香港 · 备用线路"]) { SubscriptionAddress = Address };
+                result = new(true, true, ["香港 · 备用线路", "剩余流量：390.05 GB"]) { SubscriptionAddress = Address };
             else if (request.Command == WorkerProtocol.RefreshVpnNodes)
             {
                 RefreshStarted.TrySetResult();
                 await CompleteRefresh.Task.WaitAsync(token);
-                result = new(true, true, ["美国 · 洛杉矶", "香港 · 中环", "英国 · 伦敦", "日本 · 东京"])
-                    { Delays = [354, 82, null, 206] };
+                result = new(true, true, ["美国 · 洛杉矶", "JPAWS日本01 | 电信移动联通推荐", "日本东京02-0.1倍",
+                    "狮城 · 新加坡", "JPAWS日本06 | 电信移动联通推荐", "美国 · 纽约"])
+                {
+                    Delays = [354, 82, null, 206, 126, 265],
+                    NodeTypes = ["Shadowsocks", "Vless", "Vless", "Trojan", "Vless", "Vless"],
+                    SubscriptionDetails = [new("剩余流量", "390.05 GB"), new("套餐到期", "2029-05-25"), new("距离下次重置", "1 天")]
+                };
             }
             else
                 return new(WorkerProtocol.Version, request.RequestId, "InvalidRequest");

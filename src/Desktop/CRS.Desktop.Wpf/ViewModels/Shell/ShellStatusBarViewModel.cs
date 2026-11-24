@@ -41,6 +41,9 @@ public partial class ShellStatusBarViewModel : ObservableObject
     [ObservableProperty] private string taskDetail = "尚未取得真实调度状态。";
     [ObservableProperty] private string attentionLabel = "运行异常：未确认";
     [ObservableProperty] private string attentionDetail = "仅统计 Worker 的插件故障及官方来源冷却，不代表业务审核待办总数。";
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasVersionWarning))]
+    private string? versionWarning;
+    public bool HasVersionWarning => !string.IsNullOrEmpty(VersionWarning);
 
     /// <summary>每3秒更新服务健康及运行/等待数量。</summary>
     public void Start(CancellationToken lifetime)
@@ -107,6 +110,7 @@ public partial class ShellStatusBarViewModel : ObservableObject
         HealthLabel=value.HealthLabel;HealthTone=value.HealthTone;HealthDetail=value.HealthDetail;
         TaskLabel=value.TaskLabel;TaskDetail=value.TaskDetail;
         AttentionLabel=value.AttentionLabel;AttentionDetail=value.AttentionDetail;
+        VersionWarning=value.VersionWarning;
     }
 
     public static ShellStatusSnapshot Unavailable() => new(
@@ -118,7 +122,9 @@ public partial class ShellStatusBarViewModel : ObservableObject
     public static ShellStatusSnapshot Describe(BackgroundResponse response,
         DataCleanupTask? cleanupTask=null,bool cleanupKnown=true,BackgroundTaskActivity? activity=null)
     {
-        if(response.Code!="Ok" || response.Health is not { } health)return Unavailable();
+        var versionWarning = WorkerVersionNotice.GetWarning(response);
+        if(response.Code!="Ok" || response.Health is not { } health)
+            return Unavailable() with { VersionWarning = versionWarning };
         var state=health.State;
         var (label,tone)=state switch
         {
@@ -129,6 +135,8 @@ public partial class ShellStatusBarViewModel : ObservableObject
             "PluginUnresponsive" or "UnresponsivePlugin" => ("插件无响应","Error"),
             _ => ("服务状态异常","Error")
         };
+        if (versionWarning is not null && state == "Running")
+            (label, tone) = ("后台版本需核对", "Warning");
         var sample=health.ObservedUtc.ToString("MM-dd HH:mm:ss");
         var scheduling=health.Scheduling;
         int? running=activity?.Running??scheduling?.Running;
@@ -161,12 +169,15 @@ public partial class ShellStatusBarViewModel : ObservableObject
             state=="Degraded" ? "服务异常 · 查看" : "运行异常 0";
         var attentionDetail=$"来源冷却 {cooling} · 插件失败 {failedPlugins}。仅代表服务可观察的当前异常，不含税务/ETF数据缺口与审核待办。";
         if(!hasSources || !hasPlugins)attentionDetail="当前服务未返回完整来源/插件健康快照；运行异常数不能按零报告。";
-        return new(label,tone,$"Worker 状态 {state} · 采样 {sample}（北京时间）",
-            tasks,taskDetail,attention,attentionDetail);
+        return new(label,tone,versionWarning ?? $"Worker 状态 {state} · 采样 {sample}（北京时间）",
+            tasks,taskDetail,attention,attentionDetail) { VersionWarning = versionWarning };
     }
 }
 
 public sealed record ShellStatusSnapshot(
     string HealthLabel,string HealthTone,string HealthDetail,
     string TaskLabel,string TaskDetail,
-    string AttentionLabel,string AttentionDetail);
+    string AttentionLabel,string AttentionDetail)
+{
+    public string? VersionWarning { get; init; }
+}

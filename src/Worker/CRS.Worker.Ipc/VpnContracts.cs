@@ -1,16 +1,27 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace CRS.Worker.Ipc;
 
 public sealed record VpnSettingsStatus(bool Configured, bool EngineAvailable, string[] Nodes)
 {
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SubscriptionAddress { get; init; }
 
     // 与 Nodes 按位置对应，避免重复传输长节点名称；null 兼容未测速及旧版 Worker。
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int?[]? Delays { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? NodeTypes { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public VpnSubscriptionDetail[]? SubscriptionDetails { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool LatencyTestFailed { get; init; }
 
     public string NodeLabel(string node)
     {
@@ -19,6 +30,29 @@ public sealed record VpnSettingsStatus(bool Configured, bool EngineAvailable, st
         if (Delays is null || Delays.Length != Nodes.Length) return node + "（未测速）";
         return Delays[index] is > 0 and < 65535
             ? $"{node}（{Delays[index]} ms）" : node + "（未测得）";
+    }
+}
+
+public sealed partial record VpnSubscriptionDetail(string Label, string Value)
+{
+    // 与 Mihomo 策略组共用，只排除以套餐字段开头并带有值的订阅项。
+    public const string NamePattern =
+        @"^\s*(?<label>剩余流量|套餐到期(?:时间)?|距离下次重置(?:剩余)?|下次重置(?:时间)?)\s*[:：]\s*(?<value>\S.*)$";
+
+    [GeneratedRegex(NamePattern, RegexOptions.CultureInvariant)]
+    private static partial Regex NameRegex();
+
+    public static VpnSubscriptionDetail? Parse(string name)
+    {
+        var match = NameRegex().Match(name);
+        if (!match.Success) return null;
+        var label = match.Groups["label"].Value switch
+        {
+            "剩余流量" => "剩余流量",
+            "套餐到期" or "套餐到期时间" => "套餐到期",
+            _ => "距离下次重置"
+        };
+        return new(label, match.Groups["value"].Value.Trim());
     }
 }
 

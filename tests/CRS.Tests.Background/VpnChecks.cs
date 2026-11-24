@@ -1,4 +1,6 @@
+using System.Net;
 using System.Security.Cryptography;
+using System.Text.Json;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 using CRS.Worker.Service;
@@ -13,6 +15,24 @@ internal static class VpnChecks
             var delays = WorkerVpn.ParseBatchDelays(response.RootElement, ["Node A", "Node B", "Node C"]);
             Check(delays.Count == 1 && delays["Node A"] == 120, "批量测速过滤失败值及未知节点");
         }
+        using (var response = JsonDocument.Parse("""
+            {"proxies":[
+                {"name":"剩余流量：390.05 GB","type":"Vless"},
+                {"name":"套餐到期: 2029-05-25","type":"Direct"},
+                {"name":"距离下次重置剩余：1 天","type":"Vless"},
+                {"name":"JPAWS日本01 | 电信移动联通推荐","type":"Vless"},
+                {"name":"香港 低流量专线","type":"Shadowsocks"},
+                {"name":"DIRECT","type":"Direct"}
+            ]}
+            """))
+        {
+            var parsed = WorkerVpn.ParseProvider(response.RootElement);
+            Check(parsed is not null && parsed.Nodes.SequenceEqual(["JPAWS日本01 | 电信移动联通推荐", "香港 低流量专线"]) &&
+                parsed.Types.SequenceEqual(["Vless", "Shadowsocks"]) &&
+                parsed.Details.SequenceEqual([new("剩余流量", "390.05 GB"), new("套餐到期", "2029-05-25"), new("距离下次重置", "1 天")]),
+                "套餐信息单独提取，真实节点保持协议对应");
+            Check(!WorkerVpn.ValidNode("剩余流量：390.05 GB"), "套餐信息不能用作 VPN 线路");
+        }
         var status = new VpnSettingsStatus(true, true, ["Node A", "Node B"]) { Delays = [120, null] };
         Check(status.NodeLabel("Node A") == "Node A（120 ms）" && status.NodeLabel("Node B") == "Node B（未测得）",
             "两个设置入口共用延迟展示规则");
@@ -22,6 +42,11 @@ internal static class VpnChecks
         using var vpn = new WorkerVpn(root, Path.Combine(root, "not-installed.exe"), key);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var token = timeout.Token;
+        using (var controller = new HttpClient(new TimedOutGroup()) { BaseAddress = new("http://127.0.0.1/") })
+        {
+            var tested = await WorkerVpn.TestDelaysAsync(controller, ["Node A"], token);
+            Check(tested.Count == 0, "组测速全失败时保留已尝试测速的空结果");
+        }
         Check(!(await vpn.SettingsAsync("owner", true, null, false, token)).Configured, "VPN defaults to unconfigured");
         var saved = await vpn.SettingsAsync("owner", true, address, false, token);
         Check(saved.Configured && !saved.EngineAvailable && saved.Nodes.Length == 0, "Subscription save is independent of node refresh");
@@ -105,5 +130,14 @@ internal static class VpnChecks
     {
         if (!ok) throw new InvalidOperationException(label);
         Console.WriteLine("PASS " + label);
+    }
+
+    private sealed class TimedOutGroup : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Check(request.RequestUri?.AbsolutePath == "/group/crs-selected-node/delay", "订阅使用组测速入口");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.GatewayTimeout));
+        }
     }
 }

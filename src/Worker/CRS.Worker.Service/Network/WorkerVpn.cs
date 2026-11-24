@@ -16,11 +16,13 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
     private const string Provider = "crs-subscription";
     private const string Group = "crs-selected-node";
     private const string Purpose = "worker-vpn-settings/v1";
+    private const string ExcludedTypes = "Direct|Reject|RejectDrop|Pass|Compatible";
     private readonly string settingsPath = Path.Combine(dataDirectory, "worker-vpn.json");
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Dictionary<string, Connection> connections = new(StringComparer.Ordinal);
-    private string[] nodes = [];
+    private ProviderSnapshot snapshot = new([], [], []);
     private Dictionary<string, int>? delayResults;
+    private bool latencyTestFailed;
 
     internal sealed class VpnException(string code) : Exception(code)
     {
@@ -28,6 +30,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
     }
 
     private sealed record Subscription(string Owner, byte[] Address);
+    internal sealed record ProviderSnapshot(string[] Nodes, string[] Types, VpnSubscriptionDetail[] Details);
 
     internal async Task<VpnSettingsStatus> SettingsAsync(string sid, bool admin, string? update, bool refresh, CancellationToken token,
         bool showAddress = false)
@@ -59,31 +62,37 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             }
             if (refresh)
             {
-                using var process = await StartAsync(current, token);
-                nodes = await ReadNodesAsync(process, token);
+                // IPC 上限为 20 秒。为已加载的节点预留完整测速窗口和响应时间。
+                var loadBudget = TimeSpan.FromSeconds(14) - elapsed.Elapsed;
+                if (loadBudget <= TimeSpan.Zero) throw new VpnException("VpnUnavailable");
+                using var load = CancellationTokenSource.CreateLinkedTokenSource(token);
+                load.CancelAfter(loadBudget);
+                var (process, loaded) = await StartAsync(current, load.Token);
+                using var connection = process;
+                snapshot = loaded;
                 delayResults = null;
-                // IPC 服务端请求上限为 20 秒。测速失败不丢弃已经成功读取的节点。
-                var remaining = TimeSpan.FromSeconds(18) - elapsed.Elapsed;
-                if (remaining > TimeSpan.Zero)
+                latencyTestFailed = false;
+                if (loaded.Nodes.Length > 0)
                 {
                     using var probe = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    probe.CancelAfter(remaining);
+                    probe.CancelAfter(TimeSpan.FromSeconds(4));
                     try
                     {
-                        using var results = await ReadJsonAsync(process.Controller,
-                            "group/" + Group + "/delay?url=https%3A%2F%2Fwww.gstatic.com%2Fgenerate_204&timeout=3000&expected=204",
-                            probe.Token);
-                        delayResults = ParseBatchDelays(results.RootElement, nodes);
+                        delayResults = await TestDelaysAsync(connection.Controller, loaded.Nodes, probe.Token);
                     }
-                    catch (OperationCanceledException) when (!token.IsCancellationRequested) { }
-                    catch (Exception error) when (error is HttpRequestException or JsonException or InvalidDataException) { }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested) { latencyTestFailed = true; }
+                    catch (Exception error) when (error is HttpRequestException or JsonException or InvalidDataException)
+                    { latencyTestFailed = true; }
                 }
             }
-            return new(current is not null, File.Exists(executable), nodes)
+            return new(current is not null, File.Exists(executable), snapshot.Nodes)
             {
                 SubscriptionAddress = showAddress && current is not null ? ReadAddress(current) : null,
-                Delays = delayResults is null ? null : nodes.Select(name =>
-                    delayResults.TryGetValue(name, out var delay) ? (int?)delay : null).ToArray()
+                Delays = delayResults is null ? null : snapshot.Nodes.Select(name =>
+                    delayResults.TryGetValue(name, out var delay) ? (int?)delay : null).ToArray(),
+                NodeTypes = snapshot.Types.Length == 0 ? null : snapshot.Types,
+                SubscriptionDetails = snapshot.Details.Length == 0 ? null : snapshot.Details,
+                LatencyTestFailed = latencyTestFailed
             };
         }
         finally { gate.Release(); }
@@ -103,7 +112,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
                 connections.Remove(item.Key);
                 item.Value.Dispose();
             }
-            if (nodes.Length != 0 && !nodes.Contains(node, StringComparer.Ordinal))
+            if (snapshot.Nodes.Length != 0 && !snapshot.Nodes.Contains(node, StringComparer.Ordinal))
                 throw new VpnException("VpnNodeUnavailable");
             if (connections.TryGetValue(node, out var active))
             {
@@ -111,12 +120,12 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
                 return active.Proxy;
             }
             if (connections.Count >= 16) throw new VpnException("VpnCapacity");
-            var candidate = await StartAsync(current, token);
+            var (candidate, loaded) = await StartAsync(current, token);
             try
             {
                 // 为每个节点保留独立的代理进程。确认节点切换成功后才向调用方返回本机端口。
-                nodes = await ReadNodesAsync(candidate, token);
-                if (!nodes.Contains(node, StringComparer.Ordinal)) throw new VpnException("VpnNodeUnavailable");
+                if (snapshot.Nodes.Length == 0) snapshot = loaded;
+                if (!loaded.Nodes.Contains(node, StringComparer.Ordinal)) throw new VpnException("VpnNodeUnavailable");
                 using var content = new StringContent(JsonSerializer.Serialize(new { name = node }), Encoding.UTF8, "application/json");
                 using var reply = await candidate.Controller.PutAsync("proxies/" + Group, content, token);
                 if (!reply.IsSuccessStatusCode) throw new VpnException("VpnNodeUnavailable");
@@ -133,7 +142,8 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
 
     internal static bool ValidNode(string node) =>
         node.Length is > 0 and <= 256 && !string.IsNullOrWhiteSpace(node) && !node.Any(char.IsControl) &&
-        node is not ("DIRECT" or "REJECT" or "PASS" or "COMPATIBLE" or Group);
+        node is not ("DIRECT" or "REJECT" or "PASS" or "COMPATIBLE" or Group) &&
+        VpnSubscriptionDetail.Parse(node) is null;
 
     private static void ValidateAddress(string address)
     {
@@ -150,7 +160,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
         catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { return null; }
     }
 
-    private async Task<Connection> StartAsync(Subscription? subscription, CancellationToken token)
+    private async Task<(Connection Connection, ProviderSnapshot Snapshot)> StartAsync(Subscription? subscription, CancellationToken token)
     {
         if (subscription is null) throw new VpnException("VpnNotConfigured");
         if (!File.Exists(executable)) throw new VpnException("VpnEngineMissing");
@@ -177,7 +187,11 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             ["proxy-providers"] = new Dictionary<string, object> { [Provider] = new
                 { type = "http", url = address, path = "./" + cache, interval = 0, proxy = "DIRECT",
                   header = new Dictionary<string, string[]> { ["User-Agent"] = ["clash.meta"] } } },
-            ["proxy-groups"] = new[] { new { name = Group, type = "select", use = new[] { Provider } } },
+            ["proxy-groups"] = new[] { new Dictionary<string, object>
+                {
+                    ["name"] = Group, ["type"] = "select", ["use"] = new[] { Provider },
+                    ["exclude-filter"] = VpnSubscriptionDetail.NamePattern, ["exclude-type"] = ExcludedTypes
+                } },
             ["rules"] = new[] { "MATCH," + Group }
         };
         var start = new ProcessStartInfo(executable)
@@ -208,10 +222,11 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             {
                 try
                 {
-                    if ((await ReadNodesAsync(connection, deadline.Token)).Length != 0)
+                    using var response = await ReadJsonAsync(connection.Controller, "providers/proxies/" + Provider, deadline.Token);
+                    if (ParseProvider(response.RootElement) is { } loaded)
                     {
                         connection.ClearProviderCache();
-                        return connection;
+                        return (connection, loaded);
                     }
                 }
                 catch (HttpRequestException) { }
@@ -238,16 +253,47 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
         finally { CryptographicOperations.ZeroMemory(plain); }
     }
 
-    private static async Task<string[]> ReadNodesAsync(Connection active, CancellationToken token)
+    internal static ProviderSnapshot? ParseProvider(JsonElement response)
     {
-        using var doc = await ReadJsonAsync(active.Controller, "providers/proxies/" + Provider, token);
-        if (!doc.RootElement.TryGetProperty("proxies", out var list) || list.ValueKind != JsonValueKind.Array) return [];
-        return list.EnumerateArray()
-            .Where(item => item.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String &&
-                item.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String &&
-                type.GetString() is not ("Direct" or "Reject" or "Pass" or "Compatible"))
-            .Select(item => item.GetProperty("name").GetString()!)
-            .Where(ValidNode).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Take(300).ToArray();
+        if (response.ValueKind != JsonValueKind.Object || !response.TryGetProperty("proxies", out var list) ||
+            list.ValueKind != JsonValueKind.Array ||
+            list.GetArrayLength() == 0)
+            return null;
+        var nodes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var details = new Dictionary<string, VpnSubscriptionDetail>(StringComparer.Ordinal);
+        var excludedTypes = ExcludedTypes.Split('|');
+        foreach (var item in list.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("name", out var nameValue) ||
+                nameValue.ValueKind != JsonValueKind.String ||
+                nameValue.GetString() is not { Length: > 0 and <= 256 } name || name.Any(char.IsControl))
+                continue;
+            if (VpnSubscriptionDetail.Parse(name) is { } detail)
+                details.TryAdd(detail.Label, detail);
+            else if (ValidNode(name) && item.TryGetProperty("type", out var typeValue) &&
+                typeValue.ValueKind == JsonValueKind.String && typeValue.GetString() is { Length: > 0 and <= 32 } type &&
+                !excludedTypes.Contains(type, StringComparer.OrdinalIgnoreCase))
+                nodes.TryAdd(name, type);
+        }
+        var ordered = nodes.OrderBy(entry => entry.Key, StringComparer.Ordinal).Take(300).ToArray();
+        return new(ordered.Select(node => node.Key).ToArray(), ordered.Select(node => node.Value).ToArray(),
+            details.Values.ToArray());
+    }
+
+    internal static async Task<Dictionary<string, int>> TestDelaysAsync(HttpClient controller, string[] nodes,
+        CancellationToken token)
+    {
+        try
+        {
+            using var results = await ReadJsonAsync(controller,
+                $"group/{Group}/delay?url=https%3A%2F%2Fwww.gstatic.com%2Fgenerate_204&timeout=3000&expected=204", token);
+            return ParseBatchDelays(results.RootElement, nodes);
+        }
+        catch (HttpRequestException error) when (error.StatusCode == HttpStatusCode.GatewayTimeout)
+        {
+            // Mihomo 在组内没有节点测出延迟时返回 504。
+            return new(StringComparer.Ordinal);
+        }
     }
 
     // 直接解析 Mihomo 策略组批量测速结果，不逐节点创建代理进程或发起 HTTP 探测。
@@ -285,8 +331,9 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
     {
         foreach (var active in connections.Values) active.Dispose();
         connections.Clear();
-        nodes = [];
+        snapshot = new([], [], []);
         delayResults = null;
+        latencyTestFailed = false;
     }
 
     public void Dispose()

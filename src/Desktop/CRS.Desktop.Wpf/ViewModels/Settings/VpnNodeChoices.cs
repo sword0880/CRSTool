@@ -31,7 +31,8 @@ public sealed partial class VpnNodeChoices : ObservableObject
                 await WorkerVpnClient.ReadAsync(client, token);
             token.ThrowIfCancellationRequested();
             var node = Node;
-            Options = [Direct, ..result.Nodes.Select(name => new Choice(name, result.NodeLabel(name)))];
+            Options = [Direct, ..result.Nodes.Where(name => VpnSubscriptionDetail.Parse(name) is null)
+                .Select(name => new Choice(name, result.NodeLabel(name)))];
             Restore(node);
             Status = !result.Configured ? "请先在系统设置中配置 VPN 订阅。" :
                 !result.EngineAvailable ? "后台服务未安装 Mihomo。" :

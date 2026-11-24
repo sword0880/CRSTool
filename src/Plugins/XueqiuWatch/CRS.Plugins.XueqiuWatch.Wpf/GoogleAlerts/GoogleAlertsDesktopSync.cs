@@ -8,30 +8,34 @@ internal static class GoogleAlertsDesktopSync
     private static readonly SemaphoreSlim BrowserProfile = new(1, 1);
 
     internal static async Task<string?> RunAsync(WorkerWatchClient client, CancellationToken token,
-        string? authorAccount = null, bool connect = false)
+        string? authorAccount = null, bool connect = false, bool connectIfNeeded = false)
     {
         await BrowserProfile.WaitAsync(token);
         try
         {
             var connected = (await client.AskAsync(new("alert-account"), token)).ConnectedGoogleAccount;
-            if (!connect && string.IsNullOrEmpty(connected)) return null;
+            if (!connect && !connectIfNeeded && string.IsNullOrEmpty(connected)) return null;
             var authors = (await client.AskAsync(new("authors"), token)).Authors ?? [];
             var pending = authors.Where(author => (authorAccount is null || author.Account == authorAccount) &&
                 author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating or
                     GoogleAlertState.PendingDelete or GoogleAlertState.Deleting).ToArray();
             if (!connect && pending.Length == 0) return null;
+            var canBindAccount = connect || (connectIfNeeded &&
+                pending.Any(author => author.Active && !author.Archived &&
+                    author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating));
+            if (!canBindAccount && string.IsNullOrEmpty(connected)) return null;
 
             GoogleAlertsPageSession session;
-            try { session = await GoogleAlertsPageSession.OpenAsync(connect, token); }
+            try { session = await GoogleAlertsPageSession.OpenAsync(token); }
             catch (TimeoutException)
             { throw new ArgumentException("Google 快讯浏览器启动或页面导航超时（20 秒），请核对 Chrome、网络和专用浏览器配置。"); }
             catch (PlaywrightException)
-            { throw new ArgumentException("Google 快讯无法启动专用 Chrome 或打开页面，请核对 Chrome 安装及网络。"); }
+            { throw new ArgumentException("Google 快讯无法打开。请先关闭用于登录的专用 Chrome，再核对浏览器和网络后重试。"); }
             await using var page = session;
-            var account = await page.ReadAccountAsync(connect, token);
+            var account = await page.ReadAccountAsync(token);
             if (!string.IsNullOrEmpty(connected) && account != connected)
                 throw new ArgumentException("当前 Google 账号与 CRS 连接不一致。请在专用 Chrome 中切回原账号。");
-            if (connect && string.IsNullOrEmpty(connected))
+            if (canBindAccount && string.IsNullOrEmpty(connected))
                 await client.SaveAsync(new("alert-account-save", ConnectedGoogleAccount: account), token);
 
             var synced = 0;
@@ -94,7 +98,7 @@ internal static class GoogleAlertsDesktopSync
         var query = WatchInput.GoogleAlertQuery(author.Account);
         // 已存在且使用 RSS 投递的同查询提醒可以复用，登记为外部提醒，保留用户的远端管理权。
         var existing = await page.FindByQueryAsync(query, token);
-        if (await page.ReadAccountAsync(false, token) != account)
+        if (await page.ReadAccountAsync(token) != account)
             throw new ArgumentException("Google 账号发生变化，已停止同步。");
         if (existing is { FeedUrl.Length: 0 })
             throw new ArgumentException("该查询已有提醒，请核对网页投递方式。");

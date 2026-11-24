@@ -12,7 +12,29 @@
    <ui:Button Content="清除订阅" Click="OnRemove"/>
   </WrapPanel>
 
-  <Border Margin="0,24,0,0" CornerRadius="10" BorderThickness="1"
+  <ItemsControl x:Name="SubscriptionDetails" Margin="0,20,0,0" Visibility="Collapsed"
+                AutomationProperties.Name="套餐信息">
+   <ItemsControl.ItemsPanel>
+    <ItemsPanelTemplate><UniformGrid Rows="1"/></ItemsPanelTemplate>
+   </ItemsControl.ItemsPanel>
+   <ItemsControl.ItemTemplate>
+    <DataTemplate>
+     <Border Background="{DynamicResource BrandSurfaceAltBrush}" Padding="12,9" Margin="0,0,6,0"
+             BorderBrush="{DynamicResource BrandBorderBrush}" BorderThickness="1" CornerRadius="8">
+      <StackPanel>
+       <TextBlock Text="{Binding Label}" FontSize="12" TextWrapping="Wrap"
+                  Foreground="{DynamicResource BrandTextHintBrush}"/>
+       <TextBlock Text="{Binding Value}" ToolTip="{Binding Value}" TextTrimming="CharacterEllipsis"
+                  FontSize="15" FontWeight="SemiBold" Margin="0,3,0,0"
+                  Foreground="{DynamicResource BrandTextPrimaryBrush}"/>
+      </StackPanel>
+     </Border>
+    </DataTemplate>
+   </ItemsControl.ItemTemplate>
+  </ItemsControl>
+
+  <Border Margin="0,20,0,0" CornerRadius="12" BorderThickness="1"
+          Background="{DynamicResource BrandSurfaceAltBrush}"
           BorderBrush="{DynamicResource BrandBorderBrush}">
    <StackPanel>
     <DockPanel Margin="16,12" LastChildFill="True">
@@ -42,29 +64,72 @@
       </Style>
      </TextBlock.Style>
     </TextBlock>
-    <ItemsControl x:Name="NodeList" Visibility="Collapsed" AutomationProperties.Name="VPN 订阅节点">
+    <ListBox x:Name="Regions" SelectionChanged="OnRegionSelected" Visibility="Collapsed"
+             BorderThickness="0" Background="Transparent" Margin="12,0,12,8"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="节点地区">
+     <ListBox.ItemsPanel>
+      <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+     </ListBox.ItemsPanel>
+     <ListBox.ItemContainerStyle>
+      <Style TargetType="ListBoxItem">
+       <Setter Property="Margin" Value="0,0,5,4"/>
+       <Setter Property="Foreground" Value="{DynamicResource BrandTextSecondaryBrush}"/>
+       <Setter Property="Template">
+        <Setter.Value>
+         <ControlTemplate TargetType="ListBoxItem">
+          <Border x:Name="Tab" CornerRadius="7" Padding="10,5" Background="Transparent">
+           <ContentPresenter/>
+          </Border>
+          <ControlTemplate.Triggers>
+           <Trigger Property="IsMouseOver" Value="True">
+            <Setter TargetName="Tab" Property="Background" Value="{DynamicResource BrandHoverSurfaceBrush}"/>
+           </Trigger>
+           <Trigger Property="IsSelected" Value="True">
+            <Setter TargetName="Tab" Property="Background" Value="{DynamicResource BrandAccentPaleBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrandAccentDarkBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+           </Trigger>
+          </ControlTemplate.Triggers>
+         </ControlTemplate>
+        </Setter.Value>
+       </Setter>
+      </Style>
+     </ListBox.ItemContainerStyle>
+    </ListBox>
+    <ItemsControl x:Name="NodeList" Visibility="Collapsed" Margin="12,0,6,6" Tag="3"
+                  SizeChanged="OnNodeListSizeChanged" AutomationProperties.Name="VPN 订阅节点">
+     <ItemsControl.ItemsPanel>
+      <ItemsPanelTemplate>
+       <UniformGrid Columns="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+      </ItemsPanelTemplate>
+     </ItemsControl.ItemsPanel>
      <ItemsControl.ItemTemplate>
       <DataTemplate>
-       <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BrandBorderSubtleBrush}"
-               Padding="16,8" MinHeight="44">
+       <Border BorderThickness="1" BorderBrush="{DynamicResource BrandBorderBrush}"
+               Background="{DynamicResource BrandSurfaceBrush}" CornerRadius="9"
+               Padding="10,9" Margin="0,0,6,6" Height="95" ToolTip="{Binding Name}">
         <Grid>
-         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-         </Grid.ColumnDefinitions>
-         <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis"
-                    VerticalAlignment="Center" Margin="0,0,16,0" FontWeight="Medium"
+         <Grid.RowDefinitions>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+         </Grid.RowDefinitions>
+         <TextBlock Text="{Binding Name}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                    VerticalAlignment="Top" FontWeight="SemiBold"
                     Foreground="{DynamicResource BrandTextPrimaryBrush}"/>
-         <Border x:Name="LatencyBadge" Grid.Column="1" CornerRadius="12" MinWidth="76"
-                 Padding="9,4" VerticalAlignment="Center"
-                 Background="{DynamicResource BrandStatusInfoSurfaceBrush}">
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-           <Ellipse x:Name="LatencyDot" Width="5" Height="5" Margin="0,0,6,0" VerticalAlignment="Center"
-                    Fill="{DynamicResource BrandStatusInfoBrush}"/>
-           <TextBlock x:Name="LatencyText" Text="{Binding Latency}" FontSize="12" FontWeight="SemiBold"
-                      Foreground="{DynamicResource BrandStatusInfoBrush}"/>
-          </StackPanel>
-         </Border>
+         <DockPanel Grid.Row="1" Margin="0,4,0,0">
+          <Border x:Name="LatencyBadge" DockPanel.Dock="Left" CornerRadius="10" Padding="7,3"
+                  Background="{DynamicResource BrandStatusInfoSurfaceBrush}">
+           <StackPanel Orientation="Horizontal">
+            <Ellipse x:Name="LatencyDot" Width="5" Height="5" Margin="0,0,5,0" VerticalAlignment="Center"
+                     Fill="{DynamicResource BrandStatusInfoBrush}"/>
+            <TextBlock x:Name="LatencyText" Text="{Binding Latency}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrandStatusInfoBrush}"/>
+           </StackPanel>
+          </Border>
+          <TextBlock Text="{Binding Protocol}" FontSize="11" TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" TextAlignment="Right" Margin="5,0,0,0"
+                     Foreground="{DynamicResource BrandTextHintBrush}"/>
+         </DockPanel>
         </Grid>
        </Border>
        <DataTemplate.Triggers>

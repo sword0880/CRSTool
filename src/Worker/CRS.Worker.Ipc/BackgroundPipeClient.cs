@@ -41,8 +41,14 @@ public sealed class BackgroundPipeClient
                 PipeServerIdentity.Verify(pipe);
             submitted=true;await Framing.WriteAsync(pipe, request, deadline.Token);
             var response = await Framing.ReadAsync<BackgroundResponse>(pipe, deadline.Token);
-            if (response.RequestId != request.RequestId || response.ProtocolVersion != Framing.Version)
-                throw new InvalidDataException("服务协议或请求标识不匹配。");
+            if (response.RequestId != request.RequestId)
+                throw new InvalidDataException("服务请求标识不匹配。");
+            if (response.ProtocolVersion != Framing.Version)
+            {
+                if (request.Command == "GetHealth")
+                    return new(Framing.Version, request.RequestId, "ProtocolMismatch");
+                throw new InvalidDataException("服务协议版本不匹配。");
+            }
             if(response.Code is "RequestTimedOut" or "CommandOutcomeUnknown")
                 throw Failure(response.Code);
             return response;

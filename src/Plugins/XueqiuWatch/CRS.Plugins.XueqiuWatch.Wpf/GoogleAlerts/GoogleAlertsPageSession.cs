@@ -1,4 +1,3 @@
-using System.IO;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,31 +10,28 @@ namespace CRS.Plugins.XueqiuWatch.Wpf;
 internal sealed partial class GoogleAlertsPageSession(
     IPlaywright playwright, IBrowserContext context, IPage page) : IAsyncDisposable
 {
-    private const string Address = "https://www.google.com.hk/alerts?hl=zh-CN";
     // Google 账号入口可能是链接、按钮或自定义控件，不依赖单一 ARIA 角色。
     private ILocator AccountControls => page.Locator("[aria-label]:visible, a[title]:visible, button[title]:visible");
     private ILocator SearchBox => page.Locator(".query_div input:not([type=hidden]):visible, input#alert-query:visible, input#query:visible");
     internal string DiagnosticStage { get; private set; } = "登录状态检查";
     private ILocator AlertRows => page.Locator("#manage-alerts-div li.alert_instance[data-id]");
 
-    internal static async Task<GoogleAlertsPageSession> OpenAsync(bool interactive, CancellationToken token)
+    internal static async Task<GoogleAlertsPageSession> OpenAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         var playwright = await Playwright.CreateAsync().ConfigureAwait(false);
         IBrowserContext? context = null;
         try
         {
-            // 专用 Chrome 配置承载 Google 登录态，CRS 通过网页校验账号身份。
-            var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "CRS", "GoogleAlertsBrowser");
-            context = await playwright.Chromium.LaunchPersistentContextAsync(directory, new()
+            // 登录由普通 Chrome 完成，同步只在已登录的快讯管理页执行。
+            context = await playwright.Chromium.LaunchPersistentContextAsync(GoogleAlertsBrowserLogin.ProfileDirectory, new()
             {
-                Channel = "chrome", Headless = !interactive, ChromiumSandbox = true,
+                Channel = "chrome", Headless = true, ChromiumSandbox = true,
                 Locale = "zh-CN", Timeout = 20_000
             }).ConfigureAwait(false);
             var page = context.Pages.FirstOrDefault() ?? await context.NewPageAsync().ConfigureAwait(false);
             page.SetDefaultTimeout(8_000);
-            await page.GotoAsync(Address, new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 20_000 })
+            await page.GotoAsync(GoogleAlertsBrowserLogin.AlertsAddress, new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 20_000 })
                 .ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             return new(playwright, context, page);
@@ -48,11 +44,12 @@ internal sealed partial class GoogleAlertsPageSession(
         }
     }
 
-    internal async Task<string> ReadAccountAsync(bool waitForLogin, CancellationToken token)
+    internal async Task<string> ReadAccountAsync(CancellationToken token)
     {
         var elapsed = Stopwatch.StartNew();
-        var limit = TimeSpan.FromSeconds(waitForLogin ? 120 : 8);
+        var limit = TimeSpan.FromSeconds(8);
         var state = "页面尚未就绪";
+        var needsSignIn = false;
         do
         {
             token.ThrowIfCancellationRequested();
@@ -64,18 +61,27 @@ internal sealed partial class GoogleAlertsPageSession(
                 var account = GoogleAlertsAccountIdentity.ResolveFingerprint(labels);
                 if (account is not null && await SearchBox.CountAsync().ConfigureAwait(false) == 1)
                     return account;
+                needsSignIn = account is null;
                 state = account is null ? "未识别唯一 Google 账号（未登录、多个账号入口或页面改版）" : "已识别账号，但快讯搜索框尚未就绪";
             }
             else if (Uri.TryCreate(page.Url, UriKind.Absolute, out var url) &&
                 url.Scheme == "https" && url.Host == "accounts.google.com")
+            {
+                needsSignIn = true;
                 state = "Google 登录或账号选择/验证页面";
+            }
             else
+            {
+                needsSignIn = false;
                 state = "未进入 Google 快讯管理页面（可能是网络、重定向或同意页面）";
+            }
             if (elapsed.Elapsed >= limit) break;
             await Task.Delay(300, token).ConfigureAwait(false);
         } while (elapsed.Elapsed < limit);
         // 不输出原始 URL、账号、DOM、Cookie 或 Playwright 调用日志。
-        throw new ArgumentException($"Google 快讯登录检查超时（{(int)limit.TotalSeconds} 秒）：{state}。请在专用 Chrome 完成登录并返回快讯页面后重试。");
+        if (needsSignIn)
+            throw new GoogleAlertsSignInRequiredException($"Google 快讯账号未就绪（{state}）。请点击「打开 Google 登录」，完成登录并关闭专用 Chrome，再点击「同步 Google 快讯」。");
+        throw new ArgumentException($"Google 快讯登录检查超时（{state}）。请在普通 Chrome 中核对 Google 快讯能否打开。");
     }
 
     internal async Task<GoogleWebAlert?> FindByQueryAsync(string query, CancellationToken token)
@@ -200,7 +206,7 @@ internal sealed partial class GoogleAlertsPageSession(
     private async Task VerifyAccountAsync(string account, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        if (await ReadAccountAsync(false, token).ConfigureAwait(false) != account)
+        if (await ReadAccountAsync(token).ConfigureAwait(false) != account)
             throw new ArgumentException("Google 账号发生变化，已停止同步。");
     }
 

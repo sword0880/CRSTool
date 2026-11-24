@@ -18,11 +18,22 @@ internal static class ShellStatusBarChecks
         var normal=new BackgroundResponse(WorkerProtocol.Version,Guid.NewGuid(),"Ok",
             new("Running",now.AddDays(-1),now,1234,
                 new(4,2,1,12,0,0,3),
-                [new("SSE","Ready",0,0,now,DateTimeOffset.MinValue,0,0,0)]),
+                [new("SSE","Ready",0,0,now,DateTimeOffset.MinValue,0,0,0)])
+                { WorkerBuild = WorkerProtocol.BuildIdentity },
             Plugins:[new("crs.national-team","Started")]);
         var activity=new BackgroundTaskActivity(now,[],2,1,2);
         var snapshot=ShellStatusBarViewModel.Describe(normal,activity:activity);
         Check(snapshot.HealthTone=="Success" && snapshot.HealthLabel=="服务正常","运行中的服务显示实时绿色健康状态");
+        Check(snapshot.VersionWarning is null, "配套版本时隐藏版本横幅");
+        var legacy = ShellStatusBarViewModel.Describe(normal with { Health = normal.Health! with { WorkerBuild = null } });
+        Check(legacy.HealthTone=="Warning" && legacy.VersionWarning?.Contains("更新后台服务")==true,
+            "旧后台未报告构建版本时显示更新提示");
+        var mismatched = ShellStatusBarViewModel.Describe(normal with { Health = normal.Health! with { WorkerBuild = "2.1+123456789" } });
+        Check(mismatched.HealthTone=="Warning" && mismatched.VersionWarning?.Contains("12345678")==true,
+            "版本不同显示构建标识和更新提示");
+        var protocolMismatch = ShellStatusBarViewModel.Describe(normal with { Code = "ProtocolMismatch", Health = null });
+        Check(protocolMismatch.VersionWarning?.Contains("通信版本不一致")==true,
+            "协议不兼容时仍提示版本不一致");
         Check(snapshot.TaskLabel=="运行 2 · 等待 3" && snapshot.TaskDetail.Contains("同一快照已去重"),
             "底栏仅显示运行和等待，健康采样中重叠的手动请求不重复累加");
         Check(snapshot.AttentionLabel=="运行异常 0" && snapshot.AttentionDetail.Contains("不含税务/ETF数据缺口"),

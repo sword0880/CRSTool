@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CRS.DesktopClient.Services;
 using CRS.Timing;
 using CRS.Worker.Ipc;
 
@@ -11,6 +12,7 @@ public partial class BackgroundServiceViewModel
     [ObservableProperty] private string healthLabel = "等待连接";
     [ObservableProperty] private string healthTone = "Warning";
     [ObservableProperty] private string serviceStatus = "尚未查询后台服务。";
+    [ObservableProperty] private string versionSummary = "";
     [ObservableProperty] private bool isCheckingService;
     private Task<BackgroundResponse?>? healthRead;
 
@@ -31,7 +33,8 @@ public partial class BackgroundServiceViewModel
             lifetime.ThrowIfCancellationRequested();
             if (response.Code != "Ok" || response.Health is not { } sample)
             {
-                SetServiceUnavailable("后台没有返回可用的健康状态。请检查配套服务版本后刷新。");
+                SetServiceUnavailable(WorkerVersionNotice.GetWarning(response) ??
+                    "后台没有返回可用的健康状态。请检查配套服务版本后刷新。");
                 return response;
             }
 
@@ -44,6 +47,13 @@ public partial class BackgroundServiceViewModel
                 "UnresponsivePlugin" or "PluginUnresponsive" => ("插件未响应", "Error", "后台服务正在安全停止。"),
                 _ => ("状态未确认", "Warning", $"后台报告的状态为 {sample.State}。")
             };
+            VersionSummary = WorkerVersionNotice.DescribeBuilds(sample);
+            if (WorkerVersionNotice.GetWarning(response) is { } warning)
+            {
+                if (sample.State == "Running")
+                    (HealthLabel, HealthTone) = ("后台版本需核对", "Warning");
+                ServiceStatus = $"{warning} {ServiceStatus}";
+            }
             SnapshotTime = $"状态采样 {BeijingClock.Normalize(sample.ObservedUtc):yyyy-MM-dd HH:mm:ss}（北京时间）";
             return response;
         }
@@ -61,6 +71,7 @@ public partial class BackgroundServiceViewModel
         HealthLabel = "无法确认服务状态";
         HealthTone = "Warning";
         SnapshotTime = "本次未取得健康快照";
+        VersionSummary = "";
         ServiceStatus = message;
     }
 }

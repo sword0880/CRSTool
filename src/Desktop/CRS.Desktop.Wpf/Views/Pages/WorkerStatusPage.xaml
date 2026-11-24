@@ -44,6 +44,7 @@
        <TextBlock Text="{Binding HealthLabel}" Style="{StaticResource WorkerHealthText}" AutomationProperties.LiveSetting="Polite"/>
       </Border>
       <TextBlock Text="{Binding SnapshotTime}" Style="{DynamicResource UiHintText}"/>
+      <TextBlock Text="{Binding VersionSummary}" Style="{DynamicResource UiHintText}" TextWrapping="Wrap"/>
      </StackPanel>
    </Border>
    <Border Style="{DynamicResource UiStatusBanner}" Margin="0,0,0,16">
