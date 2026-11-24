@@ -184,8 +184,21 @@ public sealed class OfficialAnnualExchangeRates(
 }
 
 /// <summary>旧版年度汇率只读适配器；数值和来源字段保持迁移前原样。</summary>
-internal sealed class LegacyAnnualRates(IReadOnlyList<LegacyAnnualExchangeRateRecord> rows) : IExchangeRateProvider
+internal sealed class LegacyAnnualRates : IExchangeRateProvider
 {
+    private readonly AppliedRate[] rates;
+    public string Fingerprint { get; }
+
+    internal LegacyAnnualRates(IReadOnlyList<LegacyAnnualExchangeRateRecord> rows)
+    {
+        rates = rows.Select(row => new AppliedRate(row.Year, row.Currency, row.Value,
+            row.Source, row.Url, row.Method,
+            row.Start is null ? null : DateOnly.ParseExact(row.Start, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            row.End is null ? null : DateOnly.ParseExact(row.End, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            row.Provisional, row.SourceConfirmed)).ToArray();
+        Fingerprint = XmlFields.HashJson(rates);
+    }
+
     // 仅用于无后台服务的桌面冒烟测试；生产运行从 Worker SQLCipher 读取同一批历史资料。
     internal static LegacyAnnualRates CreateDefault()
     {
@@ -218,13 +231,6 @@ internal sealed class LegacyAnnualRates(IReadOnlyList<LegacyAnnualExchangeRateRe
         return new LegacyAnnualRates(rows);
     }
 
-    private readonly AppliedRate[] rates = rows.Select(row => new AppliedRate(row.Year, row.Currency, row.Value,
-        row.Source, row.Url, row.Method,
-        row.Start is null ? null : DateOnly.ParseExact(row.Start, "yyyy-MM-dd", CultureInfo.InvariantCulture),
-        row.End is null ? null : DateOnly.ParseExact(row.End, "yyyy-MM-dd", CultureInfo.InvariantCulture),
-        row.Provisional, row.SourceConfirmed)).ToArray();
-
-    public string Fingerprint { get; } = XmlFields.HashJson(rates);
     public List<AppliedRate> ForYear(int requestedYear) => rates.Where(rate => rate.Year == requestedYear).ToList();
     public AppliedRate Get(int requestedYear, string currency) => ForYear(requestedYear).FirstOrDefault(rate => rate.Currency == currency)
         ?? throw new CrsException($"缺少 {requestedYear} 年 {currency} 历史汇率。");

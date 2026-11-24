@@ -88,13 +88,13 @@ internal sealed partial class SqlCipherVaultBackend
         finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(raw); }
     }
     /// <summary>绑定真实会话；online 决定是否提供行情适配器，绩效页面启用在线访问，锁定后取消。</summary>
-    public IPerformanceUseCases CreatePerformanceUseCases(bool online=true)
+    public IPerformanceUseCases CreatePerformanceUseCases(bool online=true, OfficialAnnualExchangeRates? annualRates=null)
     {
         lock(gate)
         {
             var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this,loggerFactory:loggerFactory),active.Lifetime);
             return new PerformanceUseCases(new PerformanceStore(active),new PerformanceFiles(CaptureGuard(),exports),active.Lifetime,
-                online ? new YahooPerformanceMarketData() : null, online ? new OfficialAnnualExchangeRates().ReadCachedValuationRates : null);
+                online ? new YahooPerformanceMarketData() : null, online ? annualRates?.ReadCachedValuationRates : null);
         }
     }
 }

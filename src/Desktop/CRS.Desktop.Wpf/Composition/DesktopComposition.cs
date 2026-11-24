@@ -34,7 +34,7 @@ internal static class DesktopComposition
         // 冒烟使用临时配置目录，不读取真实 Windows 用户的模型密钥。
         var aiModels = smoke ? new AiModelService(directory) :
             new AiModelService(directory, (node, token) => WorkerVpnClient.OpenAsync(new(), node, token));
-        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke),aiModels,
+        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke,officialRates),aiModels,
             (repository as LocalStore)?.CreateAiChatHistory());
     }
     public static void LogStartupFailure(Exception error) => Logging.Factory.CreateLogger(typeof(DesktopComposition).FullName!)
