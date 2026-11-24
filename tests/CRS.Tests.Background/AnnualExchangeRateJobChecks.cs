@@ -57,10 +57,10 @@ internal static class AnnualExchangeRateJobChecks
             Check(reply.Code == "Ok" && quote.IsYearEnd(2026) && quote.Quotes[^1] == new CentralParityQuote(new(2026, 12, 31), 7.02m, .901m)
                 && handler.Requests == 1 && handler.Query == "?startDate=2026-12-18&endDate=2026-12-31&queryYN=true",
                 "重启补跑查询上一年年末，同一来源报价通过只读管道命令提供给普通用户");
-            Check((await runtime.HandleAsync(request with { Payload = "2027" }, user, default)).Code == "InvalidRequest"
+            Check((await runtime.HandleAsync(request with { Payload = "2027" }, user, default)).Code == "NotAvailable"
                 && (await runtime.HandleAsync(request with { Payload = "2025" }, user, default)).Code == "NotAvailable"
                 && (await runtime.HandleAsync(request with { Cursor = "file" }, user, default)).Code == "InvalidRequest",
-                "拒绝未结束年度和无关参数，缺少的年度无结果");
+                "当前年度尚无报价和缺少的历史年度返回无数据，无关参数被拒绝");
             var restarted = new WorkerAnnualExchangeRates(repository, root, key, http, clock);
             var stored = repository.ReadAnnualExchangeRateSnapshot(2026);
             var (yearStart, yearEnd) = CentralParitySnapshot.YearEndRange(2026);
