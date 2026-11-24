@@ -57,9 +57,18 @@ public sealed class OfficialAnnualExchangeRates(
         {
             // 迁移完成并收到数据库确认后，才将旧缓存改名归档。
             await ImportLegacyCacheAsync(year, cancellation).ConfigureAwait(false);
+            var ongoing = year == today.Year;
+            var legacySnapshot = await readLegacySnapshot(year, cancellation).ConfigureAwait(false);
+            // 已结束年度的旧本地快照是历史兼容事实；迁入后冻结其数值，不被后续官方刷新覆盖。
+            if (!ongoing && legacySnapshot is not null && ValidSnapshot(year, legacySnapshot, today))
+            {
+                memory[year] = legacySnapshot;
+                var historical = Build(year, legacySnapshot, ongoing: false, legacy: true);
+                loadedProviders[year] = historical;
+                return historical;
+            }
             var cached = await readOfficial(year, cancellation).ConfigureAwait(false);
             if (cached is not null && !ValidSnapshot(year, cached, today)) cached = null;
-            var ongoing = year == today.Year;
             var through = ongoing ? today : CentralParitySnapshot.YearEndRange(year).Through;
             var shouldRefresh = refresh || cached is null ||
                 (ongoing && (cached.Through != through || cached.FetchedAt > now || now - cached.FetchedAt >= TimeSpan.FromHours(1))) ||
@@ -85,8 +94,7 @@ public sealed class OfficialAnnualExchangeRates(
                 return provider;
             }
 
-            // 旧版本地缓存与官方快照分库存储；仅在没有官方快照时作为历史兼容回退。
-            var legacySnapshot = await readLegacySnapshot(year, cancellation).ConfigureAwait(false);
+            // 当年旧缓存只在官方数据暂不可用时作为临时回退。
             if (legacySnapshot is not null && ValidSnapshot(year, legacySnapshot, today))
             {
                 memory[year] = legacySnapshot;
