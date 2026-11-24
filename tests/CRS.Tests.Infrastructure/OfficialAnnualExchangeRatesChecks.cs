@@ -120,9 +120,11 @@ internal static class OfficialAnnualExchangeRatesChecks
             (_, _) => throw new HttpRequestException("Synthetic offline"), ReadLegacySnapshot, ReadLegacy,
             ImportLegacy, migrationDirectory, clock);
         var migrated = await migrating.LoadAsync(2020, default);
+        var migratedValuation = migrating.ReadCachedValuationRates([new DateOnly(2020, 12, 31)]);
         Check(migrated.Get(2020, "USD").Value == 7.1234m && !migrated.Get(2020, "USD").SourceConfirmed &&
+            migratedValuation.Single(x => x.From == "USD").Rate == 7.1234m &&
             !File.Exists(migrationPath) && File.Exists(migrationPath + ".migrated"),
-            "桌面旧 JSON 先迁入 Worker 数据库，确认成功后才归档原文件");
+            "桌面旧 JSON 先迁入 Worker 数据库，确认成功后归档并保留估值读取能力");
 
         var scheduledLookups = 0;
         var desktop = new OfficialAnnualExchangeRates((year, token) =>
