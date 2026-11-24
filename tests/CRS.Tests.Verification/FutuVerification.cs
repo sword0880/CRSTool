@@ -1,3 +1,4 @@
+using CRS.Application.Abstractions;
 using CRS.Domain;
 using CRS.Infrastructure;
 using NPOI.XSSF.UserModel;
@@ -78,7 +79,7 @@ internal static class FutuVerification
         static decimal Number(System.Text.Json.JsonElement element, string name) => decimal.Parse(element.GetProperty(name).GetString()!, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture);
     }
     /// <summary>注册富途交易、现金、收入及 PDF 验证，不依赖用户私有样本。</summary>
-    public static void Run(Action<string, Action> check, string workspace, ExchangeRates rates)
+    public static void Run(Action<string, Action> check, string workspace, IExchangeRateProvider rates)
     {
         var calculator = CalculationServices.Create(rates, "FUTU", 2025);
         check("FUTU-001 Excel 端到端费用及小批次金额守恒", () => {

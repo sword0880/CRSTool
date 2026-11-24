@@ -50,12 +50,11 @@ var session=new CalculationResult { Year=2025,Summary=new(0,0,0,0,0,0,0),Snapsho
 store.Save(session);
 var loaded=store.Load(session.SnapshotId);
 if (loaded.SessionTrades.Count!=0 || loaded.ImportedTradeCount!=1 || JsonSerializer.Serialize(session).Contains("SessionTrades")) throw new Exception("未选择完整快照却持久化交易明细。");
-var config=Path.Combine(root,"config");Directory.CreateDirectory(config);
-File.WriteAllText(Path.Combine(config,"exchange_rate.json"),"""{"2025":{"USD":7,"CNY":1}}""");
-File.WriteAllText(Path.Combine(config,"exchange_rate_sources.json"),"{}");
-var rates=new ExchangeRates(config);
-if (rates.ForYear(2025).Count!=2 || rates.ForYear(2024).Count!=0 || rates.Get(2025,"USD").SourceConfirmed) throw new Exception("汇率列表猜测了来源或缺失年度。");
-Console.WriteLine("Infrastructure 验证通过：旧 JSON、交易隐私、年度汇率列表（3 项）。");
+var rates=new SyntheticExchangeRateProvider();
+if (rates.ForYear(2025).Count!=2 || rates.ForYear(2024).Count!=0 ||
+    rates.Get(2025,"USD").SourceConfirmed || rates.Get(2025,"CNY").Value!=1)
+    throw new Exception("合成汇率 Provider 的年度、来源或本币规则无效。");
+Console.WriteLine("Infrastructure 验证通过：数据库汇率 Provider 契约、交易隐私（3 项）。");
 ImportConsistencyChecks.Run(root);
 ExcelDocumentChecks.Run(Path.Combine(root,"excel-documents"));
 AccountPeriodFileChecks.Run(root);

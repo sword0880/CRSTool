@@ -57,15 +57,17 @@ internal static class AnnualExchangeRateJobChecks
             Check(reply.Code == "Ok" && quote.IsYearEnd(2026) && quote.Quotes[^1] == new CentralParityQuote(new(2026, 12, 31), 7.02m, .901m)
                 && handler.Requests == 1 && handler.Query == "?startDate=2026-12-18&endDate=2026-12-31&queryYN=true",
                 "重启补跑查询上一年年末，同一来源报价通过只读管道命令提供给普通用户");
-            Check((await runtime.HandleAsync(request with { Payload = "2027" }, user, default)).Code == "InvalidRequest"
+            Check((await runtime.HandleAsync(request with { Payload = "2027" }, user, default)).Code == "NotAvailable"
                 && (await runtime.HandleAsync(request with { Payload = "2025" }, user, default)).Code == "NotAvailable"
                 && (await runtime.HandleAsync(request with { Cursor = "file" }, user, default)).Code == "InvalidRequest",
-                "拒绝未结束年度和无关参数，缺少的年度无结果");
+                "当前年度尚无报价和缺少的历史年度返回无数据，无关参数被拒绝");
             var restarted = new WorkerAnnualExchangeRates(repository, root, key, http, clock);
+            Check(repository.ReadLegacyAnnualRates(2026).SequenceEqual(legacy),
+                "重复启动再次核验迁移回执，不改变已迁入的历史年度汇率");
             var stored = repository.ReadAnnualExchangeRateSnapshot(2026);
             var (yearStart, yearEnd) = CentralParitySnapshot.YearEndRange(2026);
             var revised = new CentralParitySnapshot(1, yearStart, yearEnd, clock.GetUtcNow().AddDays(1),
-                [new(yearEnd, 7.99m, 0.999m), new(yearEnd.AddDays(-1), 7.01m, 0.899m)]);
+                [new(yearEnd.AddDays(-1), 7.01m, 0.899m), new(yearEnd, 7.99m, 0.999m)]);
             var merged = repository.SaveAnnualExchangeRateSnapshot(2026, revised);
             Check(merged.Quotes.Single(q => q.Date == yearEnd).Usd == 7.02m &&
                 merged.Quotes.Any(q => q.Date == yearEnd.AddDays(-1)),

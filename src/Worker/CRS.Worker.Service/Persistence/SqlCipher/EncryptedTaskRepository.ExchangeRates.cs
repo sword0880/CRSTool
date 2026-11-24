@@ -103,8 +103,20 @@ public sealed partial class EncryptedTaskRepository
             lock (gate)
             {
                 using var tx = db.BeginTransaction();
-                using (var existing = Command("SELECT COUNT(*) FROM exchange_rate_migration WHERE migration_id='legacy-annual-rates-v1'"))
-                    if (Convert.ToInt32(existing.ExecuteScalar(), CultureInfo.InvariantCulture) != 0) return;
+                string? priorHash = null;
+                int? priorRows = null;
+                using (var existing = Command("SELECT source_hash,imported_rows FROM exchange_rate_migration WHERE migration_id='legacy-annual-rates-v1'"))
+                using (var row = existing.ExecuteReader())
+                {
+                    if (row.Read()) { priorHash = row.GetString(0); priorRows = row.GetInt32(1); }
+                }
+                if (priorHash is not null)
+                {
+                    // 已有回执时仍逐项核对，防止回执与历史数据不一致后静默跳过。
+                    if (priorHash != sourceHash || priorRows != rates.Count || rates.Any(rate => !LegacyAnnualRateMatches(rate)))
+                        throw new InvalidDataException("历史年度汇率迁移回执与数据库内容不一致，已停止启动迁移。");
+                    return;
+                }
                 var seen = new HashSet<(int Year, string Currency)>();
                 foreach (var rate in rates)
                 {
@@ -125,6 +137,9 @@ public sealed partial class EncryptedTaskRepository
                         ("$start", rate.Start), ("$end", rate.End), ("$provisional", rate.Provisional ? 1 : 0),
                         ("$confirmed", rate.SourceConfirmed ? 1 : 0), ("$first", rate.FirstObservation),
                         ("$count", rate.ObservationCount), ("$usdSum", rate.UsdSum), ("$hkdSum", rate.HkdSum));
+                    // ON CONFLICT 只允许保留完全相同的历史记录，任何值或来源冲突都回滚迁移。
+                    if (!LegacyAnnualRateMatches(rate))
+                        throw new InvalidDataException("历史年度汇率记录冲突，已回滚迁移。");
                 }
                 Execute("""
                     INSERT INTO exchange_rate_migration(migration_id,source_hash,imported_utc,imported_rows)
@@ -135,6 +150,30 @@ public sealed partial class EncryptedTaskRepository
             }
         });
     }
+
+    private bool LegacyAnnualRateMatches(LegacyAnnualExchangeRateRecord rate)
+    {
+        using var query = Command("""
+            SELECT value,source,source_url,method,start_date,end_date,provisional,source_confirmed,
+                first_observation,observation_count,usd_sum,hkd_sum
+            FROM legacy_annual_exchange_rate WHERE year=$year AND currency=$currency
+            """, ("$year", rate.Year), ("$currency", rate.Currency));
+        using var row = query.ExecuteReader();
+        if (!row.Read() || !decimal.TryParse(row.GetString(0), NumberStyles.Number,
+            CultureInfo.InvariantCulture, out var value)) return false;
+        return value == rate.Value && row.GetString(1) == rate.Source && row.GetString(2) == rate.Url &&
+            row.GetString(3) == rate.Method && NullableText(row, 4) == rate.Start &&
+            NullableText(row, 5) == rate.End && row.GetInt32(6) == (rate.Provisional ? 1 : 0) &&
+            row.GetInt32(7) == (rate.SourceConfirmed ? 1 : 0) && NullableText(row, 8) == rate.FirstObservation &&
+            NullableInt(row, 9) == rate.ObservationCount && NullableText(row, 10) == rate.UsdSum &&
+            NullableText(row, 11) == rate.HkdSum;
+    }
+
+    private static string? NullableText(Microsoft.Data.Sqlite.SqliteDataReader row, int index) =>
+        row.IsDBNull(index) ? null : row.GetString(index);
+
+    private static int? NullableInt(Microsoft.Data.Sqlite.SqliteDataReader row, int index) =>
+        row.IsDBNull(index) ? null : row.GetInt32(index);
 
     internal LegacyAnnualExchangeRateRecord[] ReadLegacyAnnualRates(int year)
     {

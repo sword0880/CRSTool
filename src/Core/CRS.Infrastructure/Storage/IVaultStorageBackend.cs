@@ -10,6 +10,8 @@ public interface IVaultStorageBackend : IVaultService
 {
     ICalculationRepository Repository { get; }
     IPerformanceUseCases CreatePerformanceUseCases(bool online=true);
+    // 允许组合根注入 Worker 汇率只读 Provider，供绩效估值读取同一汇率事实源。
+    IPerformanceUseCases CreatePerformanceUseCases(bool online, OfficialAnnualExchangeRates? annualRates);
     Action<Action> CaptureGuard();
     void Execute(Action action);
     IReadOnlySet<string> ArchivedOriginalHashes(string[] hashes, Action<Action> originalSession, CancellationToken token);

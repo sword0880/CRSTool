@@ -5,7 +5,7 @@ using CRS.Infrastructure;
 /// <summary>真实 IBKR 原件的技术往返验证；只输出期间、笔数和问题代码，不输出身份与金额。</summary>
 internal static class IbkrRealSampleChecks
 {
-    public static void Run(string directory, string config, string output, string workspace)
+    public static void Run(string directory, string output, string workspace)
     {
         var previous = Path.Combine(directory, "IBKR_2025.xml");
         var current = Path.Combine(directory, "IBKR_2026.xml");
@@ -28,7 +28,7 @@ internal static class IbkrRealSampleChecks
                 var periods = parsed.Sources.Where(s => s.Start.Year == sample.Year && s.End.Year == sample.Year)
                     .Select(s => new { start = s.Start, end = s.End }).Distinct().ToArray();
                 if (periods.Length == 0) throw new Exception("报告正文年度不符合用户提供的年度。");
-                var calculator = CalculationServices.Create(new ExchangeRates(config), "IBKR", sample.Year);
+                var calculator = CalculationServices.Create(WorkerExchangeRateLoader.Load(sample.Year), "IBKR", sample.Year);
                 var result = calculator.Calculate(sample.Files, sample.Year, false, false, saveCanonicalSnapshot: true);
                 store.Save(result);
                 var loaded = store.Load(result.SnapshotId);

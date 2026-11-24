@@ -7,7 +7,7 @@ using CRS.Infrastructure;
 /// <summary>授权的真实原件只读验证；输出匿名索引与摘要，不记录账户、文件名或交易金额。</summary>
 internal static class LocalRealSampleChecks
 {
-    public static void Run(string directory,string config,string output,string workspace)
+    public static void Run(string directory,string output,string workspace)
     {
         var files=Directory.GetFiles(directory).Where(p=>Path.GetExtension(p) is ".xlsx" or ".pdf").Order(StringComparer.Ordinal).ToArray();
         var before=files.Select(Hash).ToArray();
@@ -17,7 +17,7 @@ internal static class LocalRealSampleChecks
         {
             var activity=files.Single(p=>Path.GetFileName(p).StartsWith(year+"_",StringComparison.Ordinal));
             var income=files.Single(p=>Path.GetFileName(p).StartsWith(year.ToString(),StringComparison.Ordinal) && p!=activity);
-            var calculator=CalculationServices.Create(new ExchangeRates(config),"FUTU",year);
+            var calculator=CalculationServices.Create(WorkerExchangeRateLoader.Load(year),"FUTU",year);
             var timer=Stopwatch.StartNew();
             // 未获期初及账户范围确认，始终保持待复核；程序结果不能当作独立人工基准。
             var result=calculator.Calculate([income,activity],year,false,false,saveCanonicalSnapshot:true);
