@@ -66,6 +66,7 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
                     fetched_at TEXT NOT NULL,
                     PRIMARY KEY(year,origin,owner_sid),
                     CHECK(from_date<=through_date),
+                    CHECK(length(owner_sid)<=256),
                     CHECK((origin='Official' AND owner_sid='') OR (origin='DesktopLegacy' AND length(owner_sid)>0)));
                 CREATE TABLE IF NOT EXISTS exchange_rate_quote(
                     year INTEGER NOT NULL,

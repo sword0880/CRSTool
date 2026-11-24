@@ -9,7 +9,7 @@ public sealed partial class EncryptedTaskRepository
     internal CentralParitySnapshot? ReadAnnualExchangeRateSnapshot(int year, string origin = "Official", string ownerSid = "")
     {
         if (year is < 2000 or > 2100 || origin is not ("Official" or "DesktopLegacy") ||
-            (origin == "Official" && ownerSid.Length != 0) || (origin == "DesktopLegacy" && string.IsNullOrWhiteSpace(ownerSid)))
+            (origin == "Official" && ownerSid.Length != 0) || (origin == "DesktopLegacy" && (string.IsNullOrWhiteSpace(ownerSid) || ownerSid.Length > 256 || ownerSid.Any(char.IsControl))))
             throw new ArgumentOutOfRangeException(nameof(year));
         return Persist(() =>
         {
