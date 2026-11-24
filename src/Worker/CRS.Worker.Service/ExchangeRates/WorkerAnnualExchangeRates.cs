@@ -167,13 +167,12 @@ public sealed class WorkerAnnualExchangeRates : IBackgroundPluginSession
         }
     }
 
-    private static bool ValidWindow(int year, CentralParitySnapshot snapshot)
+    private bool ValidWindow(int year, CentralParitySnapshot snapshot)
     {
-        var todayYear = year;
-        var closedWindow = CentralParitySnapshot.YearEndRange(year);
-        return snapshot.IsValid(year) &&
-            ((snapshot.From == closedWindow.From && snapshot.Through == closedWindow.Through) ||
-             (snapshot.From == new DateOnly(todayYear, 1, 1) && snapshot.Through.Year == year));
+        var today = DateOnly.FromDateTime(BeijingClock.Normalize(time.GetUtcNow()).Date);
+        if (!snapshot.IsValid(year) || year > today.Year) return false;
+        if (year < today.Year) return snapshot.IsYearEnd(year);
+        return snapshot.From == new DateOnly(year, 1, 1) && snapshot.Through <= today;
     }
 
     private static bool TryYear(BackgroundRequest request, out int year)
