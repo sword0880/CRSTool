@@ -48,6 +48,9 @@ internal static class OfficialAnnualExchangeRatesChecks
             [2022] = new(1, new DateOnly(2022, 12, 18), new DateOnly(2022, 12, 31),
                 clock.GetUtcNow(), [new(new DateOnly(2022, 12, 30), 6.7261m, 0.8606m)])
         };
+        var oldYearRange = CentralParitySnapshot.YearEndRange(2022);
+        store[2022] = new(1, oldYearRange.From, oldYearRange.Through, clock.GetUtcNow(),
+            [new(oldYearRange.Through, 7.9999m, 0.9999m)]);
         Task<CentralParitySnapshot?> ReadLegacySnapshot(int year, CancellationToken _) =>
             Task.FromResult(legacySnapshots.GetValueOrDefault(year));
         Task<LegacyAnnualExchangeRateRecord[]> ReadLegacy(int year, CancellationToken _) =>
@@ -73,6 +76,10 @@ internal static class OfficialAnnualExchangeRatesChecks
         var current = await provider.LoadAsync(2026, default);
         Check(current.Get(2026, "USD") is { Value: 7.012m, Start: var first, End: var latest, Provisional: true }
             && first == new DateOnly(2026, 1, 5) && latest == new DateOnly(2026, 1, 12), "当年须使用各报价日均值");
+        var frozenHistory = await provider.LoadAsync(2022, default);
+        Check(frozenHistory.Get(2022, "USD").Value == 6.7261m &&
+            frozenHistory.Get(2022, "USD").SourceConfirmed == false && requests == 3,
+            "迁入的旧历史快照优先于后续官方数据，历史汇率不被重算");
         var recent = await provider.LoadAsync(2026, default);
         Check(recent.Fingerprint == current.Fingerprint && requests == 3, "数据库快照须避免重复查询");
         Check(provider.CachedFingerprint(2025) == closed.Fingerprint, "读取其他年度不得使已完成年度的汇率指纹失效");
