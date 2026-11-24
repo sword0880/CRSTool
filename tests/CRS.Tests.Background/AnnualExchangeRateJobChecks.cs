@@ -30,6 +30,8 @@ internal static class AnnualExchangeRateJobChecks
                 cny2026.Url == "https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2" &&
                 cny2026.Method == "报价日中间价算术平均；非报价日不补值；四舍五入保留六位小数" &&
                 cny2026.Start == "2026-01-01" && cny2026.End == "2026-10-08" && !cny2026.Provisional &&
+                cny2026.FirstObservation == "2026-01-05" && cny2026.ObservationCount == 182 &&
+                cny2026.UsdSum == "1247.2229" && cny2026.HkdSum == "159.27864" &&
                 repository.ReadLegacyAnnualRates(2021).Single(x => x.Currency == "USD").Value == 6.4515m &&
                 repository.ReadLegacyAnnualRates(2022).Single(x => x.Currency == "HKD").Value == 0.8606m &&
                 repository.ReadLegacyAnnualRates(2023).Single(x => x.Currency == "USD").Value == 7.0809m &&
