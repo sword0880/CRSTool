@@ -1,4 +1,5 @@
 using System.IO;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -11,8 +12,10 @@ internal sealed partial class GoogleAlertsPageSession(
     IPlaywright playwright, IBrowserContext context, IPage page) : IAsyncDisposable
 {
     private const string Address = "https://www.google.com.hk/alerts?hl=zh-CN";
-    private ILocator AccountButton => page.GetByRole(AriaRole.Button, new() { NameRegex = AccountCaption() });
-    private ILocator SearchBox => page.Locator(".query_div input[placeholder]:visible");
+    // Google 账号入口可能是链接、按钮或自定义控件，不依赖单一 ARIA 角色。
+    private ILocator AccountControls => page.Locator("[aria-label]:visible, a[title]:visible, button[title]:visible");
+    private ILocator SearchBox => page.Locator(".query_div input:not([type=hidden]):visible, input#alert-query:visible, input#query:visible");
+    internal string DiagnosticStage { get; private set; } = "登录状态检查";
     private ILocator AlertRows => page.Locator("#manage-alerts-div li.alert_instance[data-id]");
 
     internal static async Task<GoogleAlertsPageSession> OpenAsync(bool interactive, CancellationToken token)
@@ -47,19 +50,37 @@ internal sealed partial class GoogleAlertsPageSession(
 
     internal async Task<string> ReadAccountAsync(bool waitForLogin, CancellationToken token)
     {
-        if (waitForLogin)
-            await AccountButton.WaitForAsync(new() { Timeout = 120_000 }).WaitAsync(token).ConfigureAwait(false);
-        VerifyAlertsPage();
-        if (await AccountButton.CountAsync().ConfigureAwait(false) != 1)
-            throw new ArgumentException("Google 快讯需要重新连接。");
-        var caption = await AccountButton.GetAttributeAsync("aria-label").ConfigureAwait(false) ?? "";
-        var address = AccountAddress().Match(caption);
-        if (!address.Success) throw new ArgumentException("无法确认当前 Google 账号。");
-        return Fingerprint(address.Groups["account"].Value.ToLowerInvariant());
+        var elapsed = Stopwatch.StartNew();
+        var limit = TimeSpan.FromSeconds(waitForLogin ? 120 : 8);
+        var state = "页面尚未就绪";
+        do
+        {
+            token.ThrowIfCancellationRequested();
+            if (IsAlertsPage())
+            {
+                var labels = await AccountControls.EvaluateAllAsync<string[]>(
+                    "elements => elements.flatMap(e => [e.getAttribute('aria-label'), e.getAttribute('title')].filter(Boolean))")
+                    .WaitAsync(token).ConfigureAwait(false);
+                var account = GoogleAlertsAccountIdentity.ResolveFingerprint(labels);
+                if (account is not null && await SearchBox.CountAsync().ConfigureAwait(false) == 1)
+                    return account;
+                state = account is null ? "未识别唯一 Google 账号（未登录、多个账号入口或页面改版）" : "已识别账号，但快讯搜索框尚未就绪";
+            }
+            else if (Uri.TryCreate(page.Url, UriKind.Absolute, out var url) &&
+                url.Scheme == "https" && url.Host == "accounts.google.com")
+                state = "Google 登录或账号选择/验证页面";
+            else
+                state = "未进入 Google 快讯管理页面（可能是网络、重定向或同意页面）";
+            if (elapsed.Elapsed >= limit) break;
+            await Task.Delay(300, token).ConfigureAwait(false);
+        } while (elapsed.Elapsed < limit);
+        // 不输出原始 URL、账号、DOM、Cookie 或 Playwright 调用日志。
+        throw new ArgumentException($"Google 快讯登录检查超时（{(int)limit.TotalSeconds} 秒）：{state}。请在专用 Chrome 完成登录并返回快讯页面后重试。");
     }
 
     internal async Task<GoogleWebAlert?> FindByQueryAsync(string query, CancellationToken token)
     {
+        DiagnosticStage = "读取快讯列表";
         GoogleWebAlert? match = null;
         foreach (var row in await ReadRowsAsync(token).ConfigureAwait(false))
         {
@@ -76,14 +97,19 @@ internal sealed partial class GoogleAlertsPageSession(
     {
         if (await FindByQueryAsync(query, token).ConfigureAwait(false) is not null)
             throw new ArgumentException("Google 快讯已有相同查询，已停止重复创建。");
+        DiagnosticStage = "填写查询并打开投递选项";
         await SearchBox.FillAsync(query).ConfigureAwait(false);
-        await page.GetByRole(AriaRole.Button, new() { NameRegex = ShowOptions() }).ClickAsync().ConfigureAwait(false);
+        await page.GetByRole(AriaRole.Button, new() { NameRegex = ShowOptions() })
+            .Or(page.GetByRole(AriaRole.Link, new() { NameRegex = ShowOptions() })).ClickAsync().ConfigureAwait(false);
         var delivery = page.GetByRole(AriaRole.Row, new() { NameRegex = DeliveryCaption() }).GetByRole(AriaRole.Listbox);
+        DiagnosticStage = "选择 RSS 投递";
         await delivery.ClickAsync().ConfigureAwait(false);
-        await page.GetByRole(AriaRole.Menuitem, new() { NameRegex = RssCaption() }).ClickAsync().ConfigureAwait(false);
+        await page.GetByRole(AriaRole.Menuitem, new() { NameRegex = RssCaption() })
+            .Or(page.GetByRole(AriaRole.Option, new() { NameRegex = RssCaption() })).ClickAsync().ConfigureAwait(false);
         if (!(await delivery.InnerTextAsync().ConfigureAwait(false)).Contains("RSS", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Google 快讯未确认选择 RSS 投递。");
         await VerifyAccountAsync(account, token).ConfigureAwait(false);
+        DiagnosticStage = "创建快讯（结果未确认时不得重复创建）";
         await page.Locator("#create_alert:visible").ClickAsync().ConfigureAwait(false);
         for (var attempt = 0; attempt < 15; attempt++)
         {
@@ -104,6 +130,7 @@ internal sealed partial class GoogleAlertsPageSession(
         var row = await FindByIdAsync(remoteId, token).ConfigureAwait(false);
         if (row is null) return;
         await VerifyAccountAsync(account, token).ConfigureAwait(false);
+        DiagnosticStage = "删除快讯（结果未确认时需重新核对）";
         await row.Locator(".delete_button:visible").ClickAsync().ConfigureAwait(false);
         for (var attempt = 0; attempt < 15; attempt++)
         {
@@ -160,12 +187,14 @@ internal sealed partial class GoogleAlertsPageSession(
         return Fingerprint(id);
     }
 
+    private bool IsAlertsPage() =>
+        Uri.TryCreate(page.Url, UriKind.Absolute, out var url) && url.Scheme == "https" &&
+        url.Host is ("www.google.com.hk" or "www.google.com") &&
+        Regex.IsMatch(url.AbsolutePath.TrimEnd('/'), @"^/(?:u/\d+/)?alerts(?:/u/\d+)?(?:/manage)?$");
+
     private void VerifyAlertsPage()
     {
-        if (!Uri.TryCreate(page.Url, UriKind.Absolute, out var url) || url.Scheme != "https" ||
-            url.Host is not ("www.google.com.hk" or "www.google.com") ||
-            url.AbsolutePath.TrimEnd('/') is not ("/alerts" or "/alerts/manage"))
-            throw new ArgumentException("未处在已登录的 Google 快讯管理页面。");
+        if (!IsAlertsPage()) throw new ArgumentException("未处在已登录的 Google 快讯管理页面。");
     }
 
     private async Task VerifyAccountAsync(string account, CancellationToken token)
@@ -177,15 +206,11 @@ internal sealed partial class GoogleAlertsPageSession(
 
     private static string Fingerprint(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
-    [GeneratedRegex(@"^Google\s*(?:账号|帐号|帳號|Account)")]
-    private static partial Regex AccountCaption();
-    [GeneratedRegex(@"\((?<account>[^()\s]+@[^()\s]+)\)\s*$")]
-    private static partial Regex AccountAddress();
-    [GeneratedRegex(@"^(?:显示选项|顯示選項|Show options)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:显示选项|顯示選項|顯示選項設定|Show options)$", RegexOptions.IgnoreCase)]
     private static partial Regex ShowOptions();
-    [GeneratedRegex(@"^(?:发送到|傳送至|Deliver to)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:发送到|发送至|傳送至|傳送到|投遞至|Deliver to)", RegexOptions.IgnoreCase)]
     private static partial Regex DeliveryCaption();
-    [GeneratedRegex(@"^(?:RSS Feed|RSS)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:RSS Feed|RSS 供稿|RSS 資訊提供|RSS)$", RegexOptions.IgnoreCase)]
     private static partial Regex RssCaption();
     [GeneratedRegex(@"^[a-zA-Z0-9:._-]+$")]
     private static partial Regex SafeRowId();

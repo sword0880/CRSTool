@@ -16,6 +16,15 @@ internal static class XueqiuRssChecks
 
     internal static async Task RunAsync()
     {
+        // 覆盖多语言账号入口、旧指纹兼容及多账号拒绝。
+        var fingerprint = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("test@example.com")));
+        Check(GoogleAlertsAccountIdentity.ResolveFingerprint(["Google 帐号：测试 (TEST@example.com)", "Google Account: test@example.com"]) == fingerprint,
+            "Google 账号入口兼容中英文并保持原指纹");
+        Check(GoogleAlertsAccountIdentity.ResolveFingerprint(["Google 帳戶：test@example.com"]) == fingerprint,
+            "Google 账号入口兼容繁体和无括号格式");
+        Check(GoogleAlertsAccountIdentity.ResolveFingerprint(["Google Account: test@example.com", "Google Account: other@example.com"]) is null &&
+            GoogleAlertsAccountIdentity.ResolveFingerprint(["RSS deliver to test@example.com"]) is null,
+            "不从普通投递邮箱或多个账号推断当前身份");
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         var token = deadline.Token;
         var root = Path.Combine(Path.GetTempPath(), "CRS.XueqiuRss", Guid.NewGuid().ToString("N"));

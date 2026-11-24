@@ -21,7 +21,13 @@ internal static class GoogleAlertsDesktopSync
                     GoogleAlertState.PendingDelete or GoogleAlertState.Deleting).ToArray();
             if (!connect && pending.Length == 0) return null;
 
-            await using var page = await GoogleAlertsPageSession.OpenAsync(connect, token);
+            GoogleAlertsPageSession session;
+            try { session = await GoogleAlertsPageSession.OpenAsync(connect, token); }
+            catch (TimeoutException)
+            { throw new ArgumentException("Google 快讯浏览器启动或页面导航超时（20 秒），请核对 Chrome、网络和专用浏览器配置。"); }
+            catch (PlaywrightException)
+            { throw new ArgumentException("Google 快讯无法启动专用 Chrome 或打开页面，请核对 Chrome 安装及网络。"); }
+            await using var page = session;
             var account = await page.ReadAccountAsync(connect, token);
             if (!string.IsNullOrEmpty(connected) && account != connected)
                 throw new ArgumentException("当前 Google 账号与 CRS 连接不一致。请在专用 Chrome 中切回原账号。");
@@ -30,6 +36,7 @@ internal static class GoogleAlertsDesktopSync
 
             var synced = 0;
             var pendingResult = 0;
+            string? failedStage = null;
             foreach (var author in pending)
             {
                 token.ThrowIfCancellationRequested();
@@ -44,10 +51,24 @@ internal static class GoogleAlertsDesktopSync
                 {
                     // 单个作者的重复提醒、账号不匹配或页面状态未确认不阻断其他作者。
                     pendingResult++;
+                    failedStage ??= page.DiagnosticStage;
+                }
+                catch (TimeoutException)
+                {
+                    // 远端操作可能已提交，保留原同步状态并停止本轮，禁止盲目重试。
+                    throw new ArgumentException($"Google 快讯操作超时：{page.DiagnosticStage}。请重新同步核对远端状态。");
+                }
+                catch (PlaywrightException)
+                {
+                    throw new ArgumentException($"Google 快讯页面操作失败：{page.DiagnosticStage}。请核对页面后重新同步。");
                 }
             }
             return pendingResult == 0 ? $"Google 快讯已连接，本次同步 {synced} 个作者。" :
-                $"Google 快讯已处理 {synced} 个作者，{pendingResult} 个待网页核对。";
+                $"Google 快讯已处理 {synced} 个作者，{pendingResult} 个待网页核对。{(failedStage is null ? "" : $"首个异常阶段：{failedStage}。")}";
+        }
+        catch (TimeoutException)
+        {
+            throw new ArgumentException("Google 快讯登录状态检查超时，请完成登录后返回快讯管理页面。");
         }
         catch (PlaywrightException)
         {
