@@ -89,6 +89,7 @@ public sealed class OfficialAnnualExchangeRates(
             var legacySnapshot = await readLegacySnapshot(year, cancellation).ConfigureAwait(false);
             if (legacySnapshot is not null && ValidSnapshot(year, legacySnapshot, today))
             {
+                memory[year] = legacySnapshot;
                 var provider = Build(year, legacySnapshot, ongoing, legacy: true);
                 loadedProviders[year] = provider;
                 return provider;
