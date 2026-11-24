@@ -105,7 +105,6 @@ public sealed class OfficialAnnualExchangeRates(
             if (legacySnapshot is not null && ValidSnapshot(year, legacySnapshot, today))
             {
                 memory[year] = legacySnapshot;
-                legacySnapshotOrigins[year] = true;
                 var provider = Build(year, legacySnapshot, ongoing);
                 loadedProviders[year] = provider;
                 return provider;
