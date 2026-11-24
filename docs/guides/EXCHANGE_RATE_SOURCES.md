@@ -32,14 +32,14 @@ JSON 只作为一次性迁移输入，不再作为运行时事实源：
 1. 旧版 `exchange_rate.json` 与 `exchange_rate_sources.json` 已合并为 Worker 程序内嵌的迁移种子。首次启动时写入 `legacy_annual_exchange_rate`，按原值导入 2021–2026 年 USD/HKD/CNY 及 2026 年来源元数据。迁移种子不是运行时配置。
 2. Worker 旧目录 `exchange-rates/safe-midpoint-v1-YYYY.json` 只有在文件 HMAC、年度和快照结构校验通过后才导入 Official 数据；不通过的文件隔离保留，不参与计算。
 3. 桌面旧缓存 `%LOCALAPPDATA%\CRS\exchange-rates\safe-midpoint-v1-YYYY.json` 逐年度导入当前 Windows SID 对应的 DesktopLegacy 数据。收到 Worker 数据库写入确认后，源文件才改名为 `.json.migrated`；导入失败时保留原文件，下一次可重试。
-4. DesktopLegacy 快照按 Windows SID 隔离，不能被其他用户读取，也不能覆盖 Official 快照。官方数据不可用时只作为历史兼容回退，并明确显示“未重新核验”。
+4. DesktopLegacy 快照按 Windows SID 隔离，不能被其他用户读取，也不能覆盖 Official 快照。对已结束年度，若迁入旧桌面快照，则优先沿用该用户原有快照并冻结数值，不因后续官方刷新而改变；当年快照仅在官方数据不可用时回退。旧快照明确显示“未重新核验”。
 5. 旧桌面 JSON 配置文件及文件读取 Provider 已移除。此后新数据只写 SQLCipher；旧 Worker JSON 文件仅保留作迁移回滚证据，不再写入。
 
 ## 历史汇率不变规则
 
 - 历史年度手工汇率按原始数值迁移：2021 USD 6.4515 / HKD 0.8291；2022 6.7261 / 0.8606；2023 7.0809 / 0.9056；2024 7.2200 / 0.9260；2025 7.1800 / 0.9210；2026 6.852873 / 0.875157。CNY 始终为 1。
 - 已保存的历史测算结果、汇率底稿、汇率指纹和证据链不执行重算、不批量更新、不回写。
-- 每个来源、年度、报价日采用首次写入原则：相同日期后续下载即使返回不同值也不覆盖已入库值；新报价日只追加。Official 与 DesktopLegacy 分开保存，旧缓存不能覆盖官方快照。
+- 每个来源、年度、报价日采用首次写入原则：相同日期后续下载即使返回不同值也不覆盖已入库值；新报价日只追加。Official 与 DesktopLegacy 分开保存，旧缓存不能覆盖官方快照；对已结束年度，已迁入的 DesktopLegacy 快照作为该 Windows 用户的冻结历史版本。
 - 导入操作幂等；重复启动不会重复增加旧年度记录。数据库迁移失败时，原数据库备份和旧 JSON 源文件均保留。
 
 ## 验收要求
