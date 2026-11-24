@@ -10,6 +10,7 @@ public sealed partial class AiModelSettingsViewModel(IAiModelService? service) :
     private AiModelSettings settings = new(null, new Dictionary<string, AiProviderSetting>());
     private CancellationTokenSource? operation;
     public IReadOnlyList<AiProviderPreset> Providers => AiModelSettings.Presets;
+    public VpnNodeChoices Vpn { get; } = new();
 
     [ObservableProperty] private AiProviderPreset? selectedProvider = AiModelSettings.Presets[0];
     [ObservableProperty] private string? selectedModel = AiModelSettings.Presets[0].Models[0];
@@ -61,14 +62,15 @@ public sealed partial class AiModelSettingsViewModel(IAiModelService? service) :
         {
             SaveStatus = "";
             ModelStatus = GatewayStatus = "测试中…";
+            var node = Vpn.Node;
             // 两条链路互相独立，模型连接成功即可保存默认配置。
             var gateway = TestGatewayCoreAsync(token);
             try
             {
-                await service!.TestModelAsync(provider.Id, model, newKey, token);
+                await service!.TestModelAsync(provider.Id, model, newKey, node, token);
                 token.ThrowIfCancellationRequested();
                 ModelStatus = "连接成功";
-                settings = await service.SaveDefaultAsync(provider.Id, model, newKey, token);
+                settings = await service.SaveDefaultAsync(provider.Id, model, newKey, node, token);
                 token.ThrowIfCancellationRequested();
                 NotifyConfiguration();
                 SaveStatus = "已设为默认模型。";
@@ -100,6 +102,7 @@ public sealed partial class AiModelSettingsViewModel(IAiModelService? service) :
         {
             settings = await service!.RemoveKeyAsync(provider.Id, token);
             token.ThrowIfCancellationRequested();
+            Vpn.Restore(null);
             NotifyConfiguration();
             ModelStatus = "未测试";
             SaveStatus = "已清除该供应商的本机配置。";
@@ -135,8 +138,10 @@ public sealed partial class AiModelSettingsViewModel(IAiModelService? service) :
 
     private void ApplySavedModel(AiProviderPreset? provider)
     {
-        var saved = provider is null ? null : settings.Providers.GetValueOrDefault(provider.Id)?.Model;
+        var profile = provider is null ? null : settings.Providers.GetValueOrDefault(provider.Id);
+        var saved = profile?.Model;
         SelectedModel = provider?.Models.Contains(saved, StringComparer.Ordinal) == true ? saved : provider?.Models.FirstOrDefault();
+        Vpn.Restore(profile?.VpnNode);
     }
 
     private void NotifyConfiguration()

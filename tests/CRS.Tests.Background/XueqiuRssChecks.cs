@@ -11,6 +11,7 @@ internal static class XueqiuRssChecks
 {
     private const string FeedUrl = "https://www.google.com/alerts/feeds/123456789/987654321";
     private const string ExternalFeedUrl = "https://feeds.example.invalid/author.xml";
+    private const string FullTextFeedUrl = "https://feeds.example.invalid/authorized.json";
 
     internal static async Task RunAsync()
     {
@@ -21,7 +22,8 @@ internal static class XueqiuRssChecks
         try
         {
             SeedVersionOne(root, key);
-            await using var session = new XueqiuBackgroundEntry().CreateSession(new Context(root, key), new FeedTransport());
+            var transport = new FeedTransport();
+            await using var session = new XueqiuBackgroundEntry().CreateSession(new Context(root, key), transport);
             await session.StartAsync(token);
             var data = (IBackgroundPrivateDataSession)session;
             async Task<WatchReply> Ask(WatchRequest request) =>
@@ -122,8 +124,42 @@ internal static class XueqiuRssChecks
             await XueqiuPostBodyChecks.RunAsync(Ask, "9650668145", bodyUrl, Restart);
             Check((await Ask(new("leads"))).Leads!.Rows.Single(x => x.Url == bodyUrl).PostBodyRevision == 2,
                 "线索中的全文状态随手工补录刷新");
+            await VerifyFullTextFeedAsync(Ask, Run, transport);
         }
         finally { CryptographicOperations.ZeroMemory(key); }
+    }
+
+    private static async Task VerifyFullTextFeedAsync(Func<WatchRequest, Task<WatchReply>> ask,
+        Func<Task<BackgroundJobResult>> run, FeedTransport transport)
+    {
+        const string authorId = "9650668145";
+        const string sourcePrefix = "https://xueqiu.com/9650668145/";
+        Check(WatchInput.IsGoogleAlertsFeed(new Uri("https://www.google.com.hk/alerts/feeds/42/43")),
+            "支持 Google 快讯实际提供的香港区订阅地址");
+        var author = (await ask(new("authors"))).Authors!.Single(x => x.Account == authorId);
+        Task<WatchReply> Save(string source) => ask(new("author-save",
+            Author: author with { FullTextFeedUrl = source }, ChangeId: Guid.NewGuid()));
+        Check((await Save(FeedUrl)).Error is not null && (await Save(FullTextFeedUrl)).Error is null,
+            "全文来源独立授权，Google Alerts 搜索片段不能升级为全文");
+
+        transport.FullTextEnabled = true;
+        Check((await run()).Status == "Succeeded", "发现任务同时完成全文补全");
+        var page = (await ask(new("leads"))).Leads!;
+        var source = new PostBodyRequest(authorId, sourcePrefix + "441");
+        var metadata = (await ask(new("post-body-info", Body: source))).Body;
+        var bytes = (await ask(new("post-body-read", Body: source with { Revision = 1 }))).BodyBytes!;
+        Check(page.Rows.Single(x => x.Url == source.Url) is { PostBodyRevision: 1, BodySource: PostBodySource.AuthorizedFeed } &&
+            metadata is { Revision: 1, Source: PostBodySource.AuthorizedFeed } &&
+            PostBody.Decode(bytes) == "第一段。\n第二段：看好中国移动。" &&
+            page.Coverage.Single(x => x.Account == authorId).FullTextCount == 1,
+            "按原帖匹配获授权全文，正文保留换行并记录来源");
+        Check(page.Rows.Single(x => x.Url == sourcePrefix + "442").PostBodyRevision == 0 &&
+            (await ask(new("post-body-info", Body: source with { Url = sourcePrefix + "999" }))).Body is null &&
+            page.Rows.Single(x => x.Url == sourcePrefix + "111") is { PostBodyRevision: 2, BodySource: PostBodySource.Manual },
+            "摘要和未发现原帖不入全文，已确认的手工正文保留");
+        Check((await run()).Status == "Succeeded" &&
+            (await ask(new("leads"))).Leads!.Coverage.Single(x => x.Account == authorId).FullTextCount == 0,
+            "重跑自动补全不会重复写入同一原帖");
     }
 
     private static async Task VerifyRssProxyAsync(Func<WatchRequest, Task<WatchReply>> ask, Func<Task> restart,
@@ -274,7 +310,8 @@ internal static class XueqiuRssChecks
         }.ToString());
         db.Open();
         using var clearSubscriptionSchema = db.CreateCommand();
-        clearSubscriptionSchema.CommandText = "DROP TABLE google_alerts; DROP TABLE rss_proxy; DROP TABLE post_bodies";
+        clearSubscriptionSchema.CommandText =
+            "DROP TABLE google_alerts; DROP TABLE rss_proxy; DROP TABLE post_bodies; DROP TABLE full_text_coverage; DROP TABLE google_alert_connection";
         clearSubscriptionSchema.ExecuteNonQuery();
         using var update = db.CreateCommand();
         var oldAuthor = WatchProtocol.InitialAuthors.Single(x => x.Account == "8632046745") with { Name = "逹人知命" };
@@ -310,11 +347,26 @@ internal static class XueqiuRssChecks
     private sealed class FeedTransport : HttpMessageHandler
     {
         private int attempts;
+        public bool FullTextEnabled { get; set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             if (request.RequestUri?.AbsoluteUri == ExternalFeedUrl)
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified));
+            if (request.RequestUri?.AbsoluteUri == FullTextFeedUrl)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""
+                    {
+                      "version":"https://jsonfeed.org/version/1.1",
+                      "title":"授权全文样本",
+                      "items":[
+                        {"id":"441","url":"https://xueqiu.com/9650668145/441","content_text":"第一段。\n第二段：看好中国移动。","date_published":"2026-11-23T01:01:00Z"},
+                        {"id":"442","url":"https://xueqiu.com/9650668145/442","summary":"只有摘要","date_published":"2026-11-23T01:01:00Z"},
+                        {"id":"999","url":"https://xueqiu.com/9650668145/999","content_text":"未发现的原帖","date_published":"2026-11-23T01:01:00Z"},
+                        {"id":"111","url":"https://xueqiu.com/9650668145/111","content_text":"不会覆盖手工正文","date_published":"2026-11-23T01:01:00Z"},
+                        {"id":"443","url":"https://xueqiu.com/8790885129/443","content_text":"另一位作者","date_published":"2026-11-23T01:01:00Z"}
+                      ]
+                    }
+                    """) });
             Check(request.Method == HttpMethod.Get && request.RequestUri?.AbsoluteUri == FeedUrl,
                 "Worker 只请求作者配置的 Google Alerts RSS 地址");
             var attempt = Interlocked.Increment(ref attempts);
@@ -348,6 +400,11 @@ internal static class XueqiuRssChecks
                       <link rel="alternate" href="https://example.com/9650668145/333"/></entry>
                   </feed>
                   """;
+            if (FullTextEnabled) body = body.Replace("</feed>", """
+                <entry><id>441</id><link href="https://xueqiu.com/9650668145/441"/><summary>搜索片段</summary></entry>
+                <entry><id>442</id><link href="https://xueqiu.com/9650668145/442"/><summary>第二条搜索片段</summary></entry>
+                </feed>
+                """, StringComparison.Ordinal);
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
             response.Headers.ETag = new EntityTagHeaderValue("\"v1\"");
             return Task.FromResult(response);

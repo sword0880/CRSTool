@@ -113,13 +113,17 @@ public static class FeedParser
         var author = Child(item, "author");
         var authorName = Text(Child(author, "name")) ?? Text(author);
         var summary = Text(Child(item, "summary"));
-        var content = Text(Child(item, "content")) ?? summary;
+        var contentElement = Child(item, "content");
+        var content = Text(contentElement) ?? summary;
+        var plainText = contentElement is { HasElements: false } && contentElement.Attribute("src") is null &&
+            (string?)contentElement.Attribute("type") is null or "text" or "text/plain"
+                ? contentElement.Value : null;
         var published = ParseDate(Text(Child(item, "published")));
         var updated = ParseDate(Text(Child(item, "updated")));
         var categories = item.Elements().Where(element => IsName(element, "category"))
             .Select(element => ((string?)element.Attribute("term") ?? element.Value).Trim())
             .Where(value => value.Length > 0).Distinct().ToArray();
-        return new(id, title, url, summary, content, authorName, published, updated, categories);
+        return new(id, title, url, summary, content, authorName, published, updated, categories, plainText);
     }
 
     private static FeedDocument ParseJson(ReadOnlyMemory<byte> payload, Uri feedUrl, int maximumItems)
@@ -147,9 +151,10 @@ public static class FeedParser
             ? tags.EnumerateArray().Where(tag => tag.ValueKind == JsonValueKind.String)
                 .Select(tag => tag.GetString()!).Where(value => value.Length > 0).Distinct().ToArray()
             : [];
+        var plainText = String(item, "content_text");
         return new(id, title, url, String(item, "summary"),
-            String(item, "content_html") ?? String(item, "content_text") ?? String(item, "summary"),
-            author, ParseDate(String(item, "date_published")), ParseDate(String(item, "date_modified")), categories);
+            String(item, "content_html") ?? plainText ?? String(item, "summary"),
+            author, ParseDate(String(item, "date_published")), ParseDate(String(item, "date_modified")), categories, plainText);
     }
 
     private static string? ReadJsonAuthor(JsonElement item)

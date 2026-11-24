@@ -10,7 +10,7 @@
 
 | 需求 | 交付内容 |
 | --- | --- |
-| 部分功能使用 VPN 线路联网 | 复用开源 Mihomo。Google Alerts 管理、RSS 拉取和获授权的正文来源可分别配置线路。 |
+| 部分功能使用 VPN 线路联网 | 系统设置统一保存订阅，Worker 任务和 AI 模型各自选择节点，开源 Mihomo 执行代理。 |
 | 自动管理 Google Alerts 订阅 | 连接 Google 账号后，新增作者自动创建 RSS 提醒，移除作者自动删除对应的 CRS 托管提醒。 |
 | 订阅作者并按股票查看观点 | 按雪球账号订阅，自动提取股票候选，按股票聚合，可查看作者多空发言、原文和时间线。 |
 | 尽可能取得完整发言 | Google Alerts 负责发现。正文经验证后才标为全文，并标明来自自动获取还是手工导入。暂时拿不到全文时，展示已取得的片段和原帖入口。 |
@@ -70,19 +70,17 @@ Google 官方帮助提供网页管理入口，目前未查到 Google Alerts 的�
 
 ## 4. 按功能使用开源代理
 
-使用用户已安装或单独运行的开源 **Mihomo**，通过本机 HTTP / Mixed 端口联网。公共网络配置负责提供代理地址及服务规则，Mihomo 负责路由。使用用户提供的节点配置，首期复用现成端口，不要求接管系统流量。[Mihomo 项目](https://github.com/MetaCubeX/mihomo) · [Mihomo 端口文档](https://wiki.metacubex.one/config/inbound/port/)
+在「系统设置 → 网络 → VPN」保存 HTTPS 订阅并刷新节点。Worker 加密保存订阅。每个配置了 VPN 的请求使用所选节点对应的本机代理。Mihomo 核心随兼容的 Worker 发行包提供。[Mihomo 项目](https://github.com/MetaCubeX/mihomo)
 
 | 请求 | 路由 |
 | --- | --- |
-| 桌面自动管理 Google Alerts | 专用浏览器配置可按用户选择使用 Mihomo，登录和管理过程使用同一配置。 |
-| Worker 拉取 Google Alerts RSS | 按用户配置经 Mihomo 访问 Feed 实际主机。独立于桌面登录会话运行。 |
-| Worker 获取获授权的正文 | 按正文来源域名独立配置直连或节点组，仅在正文来源启用后发起请求。 |
+| 桌面自动管理 Google Alerts | 专用 Chrome 沿用系统网络。 |
+| Worker 拉取 Google Alerts RSS 和获授权的正文 | 在「任务中心 → 发现雪球发言线索」为该任务选节点或直连，定时与手动运行均使用该计划。 |
+| AI 模型 | 在「系统设置 → AI 模型」按供应商选择节点，默认直连。 |
 | 用户手动打开 Google Alerts 或雪球原帖 | 由外部浏览器按自身配置联网。 |
 | CRS 其他功能 | 沿用现有网络路径。 |
 
-「观察名单 → RSS 代理」保存本机地址。Worker 为 Google Alerts RSS 建立专用 `FeedClient`，使用已保存的地址并保留 HTTPS、重定向和响应大小校验。代理不可达或拒绝建立隧道时，记录失败并保留历史线索，当前请求不会回落到默认网络。
-
-节点和出口由 Mihomo 的配置决定。需要固定出口时，在 Mihomo 中给 Google 域名设置对应节点组。实际节点和出站路径仍需在配置完成后用 Worker 服务账号验证。RSS 订阅地址不写入日志。
+新任务默认直连。旧任务首次保存新线路前沿用既有 RSS 代理。选用节点后，代理不可达时记录失败并保留历史线索。订阅地址不写入日志。
 
 ## 5. 股票识别、观点和界面口径
 
@@ -135,7 +133,7 @@ Feed 线索正文最多保存 3,000 字符。手工补录支持最多 256 KiB �
 
 ## 8. 当前实现与参考
 
-现有代码已具备观察名单、Google Alerts RSS 线索发现、按股票查看、规则候选、手工录入和 SQLCipher 存储。已新增本地订阅同步记录、托管归属和创建与删除核对协议。Worker 的 Google Alerts RSS 支持指定本机 Mihomo 代理并记录连接失败。个股汇总和详情使用最新有效本人观点，中性观点会停止沿用较早的看多或看空。线索和个股详情已接通手工补录、按版本查看与从全文提取候选。Google 网页自动增删、自动全文获取和自动确认观点仍待接入。
+桌面已接入 Playwright 网页同步代码。用户首次在专用 Chrome 登录后，CRS 按账号和提醒标识与观察名单同步。Worker 任务可在任务中心选择从系统设置导入的 Mihomo 节点。自动补全可读取独立的获授权 JSON Feed 或 Atom 纯文本，按作者和原帖匹配后入库。默认仍可手工补录，现有正文不会被后续 Feed 覆盖。真实账号增删、真实全文来源和自动确认观点须分别验收。
 
 - [现有雪球插件与使用方式](../../src/Plugins/XueqiuWatch/README.md)
 - [CRS.Feed 公共 Feed Engine](../architecture/FEED_ENGINE.md)

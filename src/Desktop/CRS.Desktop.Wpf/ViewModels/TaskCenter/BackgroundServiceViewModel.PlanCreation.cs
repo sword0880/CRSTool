@@ -55,7 +55,8 @@ public partial class BackgroundServiceViewModel
         if (Busy || lifetime.IsCancellationRequested) return (false, "请等待正在处理的请求完成。");
         BackgroundResponse? result = null;
         await MutateAsync(WorkerProtocol.AddPluginPlan, new(WorkerProtocol.Version, Guid.NewGuid(),
-            WorkerProtocol.AddPluginPlan, template.PluginId, template.JobId, Cron: cron, Payload: enabled ? "Enabled" : "Paused"),
+            WorkerProtocol.AddPluginPlan, template.PluginId, template.JobId, Cron: cron, Payload: enabled ? "Enabled" : "Paused")
+            { VpnNode = template.SupportsVpn ? template.VpnNode : null },
             response => result = response);
         return (result?.Code is "Ok" or "AcceptedNeedsReconcile", Status);
     }

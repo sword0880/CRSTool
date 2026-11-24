@@ -4,7 +4,10 @@ namespace CRS.AI.Models;
 public sealed record AiProviderPreset(string Id, string DisplayName, IReadOnlyList<string> Models);
 
 /// <summary>设置页读取的供应商状态。此类型只公开模型名称和密钥配置状态。</summary>
-public sealed record AiProviderSetting(string Model, bool HasApiKey);
+public sealed record AiProviderSetting(string Model, bool HasApiKey)
+{
+    public string? VpnNode { get; init; }
+}
 
 /// <summary>按 Windows 用户保存的模型选择和各供应商配置状态。</summary>
 public sealed record AiModelSettings(string? DefaultProvider, IReadOnlyDictionary<string, AiProviderSetting> Providers)

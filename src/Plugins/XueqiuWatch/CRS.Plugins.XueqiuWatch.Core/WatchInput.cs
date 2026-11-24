@@ -45,8 +45,7 @@ public static partial class WatchInput
             throw new ArgumentException("提醒结果不是有效的 HTTPS 文章链接。");
 
         var source = uri;
-        if (uri.Host.Equals("google.com", StringComparison.OrdinalIgnoreCase) ||
-            uri.Host.Equals("www.google.com", StringComparison.OrdinalIgnoreCase))
+        if (IsGoogleAlertsHost(uri.Host))
         {
             if (!uri.AbsolutePath.Equals("/url", StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("不支持该 Google 跳转地址。");
@@ -66,8 +65,11 @@ public static partial class WatchInput
     public static string GoogleAlertQuery(string account) => $"site:xueqiu.com/{AccountId(account)}";
 
     public static bool IsGoogleAlertsFeed(Uri address) =>
-        address.Scheme == Uri.UriSchemeHttps && address.Host is ("google.com" or "www.google.com") &&
+        address.Scheme == Uri.UriSchemeHttps && IsGoogleAlertsHost(address.Host) &&
         address.AbsolutePath.StartsWith("/alerts/feeds/", StringComparison.Ordinal);
+
+    private static bool IsGoogleAlertsHost(string host) =>
+        host is "google.com" or "www.google.com" or "google.com.hk" or "www.google.com.hk";
 
     public static string NormalizeRssProxy(string? input)
     {

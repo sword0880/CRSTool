@@ -15,6 +15,12 @@ public interface IBackgroundPluginSession : IAsyncDisposable
     ValueTask StopAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>任务显式接收本次执行的代理，避免修改进程或系统的网络设置。</summary>
+public interface IProxyBackgroundSession
+{
+    Task<BackgroundJobResult> ExecuteViaProxyAsync(string jobId, System.Net.IWebProxy? proxy, CancellationToken cancellationToken);
+}
+
 /// <summary>仅在会话的任务、连接和进度回调都可并发时显式声明；旧插件默认串行。</summary>
 public interface IConcurrentBackgroundSession
 {
@@ -35,6 +41,7 @@ public sealed record BackgroundJobDescriptor(string JobId, string Name, string D
     public bool Diagnostic{get;init;}
     /// <summary>普通插件任务可等待管理员创建计划；既有任务仍按原规则注册。</summary>
     public bool RequiresPlanCreation { get; init; }
+    public bool SupportsVpn { get; init; }
 }
 
 /// <summary>可预期的数据源结果使用分类返回，服务据此执行退避。</summary>
@@ -52,6 +59,8 @@ public sealed record TaskDefinition(string PluginId, string JobId, string Name, 
     public string? LastResult { get; init; }
     public string? PlanState { get; init; }
     public DateTimeOffset? NextScheduledAt { get; init; }
+    public bool SupportsVpn { get; init; }
+    public string? VpnNode { get; init; }
 }
 
 /// <summary>历史只包含结果分类。时间均带北京时间 +08:00；Utc 字段名仅保留现有协议键名。</summary>

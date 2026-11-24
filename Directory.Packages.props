@@ -10,6 +10,7 @@
     <!-- 邮件只在独立Worker发送，固定支持强制STARTTLS和465直接TLS的SMTP实现。 -->
     <PackageVersion Include="MailKit" Version="4.17.0" />
     <PackageVersion Include="WPF-UI" Version="4.3.0" />
+    <PackageVersion Include="Microsoft.Playwright" Version="1.58.0" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="DataGridExtensions" Version="2.9.1" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />

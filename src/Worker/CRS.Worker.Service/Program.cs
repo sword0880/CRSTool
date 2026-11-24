@@ -102,9 +102,10 @@ namespace CRS.Worker.Service
                 await using var cleanup=new WorkerDataCleanup(locations.Data,null,new WorkerLogSettingsStore(locations.Data,key));
                 cleanup.InitializeTasks(diagnostics.Write);
                 var annualRates = new WorkerAnnualExchangeRates(locations.Data, key);
+                using var vpn = new WorkerVpn(locations.Data, Path.Combine(AppContext.BaseDirectory, "Mihomo", "mihomo.exe"), key);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
                     executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup,
-                    documentInbox:new WorkerDocumentInbox(locations.Data),annualRates:annualRates);
+                    documentInbox:new WorkerDocumentInbox(locations.Data),annualRates:annualRates) { Vpn = vpn };
                 Task? pipeTask = null;
                 using var listeners = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 var securityTask=StorageSecurity.MonitorAsync(locations.Data,locations.Console,

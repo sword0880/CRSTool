@@ -15,6 +15,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     WorkerAnnualExchangeRates? annualRates=null) : IBackgroundControl, IAsyncDisposable
 {
     private readonly WorkerExecutionSettings settings = (executionSettings ?? new()).Validate();
+    internal WorkerVpn? Vpn { get; init; }
     private readonly HostedBackgroundJob? annualRatesJob = annualRates is null ? null
         : new(WorkerAnnualExchangeRates.ServiceId, WorkerAnnualExchangeRates.Descriptor, annualRates);
     private IEnumerable<HostedBackgroundJob> Jobs => annualRatesJob is null ? catalog.Jobs : catalog.Jobs.Append(annualRatesJob);
@@ -164,6 +165,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             return annualRates?.Query(request, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
         if (request.Command is WorkerProtocol.GetWorkerLogSettings or WorkerProtocol.SaveWorkerLogSettings)
             return await HandleLogSettingsAsync(request, caller, token);
+        if (request.Command is WorkerProtocol.GetVpnSettings or WorkerProtocol.SaveVpnSettings or WorkerProtocol.RefreshVpnNodes or WorkerProtocol.OpenVpnRoute)
+            return await HandleVpnAsync(request, caller, token);
         if (request.Command is "QueryPlugin" or WorkerProtocol.PrivatePluginData)
             return await QueryPluginAsync(request, caller, token);
         if(request.Command is "PutPluginDocument" or "GetPluginDocument" or "ListPluginDocuments")return await HandleDocumentsAsync(request,caller,token);
@@ -283,6 +286,7 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         var plan = repository.Plans().SingleOrDefault(x => x.PluginId == request.PluginId && x.JobId == request.JobId);
         if (plan is null || !HasHandler(plan)) return Reply("JobUnavailable");
         var descriptor = Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId).Descriptor;
+        if (!IsAllowedVpnSelection(descriptor, request.VpnNode)) return Reply("InvalidVpnNode");
         if(request.Command is "Resume" or "ChangeSchedule" && descriptor.Diagnostic)
             return Reply("DiagnosticOnly");
         if(request.Command is "Resume" or "ChangeSchedule" && descriptor.ManualOnly)
@@ -315,7 +319,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
                     var next = request.Command switch
                     {
                         "Pause" => plan with { Enabled = false }, "Resume" => plan with { Enabled = true },
-                        _ => plan with { Cron = request.Cron ?? "", TimeZoneId = CRS.Timing.BeijingClock.ZoneId }
+                        _ => plan with { Cron = request.Cron ?? "", TimeZoneId = CRS.Timing.BeijingClock.ZoneId,
+                            VpnNode = request.VpnNode ?? plan.VpnNode }
                     };
                     Validate(next.Cron, next.TimeZoneId);
                     repository.Save(next, request.ExpectedRevision.Value, request.RequestId);
@@ -378,7 +383,9 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
         BackgroundJobResult result;
         var handler = Jobs.Single(x => x.PluginId == plan.PluginId && x.Descriptor.JobId == plan.JobId);
         // 参数来自已提交的持久命令，强杀恢复后继续使用同一业务操作。
-        var work = Task.Run(() => handler.Session is IProgressBackgroundSession progress
+        var work = Task.Run(() => plan.VpnNode is not null && (handler.Descriptor.SupportsVpn || plan.VpnNode.Length > 0)
+            ? ExecuteVpnJobAsync(handler, plan, source.Token)
+            : handler.Session is IProgressBackgroundSession progress
             ?progress.ExecuteWithProgressAsync(plan.JobId,payload,detail=>SaveProgressAsync(execution,detail,source.Token),source.Token,request)
             :handler.Session is IParameterizedBackgroundSession parameterized
             ?parameterized.ExecuteAsync(plan.JobId,payload,source.Token,request):handler.Session.ExecuteAsync(plan.JobId,source.Token), CancellationToken.None);
@@ -452,7 +459,8 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             plan.NeedsReconcile?"Reconcile":plan.NotBefore is not null?plan.Failures>0?"Retry":"Deferred":pending?"Queued":"Waiting";
         var next = plan.Enabled && state!="Unavailable" && scheduler is not null
             ? (await scheduler.GetTrigger(TriggerKey(key,"cron"),token))?.NextFireTimeUtc : null;
-        return plan with {PlanState=state,NextScheduledAt=next};
+        var supportsVpn = Jobs.Any(job => job.PluginId == plan.PluginId && job.Descriptor.JobId == plan.JobId && job.Descriptor.SupportsVpn);
+        return plan with {PlanState=state,NextScheduledAt=next,SupportsVpn=supportsVpn};
     }
     /// <summary>阶段记录与控制查询共享短数据库门槛，落盘失败立即停止采集，避免产生虚假进度。</summary>
     private static BackgroundJobResult ClassifyExecutionFailure(Exception error)=>error switch

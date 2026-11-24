@@ -7,7 +7,15 @@ namespace CRS.DesktopClient.Views.Settings.AI;
 /// <summary>新密钥仅在点击测试时传给模型层，切换供应商和关闭窗口时清空输入。</summary>
 public partial class AiModelSettingsView : UserControl, ISettingsSecretView
 {
-    public AiModelSettingsView() => InitializeComponent();
+    public AiModelSettingsView()
+    {
+        InitializeComponent();
+        IsVisibleChanged += async (_, _) =>
+        {
+            if (IsVisible && DataContext is AiModelSettingsViewModel model)
+                await model.Vpn.LoadAsync(false, CancellationToken.None);
+        };
+    }
 
     public void ClearInputs() => ApiKeyInput?.Clear();
 

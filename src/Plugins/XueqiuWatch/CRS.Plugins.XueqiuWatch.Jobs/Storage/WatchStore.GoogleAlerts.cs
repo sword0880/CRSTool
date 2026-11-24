@@ -27,6 +27,31 @@ internal sealed partial class WatchStore
         return WatchProtocol.Decode<Author>(body);
     }
 
+    private void InitializeGoogleConnection()
+    {
+        using var transaction = db.BeginTransaction();
+        Execute("""
+            CREATE TABLE google_alert_connection(id INTEGER PRIMARY KEY CHECK(id=1), account TEXT NOT NULL);
+            INSERT INTO google_alert_connection VALUES(1,'');
+            PRAGMA user_version=11;
+            """, transaction);
+        transaction.Commit();
+    }
+
+    private string ReadGoogleConnection(SqliteTransaction? transaction = null) =>
+        (string?)Scalar("SELECT account FROM google_alert_connection WHERE id=1", transaction) ?? "";
+
+    private void SaveGoogleConnection(string? value, SqliteTransaction transaction)
+    {
+        var account = WatchInput.Text(value, 64);
+        if (account.Length != 0 && (account.Length != 64 || !account.All(Uri.IsHexDigit)))
+            throw new ArgumentException("Google 账号标识无效。");
+        var current = ReadGoogleConnection(transaction);
+        if (account.Length > 0 && current.Length > 0 && current != account)
+            throw new ArgumentException("请使用原先连接的 Google 账号。");
+        Execute("UPDATE google_alert_connection SET account=$account WHERE id=1", transaction, ("$account", account));
+    }
+
     private GoogleAlertSubscription ReadGoogleAlert(Author author) => ReadStoredGoogleAlert(author.Account)
         ?? new(author.Account, author.Archived || author.FeedUrl.Length == 0
             ? GoogleAlertState.None : GoogleAlertState.External);
@@ -134,6 +159,9 @@ internal sealed partial class WatchStore
         if (alert is null || alert.OperationId != input.OperationId)
             throw new ArgumentException("订阅同步状态已改变，请刷新后重试。");
         var googleAccount = WatchInput.Text(input.GoogleAccount, 256, true);
+        var connection = ReadGoogleConnection(transaction);
+        if (connection.Length != 0 && connection != googleAccount)
+            throw new ArgumentException("当前 Google 账号与 CRS 的连接不一致。");
         if (alert.GoogleAccount.Length != 0 && !string.Equals(alert.GoogleAccount, googleAccount, StringComparison.Ordinal))
             throw new ArgumentException("当前 Google 账号与订阅记录不一致。");
         return (author, alert, googleAccount);

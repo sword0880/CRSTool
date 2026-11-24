@@ -31,6 +31,8 @@ internal static class ScheduleEditViewChecks
                         var status=(TextBlock)window.FindName("TaskEnabledStatus");var enable=(Button)window.FindName("EnableTaskButton");var disable=(Button)window.FindName("DisableTaskButton");
                         if(status.Text!=(enabled?"已启用":"已禁用")||enable.IsEnabled==enabled||disable.IsEnabled!=enabled||enable.Command!=model.EnableTaskCommand||disable.Command!=model.DisableTaskCommand)
                             throw new Exception("任务详情状态或启用/禁用按钮绑定错误。");
+                        if (((FrameworkElement)window.FindName("VpnRouting")).IsVisible)
+                            throw new Exception("尚未适配 VPN 的任务不应显示节点选择。");
                         var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(window);
                         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
                         using var output=File.Create(Path.Combine(directory,$"schedule-{(enabled?"enabled":"disabled")}-{width}.png"));encoder.Save(output);
@@ -59,12 +61,14 @@ internal static class ScheduleEditViewChecks
                         throw new Exception("待接入任务应显示原因，不能打开计划编辑。");
                 }
                 finally { picker.Close(); }
-                var draft = new ScheduleEditWindow(new(new(CancellationToken.None), template));
+                var draft = new ScheduleEditWindow(new(new(CancellationToken.None), template with { SupportsVpn = true, VpnNode = "Node A" }));
                 try
                 {
                     draft.Show(); draft.UpdateLayout();
                     if (draft.Title != "添加计划" || ((TextBlock)draft.FindName("TaskEnabledStatus")).Text != "已禁用")
                         throw new Exception("新计划应显示创建标题和待保存的启用状态。");
+                    if (((ComboBox)draft.FindName("JobVpnNodeInput")).SelectedItem is not VpnNodeChoices.Choice { Node: "Node A" })
+                        throw new Exception("任务节点选择应恢复已保存的节点。");
                 }
                 finally { draft.Close(); }
                 app.Shutdown();

@@ -7,7 +7,11 @@ namespace CRS.Worker.Ipc;
 /// <summary>协议只接受固定命令和标量参数，不接收路径、类型名或客户端自报权限。</summary>
 public sealed record BackgroundRequest(int ProtocolVersion, Guid RequestId, string Command,
     string? PluginId = null, string? JobId = null, string? Cron = null, string? TimeZoneId = null,
-    long? ExpectedRevision = null, string? Cursor = null, int PageSize = 10, Guid? RelatedRequestId = null,string? Payload=null,string? ExecutionId=null,string? ResultFilter=null);
+    long? ExpectedRevision = null, string? Cursor = null, int PageSize = 10, Guid? RelatedRequestId = null,string? Payload=null,string? ExecutionId=null,string? ResultFilter=null)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? VpnNode { get; init; }
+}
 public sealed record BackgroundPluginScheduling(string PluginId, int MaxConcurrency, int Running, int Waiting);
 public sealed record BackgroundPendingRequest(Guid RequestId, string PluginId, string JobId, DateTimeOffset? NotBefore=null);
 public sealed record BackgroundTaskActivityRow(string PluginId,string JobId,string Name,string State,string Reason,
@@ -53,6 +57,10 @@ public static class WorkerProtocol
     public const string GetAnnualExchangeRates = "GetAnnualExchangeRates";
     public const string GetWorkerLogSettings = "GetWorkerLogSettings";
     public const string SaveWorkerLogSettings = "SaveWorkerLogSettings";
+    public const string GetVpnSettings = "GetVpnSettings";
+    public const string SaveVpnSettings = "SaveVpnSettings";
+    public const string RefreshVpnNodes = "RefreshVpnNodes";
+    public const string OpenVpnRoute = "OpenVpnRoute";
 }
 
 /// <summary>服务端使用实际 Windows 令牌构造调用者，权限字段不进入请求协议。</summary>

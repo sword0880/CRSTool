@@ -37,7 +37,8 @@ public partial class BackgroundServiceViewModel : ObservableObject
     {
         scheduleSaved=false;
         if(Busy)return (false,"正在处理其它请求，请稍后保存。");
-        await MutateAsync("ChangeSchedule",new(WorkerProtocol.Version,Guid.NewGuid(),"ChangeSchedule",plan.PluginId,plan.JobId,expression,zone,plan.Revision));
+        await MutateAsync("ChangeSchedule",new(WorkerProtocol.Version,Guid.NewGuid(),"ChangeSchedule",plan.PluginId,plan.JobId,expression,zone,plan.Revision)
+            { VpnNode = plan.SupportsVpn ? plan.VpnNode : null });
         return (scheduleSaved,Status);
     }
     public async Task<(bool Saved,string Message)> SetScheduleEnabledAsync(TaskDefinition plan,bool enabled)
@@ -184,6 +185,7 @@ public partial class BackgroundServiceViewModel : ObservableObject
             "Forbidden" => "当前 Windows 身份没有管理权限，请使用管理员身份运行管理端。",
             "RetryDeferred" => "任务处于退避期，暂缓执行。", "AlreadyRunning" => "该任务正在运行或等待执行。",
             "InvalidOrStaleRequest" => "计划输入无效或已被更改，请核对后重试。",
+            "InvalidVpnNode" => "当前任务不支持此 VPN 节点，请重新选择。",
             "PlanAlreadyExists" => "此任务已添加，请刷新计划并直接编辑。",
             "JobUnavailable" => "插件任务当前不可用，请检查后台服务和插件状态。",
             "AcceptedNeedsReconcile" => "计划已保存，等待后台应用；后台会自动重试，生效后自动清除“计划待生效”标记。", _ => "服务返回：" + response.Code

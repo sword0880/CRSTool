@@ -2,6 +2,7 @@ using CRS.Application.Abstractions;
 using CRS.AI.Models;
 using System.IO;
 using CRS.Infrastructure;
+using CRS.Worker.Ipc;
 using Microsoft.Extensions.Logging;
 namespace CRS.DesktopClient.Composition;
 /// <summary>桌面启动组合根，基础设施类型只在此处装配。</summary>
@@ -31,7 +32,9 @@ internal static class DesktopComposition
         var officialRates = smoke ? null : new OfficialAnnualExchangeRates(CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ReadAsync);
         var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager,officialRates,Logging.Factory);
         // 冒烟使用临时配置目录，不读取真实 Windows 用户的模型密钥。
-        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke),new AiModelService(directory),
+        var aiModels = smoke ? new AiModelService(directory) :
+            new AiModelService(directory, (node, token) => WorkerVpnClient.OpenAsync(new(), node, token));
+        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke),aiModels,
             (repository as LocalStore)?.CreateAiChatHistory());
     }
     public static void LogStartupFailure(Exception error) => Logging.Factory.CreateLogger(typeof(DesktopComposition).FullName!)

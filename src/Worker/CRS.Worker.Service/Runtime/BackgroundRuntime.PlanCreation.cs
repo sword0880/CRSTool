@@ -24,8 +24,9 @@ public sealed partial class BackgroundRuntime
             var job = row.Job;
             // 0 表示任务已由插件提供，尚未保存计划。已保存计划的修订号从 1 开始。
             return plans.TryGetValue(new JobKey(job.Descriptor.JobId, job.PluginId), out var plan)
-                ? plan : new TaskDefinition(job.PluginId, job.Descriptor.JobId, job.Descriptor.Name,
-                    job.Descriptor.DefaultCron, BeijingClock.ZoneId, job.Descriptor.EnabledByDefault, 0, false);
+                ? plan with { SupportsVpn = job.Descriptor.SupportsVpn } : new TaskDefinition(job.PluginId, job.Descriptor.JobId, job.Descriptor.Name,
+                    job.Descriptor.DefaultCron, BeijingClock.ZoneId, job.Descriptor.EnabledByDefault, 0, false)
+                    { SupportsVpn = job.Descriptor.SupportsVpn };
         }).ToArray();
         return new(WorkerProtocol.Version, request.RequestId, "Ok", Jobs: page,
             NextCursor: matches.Length > page.Length ? matches[page.Length - 1].Cursor : null);
@@ -44,6 +45,7 @@ public sealed partial class BackgroundRuntime
         var job = catalog.Jobs.FirstOrDefault(x => x.PluginId == request.PluginId && x.Descriptor.JobId == request.JobId);
         if (job is null || !IsSchedulable(job) || !catalog.CanDispatch(job.PluginId))
             return Reply("JobUnavailable");
+        if (!IsAllowedVpnSelection(job.Descriptor, request.VpnNode)) return Reply("InvalidVpnNode");
 
         CommandReceipt receipt;
         try { receipt = repository.AcceptCommand(request, caller.Sid); }
@@ -51,7 +53,8 @@ public sealed partial class BackgroundRuntime
         { return Reply("InvalidOrStaleRequest"); }
 
         var plan = new TaskDefinition(job.PluginId, job.Descriptor.JobId, job.Descriptor.Name, cron,
-            BeijingClock.ZoneId, request.Payload == "Enabled", 1, true);
+            BeijingClock.ZoneId, request.Payload == "Enabled", 1, true)
+            { VpnNode = request.VpnNode, SupportsVpn = job.Descriptor.SupportsVpn };
         var added = receipt.State == "Pending";
         var code = added ? repository.AddPlan(plan, request.RequestId) : receipt.Code;
         receipt = repository.FindCommand(request.RequestId, caller.Sid)!;

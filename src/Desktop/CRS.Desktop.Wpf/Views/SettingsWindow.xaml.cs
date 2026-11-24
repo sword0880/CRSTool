@@ -43,7 +43,7 @@ public partial class SettingsWindow : FluentWindow
         }
     }
     // 子视图各自保管 PasswordBox，窗口仍是敏感输入清理的唯一调度入口。
-    private void ClearSecurityInputs() {SecuritySection.ClearInputs();DocumentsSection.ClearInputs();AiModelSection.ClearInputs();}
+    private void ClearSecurityInputs() {SecuritySection.ClearInputs();DocumentsSection.ClearInputs();AiModelSection.ClearInputs();VpnSection.ClearInputs();}
     private void ClearDocumentInputs()=>DocumentsSection.ClearInputs();
     private void ClearEmailInput()=>NotificationsSection.ClearInputs();
     private void ClearDingTalkInputs()=>DingTalkSection.ClearInputs();

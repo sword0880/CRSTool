@@ -36,6 +36,9 @@
 <settings:SettingsSectionHost SectionKey="documents" SelectedKey="{Binding SelectedSection.Key}">
  <settings:DocumentSettingsView x:Name="DocumentsSection"/>
 </settings:SettingsSectionHost>
+<settings:SettingsSectionHost SectionKey="vpn" SelectedKey="{Binding SelectedSection.Key}">
+ <settings:VpnSettingsView x:Name="VpnSection"/>
+</settings:SettingsSectionHost>
 <settings:SettingsSectionHost SectionKey="ai-models" SelectedKey="{Binding SelectedSection.Key}">
  <ai:AiModelSettingsView x:Name="AiModelSection" DataContext="{Binding AiModels}"/>
 </settings:SettingsSectionHost>

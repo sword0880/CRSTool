@@ -39,7 +39,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 9)
+            else if (application != ApplicationId || version is < 1 or > 11)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -49,6 +49,8 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 7) InitializeGoogleAlerts();
             if (version < 8) InitializeRssProxy();
             if (version < 9) InitializePostBodies();
+            if (version < 10) InitializeFullTextFeeds();
+            if (version < 11) InitializeGoogleConnection();
         }
         catch
         {
@@ -90,13 +92,15 @@ internal sealed partial class WatchStore : IDisposable
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
             "alert-subscription" => new() { Alert = ReadGoogleAlert(RequireAuthor(request.Filter?.Account)) },
+            "alert-account" => new() { ConnectedGoogleAccount = ReadGoogleConnection() },
             "rss-proxy" => new() { RssProxy = ReadRssProxy() },
             "post-body-info" => new() { Body = ReadPostBodyInfo(request.Body) },
             "post-body-read" => ReadPostBodyChunk(request.Body),
             "post-body-begin" => BeginPostBody(request.Body),
             "post-body-append" => AppendPostBody(request.Body),
             "post-body-cancel" => CancelPostBody(request.Body),
-            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "rss-proxy-save" or "post-body-commit" =>
+            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "alert-account-save"
+                or "rss-proxy-save" or "post-body-commit" =>
                 Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
@@ -119,6 +123,7 @@ internal sealed partial class WatchStore : IDisposable
             case "opinion-save": SaveOpinion(request.Opinion, transaction); break;
             case "alert-sync-begin": BeginGoogleAlert(request.Alert, transaction); break;
             case "alert-sync-complete": CompleteGoogleAlert(request.Alert, transaction); break;
+            case "alert-account-save": SaveGoogleConnection(request.ConnectedGoogleAccount, transaction); break;
             case "rss-proxy-save": SaveRssProxy(request.RssProxy, transaction); break;
             case "post-body-commit": CommitPostBody(request.Body, transaction); break;
         }
@@ -143,13 +148,18 @@ internal sealed partial class WatchStore : IDisposable
         var name = WatchInput.Text(input.Name, 40, true);
         var note = WatchInput.Text(input.Note, 80);
         var feedUrl = string.IsNullOrWhiteSpace(input.FeedUrl) ? string.Empty : FeedAddress.Normalize(input.FeedUrl);
+        var fullTextUrl = string.IsNullOrWhiteSpace(input.FullTextFeedUrl) ? "" : FeedAddress.Normalize(input.FullTextFeedUrl);
+        if (fullTextUrl.Length > 0 && (WatchInput.IsGoogleAlertsFeed(new Uri(fullTextUrl)) || fullTextUrl == feedUrl))
+            throw new ArgumentException("全文来源需要独立的获授权 Feed 地址。");
         var saved = new Author(account, name, note, input.Active && !input.Archived,
-            input.Archived, input.Revision + 1, feedUrl);
+            input.Archived, input.Revision + 1, feedUrl, FullTextFeedUrl: fullTextUrl);
         var alert = ReadStoredGoogleAlert(account, transaction);
         if (alert?.ControlsFeed == true && saved.FeedUrl != old?.FeedUrl)
             throw new ArgumentException("此 RSS 地址由订阅同步管理，请刷新观察名单。");
         if (saved.Archived && alert?.ControlsFeed != true) saved = saved with { FeedUrl = "" };
         WriteAuthor(saved, old?.FeedUrl ?? "", transaction);
+        if (!string.Equals(old?.FullTextFeedUrl ?? "", saved.FullTextFeedUrl, StringComparison.Ordinal))
+            Execute("DELETE FROM full_text_coverage WHERE account=$account", transaction, ("$account", account));
         ReconcileGoogleAlert(saved, alert, transaction);
     }
 

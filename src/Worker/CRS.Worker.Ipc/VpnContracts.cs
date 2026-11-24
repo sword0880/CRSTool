@@ -1,0 +1,57 @@
+using System.Net;
+using System.Text.Json;
+
+namespace CRS.Worker.Ipc;
+
+public sealed record VpnSettingsStatus(bool Configured, bool EngineAvailable, string[] Nodes);
+
+public sealed class VpnProxyAccess
+{
+    public required int Port { get; init; }
+    public required string Password { get; init; }
+
+    public IWebProxy ToProxy()
+    {
+        if (Port is < 1024 or > 65535 || Password.Length != 48 || !Password.All(Uri.IsHexDigit))
+            throw new InvalidDataException("VPN 连接信息无效。");
+        return new WebProxy(new Uri($"http://127.0.0.1:{Port}"))
+        {
+            Credentials = new NetworkCredential("crs", Password)
+        };
+    }
+}
+
+public static class WorkerVpnClient
+{
+    public static async Task<VpnSettingsStatus> ReadAsync(BackgroundPipeClient client, CancellationToken token) =>
+        Read<VpnSettingsStatus>(await client.QueryAsync(WorkerProtocol.GetVpnSettings, token));
+
+    public static async Task<VpnSettingsStatus> SaveAsync(BackgroundPipeClient client, string address, CancellationToken token) =>
+        Read<VpnSettingsStatus>(await SendAsync(client, WorkerProtocol.SaveVpnSettings, address, token));
+
+    public static async Task<VpnSettingsStatus> RefreshAsync(BackgroundPipeClient client, CancellationToken token) =>
+        Read<VpnSettingsStatus>(await client.QueryAsync(WorkerProtocol.RefreshVpnNodes, token));
+
+    public static async Task<IWebProxy> OpenAsync(BackgroundPipeClient client, string node, CancellationToken token) =>
+        Read<VpnProxyAccess>(await SendAsync(client, WorkerProtocol.OpenVpnRoute, node, token)).ToProxy();
+
+    private static Task<BackgroundResponse> SendAsync(BackgroundPipeClient client, string command, string payload, CancellationToken token) =>
+        client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(), command, Payload: payload), token);
+
+    private static T Read<T>(BackgroundResponse response)
+    {
+        if (response.Code == "Ok" && response.Payload is { } value && JsonSerializer.Deserialize<T>(value) is { } result)
+            return result;
+        throw new InvalidOperationException(response.Code switch
+        {
+            "Forbidden" => "当前 Windows 用户没有权限管理或使用此 VPN 订阅。",
+            "VpnNotConfigured" => "请先在系统设置中保存 VPN 订阅。",
+            "VpnEngineMissing" => "后台服务未安装 Mihomo。",
+            "VpnNodeUnavailable" => "所选 VPN 节点已不可用，请刷新节点并重新选择。",
+            "InvalidVpnSubscription" => "请输入完整的 HTTPS 订阅地址。",
+            "VpnCapacity" => "VPN 节点连接数已达上限，请稍后重试。",
+            "UnknownCommand" => "当前后台服务版本尚未支持 VPN 设置。",
+            _ => "未能连接 VPN 或读取节点，请检查订阅和后台服务。"
+        });
+    }
+}

@@ -18,8 +18,8 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> uploads = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> gatewayQueries = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", WorkerProtocol.GetPluginPlanOptions, "GetDiagnosticJobs", "GetHistoryJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks",CRS.Maintenance.DataCleanupTask.HistoryCommand,WorkerProtocol.GetAnnualExchangeRates,WorkerProtocol.GetWorkerLogSettings];
-    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", WorkerProtocol.AddPluginPlan, "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument","PauseAutoCleanup","SubmitDataCleanupTask","AcknowledgeDataCleanupTask",WorkerProtocol.SaveWorkerLogSettings,WorkerProtocol.PrivatePluginData];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", WorkerProtocol.GetPluginPlanOptions, "GetDiagnosticJobs", "GetHistoryJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks",CRS.Maintenance.DataCleanupTask.HistoryCommand,WorkerProtocol.GetAnnualExchangeRates,WorkerProtocol.GetWorkerLogSettings,WorkerProtocol.GetVpnSettings,WorkerProtocol.RefreshVpnNodes,WorkerProtocol.OpenVpnRoute];
+    private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", WorkerProtocol.AddPluginPlan, "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument","PauseAutoCleanup","SubmitDataCleanupTask","AcknowledgeDataCleanupTask",WorkerProtocol.SaveWorkerLogSettings,WorkerProtocol.PrivatePluginData,WorkerProtocol.SaveVpnSettings];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public Task RunAsync(CancellationToken token) =>
         RunAsync(token, enableAiGateway: string.Equals(pipeName, DefaultPipeName, StringComparison.OrdinalIgnoreCase));
@@ -154,6 +154,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private string? Validate(BackgroundRequest request, BackgroundCaller caller, bool management)
     {
         if (request.ProtocolVersion != WorkerProtocol.Version) return "ProtocolMismatch";
+        if (request.VpnNode is { } node && (node.Length > 256 || request.Command is not ("ChangeSchedule" or WorkerProtocol.AddPluginPlan))) return "InvalidRequest";
         if (request.RequestId == Guid.Empty || request.Command is null || request.Command.Length > 40) return "InvalidRequest";
         if (!Reads.Contains(request.Command) && !Writes.Contains(request.Command)&&request.Command is not ("GetPluginDocument" or "ListPluginDocuments")) return "UnknownCommand";
         // 邮件设置单独有界；业务插件参数仍保持原4096字符上限。

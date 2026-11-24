@@ -8,7 +8,8 @@ public enum Stance { Pending, Bullish, Bearish, Neutral }
 public enum Attribution { Author, Mention, Repost }
 
 public sealed record Author(string Account, string Name, string Note = "", bool Active = true,
-    bool Archived = false, long Revision = 0, string FeedUrl = "", GoogleAlertState AlertState = GoogleAlertState.None);
+    bool Archived = false, long Revision = 0, string FeedUrl = "", GoogleAlertState AlertState = GoogleAlertState.None,
+    string FullTextFeedUrl = "");
 
 public sealed record Security(string Market, string Code, string Name, string Industry)
 {
@@ -30,7 +31,7 @@ public sealed record WatchOverview(StockSummary[] Stocks, string[] Industries, i
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
     Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null,
-    PostBodyRequest? Body = null);
+    PostBodyRequest? Body = null, string? ConnectedGoogleAccount = null);
 
 public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? Detail = null,
     Author[]? Authors = null, Security[]? Securities = null, string? Error = null)
@@ -45,13 +46,16 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
     public PostBodyInfo? Body { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? BodyBytes { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ConnectedGoogleAccount { get; init; }
 }
 
 public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",
     string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null,
-    string FeedItemId = "", long PostBodyRevision = 0);
+    string FeedItemId = "", long PostBodyRevision = 0, PostBodySource BodySource = PostBodySource.Manual);
 public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
-    string? ETag = null, DateTimeOffset? LastModified = null);
+    string? ETag = null, DateTimeOffset? LastModified = null, string? FullTextState = null,
+    int? FullTextCount = null);
 public sealed record LeadPage(bool Configured, Author[] Authors, FeedCoverage[] Coverage, PostLead[] Rows, int Total,
     int ConfiguredFeeds = 0, int UnconfiguredFeeds = 0);
 

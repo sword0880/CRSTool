@@ -253,7 +253,7 @@ internal sealed partial class WatchStore
         var total = Convert.ToInt32(Scalar("SELECT count(*) FROM post_leads p " + condition, null, ("$a", filter.Account!)));
         var query = """
             SELECT p.account,p.url,p.first_seen,p.title,p.summary,p.content,COALESCE(b.published,p.published),
-                p.feed_author,p.feed_item_id,COALESCE(b.revision,0)
+                p.feed_author,p.feed_item_id,COALESCE(b.revision,0),COALESCE(b.origin,0)
             FROM post_leads p
             LEFT JOIN post_bodies b ON b.account=p.account AND b.url=p.url AND b.revision=(
                 SELECT MAX(latest.revision) FROM post_bodies latest WHERE latest.account=p.account AND latest.url=p.url
@@ -269,17 +269,25 @@ internal sealed partial class WatchStore
             DateTimeOffset? published = rows.IsDBNull(6) ? null : BeijingTime(rows.GetInt64(6));
             items.Add(new(rows.GetString(0), rows.GetString(1), BeijingTime(rows.GetInt64(2)),
                 rows.GetString(3), rows.GetString(4), rows.GetString(5), published,
-                rows.IsDBNull(7) ? null : rows.GetString(7), rows.GetString(8), rows.GetInt64(9)));
+                rows.IsDBNull(7) ? null : rows.GetString(7), rows.GetString(8), rows.GetInt64(9),
+                (PostBodySource)rows.GetInt32(10)));
         }
         rows.Close();
 
         var active = authors.Where(author => author.Active && !author.Archived).ToArray();
         var configured = active.Count(author => !string.IsNullOrWhiteSpace(author.FeedUrl));
         var unconfigured = active.Length - configured;
-        var coverageRows = authors.Select(author => coverage.GetValueOrDefault(author.Account) ??
-            new FeedCoverage(author.Account,
+        var fullTextCoverage = ReadFullTextCoverage();
+        var coverageRows = authors.Select(author =>
+        {
+            var row = coverage.GetValueOrDefault(author.Account) ?? new FeedCoverage(author.Account,
                 author.Active && !author.Archived && string.IsNullOrWhiteSpace(author.FeedUrl)
-                    ? "NotConfigured" : "NeverChecked", null, null)).ToArray();
+                    ? "NotConfigured" : "NeverChecked", null, null);
+            if (author.FullTextFeedUrl.Length == 0) return row;
+            return fullTextCoverage.TryGetValue(author.Account, out var fullText)
+                ? row with { FullTextState = fullText.State, FullTextCount = fullText.Added }
+                : row with { FullTextState = "NeverChecked" };
+        }).ToArray();
         return new(configured > 0, authors, coverageRows, items.ToArray(), total, configured, unconfigured);
     }
 

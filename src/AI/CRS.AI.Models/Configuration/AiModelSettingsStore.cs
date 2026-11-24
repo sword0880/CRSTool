@@ -13,7 +13,7 @@ internal sealed class AiModelSettingsStore(string? localDataRoot)
 
     public AiModelSettings Load() => ToSettings(Read());
 
-    public AiModelSettings Save(string provider, string model, string? newKey, CancellationToken token)
+    public AiModelSettings Save(string provider, string model, string? newKey, CancellationToken token, string? vpnNode = null)
     {
         AiModelSettings.ValidateSelection(provider, model);
         if (newKey is not null) AiModelSettings.ValidateKey(newKey);
@@ -21,7 +21,7 @@ internal sealed class AiModelSettingsStore(string? localDataRoot)
         {
             var key = newKey is null ? current.Profiles.GetValueOrDefault(provider)?.ProtectedKey : Protect(provider, newKey);
             if (string.IsNullOrEmpty(key)) throw new AiModelException("ApiKeyMissing");
-            current.Profiles[provider] = new(model, key);
+            current.Profiles[provider] = new(model, key, vpnNode ?? current.Profiles.GetValueOrDefault(provider)?.VpnNode);
             return current with { DefaultProvider = provider };
         }, token);
     }
@@ -38,14 +38,16 @@ internal sealed class AiModelSettingsStore(string? localDataRoot)
         return profile is null ? throw new AiModelException("ApiKeyMissing") : Unprotect(provider, profile.ProtectedKey);
     }
 
-    public (string Provider, string Model, string Key) ReadDefault()
+    public string? ReadVpnNode(string provider) => Read().Profiles.GetValueOrDefault(provider)?.VpnNode;
+
+    public (string Provider, string Model, string Key, string? VpnNode) ReadDefault()
     {
         // 一次读取确定供应商、模型及密钥，避免并发切换时混用凭证。
         var current = Read();
         if (current.DefaultProvider is not { } provider || !current.Profiles.TryGetValue(provider, out var profile))
             throw new AiModelException("DefaultModelMissing");
         AiModelSettings.ValidateSelection(provider, profile.Model);
-        return (provider, profile.Model, Unprotect(provider, profile.ProtectedKey));
+        return (provider, profile.Model, Unprotect(provider, profile.ProtectedKey), profile.VpnNode);
     }
 
     private AiModelSettings Update(Func<StoredSettings, StoredSettings> update, CancellationToken token)
@@ -92,7 +94,7 @@ internal sealed class AiModelSettingsStore(string? localDataRoot)
 
     private static AiModelSettings ToSettings(StoredSettings current) =>
         new(current.DefaultProvider, current.Profiles.ToDictionary(
-            item => item.Key, item => new AiProviderSetting(item.Value.Model, true), StringComparer.Ordinal));
+            item => item.Key, item => new AiProviderSetting(item.Value.Model, true) { VpnNode = item.Value.VpnNode }, StringComparer.Ordinal));
 
     private static string Protect(string provider, string key)
     {
@@ -127,5 +129,5 @@ internal sealed class AiModelSettingsStore(string? localDataRoot)
     private static byte[] Entropy(string provider) => Encoding.UTF8.GetBytes("CRS.AI.ModelKey.v1:" + provider);
 
     private sealed record StoredSettings(string? DefaultProvider, Dictionary<string, StoredProfile> Profiles);
-    private sealed record StoredProfile(string Model, string ProtectedKey);
+    private sealed record StoredProfile(string Model, string ProtectedKey, string? VpnNode = null);
 }

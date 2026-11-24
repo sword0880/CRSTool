@@ -14,6 +14,8 @@ public partial class ScheduleEditViewModel : ObservableObject
     public string WindowTitle => IsNewPlan ? "添加计划" : "任务详情";
     public string EditHint => IsNewPlan ? "选择启用状态，点击“保存计划”后生效。" : "启用或禁用立即保存；执行频率的修改需点击“保存计划”。";
     public string TaskLabel=>plan.Name;
+    public bool SupportsVpn => plan.SupportsVpn;
+    public VpnNodeChoices Vpn { get; } = new();
     public string Identity=>plan.PluginId+" / "+plan.JobId;
     public CancellationToken Lifetime=>parent.Lifetime;
     [ObservableProperty] private string cron;
@@ -58,6 +60,7 @@ public partial class ScheduleEditViewModel : ObservableObject
     public ScheduleEditViewModel(BackgroundServiceViewModel parent,TaskDefinition plan)
     {
         this.parent=parent;this.plan=plan;enabled=plan.Enabled;cron=plan.Cron;timeZoneId=CRS.Timing.BeijingClock.ZoneId;
+        Vpn.Restore(plan.VpnNode);
         if (IsNewPlan) status = "添加计划需要 Windows 管理员权限。";
         if(plan.TimeZoneId is not ("China Standard Time" or "Asia/Shanghai"))status="保存后本计划按北京时间执行；保存前保留已有调度规则。";
         var options=CronEditor.Read(cron);frequency=options.Frequency;interval=options.Interval;hour=options.Hour;minute=options.Minute;second=options.Second;day=options.Day;
@@ -144,9 +147,10 @@ public partial class ScheduleEditViewModel : ObservableObject
         Busy=true;
         try
         {
+            var edited = plan with { VpnNode = SupportsVpn ? Vpn.Node : plan.VpnNode };
             var result = IsNewPlan
-                ? await parent.AddPluginPlanAsync(plan, Cron.Trim(), Enabled)
-                : await parent.SaveScheduleAsync(plan,Cron.Trim(),TimeZoneId.Trim());
+                ? await parent.AddPluginPlanAsync(edited, Cron.Trim(), Enabled)
+                : await parent.SaveScheduleAsync(edited,Cron.Trim(),TimeZoneId.Trim());
             Status=result.Message;
             if(result.Saved)Saved?.Invoke();
             else if (IsNewPlan && parent.UncertainRequest is not null)

@@ -43,7 +43,16 @@ public partial class WatchPage : UserControl
     {
         if (loaded) return;
         loaded = true;
-        await RunAsync(RefreshAsync);
+        await RunAsync(async () =>
+        {
+            await RefreshAsync();
+            var sync = await GoogleAlertsDesktopSync.RunAsync(client, lifetime);
+            if (sync is not null)
+            {
+                await RefreshAsync();
+                Status.Text = $"{sync} {Status.Text}";
+            }
+        });
     }
 
     private async void ShowLeads(object sender, RoutedEventArgs e)

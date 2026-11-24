@@ -14,6 +14,7 @@ internal sealed class AuthorEditor : WatchEditor
     private readonly TextBox name = new() { MaxLength = 40 };
     private readonly TextBox note = new() { MaxLength = 80 };
     private readonly TextBox feedUrl = new() { MaxLength = 1024 };
+    private readonly TextBox fullTextFeed = new() { MaxLength = 1024 };
     private readonly CheckBox active = new() { Content = "启用跟踪", IsChecked = true, Margin = new(0, 8, 0, 3) };
     private readonly TextBlock subscription = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 4) };
     private Author? selected;
@@ -29,6 +30,8 @@ internal sealed class AuthorEditor : WatchEditor
         Field("显示名称", name);
         Field("备注", note);
         Field("Google Alerts RSS 地址", feedUrl);
+        Field("获授权的全文 Feed 地址（选填）", fullTextFeed);
+        fullTextFeed.ToolTip = "接受提供原帖链接、发布时间及完整纯文本的 JSON Feed 或 Atom。";
         Fields.Children.Add(new TextBlock
         {
             Text = "可使用已有 RSS 地址。手动订阅时，复制作者的搜索条件，在 Google Alerts 创建提醒并选择 RSS 投递，再粘贴生成的地址。",
@@ -45,7 +48,9 @@ internal sealed class AuthorEditor : WatchEditor
         Finish(
             AsyncAction("打开 Google Alerts", OpenGoogleAlertsAsync),
             AsyncAction("复制搜索条件", CopySearchQueryAsync),
-            AsyncAction("RSS 代理", OpenRssProxyAsync),
+            AsyncAction("连接 Google 快讯", ConnectGoogleAlertsAsync),
+            AsyncAction("同步 Google 快讯", SyncGoogleAlertsAsync),
+            AsyncAction("停止网页同步", DisconnectGoogleAlertsAsync),
             AsyncAction("刷新", () => WithFeedbackAsync(async () => await RefreshAsync(null), lifetime)),
             remove,
             AsyncAction("保存", () => SaveAsync(false)),
@@ -71,13 +76,14 @@ internal sealed class AuthorEditor : WatchEditor
         name.Text = author?.Name ?? "";
         note.Text = author?.Note ?? "";
         feedUrl.Text = author?.FeedUrl ?? "";
+        fullTextFeed.Text = author?.FullTextFeedUrl ?? "";
         feedUrl.IsReadOnly = author?.AlertState is GoogleAlertState.Creating or GoogleAlertState.Managed or
             GoogleAlertState.PendingDelete or GoogleAlertState.Deleting;
         active.IsChecked = author is null || author.Archived || author.Active;
         remove.IsEnabled = author is { Archived: false };
         subscription.Text = author?.AlertState switch
         {
-            GoogleAlertState.PendingCreate => "等待创建提醒。Google 网页自动同步尚未接入，可先配置已有 RSS。",
+            GoogleAlertState.PendingCreate => "等待创建提醒。连接 Google 快讯后自动同步，也可绑定已有 RSS。",
             GoogleAlertState.Creating => "等待核对 Google Alerts 创建结果。",
             GoogleAlertState.Managed => "已绑定 CRS 托管提醒。",
             GoogleAlertState.External => "已绑定外部 RSS。移除作者只停止本地采集。",
@@ -107,11 +113,27 @@ internal sealed class AuthorEditor : WatchEditor
         return Task.CompletedTask;
     }, lifetime);
 
-    private Task OpenRssProxyAsync() => WithFeedbackAsync(async () =>
+    private Task ConnectGoogleAlertsAsync() => WithFeedbackAsync(async () =>
     {
-        var settings = await client.AskAsync(new("rss-proxy"), lifetime);
-        var address = new TextBox { Text = settings.RssProxy ?? "", MaxLength = 200 };
-        new RssProxyEditor(this, address, client, lifetime).ShowDialog();
+        var selection = selected?.Account;
+        subscription.Text = "请在打开的专用 Chrome 中登录。连接后将同步观察名单中的待处理提醒。";
+        var result = await GoogleAlertsDesktopSync.RunAsync(client, lifetime, connect: true);
+        await RefreshAsync(selection);
+        subscription.Text = result ?? "";
+    }, lifetime);
+
+    private Task SyncGoogleAlertsAsync() => WithFeedbackAsync(async () =>
+    {
+        var selection = selected?.Account;
+        var result = await GoogleAlertsDesktopSync.RunAsync(client, lifetime);
+        await RefreshAsync(selection);
+        subscription.Text = result ?? "没有待同步提醒，或尚未连接 Google 快讯。";
+    }, lifetime);
+
+    private Task DisconnectGoogleAlertsAsync() => WithFeedbackAsync(async () =>
+    {
+        await client.SaveAsync(new("alert-account-save", ConnectedGoogleAccount: ""), lifetime);
+        subscription.Text = "已停止网页同步。现有 RSS 继续采集。";
     }, lifetime);
 
     private Task SaveAsync(bool archive) => WithFeedbackAsync(async () =>
@@ -120,35 +142,17 @@ internal sealed class AuthorEditor : WatchEditor
         var draft = archive && selected is not null
             ? selected with { Archived = true, Active = false }
             : new Author(id, WatchInput.Text(name.Text, 40, true), note.Text, active.IsChecked == true,
-                Revision: selected?.Revision ?? 0, FeedUrl: feedUrl.Text.Trim());
+                Revision: selected?.Revision ?? 0, FeedUrl: feedUrl.Text.Trim(),
+                FullTextFeedUrl: fullTextFeed.Text.Trim());
         await client.SaveAsync(new("author-save", Author: draft), lifetime);
-        await RefreshAsync(id);
+        string? result;
+        try { result = await GoogleAlertsDesktopSync.RunAsync(client, lifetime, id); }
+        finally { await RefreshAsync(id); }
+        if (result is not null) subscription.Text = result;
         if (string.IsNullOrEmpty(subscription.Text))
             subscription.Text = archive ? "已移除作者，历史记录仍可查询。" : "作者已保存。";
     }, lifetime);
 
     private sealed record AuthorChoice(string Label, Author? Author);
 
-    private sealed class RssProxyEditor : WatchEditor
-    {
-        internal RssProxyEditor(Window owner, TextBox address, WorkerWatchClient client, CancellationToken token)
-            : base(owner, "Google Alerts RSS 代理", 520)
-        {
-            Field("Mihomo 本机 HTTP / Mixed 地址", address);
-            Fields.Children.Add(new TextBlock
-            {
-                Text = "例如 http://127.0.0.1:7890。仅用于 Worker 读取 Google Alerts RSS，下次采集生效。清空地址可恢复默认网络。",
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new(0, 6, 0, 6)
-            });
-            Finish(
-                AsyncAction("保存", () => WithFeedbackAsync(async () =>
-                {
-                    var proxy = WatchInput.NormalizeRssProxy(address.Text);
-                    await client.SaveAsync(new("rss-proxy-save", RssProxy: proxy), token);
-                    CloseAfterSave();
-                }, token)),
-                Action("取消", Close));
-        }
-    }
 }

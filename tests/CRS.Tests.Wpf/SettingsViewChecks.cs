@@ -73,6 +73,7 @@ internal static class SettingsViewChecks
                             "cleanup"=>"CleanupSection",
                             "security"=>"SecuritySection",
                             "documents"=>"DocumentsSection",
+                            "vpn"=>"VpnSection",
                             "ai-models"=>"AiModelSection",
                             "notifications"=>"NotificationsSection",
                             "dingtalk"=>"DingTalkSection",
@@ -83,7 +84,7 @@ internal static class SettingsViewChecks
                         if(window.FindName(viewName) is not FrameworkElement panel || !panel.IsVisible)
                             throw new Exception("设置子视图未随目录显示："+section.Key);
                         // SettingsSectionHost 只折叠非当前分类，子控件必须保留同一实例与草稿。
-                        foreach(var other in new[]{"StorageSection","CleanupSection","SecuritySection","DocumentsSection","AiModelSection","NotificationsSection","DingTalkSection","WeChatSection","LoggingSection"})
+                        foreach(var other in new[]{"StorageSection","CleanupSection","SecuritySection","DocumentsSection","VpnSection","AiModelSection","NotificationsSection","DingTalkSection","WeChatSection","LoggingSection"})
                             if(other!=viewName && window.FindName(other) is FrameworkElement hidden && hidden.IsVisible)
                                 throw new Exception("非当前设置分类仍显示："+other);
                         Capture(window,Path.Combine(directory,section.Key+".png"));
@@ -97,7 +98,12 @@ internal static class SettingsViewChecks
                     model.SectionSearch="";model.SelectedSection=model.Sections[0];
                     if(model.DatabaseDirectory!="D:\\draft-data")throw new Exception("切换分类丢失未保存输入。");
                     if(model.DocumentPassword!="synthetic-document-only"||documentPassword.Password!=model.DocumentPassword)throw new Exception("切换分类意外清空密码草稿。");
-                    if(model.NavigationGroups.Count!=5||model.NavigationGroups.Single(x=>x.Title=="安全").Children.Count!=2)throw new Exception("清空搜索后未恢复分层目录。");
+                    if(model.NavigationGroups.Count!=6||model.NavigationGroups.Single(x=>x.Title=="安全").Children.Count!=2)throw new Exception("清空搜索后未恢复分层目录。");
+                    model.SectionSearch="Mihomo";
+                    if(model.SelectedSection?.Key!="vpn"||model.VisibleSections.Count!=1)throw new Exception("Mihomo 搜索未定位统一 VPN 订阅设置。");
+                    var vpn=(VpnSettingsView)window.FindName("VpnSection");
+                    var vpnAddress=(PasswordBox)vpn.FindName("SubscriptionInput");
+                    vpnAddress.Password="synthetic-vpn-draft";
                     await VerifyAiModelsAsync(window, model, directory);
                     if (cleanupAudit is null) await VerifyAiAssistantAsync(directory);
                     model.SelectedSection=model.Sections[0];
@@ -123,7 +129,7 @@ internal static class SettingsViewChecks
                     if(model.SelectedSection?.Key!="wechat"||model.VisibleSections.Count!=1)throw new Exception("微信搜索没有定位个人微信分类。");
                     model.State.IsBusy=true;
                     window.AbortForLock();
-                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||securityPassword.Password.Length!=0||securityCode.Password.Length!=0||documentPassword.Password.Length!=0||documentConfirmation.Password.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0||aiKey.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
+                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||securityPassword.Password.Length!=0||securityCode.Password.Length!=0||documentPassword.Password.Length!=0||documentConfirmation.Password.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0||aiKey.Password.Length!=0||vpnAddress.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
                 }
                 catch(Exception error){failure=error;}
                 finally{window.Close();}
@@ -150,6 +156,8 @@ internal static class SettingsViewChecks
         var provider = (ComboBox)view.FindName("ProviderInput");
         var models = (ComboBox)view.FindName("ModelInput");
         var key = (PasswordBox)view.FindName("ApiKeyInput");
+        var vpn = (ComboBox)view.FindName("AiVpnNodeInput");
+        if (vpn.SelectedItem is not VpnNodeChoices.Choice { Node: "" }) throw new Exception("AI 默认线路应为直连。");
         // 两家新增供应商应出现在同一选择器，并同步自己的模型列表。
         foreach (var (id, firstModel) in new[] { ("mimo", "mimo-v2.6-flash"), ("anthropic", "claude-haiku-5-5") })
         {

@@ -13,6 +13,10 @@ public partial class ScheduleEditWindow : FluentWindow
         var registration=model.Lifetime.Register(()=>Dispatcher.BeginInvoke(new Action(()=>{if(IsLoaded)Close();})));
         Closed+=(_,_)=>{registration.Dispose();model.Saved-=CloseSaved;};
         Loaded+=(_,_)=>{if(model.Lifetime.IsCancellationRequested)Close();else{CronEditor.Focus();CronEditor.SelectAll();}};
+        Loaded += async (_, _) =>
+        {
+            if (model.SupportsVpn) await model.Vpn.LoadAsync(false, model.Lifetime);
+        };
     }
     private void OnCancel(object sender,RoutedEventArgs e)=>Close();
 }

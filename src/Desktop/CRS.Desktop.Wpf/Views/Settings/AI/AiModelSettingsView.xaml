@@ -15,6 +15,14 @@
   <TextBlock Text="模型" Style="{StaticResource InputLabel}"/>
   <ComboBox x:Name="ModelInput" AutomationProperties.Name="模型" ItemsSource="{Binding Models}"
             SelectedItem="{Binding SelectedModel}"/>
+  <StackPanel DataContext="{Binding Vpn}">
+   <TextBlock Text="VPN 节点" Style="{StaticResource InputLabel}"/>
+   <DockPanel>
+    <ui:Button DockPanel.Dock="Right" Content="刷新节点" Command="{Binding RefreshCommand}" Margin="8,0,0,0"/>
+    <ComboBox x:Name="AiVpnNodeInput" ItemsSource="{Binding Options}" DisplayMemberPath="Label" SelectedItem="{Binding Selected}" AutomationProperties.Name="VPN 节点"/>
+   </DockPanel>
+   <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+  </StackPanel>
   <TextBlock Text="API Key" Style="{StaticResource InputLabel}"/>
   <PasswordBox x:Name="ApiKeyInput" AutomationProperties.Name="API Key" MaxLength="4096"/>
   <TextBlock Text="{Binding KeyStatus}" Foreground="{DynamicResource BrandTextHintBrush}" Margin="0,6,0,0"/>

@@ -121,7 +121,7 @@ internal sealed class LeadWindow : WatchEditor
     private static string CoverageText(Author author, FeedCoverage item)
     {
         if (!author.Active || author.Archived) return "已暂停";
-        return item.State switch
+        var discovery = item.State switch
         {
             "NotConfigured" => "未配置 RSS 源",
             "Read" when item.Matches is > 0 => $"RSS 命中 {item.Matches} 条 · 待核验",
@@ -137,6 +137,16 @@ internal sealed class LeadWindow : WatchEditor
             "FeedUnavailable" => "Feed 暂不可用",
             _ => "尚未检查"
         };
+        var fullText = item.FullTextState switch
+        {
+            null => "",
+            "Read" => $" · 自动补全 {item.FullTextCount ?? 0} 条",
+            "NeverChecked" => " · 全文源尚未检查",
+            "RateLimited" => " · 全文源限流",
+            "NotModified" => " · 全文源未变化",
+            _ => " · 全文源读取失败"
+        };
+        return discovery + fullText;
     }
 
     private Task OpenLeadAsync() => WithFeedbackAsync(() =>
@@ -189,7 +199,7 @@ internal sealed class LeadWindow : WatchEditor
             ? (Lead.PostBodyRevision == 0 ? "RSS · " : "") + time.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
             : "待核对";
         public string Title => Lead.Title;
-        public string RssContent => Lead.PostBodyRevision > 0 ? "全文 · 手工补录" :
+        public string RssContent => Lead.PostBodyRevision > 0 ? $"全文 · {PostBody.SourceLabel(Lead.BodySource)}" :
             Lead.Summary.Length > 0 ? $"片段 · {Lead.Summary}" :
             Lead.Content.Length > 0 ? $"片段 · {Lead.Content}" : "仅链接";
         public string Url => Lead.Url;

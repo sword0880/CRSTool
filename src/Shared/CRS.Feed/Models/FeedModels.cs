@@ -17,7 +17,7 @@ public sealed record FeedDocument(
 /// <summary>标准化后的单篇文章。正文可能包含不可信 HTML，展示前必须由调用方清理。</summary>
 public sealed record FeedItem(
     string Id, string Title, Uri? Url, string? Summary, string? Content, string? Author,
-    DateTimeOffset? PublishedAt, DateTimeOffset? UpdatedAt, string[] Categories);
+    DateTimeOffset? PublishedAt, DateTimeOffset? UpdatedAt, string[] Categories, string? PlainTextContent = null);
 
 /// <summary>单次 Feed 抓取结果，不暴露原始异常或响应正文。</summary>
 public sealed record FeedFetchResult(
@@ -34,6 +34,8 @@ public sealed record FeedClientOptions
     public bool AllowHttp { get; init; }
     public string UserAgent { get; init; } = "CRSTool/1.0";
     public Uri? ProxyAddress { get; init; }
+    public System.Net.IWebProxy? Proxy { get; init; }
+    public bool UseSystemProxy { get; init; } = true;
 
     internal void Validate()
     {
@@ -47,6 +49,8 @@ public sealed record FeedClientOptions
             throw new ArgumentOutOfRangeException(nameof(Timeout));
         if (string.IsNullOrWhiteSpace(UserAgent) || UserAgent.Length > 120)
             throw new ArgumentException("Feed User-Agent 配置无效。", nameof(UserAgent));
+        if (Proxy is not null && ProxyAddress is not null)
+            throw new ArgumentException("只可指定一个 Feed 代理。", nameof(Proxy));
         if (ProxyAddress is { } proxy && (!proxy.IsAbsoluteUri || proxy.Scheme is not ("http" or "https") ||
             proxy.UserInfo.Length != 0 || proxy.PathAndQuery != "/" || proxy.Fragment.Length != 0 || proxy.Port < 1))
             throw new ArgumentException("请输入有效的 HTTP 代理地址。", nameof(ProxyAddress));

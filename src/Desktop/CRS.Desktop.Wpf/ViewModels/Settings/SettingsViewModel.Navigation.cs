@@ -32,6 +32,7 @@ public partial class SettingsViewModel
         new("cleanup","数据管理","运行资料清理","查看后台资料用途，清理过期日志和旧升级副本。","清理 缓存 垃圾 空间 ProgramData 维护 快照 备份"),
         new("security","安全","登录与验证","管理当前保险库的登录验证方式。","安全 手机 Windows Hello PIN 指纹 人脸 主密码 验证码"),
         new("documents","安全","文档加密","统一管理文档导出与解密所用的密码。","文档 导出 密码 解密"),
+        new("vpn","网络","VPN","管理 Worker 任务和 AI 模型共用的 VPN 订阅。","VPN Mihomo 代理 订阅 节点 网络"),
         // AI 模型使用独立保存流程，并可按供应商名直接检索。
         new("ai-models","AI","AI 模型","配置公开 ETF 研究助手的默认模型。","模型 人工智能 供应商 DeepSeek OpenAI 小米 MiMo Claude Anthropic API Key"),
         new("notifications","通知渠道","邮件","配置后台通知使用的邮件发送渠道。","邮件 SMTP 授权码 密码 收件 发件 通知 端口 TLS STARTTLS SSL 服务器"),

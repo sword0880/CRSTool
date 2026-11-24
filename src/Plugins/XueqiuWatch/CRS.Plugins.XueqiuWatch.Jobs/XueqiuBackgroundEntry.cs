@@ -9,18 +9,19 @@ namespace CRS.Plugins.XueqiuWatch.Jobs;
 public sealed partial class XueqiuBackgroundEntry : IContextualBackgroundPluginEntry
 {
     public IBackgroundPluginSession CreateSession() => throw new InvalidOperationException("观点追踪需要独立存储上下文。");
-    public IBackgroundPluginSession CreateSession(IBackgroundHostContext context) => new Session(context, new());
+    public IBackgroundPluginSession CreateSession(IBackgroundHostContext context) =>
+        new Session(context, new FeedClient(options: new() { UseSystemProxy = false }));
     internal IBackgroundPluginSession CreateSession(IBackgroundHostContext context, HttpMessageHandler transport) =>
         new Session(context, new FeedClient(transport));
 
-    private sealed partial class Session(IBackgroundHostContext context, FeedClient feed) : IBackgroundPluginSession, IBackgroundPrivateDataSession
+    private sealed partial class Session(IBackgroundHostContext context, FeedClient feed) : IBackgroundPluginSession, IBackgroundPrivateDataSession, IProxyBackgroundSession
     {
         private readonly SemaphoreSlim gate = new(1);
         private WatchStore? store;
 
         public IReadOnlyList<BackgroundJobDescriptor> DescribeJobs() =>
             [new(WatchProtocol.LeadJobId, "发现雪球发言线索", "0 15 9 * * ?", "China Standard Time", false)
-                { RequiresPlanCreation = true }];
+                { RequiresPlanCreation = true, SupportsVpn = true }];
 
         public ValueTask StartAsync(CancellationToken cancellationToken)
         {

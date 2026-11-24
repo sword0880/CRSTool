@@ -5,8 +5,12 @@ public interface IAiModelService
 {
     AiModelSettings LoadSettings();
     Task<AiModelSettings> SaveDefaultAsync(string provider, string model, string? newKey, CancellationToken token);
+    Task<AiModelSettings> SaveDefaultAsync(string provider, string model, string? newKey, string vpnNode, CancellationToken token) =>
+        vpnNode.Length == 0 ? SaveDefaultAsync(provider, model, newKey, token) : throw new AiModelException("VpnUnavailable");
     Task<AiModelSettings> RemoveKeyAsync(string provider, CancellationToken token);
     Task TestModelAsync(string provider, string model, string? newKey, CancellationToken token);
+    Task TestModelAsync(string provider, string model, string? newKey, string vpnNode, CancellationToken token) =>
+        vpnNode.Length == 0 ? TestModelAsync(provider, model, newKey, token) : throw new AiModelException("VpnUnavailable");
     Task TestGatewayAsync(CancellationToken token);
     Task<AiModelAnswer> AskDefaultAsync(string expectedProvider, string expectedModel, string prompt, CancellationToken token);
     Task<AiModelAnswer> AskChatAsync(string expectedProvider, string expectedModel, AiChatRequest request, CancellationToken token);

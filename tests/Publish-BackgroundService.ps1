@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$OutputDirectory,[ValidateSet('Debug','Release')][string]$Configuration='Release',[switch]$HeartbeatOnly,[switch]$MigrateNationalTeamStorage)
+param([Parameter(Mandatory)][string]$OutputDirectory,[ValidateSet('Debug','Release')][string]$Configuration='Release',[switch]$HeartbeatOnly,[switch]$MigrateNationalTeamStorage,[string]$MihomoArchive)
 $ErrorActionPreference='Stop'
 if($HeartbeatOnly -and $MigrateNationalTeamStorage){throw '国家队存储迁移发行必须包含国家队插件。'}
 $repository=Split-Path $PSScriptRoot -Parent
@@ -9,6 +9,27 @@ New-Item -ItemType Directory -Path $output | Out-Null
 & dotnet publish (Join-Path $repository 'src/Worker/CRS.Worker.Service') -c $Configuration --no-self-contained -o $output -p:NuGetAudit=false --no-restore -m:1
 if($LASTEXITCODE -ne 0){throw '服务发布失败。'}
 if(-not(Test-Path -LiteralPath (Join-Path $output 'Runner/CRS.Worker.PluginRunner.exe'))){throw '发行包缺少插件监督进程。'}
+if($MihomoArchive){
+    $archive = Get-Item -LiteralPath $MihomoArchive
+    if($archive.PSIsContainer -or (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash -ne 'CD6738D4648CC1A5F48049A1343B697AB510889D648F045C5C780FC1AB443A79'){
+        throw '此版本需要官方 mihomo-windows-amd64-compatible-v1.19.34.zip，归档校验失败。'
+    }
+    $engine = Join-Path $output 'Mihomo'
+    New-Item -ItemType Directory -Path $engine | Out-Null
+    $zip = [IO.Compression.ZipFile]::OpenRead($archive.FullName)
+    try {
+        $entry = $zip.GetEntry('mihomo-windows-amd64-compatible.exe')
+        if($null -eq $entry){throw '官方 Mihomo 归档缺少 Windows x64 核心。'}
+        [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $engine 'mihomo.exe'))
+    }
+    finally { $zip.Dispose() }
+    @'
+Mihomo v1.19.34 by MetaCubeX contributors, GPL-3.0.
+Source: https://github.com/MetaCubeX/mihomo/tree/v1.19.34
+License: https://github.com/MetaCubeX/mihomo/blob/v1.19.34/LICENSE
+Release: https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.34
+'@ | Set-Content -LiteralPath (Join-Path $engine 'Mihomo-NOTICE.txt') -Encoding utf8
+}
 $package=Join-Path $output 'Plugins/crs.heartbeat/2.0.0'
 & dotnet publish (Join-Path $repository 'src/Plugins/CRS.Plugins.Heartbeat') -c $Configuration --no-self-contained -o $package -p:NuGetAudit=false --no-restore -m:1
 if($LASTEXITCODE -ne 0){throw '心跳插件发布失败。'}

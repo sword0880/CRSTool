@@ -14,6 +14,7 @@ internal static class AiModelMessages
         "ApiPaymentRequired" or "ApiRateLimited" => "请检查供应商的余额、额度或限流状态。",
         "ApiModelUnavailable" or "ApiRequestRejected" => "供应商拒绝此模型请求，请检查模型权限或换一个模型。",
         "ApiTimeout" or "ApiConnectionFailed" or "ApiUnavailable" => "无法连接供应商，请检查网络后重试。",
+        "VpnUnavailable" => "无法连接所选 VPN 节点。请在系统设置检查订阅和节点。",
         "DefaultModelMissing" => "请先在「设置 → AI 模型」配置默认模型。",
         "DefaultModelChanged" => "默认模型已在另一窗口更改。请打开设置确认当前模型后重试。",
         "InvalidModel" => "请选择受支持的供应商和模型。",

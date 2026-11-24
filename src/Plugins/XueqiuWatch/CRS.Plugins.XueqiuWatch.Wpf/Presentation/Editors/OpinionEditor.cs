@@ -92,7 +92,7 @@ internal sealed class OpinionEditor : WatchEditor
             bodyText = Multiline(150, 0);
             bodyText.IsReadOnly = true;
             bodyText.Text = postBody.Text;
-            Field("原帖全文（手工补录）", bodyText);
+            Field($"原帖全文（{PostBody.SourceLabel(postBody.Info.Source)}）", bodyText);
         }
         Field("观点、理由与适用条件", content);
         Field("证据摘录或自有研究笔记（保存上限 700 字符）", evidence);
@@ -132,7 +132,7 @@ internal sealed class OpinionEditor : WatchEditor
             Detect();
             inputStatus.Text += postBody is null
                 ? " 已带入 RSS 片段，请核对原帖。"
-                : " 已加载手工补录的全文，请核对每只股票对应的段落和作者立场。";
+                : " 已加载原帖全文，请核对每只股票对应的段落和作者立场。";
         }
     }
 

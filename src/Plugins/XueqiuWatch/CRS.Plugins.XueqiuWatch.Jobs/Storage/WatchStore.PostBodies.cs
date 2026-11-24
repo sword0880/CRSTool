@@ -41,12 +41,13 @@ internal sealed partial class WatchStore
     private PostBodyInfo? ReadPostBodyInfo(PostKey post, long revision, SqliteTransaction? transaction)
     {
         using var command = Command("""
-            SELECT revision,length(body),sha256,published FROM post_bodies
+            SELECT revision,length(body),sha256,published,origin FROM post_bodies
             WHERE account=$account AND url=$url AND ($revision=0 OR revision=$revision)
             ORDER BY revision DESC LIMIT 1
             """, transaction, ("$account", post.Account), ("$url", post.Url), ("$revision", revision));
         using var row = command.ExecuteReader();
-        return row.Read() ? new(row.GetInt64(0), row.GetInt32(1), row.GetString(2), BeijingTime(row.GetInt64(3))) : null;
+        return row.Read() ? new(row.GetInt64(0), row.GetInt32(1), row.GetString(2),
+            BeijingTime(row.GetInt64(3)), (PostBodySource)row.GetInt32(4)) : null;
     }
 
     private WatchReply ReadPostBodyChunk(PostBodyRequest? request)
@@ -119,17 +120,21 @@ internal sealed partial class WatchStore
         PostBody.Decode(upload.Buffer);
 
         var latest = ReadPostBodyInfo(header.Post, 0, transaction);
-        if (latest is not null && latest.Sha256 == header.Sha256 &&
+        if (latest is { Source: PostBodySource.Manual } && latest.Sha256 == header.Sha256 &&
             latest.PublishedAt.ToUnixTimeSeconds() == header.Published)
             return;
         var revision = latest?.Revision ?? 0;
         if (revision != header.ExpectedRevision) throw new ArgumentException("正文已有更新，请重新打开后保存。");
-        Execute("""
-            INSERT INTO post_bodies(account,url,revision,published,sha256,body)
-            VALUES($account,$url,$revision,$published,$sha256,$body)
-            """, transaction, ("$account", header.Post.Account), ("$url", header.Post.Url),
-            ("$revision", revision + 1), ("$published", header.Published), ("$sha256", header.Sha256), ("$body", upload.Buffer));
+        WritePostBody(header.Post, revision + 1, header.Published, header.Sha256, upload.Buffer,
+            PostBodySource.Manual, transaction);
     }
+
+    private void WritePostBody(PostKey post, long revision, long published, string hash, byte[] body,
+        PostBodySource origin, SqliteTransaction transaction) => Execute("""
+            INSERT INTO post_bodies(account,url,revision,published,sha256,body,origin)
+            VALUES($account,$url,$revision,$published,$sha256,$body,$origin)
+            """, transaction, ("$account", post.Account), ("$url", post.Url), ("$revision", revision),
+            ("$published", published), ("$sha256", hash), ("$body", body), ("$origin", (int)origin));
 
     private WatchReply CancelPostBody(PostBodyRequest? request)
     {

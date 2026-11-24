@@ -41,7 +41,7 @@ internal sealed class PostBodyEditor : WatchEditor
         Fields.Children.Add(new TextBlock
         {
             Text = document is null ? "暂无全文。可粘贴原帖文字或导入 UTF-8 文本，最大 256 KiB。" :
-                $"全文 · 手工补录 · 版本 {document.Info.Revision}",
+                $"全文 · {PostBody.SourceLabel(document.Info.Source)} · 版本 {document.Info.Revision}",
             TextWrapping = TextWrapping.Wrap
         });
         Field("原帖发布时间（北京时间）", posted);

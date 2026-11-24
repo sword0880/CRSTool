@@ -5,7 +5,7 @@ using Microsoft.Win32.SafeHandles;
 namespace CRS.Worker.PluginHost;
 
 /// <summary>限制单个可信插件的进程故障范围；同一服务身份不构成权限沙箱。</summary>
-internal sealed class RunnerProcessJob : IDisposable
+public sealed class RunnerProcessJob : IDisposable
 {
     private readonly SafeFileHandle handle;
     public RunnerProcessJob(Process process)

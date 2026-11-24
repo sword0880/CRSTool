@@ -40,6 +40,7 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
             using var migration = db.BeginTransaction();
             Execute("""
                 CREATE TABLE IF NOT EXISTS task(plugin TEXT NOT NULL,job TEXT NOT NULL,name TEXT NOT NULL,cron TEXT NOT NULL,zone TEXT NOT NULL,enabled INTEGER NOT NULL,revision INTEGER NOT NULL,reconcile INTEGER NOT NULL,not_before TEXT,failures INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(plugin,job));
+                CREATE TABLE IF NOT EXISTS task_vpn(plugin TEXT NOT NULL,job TEXT NOT NULL,node TEXT NOT NULL,PRIMARY KEY(plugin,job),FOREIGN KEY(plugin,job) REFERENCES task(plugin,job) ON DELETE CASCADE);
                 CREATE TABLE IF NOT EXISTS execution(id TEXT PRIMARY KEY,plugin TEXT NOT NULL,job TEXT NOT NULL,scheduled TEXT NOT NULL,started TEXT NOT NULL,ended TEXT,result TEXT NOT NULL,checkpoint TEXT,attempt INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS execution_progress(execution TEXT NOT NULL,sequence INTEGER NOT NULL,utc TEXT NOT NULL,detail TEXT NOT NULL,PRIMARY KEY(execution,sequence),FOREIGN KEY(execution) REFERENCES execution(id) ON DELETE CASCADE);
                 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,utc TEXT NOT NULL,sid TEXT NOT NULL,request TEXT NOT NULL,command TEXT NOT NULL,result TEXT NOT NULL);
@@ -138,6 +139,7 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
                     """, ("$p", plan.PluginId), ("$j", plan.JobId), ("$n", plan.Name), ("$c", plan.Cron),
                     ("$z", CRS.Timing.BeijingClock.ZoneId), ("$e", plan.Enabled));
                 var code = insert.ExecuteNonQuery() == 1 ? "Ok" : "PlanAlreadyExists";
+                if (code == "Ok") SaveVpnNode(plan);
                 CompleteCommand(requestId, code);
                 tx.Commit();
                 return code;
@@ -150,10 +152,10 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
         {
             lock (gate)
             {
-                using var command = Command("SELECT t.*,e.started,e.result FROM task t LEFT JOIN task_latest e ON e.plugin=t.plugin AND e.job=t.job ORDER BY t.plugin,t.job"); using var reader = command.ExecuteReader();
+                using var command = Command("SELECT t.*,e.started,e.result,v.node FROM task t LEFT JOIN task_latest e ON e.plugin=t.plugin AND e.job=t.job LEFT JOIN task_vpn v ON v.plugin=t.plugin AND v.job=t.job ORDER BY t.plugin,t.job"); using var reader = command.ExecuteReader();
                 var list = new List<TaskDefinition>();
                 while (reader.Read()) list.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5), reader.GetInt64(6), reader.GetBoolean(7), reader.IsDBNull(8) ? null : CRS.Timing.BeijingClock.Parse(reader.GetString(8)), reader.GetInt32(9))
-                {LastStartedAt=reader.IsDBNull(10)?null:CRS.Timing.BeijingClock.Parse(reader.GetString(10)),LastResult=reader.IsDBNull(11)?null:reader.GetString(11)});
+                {LastStartedAt=reader.IsDBNull(10)?null:CRS.Timing.BeijingClock.Parse(reader.GetString(10)),LastResult=reader.IsDBNull(11)?null:reader.GetString(11),VpnNode=reader.IsDBNull(12)?null:reader.GetString(12)});
                 return list;
             }
         });
@@ -168,11 +170,20 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
                 using var command = Command("UPDATE task SET cron=$c,zone=$z,enabled=$e,revision=revision+1,reconcile=1 WHERE plugin=$p AND job=$j AND revision=$r",
                     ("$c", plan.Cron), ("$z", CRS.Timing.BeijingClock.ZoneId), ("$e", plan.Enabled), ("$p", plan.PluginId), ("$j", plan.JobId), ("$r", expectedRevision));
                 if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("计划已改变，请重新读取后编辑。");
+                SaveVpnNode(plan);
                 if (!plan.Enabled) CancelPending(plan.PluginId, plan.JobId);
                 if (requestId is { } request) CompleteCommand(request, "Ok");
                 tx.Commit();
             }
         });
+    }
+    private void SaveVpnNode(TaskDefinition plan)
+    {
+        if (plan.VpnNode is null) return;
+        Execute("""
+            INSERT INTO task_vpn(plugin,job,node) VALUES($p,$j,$n)
+            ON CONFLICT(plugin,job) DO UPDATE SET node=excluded.node
+            """, ("$p", plan.PluginId), ("$j", plan.JobId), ("$n", plan.VpnNode));
     }
     public void Reconciled(TaskDefinition plan)
     {
