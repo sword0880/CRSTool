@@ -2,16 +2,92 @@
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
- <StackPanel x:Name="Form">
+ <StackPanel>
   <TextBlock Text="VPN 订阅地址" Style="{StaticResource InputLabel}"/>
   <TextBox x:Name="SubscriptionInput" MaxLength="3000" AutomationProperties.Name="VPN 订阅地址"/>
-  <TextBlock x:Name="SubscriptionStatus" Margin="0,8,0,0" TextWrapping="Wrap"/>
-  <WrapPanel Margin="0,12,0,0">
-   <ui:Button Content="保存订阅" Appearance="Primary" Click="OnSave" Margin="0,0,8,6"/>
-   <ui:Button Content="刷新节点" Click="OnRefresh" Margin="0,0,8,6"/>
-   <ui:Button Content="清除订阅" Click="OnRemove" Margin="0,0,0,6"/>
+  <TextBlock x:Name="SubscriptionStatus" Margin="0,8,0,0" TextWrapping="Wrap"
+             Foreground="{DynamicResource BrandTextHintBrush}"/>
+  <WrapPanel x:Name="SubscriptionActions" Margin="0,12,0,0">
+   <ui:Button Content="保存订阅" Appearance="Primary" Click="OnSave" Margin="0,0,8,0"/>
+   <ui:Button Content="清除订阅" Click="OnRemove"/>
   </WrapPanel>
-  <TextBlock x:Name="Status" TextWrapping="Wrap" Margin="0,6,0,8" AutomationProperties.LiveSetting="Polite"/>
-  <ItemsControl x:Name="NodeList"/>
+
+  <Border Margin="0,24,0,0" CornerRadius="10" BorderThickness="1"
+          BorderBrush="{DynamicResource BrandBorderBrush}">
+   <StackPanel>
+    <DockPanel Margin="16,12" LastChildFill="True">
+     <ui:Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="刷新节点"
+                Click="OnRefresh" ToolTip="重新加载节点并测速"/>
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <TextBlock Text="订阅节点" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"/>
+      <Border x:Name="NodeCountBadge" Visibility="Collapsed" Margin="10,0,0,0" Padding="8,3"
+              Background="{DynamicResource BrandAccentSoftBrush}" CornerRadius="10">
+       <TextBlock x:Name="NodeCount" FontSize="12" FontWeight="SemiBold"
+                  Foreground="{DynamicResource BrandAccentDarkBrush}"/>
+      </Border>
+     </StackPanel>
+    </DockPanel>
+    <ProgressBar x:Name="BusyIndicator" Height="2" Margin="16,0" Visibility="Collapsed"
+                 IsIndeterminate="True" Foreground="{DynamicResource BrandAccentBrush}"
+                 AutomationProperties.Name="VPN 节点加载进度"/>
+    <TextBlock x:Name="Status" TextWrapping="Wrap" Margin="16,0,16,12"
+               Foreground="{DynamicResource BrandStatusInfoBrush}" AutomationProperties.LiveSetting="Polite">
+     <TextBlock.Style>
+      <Style TargetType="TextBlock">
+       <Style.Triggers>
+        <Trigger Property="Text" Value="">
+         <Setter Property="Visibility" Value="Collapsed"/>
+        </Trigger>
+       </Style.Triggers>
+      </Style>
+     </TextBlock.Style>
+    </TextBlock>
+    <ItemsControl x:Name="NodeList" Visibility="Collapsed" AutomationProperties.Name="VPN 订阅节点">
+     <ItemsControl.ItemTemplate>
+      <DataTemplate>
+       <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BrandBorderSubtleBrush}"
+               Padding="16,8" MinHeight="44">
+        <Grid>
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+         </Grid.ColumnDefinitions>
+         <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis"
+                    VerticalAlignment="Center" Margin="0,0,16,0" FontWeight="Medium"
+                    Foreground="{DynamicResource BrandTextPrimaryBrush}"/>
+         <Border x:Name="LatencyBadge" Grid.Column="1" CornerRadius="12" MinWidth="76"
+                 Padding="9,4" VerticalAlignment="Center"
+                 Background="{DynamicResource BrandStatusInfoSurfaceBrush}">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+           <Ellipse x:Name="LatencyDot" Width="5" Height="5" Margin="0,0,6,0" VerticalAlignment="Center"
+                    Fill="{DynamicResource BrandStatusInfoBrush}"/>
+           <TextBlock x:Name="LatencyText" Text="{Binding Latency}" FontSize="12" FontWeight="SemiBold"
+                      Foreground="{DynamicResource BrandStatusInfoBrush}"/>
+          </StackPanel>
+         </Border>
+        </Grid>
+       </Border>
+       <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding Level}" Value="Low">
+         <Setter TargetName="LatencyBadge" Property="Background" Value="{DynamicResource BrandStatusSuccessSurfaceBrush}"/>
+         <Setter TargetName="LatencyDot" Property="Fill" Value="{DynamicResource BrandStatusSuccessBrush}"/>
+         <Setter TargetName="LatencyText" Property="Foreground" Value="{DynamicResource BrandStatusSuccessBrush}"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Level}" Value="Medium">
+         <Setter TargetName="LatencyBadge" Property="Background" Value="{DynamicResource BrandStatusWarningSurfaceBrush}"/>
+         <Setter TargetName="LatencyDot" Property="Fill" Value="{DynamicResource BrandStatusWarningBrush}"/>
+         <Setter TargetName="LatencyText" Property="Foreground" Value="{DynamicResource BrandStatusWarningBrush}"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Level}" Value="High">
+         <Setter TargetName="LatencyBadge" Property="Background" Value="{DynamicResource BrandStatusErrorSurfaceBrush}"/>
+         <Setter TargetName="LatencyDot" Property="Fill" Value="{DynamicResource BrandStatusErrorBrush}"/>
+         <Setter TargetName="LatencyText" Property="Foreground" Value="{DynamicResource BrandStatusErrorBrush}"/>
+        </DataTrigger>
+       </DataTemplate.Triggers>
+      </DataTemplate>
+     </ItemsControl.ItemTemplate>
+    </ItemsControl>
+   </StackPanel>
+  </Border>
  </StackPanel>
 </UserControl>

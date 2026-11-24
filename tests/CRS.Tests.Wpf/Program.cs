@@ -16,6 +16,7 @@ if(args is ["--cron"]){CronEditorChecks.Run();return;}
 if(args is ["--schedule-editor-checks"]){await ScheduleEditChecks.RunAsync();return;}
 if(args is ["--schedule-editor-ui",var scheduleDirectory]){ScheduleEditViewChecks.Run(scheduleDirectory);return;}
 if(args is ["--settings-ui",var settingsDirectory]){SettingsViewChecks.Run(settingsDirectory);return;}
+if(args is ["--vpn-settings-ui",var vpnScreenshot]){VpnSettingsViewChecks.Run(vpnScreenshot);return;}
 if(args is ["--settings-cleanup-ui",var cleanupDirectory,var cleanupAudit]){SettingsViewChecks.Run(cleanupDirectory,cleanupAudit);return;}
 if(args is ["--data-cleanup-model"]){await DataCleanupViewChecks.RunAsync();return;}
 if(args is ["--data-cleanup-gateway"]){await DataCleanupGatewayChecks.RunAsync();return;}
