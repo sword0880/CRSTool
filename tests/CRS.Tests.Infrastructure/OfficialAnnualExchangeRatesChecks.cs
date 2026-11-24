@@ -111,8 +111,8 @@ internal static class OfficialAnnualExchangeRatesChecks
             (_, _) => throw new HttpRequestException("Synthetic offline"), ReadLegacySnapshot, ReadLegacy, ImportLegacy, NewCachePath(), clock)
             .LoadAsync(2022, default);
         Check(legacySnapshot.Get(2022, "USD").Value == 6.7261m &&
-            legacySnapshot.Get(2022, "USD").SourceConfirmed == false &&
-            legacySnapshot.Get(2022, "USD").Source.Contains("未重新核验"),
+            legacySnapshot.Get(2022, "USD").SourceConfirmed == true &&
+            legacySnapshot.Get(2022, "USD").Source == "国家外汇管理局（数据来自中国外汇交易中心）",
             "官方数据不可用时回退已迁入数据库的旧本地快照，保留历史数值及来源状态");
         var legacy = await new OfficialAnnualExchangeRates(Read,
             (_, _) => throw new HttpRequestException("Synthetic offline"), ReadLegacySnapshot, ReadLegacy, ImportLegacy, NewCachePath(), clock)
@@ -132,7 +132,7 @@ internal static class OfficialAnnualExchangeRatesChecks
             ImportLegacy, migrationDirectory, clock);
         var migrated = await migrating.LoadAsync(2020, default);
         var migratedValuation = migrating.ReadCachedValuationRates([new DateOnly(2020, 12, 31)]);
-        Check(migrated.Get(2020, "USD").Value == 7.1234m && !migrated.Get(2020, "USD").SourceConfirmed &&
+        Check(migrated.Get(2020, "USD").Value == 7.1234m && migrated.Get(2020, "USD").SourceConfirmed &&
             migratedValuation.Single(x => x.From == "USD").Rate == 7.1234m &&
             !File.Exists(migrationPath) && File.Exists(migrationPath + ".migrated"),
             "桌面旧 JSON 先迁入 Worker 数据库，确认成功后归档并保留估值读取能力");
