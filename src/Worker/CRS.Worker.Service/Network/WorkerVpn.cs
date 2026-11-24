@@ -20,6 +20,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Dictionary<string, Connection> connections = new(StringComparer.Ordinal);
     private string[] nodes = [];
+    private Dictionary<string, int>? delayResults;
 
     internal sealed class VpnException(string code) : Exception(code)
     {
@@ -31,6 +32,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
     internal async Task<VpnSettingsStatus> SettingsAsync(string sid, bool admin, string? update, bool refresh, CancellationToken token,
         bool showAddress = false)
     {
+        var elapsed = Stopwatch.StartNew();
         await gate.WaitAsync(token);
         try
         {
@@ -59,10 +61,29 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             {
                 using var process = await StartAsync(current, token);
                 nodes = await ReadNodesAsync(process, token);
+                delayResults = null;
+                // IPC 服务端请求上限为 20 秒。测速失败不丢弃已经成功读取的节点。
+                var remaining = TimeSpan.FromSeconds(18) - elapsed.Elapsed;
+                if (remaining > TimeSpan.Zero)
+                {
+                    using var probe = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    probe.CancelAfter(remaining);
+                    try
+                    {
+                        using var results = await ReadJsonAsync(process.Controller,
+                            "group/" + Group + "/delay?url=https%3A%2F%2Fwww.gstatic.com%2Fgenerate_204&timeout=3000&expected=204",
+                            probe.Token);
+                        delayResults = ParseBatchDelays(results.RootElement, nodes);
+                    }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested) { }
+                    catch (Exception error) when (error is HttpRequestException or JsonException or InvalidDataException) { }
+                }
             }
             return new(current is not null, File.Exists(executable), nodes)
             {
-                SubscriptionAddress = showAddress && current is not null ? ReadAddress(current) : null
+                SubscriptionAddress = showAddress && current is not null ? ReadAddress(current) : null,
+                Delays = delayResults is null ? null : nodes.Select(name =>
+                    delayResults.TryGetValue(name, out var delay) ? (int?)delay : null).ToArray()
             };
         }
         finally { gate.Release(); }
@@ -229,6 +250,21 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             .Where(ValidNode).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Take(300).ToArray();
     }
 
+    // 直接解析 Mihomo 策略组批量测速结果，不逐节点创建代理进程或发起 HTTP 探测。
+    internal static Dictionary<string, int> ParseBatchDelays(JsonElement result, IEnumerable<string> knownNodes)
+    {
+        if (result.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException("Mihomo 批量测速响应格式无效。");
+        var delays = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var node in knownNodes)
+        {
+            if (result.TryGetProperty(node, out var value) && value.ValueKind == JsonValueKind.Number &&
+                value.TryGetInt32(out var delay) && delay is > 0 and < 65535)
+                delays[node] = delay;
+        }
+        return delays;
+    }
+
     private static async Task<JsonDocument> ReadJsonAsync(HttpClient controller, string path, CancellationToken token)
     {
         using var response = await controller.GetAsync(path, token);
@@ -250,6 +286,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
         foreach (var active in connections.Values) active.Dispose();
         connections.Clear();
         nodes = [];
+        delayResults = null;
     }
 
     public void Dispose()

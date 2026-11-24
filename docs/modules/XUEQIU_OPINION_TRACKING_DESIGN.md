@@ -139,3 +139,11 @@ Feed 线索正文最多保存 3,000 字符。手工补录支持最多 256 KiB �
 - [CRS.Feed 公共 Feed Engine](../architecture/FEED_ENGINE.md)
 - [插件架构](../architecture/PLUGIN_ARCHITECTURE.md)
 - [Worker 运行方式](../implementation/WORKER_RUNTIME.md)
+
+### Google 快讯登录与 VPN 节点刷新（2026-11-24）
+
+- Google 快讯使用专用 Chrome 配置复用会话，CRS 不采集、填写或保存 Google 密码；账号指纹仍按原 SHA-256 规则计算。兼容链接、按钮及中英繁体账号标题；多个不同账号入口或身份无法确认时停止同步，不猜测身份。
+- 交互登录最长等待 120 秒，后台身份确认最长等待 8 秒。浏览器启动/导航、登录状态、读取列表、投递选项、创建和删除分别提供阶段提示；诊断不输出账号、完整 URL、Cookie 或原始 Playwright 调用日志。远端写入结果未知时保留原有同步状态，重新核对后再决定下一步。
+- Worker 刷新节点时调用 Mihomo `GET /group/crs-selected-node/delay` 批量测速，使用固定 HTTPS 204 探测地址及 3000ms 单节点超时；受现有 IPC 请求期限约束，测速失败不影响已读取节点。结果仅在内存保存，替换/清除订阅时清除。
+- VPN 设置页与 AI 模型设置复用 `VpnSettingsStatus.NodeLabel` 格式；配置仍保存原始节点名，不保存展示文本。无测速结果或旧版 Worker 显示“未测速”，成功批量响应但无有效延迟显示“未测得”。刷新节点不自动切换所选节点。
+- 验收：在 Windows 同步更新桌面端及 Worker，真实 Chrome 分别验证首次登录、已有登录态、多账号和登录超时；使用真实 Mihomo 订阅验证两处刷新后显示一致、节点选择不变及测速失败降级。自动化测试不代替真实网页登录及 VPN 环境验证。

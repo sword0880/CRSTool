@@ -7,6 +7,17 @@ internal static class VpnChecks
 {
     internal static Task RunAsync() => WithScratchAsync(async (root, key) =>
     {
+        // 同一份 IPC 节点数据供 VPN 设置及 AI 模型设置共用。
+        using (var response = System.Text.Json.JsonDocument.Parse("""{"Node A":120,"Node B":0,"Node C":65535,"Unknown":20}"""))
+        {
+            var delays = WorkerVpn.ParseBatchDelays(response.RootElement, ["Node A", "Node B", "Node C"]);
+            Check(delays.Count == 1 && delays["Node A"] == 120, "批量测速过滤失败值及未知节点");
+        }
+        var status = new VpnSettingsStatus(true, true, ["Node A", "Node B"]) { Delays = [120, null] };
+        Check(status.NodeLabel("Node A") == "Node A（120 ms）" && status.NodeLabel("Node B") == "Node B（未测得）",
+            "两个设置入口共用延迟展示规则");
+        Check(new VpnSettingsStatus(true, true, ["Node A"]).NodeLabel("Node A") == "Node A（未测速）",
+            "兼容旧版 Worker 无延迟字段");
         const string address = "https://example.org/subscription/not-a-real-token";
         using var vpn = new WorkerVpn(root, Path.Combine(root, "not-installed.exe"), key);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));

@@ -7,6 +7,19 @@ public sealed record VpnSettingsStatus(bool Configured, bool EngineAvailable, st
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? SubscriptionAddress { get; init; }
+
+    // 与 Nodes 按位置对应，避免重复传输长节点名称；null 兼容未测速及旧版 Worker。
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int?[]? Delays { get; init; }
+
+    public string NodeLabel(string node)
+    {
+        var index = Array.IndexOf(Nodes, node);
+        if (index < 0) return node;
+        if (Delays is null || Delays.Length != Nodes.Length) return node + "（未测速）";
+        return Delays[index] is > 0 and < 65535
+            ? $"{node}（{Delays[index]} ms）" : node + "（未测得）";
+    }
 }
 
 public sealed class VpnProxyAccess

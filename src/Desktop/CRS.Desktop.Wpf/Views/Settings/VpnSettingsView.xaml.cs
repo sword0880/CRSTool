@@ -76,7 +76,7 @@ public partial class VpnSettingsView : UserControl
         {
             var result = await action(cancellation.Token);
             SubscriptionStatus.Text = result.Configured ? "已保存订阅。输入新地址可替换。" : "尚未配置订阅。";
-            NodeList.ItemsSource = result.Nodes;
+            NodeList.ItemsSource = result.Nodes.Select(result.NodeLabel).ToArray();
             Status.Text = !result.EngineAvailable ? "后台服务未安装 Mihomo。保存或替换订阅需要 Windows 管理员权限。" :
                 result.Nodes.Length > 0 ? $"已读取 {result.Nodes.Length} 个节点。" :
                 result.Configured ? "点击“刷新节点”读取订阅。" : "保存订阅需要 Windows 管理员权限。";
