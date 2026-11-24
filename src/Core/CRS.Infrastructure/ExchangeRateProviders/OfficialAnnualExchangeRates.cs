@@ -170,7 +170,7 @@ public sealed class OfficialAnnualExchangeRates(
             var bytes = await File.ReadAllBytesAsync(path, token).ConfigureAwait(false);
             try
             {
-                var snapshot = JsonSerializer.Deserialize<CentralParitySnapshot>(bytes);
+                var snapshot = JsonSerializer.Deserialize<CentralParitySnapshot>(bytes, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 var today = DateOnly.FromDateTime(BeijingClock.Normalize((clock ?? TimeProvider.System).GetUtcNow()).Date);
                 if (snapshot is null || !ValidSnapshot(year, snapshot, today)) return;
                 if (!await importLegacy(snapshot, token).ConfigureAwait(false)) return;
