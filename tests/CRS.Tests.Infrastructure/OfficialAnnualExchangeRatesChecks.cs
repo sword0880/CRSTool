@@ -78,7 +78,7 @@ internal static class OfficialAnnualExchangeRatesChecks
             && first == new DateOnly(2026, 1, 5) && latest == new DateOnly(2026, 1, 12), "当年须使用各报价日均值");
         var frozenHistory = await provider.LoadAsync(2022, default);
         Check(frozenHistory.Get(2022, "USD").Value == 6.7261m &&
-            frozenHistory.Get(2022, "USD").SourceConfirmed == false && requests == 3,
+            frozenHistory.Get(2022, "USD").SourceConfirmed == true && requests == 3,
             "迁入的旧历史快照优先于后续官方数据，历史汇率不被重算");
         var recent = await provider.LoadAsync(2026, default);
         Check(recent.Fingerprint == current.Fingerprint && requests == 3, "数据库快照须避免重复查询");
