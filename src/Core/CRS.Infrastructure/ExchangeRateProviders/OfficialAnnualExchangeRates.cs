@@ -128,11 +128,19 @@ public sealed class OfficialAnnualExchangeRates(
         var now = (clock ?? TimeProvider.System).GetUtcNow();
         if (valuationRetryAfter.TryGetValue(year, out var retryAt) && now < retryAt) return;
         var today = DateOnly.FromDateTime(BeijingClock.Normalize(now).Date);
-        var snapshot = year < today.Year ? ReadSnapshotForValuation(readLegacySnapshot, year) : null;
-        if (snapshot is null || !ValidSnapshot(year, snapshot, today))
-            snapshot = ReadSnapshotForValuation(readOfficial, year);
-        if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+        CentralParitySnapshot? snapshot;
+        if (year < today.Year)
+        {
             snapshot = ReadSnapshotForValuation(readLegacySnapshot, year);
+            if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+                snapshot = ReadSnapshotForValuation(readOfficial, year);
+        }
+        else
+        {
+            snapshot = ReadSnapshotForValuation(readOfficial, year);
+            if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+                snapshot = ReadSnapshotForValuation(readLegacySnapshot, year);
+        }
         if (snapshot is not null && ValidSnapshot(year, snapshot, today))
         {
             memory[year] = snapshot;
@@ -147,7 +155,7 @@ public sealed class OfficialAnnualExchangeRates(
         Func<int, CancellationToken, Task<CentralParitySnapshot?>> read, int year)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        try { return Task.Run(() => read(year, deadline.Token)).GetAwaiter().GetResult(); }
+        try { return read(year, deadline.Token).GetAwaiter().GetResult(); }
         catch (Exception error) when (error is OperationCanceledException or IOException or InvalidDataException or HttpRequestException)
         { return null; }
     }
