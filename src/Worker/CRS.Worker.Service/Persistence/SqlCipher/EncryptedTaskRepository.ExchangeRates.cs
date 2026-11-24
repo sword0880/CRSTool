@@ -29,7 +29,7 @@ public sealed partial class EncryptedTaskRepository
                 using var quotes = Command("""
                     SELECT quote_date,usd,hkd FROM exchange_rate_quote
                     WHERE year=$year AND origin=$origin AND owner_sid=$owner ORDER BY quote_date
-                    """, ("$year", year), ("$origin", origin));
+                    """, ("$year", year), ("$origin", origin), ("$owner", ownerSid));
                 using var reader = quotes.ExecuteReader();
                 var items = new List<CentralParityQuote>();
                 while (reader.Read())
