@@ -1,22 +1,22 @@
 {
   "version": 1,
   "rates": [
-    {"year":2021,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"本币折算","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
+    {"year":2021,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
     {"year":2021,"currency":"HKD","value":0.8291,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
     {"year":2021,"currency":"USD","value":6.4515,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
-    {"year":2022,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"本币折算","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
+    {"year":2022,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
     {"year":2022,"currency":"HKD","value":0.8606,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
     {"year":2022,"currency":"USD","value":6.7261,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
-    {"year":2023,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"本币折算","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
+    {"year":2023,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
     {"year":2023,"currency":"HKD","value":0.9056,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
     {"year":2023,"currency":"USD","value":7.0809,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
-    {"year":2024,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"本币折算","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
+    {"year":2024,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
     {"year":2024,"currency":"HKD","value":0.9260,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
     {"year":2024,"currency":"USD","value":7.2200,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
-    {"year":2025,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"本币折算","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
+    {"year":2025,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
     {"year":2025,"currency":"HKD","value":0.9210,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
     {"year":2025,"currency":"USD","value":7.1800,"source":"来源未登记","url":"","method":"","start":null,"end":null,"provisional":false,"sourceConfirmed":false},
-    {"year":2026,"currency":"CNY","value":1,"source":"人民币本币","url":"","method":"本币折算","start":null,"end":null,"provisional":false,"sourceConfirmed":true},
+    {"year":2026,"currency":"CNY","value":1,"source":"人民币本币","url":"https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2","method":"报价日中间价算术平均；非报价日不补值；四舍五入保留六位小数","start":"2026-01-01","end":"2026-10-08","provisional":false,"sourceConfirmed":true,"firstObservation":"2026-01-05","observationCount":182,"usdSum":"1247.2229","hkdSum":"159.27864"},
     {"year":2026,"currency":"HKD","value":0.875157,"source":"中国货币网／中国外汇交易中心人民币汇率中间价历史数据","url":"https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2","method":"报价日中间价算术平均；非报价日不补值；四舍五入保留六位小数","start":"2026-01-01","end":"2026-10-08","provisional":true,"sourceConfirmed":true,"firstObservation":"2026-01-05","observationCount":182,"usdSum":"1247.2229","hkdSum":"159.27864"},
     {"year":2026,"currency":"USD","value":6.852873,"source":"中国货币网／中国外汇交易中心人民币汇率中间价历史数据","url":"https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2","method":"报价日中间价算术平均；非报价日不补值；四舍五入保留六位小数","start":"2026-01-01","end":"2026-10-08","provisional":true,"sourceConfirmed":true,"firstObservation":"2026-01-05","observationCount":182,"usdSum":"1247.2229","hkdSum":"159.27864"}
   ]
