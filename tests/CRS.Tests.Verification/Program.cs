@@ -19,7 +19,7 @@ if (args.Length >= 2 && args[0] == "--analyze")
 {
     if (args.Length > 2)
         throw new ArgumentException("不再接受旧 JSON 汇率目录；实际汇率请通过 CRSTool 正式客户端从 Worker SQLCipher 数据库读取。");
-    var analyzed = CalculationServices.Create(rates).Calculate([args[1]], 2025, true, true);
+    var analyzed = CalculationServices.Create(WorkerExchangeRateLoader.Load(2025)).Calculate([args[1]], 2025, true, true);
     Console.WriteLine(JsonSerializer.Serialize(new { matches = analyzed.Matches.Count, pnl = analyzed.PnlChecks.Count,
         pnlConsistent = analyzed.PnlChecks.Count(p => p.Status == "一致"), cashConsistent = analyzed.CashChecks.Count(c => c.Status == "一致"),
         gain = analyzed.Matches.Sum(m => m.Gain), cost = analyzed.Matches.Sum(m => m.Cost), revenue = analyzed.Matches.Sum(m => m.Revenue),

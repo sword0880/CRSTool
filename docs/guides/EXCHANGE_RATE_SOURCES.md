@@ -51,3 +51,8 @@ JSON 只作为一次性迁移输入，不再作为运行时事实源：
 - 桌面旧缓存导入后按当前 Windows SID 可读，换 SID 不可见；导入成功才归档源文件。
 - 对同一年度同一报价日再次写入不同 USD/HKD 值，数据库中的首次值保持不变。
 - Worker 重启后仍可读取同一快照；无 Worker 数据时明确提示，不回退读取已删除的桌面配置 JSON。
+
+### 验收工具汇率入口
+
+- 真实 FUTU/IBKR 样本验收及 `--analyze` 入口通过 Worker IPC 读取 SQLCipher 汇率；不再接受 `exchange_rate.json` / `exchange_rate_sources.json` 目录。
+- 旧验收清单中的 `ConfigDirectory` 字段仅为旧清单反序列化兼容保留，不读取该目录。自动化离线场景使用测试项目内的合成 Provider，与生产数据库隔离。
