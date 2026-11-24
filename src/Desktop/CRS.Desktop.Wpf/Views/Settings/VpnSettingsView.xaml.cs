@@ -8,13 +8,22 @@ public partial class VpnSettingsView : UserControl
 {
     private readonly BackgroundPipeClient client = new();
     private CancellationTokenSource? operation;
+    private bool addressLoaded;
 
     public VpnSettingsView()
     {
         InitializeComponent();
         IsVisibleChanged += async (_, _) =>
         {
-            if (IsVisible) await RunAsync(token => WorkerVpnClient.ReadAsync(client, token));
+            if (IsVisible && !addressLoaded)
+                await RunAsync(async token =>
+                {
+                    var result = await WorkerVpnClient.ReadWithAddressAsync(client, token);
+                    token.ThrowIfCancellationRequested();
+                    SubscriptionInput.Text = result.SubscriptionAddress ?? "";
+                    addressLoaded = true;
+                    return result;
+                });
         };
         Unloaded += (_, _) => ClearInputs();
     }
@@ -23,16 +32,19 @@ public partial class VpnSettingsView : UserControl
     {
         operation?.Cancel();
         SubscriptionInput.Clear();
+        addressLoaded = false;
     }
 
     private async void OnSave(object sender, RoutedEventArgs e)
     {
-        var address = SubscriptionInput.Password.Trim();
+        var address = SubscriptionInput.Text.Trim();
         if (address.Length == 0) { Status.Text = "请填写 HTTPS 订阅地址。"; return; }
         await RunAsync(async token =>
         {
             var saved = await WorkerVpnClient.SaveAsync(client, address, token);
-            SubscriptionInput.Clear();
+            token.ThrowIfCancellationRequested();
+            SubscriptionInput.Text = address;
+            addressLoaded = true;
             return saved;
         });
     }
@@ -44,7 +56,13 @@ public partial class VpnSettingsView : UserControl
     {
         if (MessageBox.Show("清除订阅会断开当前 VPN 连接。确定清除？", "VPN 订阅", MessageBoxButton.YesNo,
             MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-        await RunAsync(token => WorkerVpnClient.SaveAsync(client, "", token));
+        await RunAsync(async token =>
+        {
+            var result = await WorkerVpnClient.SaveAsync(client, "", token);
+            token.ThrowIfCancellationRequested();
+            SubscriptionInput.Clear();
+            return result;
+        });
     }
 
     private async Task RunAsync(Func<CancellationToken, Task<VpnSettingsStatus>> action)

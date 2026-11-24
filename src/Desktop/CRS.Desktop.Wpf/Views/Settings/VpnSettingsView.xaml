@@ -4,7 +4,7 @@
  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
  <StackPanel x:Name="Form">
   <TextBlock Text="VPN 订阅地址" Style="{StaticResource InputLabel}"/>
-  <PasswordBox x:Name="SubscriptionInput" MaxLength="3000" AutomationProperties.Name="VPN 订阅地址"/>
+  <TextBox x:Name="SubscriptionInput" MaxLength="3000" AutomationProperties.Name="VPN 订阅地址"/>
   <TextBlock x:Name="SubscriptionStatus" Margin="0,8,0,0" TextWrapping="Wrap"/>
   <WrapPanel Margin="0,12,0,0">
    <ui:Button Content="保存订阅" Appearance="Primary" Click="OnSave" Margin="0,0,8,6"/>

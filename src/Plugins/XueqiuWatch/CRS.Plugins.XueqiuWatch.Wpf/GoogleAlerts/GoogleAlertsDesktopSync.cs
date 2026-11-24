@@ -71,6 +71,7 @@ internal static class GoogleAlertsDesktopSync
         if (subscription.State is not (GoogleAlertState.PendingCreate or GoogleAlertState.Creating)) return false;
 
         var query = WatchInput.GoogleAlertQuery(author.Account);
+        // 已存在且使用 RSS 投递的同查询提醒可以复用，登记为外部提醒，保留用户的远端管理权。
         var existing = await page.FindByQueryAsync(query, token);
         if (await page.ReadAccountAsync(false, token) != account)
             throw new ArgumentException("Google 账号发生变化，已停止同步。");

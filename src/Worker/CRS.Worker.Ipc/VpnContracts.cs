@@ -3,7 +3,11 @@ using System.Text.Json;
 
 namespace CRS.Worker.Ipc;
 
-public sealed record VpnSettingsStatus(bool Configured, bool EngineAvailable, string[] Nodes);
+public sealed record VpnSettingsStatus(bool Configured, bool EngineAvailable, string[] Nodes)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? SubscriptionAddress { get; init; }
+}
 
 public sealed class VpnProxyAccess
 {
@@ -25,6 +29,9 @@ public static class WorkerVpnClient
 {
     public static async Task<VpnSettingsStatus> ReadAsync(BackgroundPipeClient client, CancellationToken token) =>
         Read<VpnSettingsStatus>(await client.QueryAsync(WorkerProtocol.GetVpnSettings, token));
+
+    public static async Task<VpnSettingsStatus> ReadWithAddressAsync(BackgroundPipeClient client, CancellationToken token) =>
+        Read<VpnSettingsStatus>(await SendAsync(client, WorkerProtocol.GetVpnSettings, "ShowSubscription", token));
 
     public static async Task<VpnSettingsStatus> SaveAsync(BackgroundPipeClient client, string address, CancellationToken token) =>
         Read<VpnSettingsStatus>(await SendAsync(client, WorkerProtocol.SaveVpnSettings, address, token));

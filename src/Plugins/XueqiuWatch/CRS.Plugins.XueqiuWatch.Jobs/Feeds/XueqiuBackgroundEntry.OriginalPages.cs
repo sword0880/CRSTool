@@ -10,6 +10,7 @@ public sealed partial class XueqiuBackgroundEntry
         private async Task<(string? Note, TimeSpan? RetryAfter)> ReadOriginalPagesAsync(System.Net.IWebProxy? proxy,
             CancellationToken token)
         {
+            // 先在存储锁内取出待查线索，再释放锁进行浏览器请求，避免阻塞界面查询和补录。
             OriginalPageLead[] queue;
             await gate.WaitAsync(token);
             try { queue = store?.OriginalPageQueue(WatchProtocol.BeijingNow, 20) ?? []; }
@@ -34,6 +35,7 @@ public sealed partial class XueqiuBackgroundEntry
                 TimeSpan? retry = null;
                 foreach (var post in queue)
                 {
+                    // 首条立即处理，后续逐条等待 1 到 4 秒。取消任务时立即结束等待。
                     if (read > 0) await Task.Delay(TimeSpan.FromSeconds(Random.Shared.Next(1, 5)), token);
                     var result = await reader.ReadAsync(post, token);
                     read++;
@@ -43,6 +45,7 @@ public sealed partial class XueqiuBackgroundEntry
                         if (store?.SaveOriginalPage(post, result, WatchProtocol.BeijingNow, token) == true) saved++;
                     }
                     finally { gate.Release(); }
+                    // 每条结果单独落库。后续页面限流、访问受限或连续连接失败时，已取得的结果仍可查询。
                     retry = result.RetryAfter;
                     restricted = result.State == "AccessRestricted";
                     consecutiveFailures = result.State == "Unavailable" ? consecutiveFailures + 1 : 0;

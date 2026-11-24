@@ -73,6 +73,7 @@ public sealed partial class XueqiuBackgroundEntry
             }
             finally { gate.Release(); }
 
+            // 先提交 RSS 线索和供稿正文，再尝试补齐仍缺的原帖全文。浏览器失败不撤销已保存的线索。
             var originals = openOriginalPages is null ? default : await ReadOriginalPagesAsync(proxy, token);
             var limited = leadScans.Concat(fullTextScans).Where(scan => scan.Result.Status == FeedFetchStatus.RateLimited)
                 .Select(scan => scan.Result.RetryAfter ?? TimeSpan.FromMinutes(30)).ToArray();

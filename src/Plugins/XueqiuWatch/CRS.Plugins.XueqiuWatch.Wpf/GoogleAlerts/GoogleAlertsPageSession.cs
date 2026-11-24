@@ -22,6 +22,7 @@ internal sealed partial class GoogleAlertsPageSession(
         IBrowserContext? context = null;
         try
         {
+            // 专用 Chrome 配置承载 Google 登录态，CRS 通过网页校验账号身份。
             var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "CRS", "GoogleAlertsBrowser");
             context = await playwright.Chromium.LaunchPersistentContextAsync(directory, new()
@@ -99,6 +100,7 @@ internal sealed partial class GoogleAlertsPageSession(
     internal async Task DeleteAsync(string remoteId, string account, CancellationToken token)
     {
         await VerifyAccountAsync(account, token).ConfigureAwait(false);
+        // 依据 CRS 保存的远端标识定位原提醒，避免误删同查询的外部提醒。
         var row = await FindByIdAsync(remoteId, token).ConfigureAwait(false);
         if (row is null) return;
         await VerifyAccountAsync(account, token).ConfigureAwait(false);

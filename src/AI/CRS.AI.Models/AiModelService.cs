@@ -104,6 +104,7 @@ public sealed class AiModelService : IAiModelService
 
     private async Task<HttpClient?> OpenVpnHttpAsync(string? node, CancellationToken token)
     {
+        // 未选择节点时沿用直连客户端。选择节点后先打开对应代理，连接失败由调用方报告。
         if (string.IsNullOrEmpty(node)) return null;
         if (openVpn is null) throw new AiModelException("VpnUnavailable");
         try

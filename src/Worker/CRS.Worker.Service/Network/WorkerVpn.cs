@@ -28,7 +28,8 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
 
     private sealed record Subscription(string Owner, byte[] Address);
 
-    internal async Task<VpnSettingsStatus> SettingsAsync(string sid, bool admin, string? update, bool refresh, CancellationToken token)
+    internal async Task<VpnSettingsStatus> SettingsAsync(string sid, bool admin, string? update, bool refresh, CancellationToken token,
+        bool showAddress = false)
     {
         await gate.WaitAsync(token);
         try
@@ -59,7 +60,10 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
                 using var process = await StartAsync(current, token);
                 nodes = await ReadNodesAsync(process, token);
             }
-            return new(current is not null, File.Exists(executable), nodes);
+            return new(current is not null, File.Exists(executable), nodes)
+            {
+                SubscriptionAddress = showAddress && current is not null ? ReadAddress(current) : null
+            };
         }
         finally { gate.Release(); }
     }
@@ -89,6 +93,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             var candidate = await StartAsync(current, token);
             try
             {
+                // 为每个节点保留独立的代理进程。确认节点切换成功后才向调用方返回本机端口。
                 nodes = await ReadNodesAsync(candidate, token);
                 if (!nodes.Contains(node, StringComparer.Ordinal)) throw new VpnException("VpnNodeUnavailable");
                 using var content = new StringContent(JsonSerializer.Serialize(new { name = node }), Encoding.UTF8, "application/json");
@@ -129,10 +134,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
         if (subscription is null) throw new VpnException("VpnNotConfigured");
         if (!File.Exists(executable)) throw new VpnException("VpnEngineMissing");
         PhysicalPathGuard.RejectLinks(executable);
-        var plain = ProtectedData.Unprotect(subscription.Address, key, DataProtectionScope.CurrentUser);
-        string address;
-        try { address = Encoding.UTF8.GetString(plain); }
-        finally { CryptographicOperations.ZeroMemory(plain); }
+        var address = ReadAddress(subscription);
         ValidateAddress(address);
 
         var home = PhysicalPathGuard.RejectLinks(Path.Combine(dataDirectory, "vpn-runtime"));
@@ -178,6 +180,7 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             _ = process.StandardError.BaseStream.CopyToAsync(Stream.Null);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(TimeSpan.FromSeconds(15));
+            // 通过子进程标准输入传递包含订阅地址的配置，避免凭据出现在命令行或配置文件中。
             await process.StandardInput.WriteAsync(JsonSerializer.Serialize(config).AsMemory(), deadline.Token);
             process.StandardInput.Close();
             while (!process.HasExited)
@@ -205,6 +208,13 @@ internal sealed class WorkerVpn(string dataDirectory, string executable, byte[] 
             }
             throw;
         }
+    }
+
+    private string ReadAddress(Subscription subscription)
+    {
+        var plain = ProtectedData.Unprotect(subscription.Address, key, DataProtectionScope.CurrentUser);
+        try { return Encoding.UTF8.GetString(plain); }
+        finally { CryptographicOperations.ZeroMemory(plain); }
     }
 
     private static async Task<string[]> ReadNodesAsync(Connection active, CancellationToken token)

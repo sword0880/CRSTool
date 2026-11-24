@@ -59,6 +59,7 @@ internal static class SupervisedRunner
                     if(request.Payload?.Length>32768)throw new InvalidDataException();
                     var job=catalog.Jobs.Single(x=>x.PluginId==id&&x.Descriptor.JobId==request.JobId);
                     var session=job.Session;
+                    // 显式直连也属于一次线路配置。只有声明支持 VPN 的任务可以接收该配置。
                     if (request.RouteSpecified)
                     {
                         if (!job.Descriptor.SupportsVpn || session is not IProxyBackgroundSession routed || request.Payload is not null)

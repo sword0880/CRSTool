@@ -102,8 +102,8 @@ internal static class SettingsViewChecks
                     model.SectionSearch="Mihomo";
                     if(model.SelectedSection?.Key!="vpn"||model.VisibleSections.Count!=1)throw new Exception("Mihomo 搜索未定位统一 VPN 订阅设置。");
                     var vpn=(VpnSettingsView)window.FindName("VpnSection");
-                    var vpnAddress=(PasswordBox)vpn.FindName("SubscriptionInput");
-                    vpnAddress.Password="synthetic-vpn-draft";
+                    var vpnAddress=(TextBox)vpn.FindName("SubscriptionInput");
+                    vpnAddress.Text="synthetic-vpn-draft";
                     await VerifyAiModelsAsync(window, model, directory);
                     if (cleanupAudit is null) await VerifyAiAssistantAsync(directory);
                     model.SelectedSection=model.Sections[0];
@@ -129,7 +129,7 @@ internal static class SettingsViewChecks
                     if(model.SelectedSection?.Key!="wechat"||model.VisibleSections.Count!=1)throw new Exception("微信搜索没有定位个人微信分类。");
                     model.State.IsBusy=true;
                     window.AbortForLock();
-                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||securityPassword.Password.Length!=0||securityCode.Password.Length!=0||documentPassword.Password.Length!=0||documentConfirmation.Password.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0||aiKey.Password.Length!=0||vpnAddress.Password.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
+                    if(password.Password.Length!=0||model.DocumentPassword.Length!=0||model.SecurityPassword.Length!=0||securityPassword.Password.Length!=0||securityCode.Password.Length!=0||documentPassword.Password.Length!=0||documentConfirmation.Password.Length!=0||dingToken.Password.Length!=0||dingSecret.Password.Length!=0||wxToken.Password.Length!=0||aiKey.Password.Length!=0||vpnAddress.Text.Length!=0)throw new Exception("锁定设置窗口未清空凭证。");
                 }
                 catch(Exception error){failure=error;}
                 finally{window.Close();}

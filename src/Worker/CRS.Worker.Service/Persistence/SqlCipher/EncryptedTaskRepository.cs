@@ -179,6 +179,7 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
     }
     private void SaveVpnNode(TaskDefinition plan)
     {
+        // null 保留既有线路设置，空字符串明确保存直连。随任务计划一起提交。
         if (plan.VpnNode is null) return;
         Execute("""
             INSERT INTO task_vpn(plugin,job,node) VALUES($p,$j,$n)

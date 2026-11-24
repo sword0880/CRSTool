@@ -19,6 +19,10 @@ internal static class VpnChecks
             "Provider URL is encrypted at rest");
         Check((await vpn.SettingsAsync("owner", false, null, false, token)).Configured &&
             !(await vpn.SettingsAsync("other", false, null, false, token)).Configured, "Subscription belongs to the Windows owner");
+        Check((await vpn.SettingsAsync("owner", false, null, false, token, showAddress: true)).SubscriptionAddress == address &&
+            (await vpn.SettingsAsync("owner", false, null, false, token)).SubscriptionAddress is null &&
+            (await vpn.SettingsAsync("other", false, null, false, token, showAddress: true)).SubscriptionAddress is null,
+            "Only authorized settings reads return the saved subscription address");
         await Expected("Forbidden", () => vpn.OpenAsync("Node A", "other", false, token));
         await Expected("VpnEngineMissing", () => vpn.OpenAsync("Node A", "owner", false, token));
         await Expected("InvalidVpnSubscription", () => vpn.SettingsAsync("owner", true, "http://example.org/path", false, token));

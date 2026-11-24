@@ -16,6 +16,7 @@ public sealed class RunnerProcessJob : IDisposable
         if(handle.IsInvalid)throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(),"Runner job creation failed.");
         try
         {
+            // Chrome 需要驱动和渲染子进程，单独限制其进程数和总内存。关闭作业句柄时仍回收整个进程树。
             var limit=new ExtendedLimits
             {
                 Basic = new BasicLimits { Flags = 0x2000 | 0x400 | 0x100 | 0x8 | (allowChrome ? 0x200u : 0u),

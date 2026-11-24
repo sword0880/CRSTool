@@ -14,7 +14,9 @@ public sealed partial class BackgroundRuntime
         BackgroundResponse Reply(string code, object? value = null) => new(WorkerProtocol.Version, request.RequestId, code,
             Payload: value is null ? null : JsonSerializer.Serialize(value));
         if (Vpn is null) return Reply("UnknownCommand");
-        var hasPayload = request.Command is WorkerProtocol.SaveVpnSettings or WorkerProtocol.OpenVpnRoute;
+        // 只有 VPN 设置页显式请求完整地址，节点下拉框仍使用摘要。
+        var showAddress = request.Command == WorkerProtocol.GetVpnSettings && request.Payload == "ShowSubscription";
+        var hasPayload = showAddress || request.Command is WorkerProtocol.SaveVpnSettings or WorkerProtocol.OpenVpnRoute;
         if (request.RequestId == Guid.Empty || hasPayload != (request.Payload is not null) ||
             request != new BackgroundRequest(WorkerProtocol.Version, request.RequestId, request.Command, Payload: request.Payload))
             return Reply("InvalidRequest");
@@ -25,8 +27,9 @@ public sealed partial class BackgroundRuntime
         {
             if (request.Command == WorkerProtocol.OpenVpnRoute)
                 return Reply("Ok", await Vpn.OpenAsync(request.Payload!, caller.Sid, caller.CanManage, deadline.Token));
-            return Reply("Ok", await Vpn.SettingsAsync(caller.Sid, caller.CanManage, request.Payload,
-                request.Command == WorkerProtocol.RefreshVpnNodes, deadline.Token));
+            var update = request.Command == WorkerProtocol.SaveVpnSettings ? request.Payload : null;
+            return Reply("Ok", await Vpn.SettingsAsync(caller.Sid, caller.CanManage, update,
+                request.Command == WorkerProtocol.RefreshVpnNodes, deadline.Token, showAddress));
         }
         catch (WorkerVpn.VpnException error) { return Reply(error.Code); }
         catch (OperationCanceledException) when (!token.IsCancellationRequested) { return Reply("VpnUnavailable"); }

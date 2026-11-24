@@ -32,6 +32,7 @@ internal sealed class OriginalPageBrowser(IPlaywright driver, IBrowser browser, 
     {
         token.ThrowIfCancellationRequested();
         var driver = await Playwright.CreateAsync();
+        // 任务取消时关闭驱动，让仍在等待的 Playwright 调用退出。
         var cancellation = token.Register(driver.Dispose);
         try
         {
@@ -59,6 +60,7 @@ internal sealed class OriginalPageBrowser(IPlaywright driver, IBrowser browser, 
         if (endpoint is null || !endpoint.IsLoopback || endpoint.Scheme != Uri.UriSchemeHttp ||
             endpoint.UserInfo.Length != 0 || endpoint.PathAndQuery != "/" || endpoint.Fragment.Length != 0)
             throw new InvalidOperationException("原帖浏览器需要有效的本机 VPN 代理。");
+        // 浏览器与同一任务的 RSS 请求共用 VPN 节点，代理凭据仅交给浏览器会话。
         var credential = route.Credentials?.GetCredential(endpoint, "Basic");
         return new() { Server = endpoint.AbsoluteUri, Username = credential?.UserName, Password = credential?.Password };
     }
@@ -134,6 +136,7 @@ internal sealed class OriginalPageBrowser(IPlaywright driver, IBrowser browser, 
 
     private static OriginalPageRead ResponseState(int status, Func<string, string?> readHeader)
     {
+        // Retry-After 可以是秒数或绝对时间。缺失时等待 30 分钟，有效值限定在 1 分钟至 1 天。
         if (status == 429)
         {
             var delay = TimeSpan.FromMinutes(30);
@@ -158,6 +161,7 @@ internal sealed class OriginalPageBrowser(IPlaywright driver, IBrowser browser, 
 
     internal static async Task<OriginalPageRead> ExtractAsync(IPage page, OriginalPageLead post)
     {
+        // 同时用页面地址、作者 ID 和永久链接核对同一条线索。正文选择器只覆盖发言，排除评论区。
         var owner = page.Locator(".article__author a.name[data-tooltip]");
         var permalink = page.Locator(".article__author a.time[href]");
         var body = page.Locator("article.article__bd .article__bd__detail:visible");

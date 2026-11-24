@@ -22,6 +22,7 @@ internal sealed partial class WatchStore
 
     internal OriginalPageLead[] OriginalPageQueue(DateTimeOffset now, int limit)
     {
+        // 只排入启用作者尚未存有正文、且已到重试时间的 Google Alerts 线索。未检查的线索优先。
         var posts = new List<OriginalPageLead>();
         foreach (var author in LeadAuthors().Where(UsesGoogleAlerts))
         {
@@ -41,6 +42,7 @@ internal sealed partial class WatchStore
 
     internal bool SaveOriginalPage(OriginalPageLead post, OriginalPageRead result, DateTimeOffset now, CancellationToken token)
     {
+        // 网络读取期间作者可能被暂停或取消订阅，写入前重新检查其状态。
         token.ThrowIfCancellationRequested();
         if (!LeadAuthors().Any(author => author.Account == post.Account && UsesGoogleAlerts(author))) return false;
         using var transaction = db.BeginTransaction();
@@ -49,6 +51,7 @@ internal sealed partial class WatchStore
             result.Published is { } published && published.Year >= 2005 && published <= now.AddMinutes(5) &&
             TrySaveAutomaticBody(post.Account, post.Url, published, text, PostBodySource.OriginalPage, transaction);
         if (!saved && state == "FullText") state = "BodyUnavailable";
+        // 在同一事务中保存正文和检查状态。缺正文或访问受限延后一天，其他临时失败默认两小时。
         var delay = result.RetryAfter ?? TimeSpan.FromHours(state is "BodyUnavailable" or "AccessRestricted" ? 24 : 2);
         Execute("""
             INSERT INTO original_page_checks(account,url,state,checked,retry) VALUES($a,$u,$s,$c,$retry)

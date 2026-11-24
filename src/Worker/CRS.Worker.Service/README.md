@@ -25,6 +25,6 @@ CRS.Worker.Service/
 
 开发发行包可通过 `tests/Publish-BackgroundService.ps1 -MihomoArchive <官方 Windows x64 归档>` 加入 Mihomo v1.19.34。打包脚本校验归档哈希，核心随 Worker 发行索引校验，其余部署流程与现有 Worker 一致。[Mihomo 官方发布](https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.34)
 
-管理员在「系统设置 → 网络 → VPN」保存 HTTPS 订阅并刷新节点。活动订阅在 Worker 私有目录加密保存，界面只显示保存状态与节点名称。每个联网任务在「任务中心 → 任务详情」选择节点。AI 模型在「系统设置 → AI 模型」按供应商选节点，通过「测试并设为默认」保存。AI 默认直连。VPN 节点不可用时，配置了节点的请求报告失败。
+管理员在「系统设置 → 网络 → VPN」保存 HTTPS 订阅并刷新节点。订阅在 Worker 私有目录加密保存，VPN 设置页会明文显示已保存的地址，便于核对和编辑。每个联网任务在「任务中心 → 任务详情」选择节点。AI 模型在「系统设置 → AI 模型」按供应商选节点，通过「测试并设为默认」保存。AI 默认直连。VPN 节点不可用时，配置了节点的请求报告失败。
 
 VPN 使用绑定在本机回环的独立 HTTP 代理。Worker 定时与手动任务使用计划保存的节点，AI 请求使用供应商配置保存的节点，两个不同节点可并行使用。
