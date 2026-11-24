@@ -164,7 +164,6 @@ internal static class CalculationCommitChecks
             && vault.Repository.History().Single(t=>t.Id==reference.SnapshotId).ActiveCopies==priorCopies.Length+2,
             "v3 旧库回填整批原件分组并保留原归档状态");
 
-        File.WriteAllText(Path.Combine(root,"exchange_rate.json"),"""{"2025":{"CNY":1,"USD":7},"2026":{"CNY":1}}""");
         var plan = await workflow.PrepareHistoricalRecalculationAsync(initial.SnapshotId,default);
         check(plan is { Broker:"IBKR", Year:2025, NeedsCarry:false } && plan.Originals.Single() is { InVault:true },
             "已归档历史带出券商、年度和保险库原件");
