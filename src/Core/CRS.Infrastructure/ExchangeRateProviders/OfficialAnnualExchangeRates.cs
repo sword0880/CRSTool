@@ -128,34 +128,28 @@ public sealed class OfficialAnnualExchangeRates(
         var now = (clock ?? TimeProvider.System).GetUtcNow();
         if (valuationRetryAfter.TryGetValue(year, out var retryAt) && now < retryAt) return;
         var today = DateOnly.FromDateTime(BeijingClock.Normalize(now).Date);
-        CentralParitySnapshot? snapshot = null;
-        try
+        var snapshot = year < today.Year ? ReadSnapshotForValuation(readLegacySnapshot, year) : null;
+        if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+            snapshot = ReadSnapshotForValuation(readOfficial, year);
+        if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+            snapshot = ReadSnapshotForValuation(readLegacySnapshot, year);
+        if (snapshot is not null && ValidSnapshot(year, snapshot, today))
         {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            if (year < today.Year)
-                snapshot = readLegacySnapshot(year, deadline.Token).GetAwaiter().GetResult();
-            if (snapshot is null || !ValidSnapshot(year, snapshot, today))
-            {
-                using var officialDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                snapshot = readOfficial(year, officialDeadline.Token).GetAwaiter().GetResult();
-            }
-            if (snapshot is null || !ValidSnapshot(year, snapshot, today))
-            {
-                using var legacyDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                snapshot = readLegacySnapshot(year, legacyDeadline.Token).GetAwaiter().GetResult();
-            }
-            if (snapshot is not null && ValidSnapshot(year, snapshot, today))
-            {
-                memory[year] = snapshot;
-                valuationRetryAfter.TryRemove(year, out _);
-                return;
-            }
+            memory[year] = snapshot;
+            valuationRetryAfter.TryRemove(year, out _);
+            return;
         }
-        catch (Exception error) when (error is OperationCanceledException or IOException or InvalidDataException or HttpRequestException)
-        {
-            // 估值只读取缓存，不在此触发网络刷新；短暂失败后一分钟再试。
-        }
+        // 估值只读取缓存，不在此触发网络刷新；短暂失败后一分钟再试。
         valuationRetryAfter[year] = now.AddMinutes(1);
+    }
+
+    private static CentralParitySnapshot? ReadSnapshotForValuation(
+        Func<int, CancellationToken, Task<CentralParitySnapshot?>> read, int year)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { return Task.Run(() => read(year, deadline.Token)).GetAwaiter().GetResult(); }
+        catch (Exception error) when (error is OperationCanceledException or IOException or InvalidDataException or HttpRequestException)
+        { return null; }
     }
 
     public string CachedFingerprint(int year)
