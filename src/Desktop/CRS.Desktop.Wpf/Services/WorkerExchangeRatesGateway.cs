@@ -11,7 +11,7 @@ internal static class WorkerExchangeRatesGateway
     private static readonly BackgroundPipeClient Client = new();
 
     public static Task<CentralParitySnapshot?> ReadAsync(int year, CancellationToken cancellation) =>
-        ReadSnapshotAsync(WorkerProtocol.GetAnnualExchangeRates, year, TimeSpan.FromSeconds(3), cancellation);
+        ReadSnapshotAsync(WorkerProtocol.GetAnnualExchangeRates, year, TimeSpan.FromSeconds(2), cancellation);
 
     public static Task<CentralParitySnapshot?> RefreshAsync(int year, CancellationToken cancellation) =>
         ReadSnapshotAsync(WorkerProtocol.RefreshAnnualExchangeRates, year, TimeSpan.FromSeconds(28), cancellation);
@@ -38,7 +38,7 @@ internal static class WorkerExchangeRatesGateway
     public static async Task<LegacyAnnualExchangeRateRecord[]> ReadLegacyAsync(int year, CancellationToken cancellation)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        deadline.CancelAfter(TimeSpan.FromSeconds(3));
+        deadline.CancelAfter(TimeSpan.FromSeconds(2));
         try
         {
             var reply = await Client.SendAsync(new(WorkerProtocol.Version, Guid.NewGuid(),
@@ -54,7 +54,7 @@ internal static class WorkerExchangeRatesGateway
     public static async Task<bool> ImportLegacyAsync(CentralParitySnapshot snapshot, CancellationToken cancellation)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        deadline.CancelAfter(TimeSpan.FromSeconds(3));
         try
         {
             var payload = JsonSerializer.Serialize(snapshot);

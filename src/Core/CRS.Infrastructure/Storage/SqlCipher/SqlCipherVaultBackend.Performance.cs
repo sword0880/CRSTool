@@ -93,8 +93,10 @@ internal sealed partial class SqlCipherVaultBackend
         lock(gate)
         {
             var active=Required();var exports=new CRS.Application.SensitiveDataExportService(new DesktopOperations(repository!,"",this,loggerFactory:loggerFactory),active.Lifetime);
+            Func<DateOnly[], PerformanceFx[]>? fxRates = online && annualRates is not null
+                ? annualRates.ReadCachedValuationRates : null;
             return new PerformanceUseCases(new PerformanceStore(active),new PerformanceFiles(CaptureGuard(),exports),active.Lifetime,
-                online ? new YahooPerformanceMarketData() : null, online ? annualRates?.ReadCachedValuationRates : null);
+                online ? new YahooPerformanceMarketData() : null, fxRates);
         }
     }
 }
