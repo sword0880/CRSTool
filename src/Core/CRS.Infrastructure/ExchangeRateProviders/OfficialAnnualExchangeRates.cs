@@ -23,6 +23,7 @@ public sealed class OfficialAnnualExchangeRates(
     private const string Source = "国家外汇管理局（数据来自中国外汇交易中心）";
     private const int MaxLegacyCacheBytes = 128 * 1024;
     private readonly ConcurrentDictionary<int, CentralParitySnapshot> memory = new();
+    private readonly ConcurrentDictionary<int, bool> legacySnapshotOrigins = new();
     private readonly ConcurrentDictionary<int, IExchangeRateProvider> loadedProviders = new();
     private readonly ConcurrentDictionary<int, DateTimeOffset> valuationRetryAfter = new();
     private readonly SemaphoreSlim gate = new(1);
@@ -70,6 +71,7 @@ public sealed class OfficialAnnualExchangeRates(
             if (!ongoing && legacySnapshot is not null && ValidSnapshot(year, legacySnapshot, today))
             {
                 memory[year] = legacySnapshot;
+                legacySnapshotOrigins[year] = true;
                 var historical = Build(year, legacySnapshot, ongoing: false, legacy: true);
                 loadedProviders[year] = historical;
                 return historical;
@@ -96,6 +98,7 @@ public sealed class OfficialAnnualExchangeRates(
             if (cached is not null)
             {
                 memory[year] = cached;
+                legacySnapshotOrigins[year] = false;
                 var provider = Build(year, cached, ongoing);
                 loadedProviders[year] = provider;
                 return provider;
@@ -105,6 +108,7 @@ public sealed class OfficialAnnualExchangeRates(
             if (legacySnapshot is not null && ValidSnapshot(year, legacySnapshot, today))
             {
                 memory[year] = legacySnapshot;
+                legacySnapshotOrigins[year] = true;
                 var provider = Build(year, legacySnapshot, ongoing, legacy: true);
                 loadedProviders[year] = provider;
                 return provider;
@@ -129,21 +133,26 @@ public sealed class OfficialAnnualExchangeRates(
         if (valuationRetryAfter.TryGetValue(year, out var retryAt) && now < retryAt) return;
         var today = DateOnly.FromDateTime(BeijingClock.Normalize(now).Date);
         CentralParitySnapshot? snapshot;
+        var isLegacy = false;
         if (year < today.Year)
         {
             snapshot = ReadSnapshotForValuation(readLegacySnapshot, year);
-            if (snapshot is null || !ValidSnapshot(year, snapshot, today))
-                snapshot = ReadSnapshotForValuation(readOfficial, year);
+            isLegacy = snapshot is not null && ValidSnapshot(year, snapshot, today);
+            if (!isLegacy) snapshot = ReadSnapshotForValuation(readOfficial, year);
         }
         else
         {
             snapshot = ReadSnapshotForValuation(readOfficial, year);
             if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+            {
                 snapshot = ReadSnapshotForValuation(readLegacySnapshot, year);
+                isLegacy = snapshot is not null && ValidSnapshot(year, snapshot, today);
+            }
         }
         if (snapshot is not null && ValidSnapshot(year, snapshot, today))
         {
             memory[year] = snapshot;
+            legacySnapshotOrigins[year] = isLegacy;
             valuationRetryAfter.TryRemove(year, out _);
             return;
         }
@@ -163,7 +172,11 @@ public sealed class OfficialAnnualExchangeRates(
     public string CachedFingerprint(int year)
     {
         if (loadedProviders.TryGetValue(year, out var provider)) return provider.Fingerprint;
-        if (memory.TryGetValue(year, out var cached)) return Build(year, cached, cached.From.Month == 1).Fingerprint;
+        if (memory.TryGetValue(year, out var cached))
+        {
+            var legacy = legacySnapshotOrigins.TryGetValue(year, out var isLegacy) && isLegacy;
+            return Build(year, cached, cached.From.Month == 1, legacy).Fingerprint;
+        }
         throw new CrsException("当前年度汇率尚未从后台数据库读取，请重新打开汇率管理页面。");
     }
 
