@@ -200,8 +200,16 @@ internal sealed class LeadWindow : WatchEditor
             : "待核对";
         public string Title => Lead.Title;
         public string RssContent => Lead.PostBodyRevision > 0 ? $"全文 · {PostBody.SourceLabel(Lead.BodySource)}" :
-            Lead.Summary.Length > 0 ? $"片段 · {Lead.Summary}" :
-            Lead.Content.Length > 0 ? $"片段 · {Lead.Content}" : "仅链接";
+            OriginalPageStatus + (Lead.Summary.Length > 0 ? $"片段 · {Lead.Summary}" :
+                Lead.Content.Length > 0 ? $"片段 · {Lead.Content}" : "仅链接");
+        private string OriginalPageStatus => Lead.OriginalPageState switch
+        {
+            "BodyUnavailable" => "原帖正文不完整 · ",
+            "AccessRestricted" => "原帖访问受限 · ",
+            "RateLimited" => "雪球限流 · ",
+            "Unavailable" => "原帖读取失败 · ",
+            _ => ""
+        };
         public string Url => Lead.Url;
     }
 }

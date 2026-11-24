@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><Version>1.0.0</Version></PropertyGroup>
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <PlaywrightPlatform>win-x64</PlaywrightPlatform>
+  </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CRS.Tests.Background" />
     <ProjectReference Include="../CRS.Plugins.XueqiuWatch.Core/CRS.Plugins.XueqiuWatch.Core.csproj" />
     <ProjectReference Include="../../../Shared/CRS.Feed/CRS.Feed.csproj" />
     <ProjectReference Include="../../../Worker/CRS.Worker.Abstractions/CRS.Worker.Abstractions.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" />
+    <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
   </ItemGroup>
 </Project>

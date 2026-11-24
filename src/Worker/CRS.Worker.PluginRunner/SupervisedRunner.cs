@@ -57,7 +57,14 @@ internal static class SupervisedRunner
                     // 持久业务命令ID与临时RPC请求ID分别传递，重试与进度不能混用标识。
                     var request=RunnerChannel.Data<RunnerExecution>(message);
                     if(request.Payload?.Length>32768)throw new InvalidDataException();
-                    var session=catalog.Jobs.Single(x=>x.PluginId==id&&x.Descriptor.JobId==request.JobId).Session;
+                    var job=catalog.Jobs.Single(x=>x.PluginId==id&&x.Descriptor.JobId==request.JobId);
+                    var session=job.Session;
+                    if (request.RouteSpecified)
+                    {
+                        if (!job.Descriptor.SupportsVpn || session is not IProxyBackgroundSession routed || request.Payload is not null)
+                            throw new ArgumentException("Runner job does not accept route settings.");
+                        return await routed.ExecuteViaProxyAsync(request.JobId, request.Proxy?.ToProxy(), token).ConfigureAwait(false);
+                    }
                     if(session is IProgressBackgroundSession progress)return await progress.ExecuteWithProgressAsync(request.JobId,request.Payload,
                         async value=>{await channel!.CallAsync<bool>("Progress",new RunnerProgress(message.Id,value),token).ConfigureAwait(false);},token,request.CommandId).ConfigureAwait(false);
                     return session is IParameterizedBackgroundSession parameterized

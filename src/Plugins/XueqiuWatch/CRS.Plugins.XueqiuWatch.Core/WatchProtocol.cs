@@ -52,7 +52,10 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
 
 public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",
     string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null,
-    string FeedItemId = "", long PostBodyRevision = 0, PostBodySource BodySource = PostBodySource.Manual);
+    string FeedItemId = "", long PostBodyRevision = 0, PostBodySource BodySource = PostBodySource.Manual)
+{
+    public string? OriginalPageState { get; init; }
+}
 public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
     string? ETag = null, DateTimeOffset? LastModified = null, string? FullTextState = null,
     int? FullTextCount = null);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
@@ -125,8 +126,64 @@ internal static class XueqiuRssChecks
             Check((await Ask(new("leads"))).Leads!.Rows.Single(x => x.Url == bodyUrl).PostBodyRevision == 2,
                 "线索中的全文状态随手工补录刷新");
             await VerifyFullTextFeedAsync(Ask, Run, transport);
+            await VerifyOriginalPagesAsync(Path.Combine(root, "original-pages"), key, token);
         }
         finally { CryptographicOperations.ZeroMemory(key); }
+    }
+
+    private static async Task VerifyOriginalPagesAsync(string root, byte[] key, CancellationToken token)
+    {
+        const string account = "9650668145";
+        var reader = new SampleOriginalPages();
+        await using var session = new XueqiuBackgroundEntry().CreateSession(new Context(root, key),
+            new FeedTransport { FullTextEnabled = true }, (_, _) => Task.FromResult<IOriginalPageReader>(reader));
+        await session.StartAsync(token);
+        async Task<WatchReply> Ask(WatchRequest request) => WatchProtocol.Decode<WatchReply>(
+            await ((IBackgroundPrivateDataSession)session).AccessPrivateDataAsync(WatchProtocol.Encode(request), token));
+        var author = (await Ask(new("authors"))).Authors!.Single(item => item.Account == account);
+        var save = await Ask(new("author-save", Author: author with { FeedUrl = FeedUrl }, ChangeId: Guid.NewGuid()));
+        Check(save.Error is null, "保存静态原帖采集样本作者");
+        var result = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
+        var posts = (await Ask(new("leads"))).Leads!.Rows;
+        var complete = posts.Single(item => item.Url.EndsWith("/111", StringComparison.Ordinal));
+        var partial = posts.Single(item => item.Url.EndsWith("/441", StringComparison.Ordinal));
+        var restricted = posts.Single(item => item.Url.EndsWith("/442", StringComparison.Ordinal));
+        var bytes = (await Ask(new("post-body-read", Body: new(account, complete.Url, 1)))).BodyBytes;
+        Check(result is { Status: "RetryDeferred" } && complete.BodySource == PostBodySource.OriginalPage &&
+            complete.PostBodyRevision == 1 && complete.Summary.Contains("中国移动") &&
+            bytes is not null && PostBody.Decode(bytes) == "第一段。\n第二段。",
+            "Google Alerts 摘要与原帖全文分别保存，保留原帖换行和来源");
+        Check(partial is { OriginalPageState: "BodyUnavailable", PostBodyRevision: 0 } &&
+            restricted is { OriginalPageState: "RateLimited", PostBodyRevision: 0 } && reader.Calls == 3,
+            "不完整的原帖和限流页面不会标为全文，第三方链接未打开");
+        Check(reader.ShortestInterval >= TimeSpan.FromMilliseconds(900), "逐条打开原帖，核对随机等待的最短间隔");
+        _ = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
+        Check(reader.Calls == 3, "Google Alerts 304 时不重复读取已完成或尚在等待的原帖");
+    }
+
+    private sealed class SampleOriginalPages : IOriginalPageReader
+    {
+        private long? lastOpened;
+        internal int Calls { get; private set; }
+        internal TimeSpan ShortestInterval { get; private set; } = TimeSpan.MaxValue;
+
+        public Task<OriginalPageRead> ReadAsync(OriginalPageLead post, CancellationToken token)
+        {
+            var now = Stopwatch.GetTimestamp();
+            if (lastOpened is { } last)
+                ShortestInterval = TimeSpan.FromTicks(Math.Min(ShortestInterval.Ticks, Stopwatch.GetElapsedTime(last, now).Ticks));
+            lastOpened = now;
+            Calls++;
+            return Task.FromResult(post.Url.Split('/')[^1] switch
+            {
+                "111" => new OriginalPageRead("FullText", "第一段。\n第二段。", WatchProtocol.BeijingNow.AddHours(-1)),
+                "441" => new OriginalPageRead("BodyUnavailable"),
+                "442" => new OriginalPageRead("RateLimited", RetryAfter: TimeSpan.FromMinutes(3)),
+                _ => throw new InvalidOperationException("意外的原帖浏览请求")
+            });
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private static async Task VerifyFullTextFeedAsync(Func<WatchRequest, Task<WatchReply>> ask,
@@ -311,7 +368,7 @@ internal static class XueqiuRssChecks
         db.Open();
         using var clearSubscriptionSchema = db.CreateCommand();
         clearSubscriptionSchema.CommandText =
-            "DROP TABLE google_alerts; DROP TABLE rss_proxy; DROP TABLE post_bodies; DROP TABLE full_text_coverage; DROP TABLE google_alert_connection";
+            "DROP TABLE google_alerts; DROP TABLE rss_proxy; DROP TABLE post_bodies; DROP TABLE full_text_coverage; DROP TABLE google_alert_connection; DROP TABLE original_page_checks";
         clearSubscriptionSchema.ExecuteNonQuery();
         using var update = db.CreateCommand();
         var oldAuthor = WatchProtocol.InitialAuthors.Single(x => x.Account == "8632046745") with { Name = "逹人知命" };

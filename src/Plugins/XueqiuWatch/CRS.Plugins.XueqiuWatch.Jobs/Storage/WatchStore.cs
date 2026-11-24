@@ -39,7 +39,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 11)
+            else if (application != ApplicationId || version is < 1 or > 12)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -51,6 +51,7 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 9) InitializePostBodies();
             if (version < 10) InitializeFullTextFeeds();
             if (version < 11) InitializeGoogleConnection();
+            if (version < 12) InitializeOriginalPages();
         }
         catch
         {

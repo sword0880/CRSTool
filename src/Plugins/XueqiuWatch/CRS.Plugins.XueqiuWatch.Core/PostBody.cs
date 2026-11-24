@@ -6,7 +6,7 @@ public sealed record PostBodyRequest(string Account = "", string Url = "", long 
     Guid UploadId = default, int Offset = 0, int Length = 0, string? Sha256 = null,
     byte[]? Bytes = null, DateTimeOffset? PublishedAt = null);
 
-public enum PostBodySource { Manual, AuthorizedFeed }
+public enum PostBodySource { Manual, AuthorizedFeed, OriginalPage }
 
 public sealed record PostBodyInfo(long Revision, int Length, string Sha256, DateTimeOffset PublishedAt,
     PostBodySource Source = PostBodySource.Manual);
@@ -19,7 +19,12 @@ public static class PostBody
     private static readonly UTF8Encoding Utf8 = new(false, true);
 
     public static string SourceLabel(PostBodySource source) =>
-        source == PostBodySource.AuthorizedFeed ? "获授权来源" : "手工补录";
+        source switch
+        {
+            PostBodySource.AuthorizedFeed => "获授权来源",
+            PostBodySource.OriginalPage => "雪球原帖网页",
+            _ => "手工补录"
+        };
 
     public static byte[] Encode(string text)
     {

@@ -8,7 +8,7 @@ namespace CRS.Worker.PluginHost;
 /// <summary>每插件一个受监督Runner；只转发其专属密钥及窄宿主能力，不在Worker加载业务代码。</summary>
 public sealed class IsolatedPluginSession(string runnerPath,string root,string trustFile,TrustedPackage package,
     IBackgroundHostContext? context=null,Action<string,string,string>? diagnostic=null,TimeProvider? timeProvider=null) : IBackgroundPluginSession,
-    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession,IBackgroundPrivateDataSession
+    IProgressBackgroundSession,IParameterizedBackgroundSession,IBackgroundQuerySession,IGroupedBackgroundSession,IBackgroundQueryRoutingSession,IBackgroundQueryLifetimeSession,IBackgroundPrivateDataSession,IProxyBackgroundSession
 {
     private readonly SemaphoreSlim lifecycle=new(1);
     private readonly ConcurrentDictionary<Guid,IBackgroundSourceLease> leases=[];
@@ -53,7 +53,7 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
             try
             {
                 process=Process.Start(start)??throw new IOException("Runner could not start.");
-                job=new RunnerProcessJob(process);
+                job=new RunnerProcessJob(process,BackgroundPluginCatalog.UsesChromeDriver(package.Id));
                 _=DrainErrorsAsync(process.StandardError); // 有界丢弃插件输出，不把敏感日志转发公开渠道。
                 var epoch=Interlocked.Increment(ref generation);
                 RunnerChannel? connection=null;
@@ -126,6 +126,11 @@ public sealed class IsolatedPluginSession(string runnerPath,string root,string t
         =>ExecuteWithProgressAsync(id,payload,_=>Task.CompletedTask,token,commandId);
     public Task<BackgroundJobResult> ExecuteWithProgressAsync(string id,string? payload,Func<BackgroundProgress,Task> progress,CancellationToken token,Guid? commandId=null)
         =>InvokeAsync<BackgroundJobResult>("Execute",new RunnerExecution(id,payload,commandId),token,progress);
+    public Task<BackgroundJobResult> ExecuteViaProxyAsync(string id, System.Net.IWebProxy? proxy, CancellationToken token) =>
+        InvokeAsync<BackgroundJobResult>("Execute", new RunnerExecution(id, null, null)
+        {
+            RouteSpecified = true, Proxy = proxy is null ? null : RunnerProxy.FromProxy(proxy)
+        }, token);
     public Task<string> QueryAsync(string payload,CancellationToken token)=>description?.SupportsQueries==false
         ?throw new ArgumentException("Plugin has no queries."):InvokeAsync<string>("Query",payload,token);
     public bool SupportsPrivateData => description?.SupportsPrivateData == true;

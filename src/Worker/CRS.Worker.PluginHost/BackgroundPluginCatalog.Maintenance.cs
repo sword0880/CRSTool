@@ -5,6 +5,9 @@ namespace CRS.Worker.PluginHost;
 
 public sealed partial class BackgroundPluginCatalog
 {
+    // 此可信发行包包含浏览器驱动的脚本和原生资源，其它插件沿用原有边界。
+    internal static bool UsesChromeDriver(string id) => id == "crs.xueqiu-watch";
+
     internal static async Task<TrustedPackage[]> ReadPackagesAsync(string trustFile,CancellationToken token)
     {
         CRS.IO.PhysicalPathGuard.RejectLinks(trustFile);
@@ -13,7 +16,9 @@ public sealed partial class BackgroundPluginCatalog
         if(packages.Length>32)throw new InvalidDataException("后台插件数量超过上限。");
         var ids=new HashSet<string>(StringComparer.Ordinal);
         foreach(var package in packages)
-            if(package is null||!ValidId(package.Id)||!ids.Add(package.Id)||package.Files is null||package.Files.Count is <1 or >256)throw new InvalidDataException("插件标识重复或不合法。");
+            if(package is null||!ValidId(package.Id)||!ids.Add(package.Id)||package.Files is null||package.Files.Count<1||
+                package.Files.Count>(UsesChromeDriver(package.Id)?512:256))
+                throw new InvalidDataException("插件标识重复或发行文件数超限。");
         return packages;
     }
     private static BackgroundManifest VerifyManifest(string root,TrustedPackage package,out string directory)

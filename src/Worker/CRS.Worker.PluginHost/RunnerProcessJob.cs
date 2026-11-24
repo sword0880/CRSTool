@@ -8,13 +8,21 @@ namespace CRS.Worker.PluginHost;
 public sealed class RunnerProcessJob : IDisposable
 {
     private readonly SafeFileHandle handle;
-    public RunnerProcessJob(Process process)
+    public RunnerProcessJob(Process process) : this(process, false) { }
+
+    internal RunnerProcessJob(Process process, bool allowChrome)
     {
         handle=CreateJobObject(IntPtr.Zero,null);
         if(handle.IsInvalid)throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(),"Runner job creation failed.");
         try
         {
-            var limit=new ExtendedLimits{Basic=new BasicLimits{Flags=0x2000|0x400|0x100|0x8,ActiveProcesses=1},ProcessMemory=(UIntPtr)(1024UL*1024*1024)};
+            var limit=new ExtendedLimits
+            {
+                Basic = new BasicLimits { Flags = 0x2000 | 0x400 | 0x100 | 0x8 | (allowChrome ? 0x200u : 0u),
+                    ActiveProcesses = allowChrome ? 24u : 1u },
+                ProcessMemory = (UIntPtr)(1024UL * 1024 * 1024),
+                JobMemory = allowChrome ? (UIntPtr)(2048UL * 1024 * 1024) : UIntPtr.Zero
+            };
             var size=Marshal.SizeOf<ExtendedLimits>();var pointer=Marshal.AllocHGlobal(size);
             try
             {

@@ -9,15 +9,16 @@ public sealed partial class XueqiuBackgroundEntry
     private sealed partial class Session
     {
         public Task<BackgroundJobResult> ExecuteAsync(string jobId, CancellationToken token) =>
-            ExecuteCoreAsync(jobId, null, token);
+            ExecuteCoreAsync(jobId, null, null, token);
 
         public async Task<BackgroundJobResult> ExecuteViaProxyAsync(string jobId, System.Net.IWebProxy? proxy, CancellationToken token)
         {
             using var routed = new FeedClient(options: new() { Proxy = proxy, UseSystemProxy = false });
-            return await ExecuteCoreAsync(jobId, routed, token);
+            return await ExecuteCoreAsync(jobId, routed, proxy, token);
         }
 
-        private async Task<BackgroundJobResult> ExecuteCoreAsync(string jobId, FeedClient? routed, CancellationToken token)
+        private async Task<BackgroundJobResult> ExecuteCoreAsync(string jobId, FeedClient? routed, System.Net.IWebProxy? proxy,
+            CancellationToken token)
         {
             if (jobId != WatchProtocol.LeadJobId) return new("Rejected");
 
@@ -72,11 +73,14 @@ public sealed partial class XueqiuBackgroundEntry
             }
             finally { gate.Release(); }
 
+            var originals = openOriginalPages is null ? default : await ReadOriginalPagesAsync(proxy, token);
             var limited = leadScans.Concat(fullTextScans).Where(scan => scan.Result.Status == FeedFetchStatus.RateLimited)
                 .Select(scan => scan.Result.RetryAfter ?? TimeSpan.FromMinutes(30)).ToArray();
+            if (originals.RetryAfter is { } retryAfter) limited = [..limited, retryAfter];
             var proxyFailures = leadScans.Count(scan => scan.Result.Status == FeedFetchStatus.ProxyUnavailable);
             var proxyNote = proxyFailures > 0 ? $" {proxyFailures} 个来源无法经所用代理连接。" : "";
-            var fullTextNote = fullTextScans.Length == 0 ? "" : $" 自动补全 {bodies.Added} 条，全文来源失败 {bodies.Failed} 个。";
+            var fullTextNote = (fullTextScans.Length == 0 ? "" : $" 全文来源补全 {bodies.Added} 条，读取失败 {bodies.Failed} 个。") +
+                originals.Note;
             if (limited.Length > 0)
                 return new("RetryDeferred", $"已保存可用来源结果；{limited.Length} 个来源被限流，当前覆盖未知。{proxyNote}{fullTextNote}", limited.Max());
 

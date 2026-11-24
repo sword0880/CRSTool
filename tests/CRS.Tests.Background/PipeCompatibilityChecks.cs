@@ -4,7 +4,7 @@ using CRS.Worker.Ipc;
 
 internal static class PipeCompatibilityChecks
 {
-    public static async Task RunAsync(string package,bool includePlugins=false,bool checkXueqiu=false)
+    public static async Task RunAsync(string package,bool includePlugins=false,bool checkXueqiu=false,bool checkOriginalPage=false)
     {
         var root=Path.Combine(Path.GetTempPath(),"CRS.PipeCompatibility",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
         var plugins=Path.Combine(root,"empty-plugins");Directory.CreateDirectory(plugins);
@@ -18,7 +18,7 @@ internal static class PipeCompatibilityChecks
         var stdout=process.StandardOutput.ReadToEndAsync();var stderr=process.StandardError.ReadToEndAsync();
         try
         {
-            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(checkXueqiu ? 45 : 20));var client=new BackgroundPipeClient(pipe);
+            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(checkOriginalPage ? 65 : checkXueqiu ? 45 : 20));var client=new BackgroundPipeClient(pipe);
             while(true)
             {
                 if(process.HasExited)throw new Exception("隔离宿主退出："+(await stderr));
@@ -38,6 +38,8 @@ internal static class PipeCompatibilityChecks
                                 throw new InvalidOperationException("雪球后台插件未启动。");
                             await XueqiuPrivateDataChecks.RunAsync(client, Path.Combine(root, "data"), deadline.Token);
                         }
+                        if (checkOriginalPage)
+                            await XueqiuOriginalPageChecks.RunWorkerAsync(client, Path.Combine(root, "data"), deadline.Token);
                     }
                     if(!includePlugins)Console.WriteLine("PASS 旧宿主二进制兼容：替换通信契约及IPC后启动并经真实管道确认Running；未加载业务插件。");
                     Console.WriteLine(JsonSerializer.Serialize(new{ProcessId=process.Id,Data=root,Pipe=pipe,State=response.Health.State}));break;

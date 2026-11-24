@@ -10,11 +10,15 @@ public sealed partial class XueqiuBackgroundEntry : IContextualBackgroundPluginE
 {
     public IBackgroundPluginSession CreateSession() => throw new InvalidOperationException("观点追踪需要独立存储上下文。");
     public IBackgroundPluginSession CreateSession(IBackgroundHostContext context) =>
-        new Session(context, new FeedClient(options: new() { UseSystemProxy = false }));
-    internal IBackgroundPluginSession CreateSession(IBackgroundHostContext context, HttpMessageHandler transport) =>
-        new Session(context, new FeedClient(transport));
+        new Session(context, new FeedClient(options: new() { UseSystemProxy = false }),
+            async (proxy, token) => await OriginalPageBrowser.OpenAsync(proxy, token));
+    internal IBackgroundPluginSession CreateSession(IBackgroundHostContext context, HttpMessageHandler transport,
+        Func<System.Net.IWebProxy?, CancellationToken, Task<IOriginalPageReader>>? openOriginalPages = null) =>
+        new Session(context, new FeedClient(transport), openOriginalPages);
 
-    private sealed partial class Session(IBackgroundHostContext context, FeedClient feed) : IBackgroundPluginSession, IBackgroundPrivateDataSession, IProxyBackgroundSession
+    private sealed partial class Session(IBackgroundHostContext context, FeedClient feed,
+        Func<System.Net.IWebProxy?, CancellationToken, Task<IOriginalPageReader>>? openOriginalPages)
+        : IBackgroundPluginSession, IBackgroundPrivateDataSession, IProxyBackgroundSession
     {
         private readonly SemaphoreSlim gate = new(1);
         private WatchStore? store;

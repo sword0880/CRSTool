@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text.Json;
 using CRS.Worker.Abstractions;
 using CRS.Common.Concurrency;
@@ -16,7 +17,39 @@ public sealed record RunnerDescription(string PluginId,string PackageHash,string
     public bool SupportsQueryLifetime {get;init;}
     public bool SupportsPrivateData {get;init;}
 }
-public sealed record RunnerExecution(string JobId,string? Payload,Guid? CommandId);
+public sealed record RunnerExecution(string JobId,string? Payload,Guid? CommandId)
+{
+    public bool RouteSpecified { get; init; }
+    public RunnerProxy? Proxy { get; init; }
+}
+
+/// <summary>仅通过受监督进程的私有句柄传递本机代理权限。</summary>
+public sealed class RunnerProxy
+{
+    public required int Port { get; init; }
+    public required string Password { get; init; }
+
+    internal static RunnerProxy FromProxy(IWebProxy proxy)
+    {
+        var url = proxy.GetProxy(new Uri("https://www.xueqiu.com/"));
+        if (url is null || url.Scheme != Uri.UriSchemeHttp || url.Host != "127.0.0.1" ||
+            url.PathAndQuery != "/" || url.UserInfo.Length != 0 || url.Fragment.Length != 0)
+            throw new InvalidDataException("Runner proxy endpoint is invalid.");
+        var credential = proxy.Credentials?.GetCredential(url, "Basic");
+        if (credential is not { UserName: "crs" }) throw new InvalidDataException("Runner proxy credentials are invalid.");
+        return new() { Port = url.Port, Password = credential.Password };
+    }
+
+    public IWebProxy ToProxy()
+    {
+        if (Port is < 1024 or > 65535 || Password is not { Length: 48 } || !Password.All(Uri.IsHexDigit))
+            throw new InvalidDataException("Runner proxy access is invalid.");
+        return new WebProxy(new Uri($"http://127.0.0.1:{Port}"))
+        {
+            Credentials = new NetworkCredential("crs", Password)
+        };
+    }
+}
 public sealed record RunnerProgress(Guid ExecutionId,BackgroundProgress Detail);
 /// <summary>仅固定阶段与分类；宿主复核白名单后写生命周期诊断，不传异常正文。</summary>
 public sealed record RunnerLifecycle(string Phase,string Code);

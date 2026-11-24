@@ -11,6 +11,16 @@
           "SQLitePCLRaw.core": "2.1.12"
         }
       },
+      "Microsoft.Playwright": {
+        "type": "Direct",
+        "requested": "[1.58.0, )",
+        "resolved": "1.58.0",
+        "contentHash": "LYLB00NUTzdY3NEN+fOQcxNuVALoGJMMWZYQINGBs4MfsKcTvr6WKoAmSsT5D4pPOOnN8uAyushEzoQ8qUEb0w==",
+        "dependencies": {
+          "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
+          "System.ComponentModel.Annotations": "5.0.0"
+        }
+      },
       "SQLitePCLRaw.bundle_e_sqlcipher": {
         "type": "Direct",
         "requested": "[2.1.11, )",
@@ -20,6 +30,11 @@
           "SQLitePCLRaw.lib.e_sqlcipher": "2.1.11",
           "SQLitePCLRaw.provider.e_sqlcipher": "2.1.11"
         }
+      },
+      "Microsoft.Bcl.AsyncInterfaces": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "UcSjPsst+DfAdJGVDsu346FX0ci0ah+lw3WRtn18NUwEqRt70HaOQ7lI72vy3+1LxtqI3T5GWwV39rQSrCzAeg=="
       },
       "SQLitePCLRaw.core": {
         "type": "Transitive",
@@ -39,19 +54,24 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
+      "System.ComponentModel.Annotations": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "dMkqfy2el8A8/I76n2Hi1oBFEbG1SfxD2l5nhwXV3XjlnOmwxJlQbYpJH4W51odnU9sARCSAgv7S3CyAFMkpYg=="
+      },
       "crs.common": {
         "type": "Project"
       },
-      "crs.plugins.xueqiuwatch.core": {
-        "type": "Project"
-      },
-      "crs.worker.abstractions": {
+      "crs.feed": {
         "type": "Project",
         "dependencies": {
           "CRS.Common": "[1.0.0, )"
         }
       },
-      "crs.feed": {
+      "crs.plugins.xueqiuwatch.core": {
+        "type": "Project"
+      },
+      "crs.worker.abstractions": {
         "type": "Project",
         "dependencies": {
           "CRS.Common": "[1.0.0, )"

@@ -253,8 +253,9 @@ internal sealed partial class WatchStore
         var total = Convert.ToInt32(Scalar("SELECT count(*) FROM post_leads p " + condition, null, ("$a", filter.Account!)));
         var query = """
             SELECT p.account,p.url,p.first_seen,p.title,p.summary,p.content,COALESCE(b.published,p.published),
-                p.feed_author,p.feed_item_id,COALESCE(b.revision,0),COALESCE(b.origin,0)
+                p.feed_author,p.feed_item_id,COALESCE(b.revision,0),COALESCE(b.origin,0),s.state
             FROM post_leads p
+            LEFT JOIN original_page_checks s ON s.account=p.account AND s.url=p.url
             LEFT JOIN post_bodies b ON b.account=p.account AND b.url=p.url AND b.revision=(
                 SELECT MAX(latest.revision) FROM post_bodies latest WHERE latest.account=p.account AND latest.url=p.url
             )
@@ -270,7 +271,7 @@ internal sealed partial class WatchStore
             items.Add(new(rows.GetString(0), rows.GetString(1), BeijingTime(rows.GetInt64(2)),
                 rows.GetString(3), rows.GetString(4), rows.GetString(5), published,
                 rows.IsDBNull(7) ? null : rows.GetString(7), rows.GetString(8), rows.GetInt64(9),
-                (PostBodySource)rows.GetInt32(10)));
+                (PostBodySource)rows.GetInt32(10)) { OriginalPageState = rows.IsDBNull(11) ? null : rows.GetString(11) });
         }
         rows.Close();
 
