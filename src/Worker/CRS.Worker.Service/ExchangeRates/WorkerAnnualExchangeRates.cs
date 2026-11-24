@@ -15,7 +15,6 @@ namespace CRS.Worker.Service;
 public sealed class WorkerAnnualExchangeRates : IBackgroundPluginSession
 {
     private readonly EncryptedTaskRepository repository;
-    private readonly byte[] key;
     private readonly HttpClient? client;
     private readonly string legacyDirectory;
     private readonly TimeProvider time;
@@ -30,12 +29,11 @@ public sealed class WorkerAnnualExchangeRates : IBackgroundPluginSession
         HttpClient? client = null, TimeProvider? clock = null)
     {
         this.repository = repository;
-        this.key = key;
         this.client = client;
         legacyDirectory = Path.Combine(dataDirectory, "exchange-rates");
         time = clock ?? TimeProvider.System;
         ImportLegacySeed();
-        ImportLegacySnapshots();
+        ImportLegacySnapshots(key);
     }
 
     internal bool NeedsCatchUp(TaskDefinition plan)
@@ -220,7 +218,7 @@ public sealed class WorkerAnnualExchangeRates : IBackgroundPluginSession
         finally { CryptographicOperations.ZeroMemory(bytes); }
     }
 
-    private void ImportLegacySnapshots()
+    private void ImportLegacySnapshots(byte[] key)
     {
         if (!Directory.Exists(legacyDirectory)) return;
         var info = new DirectoryInfo(legacyDirectory);
