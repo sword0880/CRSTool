@@ -89,7 +89,9 @@ internal sealed partial class SqlCipherVaultBackend
         finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(raw); }
     }
     /// <summary>绑定真实会话；online 决定是否提供行情适配器，绩效页面启用在线访问，锁定后取消。</summary>
-    public IPerformanceUseCases CreatePerformanceUseCases(bool online=true, OfficialAnnualExchangeRates? annualRates=null)
+    public IPerformanceUseCases CreatePerformanceUseCases(bool online=true) => CreatePerformanceUseCases(online, null);
+
+    public IPerformanceUseCases CreatePerformanceUseCases(bool online, OfficialAnnualExchangeRates? annualRates)
     {
         lock(gate)
         {
