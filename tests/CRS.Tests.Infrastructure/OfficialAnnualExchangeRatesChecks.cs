@@ -132,6 +132,7 @@ internal static class OfficialAnnualExchangeRatesChecks
             migratedValuation.Single(x => x.From == "USD").Rate == 7.1234m &&
             !File.Exists(migrationPath) && File.Exists(migrationPath + ".migrated"),
             "桌面旧 JSON 先迁入 Worker 数据库，确认成功后归档并保留估值读取能力");
+        Directory.Delete(migrationDirectory, recursive: true);
 
         var scheduledLookups = 0;
         var desktop = new OfficialAnnualExchangeRates((year, token) =>
