@@ -41,6 +41,9 @@ jobs:
         run: dotnet restore tests/CRS.Tests.Background/CRS.Tests.Background.csproj
       - name: Build Worker recovery tests
         run: dotnet build tests/CRS.Tests.Background/CRS.Tests.Background.csproj -c Release --no-restore -m:1
+      - name: Verify annual exchange-rate SQLCipher migration and history immutability
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --annual-exchange-rates
       - name: Verify CRS.Feed and per-author Xueqiu RSS
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --xueqiu-rss

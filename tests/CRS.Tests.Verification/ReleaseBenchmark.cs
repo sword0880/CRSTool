@@ -3,12 +3,13 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Xml;
+using CRS.Application.Abstractions;
 using CRS.Infrastructure;
 
 internal static class ReleaseBenchmark
 {
     /// <summary>只使用合成全年样本测量导入、FIFO、对账和快照总耗时，不能代替真实券商验收。</summary>
-    public static void Run(string output, string workspace, ExchangeRates rates)
+    public static void Run(string output, string workspace, IExchangeRateProvider rates)
     {
         Directory.CreateDirectory(output);
         var rows = new List<object>();

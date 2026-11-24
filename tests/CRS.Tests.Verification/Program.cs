@@ -6,10 +6,7 @@ using CRS.Infrastructure;
 // 使用独立控制台验证金额与状态，不需要启动桌面窗口。
 var workspace = Path.Combine(Path.GetTempPath(), "CRS-Verification-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(workspace);
-var config = Path.Combine(workspace, "config"); Directory.CreateDirectory(config);
-File.WriteAllText(Path.Combine(config, "exchange_rate.json"), """{"2025":{"USD":1,"HKD":1,"CNY":1},"2026":{"USD":1,"HKD":1,"CNY":1}}""");
-File.WriteAllText(Path.Combine(config, "exchange_rate_sources.json"), """{"2025":{"source":"合成验证数据","url":"https://example.com/verification","method":"固定测试汇率","start_date":"2025-01-01","end_date":"2025-12-31","provisional":false,"rates":{"USD":1,"HKD":1}}}""");
-var rates = new ExchangeRates(config);
+var rates = new SyntheticExchangeRateProvider();
 // 性能入口与普通回归分开，避免把合成大样本耗时混入测试正确性结论。
 if (args.Length == 2 && args[0] == "--benchmark") { ReleaseBenchmark.Run(args[1],workspace,rates); return; }
 // 真实样本只能来自用户提供的脱敏原件和独立人工基准，不能从合成 fixture 自动升级。
@@ -20,7 +17,9 @@ if (args.Length == 4 && args[0] == "--verify-local-real") { LocalRealSampleCheck
 if (args.Length == 4 && args[0] == "--verify-ibkr-real") { IbkrRealSampleChecks.Run(args[1],args[2],args[3],workspace); return; }
 if (args.Length >= 2 && args[0] == "--analyze")
 {
-    var analyzed = CalculationServices.Create(args.Length >= 3 ? new ExchangeRates(args[2]) : rates).Calculate([args[1]], 2025, true, true);
+    if (args.Length > 2)
+        throw new ArgumentException("不再接受旧 JSON 汇率目录；实际汇率请通过 CRSTool 正式客户端从 Worker SQLCipher 数据库读取。");
+    var analyzed = CalculationServices.Create(rates).Calculate([args[1]], 2025, true, true);
     Console.WriteLine(JsonSerializer.Serialize(new { matches = analyzed.Matches.Count, pnl = analyzed.PnlChecks.Count,
         pnlConsistent = analyzed.PnlChecks.Count(p => p.Status == "一致"), cashConsistent = analyzed.CashChecks.Count(c => c.Status == "一致"),
         gain = analyzed.Matches.Sum(m => m.Gain), cost = analyzed.Matches.Sum(m => m.Cost), revenue = analyzed.Matches.Sum(m => m.Revenue),
@@ -154,8 +153,9 @@ Check("公司行动阻断成本", () => { var e = new FifoEngine(); var m = e.Ca
 Check("时区混用被拒绝", () => { Reject(() => Run([Trade("B", "BUY", 1, 1), Trade("S", "SELL", 1, 2, day: 3) with { HasOffset = true }])); });
 Check("年度筛选不混入未来卖出", () => { Assert(Run([Trade("B", "BUY", 1, 1), Trade("S", "SELL", 1, 2, year: 2026)]).Count == 0); });
 Check("币种库存隔离", () => { Assert(Run([Trade("B", "BUY", 1, 1), Trade("S", "SELL", 1, 2, day: 3) with { Key = key with { Currency = "HKD" } }]).Count == 0); });
-Check("汇率正数校验", () => { var directory = Path.Combine(workspace, "bad-rate"); Directory.CreateDirectory(directory); File.WriteAllText(Path.Combine(directory, "exchange_rate.json"), """{"2025":{"USD":0}}"""); Reject(() => new ExchangeRates(directory)); });
-Check("汇率重复键拒绝", () => { var directory = Path.Combine(workspace, "duplicate-rate"); Directory.CreateDirectory(directory); File.WriteAllText(Path.Combine(directory, "exchange_rate.json"), """{"2025":{"USD":1,"USD":2}}"""); Reject(() => new ExchangeRates(directory)); });
+Check("测试汇率 Provider 明确提供固定年度和来源", () => Assert(rates.ForYear(2025).Count == 3 &&
+    rates.Get(2025, "USD").Value == 1m && rates.Get(2025, "CNY").Value == 1m &&
+    rates.Get(2025, "USD").SourceConfirmed));
 Check("换汇现金双币种核对", () => { var p = Xml(); var root = XDocument.Load(p); var s = root.Descendants("FlexStatement").Single(); var fx = new XElement(s.Element("Trades")!.Elements().First());
     foreach (var pair in new Dictionary<string, string> { ["tradeID"] = "FX", ["assetCategory"] = "CASH", ["symbol"] = "USD.HKD", ["currency"] = "HKD", ["quantity"] = "100", ["tradePrice"] = "7.8", ["ibCommission"] = "-2", ["proceeds"] = "-780", ["netCash"] = "-780" }) fx.SetAttributeValue(pair.Key, pair.Value);
     s.Element("Trades")!.Add(fx); var cash = s.Element("CashReport")!.Elements().Single(); cash.SetAttributeValue("endingCash", 594); var hkd = new XElement(cash); hkd.SetAttributeValue("currency", "HKD"); hkd.SetAttributeValue("startingCash", 1000); hkd.SetAttributeValue("endingCash", 220); s.Element("CashReport")!.Add(hkd); root.Save(p);

@@ -71,7 +71,6 @@ internal static class CalculationCommitChecks
             && vault.Repository.QueryHistory(1,1).Rows.Single().ActiveCopies==2,"旧库升级保留备份并跨页识别已有重复组");
         var priorCopies = vault.Repository.History().Select(task => task.Id).ToArray();
 
-        File.WriteAllText(Path.Combine(root,"exchange_rate.json"),"""{"2025":{"CNY":1},"2026":{"CNY":1}}""");
         var workflow = new DesktopWorkflow(new DesktopOperations(vault.Repository, root, vault));
         var request = new DesktopCalculationRequest([first],2025,"IBKR",true,true,false,null,true);
         var initial = (await workflow.CalculateAsync(request,default)).Result;
@@ -113,7 +112,7 @@ internal static class CalculationCommitChecks
         var saved = (await workflow.ImportAsync(renamedRequest,(m,_)=>Answer(m,ImportDecision.SaveNew),default))!.Result;
         check(saved.SnapshotId!=initial.SnapshotId && vault.Repository.History().Count==count+1,
             "用户明确选择时允许相同资料另存");
-        using (var racing = new DesktopOperations(vault.Repository, root, vault).BeginCalculation(new ExchangeRates(root),"IBKR",2025))
+        using (var racing = new DesktopOperations(vault.Repository, root, vault).BeginCalculation(new Rates(),"IBKR",2025))
         {
             var duplicate = racing.Calculator.Calculate([first],2025,true,true,saveCanonicalSnapshot:true);
             try { racing.Commit(duplicate,default,false); throw new Exception("未阻止并发提交的重复结果"); }
