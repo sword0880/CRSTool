@@ -24,14 +24,14 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
             if (existed && Convert.ToInt32(Scalar("PRAGMA application_id")) != 1129468738)
                 throw new InvalidDataException("数据库不属于此后台服务，拒绝改写。");
             var version = Convert.ToInt32(Scalar("PRAGMA user_version"));
-            if (version > 2) throw new InvalidDataException("调度库版本过新。");
+            if (version > 3) throw new InvalidDataException("调度库版本过新。");
             if (!string.Equals(Scalar("PRAGMA quick_check")?.ToString(), "ok", StringComparison.Ordinal)) throw new InvalidDataException("调度库完整性核验失败。");
-            if (existed && version == 1)
+            if (existed && version is > 0 and < 3)
             {
                 // 在 Schema 迁移前取得含 WAL 的加密快照；旧程序见新版本会拒绝打开，禁止隐式降级。
                 var backup = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "backup"); Directory.CreateDirectory(backup);
                 if ((File.GetAttributes(backup) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("迁移快照目录不可为链接。");
-                var prefix = Path.GetFileName(path) + ".schema1-";
+                var prefix = Path.GetFileName(path) + ".schema" + version.ToString(CultureInfo.InvariantCulture) + "-";
                 if (Directory.EnumerateFiles(backup, prefix + "*.db").Count() >= 3) throw new InvalidDataException("迁移重试快照已达上限，需要人工核验。");
                 var destination = Path.Combine(backup, prefix + Guid.NewGuid().ToString("N") + ".db");
                 using var snapshot = Open(destination, key); db.BackupDatabase(snapshot);
@@ -56,7 +56,49 @@ public sealed partial class EncryptedTaskRepository : ITaskRepository, IDisposab
                 CREATE TRIGGER IF NOT EXISTS task_latest_end AFTER UPDATE OF result ON execution BEGIN
                     UPDATE task_latest SET result=NEW.result WHERE plugin=NEW.plugin AND job=NEW.job AND id=NEW.id;
                 END;
-                PRAGMA application_id=1129468738; PRAGMA user_version=2;
+                CREATE TABLE IF NOT EXISTS exchange_rate_snapshot(
+                    year INTEGER NOT NULL CHECK(year BETWEEN 2000 AND 2100),
+                    origin TEXT NOT NULL CHECK(origin IN ('Official','DesktopLegacy')),
+                    owner_sid TEXT NOT NULL DEFAULT '',
+                    version INTEGER NOT NULL CHECK(version=1),
+                    from_date TEXT NOT NULL,
+                    through_date TEXT NOT NULL,
+                    fetched_at TEXT NOT NULL,
+                    PRIMARY KEY(year,origin,owner_sid),
+                    CHECK(from_date<=through_date),
+                    CHECK(length(owner_sid)<=256),
+                    CHECK((origin='Official' AND owner_sid='') OR (origin='DesktopLegacy' AND length(owner_sid)>0)));
+                CREATE TABLE IF NOT EXISTS exchange_rate_quote(
+                    year INTEGER NOT NULL,
+                    origin TEXT NOT NULL,
+                    owner_sid TEXT NOT NULL DEFAULT '',
+                    quote_date TEXT NOT NULL,
+                    usd TEXT NOT NULL,
+                    hkd TEXT NOT NULL,
+                    PRIMARY KEY(year,origin,owner_sid,quote_date),
+                    FOREIGN KEY(year,origin,owner_sid) REFERENCES exchange_rate_snapshot(year,origin,owner_sid) ON DELETE RESTRICT);
+                CREATE TABLE IF NOT EXISTS legacy_annual_exchange_rate(
+                    year INTEGER NOT NULL CHECK(year BETWEEN 2000 AND 2100),
+                    currency TEXT NOT NULL CHECK(length(currency)=3),
+                    value TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    method TEXT NOT NULL,
+                    start_date TEXT,
+                    end_date TEXT,
+                    provisional INTEGER NOT NULL CHECK(provisional IN (0,1)),
+                    source_confirmed INTEGER NOT NULL CHECK(source_confirmed IN (0,1)),
+                    first_observation TEXT,
+                    observation_count INTEGER,
+                    usd_sum TEXT,
+                    hkd_sum TEXT,
+                    PRIMARY KEY(year,currency));
+                CREATE TABLE IF NOT EXISTS exchange_rate_migration(
+                    migration_id TEXT PRIMARY KEY,
+                    source_hash TEXT NOT NULL,
+                    imported_utc TEXT NOT NULL,
+                    imported_rows INTEGER NOT NULL CHECK(imported_rows>=0));
+                PRAGMA application_id=1129468738; PRAGMA user_version=3;
                 """);
             NormalizeStoredTimes();
             Execute("""

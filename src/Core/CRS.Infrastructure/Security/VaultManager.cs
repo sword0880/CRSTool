@@ -44,6 +44,7 @@ public sealed partial class VaultManager : IVaultStorageBackend
     public Task BackupAsync(string path,CancellationToken cancellation=default)=>backend.BackupAsync(path,cancellation);
     public Task RestoreAsync(string backupPath,string targetDirectory,string secret,bool useRecovery,string newPassword,CancellationToken cancellation=default)=>backend.RestoreAsync(backupPath,targetDirectory,secret,useRecovery,newPassword,cancellation);
     public IPerformanceUseCases CreatePerformanceUseCases(bool online=true)=>backend.CreatePerformanceUseCases(online);
+    public IPerformanceUseCases CreatePerformanceUseCases(bool online, OfficialAnnualExchangeRates? annualRates)=>backend.CreatePerformanceUseCases(online,annualRates);
     public Action<Action> CaptureGuard()=>backend.CaptureGuard();
     public void Execute(Action action)=>backend.Execute(action);
     public IReadOnlySet<string> ArchivedOriginalHashes(string[] hashes,Action<Action> originalSession,CancellationToken token)

@@ -18,7 +18,7 @@ public sealed class DesktopOperations(ICalculationRepository repository, string 
     /// <summary>提供 NPOI 底稿导出适配器。</summary>
     public IReportExporter Reports { get; } = new ExcelReportExporter(vault?.CaptureGuard());
     /// <summary>加载并校验当前汇率配置。</summary>
-    public IExchangeRateProvider LoadRates() => new ExchangeRates(ConfigPath);
+    public IExchangeRateProvider LoadRates() => LegacyAnnualRates.CreateDefault();
     public Task<IExchangeRateProvider> LoadRatesAsync(int year, CancellationToken cancellation, bool refresh = false)
         => officialRates?.LoadAsync(year, cancellation, refresh) ?? Task.Run(LoadRates, cancellation);
     public string RateFingerprint(int year) => officialRates?.CachedFingerprint(year) ?? LoadRates().Fingerprint;

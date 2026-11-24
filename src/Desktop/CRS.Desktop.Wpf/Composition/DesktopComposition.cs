@@ -29,12 +29,12 @@ internal static class DesktopComposition
         var manager=(VaultManager)vault;
         var repository = manager.Repository;
         Logging.Configure(settings);
-        var officialRates = smoke ? null : new OfficialAnnualExchangeRates(CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ReadAsync);
+        var officialRates = smoke ? null : new OfficialAnnualExchangeRates(CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ReadAsync, CRS.DesktopClient.Services.WorkerExchangeRatesGateway.RefreshAsync, CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ReadLegacySnapshotAsync, CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ReadLegacyAsync, CRS.DesktopClient.Services.WorkerExchangeRatesGateway.ImportLegacyAsync);
         var operations = new DesktopOperations(repository,Path.Combine(AppContext.BaseDirectory,"config"),manager,officialRates,Logging.Factory);
         // 冒烟使用临时配置目录，不读取真实 Windows 用户的模型密钥。
         var aiModels = smoke ? new AiModelService(directory) :
             new AiModelService(directory, (node, token) => WorkerVpnClient.OpenAsync(new(), node, token));
-        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke),aiModels,
+        return new(new DesktopWorkflow(operations,smoke?null:new CRS.DesktopClient.Services.WorkerNotificationSettingsGateway()),operations,settings.DatabaseDirectory,settingsStore,vault,manager.CreatePerformanceUseCases(!smoke,officialRates),aiModels,
             (repository as LocalStore)?.CreateAiChatHistory());
     }
     public static void LogStartupFailure(Exception error) => Logging.Factory.CreateLogger(typeof(DesktopComposition).FullName!)

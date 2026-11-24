@@ -163,6 +163,15 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
     {
         if (request.Command == WorkerProtocol.GetAnnualExchangeRates)
             return annualRates?.Query(request, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
+        if (request.Command == WorkerProtocol.RefreshAnnualExchangeRates)
+            return annualRates is null ? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand")
+                : await annualRates.RefreshQueryAsync(request, token);
+        if (request.Command == WorkerProtocol.GetLegacyAnnualExchangeRates)
+            return annualRates?.LegacyQuery(request, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
+        if (request.Command == WorkerProtocol.GetLegacyAnnualExchangeRateSnapshot)
+            return annualRates?.LegacySnapshotQuery(request, caller.Sid, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
+        if (request.Command == WorkerProtocol.ImportAnnualExchangeRateSnapshot)
+            return annualRates?.ImportDesktopSnapshot(request, caller.Sid, token) ?? new(WorkerProtocol.Version, request.RequestId, "UnknownCommand");
         if (request.Command is WorkerProtocol.GetWorkerLogSettings or WorkerProtocol.SaveWorkerLogSettings)
             return await HandleLogSettingsAsync(request, caller, token);
         if (request.Command is WorkerProtocol.GetVpnSettings or WorkerProtocol.SaveVpnSettings or WorkerProtocol.RefreshVpnNodes or WorkerProtocol.OpenVpnRoute)

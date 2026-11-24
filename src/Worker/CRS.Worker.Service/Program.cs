@@ -101,7 +101,7 @@ namespace CRS.Worker.Service
                 await catalog.LoadAsync(locations.Plugins, locations.Trust, stoppingToken);
                 await using var cleanup=new WorkerDataCleanup(locations.Data,null,new WorkerLogSettingsStore(locations.Data,key));
                 cleanup.InitializeTasks(diagnostics.Write);
-                var annualRates = new WorkerAnnualExchangeRates(locations.Data, key);
+                var annualRates = new WorkerAnnualExchangeRates(repository, locations.Data, key);
                 using var vpn = new WorkerVpn(locations.Data, Path.Combine(AppContext.BaseDirectory, "Mihomo", "mihomo.exe"), key);
                 var runtime = new BackgroundRuntime(repository, catalog, diagnostics.Write, lifetime.StopApplication,
                     executionSettings: WorkerExecutionSettings.Read(locations.Data),notifications:notifications,sources:sources,cleanup:cleanup,

@@ -6,6 +6,7 @@
     <PublishSingleFile>false</PublishSingleFile><PublishTrimmed>false</PublishTrimmed><PublishAot>false</PublishAot>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources/legacy-annual-exchange-rates.json" LogicalName="CRS.Worker.Service.Resources.legacy-annual-exchange-rates.json" />
     <ProjectReference Include="../CRS.Worker.PluginHost/CRS.Worker.PluginHost.csproj" />
     <ProjectReference Include="../CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
     <ProjectReference Include="../../Shared/CRS.Notifications/CRS.Notifications.csproj" />

@@ -19,10 +19,25 @@ internal static class AnnualExchangeRateJobChecks
         var clock = new DataCleanupChecks.Clock { Value = new(2027, 1, 1, 9, 0, 0, TimeSpan.FromHours(8)) };
         var handler = new Feed();
         using var http = new HttpClient(handler);
-        var rates = new WorkerAnnualExchangeRates(root, key, http, clock);
         try
         {
             using var repository = new EncryptedTaskRepository(Path.Combine(root, "scheduler.db"), key);
+            var rates = new WorkerAnnualExchangeRates(repository, root, key, http, clock);
+            var legacy = repository.ReadLegacyAnnualRates(2026);
+            var cny2026 = legacy.Single(x => x.Currency == "CNY");
+            Check(legacy.Length == 3 && legacy.Single(x => x.Currency == "USD").Value == 6.852873m &&
+                legacy.Single(x => x.Currency == "HKD").Value == 0.875157m && cny2026.Value == 1m &&
+                cny2026.Url == "https://www.chinamoney.com.cn/chinese/bkccpr/?tab=2" &&
+                cny2026.Method == "报价日中间价算术平均；非报价日不补值；四舍五入保留六位小数" &&
+                cny2026.Start == "2026-01-01" && cny2026.End == "2026-10-08" && !cny2026.Provisional &&
+                cny2026.FirstObservation == "2026-01-05" && cny2026.ObservationCount == 182 &&
+                cny2026.UsdSum == "1247.2229" && cny2026.HkdSum == "159.27864" &&
+                repository.ReadLegacyAnnualRates(2021).Single(x => x.Currency == "USD").Value == 6.4515m &&
+                repository.ReadLegacyAnnualRates(2022).Single(x => x.Currency == "HKD").Value == 0.8606m &&
+                repository.ReadLegacyAnnualRates(2023).Single(x => x.Currency == "USD").Value == 7.0809m &&
+                repository.ReadLegacyAnnualRates(2024).Single(x => x.Currency == "HKD").Value == 0.9260m &&
+                repository.ReadLegacyAnnualRates(2025).Single(x => x.Currency == "USD").Value == 7.1800m,
+                "旧年度 JSON 汇率数值及 2026 年来源元数据按原值导入 SQLCipher");
             await using var catalog = new BackgroundPluginCatalog();
             await using var runtime = new BackgroundRuntime(repository, catalog, annualRates: rates);
             await runtime.StartAsync(default);
@@ -46,9 +61,31 @@ internal static class AnnualExchangeRateJobChecks
                 && (await runtime.HandleAsync(request with { Payload = "2025" }, user, default)).Code == "NotAvailable"
                 && (await runtime.HandleAsync(request with { Cursor = "file" }, user, default)).Code == "InvalidRequest",
                 "拒绝未结束年度和无关参数，缺少的年度无结果");
-            var restarted = new WorkerAnnualExchangeRates(root, key, http, clock);
-            Check(!restarted.NeedsCatchUp(plan) && (await restarted.ExecuteAsync(plan.JobId, default)).Status == "Succeeded"
-                && handler.Requests == 1, "已落盘年末报价重启后可用且无需重复下载");
+            var restarted = new WorkerAnnualExchangeRates(repository, root, key, http, clock);
+            var stored = repository.ReadAnnualExchangeRateSnapshot(2026);
+            var (yearStart, yearEnd) = CentralParitySnapshot.YearEndRange(2026);
+            var revised = new CentralParitySnapshot(1, yearStart, yearEnd, clock.GetUtcNow().AddDays(1),
+                [new(yearEnd, 7.99m, 0.999m), new(yearEnd.AddDays(-1), 7.01m, 0.899m)]);
+            var merged = repository.SaveAnnualExchangeRateSnapshot(2026, revised);
+            Check(merged.Quotes.Single(q => q.Date == yearEnd).Usd == 7.02m &&
+                merged.Quotes.Any(q => q.Date == yearEnd.AddDays(-1)),
+                "同一报价日的后续修订不覆盖首次汇率，新日期只追加");
+            var (legacyFrom, legacyThrough) = CentralParitySnapshot.YearEndRange(2025);
+            var desktopLegacy = new CentralParitySnapshot(1, legacyFrom, legacyThrough, clock.GetUtcNow(),
+                [new(legacyThrough, 7.18m, 0.921m)]);
+            var import = new BackgroundRequest(WorkerProtocol.Version, Guid.NewGuid(),
+                WorkerProtocol.ImportAnnualExchangeRateSnapshot, Payload: JsonSerializer.Serialize(desktopLegacy));
+            var imported = await runtime.HandleAsync(import, user, default);
+            var sameUser = await runtime.HandleAsync(new(WorkerProtocol.Version, Guid.NewGuid(),
+                WorkerProtocol.GetLegacyAnnualExchangeRateSnapshot, Payload: "2025"), user, default);
+            var otherUser = await runtime.HandleAsync(new(WorkerProtocol.Version, Guid.NewGuid(),
+                WorkerProtocol.GetLegacyAnnualExchangeRateSnapshot, Payload: "2025"),
+                new BackgroundCaller("synthetic-other", false), default);
+            Check(imported.Code == "Ok" && sameUser.Code == "Ok" && otherUser.Code == "NotAvailable",
+                "旧桌面快照迁入数据库后按 Windows SID 隔离");
+            Check(stored is not null && stored.IsYearEnd(2026) &&
+                !restarted.NeedsCatchUp(plan) && (await restarted.ExecuteAsync(plan.JobId, default)).Status == "Succeeded"
+                && handler.Requests == 1, "SQLCipher 年末报价重启后可用且无需重复下载");
 
             clock.Value = clock.Value.AddYears(1);
             handler.QuoteDay = new(2027, 12, 30);
