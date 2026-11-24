@@ -49,7 +49,7 @@ public sealed partial class EncryptedTaskRepository
     internal CentralParitySnapshot SaveAnnualExchangeRateSnapshot(int year, CentralParitySnapshot snapshot, string origin = "Official", string ownerSid = "")
     {
         if (year is < 2000 or > 2100 || origin is not ("Official" or "DesktopLegacy") ||
-            (origin == "Official" && ownerSid.Length != 0) || (origin == "DesktopLegacy" && string.IsNullOrWhiteSpace(ownerSid)) ||
+            (origin == "Official" && ownerSid.Length != 0) || (origin == "DesktopLegacy" && (string.IsNullOrWhiteSpace(ownerSid) || ownerSid.Length > 256 || ownerSid.Any(char.IsControl))) ||
             snapshot is null || !snapshot.IsValid(year))
             throw new InvalidDataException("年度汇率快照无效。");
         return Persist(() =>
