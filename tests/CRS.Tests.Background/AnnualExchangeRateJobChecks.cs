@@ -67,7 +67,7 @@ internal static class AnnualExchangeRateJobChecks
             var stored = repository.ReadAnnualExchangeRateSnapshot(2026);
             var (yearStart, yearEnd) = CentralParitySnapshot.YearEndRange(2026);
             var revised = new CentralParitySnapshot(1, yearStart, yearEnd, clock.GetUtcNow().AddDays(1),
-                [new(yearEnd, 7.99m, 0.999m), new(yearEnd.AddDays(-1), 7.01m, 0.899m)]);
+                [new(yearEnd.AddDays(-1), 7.01m, 0.899m), new(yearEnd, 7.99m, 0.999m)]);
             var merged = repository.SaveAnnualExchangeRateSnapshot(2026, revised);
             Check(merged.Quotes.Single(q => q.Date == yearEnd).Usd == 7.02m &&
                 merged.Quotes.Any(q => q.Date == yearEnd.AddDays(-1)),
