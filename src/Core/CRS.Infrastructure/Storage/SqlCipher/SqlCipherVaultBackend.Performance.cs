@@ -1,4 +1,5 @@
 using CRS.Application.Performance;
+using CRS.Domain.Performance;
 using Dapper;
 using Microsoft.Data.Sqlite;
 
