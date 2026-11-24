@@ -62,6 +62,8 @@ internal static class AnnualExchangeRateJobChecks
                 && (await runtime.HandleAsync(request with { Cursor = "file" }, user, default)).Code == "InvalidRequest",
                 "当前年度尚无报价和缺少的历史年度返回无数据，无关参数被拒绝");
             var restarted = new WorkerAnnualExchangeRates(repository, root, key, http, clock);
+            Check(repository.ReadLegacyAnnualRates(2026).SequenceEqual(legacy),
+                "重复启动再次核验迁移回执，不改变已迁入的历史年度汇率");
             var stored = repository.ReadAnnualExchangeRateSnapshot(2026);
             var (yearStart, yearEnd) = CentralParitySnapshot.YearEndRange(2026);
             var revised = new CentralParitySnapshot(1, yearStart, yearEnd, clock.GetUtcNow().AddDays(1),
