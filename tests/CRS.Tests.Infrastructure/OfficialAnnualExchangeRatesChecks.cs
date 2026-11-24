@@ -83,6 +83,10 @@ internal static class OfficialAnnualExchangeRatesChecks
         var recent = await provider.LoadAsync(2026, default);
         Check(recent.Fingerprint == current.Fingerprint && requests == 3, "数据库快照须避免重复查询");
         Check(provider.CachedFingerprint(2025) == closed.Fingerprint, "读取其他年度不得使已完成年度的汇率指纹失效");
+        var lazyProvider = new OfficialAnnualExchangeRates(Read, Refresh, ReadLegacySnapshot, ReadLegacy, ImportLegacy, NewCachePath(), clock);
+        var lazyValuation = lazyProvider.ReadCachedValuationRates([new DateOnly(2025, 12, 30)]);
+        Check(lazyValuation.Single(x => x.From == "USD").Rate == 7.0349m,
+            "绩效估值可通过只读 Worker IPC 懒加载数据库快照，不依赖桌面 JSON");
         await CheckUnavailable(() => provider.LoadAsync(2024, default), 2024);
 
         var offlineProvider = new OfficialAnnualExchangeRates(Read,
