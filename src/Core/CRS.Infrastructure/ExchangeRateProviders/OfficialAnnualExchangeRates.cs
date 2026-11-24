@@ -24,12 +24,19 @@ public sealed class OfficialAnnualExchangeRates(
     private const int MaxLegacyCacheBytes = 128 * 1024;
     private readonly ConcurrentDictionary<int, CentralParitySnapshot> memory = new();
     private readonly ConcurrentDictionary<int, IExchangeRateProvider> loadedProviders = new();
+    private readonly ConcurrentDictionary<int, DateTimeOffset> valuationRetryAfter = new();
     private readonly SemaphoreSlim gate = new(1);
     private readonly string legacyDirectory = legacyCacheDirectory ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS", "exchange-rates");
 
     internal PerformanceFx[] ReadCachedValuationRates(DateOnly[] dates)
     {
+        // 估值接口是同步契约；缺少内存快照时在后台线程通过只读 IPC 懒加载，避免回退到桌面 JSON。
+        var years = dates.Select(date => date.Year).Distinct().Where(year => !memory.ContainsKey(year)).ToArray();
+        if (years.Length != 0)
+            Task.Run(() => Parallel.ForEach(years, new ParallelOptions { MaxDegreeOfParallelism = 4 },
+                TryLoadSnapshotForValuation)).GetAwaiter().GetResult();
+
         var rates = new List<PerformanceFx>();
         foreach (var year in dates.Distinct().GroupBy(date => date.Year))
         {
@@ -114,6 +121,41 @@ public sealed class OfficialAnnualExchangeRates(
             throw new CrsException($"后台数据库中没有 {year} 年汇率，官方报价也暂时不可用。请检查后台服务后重试。");
         }
         finally { gate.Release(); }
+    }
+
+    private void TryLoadSnapshotForValuation(int year)
+    {
+        var now = (clock ?? TimeProvider.System).GetUtcNow();
+        if (valuationRetryAfter.TryGetValue(year, out var retryAt) && now < retryAt) return;
+        var today = DateOnly.FromDateTime(BeijingClock.Normalize(now).Date);
+        CentralParitySnapshot? snapshot = null;
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            if (year < today.Year)
+                snapshot = readLegacySnapshot(year, deadline.Token).GetAwaiter().GetResult();
+            if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+            {
+                using var officialDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                snapshot = readOfficial(year, officialDeadline.Token).GetAwaiter().GetResult();
+            }
+            if (snapshot is null || !ValidSnapshot(year, snapshot, today))
+            {
+                using var legacyDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                snapshot = readLegacySnapshot(year, legacyDeadline.Token).GetAwaiter().GetResult();
+            }
+            if (snapshot is not null && ValidSnapshot(year, snapshot, today))
+            {
+                memory[year] = snapshot;
+                valuationRetryAfter.TryRemove(year, out _);
+                return;
+            }
+        }
+        catch (Exception error) when (error is OperationCanceledException or IOException or InvalidDataException or HttpRequestException)
+        {
+            // 估值只读取缓存，不在此触发网络刷新；短暂失败后一分钟再试。
+        }
+        valuationRetryAfter[year] = now.AddMinutes(1);
     }
 
     public string CachedFingerprint(int year)
