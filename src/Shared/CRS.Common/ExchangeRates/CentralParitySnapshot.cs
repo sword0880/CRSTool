@@ -22,3 +22,9 @@ public sealed record CentralParitySnapshot(int Version, DateOnly From, DateOnly 
         return Quotes.Zip(Quotes.Skip(1)).All(p => p.Second.Date.DayNumber - p.First.Date.DayNumber is > 0 and <= 14);
     }
 }
+
+
+/// <summary>历史年度汇率数据库记录；值使用 decimal，来源元数据与原始数值一并迁移。</summary>
+public sealed record LegacyAnnualExchangeRateRecord(int Year, string Currency, decimal Value, string Source, string Url,
+    string Method, string? Start, string? End, bool Provisional, bool SourceConfirmed,
+    string? FirstObservation = null, int? ObservationCount = null, string? UsdSum = null, string? HkdSum = null);

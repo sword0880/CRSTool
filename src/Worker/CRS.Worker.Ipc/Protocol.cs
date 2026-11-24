@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 using CRS.Worker.Abstractions;
+using CRS.ExchangeRates;
 
 namespace CRS.Worker.Ipc;
 
@@ -55,6 +56,10 @@ public static class WorkerProtocol
     public const string AddPluginPlan = "AddPluginPlan";
     public const string PrivatePluginData = "PrivatePluginData";
     public const string GetAnnualExchangeRates = "GetAnnualExchangeRates";
+    public const string RefreshAnnualExchangeRates = "RefreshAnnualExchangeRates";
+    public const string GetLegacyAnnualExchangeRates = "GetLegacyAnnualExchangeRates";
+    public const string GetLegacyAnnualExchangeRateSnapshot = "GetLegacyAnnualExchangeRateSnapshot";
+    public const string ImportAnnualExchangeRateSnapshot = "ImportAnnualExchangeRateSnapshot";
     public const string GetWorkerLogSettings = "GetWorkerLogSettings";
     public const string SaveWorkerLogSettings = "SaveWorkerLogSettings";
     public const string GetVpnSettings = "GetVpnSettings";
@@ -102,3 +107,4 @@ internal static class Framing
 }
 
 internal sealed class PipeFrameInterruptedException():IOException("管道在完整消息到达前关闭。");
+

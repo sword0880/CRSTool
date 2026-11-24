@@ -18,7 +18,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> commands = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> uploads = [];
     private readonly Dictionary<string, (DateTimeOffset Started, int Count)> gatewayQueries = [];
-    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", WorkerProtocol.GetPluginPlanOptions, "GetDiagnosticJobs", "GetHistoryJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks",CRS.Maintenance.DataCleanupTask.HistoryCommand,WorkerProtocol.GetAnnualExchangeRates,WorkerProtocol.GetWorkerLogSettings,WorkerProtocol.GetVpnSettings,WorkerProtocol.RefreshVpnNodes,WorkerProtocol.OpenVpnRoute];
+    private static readonly HashSet<string> Reads = ["GetHealth", "GetJobs", WorkerProtocol.GetPluginPlanOptions, "GetDiagnosticJobs", "GetHistoryJobs", "GetHistory", "GetFilteredHistory", "GetHistoryByDate", "GetTaskActivity", "GetExecution", "GetCommand", "QueryPlugin","GetEmailSettings","GetWebhookSettings","BeginDataCleanupPreview","GetDataCleanupStatus","GetDataCleanupTasks",CRS.Maintenance.DataCleanupTask.HistoryCommand,WorkerProtocol.GetAnnualExchangeRates,WorkerProtocol.RefreshAnnualExchangeRates,WorkerProtocol.GetLegacyAnnualExchangeRates,WorkerProtocol.GetLegacyAnnualExchangeRateSnapshot,WorkerProtocol.ImportAnnualExchangeRateSnapshot,WorkerProtocol.GetWorkerLogSettings,WorkerProtocol.GetVpnSettings,WorkerProtocol.RefreshVpnNodes,WorkerProtocol.OpenVpnRoute];
     private static readonly HashSet<string> Writes = ["RunNow", "Pause", "Resume", "ChangeSchedule", WorkerProtocol.AddPluginPlan, "CancelRun","SaveEmailSettings","TestEmailSettings","SaveWebhookSettings","TestWebhookSettings","ExecuteDataCleanup","PutPluginDocument","PauseAutoCleanup","SubmitDataCleanupTask","AcknowledgeDataCleanupTask",WorkerProtocol.SaveWorkerLogSettings,WorkerProtocol.PrivatePluginData,WorkerProtocol.SaveVpnSettings];
     internal static bool IsMutation(string command) => Writes.Contains(command);
     public Task RunAsync(CancellationToken token) =>
@@ -135,7 +135,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
     private async Task<BackgroundResponse> ExecuteRequestAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
     {
         using var processing=CancellationTokenSource.CreateLinkedTokenSource(token);
-        processing.CancelAfter(requestTimeout??TimeSpan.FromSeconds(20));
+        processing.CancelAfter(request.Command==WorkerProtocol.RefreshAnnualExchangeRates?TimeSpan.FromSeconds(24):requestTimeout??TimeSpan.FromSeconds(20));
         try
         {
             var response=await control.HandleAsync(request,caller,processing.Token);
@@ -158,7 +158,7 @@ public sealed class BackgroundPipeServer(IBackgroundControl control, string pipe
         if (request.RequestId == Guid.Empty || request.Command is null || request.Command.Length > 40) return "InvalidRequest";
         if (!Reads.Contains(request.Command) && !Writes.Contains(request.Command)&&request.Command is not ("GetPluginDocument" or "ListPluginDocuments")) return "UnknownCommand";
         // 邮件设置单独有界；业务插件参数仍保持原4096字符上限。
-        var payloadLimit=request.Command=="PutPluginDocument"?32768:request.Command=="SaveEmailSettings"?8192:4096;
+        var payloadLimit=request.Command==WorkerProtocol.ImportAnnualExchangeRateSnapshot?80000:request.Command=="PutPluginDocument"?32768:request.Command=="SaveEmailSettings"?8192:4096;
         if (request.PluginId?.Length > 80 || request.JobId?.Length > 80 || request.Cron?.Length > 120 || request.TimeZoneId?.Length > 100 || request.Cursor?.Length > 200 || request.Payload?.Length>payloadLimit || request.ExecutionId?.Length>32 || request.PageSize < 1 || request.PageSize > (request.Command=="GetHistoryByDate"?50:10)) return "InvalidRequest";
         if (Writes.Contains(request.Command) && (!caller.CanManage || !management)) return "Forbidden";
         return null;
