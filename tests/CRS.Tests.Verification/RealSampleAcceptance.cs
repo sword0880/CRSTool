@@ -19,7 +19,7 @@ internal static class RealSampleAcceptance
         var directory=Path.GetDirectoryName(Path.GetFullPath(manifestPath))!;
         string Resolve(string path)=>Path.GetFullPath(path,directory);
         var files=manifest.Files.Select(Resolve).ToArray();
-        var result=CalculationServices.Create(new ExchangeRates(Resolve(manifest.ConfigDirectory)),manifest.Broker,manifest.Year)
+        var result=CalculationServices.Create(WorkerExchangeRateLoader.Load(manifest.Year),manifest.Broker,manifest.Year)
             .Calculate(files,manifest.Year,manifest.OpeningZero,manifest.ScopeConfirmed,
                 string.IsNullOrWhiteSpace(manifest.OpeningPath)?null:Resolve(manifest.OpeningPath));
         if (result.Issues.Any(i=>i.Code=="INCOMPLETE_PERIOD")) throw new Exception("真实样本未覆盖全年。");
@@ -41,7 +41,11 @@ internal static class RealSampleAcceptance
         static string Hash(string path) { using var stream=File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(stream)); }
     }
     private sealed record Manifest(string SourceKind,string OwnerAttestation,int Year,string Broker,string[] Files,
-        string ConfigDirectory,bool OpeningZero,bool ScopeConfirmed,string? OpeningPath,Expected Expected);
+        bool OpeningZero,bool ScopeConfirmed,string? OpeningPath,Expected Expected)
+    {
+        // 兼容旧验收清单字段，但不再读取其 JSON 汇率目录。
+        public string? ConfigDirectory { get; init; }
+    }
     private sealed record Expected(int TradeCount,int MatchCount,int AccountCount,decimal DividendCny,decimal InterestCny,
         decimal GainCny,decimal SupplementTax,int CashCheckCount,int PnlCheckCount,string ReconciliationStatus,string[] IssueCodes);
 }

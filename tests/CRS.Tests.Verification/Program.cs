@@ -12,9 +12,9 @@ if (args.Length == 2 && args[0] == "--benchmark") { ReleaseBenchmark.Run(args[1]
 // 真实样本只能来自用户提供的脱敏原件和独立人工基准，不能从合成 fixture 自动升级。
 if (args.Length == 3 && args[0] == "--accept-real") { RealSampleAcceptance.Run(args[1],args[2]); return; }
 // 真实私有样本的技术验收不代替独立人工金额签认，且不输出原件身份信息。
-if (args.Length == 4 && args[0] == "--verify-local-real") { LocalRealSampleChecks.Run(args[1],args[2],args[3],workspace); return; }
+if (args.Length == 3 && args[0] == "--verify-local-real") { LocalRealSampleChecks.Run(args[1],args[2],workspace); return; }
 // IBKR 使用正文期间及真实历史组合验证，不凭文件名认定年度覆盖完整。
-if (args.Length == 4 && args[0] == "--verify-ibkr-real") { IbkrRealSampleChecks.Run(args[1],args[2],args[3],workspace); return; }
+if (args.Length == 3 && args[0] == "--verify-ibkr-real") { IbkrRealSampleChecks.Run(args[1],args[2],workspace); return; }
 if (args.Length >= 2 && args[0] == "--analyze")
 {
     if (args.Length > 2)
