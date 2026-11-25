@@ -6,7 +6,9 @@
 
 ### GitHub 发行与前台更新
 
-桌面在「任务中心 → 服务状态 → 后台版本与更新」查询公开仓库 [CRSTool Releases](https://github.com/sword0880/CRSTool/releases)。只比较 `worker-vX.Y.Z` 的正式发行，资产名称为 `CRS.Worker.Service-win-x64.zip`。点击安装后下载并比对 GitHub 资产的 SHA-256，Windows 管理员进程在受限暂存目录再次核对包哈希、CMS 签名、版本、通信协议和清单列出的全部文件，随后复用升级事务。此入口用于升级已有服务。桌面通过本机管道确认新版服务运行后显示安装成功。
+桌面在「任务中心 → 服务状态 → 后台版本与更新」查询公开仓库 [CRSTool Releases](https://github.com/sword0880/CRSTool/releases)。API 限流时会读取公开发行订阅，显示发布记录并提供「查看发布页」。开发预发行版可从发布页下载，按该版本的说明手动安装。
+
+在线安装需要 GitHub API 返回 `worker-vX.Y.Z` 的正式发行及 `CRS.Worker.Service-win-x64.zip` 的校验信息。点击安装后下载并比对 GitHub 资产的 SHA-256，Windows 管理员进程在受限暂存目录再次核对包哈希、CMS 签名、版本、通信协议和清单列出的全部文件，随后复用升级事务。此入口用于升级已有服务。桌面通过本机管道确认新版服务运行后显示安装成功。
 
 安装需要 Windows x64、系统级 PowerShell 7 以及注册表 `HKLM\SOFTWARE\CRS\WorkerUpdates` 的字符串值 `PublisherThumbprint`。管理员从独立的受信发布者渠道核对证书指纹后设置此值，目标机器还须信任发布者证书链。桌面发现新版本时会提示，但只有配置受信发布者后才启用安装。已有开发包须与已确认的本机维护清单匹配才能转入签名发行，候选包始终需要正式签名和更高版本。
 

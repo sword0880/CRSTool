@@ -33,6 +33,7 @@ if(args is ["--plugin-menu-focus",var strictFocusDirectory]){try{PluginHeaderNat
 if(args is ["--plugin-header-focus-preview",var focusDirectory]){PluginHeaderNativeChecks.Run(focusDirectory,true);return;}
 if(args is ["--shell-status-checks"]){ShellStatusBarChecks.Run();return;}
 if(args is ["--worker-release-checks"]){await WorkerGitHubUpdateChecks.RunAsync();return;}
+if(args is ["--worker-release-live-check",var previewVersion]){await WorkerGitHubUpdateChecks.RunLiveAsync(previewVersion);return;}
 if(args is ["--task-center-deeplink-checks"]){TaskCenterDeepLinkChecks.Run();return;}
 if(args is ["--task-center-refresh-checks"]){await TaskCenterRefreshChecks.RunAsync();return;}
 if(args is ["--task-activity-checks"]){await TaskActivityChecks.RunAsync();return;}
