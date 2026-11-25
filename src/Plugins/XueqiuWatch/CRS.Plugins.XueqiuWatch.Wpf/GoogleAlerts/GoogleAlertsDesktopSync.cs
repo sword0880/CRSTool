@@ -8,7 +8,8 @@ internal static class GoogleAlertsDesktopSync
     private static readonly SemaphoreSlim BrowserProfile = new(1, 1);
 
     internal static async Task<string?> RunAsync(WorkerWatchClient client, CancellationToken token,
-        string? authorAccount = null, bool connect = false, bool connectIfNeeded = false)
+        string? authorAccount = null, bool connect = false, bool connectIfNeeded = false,
+        Action<int, int>? reportProgress = null)
     {
         await BrowserProfile.WaitAsync(token);
         try
@@ -19,7 +20,11 @@ internal static class GoogleAlertsDesktopSync
             var pending = authors.Where(author => (authorAccount is null || author.Account == authorAccount) &&
                 author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating or
                     GoogleAlertState.PendingDelete or GoogleAlertState.Deleting).ToArray();
-            if (!connect && pending.Length == 0) return null;
+            if (pending.Length == 0)
+            {
+                if (!connect) return null;
+                if (!string.IsNullOrEmpty(connected)) return "观察名单没有待同步的 Google 快讯。";
+            }
             var canBindAccount = connect || (connectIfNeeded &&
                 pending.Any(author => author.Active && !author.Archived &&
                     author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating));
@@ -40,15 +45,23 @@ internal static class GoogleAlertsDesktopSync
 
             var synced = 0;
             var pendingResult = 0;
+            var current = 0;
+            var reload = false;
             string? failedStage = null;
             foreach (var author in pending)
             {
                 token.ThrowIfCancellationRequested();
+                reportProgress?.Invoke(++current, pending.Length);
                 var subscription = (await client.AskAsync(new("alert-subscription", new(Account: author.Account)), token)).Alert;
-                if (subscription is null) continue;
                 try
                 {
-                    if (await SyncAuthorAsync(client, page, author, subscription, account, token)) synced++;
+                    if (reload)
+                    {
+                        await page.ReloadAsync(account, token);
+                        reload = false;
+                    }
+                    if (subscription is not null && await SyncAuthorAsync(client, page, author, subscription, account, token))
+                        synced++;
                     else pendingResult++;
                 }
                 catch (GoogleAlertsSignInRequiredException) { throw; }
@@ -56,6 +69,7 @@ internal static class GoogleAlertsDesktopSync
                 {
                     // 单个作者的重复提醒、账号不匹配或页面状态未确认不阻断其他作者。
                     pendingResult++;
+                    reload = true;
                     failedStage ??= $"{page.DiagnosticStage}（{error.Message}）";
                 }
                 catch (TimeoutException)
@@ -68,7 +82,8 @@ internal static class GoogleAlertsDesktopSync
                     throw new ArgumentException($"Google 快讯页面操作失败：{page.DiagnosticStage}。请核对页面后重新同步。");
                 }
             }
-            return pendingResult == 0 ? $"Google 快讯已连接，本次同步 {synced} 个作者。" :
+            if (pending.Length == 0) return "Google 快讯已连接，观察名单没有待同步项。";
+            return pendingResult == 0 ? $"Google 快讯同步完成，本次处理 {synced} 位作者。" :
                 $"Google 快讯已处理 {synced} 个作者，{pendingResult} 个待网页核对。{(failedStage is null ? "" : $"首个异常阶段：{failedStage}。")}";
         }
         catch (TimeoutException)

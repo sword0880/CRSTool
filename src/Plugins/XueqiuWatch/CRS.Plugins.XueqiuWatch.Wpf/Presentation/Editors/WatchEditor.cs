@@ -9,7 +9,7 @@ namespace CRS.Plugins.XueqiuWatch.Wpf;
 internal abstract class WatchEditor : Window
 {
     protected StackPanel Fields { get; } = new();
-    private readonly TextBlock errorText = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 8) };
+    protected TextBlock ErrorText { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 8) };
     private bool working;
 
     protected WatchEditor(Window? owner, string title, double width)
@@ -23,7 +23,7 @@ internal abstract class WatchEditor : Window
         ShowInTaskbar = false;
         SetResourceReference(BackgroundProperty, "BrandCanvasBrush");
         Fields.Margin = new(18);
-        errorText.SetResourceReference(TextBlock.ForegroundProperty, "BrandStatusErrorBrush");
+        ErrorText.SetResourceReference(TextBlock.ForegroundProperty, "BrandStatusErrorBrush");
         Content = new ScrollViewer { Content = Fields, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Closing += (_, e) => { if (working) e.Cancel = true; };
     }
@@ -38,7 +38,7 @@ internal abstract class WatchEditor : Window
 
     protected void Finish(params Button[] buttons)
     {
-        Fields.Children.Add(errorText);
+        Fields.Children.Add(ErrorText);
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         foreach (var button in buttons) actions.Children.Add(button);
         Fields.Children.Add(actions);
@@ -62,14 +62,15 @@ internal abstract class WatchEditor : Window
     {
         if (working) return;
         working = true;
-        Fields.IsEnabled = false;
-        errorText.Text = "";
+        var layout = Content as Panel ?? Fields;
+        layout.IsEnabled = false;
+        ErrorText.Text = "";
         try { await action(); }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException
             or UnauthorizedAccessException or JsonException or BackgroundServiceException)
         {
-            errorText.Text = error switch
+            ErrorText.Text = error switch
             {
                 ArgumentException invalid => invalid.Message,
                 WatchAccessException { Code: "Forbidden" } => "请以 Windows 管理员权限打开 CRS。",
@@ -78,7 +79,7 @@ internal abstract class WatchEditor : Window
                 _ => "操作失败，请检查资料格式和配套后台服务。"
             };
         }
-        finally { Fields.IsEnabled = true; working = false; }
+        finally { layout.IsEnabled = true; working = false; }
     }
 
     protected void CloseAfterSave()

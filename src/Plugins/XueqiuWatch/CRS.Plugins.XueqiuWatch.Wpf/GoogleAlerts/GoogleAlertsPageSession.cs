@@ -80,7 +80,7 @@ internal sealed partial class GoogleAlertsPageSession(
         } while (elapsed.Elapsed < limit);
         // 不输出原始 URL、账号、DOM、Cookie 或 Playwright 调用日志。
         if (needsSignIn)
-            throw new GoogleAlertsSignInRequiredException($"Google 快讯账号未就绪（{state}）。请点击「打开 Google 登录」，完成登录并关闭专用 Chrome，再点击「同步 Google 快讯」。");
+            throw new GoogleAlertsSignInRequiredException($"Google 快讯账号未就绪（{state}）。请从观察名单的「更多」打开 Google 登录。登录后关闭专用 Chrome，再点击「同步全部作者」。");
         throw new ArgumentException($"Google 快讯登录检查超时（{state}）。请在普通 Chrome 中核对 Google 快讯能否打开。");
     }
 
@@ -101,11 +101,16 @@ internal sealed partial class GoogleAlertsPageSession(
 
     internal async Task<GoogleWebAlert?> RecheckByQueryAsync(string query, string account, CancellationToken token)
     {
+        await ReloadAsync(account, token).ConfigureAwait(false);
+        return await FindByQueryAsync(query, token).ConfigureAwait(false);
+    }
+
+    internal async Task ReloadAsync(string account, CancellationToken token)
+    {
         DiagnosticStage = "重新加载快讯列表";
         await page.ReloadAsync(new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 20_000 })
             .WaitAsync(token).ConfigureAwait(false);
         await VerifyAccountAsync(account, token).ConfigureAwait(false);
-        return await FindByQueryAsync(query, token).ConfigureAwait(false);
     }
 
     internal async Task PrepareRssAsync(string query, string account, CancellationToken token)
