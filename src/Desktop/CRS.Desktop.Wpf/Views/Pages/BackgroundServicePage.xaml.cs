@@ -19,6 +19,7 @@ public partial class BackgroundServicePage : UserControl
         refresh.Tick += async (_, _) =>
         {
             if (TaskCenterTabs.SelectedItem == CurrentTasksTab) await model.RefreshTaskActivityAsync();
+            else if (TaskCenterTabs.SelectedItem == ServicePlansTab) await model.RefreshManualRunAsync();
         };
         Loaded += (_, _) => ActivateSelectedTab();
         Unloaded+=(_,_)=>refresh.Stop();
@@ -50,9 +51,12 @@ public partial class BackgroundServicePage : UserControl
 
         refresh.Stop();
         if (TaskCenterTabs.SelectedItem == ServiceStatusTab)
-            _ = model.RefreshServiceStatusCommand.ExecuteAsync(null);
-        else if (TaskCenterTabs.SelectedItem == ServicePlansTab && !model.Busy)
-            _ = model.RefreshCommand.ExecuteAsync(null);
+            _ = model.OpenServiceStatusAsync();
+        else if (TaskCenterTabs.SelectedItem == ServicePlansTab)
+        {
+            refresh.Start();
+            if (!model.Busy) _ = model.RefreshCommand.ExecuteAsync(null);
+        }
         else if (TaskCenterTabs.SelectedItem == ExecutionHistoryTab)
             _ = model.LoadHistoryOptionsAsync();
     }

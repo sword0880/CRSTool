@@ -151,7 +151,20 @@ public partial class BackgroundServiceViewModel : ObservableObject
             await cleanup!.SubmitTaskCommand.ExecuteAsync(null);
             Status=cleanup.TaskStatusKnown?"清理任务已交给后台，可在“当前任务”查看。":"清理任务受理状态未确认，请刷新核对。";
         }
-        else await MutateAsync("RunNow");
+        else if (CanRunSelectedPlan() && Selected is { } plan)
+        {
+            if (manualRun is { } current && current.PluginId == plan.PluginId && current.JobId == plan.JobId)
+            {
+                await RefreshManualRunAsync();
+                return;
+            }
+            await WithStatusAsync(async () =>
+            {
+                var request = new BackgroundRequest(WorkerProtocol.Version, Guid.NewGuid(), "RunNow", plan.PluginId, plan.JobId);
+                manualRun = new(request.RequestId, plan.PluginId, plan.JobId, plan.Name);
+                await SubmitManualRunAsync(request, manualRun);
+            });
+        }
     }
     [RelayCommand(CanExecute=nameof(CanUseSelectedPlan))]
     private Task PauseAsync() => MutateAsync("Pause");
@@ -195,6 +208,11 @@ public partial class BackgroundServiceViewModel : ObservableObject
     private Task ConfirmPendingAsync() => WithStatusAsync(async () =>
     {
         if (UncertainRequest is null) { Status = "没有待确认请求。"; return; }
+        if (UncertainRequest.Command == "RunNow" && manualRun is { } run)
+        {
+            await SubmitManualRunAsync(UncertainRequest, run);
+            return;
+        }
         var response = await client.SendAsync(UncertainRequest, lifetime);
         var confirmedCommand = UncertainRequest.Command;
         UncertainRequest = null; await LoadAsync();

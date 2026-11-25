@@ -48,6 +48,12 @@
      </WrapPanel>
      <TextBlock Text="双击任务或按 Enter 查看详情。修改计划和手动执行需要管理员权限。" Foreground="{DynamicResource BrandTextSecondaryBrush}" TextWrapping="Wrap"/>
      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+     <TextBlock Text="{Binding ManualRunStatus}" TextWrapping="Wrap" Margin="0,4,0,0"
+                AutomationProperties.LiveSetting="Polite">
+      <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+       <DataTrigger Binding="{Binding ManualRunStatus}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+      </Style.Triggers></Style></TextBlock.Style>
+     </TextBlock>
     </StackPanel>
     <pages:TaskPlanDataGrid x:Name="PlansGrid" Style="{DynamicResource {x:Type DataGrid}}" Grid.Row="1" MouseDoubleClick="OnPlanDoubleClick" PreviewKeyDown="OnPlanKeyDown" SelectionMode="Single" ItemsSource="{Binding PlanRows}" SelectedItem="{Binding SelectedPlan}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
      <pages:TaskPlanDataGrid.Columns>

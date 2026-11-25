@@ -60,6 +60,8 @@ internal static class TaskCenterDeepLinkChecks
             !tabs.Items.OfType<TabItem>().Select(tab => tab.Header).SequenceEqual(new[] { "当前任务", "服务计划", "执行记录", "服务状态" }))
             throw new InvalidOperationException("任务中心页签顺序、底栏直达或导航高亮不符。");
         await WaitForAsync(() => model.HealthTone == "Success");
+        if (!model.VersionSummary.Contains($"后台服务 {WorkerProtocol.PairedWorkerVersion}") || !model.UpdateSummary.Contains("一致"))
+            throw new InvalidOperationException("服务状态未显示后台发行版本及配套更新状态。");
         if (control.ActivityReads != 0 || control.PlanReads != 0 || control.HistoryReads != 0)
             throw new InvalidOperationException("单独打开服务状态读取了任务数据。");
 
@@ -152,7 +154,10 @@ internal static class TaskCenterDeepLinkChecks
             {
                 var state = HealthState;
                 return state == "Unavailable" ? new(WorkerProtocol.Version, request.RequestId, "Unavailable")
-                    : new(WorkerProtocol.Version, request.RequestId, "Ok", Health: new(state, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 1));
+                    : new(WorkerProtocol.Version, request.RequestId, "Ok", Health: new(state, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 1)
+                    {
+                        WorkerBuild = WorkerProtocol.BuildIdentity, WorkerVersion = WorkerProtocol.PairedWorkerVersion.ToString()
+                    });
             }
             if (request.Command == "GetJobs")
             {

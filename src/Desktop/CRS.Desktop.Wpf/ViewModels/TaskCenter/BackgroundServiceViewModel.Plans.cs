@@ -93,6 +93,7 @@ public sealed class ServicePlanItem:ObservableObject
     {
         "Running"=>"执行中", "Unavailable"=>"任务不可用", "Disabled"=>"已暂停", "Reconcile"=>"等待计划生效",
         "Retry"=>"等待重试", "Deferred"=>"等待来源或资源", "Queued"=>"已排队",
+        "Waiting" when job.LastResult == "Rejected"=>"上次执行被拒绝",
         "Waiting" when job.LastResult is "Failed" or "AccessBlocked" or "SourceSchemaChanged"=>"上次执行失败",
         "Waiting"=>"等待执行",
         _=>!job.Enabled?"已暂停":job.NeedsReconcile?"等待计划生效":job.NotBefore is not null?"等待再次执行":"等待执行"

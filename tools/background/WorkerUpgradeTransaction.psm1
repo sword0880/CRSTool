@@ -54,7 +54,7 @@ function Stop-WorkerForRepair([string]$Data,[hashtable]$Service){
 function Invoke-WorkerUpgradeTransaction {
     param([string]$Data,[string]$Program,[string]$Source,[hashtable]$Service,
         [string]$Publisher,[switch]$Development,[scriptblock]$Checkpoint=$null,
-        [ValidateRange(300,1800)][int]$StartupTimeoutSeconds=300)
+        [ValidateRange(300,1800)][int]$StartupTimeoutSeconds=300,[switch]$AllowInstalledDevelopmentPackage)
     Assert-WorkerNoLinks $Data;Assert-WorkerNoLinks $Program
     $Program=[IO.Path]::GetFullPath($Program);$Source=[IO.Path]::GetFullPath($Source)
     if($Source -eq $Program -or $Source.StartsWith($Program+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw '候选必须位于活动程序目录之外。'}
@@ -65,7 +65,21 @@ function Invoke-WorkerUpgradeTransaction {
         if($existing -and $existing.Stage -notin @('Committed','RolledBack')){throw '存在未解决维护日志。'}
         $candidate=Test-WorkerPackage $Source $Publisher -Development:$Development
         $migrationSeconds=Get-WorkerStorageMigrationSeconds $candidate
-        $previous=Test-WorkerPackage $Program $Publisher -Development:$Development
+        $installedDevelopment=$false
+        if($AllowInstalledDevelopmentPackage -and -not $Development -and
+            -not (Test-Path -LiteralPath (Get-WorkerChild $Program 'release.json.p7s'))){
+            # 只允许从维护日志已经确认的本机开发包转入签名发行。候选仍按正式签名和版本递增规则核验。
+            $confirmed=if($existing -and $existing.Stage -eq 'Committed'){$existing.CandidateReleaseHash}
+                elseif($existing -and $existing.Stage -eq 'RolledBack'){$existing.PreviousReleaseHash}
+            if(-not $confirmed -or $confirmed -ne (Get-FileHash -LiteralPath (Get-WorkerChild $Program 'release.json')).Hash){
+                throw '当前开发包与已确认维护记录不一致。'
+            }
+            $installedDevelopment=$true
+        }
+        $previous=Test-WorkerPackage $Program $Publisher -Development:($Development -or $installedDevelopment)
+        if($installedDevelopment -and (-not $previous.ContainsKey('development') -or $previous.development -ne $true)){
+            throw '已安装包未声明为开发发行。'
+        }
         if(-not $candidate.ContainsKey('maintenanceFormat') -or $candidate.maintenanceFormat -ne 1 -or
             -not $candidate.ContainsKey('upgradeFromVersions') -or $previous.version -notin $candidate.upgradeFromVersions -or
             ([Version]$candidate.version -le [Version]$previous.version -and -not $Development)){throw '候选维护协议/来源版本不兼容，或生产版本没有递增。'}

@@ -27,6 +27,8 @@ public sealed record BackgroundHealth(string State, DateTimeOffset StartedUtc, D
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkerBuild { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? WorkerVersion { get; init; }
 
     public BackgroundHealth(string state,DateTimeOffset startedUtc,DateTimeOffset observedUtc,int processId,BackgroundScheduling? scheduling)
         :this(state,startedUtc,observedUtc,processId,scheduling,null){}
@@ -58,6 +60,13 @@ public static class WorkerProtocol
     public const int Version = 2;
     // 兼容性变化时递增修订号，发布构建还用提交标识区分相同发行版本。
     private const int PairingRevision = 1;
+    public static Version PairedWorkerVersion { get; } = VersionFromAssembly();
+
+    private static Version VersionFromAssembly()
+    {
+        var version = typeof(WorkerProtocol).Assembly.GetName().Version!;
+        return new(version.Major, version.Minor, version.Build);
+    }
     public static string BuildIdentity { get; } = GetBuildIdentity();
 
     private static string GetBuildIdentity()

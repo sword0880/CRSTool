@@ -44,8 +44,19 @@
        <TextBlock Text="{Binding HealthLabel}" Style="{StaticResource WorkerHealthText}" AutomationProperties.LiveSetting="Polite"/>
       </Border>
       <TextBlock Text="{Binding SnapshotTime}" Style="{DynamicResource UiHintText}"/>
-      <TextBlock Text="{Binding VersionSummary}" Style="{DynamicResource UiHintText}" TextWrapping="Wrap"/>
      </StackPanel>
+   </Border>
+   <Border Style="{DynamicResource UiSurfaceCard}" Padding="20" Margin="0,0,0,16">
+    <StackPanel>
+     <TextBlock Text="后台版本与更新" Style="{DynamicResource UiSectionTitle}" FontSize="15" Margin="0,0,0,8"/>
+     <TextBlock Text="{Binding VersionSummary}" Style="{DynamicResource UiBodyText}" TextWrapping="Wrap"/>
+     <TextBlock Text="{Binding UpdateSummary}" Style="{DynamicResource UiHintText}" TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
+     <TextBlock Text="{Binding GitHubUpdateStatus}" Style="{DynamicResource UiBodyText}" TextWrapping="Wrap" Margin="0,12,0,0" AutomationProperties.LiveSetting="Polite"/>
+     <WrapPanel Margin="0,10,0,0">
+      <Button Content="检查 GitHub 更新" Command="{Binding CheckWorkerUpdatesCommand}" Margin="0,0,8,4"/>
+      <Button Content="安装更新" Command="{Binding InstallWorkerUpdateCommand}" Margin="0,0,0,4"/>
+     </WrapPanel>
+    </StackPanel>
    </Border>
    <Border Style="{DynamicResource UiStatusBanner}" Margin="0,0,0,16">
     <StackPanel>

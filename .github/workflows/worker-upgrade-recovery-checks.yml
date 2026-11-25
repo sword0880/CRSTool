@@ -19,6 +19,7 @@ on:
       - 'tests/Plugin/Fixtures/CRS.Worker.FixturePlugin/**'
       - 'tests/Prepare-WorkerUpgradeFixture.ps1'
       - 'tests/Test-WorkerMaintenance.ps1'
+      - 'tests/Test-WorkerGitHubRelease.ps1'
       - 'tests/Test-WorkerUpgradeTransactions.ps1'
       - '.github/workflows/worker-upgrade-recovery-checks.yml'
       - 'Directory.Packages.props'
@@ -69,6 +70,9 @@ jobs:
       - name: Verify injected upgrade interruption and recovery matrix
         shell: pwsh
         run: ./tests/Test-WorkerUpgradeTransactions.ps1
+      - name: Verify GitHub release package and signature checks
+        shell: pwsh
+        run: ./tests/Test-WorkerGitHubRelease.ps1
       - name: Prepare isolated Worker process fixture
         shell: pwsh
         run: |

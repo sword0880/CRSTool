@@ -145,12 +145,12 @@ public partial class ExecutionLogViewModel : ObservableObject, IDisposable
     private static string MarketCounts(BackgroundProgress value)=>
         $"收到{value.Received}条市场日记录；复用{Count(value.Reused)}条，休市{Count(value.Closed)}个市场日，空响应{Count(value.Empty)}次，冷却未请求{Count(value.Deferred)}个市场日，来源问题{Count(value.Issues)}项（收到不等于新增）";
     private static string Count(int? value)=>value?.ToString(CultureInfo.InvariantCulture)??"未记录";
-    private static string ResultLabel(string value)=>value switch
+    internal static string ResultLabel(string value)=>value switch
     {
-        "Running"=>"进行中", "Succeeded"=>"成功", "Rejected"=>"请求未接受", "Failed"=>"失败", "Cancelled"=>"已取消", "Interrupted"=>"执行中断",
+        "Running"=>"进行中", "Succeeded"=>"成功", "Rejected"=>"执行被拒绝", "Failed"=>"失败", "Cancelled"=>"已取消", "Interrupted"=>"执行中断",
         "NotPublished"=>"等待来源发布", "RetryDeferred"=>"延后重试", "AccessBlocked"=>"来源访问受限", "SourceSchemaChanged"=>"来源格式变化", _=>value
     };
-    private static string Describe(string value)
+    internal static string Describe(string value)
     {
         if(value=="configuration=InvalidOrStale")return "ETF配置输入不符合要求或已被其它窗口修改，请刷新目录后重试。";
         if(value=="monitoring=NoActiveEtfs")return "当前没有启用监控的ETF，本次没有发起网络采集。";

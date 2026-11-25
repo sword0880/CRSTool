@@ -1,4 +1,5 @@
 using CRS.DesktopClient.ViewModels;
+using CRS.DesktopClient.Services;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 using CRS.Maintenance;
@@ -34,6 +35,18 @@ internal static class ShellStatusBarChecks
         var protocolMismatch = ShellStatusBarViewModel.Describe(normal with { Code = "ProtocolMismatch", Health = null });
         Check(protocolMismatch.VersionWarning?.Contains("通信版本不一致")==true,
             "协议不兼容时仍提示版本不一致");
+        var versioned = normal.Health! with { WorkerVersion = WorkerProtocol.PairedWorkerVersion.ToString() };
+        Check(WorkerVersionNotice.DescribeBuilds(versioned).Contains($"后台服务 {versioned.WorkerVersion}") &&
+            WorkerVersionNotice.DescribeUpdate(versioned).Contains("一致"), "显示已安装的发行版本和配套状态");
+        Check(WorkerVersionNotice.DescribeUpdate(versioned with { WorkerVersion = "0.1.0" }).Contains("配套版本高于"),
+            "后台发行版本落后时提示桌面有更新的配套版本");
+        Check(WorkerVersionNotice.DescribeUpdate(versioned with { WorkerVersion = "999.0.0" }).Contains("高于"),
+            "较新后台不会被标为版本落后");
+        Check(WorkerVersionNotice.DescribeUpdate(versioned with { WorkerBuild = "2.1+123456789" }).Contains("配套构建"),
+            "同一发行版本的不同构建提示配套构建可用");
+        Check(WorkerVersionNotice.GetWarning(normal with
+            { Health = versioned with { WorkerVersion = "999.0.0", WorkerBuild = WorkerProtocol.BuildIdentity.Split('+')[0] + "+release" } }) is null,
+            "兼容的新后台发行允许独立更新");
         Check(snapshot.TaskLabel=="运行 2 · 等待 3" && snapshot.TaskDetail.Contains("同一快照已去重"),
             "底栏仅显示运行和等待，健康采样中重叠的手动请求不重复累加");
         Check(snapshot.AttentionLabel=="运行异常 0" && snapshot.AttentionDetail.Contains("不含税务/ETF数据缺口"),

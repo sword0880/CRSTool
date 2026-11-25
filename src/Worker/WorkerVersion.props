@@ -1,0 +1,4 @@
+<Project>
+  <!-- 桌面通过 IPC 组件携带配套 Worker 的发行版本。 -->
+  <PropertyGroup><Version>2.0.0</Version></PropertyGroup>
+</Project>
