@@ -25,16 +25,16 @@ internal static class ShellStatusBarChecks
         var activity=new BackgroundTaskActivity(now,[],2,1,2);
         var snapshot=ShellStatusBarViewModel.Describe(normal,activity:activity);
         Check(snapshot.HealthTone=="Success" && snapshot.HealthLabel=="服务正常","运行中的服务显示实时绿色健康状态");
-        Check(snapshot.VersionWarning is null, "配套版本时隐藏版本横幅");
+        Check(snapshot.HealthDetail.Contains("Worker 状态 Running"), "配套版本时底栏提示显示服务健康采样");
         var legacy = ShellStatusBarViewModel.Describe(normal with { Health = normal.Health! with { WorkerBuild = null } });
-        Check(legacy.HealthTone=="Warning" && legacy.VersionWarning?.Contains("更新后台服务")==true,
+        Check(legacy.HealthTone=="Warning" && legacy.HealthDetail.Contains("更新后台服务"),
             "旧后台未报告构建版本时显示更新提示");
         var mismatched = ShellStatusBarViewModel.Describe(normal with { Health = normal.Health! with { WorkerBuild = "2.1+123456789" } });
-        Check(mismatched.HealthTone=="Warning" && mismatched.VersionWarning?.Contains("12345678")==true,
-            "版本不同显示构建标识和更新提示");
+        Check(mismatched.HealthLabel=="后台版本需核对" && mismatched.HealthTone=="Warning" && mismatched.HealthDetail.Contains("12345678"),
+            "版本不一致时底栏显示提醒和构建标识");
         var protocolMismatch = ShellStatusBarViewModel.Describe(normal with { Code = "ProtocolMismatch", Health = null });
-        Check(protocolMismatch.VersionWarning?.Contains("通信版本不一致")==true,
-            "协议不兼容时仍提示版本不一致");
+        Check(protocolMismatch.HealthDetail.Contains("通信版本不一致"),
+            "协议不兼容时底栏提示显示具体原因");
         var versioned = normal.Health! with { WorkerVersion = WorkerProtocol.PairedWorkerVersion.ToString() };
         Check(WorkerVersionNotice.DescribeBuilds(versioned).Contains($"后台服务 {versioned.WorkerVersion}") &&
             WorkerVersionNotice.DescribeUpdate(versioned).Contains("一致"), "显示已安装的发行版本和配套状态");
