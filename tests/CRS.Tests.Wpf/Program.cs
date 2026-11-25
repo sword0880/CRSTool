@@ -32,6 +32,7 @@ if(args is ["--plugin-header-native",var headerDirectory]){PluginHeaderNativeChe
 if(args is ["--plugin-menu-focus",var strictFocusDirectory]){try{PluginHeaderNativeChecks.Run(strictFocusDirectory,requireFocus:true);}catch(KeyboardFocusUnavailableException){Console.Error.WriteLine("Unavailable：当前执行桌面没有交互前台，焦点验收未完成。");Environment.ExitCode=2;}return;}
 if(args is ["--plugin-header-focus-preview",var focusDirectory]){PluginHeaderNativeChecks.Run(focusDirectory,true);return;}
 if(args is ["--shell-status-checks"]){ShellStatusBarChecks.Run();return;}
+if(args is ["--worker-release-checks"]){await WorkerGitHubUpdateChecks.RunAsync();return;}
 if(args is ["--task-center-deeplink-checks"]){TaskCenterDeepLinkChecks.Run();return;}
 if(args is ["--task-center-refresh-checks"]){await TaskCenterRefreshChecks.RunAsync();return;}
 if(args is ["--task-activity-checks"]){await TaskActivityChecks.RunAsync();return;}

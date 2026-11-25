@@ -16,6 +16,7 @@
   <ItemGroup>
     <Resource Include="Assets/Brand/XiaoCaiNiu.ico" />
     <Resource Include="Assets/Brand/XiaoCaiNiu_256.png" />
+    <EmbeddedResource Include="../../../tools/background/Install-DownloadedWorkerRelease.ps1" LogicalName="CRS.WorkerUpdate.Install.ps1" />
     <PackageReference Include="WPF-UI" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="DataGridExtensions" />

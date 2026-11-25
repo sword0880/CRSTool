@@ -4,6 +4,14 @@
 
 ## 当前可执行边界
 
+### GitHub 发行与前台更新
+
+桌面在「任务中心 → 服务状态 → 后台版本与更新」查询公开仓库 [CRSTool Releases](https://github.com/sword0880/CRSTool/releases)。只比较 `worker-vX.Y.Z` 的正式发行，资产名称为 `CRS.Worker.Service-win-x64.zip`。点击安装后下载并比对 GitHub 资产的 SHA-256，Windows 管理员进程在受限暂存目录再次核对包哈希、CMS 签名、版本、通信协议和清单列出的全部文件，随后复用升级事务。此入口用于升级已有服务。桌面通过本机管道确认新版服务运行后显示安装成功。
+
+安装需要 Windows x64、系统级 PowerShell 7 以及注册表 `HKLM\SOFTWARE\CRS\WorkerUpdates` 的字符串值 `PublisherThumbprint`。管理员从独立的受信发布者渠道核对证书指纹后设置此值，目标机器还须信任发布者证书链。桌面发现新版本时会提示，但只有配置受信发布者后才启用安装。已有开发包须与已确认的本机维护清单匹配才能转入签名发行，候选包始终需要正式签名和更高版本。
+
+发布时先将 `src/Worker/WorkerVersion.props` 提升到新的三段版本。GitHub 管理员配置受保护的 `worker-release` 环境和 `WORKER_RELEASE_PFX_BASE64`、`WORKER_RELEASE_PFX_PASSWORD` 两个环境密钥，再从 `main` 手动运行 **Publish CRS Worker**，填写发行版本和已验证的可升级来源版本。工作流构建项目、签署发行清单并发布固定名称的安装包。签名证书私钥由发布环境保管。
+
 `tools/background/Install-Service.ps1`只安装到不存在的程序目录，并拒绝覆盖已有服务。正式包使用外部指定的发布者指纹验证release.json的CMS分离签名，再验证所有登记文件；开发模式必须显式指定AllowDevelopmentPackage。卸载保留数据不等于支持任意二进制重装或回退。
 
 已接入的升级入口为`tools/background/Upgrade-Service.ps1`，恢复入口为`Recover-Service.ps1`，共享`WorkerUpgradeTransaction.psm1`和`WorkerMaintenance.psm1`。入口与模块随新发行包提供；维护入口需要PowerShell7和管理员，固定服务名称、ProgramFiles程序路径、ProgramData数据路径及LocalService身份，不能自定义正式目标目录。正式维护使用外部指定发布者验证CMS，开发包必须显式豁免；生产版本须递增，候选还必须声明maintenanceFormat=1及允许的upgradeFromVersions。安装、升级与恢复共用发行包验证，拒绝越界/链接/备用数据流、重复目标、未登记文件及哈希变化。

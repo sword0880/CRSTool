@@ -28,11 +28,18 @@ internal static class TaskCenterButtonChecks
             model.Selected=model.Jobs[0];
             Check(model.SelectedPlan?.Job==model.Jobs[0],"重新选择插件计划时行与编辑对象一致");
             await model.RunNowCommand.ExecuteAsync(null);
-            Check(model.HasUnconfirmedRequest,"后台已受理但连接断开时显示重新确认入口");
+            Check(model.HasUnconfirmedRequest && model.ManualRunStatus.Contains("未确认"),"后台已受理但连接断开时显示重新确认入口");
             await model.PauseCommand.ExecuteAsync(null);
             Check(control.Mutations.Count==1,"未确认时阻止创建其它操作");
             await model.ConfirmPendingCommand.ExecuteAsync(null);
             Check(!model.HasUnconfirmedRequest&&control.Mutations.Count==2&&control.Mutations[0]==control.Mutations[1],"重新确认沿用原编号和原参数，确认后隐藏入口");
+            Check(model.ManualRunStatus.Contains("等待开始"),"受理后直接显示排队回执");
+            await model.RunNowCommand.ExecuteAsync(null);
+            Check(control.Mutations.Count==2&&model.ManualRunStatus.Contains("正在执行"),"再次点击同一任务会刷新原请求进度");
+            await model.RefreshManualRunAsync();
+            Check(model.ManualRunStatus.Contains("执行被拒绝") && model.ManualRunStatus.Contains("配置 RSS"),"直接显示这次执行的配置拒绝原因");
+            await model.RunNowCommand.ExecuteAsync(null);
+            Check(model.ManualRunStatus.Contains("管理员权限") && !model.HasUnconfirmedRequest,"权限拒绝立即反馈且允许重试");
         }
         finally{stop.Cancel();try{await server;}catch(OperationCanceledException){}}
     }
@@ -42,6 +49,7 @@ internal static class TaskCenterButtonChecks
     {
         public List<BackgroundRequest> Mutations=[];
         private readonly DateTimeOffset now=CRS.Timing.BeijingClock.Now;
+        private int commandReads;
         public Task<BackgroundResponse> HandleAsync(BackgroundRequest request,BackgroundCaller caller,CancellationToken token)
         {
             BackgroundResponse response;
@@ -49,13 +57,19 @@ internal static class TaskCenterButtonChecks
             {
                 Mutations.Add(request);
                 if(Mutations.Count==1)throw new System.IO.IOException("模拟受理后的连接中断");
-                response=new(WorkerProtocol.Version,request.RequestId,"Succeeded",Receipt:new(request.RequestId,"Completed","Succeeded",null));
+                response=Mutations.Count==2
+                    ? new(WorkerProtocol.Version,request.RequestId,"Accepted",Receipt:new(request.RequestId,"Pending","Accepted",null))
+                    : new(WorkerProtocol.Version,request.RequestId,"Forbidden");
             }
             else response=request.Command switch
             {
                 "GetHealth"=>new(WorkerProtocol.Version,request.RequestId,"Ok",Health:new("Running",now,now,1)),
                 "GetJobs"=>new(WorkerProtocol.Version,request.RequestId,"Ok",Jobs:[new("plugin",request.Cursor is null?"one":"two","任务","0 * * * * ?","China Standard Time",true,1,false){PlanState="Waiting"}],NextCursor:request.Cursor is null?"plans-2":null),
                 "GetTaskActivity"=>new(WorkerProtocol.Version,request.RequestId,"Ok",TaskActivity:new(now,[],0,0,0)),
+                "GetCommand" when request.RelatedRequestId == Mutations[0].RequestId => new(WorkerProtocol.Version,request.RequestId,"Ok",
+                    Receipt: ++commandReads==1 ? new(Mutations[0].RequestId,"Running","Accepted","sample") : new(Mutations[0].RequestId,"Completed","Rejected","sample")),
+                "GetExecution" when request.ExecutionId=="sample" => new(WorkerProtocol.Version,request.RequestId,"Ok",
+                    Execution:new("sample","plugin","one",now,now,now,"Rejected","请在「观察名单」中配置 RSS 地址。",1)),
                 CRS.Maintenance.DataCleanupTask.HistoryCommand or "GetDataCleanupTasks"=>new(WorkerProtocol.Version,request.RequestId,"UnknownCommand"),
                 "GetHistoryByDate"=>new(WorkerProtocol.Version,request.RequestId,"Ok",History:[new(request.Cursor is null?"one":"two","plugin","one",now,now,now,"Succeeded",null,1)],NextCursor:request.Cursor is null?"history-2":null,PendingRequests:[],Payload:request.Payload),
                 _=>throw new Exception("非预期命令："+request.Command)

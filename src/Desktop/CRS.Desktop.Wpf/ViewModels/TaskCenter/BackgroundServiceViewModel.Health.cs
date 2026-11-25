@@ -12,7 +12,8 @@ public partial class BackgroundServiceViewModel
     [ObservableProperty] private string healthLabel = "等待连接";
     [ObservableProperty] private string healthTone = "Warning";
     [ObservableProperty] private string serviceStatus = "尚未查询后台服务。";
-    [ObservableProperty] private string versionSummary = "";
+    [ObservableProperty] private string versionSummary = "正在等待后台报告版本。";
+    [ObservableProperty] private string updateSummary = "尚未核对桌面配套更新。";
     [ObservableProperty] private bool isCheckingService;
     private Task<BackgroundResponse?>? healthRead;
 
@@ -48,6 +49,8 @@ public partial class BackgroundServiceViewModel
                 _ => ("状态未确认", "Warning", $"后台报告的状态为 {sample.State}。")
             };
             VersionSummary = WorkerVersionNotice.DescribeBuilds(sample);
+            UpdateSummary = WorkerVersionNotice.DescribeUpdate(sample);
+            SetInstalledWorkerVersion(sample.WorkerVersion);
             if (WorkerVersionNotice.GetWarning(response) is { } warning)
             {
                 if (sample.State == "Running")
@@ -71,7 +74,9 @@ public partial class BackgroundServiceViewModel
         HealthLabel = "无法确认服务状态";
         HealthTone = "Warning";
         SnapshotTime = "本次未取得健康快照";
-        VersionSummary = "";
+        VersionSummary = "当前后台版本未确认。";
+        UpdateSummary = "暂时无法核对桌面配套更新。";
+        SetInstalledWorkerVersion(null);
         ServiceStatus = message;
     }
 }

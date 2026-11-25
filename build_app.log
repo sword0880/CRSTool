@@ -1,0 +1,1032 @@
+生成启动时间为 2026/11/25 8:23:52。
+日志记录详细程度设置为: Detailed。     0>启用的记录器: MSBuildLogger, CentralForwardingLogger, CentralForwardingLogger, ConsoleLogger, FileLogger
+       未使用终端记录器，因为正在将输出重定向到文件。
+       进程 = "C:\Program Files\dotnet\dotnet.exe"
+       MSBuild 可执行文件路径 = "C:\Program Files\dotnet\sdk\10.0.401\MSBuild.exe"
+       命令行参数 = "C:\Program Files\dotnet\sdk\10.0.401\MSBuild.exe -maxcpucount --verbosity:m -tlp:default=auto --property:NuGetInteractive=false --nologo -restore:false src/Core/CRS.Application/CRS.Application.csproj -fl -flp:logfile=build_app.log -consoleloggerparameters:Summary -distributedlogger:Microsoft.DotNet.Cli.Commands.MSBuild.MSBuildLogger,C:\Program Files\dotnet\sdk\10.0.401\dotnet.dll*Microsoft.DotNet.Cli.Commands.MSBuild.MSBuildForwardingLogger,C:\Program Files\dotnet\sdk\10.0.401\dotnet.dll"
+       当前目录 = "D:\ATXCode\Test\CRS"
+       MSBuild 版本 = "18.9.11+e34a38d2a"
+       基于 Windows 注册表项 LongPathsEnabled，LongPaths 功能为 已启用。
+       基于 Windows 注册表项 VerifiedAndReputablePolicyState，SAC 状态 = 0: 已关闭。
+       SDK“Microsoft.NET.Sdk”已由“DefaultSdkResolver”解析程序成功解析为位置“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk”和版本“”。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.props(49,11): message : 值为“C:\Program Files\dotnet\sdk\10.0.401\”的属性“MSBuildExtensionsPath”从环境中展开。
+       在 Evaluation 期间加载的程序集: System.ServiceProcess.ServiceController, Version=10.0.0.12, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a (位置: C:\Program Files\dotnet\sdk\10.0.401\runtimes\win\lib\net10.0\System.ServiceProcess.ServiceController.dll，MVID: 5bf21159-037e-42e3-b9d3-37ce0c76da85，AssemblyLoadContext: Default)
+       C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props(60,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props (60,5) 处重新分配属性: $(MSBuildProjectExtensionsPath)=“D:\ATXCode\Test\CRS\src\Core\CRS.Application\obj\”(先前值:“obj\”)
+       在 Evaluation 期间加载的程序集: System.Threading.Tasks.Parallel, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a (位置: C:\Program Files\dotnet\shared\Microsoft.NETCore.App\10.0.12\System.Threading.Tasks.Parallel.dll，MVID: c066cee6-c143-46b8-a18a-4b32b43eca75，AssemblyLoadContext: Default)
+       D:\ATXCode\Test\CRS\src\Core\CRS.Application\obj\CRS.Application.csproj.nuget.g.props(7,5): message : 值为“C:\Users\Administrator”的属性“USERPROFILE”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props(84,119): message : 值为“C:\Users\Administrator\AppData\Local\Packages\sandbox.{4daf3be3-eeb9-42e2-b2f4-796feb962a44}\AC\Microsoft\MSBuild”的属性“MSBuildUserExtensionsPath”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(90,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (90,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem}”(先前值:“{CandidateAssemblyFiles}”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(91,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (91,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory}”(先前值:“{CandidateAssemblyFiles};{HintPathFromItem}”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(92,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (92,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory};{RawFileName}”(先前值:“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory}”)
+       “DefaultSdkResolver”解析程序已尝试解析 SDK“Microsoft.NET.SDK.WorkloadAutoImportPropsLocator”。
+       警告: null
+       错误: MSB4276: 默认 SDK 解析程序解析 SDK“Microsoft.NET.SDK.WorkloadAutoImportPropsLocator”失败，因为目录“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.SDK.WorkloadAutoImportPropsLocator\Sdk”不存在。
+       在 Evaluation 期间加载的程序集: Microsoft.Build.NuGetSdkResolver, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Build.NuGetSdkResolver.dll，MVID: 5c8b585c-4a35-4e34-b1cb-2f93797b9ea5，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Build.NuGetSdkResolver.dll)
+       在 Evaluation 期间加载的程序集: NuGet.Common, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\NuGet.Common.dll，MVID: 605cf877-a30e-44d8-9474-97548361396a，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Build.NuGetSdkResolver.dll)
+       在 Evaluation 期间加载的程序集: Microsoft.NET.Sdk.WorkloadMSBuildSdkResolver, Version=10.0.401.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\Microsoft.NET.Sdk.WorkloadMSBuildSdkResolver.dll，MVID: 6dbb0d64-44fb-45a7-b4ef-543f1a7ddf02，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\Microsoft.NET.Sdk.WorkloadMSBuildSdkResolver.dll)
+       在 Evaluation 期间加载的程序集: Microsoft.DotNet.Cli.CoreUtils, Version=10.0.401.0, Culture=neutral, PublicKeyToken=adb9793829ddae60 (位置: C:\Program Files\dotnet\sdk\10.0.401\Microsoft.DotNet.Cli.CoreUtils.dll，MVID: a452c26e-4d30-49b6-b91a-f67d520ad74e，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\Microsoft.NET.Sdk.WorkloadMSBuildSdkResolver.dll)
+       在 Evaluation 期间加载的程序集: Microsoft.NET.Sdk.WorkloadManifestReader, Version=10.0.401.0, Culture=neutral, PublicKeyToken=adb9793829ddae60 (位置: C:\Program Files\dotnet\sdk\10.0.401\Microsoft.NET.Sdk.WorkloadManifestReader.dll，MVID: fe2eee75-df92-4d27-9b4e-6d842f8ecd27，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\Microsoft.NET.Sdk.WorkloadMSBuildSdkResolver.dll)
+       在 Evaluation 期间加载的程序集: Microsoft.Deployment.DotNet.Releases, Version=2.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Deployment.DotNet.Releases.dll，MVID: 80654d21-19e6-4f44-ac7e-72a32be77a5b，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\Microsoft.NET.Sdk.WorkloadMSBuildSdkResolver.dll)
+       SDK“Microsoft.NET.SDK.WorkloadAutoImportPropsLocator”已由“Microsoft.DotNet.MSBuildWorkloadSdkResolver”解析程序成功解析为位置“null”和版本“null”。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.ImportPublishProfile.targets(28,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.ImportPublishProfile.targets (28,5) 处重新分配属性: $(PublishProfileImported)=“false”(先前值:“true”)
+       在 Evaluation 期间加载的程序集: NuGet.Frameworks, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\NuGet.Frameworks.dll，MVID: 5cbf8f12-cb46-45fc-9824-bda16ea69fbe，AssemblyLoadContext: Default)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets(81,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets (81,5) 处重新分配属性: $(TargetPlatformVersion)=“”(先前值:“0.0”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(127,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (127,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**”(先前值:“;bin\Debug\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(142,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (142,5) 处重新分配属性: $(OutputPath)=“bin\Debug\net10.0\”(先前值:“bin\Debug\”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(147,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (147,5) 处重新分配属性: $(IntermediateOutputPath)=“obj\Debug\net10.0\”(先前值:“obj\Debug\”)
+       “DefaultSdkResolver”解析程序已尝试解析 SDK“Microsoft.NET.SDK.WorkloadManifestTargetsLocator”。
+       警告: null
+       错误: MSB4276: 默认 SDK 解析程序解析 SDK“Microsoft.NET.SDK.WorkloadManifestTargetsLocator”失败，因为目录“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.SDK.WorkloadManifestTargetsLocator\Sdk”不存在。
+       SDK“Microsoft.NET.SDK.WorkloadManifestTargetsLocator”已由“Microsoft.DotNet.MSBuildWorkloadSdkResolver”解析程序成功解析为位置“C:\Program Files\dotnet\sdk-manifests\10.0.100\microsoft.net.sdk.android\36.1.69”和版本“null”。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets(379,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets (379,5) 处重新分配属性: $(RoslynTargetsPath)=“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\..\..\Roslyn”(先前值:“C:\Program Files\dotnet\sdk\10.0.401\Roslyn”)
+       C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.Managed.Core.targets(6,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.Managed.Core.targets (6,5) 处重新分配属性: $(_BuildTasksDirectory)=“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\..\..\Roslyn\”(先前值:“C:\Program Files\dotnet\sdk\10.0.401\Roslyn\”)
+       C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.CSharp.Core.targets(213,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.CSharp.Core.targets (213,5) 处重新分配属性: $(CommandLineArgsForDesignTimeEvaluation)=“-langversion:latest -define:TRACE”(先前值:“-langversion:latest”)
+       在 Evaluation 期间加载的程序集: Microsoft.Build.Utilities.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a (位置: C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Build.Utilities.Core.dll，MVID: 31346683-6558-4fd1-a272-887bb1e18334，AssemblyLoadContext: Default)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(175,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (175,5) 处重新分配属性: $(_DebugSymbolsProduced)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(185,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (185,5) 处重新分配属性: $(_DocumentationFileProduced)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(392,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (392,5) 处重新分配属性: $(MSBuildCopyMarkerName)=“CRS.Appl.4B04D263”(先前值:“CRS.Application.csproj”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(393,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (393,5) 处重新分配属性: $(MSBuildCopyMarkerName)=“CRS.Appl.4B04D263.Up2Date”(先前值:“CRS.Appl.4B04D263”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(541,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (541,5) 处重新分配属性: $(ProcessorArchitecture)=“msil”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(580,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (580,5) 处重新分配属性: $(DelaySign)=“”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(2622,5): message : 值为“C:\Users\Administrator\AppData\Local”的属性“LOCALAPPDATA”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(3950,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (3950,5) 处重新分配属性: $(_SGenGenerateSerializationAssembliesConfig)=“Auto”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(3951,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (3951,5) 处重新分配属性: $(_SGenGenerateSerializationAssembliesConfig)=“Off”(先前值:“Auto”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (5162,5) 处重新分配属性: $(_TargetsThatPrepareProjectReferences)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :       AssignProjectConfiguration;
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :       _SplitProjectReferencesByFileExistence
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :     ”(先前值:“_SplitProjectReferencesByFileExistence”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(7033,5): message : 值为“C:\Program Files\dotnet\sdk\10.0.401”的属性“MSBuildExtensionsPath32”从环境中展开。
+       “NuGetInteractive”属性是全局属性，不能修改。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(29,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (29,5) 处重新分配属性: $(ProjectAssetsCacheFile)=“D:\ATXCode\Test\CRS\src\Core\CRS.Application\obj\Debug\net10.0\CRS.Application.assets.cache”(先前值:“obj\Debug\net10.0\CRS.Application.assets.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (80,5) 处重新分配属性: $(ResolveAssemblyReferencesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (86,5) 处重新分配属性: $(PrepareResourcesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       PrepareResourceNames;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResGen;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       CompileLicxFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       PrepareResourceNames;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResGen;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       CompileLicxFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(35,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (35,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(37,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (37,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(42,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (42,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(45,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (45,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(46,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (46,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(47,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (47,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(48,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (48,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(49,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (49,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(50,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (50,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc;**/.DS_Store”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets (14,5) 处重新分配属性: $(ResolveAssemblyReferencesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveTargetingPackAssets;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(44,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (44,5) 处重新分配属性: $(_GenerateRuntimeConfigurationPropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Core\CRS.Application\obj\Debug\net10.0\CRS.Application.genruntimeconfig.cache”(先前值:“obj\Debug\net10.0\CRS.Application.genruntimeconfig.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(46,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (46,5) 处重新分配属性: $(_GeneratePublishDependencyFilePropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Core\CRS.Application\obj\Debug\net10.0\CRS.Application.genpublishdeps.cache”(先前值:“obj\Debug\net10.0\CRS.Application.genpublishdeps.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(48,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (48,5) 处重新分配属性: $(_GenerateSingleFileBundlePropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Core\CRS.Application\obj\Debug\net10.0\CRS.Application.genbundle.cache”(先前值:“obj\Debug\net10.0\CRS.Application.genbundle.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(81,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (81,5) 处重新分配属性: $(GenerateRuntimeConfigDevFile)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(98,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (98,5) 处重新分配属性: $(_DefaultUserProfileRuntimeStorePath)=“C:\Users\Administrator”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(99,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (99,5) 处重新分配属性: $(_DefaultUserProfileRuntimeStorePath)=“C:\Users\Administrator\.dotnet\store”(先前值:“C:\Users\Administrator”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(144,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (144,5) 处重新分配属性: $(AvailablePlatforms)=“Any CPU,x86,x64,ARM32”(先前值:“Any CPU,x86,x64”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(148,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (148,5) 处重新分配属性: $(AvailablePlatforms)=“Any CPU,x86,x64,ARM32,ARM64”(先前值:“Any CPU,x86,x64,ARM32”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (204,5) 处重新分配属性: $(CoreBuildDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       _CheckForBuildWithNoBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PreBuildEvent;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareResources;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       Compile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ExportWindowsMDFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedUnregistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateSerializationAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       CreateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateManifests;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GetTargetPath;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForRun;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedRegistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       IncrementalClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PostBuildEvent
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateBuildDependencyFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateBuildRuntimeConfigurationFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PreBuildEvent;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareResources;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       Compile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ExportWindowsMDFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedUnregistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateSerializationAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       CreateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateManifests;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GetTargetPath;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForRun;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedRegistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       IncrementalClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PostBuildEvent
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (213,5) 处重新分配属性: $(CoreCleanDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :       _SdkBeforeClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :     ”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (220,5) 处重新分配属性: $(RebuildDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       _SdkBeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       BeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Clean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Build;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       AfterRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       BeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Clean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Build;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       AfterRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (799,5) 处重新分配属性: $(CompileDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       SetWin32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _SetPreferNativeArm64Win32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       FindReferenceAssembliesForReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       BeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampBeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileDependencyCache;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       CoreCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampAfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       AfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _CreateAppHost;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _CreateComHost;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GetIjwHostPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       SetWin32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _SetPreferNativeArm64Win32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       FindReferenceAssembliesForReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       BeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampBeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileDependencyCache;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       CoreCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampAfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       AfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (1131,5) 处重新分配属性: $(CreateSatelliteAssembliesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       _GenerateSatelliteAssemblyInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ComputeIntermediateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       GenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       CoreGenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       _GenerateSatelliteAssemblyInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ComputeIntermediateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       GenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl;_InitializeBitbucketGitSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation;TranslateBitbucketGitUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets (21,5) 处重新分配属性: $(DesignerRuntimeImplementationProjectOutputGroupDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       AssignTargetPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ResolveReferences
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GenerateDesignerDepsFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GenerateDesignerRuntimeConfigFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       GetCopyToOutputDirectoryItems;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GatherDesignerShadowCopyFiles;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       AssignTargetPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ResolveReferences
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets(31,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets (31,5) 处重新分配属性: $(DefineConstants)=“TRACE;DEBUG”(先前值:“TRACE”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets(45,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets (45,5) 处重新分配属性: $(WarningsAsErrors)=“;NU1605;SYSLIB0011”(先前值:“;NU1605”)
+       C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets(34,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets (34,5) 处重新分配属性: $(PackageDescription)=“Package Description”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets(59,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets (59,5) 处重新分配属性: $(GenerateNuspecDependsOn)=“Build;_LoadPackInputItems; _GetTargetFrameworksOutput; _WalkEachTargetPerFramework; _GetPackageFiles; ”(先前值:“_LoadPackInputItems; _GetTargetFrameworksOutput; _WalkEachTargetPerFramework; _GetPackageFiles; ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.targets(59,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.targets (59,5) 处重新分配属性: $(_IsNotSetContainersTargetsDir)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets(5,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets (5,5) 处重新分配属性: $(_IsSDKContainerAllowedVersion)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets(15,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets (15,5) 处重新分配属性: $(_ContainerIsTargetingNet8TFM)=“true”(先前值:“false”)
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets”中的目标“ResolveFrameworkReferences”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“ResolveFrameworkReferences”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“GenerateSupportedTargetFrameworkAlias”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GenerateSupportedTargetFrameworkAlias”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetReferenceAssemblyPaths”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetReferenceAssemblyPaths”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetFrameworkPaths”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetFrameworkPaths”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets”中的目标“DesignerRuntimeImplementationProjectOutputGroup”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“DesignerRuntimeImplementationProjectOutputGroup”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“Publish”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“Publish”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“ResolveReadyToRunCompilers”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.CrossGen.targets”中的目标“ResolveReadyToRunCompilers”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“GetCopyToPublishDirectoryItems”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetCopyToPublishDirectoryItems”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“Run”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“Run”。
+     1>节点 1 上的项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”(默认目标)。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets”中的目标“_CollectTargetFrameworkForTelemetry”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“AllowEmptyTelemetry”任务。
+       任务“AllowEmptyTelemetry”
+       已完成执行任务“AllowEmptyTelemetry”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CollectTargetFrameworkForTelemetry”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets”中的目标“_CheckForUnsupportedNETCoreVersion”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckForUnsupportedNETCoreVersion”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets”中的目标“_CheckForUnsupportedCppNETCoreVersion”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckForUnsupportedCppNETCoreVersion”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets”中的目标“_CheckForUnsupportedArtifactsPath”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckForUnsupportedArtifactsPath”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.RuntimeIdentifierInference.targets”中的目标“_CheckForUnsupportedHostingUsage”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckForUnsupportedHostingUsage”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.RuntimeIdentifierInference.targets”中的目标“_CheckAndUnsetUnsupportedPrefer32Bit”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckAndUnsetUnsupportedPrefer32Bit”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.RuntimeIdentifierInference.targets”中的目标“_CheckForLanguageAndFeatureCombinationSupport”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckForLanguageAndFeatureCombinationSupport”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.Shared.targets”中的目标“CheckForImplicitPackageReferenceOverrides”(目标“CollectPackageReferences”依赖于它):
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“CheckForImplicitPackageReferenceOverrides”任务。
+       任务“CheckForImplicitPackageReferenceOverrides”
+       已完成执行任务“CheckForImplicitPackageReferenceOverrides”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“CheckForImplicitPackageReferenceOverrides”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“_ComputeToolPackInputsToProcessFrameworkReferences”(目标“ProcessFrameworkReferences”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_ComputeToolPackInputsToProcessFrameworkReferences”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets”中的目标“ProcessFrameworkReferences”(目标“CollectPackageReferences”依赖于它):
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“CheckForDuplicateFrameworkReferences”任务。
+       任务“CheckForDuplicateFrameworkReferences”
+       已完成执行任务“CheckForDuplicateFrameworkReferences”的操作。
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“ProcessFrameworkReferences”任务。
+       任务“ProcessFrameworkReferences”
+         Found 1 known framework references for target framework .NETCoreApp
+         Found 5 known runtime packs for target framework .NETCoreApp
+         Selected Microsoft.NETCore.App with RIDs 'linux-arm;linux-arm64;linux-musl-arm64;linux-musl-x64;linux-x64;osx-x64;tizen.4.0.0-armel;tizen.5.0.0-armel;win-arm64;win-x64;win-x86;linux-musl-arm;osx-arm64;linux-s390x;linux-loongarch64;linux-bionic-arm;linux-bionic-arm64;linux-bionic-x64;linux-bionic-x86;linux-ppc64le;freebsd-x64;freebsd-arm64;linux-riscv64;linux-musl-riscv64;linux-musl-loongarch64;android-arm64;android-x64'
+         Selected targeting pack 'Microsoft.NETCore.App@10.0.12'
+         Added runtime framework 'Microsoft.NETCore.App@10.0.0'
+         Selected Microsoft.WindowsDesktop.App with RIDs 'win-x64;win-x86;win-arm64'
+         Selected targeting pack 'Microsoft.WindowsDesktop.App@10.0.12'
+         Added runtime framework 'Microsoft.WindowsDesktop.App@10.0.0'
+         Selected Microsoft.WindowsDesktop.App with RIDs 'win-x64;win-x86;win-arm64'
+         Selected targeting pack 'Microsoft.WindowsDesktop.App.WPF@10.0.12'
+         Added runtime framework 'Microsoft.WindowsDesktop.App@10.0.0'
+         Selected Microsoft.WindowsDesktop.App with RIDs 'win-x64;win-x86;win-arm64'
+         Selected targeting pack 'Microsoft.WindowsDesktop.App.WindowsForms@10.0.12'
+         Added runtime framework 'Microsoft.WindowsDesktop.App@10.0.0'
+         Selected Microsoft.AspNetCore.App with RIDs 'win-x64;win-x86;osx-x64;linux-musl-x64;linux-musl-arm64;linux-x64;linux-arm;linux-arm64;linux-musl-arm;win-arm64;osx-arm64;linux-s390x;linux-loongarch64;linux-ppc64le;freebsd-x64;freebsd-arm64;linux-riscv64;linux-musl-riscv64;linux-loongarch64;linux-musl-loongarch64'
+         Selected targeting pack 'Microsoft.AspNetCore.App@10.0.12'
+         Added runtime framework 'Microsoft.AspNetCore.App@10.0.0'
+       已完成执行任务“ProcessFrameworkReferences”的操作。
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“ResolveAppHosts”任务。
+       任务“ResolveAppHosts”
+       已完成执行任务“ResolveAppHosts”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“ProcessFrameworkReferences”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.ObsoleteReferences.targets”中的目标“_CheckForObsoleteDotNetCliToolReferences”(目标“CollectPackageReferences”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckForObsoleteDotNetCliToolReferences”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\NuGet.targets”中的目标“CollectPackageReferences”(目标“_GetRestoreProjectStyle”依赖于它):
+       在 TaskRun 期间加载的程序集: NuGet.Build.Tasks, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.dll，MVID: c93cd0e8-f163-45a9-a822-bca52ca16f5a，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.dll)
+       在 TaskRun 期间加载的程序集: NuGet.Common, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\NuGet.Common.dll，MVID: 605cf877-a30e-44d8-9474-97548361396a，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.dll)
+       在 TaskRun 期间加载的程序集: NuGet.Commands, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\NuGet.Commands.dll，MVID: c7592a7e-fe3a-4c25-984c-5349d204b0d4，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.dll)
+       在 TaskRun 期间加载的程序集: NuGet.ProjectModel, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35 (位置: C:\Program Files\dotnet\sdk\10.0.401\NuGet.ProjectModel.dll，MVID: 5160eea4-41d4-44dc-8d03-0f1919398f1d，AssemblyLoadContext: MSBuild plugin C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.dll)
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.dll”中的“CheckForDuplicateNuGetItemsTask”任务。
+       任务“CheckForDuplicateNuGetItemsTask”
+       已完成执行任务“CheckForDuplicateNuGetItemsTask”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“CollectPackageReferences”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\NuGet.targets”中的目标“_GetRestoreProjectStyle”(目标“EnableIntermediateOutputPathMismatchWarning”依赖于它):
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.dll”中的“GetRestoreProjectStyleTask”任务。
+       任务“GetRestoreProjectStyleTask”
+       已完成执行任务“GetRestoreProjectStyleTask”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_GetRestoreProjectStyle”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\NuGet.targets”中的目标“EnableIntermediateOutputPathMismatchWarning”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“EnableIntermediateOutputPathMismatchWarning”的操作。
+       已跳过目标“CheckForImplicitPackageReferenceOverrides”。以前的生成已成功。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.Shared.targets”中的目标“CheckForDuplicateItems”(目标“_CheckForInvalidConfigurationAndPlatform”依赖于它):
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“CheckForDuplicateItems”任务。
+       任务“CheckForDuplicateItems”
+       已完成执行任务“CheckForDuplicateItems”的操作。
+       任务“CheckForDuplicateItems”
+       已完成执行任务“CheckForDuplicateItems”的操作。
+       任务“CheckForDuplicateItems”
+       已完成执行任务“CheckForDuplicateItems”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“CheckForDuplicateItems”的操作。
+       已跳过目标“ProcessFrameworkReferences”。以前的生成已成功。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“_CheckForInvalidConfigurationAndPlatform”(目标“BeforeBuild”依赖于它):
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“Message”任务。
+       任务“Message”
+         Configuration=Debug
+       已完成执行任务“Message”的操作。
+       任务“Message”
+         Platform=AnyCPU
+       已完成执行任务“Message”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_CheckForInvalidConfigurationAndPlatform”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“ValidateCommandLineProperties”(目标“BeforeBuild”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“ValidateCommandLineProperties”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“BeforeBuild”(目标“Build”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“BeforeBuild”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“BuildOnlySettings”(目标“CoreBuild”依赖于它):
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(1168,7): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (1168,7) 处重新分配属性: $(BuildingProject)=“true”(先前值:“false”) [D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj]
+     1>已完成在项目“CRS.Application.csproj”中生成目标“BuildOnlySettings”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetFrameworkPaths”(目标“PrepareForBuild”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“GetFrameworkPaths”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetReferenceAssemblyPaths”(目标“PrepareForBuild”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“GetReferenceAssemblyPaths”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“PrepareForBuild”(目标“CoreBuild”依赖于它):
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“FindAppConfigFile”任务。
+       任务“FindAppConfigFile”
+       已完成执行任务“FindAppConfigFile”的操作。
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“MakeDir”任务。
+       任务“MakeDir”
+       已完成执行任务“MakeDir”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“PrepareForBuild”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets”中的目标“GenerateTargetFrameworkDefineConstants”(目标“AddImplicitDefineConstants”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“GenerateTargetFrameworkDefineConstants”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets”中的目标“GenerateNETCompatibleDefineConstants”(目标“AddImplicitDefineConstants”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“GenerateNETCompatibleDefineConstants”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets”中的目标“AddImplicitDefineConstants”(目标“CoreBuild”依赖于它):
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets(295,7): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets (295,7) 处重新分配属性: $(DefineConstants)=“TRACE;DEBUG;NET;NET10_0;NETCOREAPP;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NET7_0_OR_GREATER;NET8_0_OR_GREATER;NET9_0_OR_GREATER;NET10_0_OR_GREATER;NETCOREAPP1_0_OR_GREATER;NETCOREAPP1_1_OR_GREATER;NETCOREAPP2_0_OR_GREATER;NETCOREAPP2_1_OR_GREATER;NETCOREAPP2_2_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER”(先前值:“TRACE;DEBUG”) [D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj]
+     1>已完成在项目“CRS.Application.csproj”中生成目标“AddImplicitDefineConstants”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.GenerateGlobalUsings.targets”中的目标“GenerateGlobalUsings”(目标“CoreBuild”依赖于它):
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“GenerateGlobalUsings”任务。
+       任务“GenerateGlobalUsings”
+       已完成执行任务“GenerateGlobalUsings”的操作。
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“WriteLinesToFile”任务。
+       任务“WriteLinesToFile”
+         跳过写入到文件“obj\Debug\net10.0\CRS.Application.GlobalUsings.g.cs”，因为内容不会改变。
+       已完成执行任务“WriteLinesToFile”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“GenerateGlobalUsings”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“BeforeResolveReferences”(目标“ResolveReferences”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“BeforeResolveReferences”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“IgnoreJavaScriptOutputAssembly”(目标“AssignProjectConfiguration”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“IgnoreJavaScriptOutputAssembly”的操作。
+       已跳过目标“ProcessFrameworkReferences”。以前的生成已成功。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.Shared.targets”中的目标“_DefaultMicrosoftNETPlatformLibrary”(目标“ResolvePackageAssets”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_DefaultMicrosoftNETPlatformLibrary”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.Shared.targets”中的目标“_ComputePackageReferencePublish”(目标“ResolvePackageAssets”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_ComputePackageReferencePublish”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets”中的目标“ResolvePackageAssets”(目标“ResolveLockFileReferences”依赖于它):
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“ResolvePackageAssets”任务。
+       任务“ResolvePackageAssets”
+       已完成执行任务“ResolvePackageAssets”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“ResolvePackageAssets”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets”中的目标“ResolveLockFileReferences”(目标“ResolvePackageDependenciesForBuild”依赖于它):
+       正在使用程序集“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\tools\net10.0\Microsoft.NET.Build.Tasks.dll”中的“JoinItems”任务。
+       任务“JoinItems”
+       已完成执行任务“JoinItems”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“ResolveLockFileReferences”的操作。
+       已跳过目标“ResolvePackageAssets”。以前的生成已成功。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets”中的目标“ResolveLockFileAnalyzers”(目标“ResolvePackageDependenciesForBuild”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“ResolveLockFileAnalyzers”的操作。
+       已跳过目标“ResolvePackageAssets”。以前的生成已成功。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets”中的目标“ResolveLockFileCopyLocalFiles”(目标“ResolvePackageDependenciesForBuild”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“ResolveLockFileCopyLocalFiles”的操作。
+       已跳过目标“ResolvePackageAssets”。以前的生成已成功。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets”中的目标“IncludeTransitiveProjectReferences”(目标“ResolvePackageDependenciesForBuild”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“IncludeTransitiveProjectReferences”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets”中的目标“ResolvePackageDependenciesForBuild”(目标“AssignProjectConfiguration”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“ResolvePackageDependenciesForBuild”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“AssignProjectConfiguration”(目标“ResolveReferences”依赖于它):
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“AssignProjectConfiguration”任务。
+       任务“AssignProjectConfiguration”
+         尚未解析项目引用“../CRS.Domain/CRS.Domain.csproj”。
+         尚未解析项目引用“../../Shared/CRS.Common/CRS.Common.csproj”。
+       已完成执行任务“AssignProjectConfiguration”的操作。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“AssignProjectConfiguration”的操作。
+       已跳过目标“AssignProjectConfiguration”。以前的生成已成功。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“_SplitProjectReferencesByFileExistence”(目标“PrepareProjectReferences”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_SplitProjectReferencesByFileExistence”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“_AddOutputPathToGlobalPropertiesToRemove”(目标“_GetProjectReferenceTargetFrameworkProperties”依赖于它):
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_AddOutputPathToGlobalPropertiesToRemove”的操作。
+     1>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“_GetProjectReferenceTargetFrameworkProperties”(目标“PrepareProjectReferences”依赖于它):
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“MSBuild”任务。
+       任务“MSBuild”
+         移除属性:
+           TargetFramework
+           RuntimeIdentifier
+           SelfContained
+     0>C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.props(49,11): message : 值为“C:\Program Files\dotnet\sdk\10.0.401\”的属性“MSBuildExtensionsPath”从环境中展开。
+       在 Evaluation 期间加载的程序集: System.Security.Claims, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a (位置: C:\Program Files\dotnet\shared\Microsoft.NETCore.App\10.0.12\System.Security.Claims.dll，MVID: 3b6f1fa3-3234-4333-b7bd-2d4c69ce6b4d，AssemblyLoadContext: Default)
+       C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props(60,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props (60,5) 处重新分配属性: $(MSBuildProjectExtensionsPath)=“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\obj\”(先前值:“obj\”)
+       D:\ATXCode\Test\CRS\src\Core\CRS.Domain\obj\CRS.Domain.csproj.nuget.g.props(7,5): message : 值为“C:\Users\Administrator”的属性“USERPROFILE”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props(84,119): message : 值为“C:\Users\Administrator\AppData\Local\Packages\sandbox.{4daf3be3-eeb9-42e2-b2f4-796feb962a44}\AC\Microsoft\MSBuild”的属性“MSBuildUserExtensionsPath”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(90,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (90,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem}”(先前值:“{CandidateAssemblyFiles}”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(91,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (91,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory}”(先前值:“{CandidateAssemblyFiles};{HintPathFromItem}”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(92,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (92,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory};{RawFileName}”(先前值:“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory}”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.ImportPublishProfile.targets(28,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.ImportPublishProfile.targets (28,5) 处重新分配属性: $(PublishProfileImported)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets(81,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets (81,5) 处重新分配属性: $(TargetPlatformVersion)=“”(先前值:“0.0”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(127,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (127,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**”(先前值:“;bin\Debug\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(142,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (142,5) 处重新分配属性: $(OutputPath)=“bin\Debug\net10.0\”(先前值:“bin\Debug\”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(147,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (147,5) 处重新分配属性: $(IntermediateOutputPath)=“obj\Debug\net10.0\”(先前值:“obj\Debug\”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets(379,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets (379,5) 处重新分配属性: $(RoslynTargetsPath)=“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\..\..\Roslyn”(先前值:“C:\Program Files\dotnet\sdk\10.0.401\Roslyn”)
+       C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.Managed.Core.targets(6,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.Managed.Core.targets (6,5) 处重新分配属性: $(_BuildTasksDirectory)=“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\..\..\Roslyn\”(先前值:“C:\Program Files\dotnet\sdk\10.0.401\Roslyn\”)
+       C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.CSharp.Core.targets(213,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.CSharp.Core.targets (213,5) 处重新分配属性: $(CommandLineArgsForDesignTimeEvaluation)=“-langversion:latest -define:TRACE”(先前值:“-langversion:latest”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(175,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (175,5) 处重新分配属性: $(_DebugSymbolsProduced)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(185,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (185,5) 处重新分配属性: $(_DocumentationFileProduced)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(393,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (393,5) 处重新分配属性: $(MSBuildCopyMarkerName)=“CRS.Domain.csproj.Up2Date”(先前值:“CRS.Domain.csproj”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(541,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (541,5) 处重新分配属性: $(ProcessorArchitecture)=“msil”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(580,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (580,5) 处重新分配属性: $(DelaySign)=“”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(2622,5): message : 值为“C:\Users\Administrator\AppData\Local”的属性“LOCALAPPDATA”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(3950,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (3950,5) 处重新分配属性: $(_SGenGenerateSerializationAssembliesConfig)=“Auto”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(3951,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (3951,5) 处重新分配属性: $(_SGenGenerateSerializationAssembliesConfig)=“Off”(先前值:“Auto”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (5162,5) 处重新分配属性: $(_TargetsThatPrepareProjectReferences)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :       AssignProjectConfiguration;
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :       _SplitProjectReferencesByFileExistence
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :     ”(先前值:“_SplitProjectReferencesByFileExistence”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(7033,5): message : 值为“C:\Program Files\dotnet\sdk\10.0.401”的属性“MSBuildExtensionsPath32”从环境中展开。
+       “NuGetInteractive”属性是全局属性，不能修改。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(29,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (29,5) 处重新分配属性: $(ProjectAssetsCacheFile)=“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\obj\Debug\net10.0\CRS.Domain.assets.cache”(先前值:“obj\Debug\net10.0\CRS.Domain.assets.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (80,5) 处重新分配属性: $(ResolveAssemblyReferencesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (86,5) 处重新分配属性: $(PrepareResourcesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       PrepareResourceNames;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResGen;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       CompileLicxFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       PrepareResourceNames;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResGen;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       CompileLicxFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(35,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (35,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(37,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (37,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(42,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (42,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(45,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (45,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(46,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (46,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(47,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (47,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(48,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (48,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(49,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (49,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(50,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (50,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc;**/.DS_Store”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets (14,5) 处重新分配属性: $(ResolveAssemblyReferencesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveTargetingPackAssets;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(44,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (44,5) 处重新分配属性: $(_GenerateRuntimeConfigurationPropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\obj\Debug\net10.0\CRS.Domain.genruntimeconfig.cache”(先前值:“obj\Debug\net10.0\CRS.Domain.genruntimeconfig.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(46,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (46,5) 处重新分配属性: $(_GeneratePublishDependencyFilePropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\obj\Debug\net10.0\CRS.Domain.genpublishdeps.cache”(先前值:“obj\Debug\net10.0\CRS.Domain.genpublishdeps.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(48,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (48,5) 处重新分配属性: $(_GenerateSingleFileBundlePropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\obj\Debug\net10.0\CRS.Domain.genbundle.cache”(先前值:“obj\Debug\net10.0\CRS.Domain.genbundle.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(81,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (81,5) 处重新分配属性: $(GenerateRuntimeConfigDevFile)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(98,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (98,5) 处重新分配属性: $(_DefaultUserProfileRuntimeStorePath)=“C:\Users\Administrator”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(99,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (99,5) 处重新分配属性: $(_DefaultUserProfileRuntimeStorePath)=“C:\Users\Administrator\.dotnet\store”(先前值:“C:\Users\Administrator”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(144,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (144,5) 处重新分配属性: $(AvailablePlatforms)=“Any CPU,x86,x64,ARM32”(先前值:“Any CPU,x86,x64”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(148,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (148,5) 处重新分配属性: $(AvailablePlatforms)=“Any CPU,x86,x64,ARM32,ARM64”(先前值:“Any CPU,x86,x64,ARM32”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (204,5) 处重新分配属性: $(CoreBuildDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       _CheckForBuildWithNoBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PreBuildEvent;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareResources;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       Compile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ExportWindowsMDFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedUnregistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateSerializationAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       CreateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateManifests;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GetTargetPath;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForRun;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedRegistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       IncrementalClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PostBuildEvent
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateBuildDependencyFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateBuildRuntimeConfigurationFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PreBuildEvent;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareResources;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       Compile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ExportWindowsMDFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedUnregistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateSerializationAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       CreateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateManifests;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GetTargetPath;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForRun;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedRegistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       IncrementalClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PostBuildEvent
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (213,5) 处重新分配属性: $(CoreCleanDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :       _SdkBeforeClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :     ”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (220,5) 处重新分配属性: $(RebuildDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       _SdkBeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       BeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Clean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Build;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       AfterRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       BeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Clean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Build;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       AfterRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (799,5) 处重新分配属性: $(CompileDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       SetWin32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _SetPreferNativeArm64Win32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       FindReferenceAssembliesForReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       BeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampBeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileDependencyCache;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       CoreCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampAfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       AfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _CreateAppHost;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _CreateComHost;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GetIjwHostPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       SetWin32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _SetPreferNativeArm64Win32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       FindReferenceAssembliesForReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       BeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampBeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileDependencyCache;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       CoreCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampAfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       AfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (1131,5) 处重新分配属性: $(CreateSatelliteAssembliesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       _GenerateSatelliteAssemblyInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ComputeIntermediateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       GenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       CoreGenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       _GenerateSatelliteAssemblyInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ComputeIntermediateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       GenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl;_InitializeBitbucketGitSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation;TranslateBitbucketGitUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets (21,5) 处重新分配属性: $(DesignerRuntimeImplementationProjectOutputGroupDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       AssignTargetPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ResolveReferences
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GenerateDesignerDepsFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GenerateDesignerRuntimeConfigFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       GetCopyToOutputDirectoryItems;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GatherDesignerShadowCopyFiles;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       AssignTargetPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ResolveReferences
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets(31,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets (31,5) 处重新分配属性: $(DefineConstants)=“TRACE;DEBUG”(先前值:“TRACE”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets(45,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets (45,5) 处重新分配属性: $(WarningsAsErrors)=“;NU1605;SYSLIB0011”(先前值:“;NU1605”)
+       C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets(34,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets (34,5) 处重新分配属性: $(PackageDescription)=“Package Description”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets(59,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets (59,5) 处重新分配属性: $(GenerateNuspecDependsOn)=“Build;_LoadPackInputItems; _GetTargetFrameworksOutput; _WalkEachTargetPerFramework; _GetPackageFiles; ”(先前值:“_LoadPackInputItems; _GetTargetFrameworksOutput; _WalkEachTargetPerFramework; _GetPackageFiles; ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.targets(59,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.targets (59,5) 处重新分配属性: $(_IsNotSetContainersTargetsDir)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets(5,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets (5,5) 处重新分配属性: $(_IsSDKContainerAllowedVersion)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets(15,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets (15,5) 处重新分配属性: $(_ContainerIsTargetingNet8TFM)=“true”(先前值:“false”)
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets”中的目标“ResolveFrameworkReferences”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“ResolveFrameworkReferences”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“GenerateSupportedTargetFrameworkAlias”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GenerateSupportedTargetFrameworkAlias”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetReferenceAssemblyPaths”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetReferenceAssemblyPaths”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetFrameworkPaths”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetFrameworkPaths”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets”中的目标“DesignerRuntimeImplementationProjectOutputGroup”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“DesignerRuntimeImplementationProjectOutputGroup”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“Publish”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“Publish”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“ResolveReadyToRunCompilers”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.CrossGen.targets”中的目标“ResolveReadyToRunCompilers”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“GetCopyToPublishDirectoryItems”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetCopyToPublishDirectoryItems”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“Run”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“Run”。
+     1>项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”(1)正在节点 1 上生成“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\CRS.Domain.csproj”(2) (GetTargetFrameworks 个目标)。
+     2>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\CRS.Domain.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“_CalculateIsVSTestTestProject”(目标“GetTargetFrameworksWithPlatformForSingleTargetFramework”依赖于它):
+     2>已完成在项目“CRS.Domain.csproj”中生成目标“_CalculateIsVSTestTestProject”的操作。
+     2>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\CRS.Domain.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetTargetFrameworksWithPlatformForSingleTargetFramework”(目标“GetTargetFrameworks”依赖于它):
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“CombineTargetFrameworkInfoProperties”任务。
+       任务“CombineTargetFrameworkInfoProperties”
+       已完成执行任务“CombineTargetFrameworkInfoProperties”的操作。
+     2>已完成在项目“CRS.Domain.csproj”中生成目标“GetTargetFrameworksWithPlatformForSingleTargetFramework”的操作。
+     2>来自项目“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\CRS.Domain.csproj”的文件“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetTargetFrameworks”(入口点):
+       正在使用程序集“Microsoft.Build.Tasks.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a”中的“CombineXmlElements”任务。
+       任务“CombineXmlElements”
+       已完成执行任务“CombineXmlElements”的操作。
+     2>已完成在项目“CRS.Domain.csproj”中生成目标“GetTargetFrameworks”的操作。
+     2>已完成生成项目“D:\ATXCode\Test\CRS\src\Core\CRS.Domain\CRS.Domain.csproj”(GetTargetFrameworks 个目标)的操作。
+     0>SDK“Microsoft.NET.Sdk”已由“DefaultSdkResolver”解析程序成功解析为位置“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk”和版本“”。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.props(49,11): message : 值为“C:\Program Files\dotnet\sdk\10.0.401\”的属性“MSBuildExtensionsPath”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props(60,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props (60,5) 处重新分配属性: $(MSBuildProjectExtensionsPath)=“D:\ATXCode\Test\CRS\src\Shared\CRS.Common\obj\”(先前值:“obj\”)
+     1>已完成执行任务“MSBuild”的操作 - 失败。
+     1>已完成在项目“CRS.Application.csproj”中生成目标“_GetProjectReferenceTargetFrameworkProperties”的操作 - 失败。
+     1>已完成生成项目“D:\ATXCode\Test\CRS\src\Core\CRS.Application\CRS.Application.csproj”(默认目标)的操作 - 失败。
+     0>D:\ATXCode\Test\CRS\src\Shared\CRS.Common\obj\CRS.Common.csproj.nuget.g.props(7,5): message : 值为“C:\Users\Administrator”的属性“USERPROFILE”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Current\Microsoft.Common.props(84,119): message : 值为“C:\Users\Administrator\AppData\Local\Packages\sandbox.{4daf3be3-eeb9-42e2-b2f4-796feb962a44}\AC\Microsoft\MSBuild”的属性“MSBuildUserExtensionsPath”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(90,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (90,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem}”(先前值:“{CandidateAssemblyFiles}”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(91,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (91,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory}”(先前值:“{CandidateAssemblyFiles};{HintPathFromItem}”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props(92,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.props (92,5) 处重新分配属性: $(AssemblySearchPaths)=“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory};{RawFileName}”(先前值:“{CandidateAssemblyFiles};{HintPathFromItem};{TargetFrameworkDirectory}”)
+       “DefaultSdkResolver”解析程序已尝试解析 SDK“Microsoft.NET.SDK.WorkloadAutoImportPropsLocator”。
+       警告: null
+       错误: MSB4276: 默认 SDK 解析程序解析 SDK“Microsoft.NET.SDK.WorkloadAutoImportPropsLocator”失败，因为目录“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.SDK.WorkloadAutoImportPropsLocator\Sdk”不存在。
+       SDK“Microsoft.NET.SDK.WorkloadAutoImportPropsLocator”已由“Microsoft.DotNet.MSBuildWorkloadSdkResolver”解析程序成功解析为位置“null”和版本“null”。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.ImportPublishProfile.targets(28,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.ImportPublishProfile.targets (28,5) 处重新分配属性: $(PublishProfileImported)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets(81,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.TargetFrameworkInference.targets (81,5) 处重新分配属性: $(TargetPlatformVersion)=“”(先前值:“0.0”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(127,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (127,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**”(先前值:“;bin\Debug\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(142,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (142,5) 处重新分配属性: $(OutputPath)=“bin\Debug\net10.0\”(先前值:“bin\Debug\”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets(147,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DefaultOutputPaths.targets (147,5) 处重新分配属性: $(IntermediateOutputPath)=“obj\Debug\net10.0\”(先前值:“obj\Debug\”)
+       “DefaultSdkResolver”解析程序已尝试解析 SDK“Microsoft.NET.SDK.WorkloadManifestTargetsLocator”。
+       警告: null
+       错误: MSB4276: 默认 SDK 解析程序解析 SDK“Microsoft.NET.SDK.WorkloadManifestTargetsLocator”失败，因为目录“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.SDK.WorkloadManifestTargetsLocator\Sdk”不存在。
+       SDK“Microsoft.NET.SDK.WorkloadManifestTargetsLocator”已由“Microsoft.DotNet.MSBuildWorkloadSdkResolver”解析程序成功解析为位置“C:\Program Files\dotnet\sdk-manifests\10.0.100\microsoft.net.sdk.android\36.1.69”和版本“null”。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets(379,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.BeforeCommon.targets (379,5) 处重新分配属性: $(RoslynTargetsPath)=“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\..\..\Roslyn”(先前值:“C:\Program Files\dotnet\sdk\10.0.401\Roslyn”)
+       C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.Managed.Core.targets(6,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.Managed.Core.targets (6,5) 处重新分配属性: $(_BuildTasksDirectory)=“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\..\..\..\Roslyn\”(先前值:“C:\Program Files\dotnet\sdk\10.0.401\Roslyn\”)
+       C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.CSharp.Core.targets(213,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Roslyn\Microsoft.CSharp.Core.targets (213,5) 处重新分配属性: $(CommandLineArgsForDesignTimeEvaluation)=“-langversion:latest -define:TRACE”(先前值:“-langversion:latest”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(175,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (175,5) 处重新分配属性: $(_DebugSymbolsProduced)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(185,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (185,5) 处重新分配属性: $(_DocumentationFileProduced)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(393,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (393,5) 处重新分配属性: $(MSBuildCopyMarkerName)=“CRS.Common.csproj.Up2Date”(先前值:“CRS.Common.csproj”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(541,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (541,5) 处重新分配属性: $(ProcessorArchitecture)=“msil”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(580,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (580,5) 处重新分配属性: $(DelaySign)=“”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(2622,5): message : 值为“C:\Users\Administrator\AppData\Local”的属性“LOCALAPPDATA”从环境中展开。
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(3950,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (3950,5) 处重新分配属性: $(_SGenGenerateSerializationAssembliesConfig)=“Auto”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(3951,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (3951,5) 处重新分配属性: $(_SGenGenerateSerializationAssembliesConfig)=“Off”(先前值:“Auto”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets (5162,5) 处重新分配属性: $(_TargetsThatPrepareProjectReferences)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :       AssignProjectConfiguration;
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :       _SplitProjectReferencesByFileExistence
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(5162,5): message :     ”(先前值:“_SplitProjectReferencesByFileExistence”)
+       C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets(7033,5): message : 值为“C:\Program Files\dotnet\sdk\10.0.401”的属性“MSBuildExtensionsPath32”从环境中展开。
+       “NuGetInteractive”属性是全局属性，不能修改。
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(29,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (29,5) 处重新分配属性: $(ProjectAssetsCacheFile)=“D:\ATXCode\Test\CRS\src\Shared\CRS.Common\obj\Debug\net10.0\CRS.Common.assets.cache”(先前值:“obj\Debug\net10.0\CRS.Common.assets.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (80,5) 处重新分配属性: $(ResolveAssemblyReferencesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(80,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets (86,5) 处重新分配属性: $(PrepareResourcesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       PrepareResourceNames;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResGen;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       CompileLicxFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       PrepareResourceNames;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       ResGen;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :       CompileLicxFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.PackageDependencyResolution.targets(86,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(35,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (35,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(37,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (37,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(42,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (42,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(45,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (45,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(46,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (46,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(47,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (47,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(48,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (48,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(49,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (49,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(50,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets (50,5) 处重新分配属性: $(DefaultItemExcludes)=“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc;**/.DS_Store”(先前值:“;bin\Debug\/**;obj\Debug\/**;bin\/**;obj\/**;bin\Debug\net10.0\publish\/**;**/*.user;**/*.*proj;**/*.sln;**/*.slnx;**/*.vssscc”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets (14,5) 处重新分配属性: $(ResolveAssemblyReferencesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveTargetingPackAssets;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       FindInvalidProjectReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetFrameworkPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       GetReferenceAssemblyPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolveSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ExpandSDKReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       ResolvePackageDependenciesForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :       _HandlePackageFileConflicts;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(14,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(44,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (44,5) 处重新分配属性: $(_GenerateRuntimeConfigurationPropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Shared\CRS.Common\obj\Debug\net10.0\CRS.Common.genruntimeconfig.cache”(先前值:“obj\Debug\net10.0\CRS.Common.genruntimeconfig.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(46,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (46,5) 处重新分配属性: $(_GeneratePublishDependencyFilePropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Shared\CRS.Common\obj\Debug\net10.0\CRS.Common.genpublishdeps.cache”(先前值:“obj\Debug\net10.0\CRS.Common.genpublishdeps.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(48,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (48,5) 处重新分配属性: $(_GenerateSingleFileBundlePropertyInputsCache)=“D:\ATXCode\Test\CRS\src\Shared\CRS.Common\obj\Debug\net10.0\CRS.Common.genbundle.cache”(先前值:“obj\Debug\net10.0\CRS.Common.genbundle.cache”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(81,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (81,5) 处重新分配属性: $(GenerateRuntimeConfigDevFile)=“false”(先前值:“true”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(98,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (98,5) 处重新分配属性: $(_DefaultUserProfileRuntimeStorePath)=“C:\Users\Administrator”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(99,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (99,5) 处重新分配属性: $(_DefaultUserProfileRuntimeStorePath)=“C:\Users\Administrator\.dotnet\store”(先前值:“C:\Users\Administrator”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(144,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (144,5) 处重新分配属性: $(AvailablePlatforms)=“Any CPU,x86,x64,ARM32”(先前值:“Any CPU,x86,x64”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(148,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (148,5) 处重新分配属性: $(AvailablePlatforms)=“Any CPU,x86,x64,ARM32,ARM64”(先前值:“Any CPU,x86,x64,ARM32”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (204,5) 处重新分配属性: $(CoreBuildDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       _CheckForBuildWithNoBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PreBuildEvent;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareResources;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       Compile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ExportWindowsMDFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedUnregistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateSerializationAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       CreateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateManifests;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GetTargetPath;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForRun;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedRegistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       IncrementalClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PostBuildEvent
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateBuildDependencyFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateBuildRuntimeConfigurationFiles
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PreBuildEvent;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareResources;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       Compile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       ExportWindowsMDFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedUnregistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateSerializationAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       CreateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GenerateManifests;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       GetTargetPath;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PrepareForRun;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       UnmanagedRegistration;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       IncrementalClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :       PostBuildEvent
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(204,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (213,5) 处重新分配属性: $(CoreCleanDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :       _SdkBeforeClean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(213,5): message :     ”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (220,5) 处重新分配属性: $(RebuildDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       _SdkBeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       BeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Clean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Build;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       AfterRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       BeforeRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Clean;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       Build;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :       AfterRebuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(220,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (799,5) 处重新分配属性: $(CompileDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       SetWin32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _SetPreferNativeArm64Win32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       FindReferenceAssembliesForReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       BeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampBeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileDependencyCache;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       CoreCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampAfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       AfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _CreateAppHost;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _CreateComHost;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GetIjwHostPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       ResolveKeySource;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       SetWin32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _SetPreferNativeArm64Win32ManifestProperties;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       FindReferenceAssembliesForReferences;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       BeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampBeforeCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _GenerateCompileDependencyCache;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       CoreCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       _TimeStampAfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :       AfterCompile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(799,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets (1131,5) 处重新分配属性: $(CreateSatelliteAssembliesDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       _GenerateSatelliteAssemblyInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ComputeIntermediateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       GenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       CoreGenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       _GenerateSatelliteAssemblyInputs;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       ComputeIntermediateSatelliteAssemblies;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :       GenerateSatelliteAssemblies
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets(1131,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.GitLab\build\Microsoft.SourceLink.GitLab.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.AzureRepos.Git\build\Microsoft.SourceLink.AzureRepos.Git.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets(12,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets (12,5) 处重新分配属性: $(SourceLinkUrlInitializerTargets)=“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl;_InitializeBitbucketGitSourceLinkUrl”(先前值:“;_InitializeGitHubSourceLinkUrl;_InitializeGitLabSourceLinkUrl;_InitializeAzureReposGitSourceLinkUrl”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets(13,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.SourceLink.Bitbucket.Git\build\Microsoft.SourceLink.Bitbucket.Git.targets (13,5) 处重新分配属性: $(SourceControlManagerUrlTranslationTargets)=“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation;TranslateBitbucketGitUrlsInSourceControlInformation”(先前值:“;TranslateGitHubUrlsInSourceControlInformation;TranslateGitLabUrlsInSourceControlInformation;TranslateAzureReposGitUrlsInSourceControlInformation”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets (21,5) 处重新分配属性: $(DesignerRuntimeImplementationProjectOutputGroupDependsOn)=“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       AssignTargetPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ResolveReferences
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GenerateDesignerDepsFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GenerateDesignerRuntimeConfigFile;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       GetCopyToOutputDirectoryItems;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       _GatherDesignerShadowCopyFiles;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ”(先前值:“
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       BuildOnlySettings;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       PrepareForBuild;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       AssignTargetPaths;
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :       ResolveReferences
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets(21,5): message :     ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets(31,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets (31,5) 处重新分配属性: $(DefineConstants)=“TRACE;DEBUG”(先前值:“TRACE”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets(45,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.CSharp.targets (45,5) 处重新分配属性: $(WarningsAsErrors)=“;NU1605;SYSLIB0011”(先前值:“;NU1605”)
+       C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets(34,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets (34,5) 处重新分配属性: $(PackageDescription)=“Package Description”(先前值:“”)
+       C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets(59,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\NuGet.Build.Tasks.Pack.targets (59,5) 处重新分配属性: $(GenerateNuspecDependsOn)=“Build;_LoadPackInputItems; _GetTargetFrameworksOutput; _WalkEachTargetPerFramework; _GetPackageFiles; ”(先前值:“_LoadPackInputItems; _GetTargetFrameworksOutput; _WalkEachTargetPerFramework; _GetPackageFiles; ”)
+       C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.targets(59,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\Sdk\Sdk.targets (59,5) 处重新分配属性: $(_IsNotSetContainersTargetsDir)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets(5,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets (5,5) 处重新分配属性: $(_IsSDKContainerAllowedVersion)=“true”(先前值:“false”)
+       C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets(15,5): message : 在 C:\Program Files\dotnet\sdk\10.0.401\Containers\build\Microsoft.NET.Build.Containers.targets (15,5) 处重新分配属性: $(_ContainerIsTargetingNet8TFM)=“true”(先前值:“false”)
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.FrameworkReferenceResolution.targets”中的目标“ResolveFrameworkReferences”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“ResolveFrameworkReferences”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“GenerateSupportedTargetFrameworkAlias”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GenerateSupportedTargetFrameworkAlias”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetReferenceAssemblyPaths”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetReferenceAssemblyPaths”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DisableStandardFrameworkResolution.targets”中的目标“GetFrameworkPaths”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetFrameworkPaths”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.DesignerSupport.targets”中的目标“DesignerRuntimeImplementationProjectOutputGroup”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“DesignerRuntimeImplementationProjectOutputGroup”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“Publish”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“Publish”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“ResolveReadyToRunCompilers”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.CrossGen.targets”中的目标“ResolveReadyToRunCompilers”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets”中的目标“GetCopyToPublishDirectoryItems”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“GetCopyToPublishDirectoryItems”。
+       正在使用项目“C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.targets”中的目标“Run”重写项目“C:\Program Files\dotnet\sdk\10.0.401\Microsoft.Common.CurrentVersion.targets”中的目标“Run”。
+
+生成失败。
+    0 个警告
+    0 个错误
+
+D:\ATXCode\Test\CRS\build_app.log 已写入: FileLogger
+
+已用时间 00:00:07.29

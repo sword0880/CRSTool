@@ -225,7 +225,11 @@ public sealed partial class BackgroundRuntime(ITaskRepository repository, Backgr
             }
             var state = fault ?? (catalog.RequiresProcessRestart ? "PluginUnresponsive" : maintenance ? "Maintenance" : degraded ? "Degraded" : "Running");
             return new(WorkerProtocol.Version, request.RequestId, "Ok", new(state, started, CRS.Timing.BeijingClock.Now, Environment.ProcessId,
-                scheduling,sourceHealth) { WorkerBuild = WorkerProtocol.BuildIdentity }, Plugins: catalog.Statuses.ToArray());
+                scheduling,sourceHealth)
+                {
+                    WorkerBuild = WorkerProtocol.BuildIdentity,
+                    WorkerVersion = typeof(BackgroundRuntime).Assembly.GetName().Version!.ToString(3)
+                }, Plugins: catalog.Statuses.ToArray());
         }
         if(request.Command=="GetTaskActivity")return TaskActivityPage(request,caller);
         if (fault is not null) return Reply(fault);
