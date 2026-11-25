@@ -43,21 +43,55 @@ internal sealed partial class WatchStore
 
     private void SaveGoogleConnection(string? value, SqliteTransaction transaction)
     {
-        var account = WatchInput.Text(value, 64);
-        if (account.Length != 0 && (account.Length != 64 || !account.All(Uri.IsHexDigit)))
-            throw new ArgumentException("Google 账号标识无效。");
+        var account = GoogleAccountFingerprint(value);
         var current = ReadGoogleConnection(transaction);
         if (account.Length > 0 && current.Length > 0 && current != account)
             throw new ArgumentException("请使用原先连接的 Google 账号。");
         Execute("UPDATE google_alert_connection SET account=$account WHERE id=1", transaction, ("$account", account));
     }
 
+    private void SwitchGoogleConnection(string? value, string? expected, SqliteTransaction transaction)
+    {
+        var account = GoogleAccountFingerprint(value);
+        if (account.Length == 0 || ReadGoogleConnection(transaction) != expected)
+            throw new ArgumentException("Google 快讯连接已改变，请重新同步。");
+
+        Execute("UPDATE google_alert_connection SET account=$account WHERE id=1", transaction, ("$account", account));
+        foreach (var author in Authors(transaction))
+        {
+            var alert = ReadStoredGoogleAlert(author.Account, transaction);
+            if (alert is null || alert.GoogleAccount.Length == 0 || alert.GoogleAccount == account) continue;
+            // 旧账号的远端操作不再执行。保留正在采集的旧 RSS，直到新账号的 RSS 得到核实。
+            DeleteGoogleAlert(author.Account, transaction);
+            ReconcileGoogleAlert(author, null, transaction);
+        }
+    }
+
+    private static string GoogleAccountFingerprint(string? value)
+    {
+        var account = WatchInput.Text(value, 64);
+        if (account.Length != 0 && (account.Length != 64 || !account.All(Uri.IsHexDigit)))
+            throw new ArgumentException("Google 账号标识无效。");
+        return account;
+    }
+
     private GoogleAlertSubscription ReadGoogleAlert(Author author) => ReadStoredGoogleAlert(author.Account)
         ?? new(author.Account, author.Archived || author.FeedUrl.Length == 0
             ? GoogleAlertState.None : GoogleAlertState.External);
 
-    private Author[] AuthorsForDisplay() =>
-        Authors().Select(author => author with { AlertState = ReadGoogleAlert(author).State }).ToArray();
+    private Author[] AuthorsForDisplay()
+    {
+        var connected = ReadGoogleConnection();
+        return Authors().Select(author =>
+        {
+            var alert = ReadGoogleAlert(author);
+            return author with
+            {
+                AlertState = alert.State,
+                GoogleAlertVerifiedAt = alert.GoogleAccount == connected ? alert.VerifiedAt : null
+            };
+        }).ToArray();
+    }
 
     private GoogleAlertSubscription? ReadStoredGoogleAlert(string account, SqliteTransaction? transaction = null) =>
         Scalar("SELECT body FROM google_alerts WHERE account=$account", transaction, ("$account", account)) is string body
@@ -77,6 +111,10 @@ internal sealed partial class WatchStore
                 WriteGoogleAlert(alert with { State = GoogleAlertState.Managed, OperationId = Guid.Empty }, transaction);
                 return;
             case GoogleAlertState.Managed or GoogleAlertState.PendingDelete:
+                return;
+            case GoogleAlertState.External when !author.Archived:
+                return;
+            case GoogleAlertState.PendingCreate when author.Active && !author.Archived && author.UsesGoogleAlertFeed:
                 return;
         }
 
@@ -131,22 +169,72 @@ internal sealed partial class WatchStore
                     WriteGoogleAlert(alert with
                     {
                         State = state, RemoteId = remoteId,
-                        OperationId = author.Archived ? Guid.NewGuid() : Guid.Empty
+                        OperationId = author.Archived ? Guid.NewGuid() : Guid.Empty,
+                        VerifiedAt = WatchProtocol.BeijingNow
                     }, transaction);
                     return;
                 }
-                if (!author.Archived) ChangeGoogleAlertFeed(author, feedUrl, transaction);
-                DeleteGoogleAlert(author.Account, transaction);
+                if (!author.Archived)
+                    RecordVerifiedGoogleAlert(author, alert.GoogleAccount, remoteId, feedUrl, GoogleAlertState.External, transaction);
+                else DeleteGoogleAlert(author.Account, transaction);
                 return;
             }
             if (input.Outcome != GoogleAlertOutcome.Missing)
                 throw new ArgumentException("请先核实 Google Alerts 同步结果。");
+            if (author.Active && !author.Archived)
+            {
+                WriteGoogleAlert(new(author.Account, GoogleAlertState.PendingCreate, Guid.NewGuid()), transaction);
+                return;
+            }
         }
         else
             throw new ArgumentException("订阅同步状态已改变，请刷新后重试。");
 
         DeleteGoogleAlert(author.Account, transaction);
         ReconcileGoogleAlert(author, null, transaction);
+    }
+
+    private void VerifyGoogleAlert(GoogleAlertUpdate? input, SqliteTransaction transaction)
+    {
+        if (input is null || string.IsNullOrEmpty(input.GoogleAccount) || ReadGoogleConnection(transaction) != input.GoogleAccount)
+            throw new ArgumentException("当前 Google 账号与 CRS 的连接不一致。");
+        var author = RequireAuthor(input.AuthorAccount, transaction);
+        var alert = ReadStoredGoogleAlert(author.Account, transaction);
+        if (author.Revision != input.AuthorRevision || author.Archived || !author.UsesGoogleAlertFeed ||
+            (alert is not null && (alert.State is not (GoogleAlertState.Managed or GoogleAlertState.External) ||
+                alert.GoogleAccount != input.GoogleAccount)))
+            throw new ArgumentException("作者资料或订阅状态已改变，请重新同步。");
+
+        switch (input.Outcome)
+        {
+            case GoogleAlertOutcome.Existing:
+                var id = WatchInput.Text(input.RemoteId, 256, true);
+                var state = alert is { State: GoogleAlertState.Managed } && alert.RemoteId == id
+                    ? GoogleAlertState.Managed : GoogleAlertState.External;
+                RecordVerifiedGoogleAlert(author, input.GoogleAccount, id, GoogleAlertFeedUrl(input.FeedUrl), state, transaction);
+                break;
+            case GoogleAlertOutcome.Missing:
+                DeleteGoogleAlert(author.Account, transaction);
+                if (author.Active)
+                    WriteGoogleAlert(new(author.Account, GoogleAlertState.PendingCreate, Guid.NewGuid()), transaction);
+                break;
+            case GoogleAlertOutcome.NonRss:
+                if (alert is not null) WriteGoogleAlert(alert with { VerifiedAt = null }, transaction);
+                break;
+            default:
+                throw new ArgumentException("缺少网页核实结果。");
+        }
+    }
+
+    private void RecordVerifiedGoogleAlert(Author author, string account, string remoteId, string feedUrl,
+        GoogleAlertState state, SqliteTransaction transaction)
+    {
+        if (Scalar("SELECT 1 FROM google_alerts WHERE google_account=$google AND remote_id=$remote AND account<>$author",
+            transaction, ("$google", account), ("$remote", remoteId), ("$author", author.Account)) is not null)
+            throw new ArgumentException("此 Google Alerts 提醒已绑定到其他作者。");
+        ChangeGoogleAlertFeed(author, feedUrl, transaction);
+        WriteGoogleAlert(new(author.Account, state, GoogleAccount: account, RemoteId: remoteId,
+            VerifiedAt: WatchProtocol.BeijingNow), transaction);
     }
 
     private (Author Author, GoogleAlertSubscription Alert, string GoogleAccount) ValidateGoogleAlertOperation(

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -9,7 +11,8 @@ namespace CRS.Plugins.XueqiuWatch.Wpf;
 
 internal sealed class AuthorEditor : WatchEditor
 {
-    private const string SignInInstructions = "请在专用 Chrome 窗口登录 Google。登录后关闭该窗口，再点击「同步全部作者」。";
+    private const string SignInInstructions = "请在专用 Chrome 的 Google 快讯页面切到要同步的账号。关闭该窗口后，CRS 会自动同步。";
+    private const string RetrySignIn = "未在专用 Chrome 核实到 Google 快讯账号。请从「更多」打开 Google 登录。";
     private readonly WorkerWatchClient client;
     private readonly CancellationToken lifetime;
     private readonly DataGrid list = new()
@@ -29,6 +32,9 @@ internal sealed class AuthorEditor : WatchEditor
     private readonly TextBlock status = new() { Margin = new(0, 10, 0, 0), Visibility = Visibility.Collapsed };
     private readonly Button edit;
     private readonly MenuItem remove;
+    private Task? signInSync;
+    private bool closed;
+    private bool skipSignInSync;
 
     private Author? SelectedAuthor => (list.SelectedItem as AuthorRow)?.Author;
 
@@ -45,8 +51,10 @@ internal sealed class AuthorEditor : WatchEditor
         var add = AsyncAction("添加作者", () => EditAuthorAsync(null));
         add.SetResourceReference(StyleProperty, "UiPrimaryButton");
         edit = AsyncAction("编辑所选作者", () => EditAuthorAsync(SelectedAuthor));
-        var syncAll = AsyncAction("同步全部作者", SyncAllAuthorsAsync);
-        syncAll.ToolTip = "同步等待处理的 Google 快讯订阅。";
+        var syncAll = AsyncAction("同步全部作者", () => signInSync is { IsCompleted: false }
+            ? WithFeedbackAsync(() => { ShowStatus(SignInInstructions); return Task.CompletedTask; }, lifetime)
+            : SyncAllAuthorsAsync());
+        syncAll.ToolTip = "在专用 Chrome 当前账号中核实 Google 快讯，并补齐启用作者缺少的 RSS 订阅。";
         remove = MenuAction("移除所选作者", RemoveAuthorAsync);
         var menu = new ContextMenu { Placement = PlacementMode.Bottom };
         menu.Items.Add(MenuAction("刷新名单", () => WithFeedbackAsync(() => RefreshAsync(SelectedAuthor?.Account), lifetime)));
@@ -76,17 +84,20 @@ internal sealed class AuthorEditor : WatchEditor
         cellText.Setters.Add(new Setter(MarginProperty, new Thickness(10, 0, 8, 0)));
         cellText.Setters.Add(new Setter(VerticalAlignmentProperty, VerticalAlignment.Center));
         cellText.Setters.Add(new Setter(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis));
+        var rssCellText = new Style(typeof(TextBlock), cellText);
+        rssCellText.Setters.Add(new Setter(ToolTipProperty, new Binding(nameof(AuthorRow.RssStatusDetail))));
         foreach (var (header, property, width) in new (string, string, DataGridLength)[]
         {
             ("作者", nameof(AuthorRow.Name), new(1, DataGridLengthUnitType.Star)),
             ("雪球账号 ID", nameof(AuthorRow.Account), new(146)),
             ("跟踪状态", nameof(AuthorRow.TrackingStatus), new(105)),
-            ("RSS 状态", nameof(AuthorRow.RssStatus), new(144))
+            ("RSS 状态", nameof(AuthorRow.RssStatus), new(169))
         })
         {
             list.Columns.Add(new DataGridTextColumn
             {
-                Header = header, Binding = new Binding(property), Width = width, ElementStyle = cellText
+                Header = header, Binding = new Binding(property), Width = width,
+                ElementStyle = property == nameof(AuthorRow.RssStatus) ? rssCellText : cellText
             });
         }
         list.SelectionChanged += (_, _) => UpdateSelectionActions();
@@ -127,6 +138,12 @@ internal sealed class AuthorEditor : WatchEditor
         layout.Children.Add(table);
         Content = layout;
         SetAuthors(authors, null);
+        Closed += (_, _) => closed = true;
+        Loaded += async (_, _) =>
+        {
+            if (Directory.Exists(GoogleAlertsBrowserLogin.ProfileDirectory) && signInSync is null)
+                await SyncAllAuthorsAsync(onlyIfAccountChanged: true);
+        };
     }
 
     private void SetAuthors(Author[] authors, string? selection)
@@ -182,48 +199,81 @@ internal sealed class AuthorEditor : WatchEditor
         }
         if (needsSignIn)
         {
-            GoogleAlertsBrowserLogin.Open();
-            ShowStatus($"{savedMessage}{SignInInstructions}");
+            StartGoogleSignIn();
         }
         else if (!string.IsNullOrEmpty(result))
             ShowStatus($"{savedMessage}{result}");
     }
 
-    private Task SyncAllAuthorsAsync() => WithFeedbackAsync(async () =>
+    private Task SyncAllAuthorsAsync(bool afterSignIn = false, bool onlyIfAccountChanged = false) => WithFeedbackAsync(async () =>
     {
         var selection = SelectedAuthor?.Account;
-        ShowStatus("正在检查 Google 登录状态…");
+        if (!onlyIfAccountChanged) ShowStatus("正在检查 Google 登录状态…");
         string? result = null;
         var needsSignIn = false;
+        var startedProcessing = false;
         try
         {
             result = await GoogleAlertsDesktopSync.RunAsync(client, lifetime, connect: true,
-                reportProgress: (current, total) => ShowStatus($"正在同步 Google 快讯（{current}/{total}）…"));
+                reportProgress: (current, total) =>
+                {
+                    startedProcessing = true;
+                    ShowStatus($"正在核实并同步 Google 快讯（{current}/{total}）…");
+                },
+                onlyIfAccountChanged: onlyIfAccountChanged);
         }
         catch (GoogleAlertsSignInRequiredException) { needsSignIn = true; }
         finally
         {
             ShowStatus(null);
-            await RefreshAsync(selection);
+            if (!onlyIfAccountChanged || startedProcessing || result is not null)
+                await RefreshAsync(selection);
         }
         if (needsSignIn)
         {
-            GoogleAlertsBrowserLogin.Open();
-            result = SignInInstructions;
+            if (!afterSignIn && !onlyIfAccountChanged) StartGoogleSignIn();
+            else ShowStatus(RetrySignIn);
+            return;
         }
         ShowStatus(result);
     }, lifetime);
 
     private Task OpenGoogleSignInAsync() => WithFeedbackAsync(() =>
     {
-        GoogleAlertsBrowserLogin.Open();
-        ShowStatus(SignInInstructions);
+        StartGoogleSignIn();
         return Task.CompletedTask;
     }, lifetime);
+
+    private void StartGoogleSignIn()
+    {
+        skipSignInSync = false;
+        if (signInSync is not { IsCompleted: false })
+            signInSync = SyncAfterBrowserClosesAsync(GoogleAlertsBrowserLogin.Open());
+        ShowStatus(SignInInstructions);
+    }
+
+    private async Task SyncAfterBrowserClosesAsync(Process browser)
+    {
+        try
+        {
+            using (browser) await browser.WaitForExitAsync(lifetime);
+            await Task.Yield();
+            if (skipSignInSync) return;
+            if (!closed) await SyncAllAuthorsAsync(afterSignIn: true);
+            else await GoogleAlertsDesktopSync.RunAsync(new WorkerWatchClient(), lifetime, connect: true);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            if (!closed) ShowStatus("登录后自动同步未完成，请关闭专用 Chrome 后重新同步。");
+        }
+    }
 
     private Task DisconnectGoogleAlertsAsync() => WithFeedbackAsync(async () =>
     {
         await client.SaveAsync(new("alert-account-save", ConnectedGoogleAccount: ""), lifetime);
+        skipSignInSync = true;
+        await RefreshAsync(SelectedAuthor?.Account);
         ShowStatus("已停止网页同步。现有 RSS 继续采集。");
     }, lifetime);
 
@@ -247,12 +297,16 @@ internal sealed class AuthorEditor : WatchEditor
         public string TrackingStatus => Author.Archived ? "已移除" : Author.Active ? "跟踪中" : "已暂停";
         public string RssStatus => Author.AlertState switch
         {
-            GoogleAlertState.Managed => "已绑定",
-            GoogleAlertState.External => "已绑定现有 RSS",
+            GoogleAlertState.Managed or GoogleAlertState.External when Author.UsesGoogleAlertFeed =>
+                Author.GoogleAlertVerifiedAt is null ? "已绑定 · 快讯待核实" : "已绑定 · 快讯已核实",
+            GoogleAlertState.External => "已绑定外部 RSS",
             GoogleAlertState.PendingCreate => "待创建",
             GoogleAlertState.Creating => "待核对创建",
             GoogleAlertState.PendingDelete or GoogleAlertState.Deleting => "待核对移除",
             _ => "未绑定"
         };
+        public string? RssStatusDetail => Author.GoogleAlertVerifiedAt is { } verified
+            ? $"上次在 Google 快讯网页核实于 {verified.ToOffset(TimeSpan.FromHours(8)):yyyy-MM-dd HH:mm}（北京时间）"
+            : Author.UsesGoogleAlertFeed ? "点击「同步全部作者」核实当前账号中的提醒和 RSS 地址。" : null;
     }
 }

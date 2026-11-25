@@ -101,7 +101,7 @@ internal sealed partial class WatchStore : IDisposable
             "post-body-append" => AppendPostBody(request.Body),
             "post-body-cancel" => CancelPostBody(request.Body),
             "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "alert-account-save"
-                or "rss-proxy-save" or "post-body-commit" =>
+                or "alert-account-switch" or "alert-sync-verify" or "rss-proxy-save" or "post-body-commit" =>
                 Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
@@ -125,6 +125,8 @@ internal sealed partial class WatchStore : IDisposable
             case "alert-sync-begin": BeginGoogleAlert(request.Alert, transaction); break;
             case "alert-sync-complete": CompleteGoogleAlert(request.Alert, transaction); break;
             case "alert-account-save": SaveGoogleConnection(request.ConnectedGoogleAccount, transaction); break;
+            case "alert-account-switch": SwitchGoogleConnection(request.ConnectedGoogleAccount, request.ExpectedGoogleAccount, transaction); break;
+            case "alert-sync-verify": VerifyGoogleAlert(request.Alert, transaction); break;
             case "rss-proxy-save": SaveRssProxy(request.RssProxy, transaction); break;
             case "post-body-commit": CommitPostBody(request.Body, transaction); break;
         }
@@ -158,6 +160,11 @@ internal sealed partial class WatchStore : IDisposable
         if (alert?.ControlsFeed == true && saved.FeedUrl != old?.FeedUrl)
             throw new ArgumentException("此 RSS 地址由订阅同步管理，请刷新观察名单。");
         if (saved.Archived && alert?.ControlsFeed != true) saved = saved with { FeedUrl = "" };
+        if (alert is { State: GoogleAlertState.External or GoogleAlertState.PendingCreate } && saved.FeedUrl != old?.FeedUrl)
+        {
+            DeleteGoogleAlert(account, transaction);
+            alert = null;
+        }
         WriteAuthor(saved, old?.FeedUrl ?? "", transaction);
         if (!string.Equals(old?.FullTextFeedUrl ?? "", saved.FullTextFeedUrl, StringComparison.Ordinal))
             Execute("DELETE FROM full_text_coverage WHERE account=$account", transaction, ("$account", account));

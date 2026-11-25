@@ -11,12 +11,12 @@ internal static class GoogleAlertsBrowserLogin
     internal static string ProfileDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CRS", "GoogleAlertsBrowser");
 
-    internal static void Open()
+    internal static Process Open()
     {
         var chrome = FindChrome() ?? throw new ArgumentException("未找到 Google Chrome。请安装 Chrome 后再打开 Google 登录。");
         try
         {
-            using var process = Process.Start(CreateStartInfo(chrome))
+            return Process.Start(CreateStartInfo(chrome))
                 ?? throw new ArgumentException("无法打开 Chrome。请检查浏览器安装后重试。");
         }
         catch (Win32Exception)
@@ -29,6 +29,7 @@ internal static class GoogleAlertsBrowserLogin
     {
         var start = new ProcessStartInfo(chrome) { UseShellExecute = false };
         start.ArgumentList.Add("--user-data-dir=" + ProfileDirectory);
+        start.ArgumentList.Add("--disable-background-mode");
         start.ArgumentList.Add("--new-window");
         start.ArgumentList.Add(AlertsAddress);
         return start;

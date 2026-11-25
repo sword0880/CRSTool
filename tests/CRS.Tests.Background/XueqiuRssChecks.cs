@@ -128,6 +128,7 @@ internal static class XueqiuRssChecks
                 await session.StartAsync(token);
             }
             await VerifyGoogleAlertLifecycleAsync(Ask, Restart);
+            await VerifyGoogleAlertAccountSwitchAsync(Path.Combine(root, "account-switch"), key, token);
             await VerifyRssProxyAsync(Ask, Restart, Run, token);
             await VerifyNeutralOpinionAsync(Ask);
             var bodyUrl = "https://xueqiu.com/9650668145/111";
@@ -359,6 +360,78 @@ internal static class XueqiuRssChecks
             (await SaveAsync((await AuthorAsync()) with { Archived = true })).Error is null &&
             await SubscriptionAsync() is { State: GoogleAlertState.None } && (await AuthorAsync()).FeedUrl.Length == 0,
             "移除外部 RSS 只解除本地绑定，不排队删除远端提醒");
+    }
+
+    private static async Task VerifyGoogleAlertAccountSwitchAsync(string root, byte[] key, CancellationToken token)
+    {
+        const string authorId = "4444555566";
+        const string newFeed = "https://www.google.com/alerts/feeds/new-account/new-alert";
+        var oldAccount = new string('A', 64);
+        var newAccount = new string('B', 64);
+        await using var session = new XueqiuBackgroundEntry().CreateSession(new Context(root, key), new FeedTransport());
+        await session.StartAsync(token);
+        async Task<WatchReply> Ask(WatchRequest request) => WatchProtocol.Decode<WatchReply>(
+            await ((IBackgroundPrivateDataSession)session).AccessPrivateDataAsync(WatchProtocol.Encode(request), token));
+        Task<WatchReply> Save(WatchRequest request) => Ask(request with { ChangeId = Guid.NewGuid() });
+        async Task<Author> Current() => (await Ask(new("authors"))).Authors!.Single(author => author.Account == authorId);
+        async Task<GoogleAlertSubscription> Subscription() =>
+            (await Ask(new("alert-subscription", new(Account: authorId)))).Alert!;
+        Task<WatchReply> Switch(string from, string to) => Save(new("alert-account-switch", ConnectedGoogleAccount: to,
+            ExpectedGoogleAccount: from));
+        Task<WatchReply> Update(string operation, GoogleAlertUpdate update) => Save(new(operation, Alert: update));
+
+        Check((await Switch("", oldAccount)).Error is null &&
+            (await Save(new("author-save", Author: new(authorId, "换号测试")))).Error is null, "连接旧账号并新增测试作者");
+        var old = new GoogleAlertUpdate(authorId, (await Subscription()).OperationId, oldAccount);
+        Check((await Update("alert-sync-begin", old)).Error is null &&
+            (await Update("alert-sync-complete", old with { Outcome = GoogleAlertOutcome.Created,
+                RemoteId = "old-alert", FeedUrl = FeedUrl })).Error is null &&
+            await Current() is { AlertState: GoogleAlertState.Managed, GoogleAlertVerifiedAt: not null },
+            "已核实创建的提醒记录网页核实时间");
+        Check((await Switch("", newAccount)).Error is not null && (await Switch(oldAccount, newAccount)).Error is null &&
+            await Current() is { AlertState: GoogleAlertState.External, FeedUrl: FeedUrl, GoogleAlertVerifiedAt: null } &&
+            (await Update("alert-sync-begin", old)).Error is not null,
+            "切换账号保护旧 RSS 采集并撤销旧账号的网页操作资格及核实状态");
+
+        var verify = new GoogleAlertUpdate(authorId, Guid.Empty, newAccount, GoogleAlertOutcome.Missing,
+            AuthorRevision: (await Current()).Revision);
+        Check((await Update("alert-sync-verify", verify with { GoogleAccount = oldAccount })).Error is not null &&
+            (await Update("alert-sync-verify", verify)).Error is null &&
+            await Current() is { AlertState: GoogleAlertState.PendingCreate, FeedUrl: FeedUrl, GoogleAlertVerifiedAt: null },
+            "新账号找不到提醒时补建，同时继续使用原 RSS");
+        var create = new GoogleAlertUpdate(authorId, (await Subscription()).OperationId, newAccount);
+        Check((await Update("alert-sync-begin", create)).Error is null &&
+            (await Update("alert-sync-complete", create with { Outcome = GoogleAlertOutcome.Missing })).Error is null &&
+            (await Current()).AlertState == GoogleAlertState.PendingCreate,
+            "重试补建时核对到缺失，继续排队并保留备用 RSS");
+        create = create with { OperationId = (await Subscription()).OperationId };
+        Check((await Update("alert-sync-begin", create)).Error is null &&
+            (await Update("alert-sync-complete", create with { Outcome = GoogleAlertOutcome.Created,
+                RemoteId = "new-alert", FeedUrl = newFeed })).Error is null &&
+            await Current() is { AlertState: GoogleAlertState.Managed, FeedUrl: newFeed, GoogleAlertVerifiedAt: not null },
+            "新提醒核实后切换采集 RSS");
+
+        verify = verify with { AuthorRevision = (await Current()).Revision };
+        Check((await Update("alert-sync-verify", verify with { Outcome = GoogleAlertOutcome.NonRss })).Error is null &&
+            await Current() is { FeedUrl: newFeed, GoogleAlertVerifiedAt: null } &&
+            (await Update("alert-sync-verify", verify with { Outcome = GoogleAlertOutcome.Existing,
+                RemoteId = "new-alert", FeedUrl = newFeed })).Error is null,
+            "网页缺少 RSS 时撤销核实状态，恢复后重新核实同一提醒");
+        await session.StopAsync(token);
+        await session.StartAsync(token);
+        Check(await Current() is { AlertState: GoogleAlertState.Managed, FeedUrl: newFeed, GoogleAlertVerifiedAt: not null },
+            "重启保留同一账号的网页核实结果及托管身份");
+
+        Check((await Switch(newAccount, oldAccount)).Error is null &&
+            (await Update("alert-sync-verify", verify with { GoogleAccount = oldAccount, Outcome = GoogleAlertOutcome.Existing,
+                RemoteId = "old-alert", FeedUrl = FeedUrl })).Error is null &&
+            await Current() is { AlertState: GoogleAlertState.External, FeedUrl: FeedUrl, GoogleAlertVerifiedAt: not null },
+            "切回旧账号时复用仍在网页上的 RSS，不重复创建");
+        Check((await Save(new("author-save", Author: (await Current()) with { Active = false }))).Error is null &&
+            (await Update("alert-sync-verify", verify with { GoogleAccount = oldAccount,
+                AuthorRevision = (await Current()).Revision })).Error is null &&
+            await Current() is { Active: false, AlertState: GoogleAlertState.External, GoogleAlertVerifiedAt: null },
+            "已暂停作者可以核对网页状态，缺失时不补建");
     }
 
     private static void SeedVersionOne(string root, byte[] key)

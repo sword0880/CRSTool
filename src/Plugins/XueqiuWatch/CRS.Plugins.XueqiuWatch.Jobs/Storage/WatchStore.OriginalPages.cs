@@ -24,7 +24,7 @@ internal sealed partial class WatchStore
     {
         // 只排入启用作者尚未存有正文、且已到重试时间的 Google Alerts 线索。未检查的线索优先。
         var posts = new List<OriginalPageLead>();
-        foreach (var author in LeadAuthors().Where(UsesGoogleAlerts))
+        foreach (var author in LeadAuthors().Where(author => author.UsesGoogleAlertFeed))
         {
             using var command = Command("""
                 SELECT p.url,p.first_seen,COALESCE(s.checked,0) FROM post_leads p
@@ -44,7 +44,7 @@ internal sealed partial class WatchStore
     {
         // 网络读取期间作者可能被暂停或取消订阅，写入前重新检查其状态。
         token.ThrowIfCancellationRequested();
-        if (!LeadAuthors().Any(author => author.Account == post.Account && UsesGoogleAlerts(author))) return false;
+        if (!LeadAuthors().Any(author => author.Account == post.Account && author.UsesGoogleAlertFeed)) return false;
         using var transaction = db.BeginTransaction();
         var state = result.State;
         var saved = state == "FullText" && result.Text is { } text &&
@@ -62,7 +62,4 @@ internal sealed partial class WatchStore
         transaction.Commit();
         return saved;
     }
-
-    private static bool UsesGoogleAlerts(Author author) =>
-        Uri.TryCreate(author.FeedUrl, UriKind.Absolute, out var feed) && WatchInput.IsGoogleAlertsFeed(feed);
 }

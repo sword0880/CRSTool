@@ -80,7 +80,7 @@ internal sealed partial class GoogleAlertsPageSession(
         } while (elapsed.Elapsed < limit);
         // 不输出原始 URL、账号、DOM、Cookie 或 Playwright 调用日志。
         if (needsSignIn)
-            throw new GoogleAlertsSignInRequiredException($"Google 快讯账号未就绪（{state}）。请从观察名单的「更多」打开 Google 登录。登录后关闭专用 Chrome，再点击「同步全部作者」。");
+            throw new GoogleAlertsSignInRequiredException($"Google 快讯账号未就绪（{state}）。请从观察名单的「更多」打开 Google 登录，登录后关闭专用 Chrome。");
         throw new ArgumentException($"Google 快讯登录检查超时（{state}）。请在普通 Chrome 中核对 Google 快讯能否打开。");
     }
 
@@ -228,7 +228,7 @@ internal sealed partial class GoogleAlertsPageSession(
         if (!IsAlertsPage()) throw new ArgumentException("未处在已登录的 Google 快讯管理页面。");
     }
 
-    private async Task VerifyAccountAsync(string account, CancellationToken token)
+    internal async Task VerifyAccountAsync(string account, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         if (await ReadAccountAsync(token).ConfigureAwait(false) != account)

@@ -9,26 +9,20 @@ internal static class GoogleAlertsDesktopSync
 
     internal static async Task<string?> RunAsync(WorkerWatchClient client, CancellationToken token,
         string? authorAccount = null, bool connect = false, bool connectIfNeeded = false,
-        Action<int, int>? reportProgress = null)
+        Action<int, int>? reportProgress = null, bool onlyIfAccountChanged = false)
     {
         await BrowserProfile.WaitAsync(token);
         try
         {
-            var connected = (await client.AskAsync(new("alert-account"), token)).ConnectedGoogleAccount;
-            if (!connect && !connectIfNeeded && string.IsNullOrEmpty(connected)) return null;
-            var authors = (await client.AskAsync(new("authors"), token)).Authors ?? [];
-            var pending = authors.Where(author => (authorAccount is null || author.Account == authorAccount) &&
-                author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating or
-                    GoogleAlertState.PendingDelete or GoogleAlertState.Deleting).ToArray();
-            if (pending.Length == 0)
-            {
-                if (!connect) return null;
-                if (!string.IsNullOrEmpty(connected)) return "观察名单没有待同步的 Google 快讯。";
-            }
-            var canBindAccount = connect || (connectIfNeeded &&
+            var connected = (await client.AskAsync(new("alert-account"), token)).ConnectedGoogleAccount ?? "";
+            if (onlyIfAccountChanged && connected.Length == 0) return null;
+            if (!connect && !connectIfNeeded && connected.Length == 0) return null;
+            Author[] pending = connect ? [] : await GetCandidatesAsync(client, authorAccount, verifyBound: false, token);
+            if (!connect && pending.Length == 0) return null;
+            var canBindAccount = connectIfNeeded &&
                 pending.Any(author => author.Active && !author.Archived &&
-                    author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating));
-            if (!canBindAccount && string.IsNullOrEmpty(connected)) return null;
+                    author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating);
+            if (!connect && !canBindAccount && connected.Length == 0) return null;
 
             GoogleAlertsPageSession session;
             try { session = await GoogleAlertsPageSession.OpenAsync(token); }
@@ -38,9 +32,17 @@ internal static class GoogleAlertsDesktopSync
             { throw new ArgumentException("Google 快讯无法打开。请先关闭用于登录的专用 Chrome，再核对浏览器和网络后重试。"); }
             await using var page = session;
             var account = await page.ReadAccountAsync(token);
-            if (!string.IsNullOrEmpty(connected) && account != connected)
-                throw new ArgumentException("当前 Google 账号与 CRS 连接不一致。请在专用 Chrome 中切回原账号。");
-            if (canBindAccount && string.IsNullOrEmpty(connected))
+            if (onlyIfAccountChanged && account == connected) return null;
+            var switched = connect && connected.Length > 0 && account != connected;
+            if (connect)
+            {
+                await client.SaveAsync(new("alert-account-switch", ConnectedGoogleAccount: account,
+                    ExpectedGoogleAccount: connected), token);
+                pending = await GetCandidatesAsync(client, authorAccount, verifyBound: true, token);
+            }
+            else if (connected.Length > 0 && account != connected)
+                throw new ArgumentException("检测到不同的 Google 账号。请点击「同步全部作者」，在当前账号核实订阅。");
+            else if (canBindAccount && connected.Length == 0)
                 await client.SaveAsync(new("alert-account-save", ConnectedGoogleAccount: account), token);
 
             var synced = 0;
@@ -82,9 +84,10 @@ internal static class GoogleAlertsDesktopSync
                     throw new ArgumentException($"Google 快讯页面操作失败：{page.DiagnosticStage}。请核对页面后重新同步。");
                 }
             }
-            if (pending.Length == 0) return "Google 快讯已连接，观察名单没有待同步项。";
-            return pendingResult == 0 ? $"Google 快讯同步完成，本次处理 {synced} 位作者。" :
-                $"Google 快讯已处理 {synced} 个作者，{pendingResult} 个待网页核对。{(failedStage is null ? "" : $"首个异常阶段：{failedStage}。")}";
+            var prefix = switched ? "已切换 Google 快讯账号。" : "";
+            if (pending.Length == 0) return $"{prefix}观察名单没有需要核实或同步的 Google 快讯。";
+            return pendingResult == 0 ? $"{prefix}Google 快讯已核实或同步 {synced} 位作者。" :
+                $"{prefix}Google 快讯已处理 {synced} 位作者，{pendingResult} 位待核实。{(failedStage is null ? "" : $"首个异常阶段：{failedStage}。")}";
         }
         catch (TimeoutException)
         {
@@ -97,9 +100,38 @@ internal static class GoogleAlertsDesktopSync
         finally { BrowserProfile.Release(); }
     }
 
+    private static async Task<Author[]> GetCandidatesAsync(WorkerWatchClient client, string? account, bool verifyBound,
+        CancellationToken token)
+    {
+        var authors = (await client.AskAsync(new("authors"), token)).Authors ?? [];
+        return authors.Where(author => (account is null || author.Account == account) &&
+            (author.AlertState is GoogleAlertState.PendingCreate or GoogleAlertState.Creating or
+                GoogleAlertState.PendingDelete or GoogleAlertState.Deleting ||
+             verifyBound && !author.Archived && author.UsesGoogleAlertFeed &&
+                author.AlertState is GoogleAlertState.Managed or GoogleAlertState.External)).ToArray();
+    }
+
     private static async Task<bool> SyncAuthorAsync(WorkerWatchClient client, GoogleAlertsPageSession page,
         Author author, GoogleAlertSubscription subscription, string account, CancellationToken token)
     {
+        var query = WatchInput.GoogleAlertQuery(author.Account);
+        if (subscription.State is GoogleAlertState.Managed or GoogleAlertState.External)
+        {
+            var alert = await page.FindByQueryAsync(query, token);
+            await page.VerifyAccountAsync(account, token);
+            var outcome = alert is null ? GoogleAlertOutcome.Missing :
+                alert.FeedUrl.Length == 0 ? GoogleAlertOutcome.NonRss : GoogleAlertOutcome.Existing;
+            await client.SaveAsync(new("alert-sync-verify", Alert: new(author.Account, Guid.Empty, account,
+                outcome, alert?.Id ?? "", alert?.FeedUrl ?? "", author.Revision)), token);
+            if (outcome == GoogleAlertOutcome.NonRss)
+                throw new ArgumentException("该查询已存在，但 Google 快讯没有提供 RSS 地址。请在网页核对投递方式。");
+            if (outcome == GoogleAlertOutcome.Existing || !author.Active)
+                return outcome == GoogleAlertOutcome.Existing;
+            var renewed = (await client.AskAsync(new("alert-subscription", new(Account: author.Account)), token)).Alert;
+            if (renewed is not { State: GoogleAlertState.PendingCreate }) return false;
+            subscription = renewed;
+        }
+
         var update = new GoogleAlertUpdate(author.Account, subscription.OperationId, account,
             RemoteId: subscription.RemoteId);
         if (subscription.State is GoogleAlertState.PendingDelete or GoogleAlertState.Deleting)
@@ -111,13 +143,11 @@ internal static class GoogleAlertsDesktopSync
         }
         if (subscription.State is not (GoogleAlertState.PendingCreate or GoogleAlertState.Creating)) return false;
 
-        var query = WatchInput.GoogleAlertQuery(author.Account);
         // 已存在且使用 RSS 投递的同查询提醒可以复用，登记为外部提醒，保留用户的远端管理权。
         var existing = subscription.State == GoogleAlertState.Creating
             ? await page.RecheckByQueryAsync(query, account, token)
             : await page.FindByQueryAsync(query, token);
-        if (await page.ReadAccountAsync(token) != account)
-            throw new ArgumentException("Google 账号发生变化，已停止同步。");
+        await page.VerifyAccountAsync(account, token);
         if (existing is { FeedUrl.Length: 0 })
             throw new ArgumentException("该查询已有提醒，请核对网页投递方式。");
         if (existing is not null)
