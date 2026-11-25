@@ -51,11 +51,12 @@ internal static class GoogleAlertsDesktopSync
                     if (await SyncAuthorAsync(client, page, author, subscription, account, token)) synced++;
                     else pendingResult++;
                 }
-                catch (ArgumentException)
+                catch (GoogleAlertsSignInRequiredException) { throw; }
+                catch (ArgumentException error)
                 {
                     // 单个作者的重复提醒、账号不匹配或页面状态未确认不阻断其他作者。
                     pendingResult++;
-                    failedStage ??= page.DiagnosticStage;
+                    failedStage ??= $"{page.DiagnosticStage}（{error.Message}）";
                 }
                 catch (TimeoutException)
                 {
@@ -97,27 +98,36 @@ internal static class GoogleAlertsDesktopSync
 
         var query = WatchInput.GoogleAlertQuery(author.Account);
         // 已存在且使用 RSS 投递的同查询提醒可以复用，登记为外部提醒，保留用户的远端管理权。
-        var existing = await page.FindByQueryAsync(query, token);
+        var existing = subscription.State == GoogleAlertState.Creating
+            ? await page.RecheckByQueryAsync(query, account, token)
+            : await page.FindByQueryAsync(query, token);
         if (await page.ReadAccountAsync(token) != account)
             throw new ArgumentException("Google 账号发生变化，已停止同步。");
         if (existing is { FeedUrl.Length: 0 })
             throw new ArgumentException("该查询已有提醒，请核对网页投递方式。");
-        await client.SaveAsync(new("alert-sync-begin", Alert: update), token);
         if (existing is not null)
         {
+            await client.SaveAsync(new("alert-sync-begin", Alert: update), token);
             await client.SaveAsync(new("alert-sync-complete", Alert: update with
             {
                 Outcome = GoogleAlertOutcome.Existing, FeedUrl = existing.FeedUrl, RemoteId = existing.Id
             }), token);
             return true;
         }
-        if (subscription.State == GoogleAlertState.Creating || !author.Active || author.Archived)
+        if (subscription.State == GoogleAlertState.Creating)
         {
-            // 上次创建结果未知。当前列表未见该提醒，先归还为待创建，下一次同步再执行。
+            // 重新加载后的快讯列表已确认没有上次的提醒，取得新的操作标识再继续。
             await client.SaveAsync(new("alert-sync-complete", Alert: update with { Outcome = GoogleAlertOutcome.Missing }), token);
-            return false;
+            if (!author.Active || author.Archived) return true;
+            var renewed = (await client.AskAsync(new("alert-subscription", new(Account: author.Account)), token)).Alert;
+            if (renewed is not { State: GoogleAlertState.PendingCreate }) return false;
+            update = update with { OperationId = renewed.OperationId };
         }
-        var created = await page.CreateRssAsync(query, account, token);
+        if (!author.Active || author.Archived) return false;
+        await page.PrepareRssAsync(query, account, token);
+        // 草稿阶段失败仍可直接重试。只有按钮可点击、RSS 投递已确认后才写入待核对状态。
+        await client.SaveAsync(new("alert-sync-begin", Alert: update), token);
+        var created = await page.SubmitRssAsync(query, account, token);
         await client.SaveAsync(new("alert-sync-complete", Alert: update with
         {
             Outcome = GoogleAlertOutcome.Created, FeedUrl = created.FeedUrl, RemoteId = created.Id

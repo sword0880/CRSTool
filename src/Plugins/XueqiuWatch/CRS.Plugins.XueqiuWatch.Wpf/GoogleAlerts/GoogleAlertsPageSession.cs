@@ -99,12 +99,23 @@ internal sealed partial class GoogleAlertsPageSession(
         return match;
     }
 
-    internal async Task<GoogleWebAlert> CreateRssAsync(string query, string account, CancellationToken token)
+    internal async Task<GoogleWebAlert?> RecheckByQueryAsync(string query, string account, CancellationToken token)
+    {
+        DiagnosticStage = "重新加载快讯列表";
+        await page.ReloadAsync(new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 20_000 })
+            .WaitAsync(token).ConfigureAwait(false);
+        await VerifyAccountAsync(account, token).ConfigureAwait(false);
+        return await FindByQueryAsync(query, token).ConfigureAwait(false);
+    }
+
+    internal async Task PrepareRssAsync(string query, string account, CancellationToken token)
     {
         if (await FindByQueryAsync(query, token).ConfigureAwait(false) is not null)
             throw new ArgumentException("Google 快讯已有相同查询，已停止重复创建。");
-        DiagnosticStage = "填写查询并打开投递选项";
-        await SearchBox.FillAsync(query).ConfigureAwait(false);
+        DiagnosticStage = "填写作者查询";
+        // Google 快讯需要键盘事件来展开创建区，单独设置输入值不会触发。
+        await SearchBox.PressSequentiallyAsync(query, new() { Delay = 20 }).WaitAsync(token).ConfigureAwait(false);
+        DiagnosticStage = "打开投递选项";
         await page.GetByRole(AriaRole.Button, new() { NameRegex = ShowOptions() })
             .Or(page.GetByRole(AriaRole.Link, new() { NameRegex = ShowOptions() })).ClickAsync().ConfigureAwait(false);
         var delivery = page.GetByRole(AriaRole.Row, new() { NameRegex = DeliveryCaption() }).GetByRole(AriaRole.Listbox);
@@ -114,6 +125,13 @@ internal sealed partial class GoogleAlertsPageSession(
             .Or(page.GetByRole(AriaRole.Option, new() { NameRegex = RssCaption() })).ClickAsync().ConfigureAwait(false);
         if (!(await delivery.InnerTextAsync().ConfigureAwait(false)).Contains("RSS", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Google 快讯未确认选择 RSS 投递。");
+        await VerifyAccountAsync(account, token).ConfigureAwait(false);
+        DiagnosticStage = "确认创建按钮可用";
+        await page.Locator("#create_alert:visible").ClickAsync(new() { Trial = true }).WaitAsync(token).ConfigureAwait(false);
+    }
+
+    internal async Task<GoogleWebAlert> SubmitRssAsync(string query, string account, CancellationToken token)
+    {
         await VerifyAccountAsync(account, token).ConfigureAwait(false);
         DiagnosticStage = "创建快讯（结果未确认时不得重复创建）";
         await page.Locator("#create_alert:visible").ClickAsync().ConfigureAwait(false);
@@ -126,6 +144,8 @@ internal sealed partial class GoogleAlertsPageSession(
             if (await FindByQueryAsync(query, token).ConfigureAwait(false) is { FeedUrl.Length: > 0 } alert)
                 return alert;
         }
+        if (await RecheckByQueryAsync(query, account, token).ConfigureAwait(false) is { FeedUrl.Length: > 0 } confirmed)
+            return confirmed;
         throw new ArgumentException("尚未核实 Google 快讯创建结果，请重新同步。");
     }
 
