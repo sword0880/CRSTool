@@ -50,6 +50,10 @@ public sealed partial class XueqiuBackgroundEntry
                 try { added += store?.SaveTimeline(author.Account, scan, token) ?? 0; }
                 finally { gate.Release(); }
 
+                // 30 天回补按批次执行，当前批次结束但仍有后续页时主动续跑。
+                if (scan.State == "Backfilling" && retry is null)
+                    retry = TimeSpan.FromMinutes(1);
+
                 if (scan.HttpStatus is 429 or 567)
                 {
                     retry = scan.RetryAfter ?? (scan.HttpStatus == 567 ? TimeSpan.FromHours(6) : null);
