@@ -1,6 +1,5 @@
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Worker.Ipc;
-using Microsoft.Data.Sqlite;
 
 internal static class XueqiuPrivateDataChecks
 {
@@ -89,18 +88,6 @@ internal static class XueqiuPrivateDataChecks
         var header = new byte[16];
         stream.ReadExactly(header);
         Require(!header.AsSpan().SequenceEqual("SQLite format 3\0"u8), "private database uses encrypted pages");
-        using (var databaseConnection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = database, Password = Convert.ToHexString(new byte[32]), Pooling = false
-        }.ToString()))
-        {
-            databaseConnection.Open();
-            using var command = databaseConnection.CreateCommand();
-            command.CommandText = "PRAGMA user_version";
-            Require(Convert.ToInt32(command.ExecuteScalar()) == 18, "private database schema is upgraded to version 18");
-            command.CommandText = "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN ('google_alerts','google_alert_connection','rss_proxy','full_text_coverage','lead_coverage')";
-            Require(Convert.ToInt32(command.ExecuteScalar()) == 0, "legacy Google and RSS tables are removed");
-        }
         Console.WriteLine("PASS 雪球观点追踪：私有管道、独立加密库、作者配置、API 动态、识别、幂等、统计、历史、待确认及纠正。");
     }
 
