@@ -53,14 +53,17 @@ public partial class WatchPage : UserControl
         await RunAsync(async () =>
         {
             if (dialog.SavedOpinion is { } saved)
-            {
-                await RefreshStocksAsync(saved);
-                var message = saved.Security is null || selected?.Security.Key == saved.Security.Key
-                    ? "线索已录入为观点。" : "线索已录入为观点。当前股票页未显示对应股票，请核对筛选范围。";
-                Status.Text = $"{message} {Status.Text}";
-            }
+                await RefreshSavedOpinionAsync(saved);
             await RefreshLeadCountAsync();
         });
+    }
+
+    private async Task RefreshSavedOpinionAsync(Opinion saved)
+    {
+        await RefreshStocksAsync(saved);
+        var message = saved.Security is null || selected?.Security.Key == saved.Security.Key
+            ? "线索已录入为观点。" : "线索已录入为观点。当前股票页未显示对应股票，请核对筛选范围。";
+        Status.Text = $"{message} {Status.Text}";
     }
 
     private ReviewFilter Filters() => new(PeriodFilter.SelectedIndex == 1 ? 7 : 30,
@@ -135,9 +138,9 @@ public partial class WatchPage : UserControl
         var previous = selected?.Security.Key;
         var preferred = recordedFromLead?.Security?.Key ?? previous;
         selected = overview.Stocks.FirstOrDefault(x => x.Security.Key == preferred) ?? overview.Stocks.FirstOrDefault();
-        if (selected?.Security.Key != previous)
+        if (selected?.Security.Key != previous || mode == "mentions" && selected is not { Mentions: > 0 })
         {
-            mode = "latest";
+            mode = DefaultMode(selected);
             detailOffset = 0;
             MatrixScroll.ScrollToHorizontalOffset(0);
         }
@@ -155,7 +158,8 @@ public partial class WatchPage : UserControl
             $"{stockOffset + 1}–{stockOffset + overview.Stocks.Length} / {overview.StockCount} 只股票";
         var coverage = overview.Earliest is { } from && overview.Latest is { } to
             ? $"资料覆盖 {from:yyyy-MM-dd} 至 {to:yyyy-MM-dd} · 最近录入 {overview.LastRecorded:MM-dd HH:mm}"
-            : "当前范围内暂无观点。可从「发言线索」核对并记录观点。";
+            : overview.StockCount > 0 ? $"当前范围内已识别 {overview.StockCount} 只股票的原帖提及。"
+            : "当前范围内暂无股票提及或观点。可在「发言线索」查看已采集的原帖。";
         Status.Text = coverage;
         PendingStocks.Content = overview.Unmatched > 0 ? $"待认领股票（{overview.Unmatched}）" : "待认领股票";
         await RefreshDetailsAsync();
@@ -215,14 +219,14 @@ public partial class WatchPage : UserControl
             {
                 Content = panel, Padding = new(0), BorderThickness = active ? new(1.5) : new(0),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
-                ToolTip = $"{stock.Security.Name} · 看多 {stock.Bullish} 位 · 看空 {stock.Bearish} 位"
+                ToolTip = $"{stock.Security.Name} · 发言提及 {stock.Mentions} 篇 · 看多 {stock.Bullish} 位 · 看空 {stock.Bearish} 位"
             };
             button.SetResourceReference(BorderBrushProperty, "BrandAccentBrush");
             System.Windows.Automation.AutomationProperties.SetName(button, button.ToolTip.ToString());
             button.Click += async (_, _) => await RunAsync(async () =>
             {
                 selected = stock;
-                mode = "latest";
+                mode = DefaultMode(stock);
                 detailOffset = 0;
                 RenderMatrix();
                 await RefreshDetailsAsync();
@@ -233,6 +237,9 @@ public partial class WatchPage : UserControl
             Matrix.Children.Add(button);
         }
     }
+
+    private static string DefaultMode(StockSummary? stock) =>
+        stock is { Mentions: > 0, Bullish: 0, Bearish: 0 } ? "mentions" : "latest";
 
     private static Border MatrixCell(string value, int row, string background, string foreground = "BrandTextPrimaryBrush")
     {
@@ -252,6 +259,24 @@ public partial class WatchPage : UserControl
     private async Task RefreshDetailsAsync()
     {
         var filter = Filters();
+        StockMentionsButton.IsEnabled = selected is { Mentions: > 0 };
+        StockMentionsButton.Content = selected is { Mentions: > 0 } stock ? $"发言提及（{stock.Mentions}）" : "发言提及";
+        EditOpinionButton.Content = mode == "mentions" ? "核对选中发言" : "编辑选中观点";
+        if (mode == "mentions" && selected is { } activeStock)
+        {
+            var request = filter with { Security = activeStock.Security, Offset = detailOffset };
+            var reply = await client.AskAsync(new("mentions", request), lifetime);
+            var mentions = reply.Mentions ?? throw new InvalidDataException("缺少股票发言提及。");
+            if (detailOffset > 0 && detailOffset >= mentions.Total)
+            {
+                detailOffset = 0;
+                mentions = (await client.AskAsync(new("mentions", request with { Offset = 0 }), lifetime)).Mentions!;
+            }
+            Details.ItemsSource = mentions.Rows.Select(x => new MentionRow(x, AuthorName(x.Account))).ToArray();
+            DetailTitle.Text = $"{activeStock.Security.Name} · 原帖提及";
+            SetDetailsPage(mentions.Rows.Length, mentions.Total, "暂无发言提及");
+            return;
+        }
         var global = mode is "pending" or "questions";
         if (global) filter = filter with { Market = null, Industry = null, Search = null };
         filter = filter with { Security = global ? null : selected?.Security, Mode = mode,
@@ -263,8 +288,7 @@ public partial class WatchPage : UserControl
             detailOffset = 0;
             detail = (await client.AskAsync(new("detail", filter with { Offset = 0 }), lifetime)).Detail!;
         }
-        Details.ItemsSource = detail.Rows.Select(x => new OpinionRow(x,
-            authors.FirstOrDefault(a => a.Account == x.Account)?.Name ?? x.Account, mode == "questions")).ToArray();
+        Details.ItemsSource = detail.Rows.Select(x => new OpinionRow(x, AuthorName(x.Account), mode == "questions")).ToArray();
         DetailTitle.Text = mode switch
         {
             "pending" => "待认领股票 · 请选择记录并确认标的",
@@ -273,12 +297,33 @@ public partial class WatchPage : UserControl
             _ => $"{selected.Security.Name} · {selected.Discussions} 篇实质讨论 · 看多 {selected.Bullish} 位 · 看空 {selected.Bearish} 位" +
                 (mode == "timeline" ? " · 历史时间线" : mode == "other" ? " · 中性 / 待确认" : "")
         };
-        DetailPageText.Text = detail.Total == 0 ? "暂无观点" : $"{detailOffset + 1}–{detailOffset + detail.Rows.Length} / {detail.Total}";
+        SetDetailsPage(detail.Rows.Length, detail.Total, "暂无观点");
+    }
+
+    private string AuthorName(string account) => authors.FirstOrDefault(a => a.Account == account)?.Name ?? account;
+
+    private void SetDetailsPage(int count, int total, string emptyLabel)
+    {
+        DetailPageText.Text = total == 0 ? emptyLabel : $"{detailOffset + 1}–{detailOffset + count} / {total}";
         PriorDetails.IsEnabled = detailOffset > 0;
-        NextDetails.IsEnabled = detailOffset + detail.Rows.Length < detail.Total;
+        NextDetails.IsEnabled = detailOffset + count < total;
+    }
+
+    private abstract record SourceRow(string Author, PostBodyRequest Post, DateTimeOffset? PublishedAt)
+    {
+        public string Time => PublishedAt?.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm") ?? "待核对";
+        public bool HasLink => Post.Url.Length > 0;
+    }
+
+    private sealed record MentionRow(StockMention Mention, string Author)
+        : SourceRow(Author, new(Mention.Account, Mention.Url), Mention.PublishedAt)
+    {
+        public string Direction => "原帖提及";
+        public string Content => WatchInput.DisplayStockTags(Mention.Excerpt);
     }
 
     private sealed record OpinionRow(Opinion Record, string Author, bool Questions)
+        : SourceRow(Author, new(Record.Account, Record.Url, Record.PostBodyRevision), Record.PublishedAt)
     {
         public string Direction => Record.Attribution switch
         {
@@ -289,8 +334,6 @@ public partial class WatchPage : UserControl
                 Stance.Bullish => "看多", Stance.Bearish => "看空", Stance.Neutral => "中性", _ => "待确认"
             }
         };
-        public string Time => Record.PublishedAt.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm");
-        public bool HasLink => Record.Url.Length > 0;
         public string Content
         {
             get
@@ -329,6 +372,7 @@ public partial class WatchPage : UserControl
     });
 
     private async void LatestClicked(object sender, RoutedEventArgs e) => await SetModeAsync("latest");
+    private async void MentionsClicked(object sender, RoutedEventArgs e) => await SetModeAsync("mentions");
     private async void TimelineClicked(object sender, RoutedEventArgs e) => await SetModeAsync("timeline");
     private async void OtherClicked(object sender, RoutedEventArgs e) => await SetModeAsync("other");
     private async void PendingClicked(object sender, RoutedEventArgs e) => await SetModeAsync("pending");
@@ -360,7 +404,20 @@ public partial class WatchPage : UserControl
     private async void EditOpinion(object sender, RoutedEventArgs e)
     {
         if (Details.SelectedItem is OpinionRow row) await RunAsync(() => OpenEditorAsync(row.Record));
-        else Status.Text = "请先在明细表中选中一条观点。";
+        else if (Details.SelectedItem is MentionRow mention && selected is { } stock)
+            await RunAsync(() => OpenMentionAsync(mention.Mention, stock.Security));
+        else Status.Text = mode == "mentions" ? "请先选中一条发言。" : "请先在明细表中选中一条观点。";
+    }
+
+    private async Task OpenMentionAsync(StockMention mention, Security stock)
+    {
+        var directory = (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
+        var body = await client.ReadPostBodyAsync(new(mention.Account, mention.Url), lifetime);
+        var lead = new PostLead(mention.Account, mention.Url, mention.FirstSeen,
+            Content: mention.Excerpt, PublishedAt: mention.PublishedAt);
+        var dialog = new OpinionEditor(Window.GetWindow(this), authors, directory, null, client, lifetime, lead, body, stock);
+        if (dialog.ShowDialog() == true && dialog.SavedOpinion is { } saved)
+            await RefreshSavedOpinionAsync(saved);
     }
 
     private async Task OpenEditorAsync(Opinion existing)
@@ -380,16 +437,15 @@ public partial class WatchPage : UserControl
 
     private async void ShowPostBody(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
-        if (Details.SelectedItem is not OpinionRow { HasLink: true } row)
-            throw new ArgumentException("请先选择一条带雪球原帖链接的观点。");
-        await PostBodyViewer.OpenAsync(Window.GetWindow(this), client,
-            new(row.Record.Account, row.Record.Url, row.Record.PostBodyRevision), row.Record.PublishedAt, lifetime);
+        if (Details.SelectedItem is not SourceRow { HasLink: true } row)
+            throw new ArgumentException("请先选择一条带雪球原帖链接的记录。");
+        await PostBodyViewer.OpenAsync(Window.GetWindow(this), client, row.Post, row.PublishedAt, lifetime);
     });
 
     private void OpenSource(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: OpinionRow row } || !row.HasLink) return;
-        try { Process.Start(new ProcessStartInfo(WatchInput.SourceLink(row.Record.Url)) { UseShellExecute = true }); }
+        if (sender is not Button { DataContext: SourceRow { HasLink: true } row }) return;
+        try { Process.Start(new ProcessStartInfo(WatchInput.SourceLink(row.Post.Url)) { UseShellExecute = true }); }
         catch (Exception error) when (error is ArgumentException or System.ComponentModel.Win32Exception)
         { Status.Text = "无法打开雪球原帖，请检查浏览器或链接。"; }
     }

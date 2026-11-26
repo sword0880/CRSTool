@@ -39,7 +39,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 15)
+            else if (application != ApplicationId || version is < 1 or > 16)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -55,6 +55,7 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 13) InitializeOriginalPageDetails();
             if (version < 14) InitializeTimelines();
             if (version < 15) InitializeBackfill();
+            if (version < 16) InitializeStockMentions();
         }
         catch
         {
@@ -94,6 +95,7 @@ internal sealed partial class WatchStore : IDisposable
             "catalog" => new(Securities: Catalog(request.Filter?.Search)),
             "overview" => new(Overview: Overview(ValidateFilter(request.Filter), token)),
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
+            "mentions" => new() { Mentions = StockMentions(ValidateFilter(request.Filter)) },
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
             "alert-subscription" => new() { Alert = ReadGoogleAlert(RequireAuthor(request.Filter?.Account)) },
             "alert-account" => new() { ConnectedGoogleAccount = ReadGoogleConnection() },

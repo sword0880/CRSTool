@@ -4,6 +4,7 @@ using System.Text.Json;
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Plugins.XueqiuWatch.Jobs;
 using CRS.Worker.Abstractions;
+using Microsoft.Data.Sqlite;
 
 internal static class XueqiuTimelineChecks
 {
@@ -76,6 +77,71 @@ internal static class XueqiuTimelineChecks
         var framed = JsonEncodedText.Encode(WatchProtocol.Encode(new WatchReply { Leads = dense })).EncodedUtf8Bytes.Length;
         Check(dense.Rows.Length == WatchProtocol.LeadsPerPage && framed <= 120 * 1024,
             "长帖密集时预览适配双层管道，仍返回完整的一页线索");
+
+        var time = WatchProtocol.BeijingNow.AddHours(-1);
+        const string mentionId = "890";
+        var mentionUrl = $"https://xueqiu.com/{ApiOnly}/{mentionId}";
+        var mobile = new Security("港股", "00941", "中国移动", "");
+        var rongjie = new Security("深市", "002192", "融捷股份", "");
+        using (var store = new WatchStore(directory, context.OpenDataKey()))
+        {
+            store.SaveTimeline(ApiOnly, new("Read", time, [new(mentionId, "", "", "$中国移动(00941)$", time)], 1), token);
+        }
+        var overview = (await Ask(new("overview"))).Overview!;
+        Check(overview.Stocks is [{ Mentions: 1, Bullish: 0, Bearish: 0 }] && overview.Stocks[0].Security == mobile,
+            "线索写入即显示股票提及，未把标签当作观点");
+
+        const string fullText = "$融捷股份(SZ002192)$ 这里讨论矿产。$腾讯控股(00700)$ 后面讨论游戏。$融捷股份(SZ002192)$";
+        using (var store = new WatchStore(directory, context.OpenDataKey()))
+        {
+            Check(store.SaveOriginalPage(new(ApiOnly, mentionUrl, time.ToUnixTimeSeconds(), 0),
+                new("FullText", fullText, time), WatchProtocol.BeijingNow, token), "全文进入自动归类");
+        }
+        await CheckMentions();
+
+        await session.StopAsync(token);
+        using (var db = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = Path.Combine(directory, "opinions.db"), Password = Convert.ToHexString(context.OpenDataKey()), Pooling = false
+        }.ToString()))
+        {
+            db.Open();
+            using var reset = db.CreateCommand();
+            reset.CommandText = "DROP TABLE lead_stocks; PRAGMA user_version=15;";
+            reset.ExecuteNonQuery();
+        }
+        await session.StartAsync(token);
+        await CheckMentions();
+
+        var tencent = new Security("港股", "00700", "腾讯控股", "");
+        foreach (var (security, stance, excerpt) in new[]
+        {
+            (rongjie, Stance.Neutral, "这里讨论矿产。"),
+            (tencent, Stance.Bullish, "后面讨论游戏。")
+        })
+        {
+            var opinion = new Opinion(Guid.NewGuid(), ApiOnly, security, time, stance, Attribution.Author,
+                excerpt, excerpt, mentionUrl, PostBodyRevision: 1);
+            Check((await Ask(new("opinion-save", Opinion: opinion, ChangeId: Guid.NewGuid()))).Error is null,
+                "同一原帖可以分别核对不同股票的观点");
+        }
+        var verified = (await Ask(new("overview"))).Overview!.Stocks;
+        Check(verified.Single(stock => stock.Security == rongjie) is { Mentions: 1, Bullish: 0 } &&
+            verified.Single(stock => stock.Security == tencent) is { Mentions: 1, Bullish: 1 },
+            "多空只汇总各股票已核对的方向");
+
+        async Task CheckMentions()
+        {
+            var stocks = (await Ask(new("overview"))).Overview!.Stocks;
+            Check(stocks.Length == 2 && stocks.Any(stock => stock.Security == rongjie) &&
+                stocks.Any(stock => stock.Security.Key == "港股:00700") &&
+                stocks.All(stock => stock is { Mentions: 1, Discussions: 0, Bullish: 0, Bearish: 0 }),
+                "全文多个股票分别归类，重复标签只计一次，支持已有原帖重建");
+            var mentions = (await Ask(new("mentions", new(Account: ApiOnly, Security: rongjie)))).Mentions!;
+            Check(mentions is { Total: 1, Rows: [{ } row] } && row.Url == mentionUrl && row.Excerpt.Contains("讨论矿产") &&
+                (await Ask(new("mentions", new(Account: Primary, Security: rongjie)))).Mentions?.Total == 0,
+                "按股票、作者过滤引用，保留带标签的证据片段");
+        }
     }
 
     internal static async Task RunBackfillAsync()

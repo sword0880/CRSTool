@@ -83,6 +83,7 @@ internal sealed partial class WatchStore
             return false;
         WritePostBody(new(account, url), 1, published.ToUnixTimeSeconds(), Convert.ToHexString(SHA256.HashData(bytes)),
             bytes, source, transaction);
+        RefreshStockMentions(account, url, transaction);
         return true;
     }
 

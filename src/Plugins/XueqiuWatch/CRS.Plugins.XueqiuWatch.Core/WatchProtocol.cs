@@ -28,10 +28,17 @@ public sealed record ReviewFilter(int Days = 30, string? Account = null, string?
     string? Industry = null, string? Search = null, Security? Security = null, string Mode = "latest", int Offset = 0);
 
 public sealed record StockSummary(Security Security, int Bullish, int Bearish, int Discussions,
-    int Pending, DateTimeOffset LatestAt);
+    int Pending, DateTimeOffset LatestAt)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Mentions { get; init; }
+}
 public sealed record WatchOverview(StockSummary[] Stocks, string[] Industries, int StockCount,
     int Unmatched, DateTimeOffset? Earliest, DateTimeOffset? Latest, DateTimeOffset? LastRecorded);
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
+public sealed record StockMention(string Account, string Url, DateTimeOffset FirstSeen, DateTimeOffset? PublishedAt,
+    string Excerpt);
+public sealed record StockMentionPage(StockMention[] Rows, int Total);
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
     Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null,
     PostBodyRequest? Body = null, string? ConnectedGoogleAccount = null, string? ExpectedGoogleAccount = null);
@@ -41,6 +48,8 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LeadPage? Leads { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StockMentionPage? Mentions { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GoogleAlertSubscription? Alert { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

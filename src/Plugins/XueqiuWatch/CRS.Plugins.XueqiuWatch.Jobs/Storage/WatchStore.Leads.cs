@@ -203,6 +203,7 @@ internal sealed partial class WatchStore
             ("$published", !fromTimeline ? (object?)published ?? DBNull.Value : DBNull.Value),
             ("$author", PlainText(lead.FeedAuthor, 80)), ("$itemId", PlainText(lead.FeedItemId, 300)),
             ("$timeline", fromTimeline ? (object?)published ?? DBNull.Value : DBNull.Value));
+        RefreshStockMentions(account, url, transaction);
         return !existed;
     }
 

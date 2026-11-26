@@ -61,10 +61,14 @@ internal static class XueqiuRssChecks
                 directionHints.Contains("看好") && directionHints.Contains("观望"),
                 "本地规则可从 RSS 文章文字识别股票候选和多空措辞");
             const string tags = "$贵州茅台(SH600519)$、$腾讯控股（00700）$、$中国移动(600941.SH)$、$Shopify(SHOP)$";
-            var tagged = WatchInput.Candidates(tags, []);
+            var tagged = WatchInput.Candidates(tags, [mobile]);
             Check(tagged.Select(item => item.Key).SequenceEqual(["沪市:600519", "港股:00700", "沪市:600941", "美股:SHOP"]) &&
                 WatchInput.DisplayStockTags(tags) == "贵州茅台（SH600519）、腾讯控股（00700）、中国移动（600941.SH）、Shopify（SHOP）",
                 "股票标记在展示中保留名称和代码，在提取时识别交易所前缀、后缀及美股");
+            var adjacent = WatchInput.StockTags("$融捷股份(SZ002192)$$腾讯控股(HK700)$").Select(item => item.Security).ToArray();
+            Check(adjacent.SequenceEqual([new("深市", "002192", "融捷股份", ""), new("港股", "00700", "腾讯控股", "")]) &&
+                !WatchInput.StockTags("$无效代码(SZ123)$ SH600519 $无标签金额(123456)$").Any(),
+                "相邻的雪球标签独立提取名称和代码，裸代码及无效标记不进入自动归类");
             Check(WatchInput.AlertSourceLink(
                     "https://www.google.com/url?rct=j&sa=t&url=https%3A%2F%2Fxueqiu.com%2F9650668145%2F111&ct=ga",
                     "9650668145") == "https://xueqiu.com/9650668145/111",
@@ -495,7 +499,7 @@ internal static class XueqiuRssChecks
         update.Parameters.AddWithValue("$account", oldAuthor.Account);
         update.ExecuteNonQuery();
         using var ddl = db.CreateCommand();
-        ddl.CommandText = "DROP TABLE post_leads; DROP TABLE lead_coverage; PRAGMA user_version=1";
+        ddl.CommandText = "DROP TABLE lead_stocks; DROP TABLE post_leads; DROP TABLE lead_coverage; PRAGMA user_version=1";
         ddl.ExecuteNonQuery();
     }
 

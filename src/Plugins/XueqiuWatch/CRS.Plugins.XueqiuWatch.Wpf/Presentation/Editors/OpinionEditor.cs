@@ -12,7 +12,6 @@ internal sealed class OpinionEditor : WatchEditor
     private readonly Security[] directory;
     private readonly Opinion? original;
     private readonly PostBodyDocument? postBody;
-    private readonly string leadTitle;
     private readonly PostLead? lead;
     private readonly Guid id;
     private readonly ComboBox author = new() { DisplayMemberPath = nameof(Author.Name) };
@@ -30,17 +29,17 @@ internal sealed class OpinionEditor : WatchEditor
     private readonly TextBox finding = new() { MaxLength = 180 };
     private readonly ComboBox candidates = new();
     private readonly TextBlock inputStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 0) };
+    private int taggedStockCount;
     internal Opinion? SavedOpinion { get; private set; }
 
     public OpinionEditor(Window? owner, Author[] authors, Security[] directory, Opinion? original,
         WorkerWatchClient client, CancellationToken lifetime, PostLead? lead = null,
-        PostBodyDocument? postBody = null)
+        PostBodyDocument? postBody = null, Security? preferredStock = null)
         : base(owner, original is null ? "录入雪球观点" : "编辑雪球观点", 690)
     {
         this.original = original;
         this.lead = lead;
         this.postBody = postBody;
-        leadTitle = lead?.Title ?? "";
         this.directory = directory;
         this.client = client;
         this.lifetime = lifetime;
@@ -61,13 +60,19 @@ internal sealed class OpinionEditor : WatchEditor
         stance.SelectedIndex = (int)(original?.Stance ?? Stance.Pending);
         attribution.ItemsSource = new[] { "作者本人发言", "顺带提及", "转发或转述" };
         attribution.SelectedIndex = lead is null ? (int)(original?.Attribution ?? Attribution.Author) : -1;
-        content.Text = original?.Content ?? LeadText(lead is null ? null : $"{lead.Title}\n{lead.Content ?? lead.Summary}", 700);
-        evidence.Text = original?.Evidence ?? LeadText(lead?.Summary ?? lead?.Content, 700);
+        var leadExcerpt = lead is null ? "" : string.IsNullOrWhiteSpace(lead.Content) ? lead.Summary : lead.Content;
+        content.Text = original?.Content ?? LeadText($"{lead?.Title}\n{leadExcerpt}", 700);
+        evidence.Text = original?.Evidence ?? LeadText(leadExcerpt, 700);
         source.Text = original?.Url ?? lead?.Url ?? "";
         question.Text = original?.Question ?? "";
         finding.Text = original?.Finding ?? "";
-        if (lead is not null) inputStatus.Text = "已带入线索的作者和链接。请核对原帖，填写发言时间、归属及观点内容。";
 
+        Field("原帖提及的股票", candidates);
+        candidates.DisplayMemberPath = nameof(Candidate.Label);
+        candidates.SelectionChanged += (_, _) =>
+        {
+            if (candidates.SelectedItem is Candidate row) SetStock(row.Security);
+        };
         var columns = new Grid();
         columns.ColumnDefinitions.Add(new());
         columns.ColumnDefinitions.Add(new());
@@ -97,7 +102,7 @@ internal sealed class OpinionEditor : WatchEditor
         Field("观点、理由与适用条件", content);
         Field("证据摘录（最多 700 字符）", evidence);
         var actions = new WrapPanel { Margin = new(0, 5, 0, 1) };
-        actions.Children.Add(Action("识别股票候选", Detect));
+        actions.Children.Add(Action("重新识别股票", () => Detect()));
         if (bodyText is not null)
             actions.Children.Add(Action("使用原文选中段落", () =>
             {
@@ -112,23 +117,11 @@ internal sealed class OpinionEditor : WatchEditor
         Fields.Children.Add(actions);
         inputStatus.SetResourceReference(TextBlock.ForegroundProperty, "BrandTextSecondaryBrush");
         Fields.Children.Add(inputStatus);
-        Field("候选股票（选择后核对市场和代码）", candidates);
-        candidates.DisplayMemberPath = nameof(Candidate.Label);
-        candidates.SelectionChanged += (_, _) =>
-        {
-            if (candidates.SelectedItem is Candidate row) SetStock(row.Security);
-        };
         Field("雪球原帖链接（选填）", source);
         Field("待核实问题（选填）", question);
         Field("核实结果（选填）", finding);
         Finish(Action("取消", Close), AsyncAction("保存观点", SaveAsync));
-        if (lead is not null || postBody is not null)
-        {
-            Detect();
-            inputStatus.Text += postBody is null
-                ? " 已带入线索片段，请核对原帖。"
-                : " 已加载原帖全文，请核对每只股票对应的段落和作者立场。";
-        }
+        Detect(preferredStock, fillFromTag: original is null);
     }
 
     private static void Add(Panel parent, string description, Control control)
@@ -159,13 +152,29 @@ internal sealed class OpinionEditor : WatchEditor
         return text.Length <= maximum ? text : text[..maximum];
     }
 
-    private void Detect()
+    private void Detect(Security? preferredStock = null, bool fillFromTag = false)
     {
-        var text = postBody?.Text ?? evidence.Text + "\n" + content.Text;
-        var matches = WatchInput.Candidates($"{leadTitle}\n{text}", directory);
-        candidates.ItemsSource = matches.Select(x => new Candidate(x, $"{x.Name} · {x.Market} {x.Code}")).ToArray();
-        inputStatus.Text = matches.Count > 0 ? $"识别到 {matches.Count} 个候选，请核对后选择。" :
-            "没有明确候选。可手工填写市场、代码和名称，或先保存为待确认。";
+        var previous = candidates.SelectedItem as Candidate;
+        var text = postBody is null
+            ? $"{lead?.Title}\n{lead?.Summary}\n{lead?.Content}\n{evidence.Text}\n{content.Text}"
+            : $"{postBody.Text}\n{lead?.Title}";
+        var tags = WatchInput.StockTags(text).Select(tag => tag.Security.Key).Distinct().ToArray();
+        taggedStockCount = tags.Length;
+        var matches = WatchInput.Candidates(text, directory).ToList();
+        if (preferredStock is not null && matches.All(stock => stock.Key != preferredStock.Key))
+            matches.Insert(0, preferredStock);
+        var options = matches.Select(x => new Candidate(x, $"{x.Name} · {x.Market} {x.Code}")).ToArray();
+        candidates.ItemsSource = options;
+        var selectedKey = preferredStock?.Key ?? previous?.Security.Key;
+        if (selectedKey is null && fillFromTag && tags.Length == 1) selectedKey = tags[0];
+        if (selectedKey is not null) candidates.SelectedItem = options.FirstOrDefault(row => row.Security.Key == selectedKey);
+        inputStatus.Text = tags.Length switch
+        {
+            > 1 => $"原帖提及 {tags.Length} 只股票，选择一只即可带入代码和名称。请分别核对各股票的发言。",
+            1 => "已识别原帖股票标签。请结合原文核对发言归属和方向。",
+            _ when options.Length > 0 => "可选择识别出的股票候选。",
+            _ => "没有明确候选。可手工填写市场、代码和名称，或先保存为待确认。"
+        };
         var phrases = WatchInput.DirectionPhrases(text);
         if (phrases.Length != 0) inputStatus.Text += $" 发现措辞「{string.Join("、", phrases)}」，请结合上下文确认方向。";
     }
@@ -179,6 +188,8 @@ internal sealed class OpinionEditor : WatchEditor
         Security? security = null;
         if (market.SelectedItem is string || code.Text.Length != 0 || name.Text.Length != 0)
             security = WatchInput.CheckSecurity(new(market.SelectedItem as string ?? "", code.Text, name.Text, industry.Text));
+        if (original is null && security is null && taggedStockCount > 0)
+            throw new ArgumentException("请从原帖提及的股票中选择要核对的一只。");
         var url = WatchInput.SourceLink(source.Text);
         var bodyRevision = selectedAuthor.Account == (original?.Account ?? lead?.Account) &&
             url == (original?.Url ?? lead?.Url)

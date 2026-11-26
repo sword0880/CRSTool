@@ -55,18 +55,19 @@
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBlock x:Name="DetailTitle" Text="个股观点" Style="{DynamicResource UiSectionTitle}" Margin="0,0,0,7"/>
     <WrapPanel Grid.Row="1" Margin="0,0,0,6">
+     <Button x:Name="StockMentionsButton" Content="发言提及" Click="MentionsClicked" Margin="0,0,6,3"/>
      <Button Content="最新多空" Click="LatestClicked" Margin="0,0,6,3"/>
      <Button Content="观点时间线" Click="TimelineClicked" Margin="0,0,6,3"/>
      <Button Content="中性 / 待确认" Click="OtherClicked" Margin="0,0,6,3"/>
      <Button x:Name="PendingStocks" Content="待认领股票" Click="PendingClicked" Margin="0,0,6,3"/>
      <Button Content="待核实问题" Click="QuestionsClicked" Margin="0,0,6,3"/>
-     <Button Content="编辑选中观点" Click="EditOpinion" Margin="0,0,6,3"/>
+     <Button x:Name="EditOpinionButton" Content="编辑选中观点" Click="EditOpinion" Margin="0,0,6,3"/>
      <Button Content="原帖正文" Click="ShowPostBody" Margin="0,0,6,3"/>
     </WrapPanel>
     <DataGrid Grid.Row="2" x:Name="Details" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
               SelectionMode="Single" Style="{DynamicResource UiDenseDataGrid}">
      <DataGrid.Columns>
-      <DataGridTextColumn Header="多空" Width="100" Binding="{Binding Direction}"/>
+      <DataGridTextColumn Header="方向 / 类型" Width="100" Binding="{Binding Direction}"/>
       <DataGridTextColumn Header="作者" Width="125" Binding="{Binding Author}"/>
       <DataGridTextColumn Header="时间（北京时间）" Width="142" Binding="{Binding Time}"/>
       <DataGridTemplateColumn Header="内容" Width="*" MinWidth="160">

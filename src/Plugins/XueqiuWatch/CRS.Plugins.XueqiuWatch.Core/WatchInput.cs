@@ -140,30 +140,43 @@ public static partial class WatchInput
         Text(value.Finding, 180);
     }
 
-    /// <summary>只提取显式代码和已有目录内的唯一名称，候选仍须人工确认。</summary>
+    public static IEnumerable<(Security Security, int Start, int Length)> StockTags(string text)
+    {
+        foreach (Match match in TaggedCode().Matches(text))
+            if (ReadSymbol(match, match.Groups["name"].Value) is { } security)
+                yield return (security, match.Index, match.Length);
+    }
+
+    private static Security? ReadSymbol(Match match, string name)
+    {
+        var code = match.Groups["code"].Value;
+        var market = match.Groups["market"].Value.ToUpperInvariant() switch
+        {
+            "SH" => "沪市", "SZ" => "深市", "BJ" => "北交所", "HK" => "港股",
+            "" when code.All(char.IsAsciiDigit) => "港股",
+            _ => "美股"
+        };
+        try { return CheckSecurity(new(market, code, name.Length == 0 ? code : name, "")); }
+        catch (ArgumentException) { return null; }
+    }
+
+    /// <summary>优先使用原帖标签内的市场、代码和名称，再补充正文中的显式代码和目录名称。</summary>
     public static IReadOnlyList<Security> Candidates(string text, IReadOnlyList<Security> directory)
     {
         var found = new Dictionary<string, Security>(StringComparer.Ordinal);
-        foreach (Match match in TaggedCode().Matches(text))
+        foreach (var (security, _, _) in StockTags(text))
         {
-            var market = match.Groups["market"].Value.ToUpperInvariant() switch
-            {
-                "SH" => "沪市", "SZ" => "深市", "BJ" => "北交所", "HK" => "港股",
-                "" when match.Groups["code"].Value.All(char.IsAsciiDigit) => "港股",
-                _ => "美股"
-            };
-            try
-            {
-                var code = match.Groups["code"].Value;
-                var name = match.Groups["name"].Value.Trim();
-                var candidate = CheckSecurity(new(market, code, name.Length == 0 ? code : name, ""));
-                found.TryAdd(candidate.Key, directory.FirstOrDefault(x => x.Key == candidate.Key) ?? candidate);
-            }
-            catch (ArgumentException) { /* 不把无法规范化的代码自动归属到股票。 */ }
+            var known = directory.FirstOrDefault(x => x.Key == security.Key);
+            found.TryAdd(security.Key, security with { Industry = known?.Industry ?? "" });
         }
+        var untagged = TaggedCode().Replace(text, " ");
+        foreach (Match match in BareCode().Matches(untagged))
+            if (ReadSymbol(match, "") is { } security)
+                found.TryAdd(security.Key, directory.FirstOrDefault(x => x.Key == security.Key) ?? security);
+
         foreach (var group in directory.GroupBy(x => x.Name, StringComparer.Ordinal))
         {
-            if (group.Key.Length < 2 || group.Count() != 1 || !text.Contains(group.Key, StringComparison.Ordinal)) continue;
+            if (group.Key.Length < 2 || group.Count() != 1 || !untagged.Contains(group.Key, StringComparison.Ordinal)) continue;
             var candidate = group.First();
             found.TryAdd(candidate.Key, candidate);
         }
@@ -187,6 +200,9 @@ public static partial class WatchInput
     [GeneratedRegex(@"^[A-Z][A-Z0-9]{0,6}(?:[.-][A-Z0-9]{1,3})?$", RegexOptions.CultureInvariant)]
     private static partial Regex UsCode();
 
-    [GeneratedRegex(@"(?:\$(?<name>[^$\r\n]{0,50}?)[(（][ \t]*(?<symbol>(?:(?<market>SH|SZ|BJ|HK)[-:]?(?<code>[0-9]{4,6})|(?<code>[0-9]{4,6})\.(?<market>SH|SZ|BJ|HK)|(?<market>US)[:-]?(?<code>[A-Z][A-Z0-9.-]{0,11})|(?<code>[0-9]{5,6}|[A-Z][A-Z0-9.-]{0,11})))[ \t]*[)）]\$|(?<![A-Z0-9])(?<market>SH|SZ|BJ|HK)[-:]?(?<code>[0-9]{4,6})(?![0-9])|(?<![A-Z0-9])(?<market>US)[:-](?<code>[A-Z][A-Z0-9.-]{0,11})(?![A-Z0-9]))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\$[ \t]*(?<name>[^$\r\n]{1,50}?)[(（][ \t]*(?<symbol>(?:(?<market>SH|SZ|BJ|HK)[-:]?(?<code>[0-9]{1,6})|(?<code>[0-9]{1,6})\.(?<market>SH|SZ|BJ|HK)|(?<market>US)[:-]?(?<code>[A-Z][A-Z0-9.-]{0,11})|(?<code>[0-9]{5}|[A-Z][A-Z0-9.-]{0,11})))[ \t]*[)）][ \t]*\$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TaggedCode();
+
+    [GeneratedRegex(@"(?<![A-Z0-9])(?:(?<market>SH|SZ|BJ|HK)[-:]?(?<code>[0-9]{4,6})(?![A-Z0-9])|(?<market>US)[:-](?<code>[A-Z][A-Z0-9.-]{0,11})(?![A-Z0-9]))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BareCode();
 }

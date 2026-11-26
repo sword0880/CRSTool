@@ -48,18 +48,21 @@ internal sealed partial class WatchStore
 
     private sealed record Stored(Opinion Opinion, string Source);
 
-    private Stored[] Load(ReviewFilter filter, CancellationToken token)
+    private static long FilterSince(int days)
     {
         var now = WatchProtocol.BeijingNow;
-        var since = filter.Days == 0 ? 0 : new DateTimeOffset(
-            now.Date.AddDays(1 - filter.Days), now.Offset).ToUnixTimeSeconds();
+        return days == 0 ? 0 : new DateTimeOffset(now.Date.AddDays(1 - days), now.Offset).ToUnixTimeSeconds();
+    }
+
+    private Stored[] Load(ReviewFilter filter, CancellationToken token)
+    {
         using var command = Command("""
             SELECT o.body,o.source,s.body FROM opinions o LEFT JOIN securities s
                 ON s.market=o.market AND s.code=o.code
             WHERE o.posted >= $since AND ($account='' OR o.account=$account)
                 AND ($market='' OR o.market=$market) AND ($code='' OR o.code=$code)
             ORDER BY o.posted DESC,o.rowid DESC
-            """, null, ("$since", since), ("$account", filter.Account ?? ""),
+            """, null, ("$since", FilterSince(filter.Days)), ("$account", filter.Account ?? ""),
             ("$market", filter.Security?.Market ?? filter.Market ?? ""), ("$code", filter.Security?.Code ?? ""));
         using var reader = command.ExecuteReader();
         var rows = new List<Stored>();
@@ -91,13 +94,18 @@ internal sealed partial class WatchStore
                     group.Where(x => x.Opinion.Attribution == Attribution.Author)
                         .DistinctBy(x => (x.Opinion.Account, x.Source)).Count(),
                     group.Count(x => x.Opinion.Stance == Stance.Pending), group.First().Opinion.PublishedAt);
-            }).ToArray();
-        var industries = stocks.Select(x => x.Security.Industry).Where(x => x.Length > 0).Distinct().Order().Take(80).ToArray();
-        var filtered = stocks.Where(x => (filter.Industry is "" or null || x.Security.Industry ==
+            }).ToDictionary(stock => stock.Security.Key, StringComparer.Ordinal);
+        foreach (var mention in MentionSummaries(filter, token))
+            stocks[mention.Security.Key] = stocks.TryGetValue(mention.Security.Key, out var stock)
+                ? stock with { Mentions = mention.Mentions, LatestAt = stock.LatestAt > mention.LatestAt ? stock.LatestAt : mention.LatestAt }
+                : mention;
+        var industries = stocks.Values.Select(x => x.Security.Industry).Where(x => x.Length > 0).Distinct().Order().Take(80).ToArray();
+        var filtered = stocks.Values.Where(x => (filter.Industry is "" or null || x.Security.Industry ==
                 (filter.Industry == "未分类" ? "" : filter.Industry))
             && Matches(x.Security, filter.Search ?? ""))
             .OrderBy(x => x.Security.Industry.Length == 0)
-            .ThenBy(x => x.Security.Industry).ThenByDescending(x => x.Discussions).ThenByDescending(x => x.LatestAt)
+            .ThenBy(x => x.Security.Industry).ThenByDescending(x => x.Discussions).ThenByDescending(x => x.Mentions)
+            .ThenByDescending(x => x.LatestAt)
             .ThenBy(x => x.Security.Key).ToArray();
         return new(filtered.Skip(filter.Offset).Take(WatchProtocol.StocksPerPage).ToArray(), industries, filtered.Length,
             rows.Count(x => x.Opinion.Security is null),
