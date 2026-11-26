@@ -29,8 +29,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --xueqiu-original-page-fixture
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $package = Join-Path $env:RUNNER_TEMP 'xueqiu-watch-package'
-          ./tests/Publish-XueqiuWatchPackage.ps1 -OutputDirectory $package
+          $package = Join-Path $env:RUNNER_TEMP 'xueqiu-worker-package'
+          ./tests/Publish-BackgroundService.ps1 -OutputDirectory $package
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --xueqiu-private-data $package
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
