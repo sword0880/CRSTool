@@ -59,7 +59,12 @@ internal sealed class XueqiuPostApi : IOriginalPageReader, IAuthorTimelineReader
     {
         token.ThrowIfCancellationRequested();
         string url;
-        try { url = WatchInput.AlertSourceLink(post.Url, post.Account); }
+        try
+        {
+            url = WatchInput.SourceLink(post.Url);
+            if (!url.StartsWith($"https://xueqiu.com/{WatchInput.AccountId(post.Account)}/", StringComparison.Ordinal))
+                return Task.FromResult(new OriginalPageRead("BodyUnavailable"));
+        }
         catch (ArgumentException) { return Task.FromResult(new OriginalPageRead("BodyUnavailable")); }
         var id = url[(url.LastIndexOf('/') + 1)..];
         var address = new UriBuilder(DetailAddress) { Query = $"id={id}" }.Uri;

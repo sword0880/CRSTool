@@ -28,16 +28,16 @@ internal sealed class LeadWindow : WatchEditor
         this.client = client;
         this.lifetime = lifetime;
         Fields.Children.Add(source);
-        Fields.Children.Add(AsyncAction("观察名单", ConfigureAsync));
+        Fields.Children.Add(AsyncAction("设置作者", ConfigureAsync));
 
-        SetColumns(coverage, ("作者", nameof(AuthorCoverage.Author)),
-            ("最近检查（北京时间）", nameof(AuthorCoverage.Checked)), ("采集状态", nameof(AuthorCoverage.Status)));
+        SetColumns(coverage, ("作者", nameof(AuthorCoverageRow.Author)),
+            ("最近检查（北京时间）", nameof(AuthorCoverageRow.Checked)), ("采集状态", nameof(AuthorCoverageRow.Status)));
         Field("作者状态", coverage);
         Field("筛选作者", filter);
         filter.SelectionChanged += async (_, _) => await BrowseAsync(0);
 
         SetColumns(links, ("作者", nameof(LeadRow.Author)), ("原帖发布时间（北京时间）", nameof(LeadRow.Published)),
-            ("文章标题", nameof(LeadRow.Title)), ("正文状态与片段", nameof(LeadRow.RssContent)),
+            ("文章标题", nameof(LeadRow.Title)), ("正文状态与片段", nameof(LeadRow.ContentStatus)),
             ("解析线索（规则候选）", nameof(LeadRow.Hints)), ("雪球原链接（待核验）", nameof(LeadRow.Url)));
         Field("发言线索", links);
         var pagination = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new(0, 6, 0, 0) };
@@ -77,10 +77,7 @@ internal sealed class LeadWindow : WatchEditor
                 ?? throw new InvalidDataException("缺少发言线索。");
         }
 
-        source.Text = result.TimelineSupported
-            ? "在任务中心设置「发现雪球发言线索」的执行时间。"
-            : "当前 Worker 使用 RSS 采集。可在观察名单的「更多 → 备用 RSS」中配置。";
-
+        source.Text = "动态通过雪球作者 API 采集。在任务中心设置「发现雪球发言线索」的执行时间。";
         authors = result.Authors;
         var byAccount = authors.ToDictionary(item => item.Account);
         var options = new[] { new Author("", "全部作者") }.Concat(result.Authors).ToArray();
@@ -89,9 +86,9 @@ internal sealed class LeadWindow : WatchEditor
         coverage.ItemsSource = result.Coverage.Select(item =>
         {
             var author = byAccount[item.Account];
-            var checkedAt = item.Timeline?.CheckedAt ?? item.CheckedAt;
-            return new AuthorCoverage(author.Name, checkedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—",
-                CoverageText(author, item, result.TimelineSupported));
+            var checkedAt = item.Timeline?.CheckedAt;
+            return new AuthorCoverageRow(author.Name, checkedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—",
+                CoverageText(author, item));
         }).ToArray();
         Security[] securities = result.Rows.Length == 0
             ? []
@@ -114,21 +111,9 @@ internal sealed class LeadWindow : WatchEditor
         next.IsEnabled = offset + result.Rows.Length < result.Total;
     }
 
-    private static string CoverageText(Author author, FeedCoverage item, bool timelineSupported)
+    private static string CoverageText(Author author, AuthorCoverage item)
     {
         if (!author.Active || author.Archived) return "已暂停";
-        var rss = item.State switch
-        {
-            "Read" when item.Matches is > 0 => $"RSS 返回 {item.Matches} 条",
-            "Read" => "RSS 无匹配线索",
-            "NotModified" => "RSS 未变化",
-            "RateLimited" => "RSS 限流",
-            "AccessRequired" => "RSS 访问受限",
-            "TimedOut" => "RSS 读取超时",
-            "ProxyUnavailable" => "RSS 代理不可用",
-            "NotConfigured" or "NeverChecked" => "",
-            _ => "RSS 读取失败"
-        };
         var discovery = item.Timeline switch
         {
             { State: "Read", Matches: > 0 } timeline => $"API 返回 {timeline.Matches} 条",
@@ -140,19 +125,9 @@ internal sealed class LeadWindow : WatchEditor
             not null => "API 读取失败",
             _ => "尚未检查"
         };
-        if (!timelineSupported) discovery = rss.Length == 0 ? "尚未检查" : rss;
-        else if (item.Timeline?.State is not ("Read" or "Backfilling") && rss.Length > 0) discovery += $" · 备用 {rss}";
-        if (item.BackfillPending && item.Timeline?.State != "Backfilling") discovery += " · 近 30 天回补待续";
-        var fullText = item.FullTextState switch
-        {
-            null => "",
-            "Read" => $" · 自动补全 {item.FullTextCount ?? 0} 条",
-            "NeverChecked" => " · 全文源尚未检查",
-            "RateLimited" => " · 全文源限流",
-            "NotModified" => " · 全文源未变化",
-            _ => " · 全文源读取失败"
-        };
-        return discovery + fullText;
+        if (item.BackfillPending && item.Timeline?.State != "Backfilling")
+            discovery += " · 近 30 天回补待续";
+        return discovery;
     }
 
     private Task OpenLeadAsync() => WithFeedbackAsync(() =>
@@ -198,15 +173,14 @@ internal sealed class LeadWindow : WatchEditor
             grid.Columns.Add(new DataGridTextColumn { Header = header, Binding = new Binding(property), Width = new(1, DataGridLengthUnitType.Star) });
     }
 
-    private sealed record AuthorCoverage(string Author, string Checked, string Status);
+    private sealed record AuthorCoverageRow(string Author, string Checked, string Status);
     private sealed record LeadRow(string Author, PostLead Lead, string Hints)
     {
         public string Published => WatchInput.PostTime(Lead.PublishedAt, WatchProtocol.BeijingNow) is { } time
-            ? (Lead.PostBodyRevision > 0 || Lead.OriginalPageTimeVerified ? "" : "RSS · ") +
-                time.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
+            ? time.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm")
             : "待核对";
         public string Title => WatchInput.DisplayStockTags(Lead.Title);
-        public string RssContent => Lead.PostBodyRevision > 0 ? $"全文 · {PostBody.SourceLabel(Lead.BodySource)}" :
+        public string ContentStatus => Lead.PostBodyRevision > 0 ? $"全文 · {PostBody.SourceLabel(Lead.BodySource)}" :
             OriginalPageStatus + (Lead.Summary.Length > 0 ? $"片段 · {WatchInput.DisplayStockTags(Lead.Summary)}" :
                 Lead.Content.Length > 0 ? $"片段 · {WatchInput.DisplayStockTags(Lead.Content)}" : "仅链接");
         private string OriginalPageStatus

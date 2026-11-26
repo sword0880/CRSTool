@@ -5,7 +5,7 @@ $output = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) { throw '雪球观点追踪包需要新的输出目录。' }
 $projectRoot = Join-Path $repo 'src/Plugins/XueqiuWatch'
 $projects = @('CRS.Plugins.XueqiuWatch.Jobs')
-# 桌面入口负责 Google 快讯配置，后台入口通过 HTTP 读取雪球原帖。
+# 桌面入口管理作者和观点，后台入口通过雪球 API 读取动态与原帖。
 if (!$BackgroundOnly) { $projects += 'CRS.Plugins.XueqiuWatch.Wpf' }
 foreach ($project in $projects) {
     & dotnet publish (Join-Path $projectRoot "$project/$project.csproj") -c $Configuration --no-self-contained --no-restore -m:1 -o $output

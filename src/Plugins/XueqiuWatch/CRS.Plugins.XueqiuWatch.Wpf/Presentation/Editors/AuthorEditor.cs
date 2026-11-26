@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -11,8 +10,6 @@ namespace CRS.Plugins.XueqiuWatch.Wpf;
 
 internal sealed class AuthorEditor : WatchEditor
 {
-    private const string SignInInstructions = "请在专用 Chrome 的 Google 快讯页面切到要同步的账号。关闭该窗口后，CRS 会自动同步。";
-    private const string RetrySignIn = "请从「更多 → 备用 RSS」打开 Google 登录并核实账号。";
     private readonly WorkerWatchClient client;
     private readonly CancellationToken lifetime;
     private readonly DataGrid list = new()
@@ -32,9 +29,6 @@ internal sealed class AuthorEditor : WatchEditor
     private readonly TextBlock status = new() { Margin = new(0, 10, 0, 0), Visibility = Visibility.Collapsed };
     private readonly Button edit;
     private readonly MenuItem remove;
-    private Task? signInSync;
-    private bool closed;
-    private bool skipSignInSync;
 
     private Author? SelectedAuthor => (list.SelectedItem as AuthorRow)?.Author;
 
@@ -54,13 +48,6 @@ internal sealed class AuthorEditor : WatchEditor
         remove = MenuAction("移除所选作者", RemoveAuthorAsync);
         var menu = new ContextMenu { Placement = PlacementMode.Bottom };
         menu.Items.Add(MenuAction("刷新名单", () => WithFeedbackAsync(() => RefreshAsync(SelectedAuthor?.Account), lifetime)));
-        var backup = new MenuItem { Header = "备用 RSS" };
-        backup.Items.Add(MenuAction("同步备用 RSS", () => signInSync is { IsCompleted: false }
-            ? WithFeedbackAsync(() => { ShowStatus(SignInInstructions); return Task.CompletedTask; }, lifetime)
-            : SyncAllAuthorsAsync()));
-        backup.Items.Add(MenuAction("Google 登录", OpenGoogleSignInAsync));
-        backup.Items.Add(MenuAction("断开 Google 账号", DisconnectGoogleAlertsAsync));
-        menu.Items.Add(backup);
         menu.Items.Add(new Separator());
         menu.Items.Add(remove);
         var more = Action("更多 ▾", () => menu.IsOpen = true);
@@ -134,7 +121,6 @@ internal sealed class AuthorEditor : WatchEditor
         layout.Children.Add(table);
         Content = layout;
         SetAuthors(authors, null);
-        Closed += (_, _) => closed = true;
     }
 
     private void SetAuthors(Author[] authors, string? selection)
@@ -179,74 +165,6 @@ internal sealed class AuthorEditor : WatchEditor
         await client.SaveAsync(new("author-save", Author: author with { Archived = true, Active = false }), lifetime);
         await RefreshAsync(author.Account);
         ShowStatus("已停止跟踪该作者。");
-    }, lifetime);
-
-    private Task SyncAllAuthorsAsync(bool afterSignIn = false) => WithFeedbackAsync(async () =>
-    {
-        var selection = SelectedAuthor?.Account;
-        ShowStatus("正在检查 Google 登录状态…");
-        string? result = null;
-        var needsSignIn = false;
-        try
-        {
-            result = await GoogleAlertsDesktopSync.RunAsync(client, lifetime, connect: true,
-                reportProgress: (current, total) =>
-                {
-                    ShowStatus($"正在核实并同步 Google 快讯（{current}/{total}）…");
-                });
-        }
-        catch (GoogleAlertsSignInRequiredException) { needsSignIn = true; }
-        finally
-        {
-            ShowStatus(null);
-            await RefreshAsync(selection);
-        }
-        if (needsSignIn)
-        {
-            if (!afterSignIn) StartGoogleSignIn();
-            else ShowStatus(RetrySignIn);
-            return;
-        }
-        ShowStatus(result);
-    }, lifetime);
-
-    private Task OpenGoogleSignInAsync() => WithFeedbackAsync(() =>
-    {
-        StartGoogleSignIn();
-        return Task.CompletedTask;
-    }, lifetime);
-
-    private void StartGoogleSignIn()
-    {
-        skipSignInSync = false;
-        if (signInSync is not { IsCompleted: false })
-            signInSync = SyncAfterBrowserClosesAsync(GoogleAlertsBrowserLogin.Open());
-        ShowStatus(SignInInstructions);
-    }
-
-    private async Task SyncAfterBrowserClosesAsync(Process browser)
-    {
-        try
-        {
-            using (browser) await browser.WaitForExitAsync(lifetime);
-            await Task.Yield();
-            if (skipSignInSync) return;
-            if (!closed) await SyncAllAuthorsAsync(afterSignIn: true);
-            else await GoogleAlertsDesktopSync.RunAsync(new WorkerWatchClient(), lifetime, connect: true);
-        }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
-        {
-            if (!closed) ShowStatus("登录后自动同步未完成，请关闭专用 Chrome 后重新同步。");
-        }
-    }
-
-    private Task DisconnectGoogleAlertsAsync() => WithFeedbackAsync(async () =>
-    {
-        await client.SaveAsync(new("alert-account-save", ConnectedGoogleAccount: ""), lifetime);
-        skipSignInSync = true;
-        await RefreshAsync(SelectedAuthor?.Account);
-        ShowStatus("已断开 Google 账号。已绑定的备用 RSS 仍可读取。");
     }, lifetime);
 
     private void ShowStatus(string? message)

@@ -138,9 +138,9 @@ internal static class XueqiuOriginalPageChecks
         var earliest = WatchProtocol.BeijingNow.AddDays(-WatchProtocol.NewAuthorHistoryDays).AddSeconds(-1);
         await Ask(new("author-save", Author: new(account, "公开回补样本"), ChangeId: Guid.NewGuid()));
         var queued = (await Ask(new("leads", new(Account: account)))).Leads!;
-        Check(queued is { BackfillSupported: true, ConfiguredFeeds: 0 } &&
+        Check(queued is { BackfillSupported: true } &&
             queued.Coverage.Single(item => item.Account == account).BackfillPending,
-            "保存无 RSS 的新作者后登记 30 天回补");
+            "保存新作者后登记 30 天回补");
 
         var add = await client.SendAsync(new BackgroundRequest(WorkerProtocol.Version, Guid.NewGuid(), WorkerProtocol.AddPluginPlan,
             WatchProtocol.PluginId, WatchProtocol.LeadJobId, Cron: "0 15 9 * * ?", Payload: "Paused") { VpnNode = "" }, token);
@@ -156,7 +156,7 @@ internal static class XueqiuOriginalPageChecks
             if (history.History?.FirstOrDefault(item => item.EndedUtc is not null) is { } record)
             {
                 var leads = (await Ask(new("leads", new(Account: account)))).Leads!;
-                Check(leads is { Total: > 0, BackfillSupported: true, ConfiguredFeeds: 0 } &&
+                Check(leads is { Total: > 0, BackfillSupported: true } &&
                     leads.Coverage.Single(item => item.Account == account) is
                         { Timeline.State: "Read", BackfillPending: false } &&
                     leads.Rows.All(post => post.Account == account && post.OriginalPageTimeVerified && post.PublishedAt >= earliest),

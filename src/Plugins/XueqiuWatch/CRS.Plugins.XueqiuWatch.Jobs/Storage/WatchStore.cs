@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using CRS.Plugins.XueqiuWatch.Core;
-using CRS.Feed;
 using Microsoft.Data.Sqlite;
 
 namespace CRS.Plugins.XueqiuWatch.Jobs;
@@ -39,7 +38,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 17)
+            else if (application != ApplicationId || version is < 1 or > 18)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -57,6 +56,7 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 15) InitializeBackfill();
             if (version < 16) InitializeStockMentions();
             if (version < 17) InitializeHiddenStocks();
+            if (version < 18) InitializeRemoveLegacyFeeds();
         }
         catch
         {
@@ -92,7 +92,7 @@ internal sealed partial class WatchStore : IDisposable
         token.ThrowIfCancellationRequested();
         return request.Operation switch
         {
-            "authors" => new(Authors: AuthorsForDisplay()),
+            "authors" => new(Authors: Authors()),
             "catalog" => new(Securities: Catalog(request.Filter?.Search)),
             "overview" => new(Overview: Overview(ValidateFilter(request.Filter), token)),
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
@@ -100,14 +100,9 @@ internal sealed partial class WatchStore : IDisposable
             "hidden-stocks" => new() { HiddenStocks = ReadHiddenStocks(ValidateFilter(request.Filter).Offset) },
             "stock-visibility" => new() { StockVisibility = ReadStockVisibility(ValidateFilter(request.Filter), token) },
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
-            "alert-subscription" => new() { Alert = ReadGoogleAlert(RequireAuthor(request.Filter?.Account)) },
-            "alert-account" => new() { ConnectedGoogleAccount = ReadGoogleConnection() },
-            "rss-proxy" => new() { RssProxy = ReadRssProxy() },
             "post-body-info" => new() { Body = ReadPostBodyInfo(request.Body) },
             "post-body-read" => ReadPostBodyChunk(request.Body),
-            "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "alert-account-save"
-                or "alert-account-switch" or "alert-sync-verify" or "rss-proxy-save" or "stock-visibility-save" =>
-                Save(request, payload, token),
+            "author-save" or "opinion-save" or "stock-visibility-save" => Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
     }
@@ -128,12 +123,6 @@ internal sealed partial class WatchStore : IDisposable
             case "author-save": SaveAuthor(request.Author, transaction); break;
             case "opinion-save": SaveOpinion(request.Opinion, transaction); break;
             case "stock-visibility-save": SaveStockVisibility(request.StockVisibility, transaction); break;
-            case "alert-sync-begin": BeginGoogleAlert(request.Alert, transaction); break;
-            case "alert-sync-complete": CompleteGoogleAlert(request.Alert, transaction); break;
-            case "alert-account-save": SaveGoogleConnection(request.ConnectedGoogleAccount, transaction); break;
-            case "alert-account-switch": SwitchGoogleConnection(request.ConnectedGoogleAccount, request.ExpectedGoogleAccount, transaction); break;
-            case "alert-sync-verify": VerifyGoogleAlert(request.Alert, transaction); break;
-            case "rss-proxy-save": SaveRssProxy(request.RssProxy, transaction); break;
         }
         Execute("INSERT INTO changes VALUES($id,$hash)", transaction, ("$id", id), ("$hash", hash));
         token.ThrowIfCancellationRequested();
@@ -154,44 +143,13 @@ internal sealed partial class WatchStore : IDisposable
 
         var name = WatchInput.Text(input.Name, 40, true);
         var note = WatchInput.Text(input.Note, 80);
-        var feedUrl = string.IsNullOrWhiteSpace(input.FeedUrl) ? string.Empty : FeedAddress.Normalize(input.FeedUrl);
-        var fullTextUrl = string.IsNullOrWhiteSpace(input.FullTextFeedUrl) ? "" : FeedAddress.Normalize(input.FullTextFeedUrl);
-        if (fullTextUrl.Length > 0 && (WatchInput.IsGoogleAlertsFeed(new Uri(fullTextUrl)) || fullTextUrl == feedUrl))
-            throw new ArgumentException("全文来源需要独立的获授权 Feed 地址。");
         var saved = new Author(account, name, note, input.Active && !input.Archived,
-            input.Archived, input.Revision + 1, feedUrl, FullTextFeedUrl: fullTextUrl);
-        var alert = ReadStoredGoogleAlert(account, transaction);
-        if (alert?.ControlsFeed == true && saved.FeedUrl != old?.FeedUrl)
-            throw new ArgumentException("此 RSS 地址由订阅同步管理，请刷新观察名单。");
-        if (saved.Archived && alert?.ControlsFeed != true) saved = saved with { FeedUrl = "" };
-        if (alert is { State: GoogleAlertState.External or GoogleAlertState.PendingCreate } && saved.FeedUrl != old?.FeedUrl)
-        {
-            DeleteGoogleAlert(account, transaction);
-            alert = null;
-        }
-        WriteAuthor(saved, old?.FeedUrl ?? "", transaction);
-        if (old is null) EnqueueBackfill(saved, transaction);
-        if (!string.Equals(old?.FullTextFeedUrl ?? "", saved.FullTextFeedUrl, StringComparison.Ordinal))
-            Execute("DELETE FROM full_text_coverage WHERE account=$account", transaction, ("$account", account));
-        ReconcileGoogleAlert(saved, alert, transaction);
-    }
-
-    private void WriteAuthor(Author saved, string previousFeedUrl, SqliteTransaction transaction)
-    {
+            input.Archived, input.Revision + 1);
         Execute("""
-            INSERT INTO authors VALUES($account,$body)
+            INSERT INTO authors(account,body) VALUES($account,$body)
             ON CONFLICT(account) DO UPDATE SET body=excluded.body
-            """, transaction, ("$account", saved.Account), ("$body", WatchProtocol.Encode(saved)));
-        if (!string.Equals(previousFeedUrl, saved.FeedUrl, StringComparison.Ordinal))
-        {
-            // 修改来源后清除旧验证器和覆盖状态，但保留已发现的历史线索。
-            var resetState = saved.FeedUrl.Length == 0 ? "NotConfigured" : "NeverChecked";
-            Execute("""
-                UPDATE lead_coverage
-                SET state=$state, observed=0, matches=-1, etag=NULL, last_modified=NULL
-                WHERE account=$account
-                """, transaction, ("$state", resetState), ("$account", saved.Account));
-        }
+            """, transaction, ("$account", account), ("$body", WatchProtocol.Encode(saved)));
+        if (old is null) EnqueueBackfill(saved, transaction);
     }
 
     private void SaveOpinion(Opinion? input, SqliteTransaction transaction)

@@ -3,14 +3,12 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <PlaywrightPlatform>win-x64</PlaywrightPlatform>
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../CRS.Plugins.XueqiuWatch.Core/CRS.Plugins.XueqiuWatch.Core.csproj" />
     <ProjectReference Include="../../../PluginHost/CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj" />
     <ProjectReference Include="../../../Worker/CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
-    <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="WPF-UI" />
     <Content Include="../plugin.json" Link="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

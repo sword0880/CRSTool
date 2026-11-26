@@ -8,11 +8,7 @@ public enum Stance { Pending, Bullish, Bearish, Neutral }
 public enum Attribution { Author, Mention, Repost }
 
 public sealed record Author(string Account, string Name, string Note = "", bool Active = true,
-    bool Archived = false, long Revision = 0, string FeedUrl = "", GoogleAlertState AlertState = GoogleAlertState.None,
-    string FullTextFeedUrl = "", DateTimeOffset? GoogleAlertVerifiedAt = null)
-{
-    public bool UsesGoogleAlertFeed => Uri.TryCreate(FeedUrl, UriKind.Absolute, out var feed) && WatchInput.IsGoogleAlertsFeed(feed);
-}
+    bool Archived = false, long Revision = 0);
 
 public sealed record Security(string Market, string Code, string Name, string Industry)
 {
@@ -60,8 +56,7 @@ public sealed record StockMentionPage(StockMention[] Rows, int Total)
     public AuthorMentionCount[]? AuthorCounts { get; init; }
 }
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
-    Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null,
-    PostBodyRequest? Body = null, string? ConnectedGoogleAccount = null, string? ExpectedGoogleAccount = null)
+    Opinion? Opinion = null, Guid ChangeId = default, PostBodyRequest? Body = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StockVisibilityChange? StockVisibility { get; init; }
@@ -79,20 +74,14 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StockVisibilityPage? StockVisibility { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public GoogleAlertSubscription? Alert { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RssProxy { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PostBodyInfo? Body { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? BodyBytes { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ConnectedGoogleAccount { get; init; }
 }
 
 public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSeen, string Title = "",
-    string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, string? FeedAuthor = null,
-    string FeedItemId = "", long PostBodyRevision = 0, PostBodySource BodySource = PostBodySource.Manual)
+    string Summary = "", string Content = "", DateTimeOffset? PublishedAt = null, long PostBodyRevision = 0,
+    PostBodySource BodySource = PostBodySource.Manual)
 {
     public string? OriginalPageState { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -100,18 +89,9 @@ public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSe
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? OriginalPageHttpStatus { get; init; }
 }
-public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
-    string? ETag = null, DateTimeOffset? LastModified = null, string? FullTextState = null,
-    int? FullTextCount = null)
-{
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public TimelineCoverage? Timeline { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool BackfillPending { get; init; }
-}
 public sealed record TimelineCoverage(string State, DateTimeOffset CheckedAt, int Matches, int Pages);
-public sealed record LeadPage(bool Configured, Author[] Authors, FeedCoverage[] Coverage, PostLead[] Rows, int Total,
-    int ConfiguredFeeds = 0, int UnconfiguredFeeds = 0)
+public sealed record AuthorCoverage(string Account, TimelineCoverage? Timeline, bool BackfillPending);
+public sealed record LeadPage(Author[] Authors, AuthorCoverage[] Coverage, PostLead[] Rows, int Total)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool TimelineSupported { get; init; }

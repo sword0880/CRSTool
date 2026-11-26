@@ -16,10 +16,40 @@
    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
    <RowDefinition Height="Auto"/><RowDefinition Height="*"/>
   </Grid.RowDefinitions>
-  <DockPanel LastChildFill="True" Margin="0,0,0,12">
+  <DockPanel LastChildFill="True" Margin="0,0,0,10">
    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-    <Button Click="ManageAuthors" Margin="0,0,7,0" Style="{StaticResource WatchIconButton}"
-            ToolTip="观察名单" AutomationProperties.Name="观察名单">
+    <Grid Width="214" Margin="0,0,8,0">
+     <TextBox x:Name="StockSearch" MaxLength="80" MinHeight="36" Padding="10,0,38,0"
+              VerticalContentAlignment="Center" KeyDown="SearchKeyDown" AutomationProperties.Name="股票名称或代码"/>
+     <TextBlock Text="股票名称或代码" Margin="11,0,36,0" VerticalAlignment="Center"
+                Foreground="{DynamicResource BrandTextHintBrush}" IsHitTestVisible="False">
+      <TextBlock.Style>
+       <Style TargetType="TextBlock">
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+         <DataTrigger Binding="{Binding Text, ElementName=StockSearch}" Value="">
+          <Setter Property="Visibility" Value="Visible"/>
+         </DataTrigger>
+        </Style.Triggers>
+       </Style>
+      </TextBlock.Style>
+     </TextBlock>
+     <Button Click="Search" Style="{StaticResource WatchIconButton}" Width="31" Height="29" MinWidth="0"
+             Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Right"
+             VerticalAlignment="Center" Margin="0,0,3,0" ToolTip="搜索股票" AutomationProperties.Name="搜索股票">
+      <ui:SymbolIcon Symbol="Search20" FontSize="17"/>
+     </Button>
+    </Grid>
+    <ComboBox x:Name="PeriodFilter" Width="100" MinHeight="36" Margin="0,0,8,0"
+              SelectionChanged="FilterChanged" AutomationProperties.Name="时间范围"/>
+    <ComboBox x:Name="AuthorFilter" Width="145" MinHeight="36" Margin="0,0,8,0"
+              SelectionChanged="FilterChanged" DisplayMemberPath="Name" AutomationProperties.Name="作者筛选"/>
+    <Button Click="RefreshClicked" Margin="0,0,8,0" Style="{StaticResource WatchIconButton}"
+            ToolTip="刷新" AutomationProperties.Name="刷新">
+     <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="18"/>
+    </Button>
+    <Button Click="ManageAuthors" Margin="0,0,8,0" Style="{StaticResource WatchIconButton}"
+            ToolTip="设置作者" AutomationProperties.Name="设置作者">
      <ui:SymbolIcon Symbol="Person24" FontSize="19"/>
     </Button>
     <Button x:Name="LeadsButton" Click="ShowLeads" Style="{StaticResource WatchIconButton}"
@@ -36,50 +66,10 @@
    </StackPanel>
    <TextBlock Text="雪球观点追踪" Style="{DynamicResource UiPageTitle}"/>
   </DockPanel>
-  <WrapPanel Grid.Row="1" Margin="0,0,0,10">
-   <ComboBox x:Name="PeriodFilter" Width="108" MinHeight="36" Margin="0,0,8,4" SelectionChanged="FilterChanged"
-             AutomationProperties.Name="时间范围"/>
-   <ComboBox x:Name="AuthorFilter" Width="145" MinHeight="36" Margin="0,0,8,4" SelectionChanged="FilterChanged"
-             DisplayMemberPath="Name" AutomationProperties.Name="作者筛选"/>
-   <Grid Width="214" Margin="0,0,7,4">
-    <TextBox x:Name="StockSearch" MaxLength="80" MinHeight="36" Padding="10,0,38,0"
-             VerticalContentAlignment="Center" KeyDown="SearchKeyDown" AutomationProperties.Name="股票名称或代码"/>
-    <TextBlock Text="股票名称或代码" Margin="11,0,36,0" VerticalAlignment="Center"
-               Foreground="{DynamicResource BrandTextHintBrush}" IsHitTestVisible="False">
-     <TextBlock.Style>
-      <Style TargetType="TextBlock">
-       <Setter Property="Visibility" Value="Collapsed"/>
-       <Style.Triggers>
-        <DataTrigger Binding="{Binding Text, ElementName=StockSearch}" Value="">
-         <Setter Property="Visibility" Value="Visible"/>
-        </DataTrigger>
-       </Style.Triggers>
-      </Style>
-     </TextBlock.Style>
-    </TextBlock>
-    <Button Click="Search" Style="{StaticResource WatchIconButton}" Width="31" Height="29" MinWidth="0"
-            Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Right"
-            VerticalAlignment="Center" Margin="0,0,3,0" ToolTip="搜索股票" AutomationProperties.Name="搜索股票">
-     <ui:SymbolIcon Symbol="Search20" FontSize="17"/>
-    </Button>
-   </Grid>
-   <Button Click="RefreshClicked" Margin="0,0,10,4" Style="{StaticResource WatchIconButton}"
-           ToolTip="刷新" AutomationProperties.Name="刷新">
-    <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="18"/>
-   </Button>
-   <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-    <TextBlock Text="明细视图" VerticalAlignment="Center" Margin="0,0,6,0" Style="{DynamicResource UiHintText}"/>
-    <ComboBox x:Name="DetailView" Width="155" MinHeight="36"
-             SelectionChanged="DetailViewChanged" SelectedValuePath="Tag" AutomationProperties.Name="明细视图">
-    <ComboBoxItem x:Name="StockMentionsView" Content="原帖提及" Tag="mentions"/>
-    <ComboBoxItem Content="最新多空" Tag="latest"/>
-    <ComboBoxItem Content="观点时间线" Tag="timeline"/>
-    <ComboBoxItem Content="中性 / 待确认" Tag="other"/>
-    <ComboBoxItem x:Name="PendingStocks" Content="待认领股票" Tag="pending"/>
-    <ComboBoxItem Content="待核实问题" Tag="questions"/>
-    </ComboBox>
-   </StackPanel>
-  </WrapPanel>
+  <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+   <TextBlock Text="明细视图" VerticalAlignment="Center" Margin="0,0,8,0" Style="{DynamicResource UiHintText}"/>
+   <TextBlock Text="原帖提及" VerticalAlignment="Center" Style="{DynamicResource UiHintText}"/>
+  </StackPanel>
   <Border Grid.Row="2" Style="{DynamicResource UiSurfaceCard}" Padding="11" Margin="0,0,0,8">
    <Grid>
     <TabControl x:Name="MarketTabs" Padding="0" BorderThickness="0" Background="Transparent" HorizontalContentAlignment="Stretch"
@@ -94,18 +84,16 @@
   <Border Grid.Row="4" Style="{DynamicResource UiSurfaceCard}" Padding="11">
    <Grid>
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <TextBlock x:Name="DetailTitle" Text="个股观点" Style="{DynamicResource UiSectionTitle}" Margin="0,0,0,7"/>
-    <Grid Grid.Row="1" Margin="0,0,0,6">
-     <WrapPanel x:Name="OpinionActions">
-      <Button Content="编辑选中观点" Click="EditOpinion" Margin="0,0,6,3"/>
-      <Button Content="原帖正文" Click="ShowPostBody" Margin="0,0,6,3"/>
-     </WrapPanel>
+    <TextBlock x:Name="DetailTitle" Text="个股原帖提及" Style="{DynamicResource UiSectionTitle}" Margin="0,0,0,7"/>
+    <StackPanel Grid.Row="1" Margin="0,0,0,6">
+     <Button x:Name="PostBodyButton" Content="原帖正文" Click="ShowPostBody" HorizontalAlignment="Left"
+             Margin="0,0,0,5" IsEnabled="False"/>
      <ScrollViewer x:Name="MentionAuthorSummary" Visibility="Collapsed" MaxHeight="78"
                    VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <TextBlock x:Name="MentionAuthorCounts" TextWrapping="Wrap" Style="{DynamicResource UiHintText}"
                  AutomationProperties.LiveSetting="Polite"/>
      </ScrollViewer>
-    </Grid>
+    </StackPanel>
     <DataGrid Grid.Row="2" x:Name="Details" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
               SelectionMode="Single" Style="{DynamicResource UiDenseDataGrid}">
      <DataGrid.Columns>

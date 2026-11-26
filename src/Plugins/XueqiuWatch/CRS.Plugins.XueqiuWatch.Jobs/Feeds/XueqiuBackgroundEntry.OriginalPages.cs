@@ -45,7 +45,7 @@ public sealed partial class XueqiuBackgroundEntry
                 if (result.State == "BodyUnavailable") incomplete++;
                 if (result.State == "Unavailable") unavailable++;
                 // 每条结果单独落库。后续请求限流、访问受限或连续连接失败时，已取得的结果仍可查询。
-                retry = result.RetryAfter;
+                retry = result.RetryAfter ?? (result.HttpStatus == 567 ? TimeSpan.FromHours(6) : null);
                 restricted = result.State == "AccessRestricted" ? result : null;
                 consecutiveFailures = result.State == "Unavailable" ? consecutiveFailures + 1 : 0;
                 if (retry is not null || restricted is not null || consecutiveFailures >= 3) break;

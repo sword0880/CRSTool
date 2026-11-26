@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text;
 using System.Text.Json;
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Plugins.XueqiuWatch.Jobs;
@@ -10,7 +8,6 @@ internal static class XueqiuTimelineChecks
 {
     private const string Primary = "1556808774";
     private const string ApiOnly = "1760673340";
-    private const string BackupUrl = "https://www.google.com/alerts/feeds/123456/234567";
 
     internal static async Task RunAsync()
     {
@@ -18,9 +15,8 @@ internal static class XueqiuTimelineChecks
         var token = deadline.Token;
         var directory = Path.Combine(Path.GetTempPath(), "CRS.XueqiuTimeline", Guid.NewGuid().ToString("N"));
         var context = new FixtureContext(directory);
-        var feed = new BackupFeed();
         var api = new TimelineFixture();
-        await using var session = new XueqiuBackgroundEntry().CreateSession(context, feed, _ => api);
+        await using var session = new XueqiuBackgroundEntry().CreateSession(context, _ => api);
         await session.StartAsync(token);
         async Task<WatchReply> Ask(WatchRequest request) => WatchProtocol.Decode<WatchReply>(
             await ((IBackgroundPrivateDataSession)session).AccessPrivateDataAsync(WatchProtocol.Encode(request), token));
@@ -35,36 +31,35 @@ internal static class XueqiuTimelineChecks
         }
 
         foreach (var author in (await Ask(new("authors"))).Authors!)
-            await Save(author with { Active = author.Account is Primary or ApiOnly,
-                FeedUrl = author.Account == Primary ? BackupUrl : author.FeedUrl });
+            await Save(author with { Active = author.Account is Primary or ApiOnly });
 
-        Check((await Run()).Status == "Succeeded" && feed.Calls == 0, "主源成功时跳过已配置的备用 RSS");
+        Check((await Run()).Status == "Succeeded", "直接通过雪球 API 读取观察名单作者");
         var first = await Leads(Primary);
         Check(first.Total == 2 && first.Rows.All(post => post.OriginalPageTimeVerified) && first.TimelineSupported &&
             first.Coverage.Single(c => c.Account == Primary).Timeline is { State: "Read", Pages: 2, Matches: 2 },
             "短页后继续翻页，置顶重复项去重，记录 API 的已核实时点");
-        Check((await Leads(ApiOnly)).Total == 1, "无 RSS 的启用作者可直接发现新帖");
+        Check((await Leads(ApiOnly)).Total == 1, "启用作者均可通过 API 发现新帖");
         var completed = Completed();
         Check(completed is not null, "已完成轮次持久化增量基准");
 
         api.Round = 2;
-        Check((await Run()).Status == "Succeeded" && feed.Calls == 1, "翻页失败时回退到对应作者的 RSS");
-        var fallback = await Leads(Primary);
-        var shared = fallback.Rows.Single(post => post.Url.EndsWith("/123", StringComparison.Ordinal));
-        Check(fallback.Total == 4 && shared.OriginalPageTimeVerified && shared.FeedItemId == "backup-123" &&
-            shared.Title == "雪球标题" && shared.PublishedAt == api.NewPostTime.ToOffset(TimeSpan.FromHours(8)),
-            "API 与 RSS 同一原帖合并，保留已核实时间，RSS 独有帖子仍可发现");
+        Check((await Run()).Status == "Succeeded", "API 分页失败时保留已读取的动态");
+        var partial = await Leads(Primary);
+        var newest = partial.Rows.Single(post => post.Url.EndsWith("/123", StringComparison.Ordinal));
+        Check(partial.Total == 3 && newest.OriginalPageTimeVerified &&
+            newest.Title == "雪球标题" && newest.PublishedAt == api.NewPostTime.ToOffset(TimeSpan.FromHours(8)),
+            "API 部分读取保留已取得的原帖，不依赖外部 RSS 补充");
         Check(fallback.Coverage.Single(c => c.Account == Primary).Timeline is { State: "Unavailable", Pages: 1 } &&
             Completed() == completed, "翻页失败保存先前页，增量基准在失败时保持");
 
         api.Round = 3;
-        Check((await Run()) is { Status: "RetryDeferred", RetryAfter: not null } && feed.Calls == 2,
-            "主源限流时先保存备用 RSS 结果，再进入退避");
+        Check((await Run()) is { Status: "RetryDeferred", RetryAfter: not null },
+            "雪球 API 限流后按服务端重试时间退避");
         var calls = api.Calls;
         await session.StopAsync(token);
         await session.StartAsync(token);
-        Check((await Run()).Status == "RetryDeferred" && api.Calls == calls && feed.Calls == 3 &&
-            (await Leads(Primary)).Total == 4, "重启后共享 API 退避仍生效，备用 RSS 可继续去重采集");
+        Check((await Run()).Status == "RetryDeferred" && api.Calls == calls &&
+            (await Leads(Primary)).Total == 3, "重启后遵守 API 退避并保留历史线索");
 
         using (var store = new WatchStore(directory, context.OpenDataKey()))
         {
@@ -241,7 +236,6 @@ internal static class XueqiuTimelineChecks
         var directory = Path.Combine(Path.GetTempPath(), "CRS.XueqiuBackfill", Guid.NewGuid().ToString("N"));
         var context = new FixtureContext(directory);
         var api = new BackfillFixture(account);
-        var feed = new BackupFeed();
         await using var session = new XueqiuBackgroundEntry().CreateSession(context, feed, _ => api);
         await session.StartAsync(token);
         async Task<WatchReply> Ask(WatchRequest request) => WatchProtocol.Decode<WatchReply>(
@@ -274,7 +268,7 @@ internal static class XueqiuTimelineChecks
         var second = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
         var completed = await Leads();
         Check(second.Status == "Succeeded" && api.Pages.SequenceEqual(new[] { 7, 8, 9, 10, 11 }) &&
-            completed.Total == 9 && completed.Rows.All(row => row.PostBodyRevision == 1) && feed.Calls == 0 &&
+            completed.Total == 9 && completed.Rows.All(row => row.PostBodyRevision == 1) &&
             completed.Rows.Any(row => row.PublishedAt == api.WindowEnd.AddDays(-WatchProtocol.NewAuthorHistoryDays)) &&
             !completed.Coverage.Single(row => row.Account == account).BackfillPending,
             "重启后通过锚点续页，正确处理页码变化，纳入第 30 天边界并排除更早的帖子");
@@ -351,24 +345,4 @@ internal static class XueqiuTimelineChecks
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class BackupFeed : HttpMessageHandler
-    {
-        internal int Calls { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            if (request.RequestUri?.AbsoluteUri != BackupUrl) throw new InvalidOperationException("意外的 RSS 地址。");
-            Calls++;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent($"""
-                    <rss version="2.0"><channel><title>备用</title>
-                    <item><guid>backup-123</guid><title>来源标题</title><link>https://xueqiu.com/{Primary}/123</link>
-                    <pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate></item>
-                    <item><guid>backup-124</guid><title>补充线索</title><link>https://xueqiu.com/{Primary}/124</link></item>
-                    </channel></rss>
-                    """, Encoding.UTF8, "application/rss+xml")
-            });
-        }
-    }
 }

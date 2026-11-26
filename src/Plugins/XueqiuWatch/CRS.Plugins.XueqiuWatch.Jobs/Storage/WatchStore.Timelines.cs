@@ -35,8 +35,7 @@ internal sealed partial class WatchStore
         {
             token.ThrowIfCancellationRequested();
             var url = WatchInput.SourceLink($"https://xueqiu.com/{account}/{post.Id}");
-            if (SaveLead(new(account, url, observed, post.Title, post.Summary, post.Content, post.Published),
-                fromTimeline: true, transaction))
+            if (SaveLead(new(account, url, observed, post.Title, post.Summary, post.Content, post.Published), transaction))
                 added++;
         }
         var delay = scan.RetryAfter ?? (scan.HttpStatus == 567 ? TimeSpan.FromHours(6) : (TimeSpan?)null);
