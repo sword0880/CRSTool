@@ -7,11 +7,6 @@
         "resolved": "2.6.2",
         "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
       },
-      "Microsoft.Bcl.AsyncInterfaces": {
-        "type": "Transitive",
-        "resolved": "6.0.0",
-        "contentHash": "UcSjPsst+DfAdJGVDsu346FX0ci0ah+lw3WRtn18NUwEqRt70HaOQ7lI72vy3+1LxtqI3T5GWwV39rQSrCzAeg=="
-      },
       "Microsoft.Extensions.Configuration": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -305,11 +300,6 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
-      "System.ComponentModel.Annotations": {
-        "type": "Transitive",
-        "resolved": "5.0.0",
-        "contentHash": "dMkqfy2el8A8/I76n2Hi1oBFEbG1SfxD2l5nhwXV3XjlnOmwxJlQbYpJH4W51odnU9sARCSAgv7S3CyAFMkpYg=="
-      },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
         "resolved": "8.0.0",
@@ -342,7 +332,6 @@
           "CRS.Plugins.XueqiuWatch.Core": "[1.0.0, )",
           "CRS.Worker.Abstractions": "[2.0.0, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.12, )",
-          "Microsoft.Playwright": "[1.58.0, )",
           "SQLitePCLRaw.bundle_e_sqlcipher": "[2.1.11, )"
         }
       },
@@ -443,16 +432,6 @@
           "Microsoft.Extensions.Hosting": "8.0.0",
           "Microsoft.Extensions.Logging.EventLog": "8.0.0",
           "System.ServiceProcess.ServiceController": "8.0.0"
-        }
-      },
-      "Microsoft.Playwright": {
-        "type": "CentralTransitive",
-        "requested": "[1.58.0, )",
-        "resolved": "1.58.0",
-        "contentHash": "LYLB00NUTzdY3NEN+fOQcxNuVALoGJMMWZYQINGBs4MfsKcTvr6WKoAmSsT5D4pPOOnN8uAyushEzoQ8qUEb0w==",
-        "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
-          "System.ComponentModel.Annotations": "5.0.0"
         }
       },
       "Quartz": {

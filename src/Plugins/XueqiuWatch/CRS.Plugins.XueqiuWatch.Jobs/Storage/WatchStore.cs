@@ -39,7 +39,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 12)
+            else if (application != ApplicationId || version is < 1 or > 15)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -52,6 +52,9 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 10) InitializeFullTextFeeds();
             if (version < 11) InitializeGoogleConnection();
             if (version < 12) InitializeOriginalPages();
+            if (version < 13) InitializeOriginalPageDetails();
+            if (version < 14) InitializeTimelines();
+            if (version < 15) InitializeBackfill();
         }
         catch
         {
@@ -97,11 +100,8 @@ internal sealed partial class WatchStore : IDisposable
             "rss-proxy" => new() { RssProxy = ReadRssProxy() },
             "post-body-info" => new() { Body = ReadPostBodyInfo(request.Body) },
             "post-body-read" => ReadPostBodyChunk(request.Body),
-            "post-body-begin" => BeginPostBody(request.Body),
-            "post-body-append" => AppendPostBody(request.Body),
-            "post-body-cancel" => CancelPostBody(request.Body),
             "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "alert-account-save"
-                or "alert-account-switch" or "alert-sync-verify" or "rss-proxy-save" or "post-body-commit" =>
+                or "alert-account-switch" or "alert-sync-verify" or "rss-proxy-save" =>
                 Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
@@ -128,12 +128,10 @@ internal sealed partial class WatchStore : IDisposable
             case "alert-account-switch": SwitchGoogleConnection(request.ConnectedGoogleAccount, request.ExpectedGoogleAccount, transaction); break;
             case "alert-sync-verify": VerifyGoogleAlert(request.Alert, transaction); break;
             case "rss-proxy-save": SaveRssProxy(request.RssProxy, transaction); break;
-            case "post-body-commit": CommitPostBody(request.Body, transaction); break;
         }
         Execute("INSERT INTO changes VALUES($id,$hash)", transaction, ("$id", id), ("$hash", hash));
         token.ThrowIfCancellationRequested();
         transaction.Commit();
-        if (request.Operation == "post-body-commit") CancelPostBody(request.Body);
         return new();
     }
 
@@ -166,6 +164,7 @@ internal sealed partial class WatchStore : IDisposable
             alert = null;
         }
         WriteAuthor(saved, old?.FeedUrl ?? "", transaction);
+        if (old is null) EnqueueBackfill(saved, transaction);
         if (!string.Equals(old?.FullTextFeedUrl ?? "", saved.FullTextFeedUrl, StringComparison.Ordinal))
             Execute("DELETE FROM full_text_coverage WHERE account=$account", transaction, ("$account", account));
         ReconcileGoogleAlert(saved, alert, transaction);

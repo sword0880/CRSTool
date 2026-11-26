@@ -43,16 +43,7 @@ public partial class WatchPage : UserControl
     {
         if (loaded) return;
         loaded = true;
-        await RunAsync(async () =>
-        {
-            await RefreshAsync();
-            var sync = await GoogleAlertsDesktopSync.RunAsync(client, lifetime);
-            if (sync is not null)
-            {
-                await RefreshAsync();
-                Status.Text = $"{sync} {Status.Text}";
-            }
-        });
+        await RunAsync(() => RefreshAsync());
     }
 
     private async void ShowLeads(object sender, RoutedEventArgs e)
@@ -164,7 +155,7 @@ public partial class WatchPage : UserControl
             $"{stockOffset + 1}–{stockOffset + overview.Stocks.Length} / {overview.StockCount} 只股票";
         var coverage = overview.Earliest is { } from && overview.Latest is { } to
             ? $"资料覆盖 {from:yyyy-MM-dd} 至 {to:yyyy-MM-dd} · 最近录入 {overview.LastRecorded:MM-dd HH:mm}"
-            : "当前范围内没有已录入的观点。可打开「发言线索」核对原帖后录入，或导入有权保存的文本。";
+            : "当前范围内暂无观点。可从「发言线索」核对并记录观点。";
         Status.Text = coverage;
         PendingStocks.Content = overview.Unmatched > 0 ? $"待认领股票（{overview.Unmatched}）" : "待认领股票";
         await RefreshDetailsAsync();
@@ -366,21 +357,19 @@ public partial class WatchPage : UserControl
         await RunAsync(RefreshAsync);
     }
 
-    private async void AddOpinion(object sender, RoutedEventArgs e) => await RunAsync(() => OpenEditorAsync(null));
-
     private async void EditOpinion(object sender, RoutedEventArgs e)
     {
         if (Details.SelectedItem is OpinionRow row) await RunAsync(() => OpenEditorAsync(row.Record));
         else Status.Text = "请先在明细表中选中一条观点。";
     }
 
-    private async Task OpenEditorAsync(Opinion? existing)
+    private async Task OpenEditorAsync(Opinion existing)
     {
         if (authors.Length == 0) throw new ArgumentException("请先在观察名单添加作者。");
         var directory = (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
-        var body = existing is not null && existing.Url.StartsWith($"https://xueqiu.com/{existing.Account}/", StringComparison.Ordinal)
+        var body = existing.Url.StartsWith($"https://xueqiu.com/{existing.Account}/", StringComparison.Ordinal)
             ? await client.ReadPostBodyAsync(new(existing.Account, existing.Url, existing.PostBodyRevision), lifetime) : null;
-        var dialog = new OpinionEditor(Window.GetWindow(this), authors, directory, existing, selected?.Security, client, lifetime,
+        var dialog = new OpinionEditor(Window.GetWindow(this), authors, directory, existing, client, lifetime,
             postBody: body);
         if (dialog.ShowDialog() == true)
         {
@@ -393,7 +382,7 @@ public partial class WatchPage : UserControl
     {
         if (Details.SelectedItem is not OpinionRow { HasLink: true } row)
             throw new ArgumentException("请先选择一条带雪球原帖链接的观点。");
-        await PostBodyEditor.OpenAsync(Window.GetWindow(this), client,
+        await PostBodyViewer.OpenAsync(Window.GetWindow(this), client,
             new(row.Record.Account, row.Record.Url, row.Record.PostBodyRevision), row.Record.PublishedAt, lifetime);
     });
 

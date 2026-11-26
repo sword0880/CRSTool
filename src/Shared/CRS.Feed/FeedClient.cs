@@ -145,9 +145,7 @@ public sealed class FeedClient : IDisposable
 
     private static TimeSpan GetRetryAfter(HttpResponseMessage response)
     {
-        var retry = response.Headers.RetryAfter?.Delta;
-        if (retry is null && response.Headers.RetryAfter?.Date is { } date)
-            retry = date - DateTimeOffset.UtcNow;
+        var retry = HttpRetryAfter.GetDelay(response.Headers.RetryAfter, DateTimeOffset.UtcNow);
         return retry is { } value && value > TimeSpan.FromSeconds(30)
             ? value
             : TimeSpan.FromSeconds(30);

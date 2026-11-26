@@ -20,7 +20,7 @@
 
 实际顺序：独占maintenance.lock → 持久Prepared → 禁用SCM自动启动 → 停止服务 → 独占owner.lock → 整棵数据快照及逐文件SHA256核验 → 同级目录暂存并复核包 → 原程序改名保留、候选移入固定活动目录 → Switched → 恢复延迟自动启动并启动候选 → Worker先核验原件/库/密钥备份哈希，再持久Starting/NewFactsPossible=true → 打开密钥/数据库和插件 → Healthy → 管理脚本验证应用健康并显式Committed。
 
-维护日志位于`maintenance/upgrade.json`，快照及清单位于`maintenance/<事务ID>/snapshot`和`snapshot.json`；包含数据库、WAL/SHM、来源原件、审核及配置文件，排除运行租约、维护租约和维护目录。所有内容留在原有私有ACL树内。旧程序位于固定程序目录同级的`.previous-<事务ID>`目录；失败候选以`.failed-<事务ID>`保留，脚本不递归删除任何代次。下一次维护归档已结束日志，禁止覆盖未解决事务。
+维护日志位于`maintenance/upgrade.json`，快照及清单位于`maintenance/<事务ID>/snapshot`和`snapshot.json`。快照包含数据库、WAL/SHM、来源原件、审核及配置文件，排除运行租约、维护租约和维护目录。所有内容留在原有私有 ACL 树内。升级确认成功后只保留最近一份经核对的旧程序 `.previous-<事务ID>`，更早的 Worker 程序备份会清理。数据快照和 `.failed-<事务ID>` 失败候选保留。下一次维护归档已结束日志，禁止覆盖未解决事务。
 
 **当前实现使用原数据目录执行候选迁移，不是候选数据代次副本。** 因此只要候选准备打开数据，就保守视为可能有新事实，不提供候选启动后的旧库自动恢复。任务/插件自身迁移仍须事务化；日志中的Healthy也不代表已经Commit。备份的逐文件验证证明复制完整，不代表备份已完成跨机解密或全部业务Schema独立验收。
 

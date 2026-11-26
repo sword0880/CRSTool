@@ -28,8 +28,7 @@ internal sealed partial class WatchStore
         foreach (var scan in scans)
         {
             token.ThrowIfCancellationRequested();
-            if (!active.TryGetValue(scan.Account, out var author) || author.FeedUrl.Length == 0 ||
-                author.FullTextFeedUrl != scan.Url)
+            if (!active.TryGetValue(scan.Account, out var author) || author.FullTextFeedUrl != scan.Url)
                 continue;
 
             var state = CoverageState(scan.Result.Status);
@@ -76,7 +75,7 @@ internal sealed partial class WatchStore
         byte[] bytes;
         try { bytes = PostBody.Encode(body); }
         catch (ArgumentException) { return false; }
-        // 网页与供稿共用入库规则，只为已发现且尚无任何正文版本的原帖写入。
+        // API 与供稿共用入库规则，只为已发现且尚无任何正文版本的原帖写入。
         if (Scalar("""
             SELECT 1 FROM post_leads p WHERE p.account=$account AND p.url=$url
             AND NOT EXISTS(SELECT 1 FROM post_bodies b WHERE b.account=p.account AND b.url=p.url)

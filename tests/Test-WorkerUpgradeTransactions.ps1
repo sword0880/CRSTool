@@ -244,6 +244,10 @@ try{
 
     # 正常路径也必须提交同一候选，并留下可复核备份。
     $success=New-Fixture 'successful-upgrade'
+    $legacyBackup=Get-WorkerChild $success.Root ('program.previous-'+[Guid]::NewGuid().ToString('N'))
+    New-TestPackage $legacyBackup '1.9.0'
+    $unrelated=Get-WorkerChild $success.Root 'program.previous-not-a-worker-generation'
+    New-Item -ItemType Directory -Path $unrelated | Out-Null
     $service=New-MockService $success.Data
     Invoke-WorkerUpgradeTransaction -Data $success.Data -Program $success.Program -Source $success.Candidate -Service $service -Development
     $record=Read-WorkerUpgrade $success.Data
@@ -253,6 +257,17 @@ try{
     Test-WorkerSnapshot $success.Data $record
     Check ([IO.File]::ReadAllText((Join-Path $success.Data 'scheduler-config.db')).Contains('candidate-fact')) '正常升级保留候选事实'
     Check ((Get-FileHash (Join-Path $success.Data 'service-key.dpapi') -Algorithm SHA256).Hash -eq $success.KeyHash) '正常升级不替换机器密钥'
+    Check (!(Test-Path -LiteralPath $legacyBackup) -and (Test-Path -LiteralPath $unrelated)) '成功升级仅轮换经验证的旧程序备份'
+    $firstPrevious=(Get-WorkerUpgradePaths $success.Program $record).Previous
+    $next=Get-WorkerChild $success.Root 'next-candidate'
+    New-TestPackage $next '2.0.2' @('2.0.1')
+    Invoke-WorkerUpgradeTransaction -Data $success.Data -Program $success.Program -Source $next -Service $service -Development
+    $latest=Read-WorkerUpgrade $success.Data
+    $previous=(Get-WorkerUpgradePaths $success.Program $latest).Previous
+    Check ($latest.Stage -eq 'Committed' -and (Test-Path -LiteralPath $previous) -and !(Test-Path -LiteralPath $firstPrevious)) '第二次升级仅保留紧邻的上一个程序版本'
+    Test-WorkerSnapshot $success.Data $record
+    Test-WorkerSnapshot $success.Data $latest
+    Check (Test-Path -LiteralPath (Get-WorkerChild $success.Data ('maintenance/'+$record.Id+'.json'))) '旧程序轮换后两次数据快照与维护日志仍可核验'
     $script:completed=$true
     Write-Output "Worker升级事务隔离测试通过：$script:passed 项；仅使用合成包与唯一临时目录，未创建或控制 Windows 服务。"
 }finally{

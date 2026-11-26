@@ -13,4 +13,4 @@ Assert-WorkerServiceRegistration $name $program -RequireAutomatic
 Suspend-WorkerAutomaticCleanup $program $name
 $service=New-WorkerServiceOperations $name $program
 Invoke-WorkerUpgradeTransaction -Data $data -Program $program -Source $PackageDirectory -Service $service -Publisher $TrustedPublisherThumbprint -Development:$AllowDevelopmentPackage -StartupTimeoutSeconds $StartupTimeoutSeconds -AllowInstalledDevelopmentPackage:$AllowInstalledDevelopmentPackage
-Write-Output 'Worker升级已确认；旧程序与一致性快照保留，候选打开数据后禁止旧库覆盖回退。'
+Write-Output 'Worker升级已确认；保留最近一份旧程序及一致性快照，候选打开数据后禁止旧库覆盖回退。'

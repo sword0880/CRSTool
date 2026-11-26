@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using CRS.Plugins.XueqiuWatch.Core;
 using Microsoft.Data.Sqlite;
 
@@ -6,8 +5,6 @@ namespace CRS.Plugins.XueqiuWatch.Jobs;
 
 internal sealed partial class WatchStore
 {
-    private readonly Dictionary<Guid, BodyUpload> bodyUploads = [];
-
     private void InitializePostBodies()
     {
         using var transaction = db.BeginTransaction();
@@ -64,71 +61,6 @@ internal sealed partial class WatchStore
         return new() { BodyBytes = bytes };
     }
 
-    private WatchReply BeginPostBody(PostBodyRequest? request)
-    {
-        var post = ParsePost(request);
-        if (request!.UploadId == Guid.Empty || request.Length is < 1 or > PostBody.MaximumBytes ||
-            request.Sha256 is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) ||
-            request.PublishedAt is not { } published || published.Year < 2005 ||
-            published > WatchProtocol.BeijingNow.AddMinutes(5))
-            throw new ArgumentException("正文长度、指纹或原帖时间无效。");
-
-        RequireAuthor(post.Account);
-        var now = DateTimeOffset.UtcNow;
-        foreach (var id in bodyUploads.Where(x => x.Value.ExpiresAt <= now).Select(x => x.Key).ToArray())
-            bodyUploads.Remove(id);
-
-        var header = new UploadHeader(post, request.Revision, published.ToUnixTimeSeconds(), request.Length, hash.ToUpperInvariant());
-        if (bodyUploads.TryGetValue(request.UploadId, out var existing))
-        {
-            if (existing.Header != header) throw new ArgumentException("正文上传参数已改变，请重新保存。");
-            return new();
-        }
-        if (bodyUploads.Count >= 4) throw new ArgumentException("正在接收其他正文，请等候或取消后再试。");
-        var latest = ReadPostBodyInfo(post, 0, null);
-        if ((latest?.Revision ?? 0) != header.ExpectedRevision)
-            throw new ArgumentException("正文已有更新，请重新打开后保存。");
-        bodyUploads.Add(request.UploadId, new(header, now.AddMinutes(10)));
-        return new();
-    }
-
-    private WatchReply AppendPostBody(PostBodyRequest? request)
-    {
-        var upload = RequireBodyUpload(request);
-        if (request!.Bytes is not { Length: > 0 and <= PostBody.UploadChunkBytes } bytes ||
-            request.Offset < 0 || request.Offset > upload.Received || bytes.Length > upload.Buffer.Length - request.Offset)
-            throw new ArgumentException("正文分块或位置无效。");
-        if (request.Offset < upload.Received)
-        {
-            if (bytes.Length > upload.Received - request.Offset ||
-                !upload.Buffer.AsSpan(request.Offset, bytes.Length).SequenceEqual(bytes))
-                throw new ArgumentException("重复分块的内容不同，请重新上传。");
-            return new();
-        }
-        bytes.CopyTo(upload.Buffer, request.Offset);
-        upload.Received += bytes.Length;
-        return new();
-    }
-
-    private void CommitPostBody(PostBodyRequest? request, SqliteTransaction transaction)
-    {
-        var upload = RequireBodyUpload(request);
-        var header = upload.Header;
-        if (upload.Received != header.Length ||
-            Convert.ToHexString(SHA256.HashData(upload.Buffer)) != header.Sha256)
-            throw new ArgumentException("正文上传未完成或校验失败。");
-        PostBody.Decode(upload.Buffer);
-
-        var latest = ReadPostBodyInfo(header.Post, 0, transaction);
-        if (latest is { Source: PostBodySource.Manual } && latest.Sha256 == header.Sha256 &&
-            latest.PublishedAt.ToUnixTimeSeconds() == header.Published)
-            return;
-        var revision = latest?.Revision ?? 0;
-        if (revision != header.ExpectedRevision) throw new ArgumentException("正文已有更新，请重新打开后保存。");
-        WritePostBody(header.Post, revision + 1, header.Published, header.Sha256, upload.Buffer,
-            PostBodySource.Manual, transaction);
-    }
-
     private void WritePostBody(PostKey post, long revision, long published, string hash, byte[] body,
         PostBodySource origin, SqliteTransaction transaction) => Execute("""
             INSERT INTO post_bodies(account,url,revision,published,sha256,body,origin)
@@ -136,27 +68,4 @@ internal sealed partial class WatchStore
             """, transaction, ("$account", post.Account), ("$url", post.Url), ("$revision", revision),
             ("$published", published), ("$sha256", hash), ("$body", body), ("$origin", (int)origin));
 
-    private WatchReply CancelPostBody(PostBodyRequest? request)
-    {
-        if (request is not null) bodyUploads.Remove(request.UploadId);
-        return new();
-    }
-
-    private BodyUpload RequireBodyUpload(PostBodyRequest? request)
-    {
-        if (request is null || !bodyUploads.TryGetValue(request.UploadId, out var upload) ||
-            upload.ExpiresAt <= DateTimeOffset.UtcNow)
-            throw new ArgumentException("正文上传已失效，请重新保存。");
-        return upload;
-    }
-
-    private sealed record UploadHeader(PostKey Post, long ExpectedRevision, long Published, int Length, string Sha256);
-
-    private sealed class BodyUpload(UploadHeader header, DateTimeOffset expiresAt)
-    {
-        internal UploadHeader Header { get; } = header;
-        internal DateTimeOffset ExpiresAt { get; } = expiresAt;
-        internal byte[] Buffer { get; } = new byte[header.Length];
-        internal int Received { get; set; }
-    }
 }

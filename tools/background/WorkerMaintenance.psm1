@@ -210,6 +210,38 @@ function Get-WorkerUpgradePaths([string]$Program, [hashtable]$Record) {
     return @{ Active=(Get-WorkerChild $parent $leaf); Stage=(Get-WorkerChild $parent ($leaf+'.stage-'+$id));
         Previous=(Get-WorkerChild $parent ($leaf+'.previous-'+$id)); Failed=(Get-WorkerChild $parent ($leaf+'.failed-'+$id)) }
 }
+function Remove-WorkerOldProgramBackups([string]$Program, [hashtable]$Record) {
+    if ($Record.Stage -ne 'Committed') { throw '只能清理已确认升级的旧程序备份。' }
+    $paths = Get-WorkerUpgradePaths $Program $Record
+    if ((Get-FileHash -LiteralPath (Get-WorkerChild $paths.Active 'release.json')).Hash -ne $Record.CandidateReleaseHash -or
+        (Get-FileHash -LiteralPath (Get-WorkerChild $paths.Previous 'release.json')).Hash -ne $Record.PreviousReleaseHash) {
+        throw '活动程序或应保留的程序备份未通过核对。'
+    }
+    $parent = [IO.Path]::GetDirectoryName($paths.Active)
+    $pattern = '^' + [Regex]::Escape([IO.Path]::GetFileName($paths.Active)) + '\.previous-[0-9a-f]{32}$'
+    foreach ($directory in Get-ChildItem -LiteralPath $parent -Directory -Force) {
+        if ($directory.Name -notmatch $pattern -or $directory.FullName -eq $paths.Previous) { continue }
+        try {
+            $target = Get-WorkerChild $parent $directory.Name
+            if ($target -ne $directory.FullName -or [IO.Path]::GetDirectoryName($target) -ne $parent -or
+                $target -in @($paths.Active,$paths.Previous)) { throw '待清理目录超出程序备份范围。' }
+            $manifest = Get-WorkerChild $target 'release.json'
+            if ((Get-Item -LiteralPath $manifest).Length -gt 2MB) { throw '旧程序清单超限。' }
+            $release = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json -AsHashtable
+            $entry = 'CRS.Worker.Service.exe'
+            if ($release.format -ne 1 -or $release.product -ne 'CRS.Worker.Service' -or
+                $release.files -isnot [Collections.IDictionary] -or -not $release.files.Contains($entry) -or
+                (Get-FileHash -LiteralPath (Get-WorkerChild $target $entry)).Hash -ne $release.files[$entry]) {
+                throw '无法确认待清理目录是 Worker 的旧程序备份。'
+            }
+            # 删除前遍历同一已解析的目录，发现后代重解析点即保留整个备份。
+            $null = @(Get-WorkerFiles $target)
+            Remove-Item -LiteralPath $target -Recurse -Force
+        } catch {
+            Write-Warning "旧程序备份 $($directory.Name) 未清理：$($_.Exception.Message)"
+        }
+    }
+}
 function Switch-WorkerPackage([string]$Data, [string]$Program, [hashtable]$Record, [scriptblock]$Checkpoint=$null) {
     $paths = Get-WorkerUpgradePaths $Program $Record
     if ($Record.Stage -ne 'Staged') { throw '候选尚未完成备份与暂存。' }

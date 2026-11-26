@@ -1,6 +1,6 @@
 using System.Globalization;
-using System.Net;
-using System.Text.RegularExpressions;
+using System.Text.Json;
+using CRS.Common.Text;
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Feed;
 using Microsoft.Data.Sqlite;
@@ -147,34 +147,9 @@ internal sealed partial class WatchStore
 
             foreach (var (url, item) in links)
             {
-                var title = PlainText(item.Title, 240);
-                var summary = PlainText(item.Summary, 1200);
-                var body = PlainText(item.Content, 3000);
-                var feedAuthor = PlainText(item.Author, 80);
-                var itemId = PlainText(item.Id, 300);
-                var published = item.PublishedAt?.ToUnixTimeSeconds();
-                var existed = Scalar("SELECT 1 FROM post_leads WHERE account=$account AND url=$url",
-                    transaction, ("$account", scan.Account), ("$url", url)) is not null;
-                using var insert = Command("""
-                    INSERT INTO post_leads(account,url,first_seen,title,summary,content,published,feed_author,feed_item_id)
-                    VALUES($account,$url,$observed,$title,$summary,$content,$published,$author,$itemId)
-                    ON CONFLICT(account,url) DO UPDATE SET
-                        title=CASE WHEN excluded.title<>'' THEN excluded.title ELSE post_leads.title END,
-                        summary=CASE WHEN length(excluded.summary)>length(post_leads.summary)
-                            THEN excluded.summary ELSE post_leads.summary END,
-                        content=CASE WHEN length(excluded.content)>length(post_leads.content)
-                            THEN excluded.content ELSE post_leads.content END,
-                        published=COALESCE(excluded.published,post_leads.published),
-                        feed_author=COALESCE(NULLIF(excluded.feed_author,''),post_leads.feed_author),
-                        feed_item_id=CASE WHEN excluded.feed_item_id<>'' THEN excluded.feed_item_id ELSE post_leads.feed_item_id END
-                    """, transaction,
-                    ("$account", scan.Account), ("$url", url), ("$observed", at),
-                    ("$title", title), ("$summary", summary), ("$content", body),
-                    ("$published", (object?)published ?? DBNull.Value),
-                    ("$author", feedAuthor.Length > 0 ? (object)feedAuthor : DBNull.Value),
-                    ("$itemId", itemId));
-                insert.ExecuteNonQuery();
-                if (!existed) added++;
+                if (SaveLead(new(scan.Account, url, observed, item.Title ?? "", item.Summary ?? "", item.Content ?? "",
+                    item.PublishedAt, item.Author, item.Id ?? ""), fromTimeline: false, transaction))
+                    added++;
             }
 
             var previous = ReadLeadCoverage(scan.Account, transaction);
@@ -199,16 +174,49 @@ internal sealed partial class WatchStore
         return (scanned, added, failed);
     }
 
+    private bool SaveLead(PostLead lead, bool fromTimeline, SqliteTransaction transaction)
+    {
+        var account = lead.Account;
+        var url = lead.Url;
+        var title = PlainText(lead.Title, 240);
+        var summary = PlainText(lead.Summary, 1200);
+        var content = PlainText(lead.Content, 3000);
+        var published = WatchInput.PostTime(lead.PublishedAt, lead.FirstSeen)?.ToUnixTimeSeconds();
+        var existed = Scalar("SELECT 1 FROM post_leads WHERE account=$account AND url=$url",
+            transaction, ("$account", account), ("$url", url)) is not null;
+        Execute("""
+            INSERT INTO post_leads(account,url,first_seen,title,summary,content,published,feed_author,feed_item_id,timeline_published)
+            VALUES($account,$url,$observed,$title,$summary,$content,$published,NULLIF($author,''),$itemId,$timeline)
+            ON CONFLICT(account,url) DO UPDATE SET
+                title=CASE WHEN excluded.title<>'' AND (excluded.timeline_published IS NOT NULL OR
+                    post_leads.timeline_published IS NULL OR post_leads.title='') THEN excluded.title ELSE post_leads.title END,
+                summary=CASE WHEN length(excluded.summary)>length(post_leads.summary)
+                    THEN excluded.summary ELSE post_leads.summary END,
+                content=CASE WHEN length(excluded.content)>length(post_leads.content)
+                    THEN excluded.content ELSE post_leads.content END,
+                published=COALESCE(excluded.published,post_leads.published),
+                feed_author=COALESCE(excluded.feed_author,post_leads.feed_author),
+                feed_item_id=CASE WHEN excluded.feed_item_id<>'' THEN excluded.feed_item_id ELSE post_leads.feed_item_id END,
+                timeline_published=COALESCE(excluded.timeline_published,post_leads.timeline_published)
+            """, transaction, ("$account", account), ("$url", url), ("$observed", lead.FirstSeen.ToUnixTimeSeconds()),
+            ("$title", title), ("$summary", summary), ("$content", content),
+            ("$published", !fromTimeline ? (object?)published ?? DBNull.Value : DBNull.Value),
+            ("$author", PlainText(lead.FeedAuthor, 80)), ("$itemId", PlainText(lead.FeedItemId, 300)),
+            ("$timeline", fromTimeline ? (object?)published ?? DBNull.Value : DBNull.Value));
+        return !existed;
+    }
+
     private static string PlainText(string? value, int maximum)
     {
-        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
-        var withoutActiveContent = Regex.Replace(value, @"<(script|style)\b[^>]*>.*?</\1>", " ",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        var withoutTags = Regex.Replace(withoutActiveContent, "<[^>]+>", " ",
-            RegexOptions.CultureInvariant);
-        var decoded = WebUtility.HtmlDecode(withoutTags);
-        var normalized = Regex.Replace(decoded, @"\s+", " ").Trim();
-        return normalized.Length <= maximum ? normalized : normalized[..maximum];
+        var text = HtmlText.ToPlainText(value);
+        return LimitText(text, maximum);
+    }
+
+    private static string LimitText(string text, int maximum)
+    {
+        if (text.Length <= maximum) return text;
+        if (maximum > 0 && char.IsHighSurrogate(text[maximum - 1])) maximum--;
+        return text[..maximum];
     }
 
     private static string CoverageState(FeedFetchStatus status) => status switch
@@ -252,26 +260,34 @@ internal sealed partial class WatchStore
         const string condition = "WHERE $a='' OR p.account=$a";
         var total = Convert.ToInt32(Scalar("SELECT count(*) FROM post_leads p " + condition, null, ("$a", filter.Account!)));
         var query = """
-            SELECT p.account,p.url,p.first_seen,p.title,p.summary,p.content,COALESCE(b.published,p.published),
-                p.feed_author,p.feed_item_id,COALESCE(b.revision,0),COALESCE(b.origin,0),s.state
+            SELECT p.account,p.url,p.first_seen,p.title,p.summary,p.content,
+                COALESCE(b.published,s.published,p.timeline_published,p.published),
+                p.feed_author,p.feed_item_id,COALESCE(b.revision,0),COALESCE(b.origin,0),s.state,
+                COALESCE(s.published,p.timeline_published),s.http_status
             FROM post_leads p
             LEFT JOIN original_page_checks s ON s.account=p.account AND s.url=p.url
             LEFT JOIN post_bodies b ON b.account=p.account AND b.url=p.url AND b.revision=(
                 SELECT MAX(latest.revision) FROM post_bodies latest WHERE latest.account=p.account AND latest.url=p.url
             )
             """ + " " + condition +
-            " ORDER BY p.first_seen DESC,p.account,p.url LIMIT $limit OFFSET $offset";
+            " ORDER BY p.first_seen DESC,COALESCE(p.timeline_published,p.published) DESC,p.account,p.url LIMIT $limit OFFSET $offset";
         using var leads = Command(query, null, ("$a", filter.Account!),
             ("$limit", WatchProtocol.LeadsPerPage), ("$offset", filter.Offset));
         using var rows = leads.ExecuteReader();
         var items = new List<PostLead>();
+        var now = WatchProtocol.BeijingNow;
         while (rows.Read())
         {
-            DateTimeOffset? published = rows.IsDBNull(6) ? null : BeijingTime(rows.GetInt64(6));
+            var published = rows.IsDBNull(6) ? null : WatchInput.PostTime(BeijingTime(rows.GetInt64(6)), now);
             items.Add(new(rows.GetString(0), rows.GetString(1), BeijingTime(rows.GetInt64(2)),
                 rows.GetString(3), rows.GetString(4), rows.GetString(5), published,
                 rows.IsDBNull(7) ? null : rows.GetString(7), rows.GetString(8), rows.GetInt64(9),
-                (PostBodySource)rows.GetInt32(10)) { OriginalPageState = rows.IsDBNull(11) ? null : rows.GetString(11) });
+                (PostBodySource)rows.GetInt32(10))
+            {
+                OriginalPageState = rows.IsDBNull(11) ? null : rows.GetString(11),
+                OriginalPageTimeVerified = !rows.IsDBNull(12),
+                OriginalPageHttpStatus = rows.IsDBNull(13) ? null : rows.GetInt32(13)
+            });
         }
         rows.Close();
 
@@ -279,17 +295,52 @@ internal sealed partial class WatchStore
         var configured = active.Count(author => !string.IsNullOrWhiteSpace(author.FeedUrl));
         var unconfigured = active.Length - configured;
         var fullTextCoverage = ReadFullTextCoverage();
+        var timelineCoverage = ReadTimelineCoverage();
+        var backfill = PendingBackfillAccounts();
         var coverageRows = authors.Select(author =>
         {
             var row = coverage.GetValueOrDefault(author.Account) ?? new FeedCoverage(author.Account,
                 author.Active && !author.Archived && string.IsNullOrWhiteSpace(author.FeedUrl)
                     ? "NotConfigured" : "NeverChecked", null, null);
+            row = row with { Timeline = timelineCoverage.GetValueOrDefault(author.Account),
+                BackfillPending = backfill.Contains(author.Account) };
             if (author.FullTextFeedUrl.Length == 0) return row;
             return fullTextCoverage.TryGetValue(author.Account, out var fullText)
                 ? row with { FullTextState = fullText.State, FullTextCount = fullText.Added }
                 : row with { FullTextState = "NeverChecked" };
         }).ToArray();
-        return new(configured > 0, authors, coverageRows, items.ToArray(), total, configured, unconfigured);
+        return FitLeadPreview(new(configured > 0, authors, coverageRows, items.ToArray(), total, configured, unconfigured)
+            { TimelineSupported = true, BackfillSupported = true });
+    }
+
+    private static LeadPage FitLeadPreview(LeadPage page)
+    {
+        // 线索 JSON 在 Runner 和桌面管道中又作为字符串转义，预留各自响应信封的空间。
+        if (Fits(page)) return page;
+        var compact = Preview(page, 420);
+        if (Fits(compact)) return compact;
+        compact = Preview(page, 160);
+        if (Fits(compact)) return compact;
+        // 大观察名单的完整配置仍由 authors 请求提供，线索页保留筛选和状态所需字段。
+        compact = compact with
+        {
+            Authors = compact.Authors.Select(author => author with { Note = "", FeedUrl = "", FullTextFeedUrl = "" }).ToArray(),
+            Coverage = compact.Coverage.Select(coverage => coverage with { ETag = null }).ToArray(),
+            Rows = compact.Rows.Select(post => post with { FeedAuthor = null, FeedItemId = "" }).ToArray()
+        };
+        return Fits(compact) ? compact : Preview(compact, 0);
+
+        static bool Fits(LeadPage result) => JsonEncodedText.Encode(WatchProtocol.Encode(new WatchReply { Leads = result }))
+            .EncodedUtf8Bytes.Length <= 120 * 1024;
+
+        static LeadPage Preview(LeadPage result, int limit) => result with
+        {
+            Rows = result.Rows.Select(post => post with
+            {
+                Summary = LimitText(post.Summary, limit),
+                Content = LimitText(post.Content, limit)
+            }).ToArray()
+        };
     }
 
     private static DateTimeOffset BeijingTime(long seconds) =>

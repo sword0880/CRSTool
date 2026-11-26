@@ -6,7 +6,7 @@ public sealed record PostBodyRequest(string Account = "", string Url = "", long 
     Guid UploadId = default, int Offset = 0, int Length = 0, string? Sha256 = null,
     byte[]? Bytes = null, DateTimeOffset? PublishedAt = null);
 
-public enum PostBodySource { Manual, AuthorizedFeed, OriginalPage }
+public enum PostBodySource { Manual, AuthorizedFeed, OriginalPage, OriginalApi }
 
 public sealed record PostBodyInfo(long Revision, int Length, string Sha256, DateTimeOffset PublishedAt,
     PostBodySource Source = PostBodySource.Manual);
@@ -14,7 +14,6 @@ public sealed record PostBodyInfo(long Revision, int Length, string Sha256, Date
 public static class PostBody
 {
     public const int MaximumBytes = 256 * 1024;
-    public const int UploadChunkBytes = 2500;
     public const int ReadChunkBytes = 24 * 1024;
     private static readonly UTF8Encoding Utf8 = new(false, true);
 
@@ -23,6 +22,7 @@ public static class PostBody
         {
             PostBodySource.AuthorizedFeed => "获授权来源",
             PostBodySource.OriginalPage => "雪球原帖网页",
+            PostBodySource.OriginalApi => "雪球原帖 API",
             _ => "手工补录"
         };
 

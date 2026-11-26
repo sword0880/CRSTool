@@ -60,6 +60,11 @@ internal static class XueqiuRssChecks
             Check(stockHints.Any(item => item.Key == mobile.Key) &&
                 directionHints.Contains("看好") && directionHints.Contains("观望"),
                 "本地规则可从 RSS 文章文字识别股票候选和多空措辞");
+            const string tags = "$贵州茅台(SH600519)$、$腾讯控股（00700）$、$中国移动(600941.SH)$、$Shopify(SHOP)$";
+            var tagged = WatchInput.Candidates(tags, []);
+            Check(tagged.Select(item => item.Key).SequenceEqual(["沪市:600519", "港股:00700", "沪市:600941", "美股:SHOP"]) &&
+                WatchInput.DisplayStockTags(tags) == "贵州茅台（SH600519）、腾讯控股（00700）、中国移动（600941.SH）、Shopify（SHOP）",
+                "股票标记在展示中保留名称和代码，在提取时识别交易所前缀、后缀及美股");
             Check(WatchInput.AlertSourceLink(
                     "https://www.google.com/url?rct=j&sa=t&url=https%3A%2F%2Fxueqiu.com%2F9650668145%2F111&ct=ga",
                     "9650668145") == "https://xueqiu.com/9650668145/111",
@@ -132,11 +137,14 @@ internal static class XueqiuRssChecks
             await VerifyRssProxyAsync(Ask, Restart, Run, token);
             await VerifyNeutralOpinionAsync(Ask);
             var bodyUrl = "https://xueqiu.com/9650668145/111";
-            await XueqiuPostBodyChecks.RunAsync(Ask, "9650668145", bodyUrl, Restart);
+            XueqiuPostBodyChecks.SeedHistory(root, key, "9650668145", bodyUrl);
+            await Restart();
+            await XueqiuPostBodyChecks.RunAsync(Ask, "9650668145", bodyUrl, hasHistory: true);
             Check((await Ask(new("leads"))).Leads!.Rows.Single(x => x.Url == bodyUrl).PostBodyRevision == 2,
-                "线索中的全文状态随手工补录刷新");
+                "已有手工正文的最新版仍可从线索读取");
             await VerifyFullTextFeedAsync(Ask, Run, transport);
             await VerifyOriginalPagesAsync(Path.Combine(root, "original-pages"), key, token);
+            await VerifyOriginalPageBlockAsync(Path.Combine(root, "original-page-block"), key, token);
         }
         finally { CryptographicOperations.ZeroMemory(key); }
     }
@@ -146,32 +154,59 @@ internal static class XueqiuRssChecks
         const string account = "9650668145";
         var reader = new SampleOriginalPages();
         await using var session = new XueqiuBackgroundEntry().CreateSession(new Context(root, key),
-            new FeedTransport { FullTextEnabled = true }, (_, _) => Task.FromResult<IOriginalPageReader>(reader));
+            new FeedTransport { FullTextEnabled = true }, _ => reader);
         await session.StartAsync(token);
         async Task<WatchReply> Ask(WatchRequest request) => WatchProtocol.Decode<WatchReply>(
             await ((IBackgroundPrivateDataSession)session).AccessPrivateDataAsync(WatchProtocol.Encode(request), token));
         var author = (await Ask(new("authors"))).Authors!.Single(item => item.Account == account);
         var save = await Ask(new("author-save", Author: author with { FeedUrl = FeedUrl }, ChangeId: Guid.NewGuid()));
-        Check(save.Error is null, "保存静态原帖采集样本作者");
+        Check(save.Error is null, "保存原帖 API 采集样本作者");
         var result = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
         var posts = (await Ask(new("leads"))).Leads!.Rows;
         var complete = posts.Single(item => item.Url.EndsWith("/111", StringComparison.Ordinal));
         var partial = posts.Single(item => item.Url.EndsWith("/441", StringComparison.Ordinal));
         var restricted = posts.Single(item => item.Url.EndsWith("/442", StringComparison.Ordinal));
         var bytes = (await Ask(new("post-body-read", Body: new(account, complete.Url, 1)))).BodyBytes;
-        Check(result is { Status: "RetryDeferred" } && complete.BodySource == PostBodySource.OriginalPage &&
+        Check(result is { Status: "RetryDeferred" } && complete.BodySource == PostBodySource.OriginalApi &&
             complete.PostBodyRevision == 1 && complete.Summary.Contains("中国移动") &&
             bytes is not null && PostBody.Decode(bytes) == "第一段。\n第二段。",
             "Google Alerts 摘要与原帖全文分别保存，保留原帖换行和来源");
-        Check(partial is { OriginalPageState: "BodyUnavailable", PostBodyRevision: 0 } &&
-            restricted is { OriginalPageState: "RateLimited", PostBodyRevision: 0 } && reader.Calls == 3,
-            "不完整的原帖和限流页面不会标为全文，第三方链接未打开");
+        Check(partial is { OriginalPageState: "BodyUnavailable", PostBodyRevision: 0,
+                OriginalPageTimeVerified: true, PublishedAt: not null } &&
+            restricted is { OriginalPageState: "RateLimited", PostBodyRevision: 0, OriginalPageHttpStatus: 429,
+                OriginalPageTimeVerified: false, PublishedAt: null } && reader.Calls == 3,
+            "截断仍保留已核实的原帖时间，限流保留 HTTP 状态，过滤 RSS 的 1970 占位时间");
         Check(reader.ShortestInterval >= TimeSpan.FromMilliseconds(900), "逐条打开原帖，核对随机等待的最短间隔");
-        _ = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
-        Check(reader.Calls == 3, "Google Alerts 304 时不重复读取已完成或尚在等待的原帖");
+        await session.StopAsync(token);
+        await session.StartAsync(token);
+        var deferred = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
+        Check(deferred is { Status: "RetryDeferred", RetryAfter: not null } && reader.Calls == 3,
+            "Worker 重启后仍遵守 API 限流期限，RSS 可继续读取");
     }
 
-    private sealed class SampleOriginalPages : IOriginalPageReader
+    private static async Task VerifyOriginalPageBlockAsync(string root, byte[] key, CancellationToken token)
+    {
+        const string account = "9650668145";
+        var reader = new SampleOriginalPages(accessBlocked: true);
+        await using var session = new XueqiuBackgroundEntry().CreateSession(new Context(root, key),
+            new FeedTransport { FullTextEnabled = true }, _ => reader);
+        await session.StartAsync(token);
+        async Task<WatchReply> Ask(WatchRequest request) => WatchProtocol.Decode<WatchReply>(
+            await ((IBackgroundPrivateDataSession)session).AccessPrivateDataAsync(WatchProtocol.Encode(request), token));
+        var author = (await Ask(new("authors"))).Authors!.Single(item => item.Account == account);
+        await Ask(new("author-save", Author: author with { FeedUrl = FeedUrl }, ChangeId: Guid.NewGuid()));
+        var first = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
+        await session.StopAsync(token);
+        await session.StartAsync(token);
+        var second = await session.ExecuteAsync(WatchProtocol.LeadJobId, token);
+        var leads = (await Ask(new("leads"))).Leads!;
+        Check(first.Status == "Succeeded" && second.Status == "Succeeded" && reader.Calls == 1 &&
+            leads.Coverage.Single(c => c.Account == account).State == "NotModified" &&
+            leads.Rows.Count(p => p.OriginalPageState == "AccessRestricted" && p.OriginalPageHttpStatus == 567) == 1,
+            "HTTP 567 暂停后续原帖请求但继续读取 RSS，只标记实际被拦截的原帖");
+    }
+
+    private sealed class SampleOriginalPages(bool accessBlocked = false) : IOriginalPageReader
     {
         private long? lastOpened;
         internal int Calls { get; private set; }
@@ -184,12 +219,13 @@ internal static class XueqiuRssChecks
                 ShortestInterval = TimeSpan.FromTicks(Math.Min(ShortestInterval.Ticks, Stopwatch.GetElapsedTime(last, now).Ticks));
             lastOpened = now;
             Calls++;
+            if (accessBlocked) return Task.FromResult(new OriginalPageRead("AccessRestricted", HttpStatus: 567));
             return Task.FromResult(post.Url.Split('/')[^1] switch
             {
                 "111" => new OriginalPageRead("FullText", "第一段。\n第二段。", WatchProtocol.BeijingNow.AddHours(-1)),
-                "441" => new OriginalPageRead("BodyUnavailable"),
-                "442" => new OriginalPageRead("RateLimited", RetryAfter: TimeSpan.FromMinutes(3)),
-                _ => throw new InvalidOperationException("意外的原帖浏览请求")
+                "441" => new OriginalPageRead("BodyUnavailable", Published: WatchProtocol.BeijingNow.AddHours(-2)),
+                "442" => new OriginalPageRead("RateLimited", RetryAfter: TimeSpan.FromMinutes(3), HttpStatus: 429),
+                _ => throw new InvalidOperationException("意外的原帖 API 请求")
             });
         }
 
@@ -450,7 +486,7 @@ internal static class XueqiuRssChecks
         db.Open();
         using var clearSubscriptionSchema = db.CreateCommand();
         clearSubscriptionSchema.CommandText =
-            "DROP TABLE google_alerts; DROP TABLE rss_proxy; DROP TABLE post_bodies; DROP TABLE full_text_coverage; DROP TABLE google_alert_connection; DROP TABLE original_page_checks";
+            "DROP TABLE google_alerts; DROP TABLE rss_proxy; DROP TABLE post_bodies; DROP TABLE full_text_coverage; DROP TABLE google_alert_connection; DROP TABLE original_page_checks; DROP TABLE author_timeline; DROP TABLE author_backfill";
         clearSubscriptionSchema.ExecuteNonQuery();
         using var update = db.CreateCommand();
         var oldAuthor = WatchProtocol.InitialAuthors.Single(x => x.Account == "8632046745") with { Name = "逹人知命" };
@@ -541,7 +577,7 @@ internal static class XueqiuRssChecks
                   """;
             if (FullTextEnabled) body = body.Replace("</feed>", """
                 <entry><id>441</id><link href="https://xueqiu.com/9650668145/441"/><summary>搜索片段</summary></entry>
-                <entry><id>442</id><link href="https://xueqiu.com/9650668145/442"/><summary>第二条搜索片段</summary></entry>
+                <entry><id>442</id><link href="https://xueqiu.com/9650668145/442"/><published>1970-01-01T00:00:00Z</published><summary>第二条搜索片段</summary></entry>
                 </feed>
                 """, StringComparison.Ordinal);
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };

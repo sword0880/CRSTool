@@ -58,17 +58,35 @@ public sealed record PostLead(string Account, string Url, DateTimeOffset FirstSe
     string FeedItemId = "", long PostBodyRevision = 0, PostBodySource BodySource = PostBodySource.Manual)
 {
     public string? OriginalPageState { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool OriginalPageTimeVerified { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? OriginalPageHttpStatus { get; init; }
 }
 public sealed record FeedCoverage(string Account, string State, DateTimeOffset? CheckedAt, int? Matches,
     string? ETag = null, DateTimeOffset? LastModified = null, string? FullTextState = null,
-    int? FullTextCount = null);
+    int? FullTextCount = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TimelineCoverage? Timeline { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool BackfillPending { get; init; }
+}
+public sealed record TimelineCoverage(string State, DateTimeOffset CheckedAt, int Matches, int Pages);
 public sealed record LeadPage(bool Configured, Author[] Authors, FeedCoverage[] Coverage, PostLead[] Rows, int Total,
-    int ConfiguredFeeds = 0, int UnconfiguredFeeds = 0);
+    int ConfiguredFeeds = 0, int UnconfiguredFeeds = 0)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TimelineSupported { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool BackfillSupported { get; init; }
+}
 
 public static class WatchProtocol
 {
     public const string PluginId = "crs.xueqiu-watch";
     public const string LeadJobId = "discover-post-leads";
+    public const int NewAuthorHistoryDays = 30;
     public const int LeadsPerPage = 25;
     public const int MaximumPayload = 4096;
     public const int StocksPerPage = 40;

@@ -1,10 +1,7 @@
 using System.Globalization;
-using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using CRS.Plugins.XueqiuWatch.Core;
-using Microsoft.Win32;
 
 namespace CRS.Plugins.XueqiuWatch.Wpf;
 
@@ -15,6 +12,7 @@ internal sealed class OpinionEditor : WatchEditor
     private readonly Security[] directory;
     private readonly Opinion? original;
     private readonly PostBodyDocument? postBody;
+    private readonly string leadTitle;
     private readonly PostLead? lead;
     private readonly Guid id;
     private readonly ComboBox author = new() { DisplayMemberPath = nameof(Author.Name) };
@@ -26,7 +24,7 @@ internal sealed class OpinionEditor : WatchEditor
     private readonly ComboBox stance = new();
     private readonly ComboBox attribution = new();
     private readonly TextBox content = Multiline(72, 700);
-    private readonly TextBox evidence = Multiline(82, 32768);
+    private readonly TextBox evidence = Multiline(82, 700);
     private readonly TextBox source = new() { MaxLength = 250 };
     private readonly TextBox question = new() { MaxLength = 180 };
     private readonly TextBox finding = new() { MaxLength = 180 };
@@ -35,13 +33,14 @@ internal sealed class OpinionEditor : WatchEditor
     internal Opinion? SavedOpinion { get; private set; }
 
     public OpinionEditor(Window? owner, Author[] authors, Security[] directory, Opinion? original,
-        Security? selectedStock, WorkerWatchClient client, CancellationToken lifetime, PostLead? lead = null,
+        WorkerWatchClient client, CancellationToken lifetime, PostLead? lead = null,
         PostBodyDocument? postBody = null)
         : base(owner, original is null ? "录入雪球观点" : "编辑雪球观点", 690)
     {
         this.original = original;
         this.lead = lead;
         this.postBody = postBody;
+        leadTitle = lead?.Title ?? "";
         this.directory = directory;
         this.client = client;
         this.lifetime = lifetime;
@@ -52,11 +51,12 @@ internal sealed class OpinionEditor : WatchEditor
         author.SelectedItem = usableAuthors.FirstOrDefault(x => x.Account == selectedAccount);
         if (selectedAccount is null && usableAuthors.Length > 0) author.SelectedIndex = 0;
         // 首次发现时间不能作为原帖发布时间。
-        var knownTime = original?.PublishedAt ?? postBody?.Info.PublishedAt ?? lead?.PublishedAt ??
+        var knownTime = original?.PublishedAt ?? postBody?.Info.PublishedAt ??
+            WatchInput.PostTime(lead?.PublishedAt, WatchProtocol.BeijingNow) ??
             (lead is null ? WatchProtocol.BeijingNow : null);
         time.Text = knownTime?.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "";
         market.ItemsSource = WatchProtocol.Markets;
-        SetStock(original?.Security ?? (original is null ? selectedStock : null));
+        SetStock(original?.Security);
         stance.ItemsSource = new[] { "待确认", "看多", "看空", "中性" };
         stance.SelectedIndex = (int)(original?.Stance ?? Stance.Pending);
         attribution.ItemsSource = new[] { "作者本人发言", "顺带提及", "转发或转述" };
@@ -95,12 +95,11 @@ internal sealed class OpinionEditor : WatchEditor
             Field($"原帖全文（{PostBody.SourceLabel(postBody.Info.Source)}）", bodyText);
         }
         Field("观点、理由与适用条件", content);
-        Field("证据摘录或自有研究笔记（保存上限 700 字符）", evidence);
-        var import = new WrapPanel { Margin = new(0, 5, 0, 1) };
-        import.Children.Add(AsyncAction("导入 UTF-8 文本", () => WithFeedbackAsync(ImportAsync, lifetime)));
-        import.Children.Add(Action("识别股票候选", Detect));
+        Field("证据摘录（最多 700 字符）", evidence);
+        var actions = new WrapPanel { Margin = new(0, 5, 0, 1) };
+        actions.Children.Add(Action("识别股票候选", Detect));
         if (bodyText is not null)
-            import.Children.Add(Action("使用原文选中段落", () =>
+            actions.Children.Add(Action("使用原文选中段落", () =>
             {
                 var selected = bodyText.SelectedText.Trim();
                 if (selected.Length is < 1 or > 700)
@@ -110,11 +109,7 @@ internal sealed class OpinionEditor : WatchEditor
                 }
                 evidence.Text = selected;
             }));
-        import.Children.Add(Action("保留所选摘录", () =>
-        {
-            if (!string.IsNullOrWhiteSpace(evidence.SelectedText)) evidence.Text = evidence.SelectedText;
-        }));
-        Fields.Children.Add(import);
+        Fields.Children.Add(actions);
         inputStatus.SetResourceReference(TextBlock.ForegroundProperty, "BrandTextSecondaryBrush");
         Fields.Children.Add(inputStatus);
         Field("候选股票（选择后核对市场和代码）", candidates);
@@ -131,7 +126,7 @@ internal sealed class OpinionEditor : WatchEditor
         {
             Detect();
             inputStatus.Text += postBody is null
-                ? " 已带入 RSS 片段，请核对原帖。"
+                ? " 已带入线索片段，请核对原帖。"
                 : " 已加载原帖全文，请核对每只股票对应的段落和作者立场。";
         }
     }
@@ -167,27 +162,12 @@ internal sealed class OpinionEditor : WatchEditor
     private void Detect()
     {
         var text = postBody?.Text ?? evidence.Text + "\n" + content.Text;
-        var matches = WatchInput.Candidates(text, directory);
+        var matches = WatchInput.Candidates($"{leadTitle}\n{text}", directory);
         candidates.ItemsSource = matches.Select(x => new Candidate(x, $"{x.Name} · {x.Market} {x.Code}")).ToArray();
         inputStatus.Text = matches.Count > 0 ? $"识别到 {matches.Count} 个候选，请核对后选择。" :
             "没有明确候选。可手工填写市场、代码和名称，或先保存为待确认。";
         var phrases = WatchInput.DirectionPhrases(text);
         if (phrases.Length != 0) inputStatus.Text += $" 发现措辞「{string.Join("、", phrases)}」，请结合上下文确认方向。";
-    }
-
-    private async Task ImportAsync()
-    {
-        var picker = new OpenFileDialog { Filter = "UTF-8 文本 (*.txt)|*.txt", CheckFileExists = true };
-        if (picker.ShowDialog(this) != true) return;
-        await using var file = new FileStream(picker.FileName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        if (file.Length is < 1 or > 32768) throw new ArgumentException("请选择 1 字节至 32 KiB 的 UTF-8 文本。");
-        var bytes = new byte[checked((int)file.Length)];
-        await file.ReadExactlyAsync(bytes, lifetime);
-        try { evidence.Text = new UTF8Encoding(false, true).GetString(bytes).TrimStart('\uFEFF'); }
-        catch (DecoderFallbackException) { throw new ArgumentException("文本不是有效的 UTF-8 文件。"); }
-        Detect();
-        if (evidence.Text.Length > 700)
-            inputStatus.Text += " 保存前，请选取需要留存的证据并点击「保留所选摘录」。";
     }
 
     private Task SaveAsync() => WithFeedbackAsync(async () =>

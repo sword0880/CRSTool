@@ -44,6 +44,12 @@ function Wait-WorkerHealthy([hashtable]$Service,[int]$MigrationSeconds=0,[Valida
     }while([DateTime]::UtcNow -lt $deadline)
     throw '应用健康检查未就绪。'
 }
+function Complete-WorkerUpgrade([string]$Data,[string]$Program,[hashtable]$Record) {
+    Set-WorkerUpgradeStage $Data $Record 'Committed'
+    # 清理受同一个维护锁保护。已有健康版本的轮换失败只报告警告。
+    try { Remove-WorkerOldProgramBackups $Program $Record }
+    catch { Write-Warning "Worker 已确认，旧程序备份清理未完成：$($_.Exception.Message)" }
+}
 function Stop-WorkerForRepair([string]$Data,[hashtable]$Service){
     & $Service.Disable
     & $Service.Stop
@@ -110,7 +116,7 @@ function Invoke-WorkerUpgradeTransaction {
         $current=Read-WorkerUpgrade $Data
         if($current.Id -ne $record.Id -or $current.Stage -ne 'Healthy'){throw '候选维护代次未就绪。'}
         if($Checkpoint){$null=& $Checkpoint 'CandidateHealthy'}
-        Set-WorkerUpgradeStage $Data $current 'Committed'
+        Complete-WorkerUpgrade $Data $Program $current
     }catch{
         if($lease){$lease.Dispose();$lease=$null}
         if($prepared){Stop-WorkerForRepair $Data $Service}
@@ -166,7 +172,7 @@ function Invoke-WorkerRecoveryTransaction {
         $current=Read-WorkerUpgrade $Data
         $expectedStage=if($Action -eq 'RetryCandidate'){'Healthy'}elseif($Action -eq 'RestorePrevious'){'RolledBack'}else{$record.Stage}
         if($current.Id -ne $record.Id -or $current.Stage -ne $expectedStage){throw '恢复后维护代次不一致。'}
-        if($Action -eq 'RetryCandidate'){Set-WorkerUpgradeStage $Data $current 'Committed'}
+        if($Action -eq 'RetryCandidate'){Complete-WorkerUpgrade $Data $Program $current}
     }catch{
         if($lease){$lease.Dispose();$lease=$null}
         if($quiescing){Stop-WorkerForRepair $Data $Service}

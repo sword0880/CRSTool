@@ -10,8 +10,7 @@
   <DockPanel LastChildFill="True" Margin="0,0,0,12">
    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
     <Button Content="观察名单" Click="ManageAuthors" Margin="0,0,8,0"/>
-    <Button x:Name="LeadsButton" Content="发言线索" Click="ShowLeads" Margin="0,0,8,0"/>
-    <Button Content="录入 / 导入资料" Click="AddOpinion"/>
+    <Button x:Name="LeadsButton" Content="发言线索" Click="ShowLeads"/>
    </StackPanel>
    <TextBlock Text="雪球观点追踪" Style="{DynamicResource UiPageTitle}"/>
   </DockPanel>

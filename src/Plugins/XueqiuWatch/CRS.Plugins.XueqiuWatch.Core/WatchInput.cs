@@ -173,12 +173,20 @@ public static partial class WatchInput
     public static string[] DirectionPhrases(string text) =>
         OpinionTerms().Matches(text).Select(x => x.Value).Distinct(StringComparer.Ordinal).Take(6).ToArray();
 
+    /// <summary>仅在展示时去掉雪球股票标记边界，保留名称和完整代码。</summary>
+    public static string DisplayStockTags(string text) => TaggedCode().Replace(text, match =>
+        match.Groups["name"] is { Success: true } name && name.Value.Trim().Length > 0
+            ? $"{name.Value.Trim()}（{match.Groups["symbol"].Value}）" : match.Value);
+
+    public static DateTimeOffset? PostTime(DateTimeOffset? value, DateTimeOffset now) =>
+        value is { Year: >= 2005 } time && time <= now.AddMinutes(5) ? time : null;
+
     [GeneratedRegex("并非看多|并非看空|不是看多|不是看空|不再看多|不再看空|不看好|看多|看空|看好|观望|等季报确认", RegexOptions.CultureInvariant)]
     private static partial Regex OpinionTerms();
 
     [GeneratedRegex(@"^[A-Z][A-Z0-9]{0,6}(?:[.-][A-Z0-9]{1,3})?$", RegexOptions.CultureInvariant)]
     private static partial Regex UsCode();
 
-    [GeneratedRegex(@"(?:\$(?<name>[^$\r\n()]{0,50})\((?:(?<market>SH|SZ|BJ|HK|US)(?<code>[A-Z0-9.-]+)|(?<code>[0-9]{5}|[A-Z][A-Z0-9.-]{0,11}))\)\$|(?<![A-Z0-9])(?<market>SH|SZ|BJ|HK)[-:]?(?<code>[0-9]{4,6})(?![0-9])|(?<![A-Z0-9])(?<market>US)[:-](?<code>[A-Z][A-Z0-9.-]{0,11})(?![A-Z0-9]))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?:\$(?<name>[^$\r\n]{0,50}?)[(（][ \t]*(?<symbol>(?:(?<market>SH|SZ|BJ|HK)[-:]?(?<code>[0-9]{4,6})|(?<code>[0-9]{4,6})\.(?<market>SH|SZ|BJ|HK)|(?<market>US)[:-]?(?<code>[A-Z][A-Z0-9.-]{0,11})|(?<code>[0-9]{5,6}|[A-Z][A-Z0-9.-]{0,11})))[ \t]*[)）]\$|(?<![A-Z0-9])(?<market>SH|SZ|BJ|HK)[-:]?(?<code>[0-9]{4,6})(?![0-9])|(?<![A-Z0-9])(?<market>US)[:-](?<code>[A-Z][A-Z0-9.-]{0,11})(?![A-Z0-9]))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TaggedCode();
 }

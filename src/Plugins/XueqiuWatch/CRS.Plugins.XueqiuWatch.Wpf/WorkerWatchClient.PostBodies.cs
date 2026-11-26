@@ -1,8 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
-using System.Text.Json;
 using CRS.Plugins.XueqiuWatch.Core;
-using CRS.Worker.Ipc;
 
 namespace CRS.Plugins.XueqiuWatch.Wpf;
 
@@ -29,37 +27,6 @@ internal sealed partial class WorkerWatchClient
             throw new InvalidDataException("正文读取校验失败。");
         return new(info, PostBody.Decode(bytes));
     }
-
-    internal async Task SavePostBodyAsync(PostBodyRequest post, string text, DateTimeOffset published, CancellationToken token)
-    {
-        var bytes = PostBody.Encode(text);
-        var transfer = new PostBodyRequest(UploadId: Guid.NewGuid());
-        var header = post with
-        {
-            UploadId = transfer.UploadId, Length = bytes.Length, PublishedAt = published,
-            Sha256 = Convert.ToHexString(SHA256.HashData(bytes))
-        };
-        try
-        {
-            await AskAsync(new("post-body-begin", Body: header), token);
-            for (var offset = 0; offset < bytes.Length; offset += PostBody.UploadChunkBytes)
-            {
-                var length = Math.Min(PostBody.UploadChunkBytes, bytes.Length - offset);
-                var chunk = transfer with { Offset = offset, Bytes = bytes.AsSpan(offset, length).ToArray() };
-                await AskAsync(new("post-body-append", Body: chunk), token);
-            }
-            await AskAsync(new("post-body-commit", ChangeId: Guid.NewGuid(), Body: transfer), token);
-        }
-        catch
-        {
-            using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            try { await AskAsync(new("post-body-cancel", Body: transfer), cancel.Token); }
-            catch (Exception error) when (error is IOException or ArgumentException or JsonException or
-                BackgroundServiceException or OperationCanceledException) { /* 未提交正文只保留在 Worker 内存中，过期后回收。 */ }
-            throw;
-        }
-    }
-
 }
 
 internal sealed record PostBodyDocument(PostBodyInfo Info, string Text);
