@@ -45,9 +45,9 @@ jobs:
       - name: Verify annual exchange-rate SQLCipher migration and history immutability
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --annual-exchange-rates
-      - name: Verify CRS.Feed and per-author Xueqiu RSS
+      - name: Verify shared CRS.Feed engine
         shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --xueqiu-rss
+        run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --feed-engine
       - name: Verify synthetic ServiceKey recovery envelope rejection matrix
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Background -c Release --no-build -- --service-key-recovery
