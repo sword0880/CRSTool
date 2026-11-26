@@ -39,7 +39,7 @@ internal sealed partial class WatchStore : IDisposable
                 Initialize();
                 version = 1;
             }
-            else if (application != ApplicationId || version is < 1 or > 16)
+            else if (application != ApplicationId || version is < 1 or > 17)
                 throw new InvalidDataException("观点库存储格式不兼容。");
             if (version == 1) InitializeLeads();
             if (version < 3) InitializeLeadScope();
@@ -56,6 +56,7 @@ internal sealed partial class WatchStore : IDisposable
             if (version < 14) InitializeTimelines();
             if (version < 15) InitializeBackfill();
             if (version < 16) InitializeStockMentions();
+            if (version < 17) InitializeHiddenStocks();
         }
         catch
         {
@@ -96,6 +97,8 @@ internal sealed partial class WatchStore : IDisposable
             "overview" => new(Overview: Overview(ValidateFilter(request.Filter), token)),
             "detail" => new(Detail: Details(ValidateFilter(request.Filter), token)),
             "mentions" => new() { Mentions = StockMentions(ValidateFilter(request.Filter)) },
+            "hidden-stocks" => new() { HiddenStocks = ReadHiddenStocks(ValidateFilter(request.Filter).Offset) },
+            "stock-visibility" => new() { StockVisibility = ReadStockVisibility(ValidateFilter(request.Filter), token) },
             "leads" => new() { Leads = ReadLeads(ValidateFilter(request.Filter)) },
             "alert-subscription" => new() { Alert = ReadGoogleAlert(RequireAuthor(request.Filter?.Account)) },
             "alert-account" => new() { ConnectedGoogleAccount = ReadGoogleConnection() },
@@ -103,7 +106,7 @@ internal sealed partial class WatchStore : IDisposable
             "post-body-info" => new() { Body = ReadPostBodyInfo(request.Body) },
             "post-body-read" => ReadPostBodyChunk(request.Body),
             "author-save" or "opinion-save" or "alert-sync-begin" or "alert-sync-complete" or "alert-account-save"
-                or "alert-account-switch" or "alert-sync-verify" or "rss-proxy-save" =>
+                or "alert-account-switch" or "alert-sync-verify" or "rss-proxy-save" or "stock-visibility-save" =>
                 Save(request, payload, token),
             _ => throw new ArgumentException("未知的观点追踪操作。")
         };
@@ -124,6 +127,7 @@ internal sealed partial class WatchStore : IDisposable
         {
             case "author-save": SaveAuthor(request.Author, transaction); break;
             case "opinion-save": SaveOpinion(request.Opinion, transaction); break;
+            case "stock-visibility-save": SaveStockVisibility(request.StockVisibility, transaction); break;
             case "alert-sync-begin": BeginGoogleAlert(request.Alert, transaction); break;
             case "alert-sync-complete": CompleteGoogleAlert(request.Alert, transaction); break;
             case "alert-account-save": SaveGoogleConnection(request.ConnectedGoogleAccount, transaction); break;

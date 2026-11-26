@@ -54,13 +54,16 @@ internal sealed partial class WatchStore
         return days == 0 ? 0 : new DateTimeOffset(now.Date.AddDays(1 - days), now.Offset).ToUnixTimeSeconds();
     }
 
+    private static string MarketCondition(string column) =>
+        $"($market='' OR {column}=$market OR ($market='{WatchProtocol.AShareMarket}' AND {column} IN ('沪市','深市','北交所')))";
+
     private Stored[] Load(ReviewFilter filter, CancellationToken token)
     {
-        using var command = Command("""
+        using var command = Command($"""
             SELECT o.body,o.source,s.body FROM opinions o LEFT JOIN securities s
                 ON s.market=o.market AND s.code=o.code
             WHERE o.posted >= $since AND ($account='' OR o.account=$account)
-                AND ($market='' OR o.market=$market) AND ($code='' OR o.code=$code)
+                AND {MarketCondition("o.market")} AND ($code='' OR o.code=$code)
             ORDER BY o.posted DESC,o.rowid DESC
             """, null, ("$since", FilterSince(filter.Days)), ("$account", filter.Account ?? ""),
             ("$market", filter.Security?.Market ?? filter.Market ?? ""), ("$code", filter.Security?.Code ?? ""));
@@ -99,19 +102,26 @@ internal sealed partial class WatchStore
             stocks[mention.Security.Key] = stocks.TryGetValue(mention.Security.Key, out var stock)
                 ? stock with { Mentions = mention.Mentions, LatestAt = stock.LatestAt > mention.LatestAt ? stock.LatestAt : mention.LatestAt }
                 : mention;
-        var industries = stocks.Values.Select(x => x.Security.Industry).Where(x => x.Length > 0).Distinct().Order().Take(80).ToArray();
-        var filtered = stocks.Values.Where(x => (filter.Industry is "" or null || x.Security.Industry ==
+        var hidden = HiddenStockKeys();
+        var visible = stocks.Values.Where(stock => !hidden.Contains(stock.Security.Key)).ToArray();
+        var industries = visible.Select(x => x.Security.Industry).Where(x => x.Length > 0).Distinct().Order().Take(80).ToArray();
+        var filtered = visible.Where(x => (filter.Industry is "" or null || x.Security.Industry ==
                 (filter.Industry == "未分类" ? "" : filter.Industry))
             && Matches(x.Security, filter.Search ?? ""))
-            .OrderBy(x => x.Security.Industry.Length == 0)
-            .ThenBy(x => x.Security.Industry).ThenByDescending(x => x.Discussions).ThenByDescending(x => x.Mentions)
+            .OrderBy(x => !filter.SortByActivity && x.Security.Industry.Length == 0)
+            .ThenBy(x => filter.SortByActivity ? "" : x.Security.Industry)
+            .ThenByDescending(x => x.Discussions).ThenByDescending(x => x.Mentions)
             .ThenByDescending(x => x.LatestAt)
             .ThenBy(x => x.Security.Key).ToArray();
         return new(filtered.Skip(filter.Offset).Take(WatchProtocol.StocksPerPage).ToArray(), industries, filtered.Length,
             rows.Count(x => x.Opinion.Security is null),
             rows.Length == 0 ? null : rows.Min(x => x.Opinion.PublishedAt),
             rows.Length == 0 ? null : rows.Max(x => x.Opinion.PublishedAt),
-            rows.Length == 0 ? null : rows.Max(x => x.Opinion.RecordedAt));
+            rows.Length == 0 ? null : rows.Max(x => x.Opinion.RecordedAt))
+        {
+            HiddenStockCount = hidden.Count,
+            StockVisibilitySupported = true
+        };
     }
 
     private OpinionDetail Details(ReviewFilter filter, CancellationToken token)

@@ -499,7 +499,7 @@ internal static class XueqiuRssChecks
         update.Parameters.AddWithValue("$account", oldAuthor.Account);
         update.ExecuteNonQuery();
         using var ddl = db.CreateCommand();
-        ddl.CommandText = "DROP TABLE lead_stocks; DROP TABLE post_leads; DROP TABLE lead_coverage; PRAGMA user_version=1";
+        ddl.CommandText = "DROP TABLE hidden_stocks; DROP TABLE lead_stocks; DROP TABLE post_leads; DROP TABLE lead_coverage; PRAGMA user_version=1";
         ddl.ExecuteNonQuery();
     }
 

@@ -19,7 +19,7 @@ internal sealed class OpinionEditor : WatchEditor
     private readonly ComboBox market = new();
     private readonly TextBox code = new() { MaxLength = 12 };
     private readonly TextBox name = new() { MaxLength = 50 };
-    private readonly TextBox industry = new() { MaxLength = 30 };
+    private Security? stockFromForm;
     private readonly ComboBox stance = new();
     private readonly ComboBox attribution = new();
     private readonly TextBox content = Multiline(72, 700);
@@ -85,12 +85,11 @@ internal sealed class OpinionEditor : WatchEditor
 
         Add(left, "作者", author);
         Add(right, "发言时间（北京时间）", time);
-        Add(left, "市场", market);
-        Add(right, "证券代码", code);
         Add(left, "股票名称", name);
-        Add(right, "行业（选填）", industry);
-        Add(left, "多空方向", stance);
+        Add(right, "市场", market);
+        Add(left, "证券代码", code);
         Add(right, "发言归属", attribution);
+        Add(left, "多空方向", stance);
         TextBox? bodyText = null;
         if (postBody is not null)
         {
@@ -139,10 +138,10 @@ internal sealed class OpinionEditor : WatchEditor
 
     private void SetStock(Security? security)
     {
+        stockFromForm = security;
         market.SelectedItem = security?.Market;
         code.Text = security?.Code ?? "";
         name.Text = security?.Name ?? "";
-        industry.Text = security?.Industry ?? "";
     }
 
     private static string LeadText(string? value, int maximum)
@@ -187,7 +186,11 @@ internal sealed class OpinionEditor : WatchEditor
         if (attribution.SelectedIndex < 0) throw new ArgumentException("请核对原帖并选择发言归属。");
         Security? security = null;
         if (market.SelectedItem is string || code.Text.Length != 0 || name.Text.Length != 0)
-            security = WatchInput.CheckSecurity(new(market.SelectedItem as string ?? "", code.Text, name.Text, industry.Text));
+        {
+            var identified = WatchInput.CheckSecurity(new(market.SelectedItem as string ?? "", code.Text, name.Text, ""));
+            var known = stockFromForm?.Key == identified.Key ? stockFromForm : directory.FirstOrDefault(stock => stock.Key == identified.Key);
+            security = identified with { Industry = known?.Industry ?? "" };
+        }
         if (original is null && security is null && taggedStockCount > 0)
             throw new ArgumentException("请从原帖提及的股票中选择要核对的一只。");
         var url = WatchInput.SourceLink(source.Text);

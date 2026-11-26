@@ -25,7 +25,11 @@ public sealed record Opinion(Guid Id, string Account, Security? Security, DateTi
     long PostBodyRevision = 0);
 
 public sealed record ReviewFilter(int Days = 30, string? Account = null, string? Market = null,
-    string? Industry = null, string? Search = null, Security? Security = null, string Mode = "latest", int Offset = 0);
+    string? Industry = null, string? Search = null, Security? Security = null, string Mode = "latest", int Offset = 0)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SortByActivity { get; init; }
+}
 
 public sealed record StockSummary(Security Security, int Bullish, int Bearish, int Discussions,
     int Pending, DateTimeOffset LatestAt)
@@ -34,14 +38,27 @@ public sealed record StockSummary(Security Security, int Bullish, int Bearish, i
     public int Mentions { get; init; }
 }
 public sealed record WatchOverview(StockSummary[] Stocks, string[] Industries, int StockCount,
-    int Unmatched, DateTimeOffset? Earliest, DateTimeOffset? Latest, DateTimeOffset? LastRecorded);
+    int Unmatched, DateTimeOffset? Earliest, DateTimeOffset? Latest, DateTimeOffset? LastRecorded)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? HiddenStockCount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool StockVisibilitySupported { get; init; }
+}
+public sealed record HiddenStockPage(Security[] Rows, int Total);
+public sealed record StockVisibilityChange(Security Security, bool Hidden);
+public sealed record StockVisibilityPage(StockVisibilityChange[] Rows, int Total);
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
 public sealed record StockMention(string Account, string Url, DateTimeOffset FirstSeen, DateTimeOffset? PublishedAt,
     string Excerpt);
 public sealed record StockMentionPage(StockMention[] Rows, int Total);
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
     Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null,
-    PostBodyRequest? Body = null, string? ConnectedGoogleAccount = null, string? ExpectedGoogleAccount = null);
+    PostBodyRequest? Body = null, string? ConnectedGoogleAccount = null, string? ExpectedGoogleAccount = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StockVisibilityChange? StockVisibility { get; init; }
+}
 
 public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? Detail = null,
     Author[]? Authors = null, Security[]? Securities = null, string? Error = null)
@@ -50,6 +67,10 @@ public sealed record WatchReply(WatchOverview? Overview = null, OpinionDetail? D
     public LeadPage? Leads { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StockMentionPage? Mentions { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HiddenStockPage? HiddenStocks { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StockVisibilityPage? StockVisibility { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GoogleAlertSubscription? Alert { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -99,9 +120,12 @@ public static class WatchProtocol
     public const int LeadsPerPage = 25;
     public const int MaximumPayload = 4096;
     public const int StocksPerPage = 40;
+    public const int VisibilityStocksPerPage = 80;
     public const int OpinionsPerPage = 6;
     public const int MaximumAuthors = 54;
 
+    public const string AShareMarket = "A股";
+    public static IReadOnlyList<string> MarketGroups { get; } = Array.AsReadOnly(new[] { AShareMarket, "港股", "美股" });
     public static readonly string[] Markets = ["沪市", "深市", "北交所", "港股", "美股"];
     public static DateTimeOffset BeijingNow => DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(8));
 

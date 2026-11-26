@@ -87,11 +87,11 @@ internal sealed partial class WatchStore
                     ROW_NUMBER() OVER (PARTITION BY m.market,m.code ORDER BY {MentionDate} DESC,m.url) AS position
                 {MentionQuery}
                 WHERE {MentionDate}>=$since AND ($a='' OR m.account=$a)
-                    AND ($m='' OR m.market=$m) AND ($c='' OR m.code=$c)
+                    AND {MarketCondition("m.market")} AND ($c='' OR m.code=$c)
             ) ranked LEFT JOIN securities s ON s.market=ranked.market AND s.code=ranked.code
             WHERE ranked.position=1
             """, null, ("$since", FilterSince(filter.Days)), ("$a", filter.Account!),
-            ("$m", filter.Security?.Market ?? filter.Market!), ("$c", filter.Security?.Code ?? ""));
+            ("$market", filter.Security?.Market ?? filter.Market!), ("$c", filter.Security?.Code ?? ""));
         using var rows = command.ExecuteReader();
         while (rows.Read())
         {

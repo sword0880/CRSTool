@@ -4,23 +4,22 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using CRS.Plugins.XueqiuWatch.Core;
 using CRS.Worker.Ipc;
+using EyePath = System.Windows.Shapes.Path;
 
 namespace CRS.Plugins.XueqiuWatch.Wpf;
 
 public partial class WatchPage : UserControl
 {
-    private const double ColumnWidth = 124;
-    private static readonly double[] RowHeights = [29, 45, 31, 31];
     private readonly WorkerWatchClient client;
     private readonly CancellationToken lifetime;
+    private readonly MarketStockSection[] marketSections;
     private Author[] authors = [];
-    private WatchOverview? overview;
     private StockSummary? selected;
     private bool loaded;
     private bool updating;
-    private int stockOffset;
     private int detailOffset;
     private string mode = "latest";
 
@@ -29,13 +28,22 @@ public partial class WatchPage : UserControl
         this.client = client;
         this.lifetime = lifetime;
         InitializeComponent();
+        var eye = new EyePath { Data = StockVisibilityIcons.Visible, Width = 16, Height = 16,
+            StrokeThickness = 1.5, StrokeLineJoin = PenLineJoin.Round, Stretch = Stretch.Uniform };
+        eye.SetResourceReference(EyePath.StrokeProperty, "BrandTextPrimaryBrush");
+        StockVisibilityButton.Content = eye;
         Details.RowHeight = double.NaN;
         PeriodFilter.ItemsSource = new[] { "近 30 天", "近 7 天" };
         PeriodFilter.SelectedIndex = 0;
-        MarketFilter.ItemsSource = new[] { "全部市场" }.Concat(WatchProtocol.Markets);
-        MarketFilter.SelectedIndex = 0;
-        IndustryFilter.ItemsSource = new[] { "全部行业" };
-        IndustryFilter.SelectedIndex = 0;
+        marketSections = WatchProtocol.MarketGroups.Select(market => new MarketStockSection { Market = market }).ToArray();
+        foreach (var market in marketSections)
+        {
+            MarketTabs.Items.Add(new TabItem { Header = market.Market, Content = market });
+            market.PageRequested += async offset => await RunAsync(() => RefreshStocksAsync(requestedOffset: offset));
+            market.StockSelected += async stock => await SelectStockAsync(market, stock);
+            market.StockHidden += async stock => await HideStockAsync(stock);
+        }
+        MarketTabs.SelectedIndex = 0;
         Loaded += OnLoaded;
     }
 
@@ -66,10 +74,11 @@ public partial class WatchPage : UserControl
         Status.Text = $"{message} {Status.Text}";
     }
 
+    private MarketStockSection ActiveMarket => (MarketStockSection)((TabItem)MarketTabs.SelectedItem).Content;
+
     private ReviewFilter Filters() => new(PeriodFilter.SelectedIndex == 1 ? 7 : 30,
         (AuthorFilter.SelectedItem as Author)?.Account is { Length: > 0 } account ? account : null,
-        MarketFilter.SelectedIndex > 0 ? MarketFilter.SelectedItem as string : null,
-        IndustryFilter.SelectedIndex > 0 ? IndustryFilter.SelectedItem as string : null, StockSearch.Text);
+        ActiveMarket.Market, Search: StockSearch.Text);
 
     private async Task RunAsync(Func<Task> action)
     {
@@ -121,28 +130,26 @@ public partial class WatchPage : UserControl
         }
     }
 
-    private async Task RefreshStocksAsync(Opinion? recordedFromLead = null)
+    private async Task RefreshStocksAsync(Opinion? recordedFromLead = null, int? requestedOffset = null)
     {
-        var filter = Filters();
-        overview = (await client.AskAsync(new("overview", filter with { Offset = stockOffset }), lifetime)).Overview
+        var market = ActiveMarket;
+        var offset = requestedOffset ?? market.Offset;
+        var filter = Filters() with { SortByActivity = true };
+        var overview = (await client.AskAsync(new("overview", filter with { Offset = offset }), lifetime)).Overview
             ?? throw new InvalidDataException("缺少股票汇总。");
-        if (stockOffset >= overview.StockCount && stockOffset > 0)
+        if (offset >= overview.StockCount && offset > 0)
         {
-            stockOffset = 0;
-            overview = (await client.AskAsync(new("overview", filter), lifetime)).Overview!;
+            offset = Math.Max(0, (overview.StockCount - 1) / WatchProtocol.StocksPerPage * WatchProtocol.StocksPerPage);
+            overview = (await client.AskAsync(new("overview", filter with { Offset = offset }), lifetime)).Overview
+                ?? throw new InvalidDataException("缺少股票汇总。");
         }
-        var industries = new[] { "全部行业" }.Concat(overview.Industries)
-            .Append("未分类").Distinct().ToArray();
-        IndustryFilter.ItemsSource = industries;
-        IndustryFilter.SelectedItem = industries.Contains(filter.Industry) ? filter.Industry : industries[0];
         var previous = selected?.Security.Key;
-        var preferred = recordedFromLead?.Security?.Key ?? previous;
+        var preferred = recordedFromLead?.Security?.Key ?? market.SelectedKey;
         selected = overview.Stocks.FirstOrDefault(x => x.Security.Key == preferred) ?? overview.Stocks.FirstOrDefault();
         if (selected?.Security.Key != previous || mode == "mentions" && selected is not { Mentions: > 0 })
         {
             mode = DefaultMode(selected);
             detailOffset = 0;
-            MatrixScroll.ScrollToHorizontalOffset(0);
         }
         if (recordedFromLead is not null)
         {
@@ -151,110 +158,45 @@ public partial class WatchPage : UserControl
             detailOffset = 0;
         }
 
-        RenderMatrix();
-        PriorStocks.IsEnabled = stockOffset > 0;
-        NextStocks.IsEnabled = stockOffset + overview.Stocks.Length < overview.StockCount;
-        StockPageText.Text = overview.StockCount == 0 ? "0 只股票" :
-            $"{stockOffset + 1}–{stockOffset + overview.Stocks.Length} / {overview.StockCount} 只股票";
-        var coverage = overview.Earliest is { } from && overview.Latest is { } to
+        market.ShowPage(overview, offset, selected?.Security.Key);
+        StockVisibilityButton.IsEnabled = overview.StockVisibilitySupported;
+        StockVisibilityButton.ToolTip = overview.HiddenStockCount is > 0
+            ? $"管理股票显示（已隐藏 {overview.HiddenStockCount} 只）" : "管理股票显示";
+        var coverage = overview.StockCount == 0 && overview.HiddenStockCount is > 0
+            ? "当前范围内没有可显示的股票。可通过眼睛图标管理股票显示。"
+            : overview.Earliest is { } from && overview.Latest is { } to
             ? $"资料覆盖 {from:yyyy-MM-dd} 至 {to:yyyy-MM-dd} · 最近录入 {overview.LastRecorded:MM-dd HH:mm}"
-            : overview.StockCount > 0 ? $"当前范围内已识别 {overview.StockCount} 只股票的原帖提及。"
-            : "当前范围内暂无股票提及或观点。可在「发言线索」查看已采集的原帖。";
+            : overview.StockCount == 0 ? "可在「发言线索」查看已采集的原帖。" : "";
         Status.Text = coverage;
         PendingStocks.Content = overview.Unmatched > 0 ? $"待认领股票（{overview.Unmatched}）" : "待认领股票";
         await RefreshDetailsAsync();
     }
 
-    private void RenderMatrix()
+    private Task SelectStockAsync(MarketStockSection market, StockSummary stock) => RunAsync(async () =>
     {
-        Matrix.Children.Clear();
-        Matrix.ColumnDefinitions.Clear();
-        Matrix.RowDefinitions.Clear();
-        MatrixLabels.Children.Clear();
+        selected = stock;
+        market.SelectStock(stock.Security.Key);
+        mode = DefaultMode(stock);
+        detailOffset = 0;
+        await RefreshDetailsAsync();
+    });
 
-        for (var row = 0; row < RowHeights.Length; row++)
-            Matrix.RowDefinitions.Add(new() { Height = new(RowHeights[row]) });
-        foreach (var (label, row) in new[] { "行业", "股票", "看多", "看空" }.Select((label, row) => (label, row)))
-        {
-            var border = MatrixCell(label, row, "BrandSurfaceAltBrush");
-            border.Height = RowHeights[row];
-            MatrixLabels.Children.Add(border);
-        }
-
-        var stocks = overview?.Stocks ?? [];
-        for (var column = 0; column < stocks.Length; column++)
-            Matrix.ColumnDefinitions.Add(new() { Width = new(ColumnWidth) });
-
-        var position = 0;
-        foreach (var group in stocks.GroupBy(x => x.Security.Industry))
-        {
-            var label = group.Key.Length == 0 ? "未分类" : group.Key;
-            var heading = MatrixCell(label, 0, "BrandSurfaceAltBrush");
-            Grid.SetColumn(heading, position);
-            Grid.SetColumnSpan(heading, group.Count());
-            Matrix.Children.Add(heading);
-            position += group.Count();
-        }
-
-        for (var column = 0; column < stocks.Length; column++)
-        {
-            var stock = stocks[column];
-            var active = stock.Security.Key == selected?.Security.Key;
-            var panel = new StackPanel();
-            var title = MatrixCell($"{stock.Security.Name}\n{stock.Security.Market} · {stock.Security.Code}", 1,
-                active ? "BrandAccentPaleBrush" : "BrandSurfaceBrush");
-            title.Height = RowHeights[1];
-            panel.Children.Add(title);
-            foreach (var (count, row, surface, foreground) in new[]
-            {
-                (stock.Bullish, 2, "BrandAccentSoftBrush", "BrandAccentDarkBrush"),
-                (stock.Bearish, 3, "BrandStatusSuccessSurfaceBrush", "BrandStatusSuccessBrush")
-            })
-            {
-                var cell = MatrixCell(count.ToString(), row, count > 0 ? surface : "BrandSurfaceAltBrush", foreground);
-                cell.Height = RowHeights[row];
-                panel.Children.Add(cell);
-            }
-            var button = new Button
-            {
-                Content = panel, Padding = new(0), BorderThickness = active ? new(1.5) : new(0),
-                HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
-                ToolTip = $"{stock.Security.Name} · 发言提及 {stock.Mentions} 篇 · 看多 {stock.Bullish} 位 · 看空 {stock.Bearish} 位"
-            };
-            button.SetResourceReference(BorderBrushProperty, "BrandAccentBrush");
-            System.Windows.Automation.AutomationProperties.SetName(button, button.ToolTip.ToString());
-            button.Click += async (_, _) => await RunAsync(async () =>
-            {
-                selected = stock;
-                mode = DefaultMode(stock);
-                detailOffset = 0;
-                RenderMatrix();
-                await RefreshDetailsAsync();
-            });
-            Grid.SetRow(button, 1);
-            Grid.SetRowSpan(button, 3);
-            Grid.SetColumn(button, column);
-            Matrix.Children.Add(button);
-        }
-    }
+    private Task HideStockAsync(Security stock) => RunAsync(async () =>
+    {
+        await client.SetStockHiddenAsync(stock, true, lifetime);
+        await RefreshStocksAsync();
+        Status.Text = $"已隐藏「{stock.Name}」。{Status.Text}";
+    });
 
     private static string DefaultMode(StockSummary? stock) =>
         stock is { Mentions: > 0, Bullish: 0, Bearish: 0 } ? "mentions" : "latest";
 
-    private static Border MatrixCell(string value, int row, string background, string foreground = "BrandTextPrimaryBrush")
+    private async void ShowStockVisibility(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
-        var text = new TextBlock
-        {
-            Text = value, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center, FontSize = row >= 2 ? 16 : 12,
-            FontWeight = row == 1 ? FontWeights.Normal : FontWeights.SemiBold, Margin = new(3, 1, 3, 1)
-        };
-        text.SetResourceReference(ForegroundProperty, foreground);
-        var border = new Border { Child = text, BorderThickness = new(0, 0, 1, 1) };
-        border.SetResourceReference(Border.BackgroundProperty, background);
-        border.SetResourceReference(Border.BorderBrushProperty, "BrandBorderBrush");
-        return border;
-    }
+        var dialog = new StockVisibilityEditor(Window.GetWindow(this), client, lifetime, ActiveMarket.Market);
+        dialog.ShowDialog();
+        if (dialog.HasChanges) await RefreshStocksAsync();
+    });
 
     private async Task RefreshDetailsAsync()
     {
@@ -278,7 +220,7 @@ public partial class WatchPage : UserControl
             return;
         }
         var global = mode is "pending" or "questions";
-        if (global) filter = filter with { Market = null, Industry = null, Search = null };
+        if (global) filter = filter with { Market = null, Search = null };
         filter = filter with { Security = global ? null : selected?.Security, Mode = mode,
             Offset = detailOffset, Days = mode is "timeline" or "questions" or "pending" ? 0 : filter.Days };
         var detail = (await client.AskAsync(new("detail", filter), lifetime)).Detail
@@ -351,9 +293,23 @@ public partial class WatchPage : UserControl
         if (loaded && !updating) await ReloadFiltersAsync();
     }
 
+    private async void MarketChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!loaded || e.Source != MarketTabs) return;
+        await RunAsync(async () =>
+        {
+            selected = null;
+            mode = "latest";
+            detailOffset = 0;
+            Details.ItemsSource = null;
+            await RefreshStocksAsync();
+        });
+    }
+
     private Task ReloadFiltersAsync() => RunAsync(async () =>
     {
-        stockOffset = detailOffset = 0;
+        detailOffset = 0;
+        foreach (var market in marketSections) market.ResetPage();
         await RefreshStocksAsync();
     });
 
@@ -377,16 +333,8 @@ public partial class WatchPage : UserControl
     private async void OtherClicked(object sender, RoutedEventArgs e) => await SetModeAsync("other");
     private async void PendingClicked(object sender, RoutedEventArgs e) => await SetModeAsync("pending");
     private async void QuestionsClicked(object sender, RoutedEventArgs e) => await SetModeAsync("questions");
-    private async void PriorStockPage(object sender, RoutedEventArgs e) => await MoveStocksAsync(-WatchProtocol.StocksPerPage);
-    private async void NextStockPage(object sender, RoutedEventArgs e) => await MoveStocksAsync(WatchProtocol.StocksPerPage);
     private async void PriorDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(-WatchProtocol.OpinionsPerPage);
     private async void NextDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(WatchProtocol.OpinionsPerPage);
-
-    private Task MoveStocksAsync(int delta) => RunAsync(async () =>
-    {
-        stockOffset = Math.Max(0, stockOffset + delta);
-        await RefreshStocksAsync();
-    });
 
     private Task MoveDetailsAsync(int delta) => RunAsync(async () =>
     {

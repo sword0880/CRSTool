@@ -107,7 +107,7 @@ internal static class XueqiuTimelineChecks
         {
             db.Open();
             using var reset = db.CreateCommand();
-            reset.CommandText = "DROP TABLE lead_stocks; PRAGMA user_version=15;";
+            reset.CommandText = "DROP TABLE hidden_stocks; DROP TABLE lead_stocks; PRAGMA user_version=15;";
             reset.ExecuteNonQuery();
         }
         await session.StartAsync(token);
@@ -129,6 +129,68 @@ internal static class XueqiuTimelineChecks
         Check(verified.Single(stock => stock.Security == rongjie) is { Mentions: 1, Bullish: 0 } &&
             verified.Single(stock => stock.Security == tencent) is { Mentions: 1, Bullish: 1 },
             "多空只汇总各股票已核对的方向");
+
+        var hide = new WatchRequest("stock-visibility-save", ChangeId: Guid.NewGuid()) { StockVisibility = new(rongjie, true) };
+        Check((await Ask(hide)).Error is null && (await Ask(hide)).Error is null, "按市场与代码隐藏股票并允许安全重试");
+        await session.StopAsync(token);
+        await session.StartAsync(token);
+        var filteredStocks = (await Ask(new("overview"))).Overview!;
+        var hiddenStocks = (await Ask(new("hidden-stocks", new(Search: tencent.Code)))).HiddenStocks!;
+        Check(filteredStocks is { HiddenStockCount: 1, StockCount: 1 } && filteredStocks.Stocks.Single().Security == tencent &&
+            hiddenStocks is { Total: 1, Rows: [{ } hiddenRow] } && hiddenRow == rongjie &&
+            (await Ask(new("overview", new(Search: rongjie.Code)))).Overview?.StockCount == 0 &&
+            (await Ask(new("overview", new(Offset: 1)))).Overview?.Stocks.Length == 0,
+            "隐藏设置在重启后保留，先排除股票再搜索、计数和分页，名单独立于当前筛选");
+        var visibility = (await Ask(new("stock-visibility"))).StockVisibility!;
+        Check(filteredStocks.StockVisibilitySupported && visibility.Total == 2 &&
+            visibility.Rows.Contains(new(rongjie, true)) && visibility.Rows.Contains(new(tencent, false)),
+            "显示设置列出同一清单中的可见和隐藏股票");
+        var visibilityA = (await Ask(new("stock-visibility", new(Market: WatchProtocol.AShareMarket)))).StockVisibility!;
+        var visibilityHk = (await Ask(new("stock-visibility", new(Market: "港股")))).StockVisibility!;
+        Check(visibilityA.Total == 1 && visibilityA.Rows.Single() == new StockVisibilityChange(rongjie, true) &&
+            visibilityHk.Total == 1 && visibilityHk.Rows.Single() == new StockVisibilityChange(tencent, false),
+            "显示设置的市场筛选包含隐藏项，并分别计算市场总数");
+        Check((await Ask(new("mentions", new(Security: rongjie)))).Mentions?.Total == 1 &&
+            (await Ask(new("detail", new(Security: rongjie, Mode: "timeline")))).Detail?.Total == 1 &&
+            (await Leads(ApiOnly)).Rows.Any(lead => lead.Url == mentionUrl), "隐藏不改动线索、原帖提及和观点");
+        var show = hide with { ChangeId = Guid.NewGuid(), StockVisibility = new(rongjie, false) };
+        Check((await Ask(show)).Error is null &&
+            (await Ask(new("hidden-stocks"))).HiddenStocks?.Total == 0 &&
+            (await Ask(new("overview"))).Overview is { HiddenStockCount: 0, StockCount: 2 } &&
+            (await Ask(new("stock-visibility"))).StockVisibility!.Rows.Contains(new(rongjie, false)),
+            "恢复显示后重新纳入股票列表，清单状态随之更新");
+
+        var shanghai = new Security("沪市", "601899", "紫金矿业", "采矿");
+        var shanghaiOpinion = new Opinion(Guid.NewGuid(), ApiOnly, shanghai, time, Stance.Bullish, Attribution.Author,
+            "样例已核对观点", "", $"https://xueqiu.com/{ApiOnly}/892");
+        Check((await Ask(new("opinion-save", Opinion: shanghaiOpinion, ChangeId: Guid.NewGuid()))).Error is null,
+            "为市场合并验证保存独立的沪市观点");
+        using (var store = new WatchStore(directory, context.OpenDataKey()))
+        {
+            store.SaveTimeline(ApiOnly, new("Read", time,
+                [new("891", "", "", "$样例北交(BJ835185)$ $微软(US:MSFT)$", time)], 1), token);
+        }
+        var aSharesFilter = new ReviewFilter(Market: WatchProtocol.AShareMarket) { SortByActivity = true };
+        var aShares = (await Ask(new("overview", aSharesFilter))).Overview!;
+        Check(aShares.StockCount == 3 && aShares.Stocks.Select(stock => stock.Security.Market).ToHashSet()
+            .SetEquals(["沪市", "深市", "北交所"]) && aShares.Stocks.First().Security == rongjie &&
+            aShares.Stocks.Single(stock => stock.Security == shanghai) is { Bullish: 1, Mentions: 0 },
+            "A 股合并沪深与北交所的观点和发言，按讨论与提及排序");
+        Check((await Ask(new("overview", new(Market: "港股")))).Overview!.Stocks.Single().Security == tencent &&
+            (await Ask(new("overview", new(Market: "美股")))).Overview!.Stocks.Single().Security.Code == "MSFT" &&
+            (await Ask(new("overview", new(Market: "深市")))).Overview!.Stocks.Single().Security == rongjie &&
+            (await Ask(new("overview", aSharesFilter with { SortByActivity = false }))).Overview!.Stocks.First().Security == shanghai,
+            "港美股独立筛选，旧版交易所与行业排序继续可用");
+        var fullList = (await Ask(new("stock-visibility", new(Offset: 1)))).StockVisibility!;
+        Check(fullList.Total == 5 && fullList.Rows.Length == 4 &&
+            fullList.Rows.Any(row => row.Security.Market == "美股") && fullList.Rows.All(row => !row.Hidden),
+            "所有股票清单跨市场，独立于主页市场选择且支持分页");
+        var scopedA = (await Ask(new("stock-visibility", aSharesFilter with { Offset = 1 }))).StockVisibility!;
+        var scopedUs = (await Ask(new("stock-visibility", new(Market: "美股")))).StockVisibility!;
+        Check(scopedA.Total == 3 && scopedA.Rows.Length == 2 &&
+            scopedA.Rows.All(row => row.Security.Market is "沪市" or "深市" or "北交所") &&
+            scopedUs.Total == 1 && scopedUs.Rows.Single().Security.Code == "MSFT",
+            "股票显示清单先按市场筛选再分页，覆盖 A 股三个交易所和美股");
 
         async Task CheckMentions()
         {

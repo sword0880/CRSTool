@@ -44,6 +44,9 @@ internal sealed partial class WorkerWatchClient
 
     private static bool IsBusy(string code) => code is "RateLimited" or "Busy" or "PluginBusy";
 
+    public Task SetStockHiddenAsync(Security stock, bool hidden, CancellationToken token) =>
+        SaveAsync(new("stock-visibility-save") { StockVisibility = new(stock, hidden) }, token);
+
     internal async Task<string> StartBackfillAsync(string account, CancellationToken token)
     {
         var leads = (await AskAsync(new("leads", new(Account: account)), token)).Leads;

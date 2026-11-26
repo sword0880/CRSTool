@@ -19,10 +19,6 @@
              AutomationProperties.Name="时间范围"/>
    <ComboBox x:Name="AuthorFilter" Width="145" Margin="0,0,8,4" SelectionChanged="FilterChanged"
              DisplayMemberPath="Name" AutomationProperties.Name="作者筛选"/>
-   <ComboBox x:Name="MarketFilter" Width="105" Margin="0,0,8,4" SelectionChanged="FilterChanged"
-             AutomationProperties.Name="市场筛选"/>
-   <ComboBox x:Name="IndustryFilter" Width="124" Margin="0,0,8,4" SelectionChanged="FilterChanged"
-             AutomationProperties.Name="行业筛选"/>
    <TextBox x:Name="StockSearch" Width="148" MaxLength="80" Margin="0,0,6,4"
             KeyDown="SearchKeyDown" ToolTip="股票名称或代码" AutomationProperties.Name="股票名称或代码"/>
    <Button Content="搜索" Click="Search" Margin="0,0,8,4"/>
@@ -30,22 +26,11 @@
   </WrapPanel>
   <Border Grid.Row="2" Style="{DynamicResource UiSurfaceCard}" Padding="11" Margin="0,0,0,8">
    <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <DockPanel Margin="0,0,0,7" LastChildFill="True">
-     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-      <TextBlock x:Name="StockPageText" VerticalAlignment="Center" Margin="0,0,8,0" Style="{DynamicResource UiHintText}"/>
-      <Button x:Name="PriorStocks" Content="上一组" Click="PriorStockPage" Margin="0,0,6,0"/>
-      <Button x:Name="NextStocks" Content="下一组" Click="NextStockPage"/>
-     </StackPanel>
-     <TextBlock Text="行业与股票" Style="{DynamicResource UiSectionTitle}" VerticalAlignment="Center"/>
-    </DockPanel>
-    <Grid Grid.Row="1">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="78"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-     <StackPanel x:Name="MatrixLabels"/>
-     <ScrollViewer x:Name="MatrixScroll" Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-      <Grid x:Name="Matrix"/>
-     </ScrollViewer>
-    </Grid>
+    <TabControl x:Name="MarketTabs" Padding="0" BorderThickness="0" Background="Transparent" HorizontalContentAlignment="Stretch"
+                AutomationProperties.Name="股票市场" SelectionChanged="MarketChanged"/>
+    <Button x:Name="StockVisibilityButton" Click="ShowStockVisibility" IsEnabled="False" Width="32" Height="32"
+            MinWidth="0" MinHeight="0" Padding="5" HorizontalAlignment="Right" VerticalAlignment="Top"
+            ToolTip="管理股票显示" AutomationProperties.Name="管理股票显示"/>
    </Grid>
   </Border>
   <TextBlock x:Name="Status" Grid.Row="3" TextWrapping="Wrap" Style="{DynamicResource UiStatusText}"
