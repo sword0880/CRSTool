@@ -23,6 +23,16 @@
             KeyDown="SearchKeyDown" ToolTip="股票名称或代码" AutomationProperties.Name="股票名称或代码"/>
    <Button Content="搜索" Click="Search" Margin="0,0,8,4"/>
    <Button Content="刷新" Click="RefreshClicked" Margin="0,0,8,4"/>
+   <TextBlock Text="明细视图" VerticalAlignment="Center" Margin="4,0,6,4" Style="{DynamicResource UiHintText}"/>
+   <ComboBox x:Name="DetailView" Width="155" Margin="0,0,0,4"
+             SelectionChanged="DetailViewChanged" SelectedValuePath="Tag" AutomationProperties.Name="明细视图">
+    <ComboBoxItem x:Name="StockMentionsView" Content="原帖提及" Tag="mentions"/>
+    <ComboBoxItem Content="最新多空" Tag="latest"/>
+    <ComboBoxItem Content="观点时间线" Tag="timeline"/>
+    <ComboBoxItem Content="中性 / 待确认" Tag="other"/>
+    <ComboBoxItem x:Name="PendingStocks" Content="待认领股票" Tag="pending"/>
+    <ComboBoxItem Content="待核实问题" Tag="questions"/>
+   </ComboBox>
   </WrapPanel>
   <Border Grid.Row="2" Style="{DynamicResource UiSurfaceCard}" Padding="11" Margin="0,0,0,8">
    <Grid>
@@ -39,16 +49,17 @@
    <Grid>
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBlock x:Name="DetailTitle" Text="个股观点" Style="{DynamicResource UiSectionTitle}" Margin="0,0,0,7"/>
-    <WrapPanel Grid.Row="1" Margin="0,0,0,6">
-     <Button x:Name="StockMentionsButton" Content="发言提及" Click="MentionsClicked" Margin="0,0,6,3"/>
-     <Button Content="最新多空" Click="LatestClicked" Margin="0,0,6,3"/>
-     <Button Content="观点时间线" Click="TimelineClicked" Margin="0,0,6,3"/>
-     <Button Content="中性 / 待确认" Click="OtherClicked" Margin="0,0,6,3"/>
-     <Button x:Name="PendingStocks" Content="待认领股票" Click="PendingClicked" Margin="0,0,6,3"/>
-     <Button Content="待核实问题" Click="QuestionsClicked" Margin="0,0,6,3"/>
-     <Button x:Name="EditOpinionButton" Content="编辑选中观点" Click="EditOpinion" Margin="0,0,6,3"/>
-     <Button Content="原帖正文" Click="ShowPostBody" Margin="0,0,6,3"/>
-    </WrapPanel>
+    <Grid Grid.Row="1" Margin="0,0,0,6">
+     <WrapPanel x:Name="OpinionActions">
+      <Button Content="编辑选中观点" Click="EditOpinion" Margin="0,0,6,3"/>
+      <Button Content="原帖正文" Click="ShowPostBody" Margin="0,0,6,3"/>
+     </WrapPanel>
+     <ScrollViewer x:Name="MentionAuthorSummary" Visibility="Collapsed" MaxHeight="78"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <TextBlock x:Name="MentionAuthorCounts" TextWrapping="Wrap" Style="{DynamicResource UiHintText}"
+                 AutomationProperties.LiveSetting="Polite"/>
+     </ScrollViewer>
+    </Grid>
     <DataGrid Grid.Row="2" x:Name="Details" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
               SelectionMode="Single" Style="{DynamicResource UiDenseDataGrid}">
      <DataGrid.Columns>
@@ -62,7 +73,8 @@
       </DataGridTemplateColumn>
       <DataGridTemplateColumn Header="原链接" Width="95">
        <DataGridTemplateColumn.CellTemplate><DataTemplate>
-        <Button Content="查看原帖" IsEnabled="{Binding HasLink}" Click="OpenSource" HorizontalAlignment="Left"/>
+        <Button Content="查看原帖" IsEnabled="{Binding HasLink}" Click="OpenSource"
+                HorizontalAlignment="Left" VerticalAlignment="Center"/>
        </DataTemplate></DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
      </DataGrid.Columns>

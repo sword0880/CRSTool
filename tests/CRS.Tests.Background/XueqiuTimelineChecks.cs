@@ -150,9 +150,13 @@ internal static class XueqiuTimelineChecks
         Check(visibilityA.Total == 1 && visibilityA.Rows.Single() == new StockVisibilityChange(rongjie, true) &&
             visibilityHk.Total == 1 && visibilityHk.Rows.Single() == new StockVisibilityChange(tencent, false),
             "显示设置的市场筛选包含隐藏项，并分别计算市场总数");
+        var visibleLeads = await Leads(ApiOnly);
+        var leadStillExists = visibleLeads.Rows.Any(lead => lead.Url == mentionUrl) ||
+            (await Ask(new("leads", new(Account: ApiOnly, Offset: WatchProtocol.LeadsPerPage))))
+                .Leads!.Rows.Any(lead => lead.Url == mentionUrl);
         Check((await Ask(new("mentions", new(Security: rongjie)))).Mentions?.Total == 1 &&
             (await Ask(new("detail", new(Security: rongjie, Mode: "timeline")))).Detail?.Total == 1 &&
-            (await Leads(ApiOnly)).Rows.Any(lead => lead.Url == mentionUrl), "隐藏不改动线索、原帖提及和观点");
+            leadStillExists, "隐藏不改动线索、原帖提及和观点");
         var show = hide with { ChangeId = Guid.NewGuid(), StockVisibility = new(rongjie, false) };
         Check((await Ask(show)).Error is null &&
             (await Ask(new("hidden-stocks"))).HiddenStocks?.Total == 0 &&
@@ -191,6 +195,28 @@ internal static class XueqiuTimelineChecks
             scopedA.Rows.All(row => row.Security.Market is "沪市" or "深市" or "北交所") &&
             scopedUs.Total == 1 && scopedUs.Rows.Single().Security.Code == "MSFT",
             "股票显示清单先按市场筛选再分页，覆盖 A 股三个交易所和美股");
+
+        using (var store = new WatchStore(directory, context.OpenDataKey()))
+        {
+            var posts = Enumerable.Range(900, WatchProtocol.OpinionsPerPage).Select(id =>
+                new TimelinePost(id.ToString(), "", "", "$融捷股份(SZ002192)$ $融捷股份(SZ002192)$", time)).ToArray();
+            store.SaveTimeline(Primary, new("Read", time, posts, 1), token);
+            store.SaveTimeline(Primary, new("Read", time,
+                [new("999", "", "", "$融捷股份(SZ002192)$", time.AddDays(-10))], 1), token);
+        }
+        var mentionFilter = new ReviewFilter(Days: 7, Security: rongjie);
+        var firstMentions = (await Ask(new("mentions", mentionFilter))).Mentions!;
+        var moreMentions = (await Ask(new("mentions", mentionFilter with { Offset = WatchProtocol.OpinionsPerPage }))).Mentions!;
+        Check(firstMentions.Total == WatchProtocol.OpinionsPerPage + 1 &&
+            firstMentions.Rows.Length == WatchProtocol.OpinionsPerPage && moreMentions.Rows.Length == 1 &&
+            firstMentions.AuthorCounts is [{ } leader, { } other] &&
+            leader == new AuthorMentionCount(Primary, WatchProtocol.OpinionsPerPage) &&
+            other == new AuthorMentionCount(ApiOnly, 1) &&
+            firstMentions.AuthorCounts.SequenceEqual(moreMentions.AuthorCounts!), "按作者统计跨页汇总、按篇数排序且同帖去重");
+        var authorMentions = (await Ask(new("mentions", mentionFilter with { Days = 30, Account = Primary }))).Mentions!;
+        Check(authorMentions.Total == WatchProtocol.OpinionsPerPage + 1 &&
+            authorMentions.AuthorCounts is [{ } authorCount] &&
+            authorCount == new AuthorMentionCount(Primary, authorMentions.Total), "作者统计遵循时间范围和作者筛选");
 
         async Task CheckMentions()
         {

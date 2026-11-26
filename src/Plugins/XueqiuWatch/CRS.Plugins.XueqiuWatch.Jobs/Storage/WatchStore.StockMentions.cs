@@ -104,24 +104,35 @@ internal sealed partial class WatchStore
 
     private StockMentionPage StockMentions(ReviewFilter filter)
     {
-        if (filter.Security is null) return new([], 0);
+        if (filter.Security is null) return new([], 0) { AuthorCounts = [] };
         var query = $"""
             {MentionQuery}
             WHERE m.market=$m AND m.code=$c AND ($a='' OR m.account=$a) AND {MentionDate}>=$since
             """;
         (string Name, object Value)[] args = [("$m", filter.Security.Market), ("$c", filter.Security.Code),
             ("$a", filter.Account!), ("$since", FilterSince(filter.Days))];
-        var total = Convert.ToInt32(Scalar("SELECT COUNT(*) " + query, null, args));
+        using var transaction = db.BeginTransaction(deferred: true);
+        var authors = new List<AuthorMentionCount>();
+        using (var counts = Command($"""
+            SELECT m.account,COUNT(*) AS posts
+            {query}
+            GROUP BY m.account
+            ORDER BY posts DESC,m.account
+            """, transaction, args))
+        using (var countsReader = counts.ExecuteReader())
+            while (countsReader.Read())
+                authors.Add(new(countsReader.GetString(0), countsReader.GetInt32(1)));
+
         using var command = Command($"""
             SELECT m.account,m.url,p.first_seen,{MentionPublished},m.excerpt
             {query}
             ORDER BY {MentionDate} DESC,m.account,m.url LIMIT $limit OFFSET $offset
-            """, null, [.. args, ("$limit", WatchProtocol.OpinionsPerPage), ("$offset", filter.Offset)]);
+            """, transaction, [.. args, ("$limit", WatchProtocol.OpinionsPerPage), ("$offset", filter.Offset)]);
         using var rows = command.ExecuteReader();
         var results = new List<StockMention>();
         while (rows.Read())
             results.Add(new(rows.GetString(0), rows.GetString(1), BeijingTime(rows.GetInt64(2)),
                 rows.IsDBNull(3) ? null : BeijingTime(rows.GetInt64(3)), rows.GetString(4)));
-        return new(results.ToArray(), total);
+        return new(results.ToArray(), authors.Sum(author => author.Count)) { AuthorCounts = authors.ToArray() };
     }
 }

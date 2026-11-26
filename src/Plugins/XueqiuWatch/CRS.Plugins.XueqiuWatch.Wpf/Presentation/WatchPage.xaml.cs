@@ -35,6 +35,7 @@ public partial class WatchPage : UserControl
         Details.RowHeight = double.NaN;
         PeriodFilter.ItemsSource = new[] { "近 30 天", "近 7 天" };
         PeriodFilter.SelectedIndex = 0;
+        DetailView.SelectedValue = mode;
         marketSections = WatchProtocol.MarketGroups.Select(market => new MarketStockSection { Market = market }).ToArray();
         foreach (var market in marketSections)
         {
@@ -201,9 +202,10 @@ public partial class WatchPage : UserControl
     private async Task RefreshDetailsAsync()
     {
         var filter = Filters();
-        StockMentionsButton.IsEnabled = selected is { Mentions: > 0 };
-        StockMentionsButton.Content = selected is { Mentions: > 0 } stock ? $"发言提及（{stock.Mentions}）" : "发言提及";
-        EditOpinionButton.Content = mode == "mentions" ? "核对选中发言" : "编辑选中观点";
+        DetailView.SelectedValue = mode;
+        StockMentionsView.IsEnabled = selected is { Mentions: > 0 };
+        OpinionActions.Visibility = mode == "mentions" ? Visibility.Collapsed : Visibility.Visible;
+        MentionAuthorSummary.Visibility = Visibility.Collapsed;
         if (mode == "mentions" && selected is { } activeStock)
         {
             var request = filter with { Security = activeStock.Security, Offset = detailOffset };
@@ -216,6 +218,14 @@ public partial class WatchPage : UserControl
             }
             Details.ItemsSource = mentions.Rows.Select(x => new MentionRow(x, AuthorName(x.Account))).ToArray();
             DetailTitle.Text = $"{activeStock.Security.Name} · 原帖提及";
+            if (mentions.Total > 0)
+            {
+                MentionAuthorCounts.Text = mentions.AuthorCounts is { Length: > 0 } counts
+                    ? "按作者统计  " + string.Join("  ·  ", counts.Select(x => $"{AuthorName(x.Account)} {x.Count} 篇"))
+                    : "更新 Worker 后可查看按作者统计。";
+                MentionAuthorSummary.ScrollToTop();
+                MentionAuthorSummary.Visibility = Visibility.Visible;
+            }
             SetDetailsPage(mentions.Rows.Length, mentions.Total, "暂无发言提及");
             return;
         }
@@ -247,6 +257,8 @@ public partial class WatchPage : UserControl
     private void SetDetailsPage(int count, int total, string emptyLabel)
     {
         DetailPageText.Text = total == 0 ? emptyLabel : $"{detailOffset + 1}–{detailOffset + count} / {total}";
+        PriorDetails.Visibility = NextDetails.Visibility = mode != "mentions" || total > WatchProtocol.OpinionsPerPage
+            ? Visibility.Visible : Visibility.Collapsed;
         PriorDetails.IsEnabled = detailOffset > 0;
         NextDetails.IsEnabled = detailOffset + count < total;
     }
@@ -320,19 +332,17 @@ public partial class WatchPage : UserControl
         if (e.Key == Key.Enter) { e.Handled = true; await ReloadFiltersAsync(); }
     }
 
-    private Task SetModeAsync(string next) => RunAsync(async () =>
+    private async void DetailViewChanged(object sender, SelectionChangedEventArgs e)
     {
-        mode = next;
-        detailOffset = 0;
-        await RefreshDetailsAsync();
-    });
+        if (!loaded || DetailView.SelectedValue is not string next || next == mode) return;
+        await RunAsync(async () =>
+        {
+            mode = next;
+            detailOffset = 0;
+            await RefreshDetailsAsync();
+        });
+    }
 
-    private async void LatestClicked(object sender, RoutedEventArgs e) => await SetModeAsync("latest");
-    private async void MentionsClicked(object sender, RoutedEventArgs e) => await SetModeAsync("mentions");
-    private async void TimelineClicked(object sender, RoutedEventArgs e) => await SetModeAsync("timeline");
-    private async void OtherClicked(object sender, RoutedEventArgs e) => await SetModeAsync("other");
-    private async void PendingClicked(object sender, RoutedEventArgs e) => await SetModeAsync("pending");
-    private async void QuestionsClicked(object sender, RoutedEventArgs e) => await SetModeAsync("questions");
     private async void PriorDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(-WatchProtocol.OpinionsPerPage);
     private async void NextDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(WatchProtocol.OpinionsPerPage);
 
@@ -352,20 +362,7 @@ public partial class WatchPage : UserControl
     private async void EditOpinion(object sender, RoutedEventArgs e)
     {
         if (Details.SelectedItem is OpinionRow row) await RunAsync(() => OpenEditorAsync(row.Record));
-        else if (Details.SelectedItem is MentionRow mention && selected is { } stock)
-            await RunAsync(() => OpenMentionAsync(mention.Mention, stock.Security));
-        else Status.Text = mode == "mentions" ? "请先选中一条发言。" : "请先在明细表中选中一条观点。";
-    }
-
-    private async Task OpenMentionAsync(StockMention mention, Security stock)
-    {
-        var directory = (await client.AskAsync(new("catalog"), lifetime)).Securities ?? [];
-        var body = await client.ReadPostBodyAsync(new(mention.Account, mention.Url), lifetime);
-        var lead = new PostLead(mention.Account, mention.Url, mention.FirstSeen,
-            Content: mention.Excerpt, PublishedAt: mention.PublishedAt);
-        var dialog = new OpinionEditor(Window.GetWindow(this), authors, directory, null, client, lifetime, lead, body, stock);
-        if (dialog.ShowDialog() == true && dialog.SavedOpinion is { } saved)
-            await RefreshSavedOpinionAsync(saved);
+        else Status.Text = "请先在明细表中选中一条观点。";
     }
 
     private async Task OpenEditorAsync(Opinion existing)

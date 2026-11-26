@@ -51,7 +51,12 @@ public sealed record StockVisibilityPage(StockVisibilityChange[] Rows, int Total
 public sealed record OpinionDetail(Opinion[] Rows, int Total);
 public sealed record StockMention(string Account, string Url, DateTimeOffset FirstSeen, DateTimeOffset? PublishedAt,
     string Excerpt);
-public sealed record StockMentionPage(StockMention[] Rows, int Total);
+public sealed record AuthorMentionCount(string Account, int Count);
+public sealed record StockMentionPage(StockMention[] Rows, int Total)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AuthorMentionCount[]? AuthorCounts { get; init; }
+}
 public sealed record WatchRequest(string Operation, ReviewFilter? Filter = null, Author? Author = null,
     Opinion? Opinion = null, Guid ChangeId = default, GoogleAlertUpdate? Alert = null, string? RssProxy = null,
     PostBodyRequest? Body = null, string? ConnectedGoogleAccount = null, string? ExpectedGoogleAccount = null)
