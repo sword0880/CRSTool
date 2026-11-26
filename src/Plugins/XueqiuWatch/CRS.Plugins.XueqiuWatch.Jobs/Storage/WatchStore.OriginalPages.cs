@@ -80,7 +80,7 @@ internal sealed partial class WatchStore
             originalTime is { } published &&
             TrySaveAutomaticBody(post.Account, post.Url, published, text, PostBodySource.OriginalApi, transaction);
         if (!saved && state == "FullText") state = "BodyUnavailable";
-        // 429 和 567 暂停原帖 API 请求，RSS 仍按现有计划读取。
+        // 429 和 567 暂停原帖 API 请求，按任务退避时间恢复。
         var delay = result.RetryAfter ?? TimeSpan.FromHours(result.HttpStatus == 567 ? 6 :
             state is "BodyUnavailable" or "AccessRestricted" ? 24 : 2);
         Execute("""

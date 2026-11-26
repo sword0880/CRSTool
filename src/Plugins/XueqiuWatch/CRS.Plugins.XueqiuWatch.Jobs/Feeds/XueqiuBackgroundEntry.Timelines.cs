@@ -6,12 +6,11 @@ public sealed partial class XueqiuBackgroundEntry
 {
     private sealed partial class Session
     {
-        private sealed record TimelineRun(HashSet<string> SkipFallback, TimeSpan? RetryAfter, string Note);
+        private sealed record TimelineRun(int Attempted, int Completed, int PartiallyRead, TimeSpan? RetryAfter, string Note);
 
         private async Task<TimelineRun> DiscoverTimelinesAsync(IAuthorTimelineReader reader,
             (Author Author, DateTimeOffset? LastComplete, AuthorBackfill? Backfill)[] authors, CancellationToken token)
         {
-            var skipFallback = new HashSet<string>(StringComparer.Ordinal);
             var attempted = 0;
             var added = 0;
             var completed = 0;
@@ -25,7 +24,6 @@ public sealed partial class XueqiuBackgroundEntry
             {
                 if (backfill is not null && remainingBackfillPages == 0)
                 {
-                    skipFallback.Add(author.Account);
                     continue;
                 }
                 await gate.WaitAsync(token);
@@ -46,27 +44,30 @@ public sealed partial class XueqiuBackgroundEntry
                     : await ReadBackfillAsync(author.Account, backfill, Math.Min(8, remainingBackfillPages), ReadPageAsync, token);
                 if (backfill is not null) remainingBackfillPages -= Math.Max(scan.Pages, 1);
                 attempted++;
-                if (scan.State is "Read" or "Backfilling") skipFallback.Add(author.Account);
                 if (scan.State == "Read") completed++;
                 if (scan.State != "Read" && scan.Pages > 0) partiallyRead++;
                 await gate.WaitAsync(token);
                 try { added += store?.SaveTimeline(author.Account, scan, token) ?? 0; }
                 finally { gate.Release(); }
 
+                // 30 天回补按批次执行，当前批次结束但仍有后续页时主动续跑。
+                if (scan.State == "Backfilling" && retry is null)
+                    retry = TimeSpan.FromMinutes(1);
+
                 if (scan.HttpStatus is 429 or 567)
                 {
-                    retry = scan.RetryAfter;
-                    pause = $" 雪球 API（HTTP {scan.HttpStatus}）暂停，剩余作者转查备用 RSS。";
+                    retry = scan.RetryAfter ?? (scan.HttpStatus == 567 ? TimeSpan.FromHours(6) : null);
+                    pause = $" 雪球 API（HTTP {scan.HttpStatus}）暂停，剩余作者本轮跳过。";
                     break;
                 }
                 consecutiveFailures = scan is { State: "Unavailable", Pages: 0 } ? consecutiveFailures + 1 : 0;
                 if (consecutiveFailures >= 3)
                 {
-                    pause = " 雪球 API 连续读取失败，剩余作者转查备用 RSS。";
+                    pause = " 雪球 API 连续读取失败，停止本轮后续作者读取。";
                     break;
                 }
             }
-            return new(skipFallback, retry,
+            return new(attempted, completed, partiallyRead, retry,
                 $"雪球 API 检查 {attempted}/{authors.Length} 位作者，完成 {completed} 位，部分读取 {partiallyRead} 位，新增 {added} 条。{pause}");
 
             async Task<TimelinePage> ReadPageAsync(string account, int page, CancellationToken cancellation)

@@ -26,41 +26,26 @@ internal static class XueqiuPrivateDataChecks
 
         var options = await client.QueryAsync(WorkerProtocol.GetPluginPlanOptions, token);
         Require(options.Jobs?.Any(plan => plan.PluginId == WatchProtocol.PluginId &&
-            plan.JobId == WatchProtocol.LeadJobId && plan.Revision == 0 && !plan.Enabled) == true, "RSS plan available and unscheduled");
-        Require((await Send(new("leads"))).Leads is { Configured: false, Total: 0 } initialLeads &&
+            plan.JobId == WatchProtocol.LeadJobId && plan.Revision == 0 && !plan.Enabled) == true, "雪球 API 采集计划可用且默认未排程");
+        Require((await Send(new("leads"))).Leads is { Total: 0 } initialLeads &&
             initialLeads.Authors.Length == WatchProtocol.InitialAuthors.Count,
-            "RSS panel loads over the private pipe without exposing a subscription");
+            "作者动态线索通过私有管道读取");
 
         var authors = (await Send(new("authors"))).Authors!;
         Require(authors.Length == WatchProtocol.InitialAuthors.Count && authors.Any(x => x.Name == "达人知命"),
             "seeded authors");
         var first = authors[0];
         var second = authors[1];
-        Require((await Send(new("alert-subscription", new(Account: first.Account)))).Alert is
-            { State: GoogleAlertState.PendingCreate }, "initial alert intent is readable over the private pipe");
-        const string loopbackProxy = "http://127.0.0.1:7890/";
-        var proxySave = new WatchRequest("rss-proxy-save", ChangeId: Guid.NewGuid(), RssProxy: loopbackProxy);
-        Require((await Send(new("rss-proxy"))).RssProxy == "" &&
-            (await Send(proxySave)).Error is null && (await Send(proxySave)).Error is null &&
-            (await Send(new("rss-proxy"))).RssProxy == loopbackProxy,
-            "RSS proxy settings round trip over the private pipe");
+        Require((await Send(new("alert-subscription", new(Account: first.Account)))).Error == "未知的观点追踪操作。" &&
+            (await Send(new("rss-proxy"))).Error == "未知的观点追踪操作。",
+            "旧版 Google Alerts 与 RSS 操作入口已关闭");
+        var noteUpdate = new WatchRequest("author-save", Author: first with { Note = "本地测试备注" }, ChangeId: Guid.NewGuid());
+        Require((await Send(noteUpdate)).Error is null && (await Send(noteUpdate)).Error is null &&
+            (await Send(new("authors"))).Authors!.Single(x => x.Account == first.Account).Note == "本地测试备注",
+            "作者资料保存、读回与精确重放");
         var archive = new WatchRequest("author-save", Author: authors[7] with { Archived = true }, ChangeId: Guid.NewGuid());
         Require((await Send(archive)).Error is null && (await Send(archive)).Error is null, "author removal and exact replay");
         Require((await Send(new("authors"))).Authors!.Single(x => x.Account == authors[7].Account).Archived, "removed author state");
-
-        const string testFeed = "https://feeds.example.com/xueqiu/user/1556808774";
-        var configuredAuthor = first with { FeedUrl = testFeed };
-        var feedSave = new WatchRequest("author-save", Author: configuredAuthor, ChangeId: Guid.NewGuid());
-        Require((await Send(feedSave)).Error is null && (await Send(feedSave)).Error is null,
-            "per-author RSS write and exact replay");
-        var feedPage = (await Send(new("leads"))).Leads!;
-        Require(feedPage is { Configured: true, ConfiguredFeeds: 1 } &&
-            feedPage.UnconfiguredFeeds == authors.Length - 2 &&
-            feedPage.Authors.Single(x => x.Account == first.Account).FeedUrl == testFeed,
-            "per-author RSS read-back and archived author exclusion");
-        Console.WriteLine("PASS 作者独立 RSS 配置通过私有管道保存、读回并去重。");
-        Require((await Send(new("alert-subscription", new(Account: first.Account)))).Alert is
-            { State: GoogleAlertState.External }, "manual RSS replaces the pending create intent");
 
         var stock = new Security("沪市", "600001", "合成样本", "样例行业");
         var candidate = WatchInput.Candidates("$合成样本(SH600001)$ 以及 HK00700", [stock]);
@@ -103,7 +88,7 @@ internal static class XueqiuPrivateDataChecks
         var header = new byte[16];
         stream.ReadExactly(header);
         Require(!header.AsSpan().SequenceEqual("SQLite format 3\0"u8), "private database uses encrypted pages");
-        Console.WriteLine("PASS 雪球观点追踪：私有管道、独立加密库、作者配置、识别、幂等、统计、历史、待确认及纠正。");
+        Console.WriteLine("PASS 雪球观点追踪：私有管道、独立加密库、作者配置、API 动态、识别、幂等、统计、历史、待确认及纠正。");
     }
 
     private static void Require(bool success, string check)

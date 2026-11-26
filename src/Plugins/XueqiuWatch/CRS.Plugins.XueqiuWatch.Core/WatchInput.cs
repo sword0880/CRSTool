@@ -35,66 +35,6 @@ public static partial class WatchInput
     }
 
 
-    /// <summary>把 Google Alerts 的跳转链接还原为经过作者归属校验的雪球原帖链接。</summary>
-    public static string AlertSourceLink(string? input, string account)
-    {
-        var owner = AccountId(account);
-        if (!Uri.TryCreate((input ?? string.Empty).Trim(), UriKind.Absolute, out var uri) ||
-            uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || uri.UserInfo.Length != 0 ||
-            uri.Fragment.Length != 0)
-            throw new ArgumentException("提醒结果不是有效的 HTTPS 文章链接。");
-
-        var source = uri;
-        if (IsGoogleAlertsHost(uri.Host))
-        {
-            if (!uri.AbsolutePath.Equals("/url", StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException("不支持该 Google 跳转地址。");
-
-            var target = QueryValue(uri, "url") ?? QueryValue(uri, "q");
-            if (!Uri.TryCreate(target, UriKind.Absolute, out source))
-                throw new ArgumentException("Google 提醒结果缺少有效的原文地址。");
-        }
-
-        var normalized = SourceLink(source.AbsoluteUri);
-        if (!normalized.StartsWith($"https://xueqiu.com/{owner}/", StringComparison.Ordinal))
-            throw new ArgumentException("文章链接与当前观察作者账号不一致。");
-        return normalized;
-    }
-
-    /// <summary>生成按雪球用户主页路径监控的 Google Alerts 搜索条件。</summary>
-    public static string GoogleAlertQuery(string account) => $"site:xueqiu.com/{AccountId(account)}";
-
-    public static bool IsGoogleAlertsFeed(Uri address) =>
-        address.Scheme == Uri.UriSchemeHttps && IsGoogleAlertsHost(address.Host) &&
-        address.AbsolutePath.StartsWith("/alerts/feeds/", StringComparison.Ordinal);
-
-    private static bool IsGoogleAlertsHost(string host) =>
-        host is "google.com" or "www.google.com" or "google.com.hk" or "www.google.com.hk";
-
-    public static string NormalizeRssProxy(string? input)
-    {
-        var value = Text(input, 200);
-        if (value.Length == 0) return "";
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var proxy) || proxy.Scheme != Uri.UriSchemeHttp ||
-            !proxy.IsLoopback || proxy.Port < 1 || proxy.UserInfo.Length != 0 ||
-            proxy.PathAndQuery != "/" || proxy.Fragment.Length != 0)
-            throw new ArgumentException("请输入 Mihomo 本机 HTTP / Mixed 地址，例如 http://127.0.0.1:7890。");
-        return proxy.AbsoluteUri;
-    }
-
-    private static string? QueryValue(Uri uri, string name)
-    {
-        foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var separator = part.IndexOf('=');
-            if (separator <= 0) continue;
-            var key = Uri.UnescapeDataString(part[..separator].Replace('+', ' '));
-            if (!key.Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
-            return Uri.UnescapeDataString(part[(separator + 1)..].Replace('+', ' '));
-        }
-        return null;
-    }
-
     private static bool IsAccount(string value) => value.Length is >= 1 and <= 20 && value.All(char.IsAsciiDigit);
 
     public static Security CheckSecurity(Security security)

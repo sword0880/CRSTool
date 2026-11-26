@@ -106,8 +106,8 @@ if(args is ["--ipc-boundaries"]){await PipeBoundaryChecks.RunAsync();return;}
 if(args is ["--ipc-compatibility",var ipcPackage]){await PipeCompatibilityChecks.RunAsync(ipcPackage);return;}
 if(args is ["--plugin-package-compatibility",var pluginPackage]){await PipeCompatibilityChecks.RunAsync(pluginPackage,true);return;}
 if(args is ["--xueqiu-private-data",var xueqiuPackage]){await PipeCompatibilityChecks.RunAsync(xueqiuPackage,true,true);return;}
-if(args is ["--xueqiu-rss"]){await FeedEngineChecks.RunAsync();await XueqiuRssChecks.RunAsync();return;}
-if(args is ["--xueqiu-timeline"]){await XueqiuTimelineChecks.RunAsync();return;}
+if(args is ["--feed-engine"]){await FeedEngineChecks.RunAsync();return;}
+if(args is ["--xueqiu-timeline"]){await XueqiuLegacyMigrationChecks.RunAsync();await XueqiuTimelineChecks.RunAsync();return;}
 if(args is ["--xueqiu-backfill"]){await XueqiuTimelineChecks.RunBackfillAsync();return;}
 if(args is ["--xueqiu-original-page-live"]){await XueqiuOriginalPageChecks.RunLiveAsync();return;}
 if(args is ["--xueqiu-original-page-fixture"]){await XueqiuOriginalPageChecks.RunFixtureAsync();return;}

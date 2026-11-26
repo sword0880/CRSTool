@@ -42,12 +42,6 @@
       "crs.common": {
         "type": "Project"
       },
-      "crs.feed": {
-        "type": "Project",
-        "dependencies": {
-          "CRS.Common": "[1.0.0, )"
-        }
-      },
       "crs.plugins.xueqiuwatch.core": {
         "type": "Project"
       },
