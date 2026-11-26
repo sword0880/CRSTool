@@ -49,7 +49,7 @@ internal static class XueqiuTimelineChecks
         Check(partial.Total == 3 && newest.OriginalPageTimeVerified &&
             newest.Title == "雪球标题" && newest.PublishedAt == api.NewPostTime.ToOffset(TimeSpan.FromHours(8)),
             "API 部分读取保留已取得的原帖，不依赖外部 RSS 补充");
-        Check(fallback.Coverage.Single(c => c.Account == Primary).Timeline is { State: "Unavailable", Pages: 1 } &&
+        Check(partial.Coverage.Single(c => c.Account == Primary).Timeline is { State: "Unavailable", Pages: 1 } &&
             Completed() == completed, "翻页失败保存先前页，增量基准在失败时保持");
 
         api.Round = 3;
@@ -236,7 +236,7 @@ internal static class XueqiuTimelineChecks
         var directory = Path.Combine(Path.GetTempPath(), "CRS.XueqiuBackfill", Guid.NewGuid().ToString("N"));
         var context = new FixtureContext(directory);
         var api = new BackfillFixture(account);
-        await using var session = new XueqiuBackgroundEntry().CreateSession(context, feed, _ => api);
+        await using var session = new XueqiuBackgroundEntry().CreateSession(context, _ => api);
         await session.StartAsync(token);
         async Task<WatchReply> Ask(WatchRequest request) => WatchProtocol.Decode<WatchReply>(
             await ((IBackgroundPrivateDataSession)session).AccessPrivateDataAsync(WatchProtocol.Encode(request), token));
