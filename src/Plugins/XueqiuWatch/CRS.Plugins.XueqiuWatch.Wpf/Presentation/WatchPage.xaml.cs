@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -21,6 +22,7 @@ public partial class WatchPage : UserControl
     private bool loaded;
     private bool updating;
     private int detailOffset;
+    private int detailPageSize = WatchProtocol.DetailRowsPerPage;
     private string mode = "latest";
 
     internal WatchPage(WorkerWatchClient client, CancellationToken lifetime)
@@ -122,13 +124,22 @@ public partial class WatchPage : UserControl
         try
         {
             var leads = (await client.AskAsync(new("leads"), lifetime)).Leads;
-            LeadsButton.Content = leads is { Total: > 0 } ? $"发言线索（{leads.Total}）" : "发言线索";
+            SetLeadCount(leads?.Total ?? 0);
         }
         catch (ArgumentException error) when (error.Message == "未知的观点追踪操作。")
         {
             // 旧版 Worker 未提供线索查询时，股票观点仍可刷新。
-            LeadsButton.Content = "发言线索";
+            SetLeadCount(0);
         }
+    }
+
+    private void SetLeadCount(int count)
+    {
+        var label = count > 0 ? $"发言线索（{count}）" : "发言线索";
+        LeadsBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LeadsCount.Text = count.ToString();
+        LeadsButton.ToolTip = label;
+        AutomationProperties.SetName(LeadsButton, label);
     }
 
     private async Task RefreshStocksAsync(Opinion? recordedFromLead = null, int? requestedOffset = null)
@@ -208,7 +219,8 @@ public partial class WatchPage : UserControl
         MentionAuthorSummary.Visibility = Visibility.Collapsed;
         if (mode == "mentions" && selected is { } activeStock)
         {
-            var request = filter with { Security = activeStock.Security, Offset = detailOffset };
+            var request = filter with { Security = activeStock.Security, Offset = detailOffset,
+                MentionPageSize = WatchProtocol.DetailRowsPerPage };
             var reply = await client.AskAsync(new("mentions", request), lifetime);
             var mentions = reply.Mentions ?? throw new InvalidDataException("缺少股票发言提及。");
             if (detailOffset > 0 && detailOffset >= mentions.Total)
@@ -233,12 +245,11 @@ public partial class WatchPage : UserControl
         if (global) filter = filter with { Market = null, Search = null };
         filter = filter with { Security = global ? null : selected?.Security, Mode = mode,
             Offset = detailOffset, Days = mode is "timeline" or "questions" or "pending" ? 0 : filter.Days };
-        var detail = (await client.AskAsync(new("detail", filter), lifetime)).Detail
-            ?? throw new InvalidDataException("缺少观点明细。");
+        var detail = await ReadOpinionPageAsync(filter);
         if (detailOffset > 0 && detailOffset >= detail.Total)
         {
             detailOffset = 0;
-            detail = (await client.AskAsync(new("detail", filter with { Offset = 0 }), lifetime)).Detail!;
+            detail = await ReadOpinionPageAsync(filter with { Offset = 0 });
         }
         Details.ItemsSource = detail.Rows.Select(x => new OpinionRow(x, AuthorName(x.Account), mode == "questions")).ToArray();
         DetailTitle.Text = mode switch
@@ -252,12 +263,32 @@ public partial class WatchPage : UserControl
         SetDetailsPage(detail.Rows.Length, detail.Total, "暂无观点");
     }
 
+    private async Task<OpinionDetail> ReadOpinionPageAsync(ReviewFilter filter)
+    {
+        // 完整观点仍按原有传输批次读取，避免较长的证据和正文超出管道帧容量。
+        var rows = new List<Opinion>(WatchProtocol.DetailRowsPerPage);
+        int total;
+        do
+        {
+            var chunk = (await client.AskAsync(new("detail", filter with { Offset = filter.Offset + rows.Count }), lifetime)).Detail
+                ?? throw new InvalidDataException("缺少观点明细。");
+            total = chunk.Total;
+            if (chunk.Rows.Length == 0) break;
+            rows.AddRange(chunk.Rows.Take(WatchProtocol.DetailRowsPerPage - rows.Count));
+        }
+        while (rows.Count < WatchProtocol.DetailRowsPerPage && filter.Offset + rows.Count < total);
+        return new(rows.ToArray(), total);
+    }
+
     private string AuthorName(string account) => authors.FirstOrDefault(a => a.Account == account)?.Name ?? account;
 
     private void SetDetailsPage(int count, int total, string emptyLabel)
     {
+        // 较旧的 Worker 会忽略请求页大小，此时按它实际返回的完整页翻页。
+        if (detailOffset == 0 || detailOffset + count < total)
+            detailPageSize = count > 0 ? count : WatchProtocol.DetailRowsPerPage;
         DetailPageText.Text = total == 0 ? emptyLabel : $"{detailOffset + 1}–{detailOffset + count} / {total}";
-        PriorDetails.Visibility = NextDetails.Visibility = mode != "mentions" || total > WatchProtocol.OpinionsPerPage
+        PriorDetails.Visibility = NextDetails.Visibility = mode != "mentions" || total > count
             ? Visibility.Visible : Visibility.Collapsed;
         PriorDetails.IsEnabled = detailOffset > 0;
         NextDetails.IsEnabled = detailOffset + count < total;
@@ -343,8 +374,8 @@ public partial class WatchPage : UserControl
         });
     }
 
-    private async void PriorDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(-WatchProtocol.OpinionsPerPage);
-    private async void NextDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(WatchProtocol.OpinionsPerPage);
+    private async void PriorDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(-detailPageSize);
+    private async void NextDetailPage(object sender, RoutedEventArgs e) => await MoveDetailsAsync(detailPageSize);
 
     private Task MoveDetailsAsync(int delta) => RunAsync(async () =>
     {
@@ -387,9 +418,26 @@ public partial class WatchPage : UserControl
         await PostBodyViewer.OpenAsync(Window.GetWindow(this), client, row.Post, row.PublishedAt, lifetime);
     });
 
-    private void OpenSource(object sender, RoutedEventArgs e)
+    private void ContentMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Button { DataContext: SourceRow { HasLink: true } row }) return;
+        if (e.ClickCount == 2 && sender is TextBlock { DataContext: SourceRow { HasLink: true } row })
+        {
+            e.Handled = true;
+            OpenSource(row);
+        }
+    }
+
+    private void ContentKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is TextBlock { DataContext: SourceRow { HasLink: true } row })
+        {
+            e.Handled = true;
+            if (!e.IsRepeat) OpenSource(row);
+        }
+    }
+
+    private void OpenSource(SourceRow row)
+    {
         try { Process.Start(new ProcessStartInfo(WatchInput.SourceLink(row.Post.Url)) { UseShellExecute = true }); }
         catch (Exception error) when (error is ArgumentException or System.ComponentModel.Win32Exception)
         { Status.Text = "无法打开雪球原帖，请检查浏览器或链接。"; }

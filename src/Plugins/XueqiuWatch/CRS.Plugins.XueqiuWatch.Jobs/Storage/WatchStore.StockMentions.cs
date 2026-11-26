@@ -127,7 +127,9 @@ internal sealed partial class WatchStore
             SELECT m.account,m.url,p.first_seen,{MentionPublished},m.excerpt
             {query}
             ORDER BY {MentionDate} DESC,m.account,m.url LIMIT $limit OFFSET $offset
-            """, transaction, [.. args, ("$limit", WatchProtocol.OpinionsPerPage), ("$offset", filter.Offset)]);
+            """, transaction, [.. args,
+                ("$limit", filter.MentionPageSize == 0 ? WatchProtocol.OpinionsPerPage : filter.MentionPageSize),
+                ("$offset", filter.Offset)]);
         using var rows = command.ExecuteReader();
         var results = new List<StockMention>();
         while (rows.Read())

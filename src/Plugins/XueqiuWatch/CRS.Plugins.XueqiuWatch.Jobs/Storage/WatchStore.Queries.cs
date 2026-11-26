@@ -8,6 +8,7 @@ internal sealed partial class WatchStore
     {
         var filter = input ?? new();
         if (filter.Days is not (0 or 7 or 30) || filter.Offset is < 0 or > 1_000_000 ||
+            filter.MentionPageSize is < 0 or > WatchProtocol.DetailRowsPerPage ||
             filter.Mode is not ("latest" or "timeline" or "pending" or "questions" or "other"))
             throw new ArgumentException("筛选条件无效。");
         return filter with

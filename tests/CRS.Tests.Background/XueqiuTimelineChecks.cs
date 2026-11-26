@@ -198,23 +198,24 @@ internal static class XueqiuTimelineChecks
 
         using (var store = new WatchStore(directory, context.OpenDataKey()))
         {
-            var posts = Enumerable.Range(900, WatchProtocol.OpinionsPerPage).Select(id =>
+            var posts = Enumerable.Range(900, WatchProtocol.DetailRowsPerPage).Select(id =>
                 new TimelinePost(id.ToString(), "", "", "$融捷股份(SZ002192)$ $融捷股份(SZ002192)$", time)).ToArray();
             store.SaveTimeline(Primary, new("Read", time, posts, 1), token);
             store.SaveTimeline(Primary, new("Read", time,
                 [new("999", "", "", "$融捷股份(SZ002192)$", time.AddDays(-10))], 1), token);
         }
-        var mentionFilter = new ReviewFilter(Days: 7, Security: rongjie);
+        var mentionFilter = new ReviewFilter(Days: 7, Security: rongjie) { MentionPageSize = WatchProtocol.DetailRowsPerPage };
         var firstMentions = (await Ask(new("mentions", mentionFilter))).Mentions!;
-        var moreMentions = (await Ask(new("mentions", mentionFilter with { Offset = WatchProtocol.OpinionsPerPage }))).Mentions!;
-        Check(firstMentions.Total == WatchProtocol.OpinionsPerPage + 1 &&
-            firstMentions.Rows.Length == WatchProtocol.OpinionsPerPage && moreMentions.Rows.Length == 1 &&
+        var moreMentions = (await Ask(new("mentions", mentionFilter with { Offset = 20 }))).Mentions!;
+        var legacyMentions = (await Ask(new("mentions", mentionFilter with { MentionPageSize = 0 }))).Mentions!;
+        Check(firstMentions.Total == 21 && firstMentions.Rows.Length == 20 && moreMentions.Rows.Length == 1 &&
+            legacyMentions.Rows.Length == 6 && !firstMentions.Rows.Any(x => x.Url == moreMentions.Rows[0].Url) &&
             firstMentions.AuthorCounts is [{ } leader, { } other] &&
-            leader == new AuthorMentionCount(Primary, WatchProtocol.OpinionsPerPage) &&
+            leader == new AuthorMentionCount(Primary, 20) &&
             other == new AuthorMentionCount(ApiOnly, 1) &&
             firstMentions.AuthorCounts.SequenceEqual(moreMentions.AuthorCounts!), "按作者统计跨页汇总、按篇数排序且同帖去重");
         var authorMentions = (await Ask(new("mentions", mentionFilter with { Days = 30, Account = Primary }))).Mentions!;
-        Check(authorMentions.Total == WatchProtocol.OpinionsPerPage + 1 &&
+        Check(authorMentions.Total == 21 &&
             authorMentions.AuthorCounts is [{ } authorCount] &&
             authorCount == new AuthorMentionCount(Primary, authorMentions.Total), "作者统计遵循时间范围和作者筛选");
 

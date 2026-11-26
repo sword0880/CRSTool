@@ -11,6 +11,7 @@
     <ProjectReference Include="../../../PluginHost/CRS.Plugin.Wpf/CRS.Plugin.Wpf.csproj" />
     <ProjectReference Include="../../../Worker/CRS.Worker.Ipc/CRS.Worker.Ipc.csproj" />
     <PackageReference Include="Microsoft.Playwright" />
+    <PackageReference Include="WPF-UI" />
     <Content Include="../plugin.json" Link="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -29,6 +29,8 @@ public sealed record ReviewFilter(int Days = 30, string? Account = null, string?
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SortByActivity { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int MentionPageSize { get; init; }
 }
 
 public sealed record StockSummary(Security Security, int Bullish, int Bearish, int Discussions,
@@ -127,6 +129,7 @@ public static class WatchProtocol
     public const int StocksPerPage = 40;
     public const int VisibilityStocksPerPage = 80;
     public const int OpinionsPerPage = 6;
+    public const int DetailRowsPerPage = 20;
     public const int MaximumAuthors = 54;
 
     public const string AShareMarket = "A股";
