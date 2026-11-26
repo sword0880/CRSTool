@@ -50,6 +50,7 @@ internal static class PipeCompatibilityChecks
         finally
         {
             if(!process.HasExited)process.Kill(entireProcessTree:true);await process.WaitForExitAsync();
+            Directory.CreateDirectory("artifacts");
             File.WriteAllText(Path.Combine("artifacts","pipe-eof-compat-host.log"),(await stdout)+Environment.NewLine+(await stderr));
         }
     }
