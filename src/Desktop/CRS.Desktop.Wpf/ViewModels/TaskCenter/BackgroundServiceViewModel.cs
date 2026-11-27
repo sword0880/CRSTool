@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CRS.Maintenance;
+using CRS.DesktopClient.Services;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
