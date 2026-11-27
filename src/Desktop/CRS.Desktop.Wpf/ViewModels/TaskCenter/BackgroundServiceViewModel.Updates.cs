@@ -36,13 +36,21 @@ public partial class BackgroundServiceViewModel
     {
         if (!CanCheckWorkerUpdates()) return;
         IsCheckingWorkerUpdates = true;
-        lastGitHubCheck = DateTimeOffset.UtcNow;
         GitHubUpdateStatus = "正在检查 GitHub 发行……";
         try
         {
             var result = await updateService.CheckAsync(installedWorkerVersion, lifetime);
             if (result.State != WorkerUpdateState.Cancelled)
+            {
                 ApplyUpdateResult(result);
+                lastGitHubCheck = result.State is WorkerUpdateState.RateLimited
+                    or WorkerUpdateState.CheckUnavailable
+                    or WorkerUpdateState.InvalidResponse
+                    or WorkerUpdateState.EnvironmentCheckFailed
+                    or WorkerUpdateState.TimedOut
+                    ? null
+                    : DateTimeOffset.UtcNow;
+            }
         }
         finally
         {
