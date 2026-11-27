@@ -67,7 +67,7 @@ internal static class WorkerGitHubUpdateChecks
 
     private static async Task CheckUpdateServiceAsync()
     {
-        var digest = Convert.ToHexString(SHA256.HashData([12, 23, 42]));
+        var digest = Convert.ToHexString(SHA256.HashData(new byte[] { 12, 23, 42 }));
         var release = new WorkerGitHubRelease(new Version(2, 0, 10), "worker-v2.0.10", 3, digest);
         var publication = new WorkerGitHubPublication(new Version(2, 0, 10), "worker-v2.0.10", false, 0);
         var check = new WorkerGitHubCheck(publication, null, release, FromPublicFeed: false);
@@ -80,10 +80,21 @@ internal static class WorkerGitHubUpdateChecks
         var unknown = service.Evaluate(check, null);
         var current = service.Evaluate(check, new Version(2, 0, 10));
         var available = service.Evaluate(check, new Version(2, 0, 0));
+        var feedOnly = service.Evaluate(new WorkerGitHubCheck(publication, null, null, FromPublicFeed: true),
+            new Version(2, 0, 0));
+        var verified = service.VerifyInstallation(
+            new WorkerUpdateResult(WorkerUpdateState.Installed, "待核验", check, release, release.Page),
+            release.Version, serviceRunning: true);
+        var pending = service.VerifyInstallation(
+            new WorkerUpdateResult(WorkerUpdateState.Installed, "待核验", check, release, release.Page),
+            new Version(2, 0, 0), serviceRunning: false);
         if (unknown.State != WorkerUpdateState.InstalledVersionUnknown ||
             current.State != WorkerUpdateState.Current ||
-            available.State != WorkerUpdateState.UpdateAvailable || !available.CanInstall)
-            throw new InvalidOperationException("后台更新统一状态或安装能力计算错误。");
+            available.State != WorkerUpdateState.UpdateAvailable || !available.CanInstall ||
+            feedOnly.State != WorkerUpdateState.ReleaseInfoOnly || feedOnly.CanInstall ||
+            verified.State != WorkerUpdateState.InstallationVerified ||
+            pending.State != WorkerUpdateState.VerificationPending)
+            throw new InvalidOperationException("后台更新统一状态、安装能力或安装后核验计算错误。");
 
         var unsupported = new WorkerUpdateService(new WorkerGitHubReleases(unusedHttp),
             () => new WorkerUpdateEnvironment(false, true, true)).Evaluate(check, new Version(2, 0, 0));
