@@ -210,6 +210,7 @@ internal sealed class WorkerUpdateService
         if (!readiness.CanInstall) return readiness;
 
         string? packagePath = null;
+        var installStarted = false;
         try
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -225,6 +226,7 @@ internal sealed class WorkerUpdateService
                 check, release, release.Page));
 
             // 提权维护进程启动后必须完成事务，不因桌面会话取消而中断服务升级。
+            installStarted = true;
             var installResult = await installPackage(release, packagePath).ConfigureAwait(false);
             return installResult switch
             {
@@ -261,8 +263,11 @@ internal sealed class WorkerUpdateService
         }
         catch (Exception error) when (error is HttpRequestException or IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            return new(WorkerUpdateState.DownloadFailed, "后台更新下载失败。请检查网络和临时目录权限后重试。",
-                check, release, release.Page, CanInstall: true);
+            return installStarted
+                ? new(WorkerUpdateState.InstallFailed, "后台安装程序无法完成。请检查管理员权限和本机安装环境。",
+                    check, release, release.Page, CanInstall: true)
+                : new(WorkerUpdateState.DownloadFailed, "后台更新下载失败。请检查网络和临时目录权限后重试。",
+                    check, release, release.Page, CanInstall: true);
         }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException)
         {
