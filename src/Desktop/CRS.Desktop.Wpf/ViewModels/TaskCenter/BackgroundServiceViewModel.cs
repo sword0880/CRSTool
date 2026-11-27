@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CRS.Maintenance;
+using CRS.DesktopClient.Services;
 using CRS.Worker.Abstractions;
 using CRS.Worker.Ipc;
 
@@ -14,8 +15,15 @@ public partial class BackgroundServiceViewModel : ObservableObject
     private readonly BackgroundPipeClient client;
     private readonly DataCleanupViewModel? cleanup;
     public BackgroundServiceViewModel(CancellationToken lifetime,BackgroundPipeClient? serviceClient=null,DataCleanupViewModel? cleanup=null)
+        : this(lifetime, serviceClient, cleanup, new WorkerUpdateService())
+    {
+    }
+
+    internal BackgroundServiceViewModel(CancellationToken lifetime,BackgroundPipeClient? serviceClient,
+        DataCleanupViewModel? cleanup,WorkerUpdateService updateService)
     {
         this.lifetime=lifetime;client=serviceClient??new();this.cleanup=cleanup;
+        this.updateService=updateService;
         maintenancePlan=new(cleanup);PlanRows.Add(maintenancePlan);
         Jobs.CollectionChanged+=OnJobsChanged;
         maintenancePlan.PropertyChanged+=(_,_)=>NotifyPlanCommands();
