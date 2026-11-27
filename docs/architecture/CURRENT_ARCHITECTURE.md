@@ -1,6 +1,6 @@
 # 当前架构
 
-> 基线：2026-11-13，Git main。本文只描述当前源码中的分层、进程、依赖和数据所有权；部署证据见 [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md)，未关闭事项见 [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)。
+> 基线：2026-11-27，Git main（PR #46 合并提交 `3497e22`）。本文只描述当前源码中的分层、进程、依赖和数据所有权；部署证据见 [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md)，未关闭事项见 [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)。
 
 ## 1. 解决方案分层
 
@@ -11,7 +11,7 @@
 | 领域与应用 | CRS.Domain、CRS.Application | 业务规则、用例和应用端口；不依赖 WPF、MCP 或具体数据库 |
 | 基础设施与安全 | CRS.Infrastructure、CRS.Security | 数据访问、加密、安全机制和外部基础设施适配 |
 | 通用能力 | CRS.Common、CRS.Documents、CRS.Feed | Common 提供跨模块纯通用能力；Documents 提供通用 PDF/Excel 文档处理，不承载业务模板或金融计算 |
-| WPF 桌面 | CRS.Desktop.Wpf、CRS.Plugin.Abstractions、CRS.Plugin.Wpf、CRS.PluginHost、src/Plugins | 主窗口、导航、设置、插件 UI 和用户交互 |
+| WPF 桌面 | CRS.Desktop.Wpf、CRS.Plugin.Abstractions、CRS.Plugin.Wpf、CRS.PluginHost、src/Plugins | 主窗口、导航、设置、插件 UI、用户交互及 Worker 更新客户端协调 |
 | Worker 后台 | CRS.Worker.Abstractions、CRS.Worker.Ipc、CRS.Worker.PluginHost、CRS.Worker.PluginRunner、CRS.Worker.Service | 后台契约、授权 IPC、插件执行、Quartz 调度、持久任务、健康和维护 |
 | AI | CRS.AI.Contracts、CRS.AI.Query、CRS.AI.Adapters、CRS.AI.Infrastructure、CRS.AI.Gateway、CRS.AI.Client、CRS.AI.Models | 统一只读工具契约、查询、协议适配、审计、Gateway、MCP/Responses 入口和模型供应商适配 |
 | 测试 | tests/CRS.Tests.*、tests/Plugin | 领域、应用、基础设施、Worker、WPF、AI、安全和架构验证 |
@@ -29,6 +29,8 @@
 | 模型适配 | Responses API 及已接入的其他供应商协议 | 模型输出不是金融事实，不回写账本、税表或发布事实 |
 
 Worker Service 是唯一 Quartz 调度宿主。WPF 与 Worker 通过版本化 IPC/Named Pipes 契约通信；不得在 WPF 或 AI Gateway 中再创建第二套后台调度器。
+
+WPF 侧的后台版本更新是独立于 Worker 业务调度的客户端维护流程：`BackgroundServiceViewModel.Updates` 只保留界面状态、命令和结果展示；`WorkerUpdateService` 统一负责 GitHub 更新检查与异常分类、安装环境门禁、下载/安装协调及临时 ZIP 生命周期；`WorkerGitHubReleases` 负责发行数据传输，`WorkerReleaseInstaller` 负责本机维护安装。该边界由 `tests/Verify-Architecture.ps1` 静态门禁和 Worker 更新专项测试共同约束。安装器结束后仍需重新读取 Worker 健康快照核实版本与运行状态，不能把安装进程退出直接等同于服务升级成功。
 
 ## 3. NationalTeam 模块边界
 

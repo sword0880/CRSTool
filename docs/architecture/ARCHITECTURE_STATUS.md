@@ -1,15 +1,17 @@
 # 当前架构状态
 
-> 状态快照：2026-11-13。本文是当前状态汇总，不是逐日开发日志。历史证据保留在 Git 提交和对应专项验证文档中；任何没有可复核回执的事项均标记为未验收。
+> 状态快照：2026-11-27。本文是当前状态汇总，不是逐日开发日志。历史证据保留在 Git 提交和对应专项验证文档中；任何没有可复核回执的事项均标记为未验收。
 
 ## 1. 仓库与近期合并
 
-- 当前分支：main；核对基线：aa0d72a3f5aa793378e00e6391d485409430a751。
+- 当前分支：main；核对基线：`3497e22fbc3f660af73d2a02b4d3eb377d2095c4`（PR #46 合并提交）。
 - PR #34：助手截图、输入区和导航体验优化，已合并。
 - PR #35：WPF/MCP 统一附件支持，已合并。
 - PR #36：同步 AI Gateway、MCP 和附件文档状态，已合并；该 PR 仅修改 Markdown。
 - PR #37：项目文档合并与精简，已合并；保留兼容入口和历史追溯。
 - PR #38：修复 Runner 结果未知自动重试风险，已合并；普通失败三次重试策略保持不变。
+- PR #46：Worker 更新职责收敛及历史复算测试修正，已合并。新增 `WorkerUpdateService`，并在 `Verify-Architecture.ps1` 中建立 ViewModel 不得直接访问网络、安装器和临时包的架构门禁。
+- PR #46 head `1088ae428312ac9f5601f7a6e4cb9c35d7633069` 与 main 合并提交 `3497e22fbc3f660af73d2a02b4d3eb377d2095c4` 的 Git Tree SHA 均为 `b9197d5a0877e53e73e30c1c73187afda7e63c2b`。
 - AI 只读查询与 Gateway 基础分别经 PR #31、#32、#33 合并。当前代码结构见 [当前架构](CURRENT_ARCHITECTURE.md)。
 
 ## 2. AI 当前实现状态
@@ -27,20 +29,20 @@
 
 ### 最近 CI 证据
 
-PR #38 已于 2026-11-13 合并到 main，合并提交为 `aa0d72a3f5aa793378e00e6391d485409430a751`；其 PR head 与合并提交的 Git tree 完全一致。以下工作流均针对该代码树完成：
+PR #46 已于 2026-11-27 合并。最新 Windows 工作流针对 PR head `1088ae428312ac9f5601f7a6e4cb9c35d7633069` 运行；该 head 与 main 合并提交的 Git Tree SHA 相同。
 
-- WPF UI 完整工作流 [run 43422999898](https://github.com/sword0880/CRSTool/actions/runs/43422999898)：**79/79 步骤通过**，包括 Release Build、AI/MCP 附件、架构依赖和全部后续专项检查。
-- Worker PluginRunner 原型/项目图 [run 43422999954](https://github.com/sword0880/CRSTool/actions/runs/43422999954)：11/11 步骤通过。
-- Worker 升级与恢复 [run 43423000041](https://github.com/sword0880/CRSTool/actions/runs/43423000041)：18/18 步骤通过。
-- NationalTeam storage maintenance [run 43422999950](https://github.com/sword0880/CRSTool/actions/runs/43422999950)：11/11 步骤通过。
-- WPF 工作流中，插件监督与持久执行（step 35）、共享准入/Runner 错误与持久重试（step 38）、结果未知不可重试规则（step 42）均通过。
-- `RunnerOutcomeUnknown` 现在作为持久 `Failed` 终态处理，不自动重放；普通可重试失败仍保留最多三次重试。显式取消、执行记录、检查点和失败通知均有回归覆盖。
+- WPF UI 完整工作流 [run 45927491641](https://github.com/sword0880/CRSTool/actions/runs/45927491641)：**79/79 步骤通过**，包含 Release Build、Worker 更新发现与下载完整性、税务/绩效原子导入、雪球 API/回补/原帖/迁移、官方年度汇率读取与旧 JSON 迁移、AI/MCP 附件、架构依赖及 Worker 插件监督等检查。
+- Worker 更新专项覆盖统一状态、发行跨页排序、403/429 Atom 信息回退但不授予安装权限、SHA-256 校验、环境门禁、取消、超时、安装失败分类和临时 ZIP 清理。
+- 历史复算专项通过独立注入的 2025 年官方年末快照，验证显式复算创建关联原任务的新结果，并能识别汇率条件差异；注入值属于测试夹具，不是实际官方汇率。
+- `Verify-Architecture.ps1` 已增加 Worker 更新边界检查：ViewModel 不得直接访问网络、HTTP 状态、安装器或临时安装包；相应职责必须由 `WorkerUpdateService` 承担。
+- 旧工作流 [WPF run 43422999898](https://github.com/sword0880/CRSTool/actions/runs/43422999898)、[Worker PluginRunner run 43422999954](https://github.com/sword0880/CRSTool/actions/runs/43422999954)、[Worker upgrade run 43423000041](https://github.com/sword0880/CRSTool/actions/runs/43423000041) 是 2026-11-13 代码基线的历史专项证据，不替代最新代码树验证或正式服务安装回执。
+- `RunnerOutcomeUnknown` 仍作为持久 `Failed` 终态处理，不自动重放；普通可重试失败仍保留最多三次重试。自动化通过不等于真实 SCM 安装、OS 权限隔离或灾备验收完成。
 
-以上仅证明当前源码及自动化验证通过；最后可确认的正式 Worker 安装快照仍为 2026-10-31，不能据此宣称生产服务已升级。
+以上证明的是 PR #46 对应源码树的自动化验证；不证明正式 Worker 服务已升级或生产业务验收已完成。
 
 ## 3. Worker 与 NationalTeam 最近可确认状态
 
-**重要：以下正式运行数据最后确认于 2026-10-31，不是 2026-11-13 的实时检查。** main 在其后继续合并代码，但没有在本次文档核对中取得新的正式 Worker 安装回执。
+**重要：以下正式运行数据最后确认于 2026-10-31，不是 2026-11-27 的实时检查。** main 在其后继续合并代码，但没有在本次文档核对中取得新的正式 Worker 安装回执。
 
 - main 已将每插件 `CRS.Worker.PluginRunner` 接入 Worker Service 组合根，通过 `IsolatedPluginSession` 运行受信插件；这是源码状态，不代表已安装服务已更新。最后记录的正式 Worker 代次为 c84d1bf74522495fa91a4cf4ce3a272b，2026-10-31 19:58:15 Committed；当时 PID 42984 / Running / Auto / LocalService。此信息只能作为最后已知基线。
 - 当时完成新旧程序、6051 份快照、原密钥摘要、7 项计划、24 只 ETF 配置、29 条股票投影和 10 条旧执行的保全核对。
@@ -57,7 +59,7 @@ PR #38 已于 2026-11-13 合并到 main，合并提交为 `aa0d72a3f5aa793378e00
 - 税务计算独立 Golden Dataset、独立人工金额签认和完整真实案例复核仍未完成。
 - 投资绩效的真实期初净值、价格、现金流/转仓完整性及独立金额对账仍未通过。
 - Worker 程序代次/Schema 升级、ServiceKey 跨机器/服务身份恢复、生产签名、断电/磁盘满和真实安装生命周期仍有未关闭门槛。
-- 插件 Runner 监督测试在最近工作流失败；不能以单项隔离输出通过替代完整生命周期验收。
+- 最新 PR #46 的 WPF CI 中，插件监督与持久执行专项已通过；正式 Worker 安装、真实 Windows SCM 生命周期、OS 权限隔离和灾备仍未验收。不能以 CI 通过替代生产生命周期验收。
 - NationalTeam 的真实来源覆盖、ETF 披露审核、具名持仓、市场周期样本外验证和正式通知仍未完成。
 - AI 外部连接、ChatGPT 真实 fileParams、生产 Gateway/Worker 配套部署、用户级身份和数据外发审查仍未完成。
 

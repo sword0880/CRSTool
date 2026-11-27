@@ -1,6 +1,6 @@
 # 当前问题与验收缺口
 
-> 更新：2026-11-13。只保留仍未关闭的问题。历史过程记录可通过 Git 历史追溯；各问题关闭前必须附带当前 head 的测试或正式环境证据。
+> 更新：2026-11-27。只保留仍未关闭的问题。历史过程记录可通过 Git 历史追溯；各问题关闭前必须附带当前 head 的测试或正式环境证据。
 
 ## P0 — 阻止正式发布
 
@@ -21,7 +21,7 @@
 | P1-04 / SEC-09 | 公开版安全发布门槛未关闭。 | 完成生产签名、依赖许可证/NOTICE、隐私告知、发行包敏感扫描、真实跨设备恢复和离线安全验收。见 [安全规范](specifications/security/README.md)。 |
 | P1-05 | AI 双入口已进入 main，但远程连接和生产安全边界未验收。 | 完成目标账号/地区策略核验、远程 HTTPS 或 Secure MCP Tunnel、真实 ChatGPT 工具调用、撤权、服务账户/ACL、审计归档与备份恢复；附件 fileParams 必须真实账号端到端通过。见 [AI 架构](architecture/AI_GATEWAY_MCP_ARCHITECTURE.md) 和 [AI 实施记录](implementation/AI_DUAL_ENTRY_POC.md)。 |
 | P1-06 | AI 附件首版格式和多用户边界有限。 | 当前只支持 UTF-8 TXT/MD/CSV/JSON；PDF/DOCX/XLSX/OCR 需单独做资源和安全审查；多用户部署前需用户级身份、独立会话所有权和撤权。 |
-| P1-07 / ARCH-207 | 每插件 Runner 与结果未知终态闭环已进入 main 并通过自动化 CI；仍未完成正式 Worker 安装、真实 Windows SCM 生命周期和 OS 权限隔离。独立进程不等于安全沙箱。 | 取得新 head 的正式安装回执；完成启动/升级/卸载、SCM 生命周期、服务身份、独立 ACL、密钥边界和网络隔离评审。当前 CI 证据见 [WPF run 43422999898](https://github.com/sword0880/CRSTool/actions/runs/43422999898)、[Worker upgrade run 43423000041](https://github.com/sword0880/CRSTool/actions/runs/43423000041)。见 [插件进程隔离](architecture/WORKER_PLUGIN_PROCESS_ISOLATION.md)。 |
+| P1-07 / ARCH-207 | 每插件 Runner 与结果未知终态闭环已进入 main 并通过自动化 CI；仍未完成正式 Worker 安装、真实 Windows SCM 生命周期和 OS 权限隔离。独立进程不等于安全沙箱。 | 取得新 head 的正式安装回执；完成启动/升级/卸载、SCM 生命周期、服务身份、独立 ACL、密钥边界和网络隔离评审。当前最新 WPF CI [run 45927491641](https://github.com/sword0880/CRSTool/actions/runs/45927491641) 的插件监督步骤通过；旧版专项证据见 [Runner run 43422999954](https://github.com/sword0880/CRSTool/actions/runs/43422999954) 和 [Worker upgrade run 43423000041](https://github.com/sword0880/CRSTool/actions/runs/43423000041)。正式安装和 SCM 生命周期仍须独立验收。见 [插件进程隔离](architecture/WORKER_PLUGIN_PROCESS_ISOLATION.md)。 |
 | P1-08 / ARCH-208 | 券商不可变来源事实仍未形成完整、可跨版本复核的税务/绩效事实账本。 | 完成 IBKR/FUTU 原件与解析版本追溯、类型化事实、Tax/Performance 独立投影差异、幂等重导入及独立真实 Golden 样本；不得把版本字段通过等同于金额正确性验收。见 [券商来源事实](architecture/BROKER_SOURCE_FACTS.md)。 |
 | P1-09 / ARCH-209 | 宿主共享来源预算已接入并通过有限隔离负载，但跨日负载、真实 Worker 部署/源站恢复和物理故障仍未验收。 | 提供多插件共享限流、429/403 冷却、跨日排队/重试、真实服务重启和源站恢复证据；同时完成查询竞争与维护排空的容量测量。见 [共享来源预算](architecture/SHARED_SOURCE_BUDGETS.md)、[查询性能](implementation/QUERY_PERFORMANCE.md)。 |
 
@@ -29,7 +29,9 @@
 
 | 编号 | 关闭日期 | 关闭事项 | 证据 |
 | --- | --- | --- | --- |
-| P1-01 | 2026-11-13 | Runner 崩溃后的结果未知命令此前被通用失败策略退回 Pending/RetryDeferred，导致持久终态测试超时；现已将 `RunnerOutcomeUnknown` 设为不可自动重试的持久 Failed 终态，并保留检查点、原命令回执和失败通知。 | PR #38 已合并；[WPF 完整工作流 79/79 通过](https://github.com/sword0880/CRSTool/actions/runs/43422999898)，其中 step 35、38、42 通过。普通失败三次重试和已知 I/O 失败退避仍通过回归。 |
+| P1-01 | 2026-11-13 | Runner 崩溃后的结果未知命令此前被通用失败策略退回 Pending/RetryDeferred，导致持久终态测试超时；现已将 `RunnerOutcomeUnknown` 设为不可自动重试的持久 Failed 终态，并保留检查点、原命令回执和失败通知。 | PR #38 已合并；[WPF 完整工作流 79/79 通过](https://github.com/sword0880/CRSTool/actions/runs/43422999898)，其中 step 35、38、42 通过。普通失败三次重试和已知 I/O 失败退避仍通过。 |
+| DEV-01 | 2026-11-27 | Worker 更新架构门禁修复：新增 `WorkerUpdateService` 统一 GitHub 更新检查、异常分类、安装环境检查、安装协调和临时包清理；ViewModel 仅保留界面状态、命令与结果展示。 | PR #46 已合并；[Windows CI run 45927491641](https://github.com/sword0880/CRSTool/actions/runs/45927491641) 的 Release Build、Worker 更新专项和 `Verify-Architecture.ps1` 均通过。 |
+| TEST-01 | 2026-11-27 | 历史汇率复算测试夹具修正：向显式历史复算注入与旧兼容汇率不同的官方年末快照，验证新结果关联原任务、汇率差异可比较，且不覆盖原历史结果。 | PR #46 已合并；[Windows CI run 45927491641](https://github.com/sword0880/CRSTool/actions/runs/45927491641) 的原子导入与历史复算专项通过。测试快照为合成夹具，不代表实际官方报价。 |
 
 ## 反方检查
 

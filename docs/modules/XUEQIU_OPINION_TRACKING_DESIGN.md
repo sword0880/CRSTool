@@ -1,6 +1,6 @@
 # 雪球观点追踪设计（当前实现基线）
 
-更新日期：2026-11-26
+更新日期：2026-11-27
 
 ## 1. 目标与范围
 
@@ -56,3 +56,5 @@
 | 页面 | 顶部控件同一行；明细固定「原帖提及」；无 Google/RSS 入口 |
 
 自动化验证入口：`--xueqiu-private-data`、`--xueqiu-timeline`、`--xueqiu-backfill`、`--xueqiu-original-page-fixture`。
+
+最新回归证据：PR #46 的 [Windows CI run 45927491641](https://github.com/sword0880/CRSTool/actions/runs/45927491641) 已通过雪球时间线、30 天回补、原帖详情夹具及候选 Worker 包私有数据边界检查。该结果证明自动化回归通过，不代表线上作者动态已达到完整覆盖。
