@@ -111,10 +111,12 @@ internal static class WorkerGitHubUpdateChecks
 
         var environmentFailure = new WorkerUpdateService(new WorkerGitHubReleases(unusedHttp),
             () => throw new UnauthorizedAccessException("synthetic environment access failure"));
+        var evaluateEnvironmentFailure = environmentFailure.Evaluate(check, new Version(2, 0, 0));
         var installEnvironmentFailure = await environmentFailure.InstallAsync(
             available, new Version(2, 0, 0), CancellationToken.None);
-        if (installEnvironmentFailure.State != WorkerUpdateState.EnvironmentCheckFailed)
-            throw new InvalidOperationException("安装环境探测异常未归一化为环境检查失败。");
+        if (evaluateEnvironmentFailure.State != WorkerUpdateState.EnvironmentCheckFailed ||
+            installEnvironmentFailure.State != WorkerUpdateState.EnvironmentCheckFailed)
+            throw new InvalidOperationException("ViewModel 重评估和安装流程都必须归一化环境探测异常。");
 
         var releaseJson = JsonSerializer.Serialize(new[]
         {
