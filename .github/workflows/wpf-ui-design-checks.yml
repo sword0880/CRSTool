@@ -49,6 +49,9 @@ jobs:
       - name: Verify NationalTeamWatch source files are grouped by business function
         shell: pwsh
         run: ./tests/Verify-NationalTeamFeatureLayout.ps1
+      - name: Verify GitHub Worker update discovery and download integrity
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --worker-release-checks
       - name: Verify atomic tax and performance import commits
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --calculation-commit
@@ -237,9 +240,6 @@ jobs:
       - name: Verify global shell footer uses real Worker semantics and fail-closed health
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --shell-status-checks
-      - name: Verify GitHub Worker update discovery and download integrity
-        shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --worker-release-checks
       - name: Verify footer direct navigation into recent executions and anomaly filtering
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --task-center-deeplink-checks
