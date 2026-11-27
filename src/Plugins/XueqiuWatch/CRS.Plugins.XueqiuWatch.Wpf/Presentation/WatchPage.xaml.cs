@@ -61,8 +61,11 @@ public partial class WatchPage : UserControl
         dialog.ShowDialog();
         await RunAsync(async () =>
         {
+            var authorsChanged = await RefreshAuthorsAsync();
             if (dialog.SavedOpinion is { } saved)
                 await RefreshSavedOpinionAsync(saved);
+            else if (authorsChanged)
+                await RefreshStocksAsync();
             await RefreshLeadCountAsync();
         });
     }
@@ -79,7 +82,7 @@ public partial class WatchPage : UserControl
 
     private ReviewFilter Filters() => new(PeriodFilter.SelectedIndex == 1 ? 7 : 30,
         (AuthorFilter.SelectedItem as Author)?.Account is { Length: > 0 } account ? account : null,
-        ActiveMarket.Market, Search: StockSearch.Text);
+        ActiveMarket.Market, Search: StockSearch.Text) { WatchlistOnly = true };
 
     private async Task RunAsync(Func<Task> action)
     {
@@ -108,13 +111,26 @@ public partial class WatchPage : UserControl
 
     private async Task RefreshAsync()
     {
-        var account = (AuthorFilter.SelectedItem as Author)?.Account;
-        authors = (await client.AskAsync(new("authors"), lifetime)).Authors ?? [];
-        var options = new[] { new Author("", "全部作者") }.Concat(authors).ToArray();
-        AuthorFilter.ItemsSource = options;
-        AuthorFilter.SelectedItem = options.FirstOrDefault(x => x.Account == account) ?? options[0];
+        await RefreshAuthorsAsync();
         await RefreshStocksAsync();
         await RefreshLeadCountAsync();
+    }
+
+    private async Task<bool> RefreshAuthorsAsync()
+    {
+        var account = (AuthorFilter.SelectedItem as Author)?.Account;
+        var current = (await client.AskAsync(new("authors"), lifetime)).Authors ?? [];
+        var changed = !authors.SequenceEqual(current);
+        authors = current;
+        var options = new[] { new Author("", "全部作者") }.Concat(authors.Where(author => !author.Archived)).ToArray();
+        AuthorFilter.ItemsSource = options;
+        AuthorFilter.SelectedItem = options.FirstOrDefault(x => x.Account == account) ?? options[0];
+        if (changed)
+        {
+            detailOffset = 0;
+            foreach (var market in marketSections) market.ResetPage();
+        }
+        return changed;
     }
 
     private async Task RefreshLeadCountAsync()
@@ -197,7 +213,6 @@ public partial class WatchPage : UserControl
     private async Task RefreshDetailsAsync()
     {
         MentionAuthorSummary.Visibility = Visibility.Collapsed;
-        PostBodyButton.IsEnabled = false;
         if (selected is not { } activeStock)
         {
             Details.ItemsSource = null;
@@ -226,7 +241,6 @@ public partial class WatchPage : UserControl
                 : "更新 Worker 后可查看按作者统计。";
             MentionAuthorSummary.ScrollToTop();
             MentionAuthorSummary.Visibility = Visibility.Visible;
-            PostBodyButton.IsEnabled = true;
         }
         SetDetailsPage(mentions.Rows.Length, mentions.Total, "暂无发言提及");
     }
@@ -297,18 +311,23 @@ public partial class WatchPage : UserControl
         await RefreshDetailsAsync();
     });
 
-    private async void ManageAuthors(object sender, RoutedEventArgs e)
+    private async void ManageAuthors(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
-        var dialog = new AuthorEditor(Window.GetWindow(this), authors, client, lifetime);
+        var current = (await client.AskAsync(new("authors"), lifetime)).Authors ?? [];
+        var dialog = new AuthorEditor(Window.GetWindow(this), current, client, lifetime);
         dialog.ShowDialog();
-        await RunAsync(RefreshAsync);
+        await RefreshAsync();
+    });
+
+    private void OpenPostFromMenu(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: SourceRow { HasLink: true } row }) OpenSource(row);
     }
 
     private async void ShowPostBody(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
-        if (Details.SelectedItem is not SourceRow { HasLink: true } row)
-            throw new ArgumentException("请先选择一条带雪球原帖链接的记录。");
-        await PostBodyViewer.OpenAsync(Window.GetWindow(this), client, row.Post, row.PublishedAt, lifetime);
+        if (sender is MenuItem { DataContext: SourceRow { HasLink: true } row })
+            await PostBodyViewer.OpenAsync(Window.GetWindow(this), client, row.Post, row.PublishedAt, lifetime);
     });
 
     private void ContentMouseDown(object sender, MouseButtonEventArgs e)

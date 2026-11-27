@@ -214,6 +214,26 @@ internal static class XueqiuTimelineChecks
             authorMentions.AuthorCounts is [{ } authorCount] &&
             authorCount == new AuthorMentionCount(Primary, authorMentions.Total), "作者统计遵循时间范围和作者筛选");
 
+        var authorsBefore = (await Ask(new("authors"))).Authors!;
+        var removed = authorsBefore.Single(author => author.Account == ApiOnly);
+        var paused = authorsBefore.Single(author => author.Account == Primary);
+        await Save(removed with { Archived = true });
+        await Save(paused with { Active = false });
+        var watchlistFilter = mentionFilter with { WatchlistOnly = true };
+        var watchlistMentions = (await Ask(new("mentions", watchlistFilter))).Mentions!;
+        Check(watchlistMentions.Total == 20 && watchlistMentions.Rows.All(row => row.Account == Primary) &&
+            watchlistMentions.AuthorCounts!.SequenceEqual([new AuthorMentionCount(Primary, 20)]) &&
+            (await Ask(new("mentions", watchlistFilter with { Account = ApiOnly }))).Mentions!.Total == 0,
+            "当前观察名单的提及和作者统计保留暂停作者，排除已移除作者");
+        var watchlistOverview = (await Ask(new("overview", aSharesFilter with { WatchlistOnly = true }))).Overview!;
+        Check(watchlistOverview.Stocks is [{ Mentions: 21, Discussions: 0 } only] && only.Security == rongjie &&
+            (await Ask(new("mentions", mentionFilter))).Mentions!.Total == 21 &&
+            (await Ask(new("detail", new(Security: shanghai, Mode: "timeline")))).Detail!.Total == 1,
+            "当前观察名单的汇总排除已移除作者的观点和原帖，历史仍可查询");
+        await Save(removed with { Revision = removed.Revision + 1 });
+        Check((await Ask(new("mentions", watchlistFilter))).Mentions!.Total == 21,
+            "恢复作者后其历史提及重新纳入当前观察名单");
+
         async Task CheckMentions()
         {
             var stocks = (await Ask(new("overview"))).Overview!.Stocks;

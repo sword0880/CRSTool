@@ -27,6 +27,8 @@ public sealed record ReviewFilter(int Days = 30, string? Account = null, string?
     public bool SortByActivity { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int MentionPageSize { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WatchlistOnly { get; init; }
 }
 
 public sealed record StockSummary(Security Security, int Bullish, int Bearish, int Discussions,

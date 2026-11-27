@@ -58,16 +58,20 @@ internal sealed partial class WatchStore
     private static string MarketCondition(string column) =>
         $"($market='' OR {column}=$market OR ($market='{WatchProtocol.AShareMarket}' AND {column} IN ('沪市','深市','北交所')))";
 
+    private static string WatchlistCondition(string column) =>
+        $"($watchlistOnly=0 OR {column} IN (SELECT account FROM authors WHERE COALESCE(json_extract(body,'$.archived'),0)=0))";
+
     private Stored[] Load(ReviewFilter filter, CancellationToken token)
     {
         using var command = Command($"""
             SELECT o.body,o.source,s.body FROM opinions o LEFT JOIN securities s
                 ON s.market=o.market AND s.code=o.code
             WHERE o.posted >= $since AND ($account='' OR o.account=$account)
-                AND {MarketCondition("o.market")} AND ($code='' OR o.code=$code)
+                AND {WatchlistCondition("o.account")} AND {MarketCondition("o.market")} AND ($code='' OR o.code=$code)
             ORDER BY o.posted DESC,o.rowid DESC
             """, null, ("$since", FilterSince(filter.Days)), ("$account", filter.Account ?? ""),
-            ("$market", filter.Security?.Market ?? filter.Market ?? ""), ("$code", filter.Security?.Code ?? ""));
+            ("$market", filter.Security?.Market ?? filter.Market ?? ""), ("$code", filter.Security?.Code ?? ""),
+            ("$watchlistOnly", filter.WatchlistOnly));
         using var reader = command.ExecuteReader();
         var rows = new List<Stored>();
         while (reader.Read())

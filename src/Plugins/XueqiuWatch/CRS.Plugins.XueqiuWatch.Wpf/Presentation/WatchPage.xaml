@@ -10,6 +10,14 @@
    <Setter Property="MinWidth" Value="36"/>
    <Setter Property="Padding" Value="8,0"/>
   </Style>
+  <ContextMenu x:Key="PostMenu" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+   <MenuItem Header="打开原帖" Click="OpenPostFromMenu" IsEnabled="{Binding HasLink, FallbackValue=False}">
+    <MenuItem.Icon><ui:SymbolIcon Symbol="Open20" FontSize="16"/></MenuItem.Icon>
+   </MenuItem>
+   <MenuItem Header="查看抓取后的正文" Click="ShowPostBody" IsEnabled="{Binding HasLink, FallbackValue=False}">
+    <MenuItem.Icon><ui:SymbolIcon Symbol="Document20" FontSize="16"/></MenuItem.Icon>
+   </MenuItem>
+  </ContextMenu>
  </UserControl.Resources>
  <Grid Margin="20">
   <Grid.RowDefinitions>
@@ -85,17 +93,18 @@
    <Grid>
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBlock x:Name="DetailTitle" Text="个股原帖提及" Style="{DynamicResource UiSectionTitle}" Margin="0,0,0,7"/>
-    <StackPanel Grid.Row="1" Margin="0,0,0,6">
-     <Button x:Name="PostBodyButton" Content="原帖正文" Click="ShowPostBody" HorizontalAlignment="Left"
-             Margin="0,0,0,5" IsEnabled="False"/>
-     <ScrollViewer x:Name="MentionAuthorSummary" Visibility="Collapsed" MaxHeight="78"
-                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <TextBlock x:Name="MentionAuthorCounts" TextWrapping="Wrap" Style="{DynamicResource UiHintText}"
-                 AutomationProperties.LiveSetting="Polite"/>
-     </ScrollViewer>
-    </StackPanel>
+    <ScrollViewer Grid.Row="1" x:Name="MentionAuthorSummary" Visibility="Collapsed" MaxHeight="78" Margin="0,0,0,6"
+                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <TextBlock x:Name="MentionAuthorCounts" TextWrapping="Wrap" Style="{DynamicResource UiHintText}"
+                AutomationProperties.LiveSetting="Polite"/>
+    </ScrollViewer>
     <DataGrid Grid.Row="2" x:Name="Details" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
               SelectionMode="Single" Style="{DynamicResource UiDenseDataGrid}">
+     <DataGrid.RowStyle>
+      <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+       <Setter Property="ContextMenu" Value="{StaticResource PostMenu}"/>
+      </Style>
+     </DataGrid.RowStyle>
      <DataGrid.Columns>
       <DataGridTextColumn Header="方向 / 类型" Width="100" Binding="{Binding Direction}"/>
       <DataGridTextColumn Header="作者" Width="125" Binding="{Binding Author}"/>
@@ -109,7 +118,7 @@
            <Style.Triggers>
             <DataTrigger Binding="{Binding HasLink}" Value="True">
              <Setter Property="Cursor" Value="Hand"/>
-             <Setter Property="ToolTip" Value="双击内容或按 Enter 打开原帖"/>
+             <Setter Property="ToolTip" Value="右键查看原帖选项，双击内容打开原帖"/>
             </DataTrigger>
            </Style.Triggers>
           </Style>

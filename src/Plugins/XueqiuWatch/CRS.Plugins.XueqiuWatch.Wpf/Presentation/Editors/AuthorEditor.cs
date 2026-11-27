@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using CRS.Plugins.XueqiuWatch.Core;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace CRS.Plugins.XueqiuWatch.Wpf;
 
@@ -21,7 +23,7 @@ internal sealed class AuthorEditor : WatchEditor
     };
     private readonly TextBlock empty = new()
     {
-        Text = "暂无作者，点击「添加作者」开始跟踪。",
+        Text = "暂无作者，使用右上角的添加图标开始跟踪。",
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         IsHitTestVisible = false
     };
@@ -42,24 +44,27 @@ internal sealed class AuthorEditor : WatchEditor
         MinWidth = 570;
         MinHeight = 380;
 
-        var add = AsyncAction("添加作者", () => EditAuthorAsync(null));
+        var add = IconButton(AsyncAction("添加作者", () => EditAuthorAsync(null)), SymbolRegular.PersonAdd20);
         add.SetResourceReference(StyleProperty, "UiPrimaryButton");
-        edit = AsyncAction("编辑所选作者", () => EditAuthorAsync(SelectedAuthor));
-        remove = MenuAction("移除所选作者", RemoveAuthorAsync);
+        edit = IconButton(AsyncAction("编辑所选作者", () => EditAuthorAsync(SelectedAuthor)), SymbolRegular.Edit20);
+        remove = MenuAction("移除所选作者", SymbolRegular.PersonDelete20, RemoveAuthorAsync);
         var menu = new ContextMenu { Placement = PlacementMode.Bottom };
-        menu.Items.Add(MenuAction("刷新名单", () => WithFeedbackAsync(() => RefreshAsync(SelectedAuthor?.Account), lifetime)));
+        menu.Items.Add(MenuAction("刷新名单", SymbolRegular.ArrowClockwise20,
+            () => WithFeedbackAsync(() => RefreshAsync(SelectedAuthor?.Account), lifetime)));
         menu.Items.Add(new Separator());
         menu.Items.Add(remove);
-        var more = Action("更多 ▾", () => menu.IsOpen = true);
-        more.Margin = new(0);
+        var more = IconButton(Action("更多操作", () => menu.IsOpen = true), SymbolRegular.MoreHorizontal20);
         more.ContextMenu = menu;
         menu.PlacementTarget = more;
-        DockPanel.SetDock(more, Dock.Right);
-        var toolbar = new DockPanel { LastChildFill = false, Margin = new(0, 0, 0, 10) };
-        toolbar.Children.Add(more);
-        toolbar.Children.Add(add);
-        toolbar.Children.Add(edit);
-        add.Margin = edit.Margin = new(0, 0, 8, 0);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        actions.Children.Add(add);
+        actions.Children.Add(edit);
+        actions.Children.Add(more);
+        add.Margin = edit.Margin = new(0, 0, 6, 0);
+        DockPanel.SetDock(actions, Dock.Right);
+        var toolbar = new DockPanel { Margin = new(0, 0, 0, 12) };
+        toolbar.Children.Add(actions);
+        toolbar.Children.Add(count);
 
         list.SetResourceReference(StyleProperty, "UiDenseDataGrid");
         list.SetResourceReference(DataGrid.ColumnHeaderStyleProperty, "UiPluginTableHeader");
@@ -101,16 +106,13 @@ internal sealed class AuthorEditor : WatchEditor
         count.SetResourceReference(StyleProperty, "UiHintText");
         status.SetResourceReference(StyleProperty, "UiStatusText");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
-        var close = Action("关闭", Close);
-        close.Margin = new(0);
-        DockPanel.SetDock(close, Dock.Right);
-        var bottom = new DockPanel { Margin = new(0, 10, 0, 0) };
-        bottom.Children.Add(close);
-        bottom.Children.Add(count);
+        var close = IconButton(Action("关闭", Close), SymbolRegular.Dismiss20);
+        close.HorizontalAlignment = HorizontalAlignment.Right;
+        close.Margin = new(0, 10, 0, 0);
         var footer = new StackPanel();
         footer.Children.Add(status);
         footer.Children.Add(ErrorText);
-        footer.Children.Add(bottom);
+        footer.Children.Add(close);
         ErrorText.Margin = new(0);
         DockPanel.SetDock(toolbar, Dock.Top);
         DockPanel.SetDock(footer, Dock.Bottom);
@@ -173,9 +175,24 @@ internal sealed class AuthorEditor : WatchEditor
         status.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private static MenuItem MenuAction(string caption, Func<Task> handler)
+    private static Button IconButton(Button button, SymbolRegular symbol)
     {
-        var item = new MenuItem { Header = caption };
+        var caption = (string)button.Content;
+        button.Content = new SymbolIcon { Symbol = symbol, FontSize = 18 };
+        button.ToolTip = caption;
+        AutomationProperties.SetName(button, caption);
+        ToolTipService.SetShowOnDisabled(button, true);
+        button.SetResourceReference(StyleProperty, "UiPluginAction");
+        button.Width = button.Height = 36;
+        button.MinWidth = button.MinHeight = 0;
+        button.Padding = new(0);
+        button.Margin = new(0);
+        return button;
+    }
+
+    private static MenuItem MenuAction(string caption, SymbolRegular symbol, Func<Task> handler)
+    {
+        var item = new MenuItem { Header = caption, Icon = new SymbolIcon { Symbol = symbol, FontSize = 16 } };
         item.Click += async (_, _) => await handler();
         return item;
     }

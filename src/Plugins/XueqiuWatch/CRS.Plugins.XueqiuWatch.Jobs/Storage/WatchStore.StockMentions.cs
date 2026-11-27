@@ -87,11 +87,12 @@ internal sealed partial class WatchStore
                     ROW_NUMBER() OVER (PARTITION BY m.market,m.code ORDER BY {MentionDate} DESC,m.url) AS position
                 {MentionQuery}
                 WHERE {MentionDate}>=$since AND ($a='' OR m.account=$a)
-                    AND {MarketCondition("m.market")} AND ($c='' OR m.code=$c)
+                    AND {WatchlistCondition("m.account")} AND {MarketCondition("m.market")} AND ($c='' OR m.code=$c)
             ) ranked LEFT JOIN securities s ON s.market=ranked.market AND s.code=ranked.code
             WHERE ranked.position=1
             """, null, ("$since", FilterSince(filter.Days)), ("$a", filter.Account!),
-            ("$market", filter.Security?.Market ?? filter.Market!), ("$c", filter.Security?.Code ?? ""));
+            ("$market", filter.Security?.Market ?? filter.Market!), ("$c", filter.Security?.Code ?? ""),
+            ("$watchlistOnly", filter.WatchlistOnly));
         using var rows = command.ExecuteReader();
         while (rows.Read())
         {
@@ -108,9 +109,10 @@ internal sealed partial class WatchStore
         var query = $"""
             {MentionQuery}
             WHERE m.market=$m AND m.code=$c AND ($a='' OR m.account=$a) AND {MentionDate}>=$since
+                AND {WatchlistCondition("m.account")}
             """;
         (string Name, object Value)[] args = [("$m", filter.Security.Market), ("$c", filter.Security.Code),
-            ("$a", filter.Account!), ("$since", FilterSince(filter.Days))];
+            ("$a", filter.Account!), ("$since", FilterSince(filter.Days)), ("$watchlistOnly", filter.WatchlistOnly)];
         using var transaction = db.BeginTransaction(deferred: true);
         var authors = new List<AuthorMentionCount>();
         using (var counts = Command($"""
