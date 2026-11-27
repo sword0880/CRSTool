@@ -107,7 +107,7 @@ internal sealed class WorkerUpdateService
         {
             return new(WorkerUpdateState.RateLimited, "GitHub 暂时限制发行查询。可打开发布页查看。");
         }
-        catch (InvalidDataException or JsonException or XmlException)
+        catch (Exception error) when (error is InvalidDataException or JsonException or XmlException)
         {
             return new(WorkerUpdateState.InvalidResponse, "GitHub 返回的发行信息无法识别。可打开发布页查看。");
         }
