@@ -144,8 +144,8 @@ internal static class WorkerGitHubUpdateChecks
             !viewModel.GitHubUpdateStatus.Contains("当前后台版本未确认", StringComparison.Ordinal))
             throw new InvalidOperationException("后台更新 ViewModel 未正确呈现服务结果或刷新命令状态。");
 
-        using var cancelledHttp = new HttpClient(new Handler(_ =>
-            throw new InvalidOperationException("取消的更新检查不应继续发起请求。")));
+        using var cancelledHttp = new HttpClient(new AsyncHandler((_, token) =>
+            Task.FromCanceled<HttpResponseMessage>(token)));
         using var cancelledToken = new CancellationTokenSource();
         cancelledToken.Cancel();
         var cancelled = await new WorkerUpdateService(new WorkerGitHubReleases(cancelledHttp))
