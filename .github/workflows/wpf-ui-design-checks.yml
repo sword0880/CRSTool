@@ -23,6 +23,9 @@ jobs:
       - name: Verify GitHub Worker update discovery and download integrity
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Wpf -c Release --no-build -- --worker-release-checks
+      - name: Verify atomic tax and performance import commits
+        shell: pwsh
+        run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --calculation-commit
       - name: Verify Xueqiu API tracking, backfill, migration and private Worker boundary
         shell: pwsh
         run: |
@@ -52,9 +55,6 @@ jobs:
       - name: Verify NationalTeamWatch source files are grouped by business function
         shell: pwsh
         run: ./tests/Verify-NationalTeamFeatureLayout.ps1
-      - name: Verify atomic tax and performance import commits
-        shell: pwsh
-        run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --calculation-commit
       - name: Verify shared Excel values, formats and limits
         shell: pwsh
         run: dotnet run --project tests/CRS.Tests.Infrastructure -c Release --no-build -- --excel-documents
