@@ -223,6 +223,17 @@ internal static class WorkerGitHubUpdateChecks
             if (timedOut.State != WorkerUpdateState.DownloadTimedOut || File.Exists(timeoutPath))
                 throw new InvalidOperationException("下载超时未正确归类或未清理临时安装包。");
 
+            var installFailurePath = Path.Combine(folder.FullName, "installer-failed.zip");
+            using var installFailureHttp = new HttpClient(new Handler(_ =>
+                new(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) }));
+            var installFailure = await new WorkerUpdateService(new WorkerGitHubReleases(installFailureHttp),
+                () => environment,
+                (_, _) => throw new IOException("synthetic installer IO failure"),
+                () => installFailurePath)
+                .InstallAsync(available, new Version(2, 0, 0), CancellationToken.None);
+            if (installFailure.State != WorkerUpdateState.InstallFailed || File.Exists(installFailurePath))
+                throw new InvalidOperationException("安装器 IO 异常被误分类为下载失败或未清理临时包。");
+
             var cancelledByInstallerPath = Path.Combine(folder.FullName, "installer-cancelled.zip");
             using var cancelledByInstallerHttp = new HttpClient(new Handler(_ =>
                 new(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) }));
