@@ -7,7 +7,7 @@ namespace CRS.DesktopClient.ViewModels;
 
 public partial class BackgroundServiceViewModel
 {
-    private readonly WorkerUpdateService updateService = new();
+    private readonly WorkerUpdateService updateService;
     private WorkerUpdateResult? updateResult;
     private Version? installedWorkerVersion;
     private DateTimeOffset? lastGitHubCheck;
