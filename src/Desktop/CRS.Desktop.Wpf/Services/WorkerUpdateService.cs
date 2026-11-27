@@ -53,6 +53,7 @@ internal sealed record WorkerUpdateEnvironment(bool SupportsPackage, bool HasPow
 /// </summary>
 internal sealed class WorkerUpdateService
 {
+    internal static Uri DefaultReleasePage { get; } = new(WorkerGitHubReleases.ReleasesPage);
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
     private readonly WorkerGitHubReleases github;
