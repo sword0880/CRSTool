@@ -1,6 +1,7 @@
 using CRS.Application;
 using CRS.Application.Abstractions;
 using CRS.Domain;
+using CRS.ExchangeRates;
 using CRS.Infrastructure;
 using Dapper;
 
@@ -171,9 +172,24 @@ internal static class CalculationCommitChecks
         var plan = await workflow.PrepareHistoricalRecalculationAsync(initial.SnapshotId,default);
         check(plan is { Broker:"IBKR", Year:2025, NeedsCarry:false } && plan.Originals.Single() is { InVault:true },
             "已归档历史带出券商、年度和保险库原件");
-        var renewed = await workflow.RecalculateHistoryAsync(new(initial.SnapshotId,new Dictionary<string,string>(),null,false),default);
+        // 原始导入使用旧版兼容汇率；历史复算明确注入一份不同的官方年末快照，
+        // 验证复算按现行汇率生成新结果，而不是无意中重复使用旧版默认汇率。
+        var rateRange = CentralParitySnapshot.YearEndRange(2025);
+        var officialSnapshot = new CentralParitySnapshot(1, rateRange.From, rateRange.Through,
+            DateTimeOffset.UtcNow, [new(rateRange.Through, 6.9m, .88m)]);
+        var officialRates = new OfficialAnnualExchangeRates(
+            (_, _) => Task.FromResult<CentralParitySnapshot?>(officialSnapshot),
+            (_, _) => Task.FromResult<CentralParitySnapshot?>(null),
+            (_, _) => Task.FromResult<CentralParitySnapshot?>(null),
+            (_, _) => Task.FromResult(Array.Empty<LegacyAnnualExchangeRateRecord>()),
+            (_, _) => Task.FromResult(true),
+            Path.Combine(root, "official-rates-cache"));
+        var recalculationWorkflow = new DesktopWorkflow(
+            new DesktopOperations(vault.Repository, root, vault, officialRates));
+        var renewed = await recalculationWorkflow.RecalculateHistoryAsync(
+            new(initial.SnapshotId,new Dictionary<string,string>(),null,false),default);
         var renewedRow = vault.Repository.History().Single(t=>t.Id==renewed.Result.SnapshotId);
-        var comparison = await workflow.CompareImportHistoryAsync(initial.SnapshotId,default);
+        var comparison = await recalculationWorkflow.CompareImportHistoryAsync(initial.SnapshotId,default);
         check(renewedRow.RecalculatedFromSnapshotId==initial.SnapshotId
             && vault.Repository.Load(renewedRow.Id).RecalculatedFromSnapshotId==initial.SnapshotId
             && renewedRow.ActiveCopies==priorCopies.Length+3 && comparison.First().IsSelected
