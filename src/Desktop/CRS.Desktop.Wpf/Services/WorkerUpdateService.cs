@@ -107,7 +107,7 @@ internal sealed class WorkerUpdateService
         {
             return new(WorkerUpdateState.RateLimited, "GitHub 暂时限制发行查询。可打开发布页查看。");
         }
-        catch (Exception error) when (error is InvalidDataException or JsonException or XmlException)
+        catch (Exception error) when (error is InvalidDataException or JsonException or XmlException or InvalidOperationException)
         {
             return new(WorkerUpdateState.InvalidResponse, "GitHub 返回的发行信息无法识别。可打开发布页查看。");
         }
@@ -116,17 +116,7 @@ internal sealed class WorkerUpdateService
             return new(WorkerUpdateState.CheckUnavailable, "暂时无法连接 GitHub 检查发行。可打开发布页查看。");
         }
 
-        try
-        {
-            return Evaluate(check, installedVersion);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException
-            or System.Security.SecurityException or Win32Exception or InvalidOperationException)
-        {
-            return new(WorkerUpdateState.EnvironmentCheckFailed,
-                "无法读取本机后台更新安装环境。请检查系统权限和安装配置。",
-                check, ReleasePage: (check.Installable?.Page ?? (check.Stable ?? check.Preview)?.Page));
-        }
+        return Evaluate(check, installedVersion);
     }
 
     /// <summary>根据已读取的发行信息和后台版本重新计算是否允许安装。</summary>
@@ -165,7 +155,18 @@ internal sealed class WorkerUpdateService
                 $"后台已达到 GitHub 可安装版本 {release.Version}。",
                 check, release, releasePage);
 
-        var environment = readEnvironment();
+        WorkerUpdateEnvironment environment;
+        try
+        {
+            environment = readEnvironment();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException or Win32Exception or InvalidOperationException)
+        {
+            return new(WorkerUpdateState.EnvironmentCheckFailed,
+                "无法读取本机后台更新安装环境。请检查系统权限和安装配置。",
+                check, release, releasePage);
+        }
         if (!environment.SupportsPackage)
             return new(WorkerUpdateState.UnsupportedEnvironment,
                 $"发现后台更新 {release.Version}。当前发行支持 Windows x64。",
@@ -195,18 +196,7 @@ internal sealed class WorkerUpdateService
             return new(WorkerUpdateState.NoRelease, "没有可安装的后台发行包。", availability.Check,
                 ReleasePage: availability.ReleasePage);
 
-        WorkerUpdateResult readiness;
-        try
-        {
-            readiness = Evaluate(check, installedVersion);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException
-            or System.Security.SecurityException or Win32Exception or InvalidOperationException)
-        {
-            return new(WorkerUpdateState.EnvironmentCheckFailed,
-                "无法读取本机后台更新安装环境。请检查系统权限和安装配置。",
-                check, release, release.Page);
-        }
+        var readiness = Evaluate(check, installedVersion);
         if (!readiness.CanInstall) return readiness;
 
         string? packagePath = null;
