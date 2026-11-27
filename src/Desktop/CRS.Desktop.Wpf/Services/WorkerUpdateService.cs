@@ -18,6 +18,7 @@ internal enum WorkerUpdateState
     RateLimited,
     CheckUnavailable,
     InvalidResponse,
+    EnvironmentCheckFailed,
     TimedOut,
     Cancelled,
     UnsupportedEnvironment,
@@ -58,6 +59,9 @@ internal sealed class WorkerUpdateService
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
     private readonly WorkerGitHubReleases github;
     private readonly Func<WorkerUpdateEnvironment> readEnvironment;
+    private readonly Func<WorkerGitHubRelease, string, Task<WorkerInstallResult>> installPackage;
+    private readonly Func<string> createTemporaryPackagePath;
+    private readonly TimeSpan downloadTimeout;
 
     internal WorkerUpdateService()
         : this(WorkerGitHubReleases.Shared, ReadEnvironment)
@@ -66,10 +70,19 @@ internal sealed class WorkerUpdateService
 
     internal WorkerUpdateService(
         WorkerGitHubReleases github,
-        Func<WorkerUpdateEnvironment>? readEnvironment = null)
+        Func<WorkerUpdateEnvironment>? readEnvironment = null,
+        Func<WorkerGitHubRelease, string, Task<WorkerInstallResult>>? installPackage = null,
+        Func<string>? createTemporaryPackagePath = null,
+        TimeSpan? downloadTimeout = null)
     {
         this.github = github;
         this.readEnvironment = readEnvironment ?? ReadEnvironment;
+        this.installPackage = installPackage ?? WorkerReleaseInstaller.InstallAsync;
+        this.createTemporaryPackagePath = createTemporaryPackagePath ??
+            (() => Path.Combine(Path.GetTempPath(), $"CRS-Worker-{Guid.NewGuid():N}.zip"));
+        this.downloadTimeout = downloadTimeout ?? DownloadTimeout;
+        if (this.downloadTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(downloadTimeout), "下载超时必须大于零。");
     }
 
     /// <summary>检查 GitHub 发行并将异常归一化为界面可直接展示的状态。</summary>
@@ -77,10 +90,10 @@ internal sealed class WorkerUpdateService
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(CheckTimeout);
+        WorkerGitHubCheck check;
         try
         {
-            var check = await github.CheckAsync(deadline.Token).ConfigureAwait(false);
-            return Evaluate(check, installedVersion);
+            check = await github.CheckAsync(deadline.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -94,7 +107,7 @@ internal sealed class WorkerUpdateService
         {
             return new(WorkerUpdateState.RateLimited, "GitHub 暂时限制发行查询。可打开发布页查看。");
         }
-        catch (InvalidDataException)
+        catch (InvalidDataException or JsonException or XmlException)
         {
             return new(WorkerUpdateState.InvalidResponse, "GitHub 返回的发行信息无法识别。可打开发布页查看。");
         }
@@ -102,9 +115,17 @@ internal sealed class WorkerUpdateService
         {
             return new(WorkerUpdateState.CheckUnavailable, "暂时无法连接 GitHub 检查发行。可打开发布页查看。");
         }
-        catch (Exception error) when (error is JsonException or XmlException or InvalidOperationException)
+
+        try
         {
-            return new(WorkerUpdateState.InvalidResponse, "GitHub 返回的发行信息无法识别。可打开发布页查看。");
+            return Evaluate(check, installedVersion);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException or Win32Exception or InvalidOperationException)
+        {
+            return new(WorkerUpdateState.EnvironmentCheckFailed,
+                "无法读取本机后台更新安装环境。请检查系统权限和安装配置。",
+                check, ReleasePage: (check.Installable?.Page ?? (check.Stable ?? check.Preview)?.Page));
         }
     }
 
@@ -174,38 +195,49 @@ internal sealed class WorkerUpdateService
             return new(WorkerUpdateState.NoRelease, "没有可安装的后台发行包。", availability.Check,
                 ReleasePage: availability.ReleasePage);
 
-        var readiness = Evaluate(check, installedVersion);
+        WorkerUpdateResult readiness;
+        try
+        {
+            readiness = Evaluate(check, installedVersion);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException or Win32Exception or InvalidOperationException)
+        {
+            return new(WorkerUpdateState.EnvironmentCheckFailed,
+                "无法读取本机后台更新安装环境。请检查系统权限和安装配置。",
+                check, release, release.Page);
+        }
         if (!readiness.CanInstall) return readiness;
 
         string? packagePath = null;
         try
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            deadline.CancelAfter(DownloadTimeout);
+            deadline.CancelAfter(downloadTimeout);
 
-            packagePath = Path.Combine(Path.GetTempPath(), $"CRS-Worker-{Guid.NewGuid():N}.zip");
+            packagePath = createTemporaryPackagePath();
             progress?.Report(new(WorkerUpdateState.Downloading, $"正在下载后台 {release.Version}……",
                 check, release, release.Page));
             await github.DownloadAsync(release, packagePath, deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
 
-            cancellationToken.ThrowIfCancellationRequested();
             progress?.Report(new(WorkerUpdateState.Installing, "正在校验并安装。升级期间后台任务会暂时停止。",
                 check, release, release.Page));
 
             // 提权维护进程启动后必须完成事务，不因桌面会话取消而中断服务升级。
-            var installResult = await WorkerReleaseInstaller.InstallAsync(release, packagePath).ConfigureAwait(false);
+            var installResult = await installPackage(release, packagePath).ConfigureAwait(false);
             return installResult switch
             {
                 WorkerInstallResult.Completed => new(WorkerUpdateState.Installed,
                     "维护程序已结束，正在核对后台状态。", check, release, release.Page),
                 WorkerInstallResult.Cancelled => new(WorkerUpdateState.InstallCancelled,
-                    "已取消安装。", check, release, release.Page),
+                    "已取消安装，可重新尝试。", check, release, release.Page, CanInstall: true),
                 WorkerInstallResult.PowerShellUnavailable => new(WorkerUpdateState.PowerShellUnavailable,
                     "安装后台更新需要 PowerShell 7 x64。", check, release, release.Page),
                 WorkerInstallResult.PackageRejected => new(WorkerUpdateState.PackageRejected,
                     "安装包校验未通过。请核对发布者签名、版本和桌面兼容性。", check, release, release.Page),
                 _ => new(WorkerUpdateState.InstallFailed,
-                    "后台升级未完成。请查看当前服务状态和维护记录。", check, release, release.Page)
+                    "后台升级未完成。请查看当前服务状态和维护记录。", check, release, release.Page, CanInstall: true)
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -215,12 +247,12 @@ internal sealed class WorkerUpdateService
         catch (OperationCanceledException)
         {
             return new(WorkerUpdateState.DownloadTimedOut, "后台更新下载超时。请检查网络后重试。",
-                check, release, release.Page);
+                check, release, release.Page, CanInstall: true);
         }
         catch (HttpRequestException error) when (IsRateLimit(error))
         {
             return new(WorkerUpdateState.RateLimited, "GitHub 暂时限制安装包下载。请稍后重试。",
-                check, release, release.Page);
+                check, release, release.Page, CanInstall: true);
         }
         catch (InvalidDataException)
         {
@@ -230,12 +262,12 @@ internal sealed class WorkerUpdateService
         catch (Exception error) when (error is HttpRequestException or IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             return new(WorkerUpdateState.DownloadFailed, "后台更新下载失败。请检查网络和临时目录权限后重试。",
-                check, release, release.Page);
+                check, release, release.Page, CanInstall: true);
         }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException)
         {
             return new(WorkerUpdateState.InstallFailed, "后台安装程序无法启动。请检查管理员权限和本机安装环境。",
-                check, release, release.Page);
+                check, release, release.Page, CanInstall: true);
         }
         finally
         {
