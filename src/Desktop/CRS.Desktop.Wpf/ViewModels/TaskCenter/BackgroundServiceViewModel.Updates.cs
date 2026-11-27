@@ -65,7 +65,8 @@ public partial class BackgroundServiceViewModel
     [RelayCommand(CanExecute = nameof(CanInstallWorkerUpdate))]
     private async Task InstallWorkerUpdateAsync()
     {
-        if (!CanInstallWorkerUpdate() || updateResult is not { Check: not null } availability) return;
+        var availability = updateResult;
+        if (!CanInstallWorkerUpdate() || availability?.Check is not { } check) return;
         IsInstallingWorkerUpdate = true;
         try
         {
@@ -73,7 +74,7 @@ public partial class BackgroundServiceViewModel
             await ReadServiceHealthAsync();
             lifetime.ThrowIfCancellationRequested();
 
-            var readiness = updateService.Evaluate(availability.Check, installedWorkerVersion);
+            var readiness = updateService.Evaluate(check, installedWorkerVersion);
             ApplyUpdateResult(readiness);
             if (!readiness.CanInstall) return;
 
