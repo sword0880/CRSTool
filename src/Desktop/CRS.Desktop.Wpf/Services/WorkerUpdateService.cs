@@ -93,11 +93,15 @@ internal sealed class WorkerUpdateService
         {
             return new(WorkerUpdateState.RateLimited, "GitHub 暂时限制发行查询。可打开发布页查看。");
         }
-        catch (HttpRequestException or IOException)
+        catch (InvalidDataException)
+        {
+            return new(WorkerUpdateState.InvalidResponse, "GitHub 返回的发行信息无法识别。可打开发布页查看。");
+        }
+        catch (Exception error) when (error is HttpRequestException or IOException)
         {
             return new(WorkerUpdateState.CheckUnavailable, "暂时无法连接 GitHub 检查发行。可打开发布页查看。");
         }
-        catch (JsonException or XmlException or InvalidOperationException)
+        catch (Exception error) when (error is JsonException or XmlException or InvalidOperationException)
         {
             return new(WorkerUpdateState.InvalidResponse, "GitHub 返回的发行信息无法识别。可打开发布页查看。");
         }
@@ -222,12 +226,12 @@ internal sealed class WorkerUpdateService
             return new(WorkerUpdateState.PackageRejected, "安装包下载不完整或校验失败，已拒绝安装。",
                 check, release, release.Page);
         }
-        catch (HttpRequestException or IOException)
+        catch (Exception error) when (error is HttpRequestException or IOException)
         {
             return new(WorkerUpdateState.DownloadFailed, "后台更新下载失败。请检查网络和临时目录权限后重试。",
                 check, release, release.Page);
         }
-        catch (Win32Exception or InvalidOperationException)
+        catch (Exception error) when (error is Win32Exception or InvalidOperationException)
         {
             return new(WorkerUpdateState.InstallFailed, "后台安装程序无法启动。请检查管理员权限和本机安装环境。",
                 check, release, release.Page);
