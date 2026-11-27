@@ -114,8 +114,9 @@ internal static class CalculationCommitChecks
             "用户明确选择时允许相同资料另存");
         // 工作流使用 DesktopOperations.LoadRatesAsync；直接提交路径也必须复用同一汇率事实，
         // 否则 Identity 会把不同汇率配置视为不同核算条件，测试的就不是重复提交。
-        var duplicateRates = await operations.LoadRatesAsync(2025, default);
-        using (var racing = operations.BeginCalculation(duplicateRates,"IBKR",2025))
+        var duplicateOperations = new DesktopOperations(vault.Repository, root, vault);
+        var duplicateRates = await duplicateOperations.LoadRatesAsync(2025, default);
+        using (var racing = duplicateOperations.BeginCalculation(duplicateRates,"IBKR",2025))
         {
             var duplicate = racing.Calculator.Calculate([first],2025,true,true,saveCanonicalSnapshot:true);
             try { racing.Commit(duplicate,default,false); throw new Exception("未阻止并发提交的重复结果"); }
