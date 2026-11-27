@@ -14,7 +14,8 @@ public partial class BackgroundServiceViewModel
     private Uri githubReleasePage = WorkerUpdateService.DefaultReleasePage;
 
     [ObservableProperty] private string gitHubUpdateStatus = "尚未检查 GitHub 发行。";
-    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(InstallWorkerUpdateCommand))]
+    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(CheckWorkerUpdatesCommand)),
+        NotifyCanExecuteChangedFor(nameof(InstallWorkerUpdateCommand))]
     private bool isCheckingWorkerUpdates;
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(CheckWorkerUpdatesCommand)),
         NotifyCanExecuteChangedFor(nameof(InstallWorkerUpdateCommand))]
@@ -28,7 +29,7 @@ public partial class BackgroundServiceViewModel
             await CheckWorkerUpdatesCommand.ExecuteAsync(null);
     }
 
-    private bool CanCheckWorkerUpdates() => !IsInstallingWorkerUpdate && !lifetime.IsCancellationRequested;
+    private bool CanCheckWorkerUpdates() => !IsCheckingWorkerUpdates && !IsInstallingWorkerUpdate && !lifetime.IsCancellationRequested;
 
     [RelayCommand(CanExecute = nameof(CanCheckWorkerUpdates))]
     private async Task CheckWorkerUpdatesAsync()
