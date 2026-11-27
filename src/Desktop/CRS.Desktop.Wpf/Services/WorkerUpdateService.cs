@@ -227,7 +227,7 @@ internal sealed class WorkerUpdateService
             return new(WorkerUpdateState.PackageRejected, "安装包下载不完整或校验失败，已拒绝安装。",
                 check, release, release.Page);
         }
-        catch (Exception error) when (error is HttpRequestException or IOException)
+        catch (Exception error) when (error is HttpRequestException or IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             return new(WorkerUpdateState.DownloadFailed, "后台更新下载失败。请检查网络和临时目录权限后重试。",
                 check, release, release.Page);
@@ -280,9 +280,9 @@ internal sealed class WorkerUpdateService
         {
             File.Delete(path);
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            // 临时包清理失败不覆盖安装结果；下次启动可由系统临时目录清理策略回收。
+            // 清理失败不覆盖安装结果，也不在异常处理中再次抛出。
         }
     }
 }
