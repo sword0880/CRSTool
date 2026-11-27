@@ -43,10 +43,10 @@ foreach ($entry in @(@($wpf,'Views'),@($wpf,'ViewModels'),@($wpf,'Controls'))) {
 
 # Worker 更新边界：ViewModel 只呈现状态和命令，网络、安装与临时包统一由服务层负责。
 $workerUpdateViewModel = Get-Content -Raw (Join-Path $wpf 'ViewModels/TaskCenter/BackgroundServiceViewModel.Updates.cs')
-Assert-Boundary (-not ($workerUpdateViewModel -match 'System\\.Net|HttpClient|HttpRequestException|HttpStatusCode|WorkerGitHubReleases|WorkerReleaseInstaller|Path\\.GetTempPath|File\\.(Create|Delete)')) 'Worker 更新 ViewModel 不得直接访问网络、安装器或临时安装包。'
+Assert-Boundary (-not ($workerUpdateViewModel -match 'System\.Net|HttpClient|HttpRequestException|HttpStatusCode|WorkerGitHubReleases|WorkerReleaseInstaller|Path\.GetTempPath|File\.(Create|Delete)')) 'Worker 更新 ViewModel 不得直接访问网络、安装器或临时安装包。'
 $workerUpdateService = Get-Content -Raw (Join-Path $wpf 'Services/WorkerUpdateService.cs')
 Assert-Boundary ($workerUpdateService -match 'WorkerGitHubReleases' -and $workerUpdateService -match 'WorkerReleaseInstaller' -and
-    $workerUpdateService -match 'Path\\.GetTempPath' -and $workerUpdateService -match 'File\\.Delete') 'Worker 更新检查、安装协调和临时包生命周期必须归属 WorkerUpdateService。'
+    $workerUpdateService -match 'Path\.GetTempPath' -and $workerUpdateService -match 'File\.Delete') 'Worker 更新检查、安装协调和临时包生命周期必须归属 WorkerUpdateService。'
 [xml]$packages = Get-Content -Raw (Join-Path $RepositoryRoot 'Directory.Packages.props')
 Assert-Boundary ($null -eq $packages.SelectSingleNode("//PackageVersion[@Include='AntdUI']")) '存在已移除前台的 AntdUI 依赖。'
 $ui = $packages.SelectSingleNode("//PackageVersion[@Include='WPF-UI']")
