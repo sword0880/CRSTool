@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using CRS.DesktopClient.ViewModels;
 using CRS.DesktopClient.Views;
+using CRS.PluginHost;
 using CRS.Worker.Abstractions;
 
 internal static class ScheduleEditViewChecks
@@ -24,7 +25,7 @@ internal static class ScheduleEditViewChecks
                 foreach(var enabled in new[]{false,true})foreach(var width in new[]{620,720})
                 {
                     var model=new ScheduleEditViewModel(new(CancellationToken.None),new TaskDefinition("crs.national-team","equity-auto-sync","机构直接持股自动发现与更新","0 15 0 * * ?","China Standard Time",enabled,2,false));
-                    var window=new ScheduleEditWindow(model){Width=width,Height=820};
+                    var window=new ScheduleEditWindow(model){Width=width,Height=width==620?600:820};
                     try
                     {
                         window.Show();window.UpdateLayout();
@@ -33,6 +34,15 @@ internal static class ScheduleEditViewChecks
                             throw new Exception("任务详情状态或启用/禁用按钮绑定错误。");
                         if (((FrameworkElement)window.FindName("VpnRouting")).IsVisible)
                             throw new Exception("尚未适配 VPN 的任务不应显示节点选择。");
+                        var save = CheckSaveAction(window, model);
+                        var originalCron = model.Cron;
+                        model.Frequency = CronFrequency.Manual;
+                        model.Cron = "invalid";
+                        if (save.IsEnabled || !save.IsVisible) throw new Exception("Cron 无效时应继续显示保存按钮并禁用提交。");
+                        model.Cron = originalCron;
+                        if (!save.IsEnabled) throw new Exception("修正 Cron 后应恢复保存。");
+                        model.Frequency = CronFrequency.Daily;
+                        window.UpdateLayout();
                         var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(window);
                         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
                         using var output=File.Create(Path.Combine(directory,$"schedule-{(enabled?"enabled":"disabled")}-{width}.png"));encoder.Save(output);
@@ -69,6 +79,7 @@ internal static class ScheduleEditViewChecks
                         throw new Exception("新计划应显示创建标题和待保存的启用状态。");
                     if (((ComboBox)draft.FindName("JobVpnNodeInput")).SelectedItem is not VpnNodeChoices.Choice { Node: "Node A" })
                         throw new Exception("任务节点选择应恢复已保存的节点。");
+                    CheckSaveAction(draft, (ScheduleEditViewModel)draft.DataContext);
                 }
                 finally { draft.Close(); }
                 app.Shutdown();
@@ -77,6 +88,20 @@ internal static class ScheduleEditViewChecks
         });
         thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();
         if(failure is not null)throw new Exception("任务详情启用/禁用界面验收失败。",failure);
-        Console.WriteLine("PASS 添加计划选择和创建窗口、任务详情启用/禁用状态、620/720 DIP布局。");
+        Console.WriteLine("PASS 添加计划选择和创建窗口、任务详情启用/禁用状态及紧凑窗口的固定保存入口。");
+    }
+
+    private static Button CheckSaveAction(ScheduleEditWindow window, ScheduleEditViewModel model)
+    {
+        var save = (Button)window.FindName("SavePlanButton");
+        var options = (ScrollViewer)window.FindName("PlanOptions");
+        var layout = (FrameworkElement)window.Content;
+        var top = save.TranslatePoint(new Point(0, 0), layout);
+        var bottom = save.TranslatePoint(new Point(save.ActualWidth, save.ActualHeight), layout);
+        if (!save.IsVisible || !save.IsEnabled || !save.IsDefault || save.Command != model.SaveCommand ||
+            save.ActualWidth <= 0 || save.ActualHeight <= 0 || top.X < 0 || top.Y < 0 || bottom.X > layout.ActualWidth ||
+            bottom.Y > options.TranslatePoint(new Point(0, 0), layout).Y)
+            throw new Exception("保存计划应完整显示在可滚动的设置上方，并绑定实际保存命令。");
+        return save;
     }
 }

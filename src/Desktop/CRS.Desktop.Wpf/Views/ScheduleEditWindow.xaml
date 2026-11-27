@@ -8,7 +8,17 @@
  <Grid><Grid.RowDefinitions><RowDefinition Height="46"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <ui:TitleBar Title="{Binding WindowTitle}" ShowClose="True" ShowMaximize="False" ShowMinimize="False" ForceShutdown="False"/>
   <StackPanel Grid.Row="1" Margin="24,10,24,14">
-   <TextBlock Text="{Binding TaskLabel}" Style="{StaticResource TaskPlanHeading}"/><TextBlock Text="{Binding Identity}" Style="{StaticResource TaskPlanIdentity}"/>
+   <DockPanel>
+    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,0,0,0">
+     <Button Content="取消" Click="OnCancel" IsCancel="True" Padding="16,6" Margin="0,0,8,0"/>
+     <Button x:Name="SavePlanButton" Content="保存计划" Command="{Binding SaveCommand}" IsDefault="True"
+             Style="{DynamicResource UiPrimaryButton}" MinHeight="36" Padding="16,6"/>
+    </StackPanel>
+    <StackPanel>
+     <TextBlock Text="{Binding TaskLabel}" Style="{StaticResource TaskPlanHeading}" TextWrapping="Wrap"/>
+     <TextBlock Text="{Binding Identity}" Style="{StaticResource TaskPlanIdentity}" TextWrapping="Wrap"/>
+    </StackPanel>
+   </DockPanel>
    <WrapPanel Margin="0,12,0,0">
     <TextBlock x:Name="TaskEnabledStatus" Text="{Binding EnabledText}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,16,0"/>
     <Button x:Name="EnableTaskButton" Content="启用任务" Command="{Binding EnableTaskCommand}" Margin="0,0,8,0" Padding="14,6"/>
@@ -16,7 +26,7 @@
    </WrapPanel>
    <TextBlock Text="{Binding EditHint}" Foreground="#64748B" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
   </StackPanel>
-  <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="24,0,18,0" Padding="0,0,6,0">
+  <ScrollViewer x:Name="PlanOptions" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="24,0,18,0" Padding="0,0,6,0">
    <StackPanel IsEnabled="{Binding CanEdit}">
     <Border Style="{StaticResource TaskPlanCard}">
      <StackPanel>
@@ -53,9 +63,7 @@
     </StackPanel></Border>
    </StackPanel>
   </ScrollViewer>
-  <Grid Grid.Row="3" Margin="24,14,24,20"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-   <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#64748B" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0"/>
-   <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="取消" Click="OnCancel" IsCancel="True" Padding="18,8" Margin="0,0,10,0"/><Button Content="保存计划" Command="{Binding SaveCommand}" IsDefault="True" Padding="18,8" Background="{DynamicResource BrandAccentBrush}" Foreground="White"/></StackPanel>
-  </Grid>
+  <TextBlock Grid.Row="3" Text="{Binding Status}" Style="{DynamicResource UiStatusText}"
+             AutomationProperties.LiveSetting="Polite" Margin="24,12,24,16"/>
  </Grid>
 </ui:FluentWindow>

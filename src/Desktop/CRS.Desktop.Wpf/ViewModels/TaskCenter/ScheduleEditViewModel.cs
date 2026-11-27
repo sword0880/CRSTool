@@ -12,7 +12,7 @@ public partial class ScheduleEditViewModel : ObservableObject
     private TaskDefinition plan;
     public bool IsNewPlan => plan.Revision == 0;
     public string WindowTitle => IsNewPlan ? "添加计划" : "任务详情";
-    public string EditHint => IsNewPlan ? "选择启用状态，点击“保存计划”后生效。" : "启用或禁用立即保存；执行频率的修改需点击“保存计划”。";
+    public string EditHint => IsNewPlan ? "选择启用状态，点击“保存计划”后生效。" : "启用或禁用立即生效。修改计划设置后，点击“保存计划”。";
     public string TaskLabel=>plan.Name;
     public bool SupportsVpn => plan.SupportsVpn;
     public VpnNodeChoices Vpn { get; } = new();
@@ -130,7 +130,7 @@ public partial class ScheduleEditViewModel : ObservableObject
                 plan=parent.Jobs.FirstOrDefault(x=>x.PluginId==plan.PluginId&&x.JobId==plan.JobId&&x.Revision>plan.Revision)
                     ??plan with{Enabled=value,Revision=plan.Revision+1};
                 Enabled=plan.Enabled;
-                Status=(Enabled?"任务已启用。":"任务已禁用。")+" 执行频率的编辑内容仍需点击“保存计划”。 "+result.Message;
+                Status=(Enabled?"任务已启用。":"任务已禁用。")+" 计划设置的草稿需点击“保存计划”。 "+result.Message;
             }
             else if(parent.UncertainRequest is {} request&&request.PluginId==plan.PluginId&&request.JobId==plan.JobId)
             {EnabledStatusKnown=false;Status="启用状态未确认，请关闭详情，在任务中心点击“重新确认请求”后重新打开。";}
